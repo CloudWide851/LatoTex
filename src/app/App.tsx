@@ -1,15 +1,22 @@
 import MonacoEditor from "@monaco-editor/react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  Activity,
+  Bot,
   FileCode2,
   Files,
   Globe,
+  Languages,
   Library,
-  PanelLeft,
+  Maximize2,
+  Minimize2,
+  Minus,
   Play,
   Save,
   SearchCode,
   Settings2,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { compileWithBusyTeX } from "../features/latex/compiler/busytex";
@@ -45,6 +52,7 @@ import type {
 } from "../shared/types/app";
 
 type Toast = { type: "info" | "error"; message: string } | null;
+type SettingsSection = "general" | "providers" | "agents" | "diagnostics";
 
 const PAGE_ITEMS: Array<{
   id: WorkspacePage;
@@ -59,6 +67,21 @@ const PAGE_ITEMS: Array<{
   { id: "analysis", key: "nav.analysis", icon: SearchCode },
   { id: "library", key: "nav.library", icon: Library },
   { id: "settings", key: "nav.settings", icon: Settings2 }
+];
+
+const SETTINGS_SECTIONS: Array<{
+  id: SettingsSection;
+  key:
+    | "settings.section.general"
+    | "settings.section.providers"
+    | "settings.section.agents"
+    | "settings.section.diagnostics";
+  icon: typeof Languages;
+}> = [
+  { id: "general", key: "settings.section.general", icon: Languages },
+  { id: "providers", key: "settings.section.providers", icon: Globe },
+  { id: "agents", key: "settings.section.agents", icon: Bot },
+  { id: "diagnostics", key: "settings.section.diagnostics", icon: Activity }
 ];
 
 const DEFAULT_BINDINGS: AgentModelBinding[] = [
@@ -140,11 +163,17 @@ export function App() {
   const [compileDiagnostics, setCompileDiagnostics] = useState<string[]>([]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [draftApiKeys, setDraftApiKeys] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
+  const pageLabel = useMemo(
+    () => t(PAGE_ITEMS.find((item) => item.id === page)?.key ?? "nav.latex"),
+    [page, t]
+  );
 
   useEffect(() => {
     const init = async () => {
@@ -233,6 +262,53 @@ export function App() {
     }, 2500);
     return () => clearInterval(timer);
   }, [cursor]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    const syncWindowState = async () => {
+      try {
+        const appWindow = getCurrentWindow();
+        setIsMaximized(await appWindow.isMaximized());
+        unlisten = await appWindow.onResized(async () => {
+          setIsMaximized(await appWindow.isMaximized());
+        });
+      } catch {
+        setIsMaximized(false);
+      }
+    };
+
+    syncWindowState().catch(() => undefined);
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const handleWindowControl = async (action: "minimize" | "toggle" | "close") => {
+    try {
+      const appWindow = getCurrentWindow();
+      if (action === "minimize") {
+        await appWindow.minimize();
+        return;
+      }
+      if (action === "toggle") {
+        await appWindow.toggleMaximize();
+        setIsMaximized(await appWindow.isMaximized());
+        return;
+      }
+      await appWindow.close();
+    } catch {
+      // no-op for non-tauri contexts
+    }
+  };
 
   const handleCreateProject = async () => {
     const name = `Project ${new Date().toLocaleString()}`;
@@ -396,170 +472,258 @@ export function App() {
   const renderMainPanel = () => {
     if (page === "analysis") {
       return (
-        <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/70 text-sm text-slate-500">
+        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500">
           {t("workspace.analysis")}
         </div>
       );
     }
     if (page === "library") {
       return (
-        <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/70 text-sm text-slate-500">
+        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500">
           {t("workspace.library")}
         </div>
       );
     }
     if (page === "settings") {
       return (
-        <div className="h-full overflow-auto rounded-2xl border border-slate-200 bg-white/85 p-5 shadow-soft">
-          <div className="mb-6">
-            <h2 className="mb-2 text-lg font-semibold text-slate-800">
-              {t("settings.languageTitle")}
-            </h2>
-            <div className="grid max-w-xs gap-2">
-              <Select
-                value={locale}
-                onChange={(event) =>
-                  handleLocaleChange(event.target.value as Locale)
-                }
-              >
-                <option value="zh-CN">{t("settings.language.zh-CN")}</option>
-                <option value="en-US">{t("settings.language.en-US")}</option>
-              </Select>
-              <p className="text-xs text-slate-500">
-                {t("settings.languageAuto")}:{" "}
-                {detectSystemLocale() === "zh-CN"
-                  ? t("settings.language.zh-CN")
-                  : t("settings.language.en-US")}
-              </p>
+        <div className="grid h-full min-h-0 grid-cols-[210px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft max-[920px]:grid-cols-1">
+          <aside className="border-r border-slate-200 bg-slate-50 p-2 max-[920px]:border-r-0 max-[920px]:border-b">
+            <div className="space-y-1">
+              {SETTINGS_SECTIONS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    className={cn(
+                      "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition",
+                      settingsSection === item.id
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-700 hover:bg-slate-200"
+                    )}
+                    onClick={() => setSettingsSection(item.id)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{t(item.key)}</span>
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </aside>
 
-          <h2 className="mb-3 text-lg font-semibold text-slate-800">
-            {t("settings.providerTitle")}
-          </h2>
-          <div className="space-y-3">
-            {settings?.providers.map((provider) => (
-              <div
-                className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-                key={provider.provider}
-              >
-                <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                  {provider.provider}
+          <section className="min-h-0 overflow-auto p-5">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  {t(
+                    SETTINGS_SECTIONS.find((item) => item.id === settingsSection)
+                      ?.key ?? "settings.section.general"
+                  )}
+                </h2>
+                <p className="text-xs text-slate-500">{t("settings.saveHint")}</p>
+              </div>
+              <Button onClick={handleSaveSettings} disabled={busy || !settings}>
+                {t("settings.saveSettings")}
+              </Button>
+            </div>
+
+            {settingsSection === "general" && (
+              <div className="grid gap-5">
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                    {t("settings.languageTitle")}
+                  </h3>
+                  <div className="grid max-w-xs gap-2">
+                    <Select
+                      value={locale}
+                      onChange={(event) =>
+                        handleLocaleChange(event.target.value as Locale)
+                      }
+                    >
+                      <option value="zh-CN">{t("settings.language.zh-CN")}</option>
+                      <option value="en-US">{t("settings.language.en-US")}</option>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      {t("settings.languageAuto")}: {" "}
+                      {detectSystemLocale() === "zh-CN"
+                        ? t("settings.language.zh-CN")
+                        : t("settings.language.en-US")}
+                    </p>
+                  </div>
                 </div>
-                <label className="grid gap-1 text-xs text-slate-500">
-                  {t("settings.baseUrl")}
-                  <Input
-                    value={provider.baseUrl}
-                    onChange={(event) =>
-                      setSettings((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              providers: prev.providers.map((item) =>
-                                item.provider === provider.provider
-                                  ? { ...item, baseUrl: event.target.value }
-                                  : item
-                              )
-                            }
-                          : prev
-                      )
-                    }
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-slate-500">
-                  {t("settings.apiKey")}
-                  <Input
-                    type="password"
-                    placeholder={
-                      provider.apiKeySet
-                        ? t("settings.keyStored")
-                        : t("settings.keyNotSet")
-                    }
-                    value={draftApiKeys[provider.provider] ?? ""}
-                    onChange={(event) =>
-                      setDraftApiKeys((prev) => ({
-                        ...prev,
-                        [provider.provider]: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-                <Button
-                  variant="secondary"
-                  className="w-fit"
-                  onClick={() => handleProviderPing(provider.provider)}
-                >
-                  <Globe className="mr-2 h-4 w-4" />
-                  {t("settings.testProvider")}
-                </Button>
               </div>
-            ))}
-          </div>
+            )}
 
-          <h2 className="mb-3 mt-6 text-lg font-semibold text-slate-800">
-            {t("settings.agentBindingTitle")}
-          </h2>
-          <div className="space-y-2">
-            {(settings?.agentBindings ?? DEFAULT_BINDINGS).map((binding, index) => (
-              <div
-                className="grid grid-cols-[110px_minmax(120px,1fr)_minmax(180px,2fr)] items-center gap-2 rounded-xl border border-slate-200 bg-white p-2"
-                key={`${binding.role}-${index}`}
-              >
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {binding.role}
-                </span>
-                <Input
-                  value={binding.provider}
-                  onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
+            {settingsSection === "providers" && (
+              <div className="grid gap-3">
+                {settings?.providers.map((provider) => (
+                  <div
+                    className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+                    key={provider.provider}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                        {provider.provider}
+                      </div>
+                      <span className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-500">
+                        {provider.apiKeySet
+                          ? t("settings.providerConnected")
+                          : t("settings.providerNotConnected")}
+                      </span>
+                    </div>
+
+                    <label className="grid gap-1 text-xs text-slate-500">
+                      {t("settings.baseUrl")}
+                      <Input
+                        value={provider.baseUrl}
+                        onChange={(event) =>
+                          setSettings((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  providers: prev.providers.map((item) =>
+                                    item.provider === provider.provider
+                                      ? { ...item, baseUrl: event.target.value }
+                                      : item
+                                  )
+                                }
+                              : prev
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="grid gap-1 text-xs text-slate-500">
+                      {t("settings.apiKey")}
+                      <Input
+                        type="password"
+                        placeholder={
+                          provider.apiKeySet
+                            ? t("settings.keyStored")
+                            : t("settings.keyNotSet")
+                        }
+                        value={draftApiKeys[provider.provider] ?? ""}
+                        onChange={(event) =>
+                          setDraftApiKeys((prev) => ({
                             ...prev,
-                            agentBindings: prev.agentBindings.map((item, idx) =>
-                              idx === index
-                                ? { ...item, provider: event.target.value }
-                                : item
-                            )
-                          }
-                        : prev
-                    )
-                  }
-                />
-                <Input
-                  value={binding.model}
-                  onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            agentBindings: prev.agentBindings.map((item, idx) =>
-                              idx === index
-                                ? { ...item, model: event.target.value }
-                                : item
-                            )
-                          }
-                        : prev
-                    )
-                  }
-                />
+                            [provider.provider]: event.target.value
+                          }))
+                        }
+                      />
+                    </label>
+
+                    <Button
+                      variant="secondary"
+                      className="w-fit"
+                      onClick={() => handleProviderPing(provider.provider)}
+                    >
+                      <Globe className="mr-2 h-4 w-4" />
+                      {t("settings.testProvider")}
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <Button className="mt-4" onClick={handleSaveSettings}>
-            {t("settings.saveSettings")}
-          </Button>
+            )}
 
-          <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-            {t("settings.hiddenHint")}
-          </div>
+            {settingsSection === "agents" && (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
+                {(settings?.agentBindings ?? DEFAULT_BINDINGS).map((binding, index) => (
+                  <div
+                    className="grid grid-cols-[110px_minmax(120px,1fr)_minmax(180px,2fr)] items-center gap-2 rounded-lg border border-slate-200 p-2 max-[1100px]:grid-cols-1"
+                    key={`${binding.role}-${index}`}
+                  >
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {binding.role}
+                    </span>
+                    <Input
+                      value={binding.provider}
+                      onChange={(event) =>
+                        setSettings((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                agentBindings: prev.agentBindings.map((item, idx) =>
+                                  idx === index
+                                    ? { ...item, provider: event.target.value }
+                                    : item
+                                )
+                              }
+                            : prev
+                        )
+                      }
+                    />
+                    <Input
+                      value={binding.model}
+                      onChange={(event) =>
+                        setSettings((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                agentBindings: prev.agentBindings.map((item, idx) =>
+                                  idx === index
+                                    ? { ...item, model: event.target.value }
+                                    : item
+                                )
+                              }
+                            : prev
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {settingsSection === "diagnostics" && (
+              <div className="grid gap-4">
+                <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-500">{t("settings.currentLog")}</span>
+                    <span className="font-mono text-slate-700">
+                      {runtimeInfo?.sessionLogFile ?? "-"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-500">{t("settings.installMode")}</span>
+                    <span className="text-slate-700">{runtimeInfo?.installMode ?? "-"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-slate-500">{t("settings.version")}</span>
+                    <span className="text-slate-700">{runtimeInfo?.version ?? "-"}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 p-3">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {t("preview.events")}
+                  </h3>
+                  <div className="max-h-64 overflow-auto rounded-lg border border-slate-200">
+                    {events.slice(-24).map((event) => (
+                      <div
+                        key={event.id}
+                        className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs last:border-none"
+                      >
+                        <span className="font-medium text-slate-700">{event.role}</span>
+                        <span className="text-slate-500">{event.kind}</span>
+                      </div>
+                    ))}
+                    {events.length === 0 && (
+                      <div className="px-3 py-4 text-xs text-slate-500">
+                        {t("preview.none")}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       );
     }
-
     return (
-      <div className="grid h-full grid-rows-[52px_minmax(260px,1fr)_240px] rounded-2xl border border-slate-200 bg-white/85 shadow-soft">
+      <div className="grid h-full grid-rows-[48px_minmax(260px,1fr)_250px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
-          <div className="truncate text-sm font-medium text-slate-600">
+          <div className="truncate text-sm font-medium text-slate-700">
             {selectedFile ?? t("workspace.noFile")}
           </div>
           <div className="flex items-center gap-2">
@@ -590,7 +754,7 @@ export function App() {
             {t("workspace.agentTitle")}
           </h3>
           <textarea
-            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-200"
+            className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
             value={agentPrompt}
             onChange={(event) => setAgentPrompt(event.target.value)}
             placeholder={t("workspace.agentPlaceholder")}
@@ -604,7 +768,7 @@ export function App() {
             <Sparkles className="mr-2 h-4 w-4" />
             {t("workspace.runTaskAgent")}
           </Button>
-          <pre className="m-0 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          <pre className="m-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
             {agentOutput || t("workspace.noAgentOutput")}
           </pre>
         </div>
@@ -613,28 +777,30 @@ export function App() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="mx-3 mt-3 flex h-16 items-center justify-between rounded-2xl border border-white/40 bg-slate-900/90 px-4 text-slate-100 shadow-soft backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-primary-700">
-            <PanelLeft className="h-5 w-5 text-white" />
+    <div className="flex min-h-screen flex-col bg-slate-100">
+      <header className="mx-3 mt-3 flex h-11 items-center justify-between rounded-md border border-zinc-800 bg-zinc-950 px-2 text-zinc-100 shadow-soft">
+        <div className="flex min-w-0 items-center gap-3" data-tauri-drag-region>
+          <div className="rounded bg-zinc-800 px-2 py-1 text-xs font-semibold tracking-wide">
+            {t("app.brand")}
           </div>
-          <div>
-            <h1 className="text-sm font-bold tracking-wide">{t("app.brand")}</h1>
-            <p
-              className={cn(
-                "text-xs",
-                status === "ready" ? "text-emerald-300" : "text-amber-300"
-              )}
-            >
-              {status === "ready" ? t("app.ready") : t("app.offline")}
-            </p>
-          </div>
+          <span className="text-xs text-zinc-400">{pageLabel}</span>
+          <span
+            className={cn(
+              "rounded px-2 py-0.5 text-[11px]",
+              status === "ready"
+                ? "bg-emerald-500/20 text-emerald-300"
+                : "bg-amber-500/20 text-amber-300"
+            )}
+          >
+            {status === "ready" ? t("app.ready") : t("app.offline")}
+          </span>
         </div>
-        <div className="flex w-[380px] max-w-[55vw] items-center gap-2">
+
+        <div className="flex w-[430px] max-w-[52vw] items-center gap-2">
           <Select
             aria-label={t("topbar.selectProject")}
             value={activeProjectId ?? ""}
+            className="h-8 border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-primary-400"
             onChange={(event) => setActiveProjectId(event.target.value || null)}
           >
             {projects.map((project) => (
@@ -643,22 +809,56 @@ export function App() {
               </option>
             ))}
           </Select>
-          <Button onClick={handleCreateProject}>{t("topbar.newProject")}</Button>
+          <Button
+            className="h-8 border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
+            variant="secondary"
+            onClick={handleCreateProject}
+          >
+            {t("topbar.newProject")}
+          </Button>
+        </div>
+
+        <div className="flex items-center">
+          <button
+            aria-label={t("window.minimize")}
+            className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+            onClick={() => handleWindowControl("minimize")}
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          <button
+            aria-label={t("window.maximize")}
+            className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+            onClick={() => handleWindowControl("toggle")}
+          >
+            {isMaximized ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            aria-label={t("window.close")}
+            className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-rose-600 hover:text-white"
+            onClick={() => handleWindowControl("close")}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </header>
 
       <main
         className={cn(
-          "grid flex-1 gap-3 p-3",
+          "grid flex-1 min-h-0 gap-3 p-3",
           page === "latex"
-            ? "grid-cols-[74px_280px_minmax(480px,1fr)_minmax(340px,0.42fr)]"
-            : "grid-cols-[74px_280px_minmax(620px,1fr)]",
-          "max-[1280px]:grid-cols-[60px_220px_minmax(360px,1fr)]",
-          "max-[1280px]:grid-rows-[minmax(420px,1fr)_minmax(280px,320px)]",
+            ? "grid-cols-[70px_260px_minmax(460px,1fr)_minmax(320px,0.38fr)]"
+            : "grid-cols-[70px_260px_minmax(620px,1fr)]",
+          "max-[1380px]:grid-cols-[60px_230px_minmax(360px,1fr)]",
+          "max-[1380px]:grid-rows-[minmax(420px,1fr)_minmax(280px,340px)]",
           "max-[900px]:grid-cols-1 max-[900px]:grid-rows-[auto_auto_auto]"
         )}
       >
-        <aside className="rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-soft backdrop-blur">
+        <aside className="rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
           <div className="flex flex-col gap-2 max-[900px]:flex-row">
             {PAGE_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -667,7 +867,7 @@ export function App() {
                   key={item.id}
                   variant={page === item.id ? "default" : "ghost"}
                   size="icon"
-                  className="h-12 w-full flex-col gap-1 text-[11px] max-[900px]:w-20"
+                  className="h-12 w-full flex-col gap-1 rounded-md text-[11px] max-[900px]:w-20"
                   onClick={() => setPage(item.id)}
                 >
                   <Icon className="h-4 w-4" />
@@ -678,7 +878,7 @@ export function App() {
           </div>
         </aside>
 
-        <aside className="min-h-0 rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-soft">
+        <aside className="min-h-0 rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {t("explorer.title")}
           </h2>
@@ -697,7 +897,7 @@ export function App() {
         <section className="min-h-0">{renderMainPanel()}</section>
 
         {page === "latex" && (
-          <aside className="min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-soft max-[1280px]:col-span-2 max-[900px]:col-span-1">
+          <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft max-[1380px]:col-span-2 max-[900px]:col-span-1">
             <h2 className="mb-2 text-sm font-semibold text-slate-700">
               {t("preview.title")}
             </h2>
@@ -706,10 +906,10 @@ export function App() {
                 <iframe
                   title={t("preview.title")}
                   src={pdfUrl}
-                  className="h-full w-full rounded-xl border border-slate-200"
+                  className="h-full w-full rounded-lg border border-slate-200"
                 />
               ) : (
-                <div className="flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+                <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
                   {t("preview.empty")}
                 </div>
               )}
@@ -718,7 +918,7 @@ export function App() {
                 <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t("preview.diagnostics")}
                 </h3>
-                <ul className="max-h-20 overflow-auto rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+                <ul className="max-h-20 overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
                   {compileDiagnostics.length === 0 ? (
                     <li>{t("preview.none")}</li>
                   ) : (
@@ -731,7 +931,7 @@ export function App() {
                 <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t("preview.events")}
                 </h3>
-                <div className="max-h-36 overflow-auto rounded-xl border border-slate-200 bg-slate-50 px-2 py-1">
+                <div className="max-h-36 overflow-auto rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                   {events.slice(-16).map((event) => (
                     <div
                       key={event.id}
@@ -751,10 +951,9 @@ export function App() {
       {toast && (
         <div
           className={cn(
-            "fixed bottom-4 right-4 rounded-xl px-4 py-2 text-sm text-white shadow-soft",
+            "fixed bottom-4 right-4 rounded-md px-4 py-2 text-sm text-white shadow-soft",
             toast.type === "info" ? "bg-emerald-600" : "bg-rose-600"
           )}
-          onAnimationEnd={() => setToast(null)}
         >
           {toast.message}
         </div>
@@ -762,3 +961,4 @@ export function App() {
     </div>
   );
 }
+

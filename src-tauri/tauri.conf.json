@@ -15,7 +15,8 @@
         "title": "LatoTex",
         "width": 1200,
         "height": 760,
-        "resizable": true
+        "resizable": true,
+        "decorations": false
       }
     ],
     "security": {

@@ -20,12 +20,20 @@ export const enUS = {
   "workspace.runTaskAgent": "Run Task Agent",
   "workspace.noAgentOutput": "No agent output yet.",
   "settings.providerTitle": "Provider Settings",
+  "settings.section.general": "General",
+  "settings.section.providers": "Providers",
+  "settings.section.agents": "Agent Routing",
+  "settings.section.diagnostics": "Diagnostics",
+  "settings.saveHint": "Changes are applied after saving.",
   "settings.baseUrl": "Base URL",
   "settings.apiKey": "API Key",
   "settings.keyStored": "Stored in system keyring",
   "settings.keyNotSet": "Not set",
+  "settings.providerConnected": "Key stored",
+  "settings.providerNotConnected": "Key missing",
   "settings.testProvider": "Test Provider",
   "settings.agentBindingTitle": "Agent Model Binding",
+  "settings.agentHint": "Define provider/model mapping for each fixed agent role.",
   "settings.saveSettings": "Save Settings",
   "settings.languageTitle": "Language",
   "settings.language.zh-CN": "Chinese",
@@ -54,7 +62,10 @@ export const enUS = {
   "log.fileSaved": "file saved",
   "log.compileDone": "busytex compile finished",
   "log.agentRunDone": "task agent run completed",
-  "log.settingsSaved": "settings updated"
+  "log.settingsSaved": "settings updated",
+  "window.minimize": "Minimize window",
+  "window.maximize": "Toggle fullscreen",
+  "window.close": "Close window"
 } as const;
 
 export type MessageKey = keyof typeof enUS;

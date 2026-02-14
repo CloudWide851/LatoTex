@@ -3,15 +3,15 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2",
+  "inline-flex items-center justify-center rounded-lg border text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400",
   {
     variants: {
       variant: {
         default:
-          "bg-primary-600 text-white shadow-sm hover:bg-primary-700 active:translate-y-px",
+          "border-primary-600 bg-primary-600 text-white hover:bg-primary-700",
         secondary:
-          "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200",
-        ghost: "text-slate-600 hover:bg-slate-100"
+          "border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
+        ghost: "border-transparent bg-transparent text-slate-600 hover:bg-slate-100"
       },
       size: {
         default: "h-10 px-4 py-2",
