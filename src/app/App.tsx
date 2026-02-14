@@ -9,6 +9,8 @@ import {
   openProject,
   readFile,
   recordCompile,
+  runtimeLogInfo,
+  runtimeLogWrite,
   runAgent,
   testProvider,
   updateSettings,
@@ -100,6 +102,7 @@ export function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [draftApiKeys, setDraftApiKeys] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [logInfo, setLogInfo] = useState<string>("log: unknown");
 
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
 
@@ -115,6 +118,12 @@ export function App() {
       const [projectList, appSettings] = await Promise.all([listProjects(), getSettings()]);
       setProjects(projectList);
       setSettings(appSettings);
+      const info = await runtimeLogInfo();
+      setLogInfo(`${info.installMode} | ${info.sessionLogFile}`);
+      await runtimeLogWrite(
+        "INFO",
+        `frontend init completed, installMode=${info.installMode}, version=${info.version}`
+      );
 
       let targetProjectId = appSettings.activeProjectId;
       if (!targetProjectId && projectList.length > 0) {
@@ -178,6 +187,7 @@ export function App() {
   const handleCreateProject = async () => {
     const name = `Project ${new Date().toLocaleString()}`;
     const snapshot = await createProject(name);
+    await runtimeLogWrite("INFO", `create project via UI: ${name}`);
     setProjects((prev) => [snapshot.summary, ...prev]);
     setActiveProjectId(snapshot.summary.id);
   };
@@ -189,6 +199,7 @@ export function App() {
     setBusy(true);
     try {
       await writeFile(activeProjectId, selectedFile, editorContent);
+      await runtimeLogWrite("INFO", `file saved: ${selectedFile}`);
       setToast({ type: "info", message: "File saved." });
     } catch (error) {
       setToast({ type: "error", message: String(error) });
@@ -214,6 +225,10 @@ export function App() {
         fileMap[filePath] = data.content;
       }
       const result = await compileWithBusyTeX(editorContent, fileMap);
+      await runtimeLogWrite(
+        result.status === "success" ? "INFO" : "ERROR",
+        `busytex compile ${result.status}, file=${selectedFile}, durationMs=${result.durationMs}`
+      );
       await recordCompile({
         projectId: activeProjectId,
         mainFile: selectedFile,
@@ -255,6 +270,7 @@ export function App() {
         prompt: agentPrompt,
         contextRefs: selectedFile ? [`file:${selectedFile}`] : []
       });
+      await runtimeLogWrite("INFO", `task agent run completed, runId=${response.runId}`);
       setAgentOutput(response.output);
       setAgentPrompt("");
     } catch (error) {
@@ -280,6 +296,7 @@ export function App() {
         agentBindings: settings.agentBindings
       });
       setSettings(updated);
+      await runtimeLogWrite("INFO", "settings updated");
       setDraftApiKeys({});
       setToast({ type: "info", message: "Settings saved." });
     } catch (error) {
@@ -427,6 +444,7 @@ export function App() {
         <div className="topbar-left">
           <h1>LatoTex</h1>
           <span className="health">{health}</span>
+          <span className="health">{logInfo}</span>
         </div>
         <div className="topbar-right">
           <select

@@ -8,6 +8,7 @@ use tauri::State;
 
 #[tauri::command]
 pub fn project_list(state: State<'_, AppState>) -> Result<Vec<ProjectSummary>, String> {
+    state.log("INFO", "project_list");
     storage::list_projects(&state.db_path)
 }
 
@@ -20,6 +21,7 @@ pub fn project_create(
     if trimmed.is_empty() {
         return Err("Project name cannot be empty".to_string());
     }
+    state.log("INFO", &format!("project_create: {}", trimmed));
     storage::create_project(&state.db_path, &state.projects_dir, trimmed)
 }
 
@@ -28,6 +30,7 @@ pub fn project_open(
     state: State<'_, AppState>,
     input: ProjectRefInput,
 ) -> Result<ProjectSnapshot, String> {
+    state.log("INFO", &format!("project_open: {}", input.project_id));
     storage::project_snapshot(&state.db_path, &input.project_id)
 }
 
@@ -36,6 +39,7 @@ pub fn workspace_tree(
     state: State<'_, AppState>,
     input: ProjectRefInput,
 ) -> Result<Vec<ResourceNode>, String> {
+    state.log("INFO", &format!("workspace_tree: {}", input.project_id));
     let snapshot = storage::project_snapshot(&state.db_path, &input.project_id)?;
     Ok(snapshot.tree)
 }
@@ -45,10 +49,18 @@ pub fn file_read(
     state: State<'_, AppState>,
     input: FileReadInput,
 ) -> Result<FileReadResponse, String> {
+    state.log(
+        "INFO",
+        &format!("file_read: {} ({})", input.relative_path, input.project_id),
+    );
     storage::read_project_file(&state.db_path, &input.project_id, &input.relative_path)
 }
 
 #[tauri::command]
 pub fn file_write(state: State<'_, AppState>, input: FileWriteInput) -> Result<Ack, String> {
+    state.log(
+        "INFO",
+        &format!("file_write: {} ({})", input.relative_path, input.project_id),
+    );
     storage::write_project_file(&state.db_path, input)
 }

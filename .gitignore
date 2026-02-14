@@ -20,6 +20,14 @@ yarn-error.log*
 # Tauri generated files
 src-tauri/gen/
 
+# Build artifacts / installers
+artifacts/
+release/
+*.msi
+*-setup.exe
+*.sig
+*.updater.zip
+
 # IDE / OS
 .idea/
 .vscode/

@@ -7,6 +7,7 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   ProviderHealth,
+  RuntimeLogInfo,
   ResourceNode
 } from "../types/app";
 import type { HealthCheckResponse } from "../types/health";
@@ -77,4 +78,12 @@ export function updateSettings(input: {
 
 export function testProvider(provider: string): Promise<ProviderHealth> {
   return invoke<ProviderHealth>("provider_test", { input: { provider } });
+}
+
+export function runtimeLogWrite(level: string, message: string) {
+  return invoke("runtime_log_write", { input: { level, message } });
+}
+
+export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
+  return invoke<RuntimeLogInfo>("runtime_log_info");
 }

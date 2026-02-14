@@ -78,6 +78,22 @@ pub struct Ack {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeLogWriteInput {
+    pub level: String,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogInfo {
+    pub session_log_file: String,
+    pub logs_dir: String,
+    pub install_mode: String,
+    pub version: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CompileRecordInput {
     pub project_id: String,
     pub main_file: String,

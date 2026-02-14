@@ -1,4 +1,5 @@
 mod commands;
+mod logging;
 mod models;
 mod secure;
 mod state;
@@ -8,7 +9,9 @@ use commands::health::health_check;
 use commands::projects::{
     file_read, file_write, project_create, project_list, project_open, workspace_tree,
 };
-use commands::settings::{provider_test, settings_get, settings_update};
+use commands::settings::{
+    provider_test, runtime_log_info, runtime_log_write, settings_get, settings_update,
+};
 use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
 use tauri::Manager;
 
@@ -34,7 +37,9 @@ pub fn run() {
             events_subscribe,
             settings_get,
             settings_update,
-            provider_test
+            provider_test,
+            runtime_log_write,
+            runtime_log_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

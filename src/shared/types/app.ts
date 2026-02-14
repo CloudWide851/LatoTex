@@ -65,6 +65,13 @@ export type ProviderHealth = {
   message: string;
 };
 
+export type RuntimeLogInfo = {
+  sessionLogFile: string;
+  logsDir: string;
+  installMode: string;
+  version: string;
+};
+
 export type CompileRecord = {
   id: string;
   projectId: string;
