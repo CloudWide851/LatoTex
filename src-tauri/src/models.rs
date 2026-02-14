@@ -181,6 +181,13 @@ pub struct AppSettings {
     pub active_project_id: Option<String>,
     pub providers: Vec<ProviderConfig>,
     pub agent_bindings: Vec<AgentModelBinding>,
+    pub ui_prefs: Option<UiPrefs>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UiPrefs {
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,6 +204,7 @@ pub struct SettingsUpdateInput {
     pub active_project_id: Option<String>,
     pub providers: Vec<ProviderConfigInput>,
     pub agent_bindings: Vec<AgentModelBinding>,
+    pub ui_prefs: Option<UiPrefs>,
 }
 
 #[derive(Debug, Deserialize)]

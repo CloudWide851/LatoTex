@@ -1,7 +1,7 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
     FileReadResponse, FileWriteInput, ProjectSnapshot, ProjectSummary, ProviderConfig,
-    ProviderConfigInput, ResourceNode, SettingsUpdateInput, SwarmEvent,
+    ProviderConfigInput, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
@@ -62,14 +62,17 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
 
         CREATE TABLE IF NOT EXISTS app_settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            active_project_id TEXT
+            active_project_id TEXT,
+            ui_prefs_json TEXT
         );
         ",
     )
     .map_err(|e| e.to_string())?;
 
+    ensure_ui_prefs_column(&conn)?;
+
     conn.execute(
-        "INSERT OR IGNORE INTO app_settings (id, active_project_id) VALUES (1, NULL)",
+        "INSERT OR IGNORE INTO app_settings (id, active_project_id, ui_prefs_json) VALUES (1, NULL, NULL)",
         [],
     )
     .map_err(|e| e.to_string())?;
@@ -77,6 +80,23 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
     seed_default_bindings(&conn)?;
     seed_default_providers(&conn)?;
     Ok(())
+}
+
+fn ensure_ui_prefs_column(conn: &Connection) -> Result<(), String> {
+    match conn.execute("ALTER TABLE app_settings ADD COLUMN ui_prefs_json TEXT", []) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let message = error.to_string().to_lowercase();
+            if message.contains("duplicate column name")
+                || message.contains("already exists")
+                || message.contains("no such table")
+            {
+                Ok(())
+            } else {
+                Err(error.to_string())
+            }
+        }
+    }
 }
 
 fn seed_default_bindings(conn: &Connection) -> Result<(), String> {
@@ -433,13 +453,17 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
 
 pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
-    let active_project_id: Option<String> = conn
+    let (active_project_id, ui_prefs_json): (Option<String>, Option<String>) = conn
         .query_row(
-            "SELECT active_project_id FROM app_settings WHERE id = 1",
+            "SELECT active_project_id, ui_prefs_json FROM app_settings WHERE id = 1",
             [],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|e| e.to_string())?;
+    let ui_prefs = match ui_prefs_json {
+        Some(raw) => serde_json::from_str::<UiPrefs>(&raw).ok(),
+        None => None,
+    };
 
     let mut providers = Vec::new();
     let mut provider_stmt = conn
@@ -481,6 +505,7 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
         active_project_id,
         providers,
         agent_bindings,
+        ui_prefs,
     })
 }
 
@@ -488,8 +513,14 @@ pub fn update_settings(db_path: &Path, input: SettingsUpdateInput) -> Result<App
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "UPDATE app_settings SET active_project_id = ?1 WHERE id = 1",
-        params![input.active_project_id],
+        "UPDATE app_settings SET active_project_id = ?1, ui_prefs_json = ?2 WHERE id = 1",
+        params![
+            input.active_project_id,
+            input
+                .ui_prefs
+                .as_ref()
+                .map(|value| serde_json::to_string(value).unwrap_or_else(|_| "null".to_string()))
+        ],
     )
     .map_err(|e| e.to_string())?;
 

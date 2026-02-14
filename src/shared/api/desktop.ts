@@ -72,6 +72,7 @@ export function updateSettings(input: {
   activeProjectId: string | null;
   providers: Array<{ provider: string; baseUrl: string; apiKey?: string }>;
   agentBindings: Array<{ role: string; provider: string; model: string }>;
+  uiPrefs?: { language?: "en-US" | "zh-CN" };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
 }

@@ -57,6 +57,9 @@ export type AppSettings = {
   activeProjectId: string | null;
   providers: ProviderConfig[];
   agentBindings: AgentModelBinding[];
+  uiPrefs?: {
+    language?: "en-US" | "zh-CN";
+  };
 };
 
 export type ProviderHealth = {
