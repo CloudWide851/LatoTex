@@ -7,10 +7,11 @@ mod storage;
 
 use commands::health::health_check;
 use commands::projects::{
-    file_read, file_write, project_create, project_list, project_open, workspace_tree,
+    file_read, file_write, project_create, project_init_from_folder, project_list, project_open,
+    workspace_tree,
 };
 use commands::settings::{
-    provider_test, runtime_log_info, runtime_log_write, settings_get, settings_update,
+    protocol_test, runtime_log_info, runtime_log_write, settings_get, settings_update,
 };
 use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
 use tauri::Manager;
@@ -28,6 +29,7 @@ pub fn run() {
             health_check,
             project_list,
             project_create,
+            project_init_from_folder,
             project_open,
             workspace_tree,
             file_read,
@@ -37,7 +39,7 @@ pub fn run() {
             events_subscribe,
             settings_get,
             settings_update,
-            provider_test,
+            protocol_test,
             runtime_log_write,
             runtime_log_info
         ])

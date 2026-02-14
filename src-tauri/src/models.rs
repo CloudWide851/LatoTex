@@ -161,25 +161,35 @@ pub struct EventBatch {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ProviderConfig {
-    pub provider: String,
+pub struct ModelProtocol {
+    pub id: String,
+    pub display_name: String,
     pub base_url: String,
     pub api_key_set: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelCatalogItem {
+    pub id: String,
+    pub protocol_id: String,
+    pub display_name: String,
+    pub request_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentModelBinding {
     pub role: String,
-    pub provider: String,
-    pub model: String,
+    pub model_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub active_project_id: Option<String>,
-    pub providers: Vec<ProviderConfig>,
+    pub model_protocols: Vec<ModelProtocol>,
+    pub model_catalog: Vec<ModelCatalogItem>,
     pub agent_bindings: Vec<AgentModelBinding>,
     pub ui_prefs: Option<UiPrefs>,
 }
@@ -192,31 +202,42 @@ pub struct UiPrefs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProviderConfigInput {
-    pub provider: String,
+pub struct ModelProtocolInput {
+    pub id: String,
+    pub display_name: String,
     pub base_url: String,
     pub api_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelCatalogItemInput {
+    pub id: String,
+    pub protocol_id: String,
+    pub display_name: String,
+    pub request_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingsUpdateInput {
     pub active_project_id: Option<String>,
-    pub providers: Vec<ProviderConfigInput>,
+    pub model_protocols: Vec<ModelProtocolInput>,
+    pub model_catalog: Vec<ModelCatalogItemInput>,
     pub agent_bindings: Vec<AgentModelBinding>,
     pub ui_prefs: Option<UiPrefs>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProviderTestInput {
-    pub provider: String,
+pub struct ProtocolTestInput {
+    pub protocol_id: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProviderHealth {
-    pub provider: String,
+pub struct ProtocolHealth {
+    pub protocol_id: String,
     pub ok: bool,
     pub message: String,
 }

@@ -1,5 +1,5 @@
 use crate::models::{
-    Ack, AppSettings, ProviderHealth, ProviderTestInput, RuntimeLogInfo, RuntimeLogWriteInput,
+    Ack, AppSettings, ProtocolHealth, ProtocolTestInput, RuntimeLogInfo, RuntimeLogWriteInput,
     SettingsUpdateInput,
 };
 use crate::secure;
@@ -23,19 +23,19 @@ pub fn settings_update(
 }
 
 #[tauri::command]
-pub fn provider_test(
+pub fn protocol_test(
     _state: State<'_, AppState>,
-    input: ProviderTestInput,
-) -> Result<ProviderHealth, String> {
-    _state.log("INFO", &format!("provider_test: {}", input.provider));
-    let has_key = secure::has_api_key(&input.provider)?;
+    input: ProtocolTestInput,
+) -> Result<ProtocolHealth, String> {
+    _state.log("INFO", &format!("protocol_test: {}", input.protocol_id));
+    let has_key = secure::has_api_key(&input.protocol_id)?;
     let message = if has_key {
         "API key is available in system keyring"
     } else {
         "No API key found in system keyring"
     };
-    Ok(ProviderHealth {
-        provider: input.provider,
+    Ok(ProtocolHealth {
+        protocol_id: input.protocol_id,
         ok: has_key,
         message: message.to_string(),
     })

@@ -43,29 +43,37 @@ export type EventBatch = {
 
 export type AgentModelBinding = {
   role: string;
-  provider: string;
-  model: string;
+  modelId: string;
 };
 
-export type ProviderConfig = {
-  provider: string;
+export type ModelProtocol = {
+  id: string;
+  displayName: string;
   baseUrl: string;
   apiKeySet: boolean;
 };
 
+export type ModelCatalogItem = {
+  id: string;
+  protocolId: string;
+  displayName: string;
+  requestName: string;
+};
+
+export type ProtocolHealth = {
+  protocolId: string;
+  ok: boolean;
+  message: string;
+};
+
 export type AppSettings = {
   activeProjectId: string | null;
-  providers: ProviderConfig[];
+  modelProtocols: ModelProtocol[];
+  modelCatalog: ModelCatalogItem[];
   agentBindings: AgentModelBinding[];
   uiPrefs?: {
     language?: "en-US" | "zh-CN";
   };
-};
-
-export type ProviderHealth = {
-  provider: string;
-  ok: boolean;
-  message: string;
 };
 
 export type RuntimeLogInfo = {
@@ -83,4 +91,18 @@ export type CompileRecord = {
   diagnostics: string[];
   durationMs: number;
   createdAt: string;
+};
+
+export type ModelProtocolInput = {
+  id: string;
+  displayName: string;
+  baseUrl: string;
+  apiKey?: string;
+};
+
+export type ModelCatalogItemInput = {
+  id: string;
+  protocolId: string;
+  displayName: string;
+  requestName: string;
 };

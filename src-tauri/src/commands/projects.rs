@@ -4,6 +4,7 @@ use crate::models::{
 };
 use crate::state::AppState;
 use crate::storage;
+use rfd::FileDialog;
 use tauri::State;
 
 #[tauri::command]
@@ -32,6 +33,19 @@ pub fn project_open(
 ) -> Result<ProjectSnapshot, String> {
     state.log("INFO", &format!("project_open: {}", input.project_id));
     storage::project_snapshot(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn project_init_from_folder(state: State<'_, AppState>) -> Result<Option<ProjectSnapshot>, String> {
+    state.log("INFO", "project_init_from_folder");
+    let selected = FileDialog::new().pick_folder();
+    match selected {
+        Some(path) => {
+            let snapshot = storage::initialize_project_from_folder(&state.db_path, &path)?;
+            Ok(Some(snapshot))
+        }
+        None => Ok(None),
+    }
 }
 
 #[tauri::command]

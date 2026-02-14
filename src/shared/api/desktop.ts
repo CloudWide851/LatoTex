@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AgentModelBinding,
   AppSettings,
   CompileRecord,
   EventBatch,
   FileReadResponse,
+  ModelCatalogItemInput,
+  ModelProtocolInput,
+  ProtocolHealth,
   ProjectSnapshot,
   ProjectSummary,
-  ProviderHealth,
   RuntimeLogInfo,
   ResourceNode
 } from "../types/app";
@@ -22,6 +25,10 @@ export function listProjects(): Promise<ProjectSummary[]> {
 
 export function createProject(name: string): Promise<ProjectSnapshot> {
   return invoke<ProjectSnapshot>("project_create", { input: { name } });
+}
+
+export function initProjectFromFolder(): Promise<ProjectSnapshot | null> {
+  return invoke<ProjectSnapshot | null>("project_init_from_folder");
 }
 
 export function openProject(projectId: string): Promise<ProjectSnapshot> {
@@ -70,15 +77,16 @@ export function getSettings(): Promise<AppSettings> {
 
 export function updateSettings(input: {
   activeProjectId: string | null;
-  providers: Array<{ provider: string; baseUrl: string; apiKey?: string }>;
-  agentBindings: Array<{ role: string; provider: string; model: string }>;
+  modelProtocols: ModelProtocolInput[];
+  modelCatalog: ModelCatalogItemInput[];
+  agentBindings: AgentModelBinding[];
   uiPrefs?: { language?: "en-US" | "zh-CN" };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
 }
 
-export function testProvider(provider: string): Promise<ProviderHealth> {
-  return invoke<ProviderHealth>("provider_test", { input: { provider } });
+export function testProtocol(protocolId: string): Promise<ProtocolHealth> {
+  return invoke<ProtocolHealth>("protocol_test", { input: { protocolId } });
 }
 
 export function runtimeLogWrite(level: string, message: string) {

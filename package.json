@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",
+    "busytex:check": "node scripts/check-busytex-assets.mjs",
+    "busytex:assets": "pnpm exec texlyre-busytex download-assets ./public/core",
     "tauri": "tauri"
   },
   "packageManager": "pnpm@10.29.2",

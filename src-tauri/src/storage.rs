@@ -1,12 +1,13 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
-    FileReadResponse, FileWriteInput, ProjectSnapshot, ProjectSummary, ProviderConfig,
-    ProviderConfigInput, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
+    FileReadResponse, FileWriteInput, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
+    ModelProtocolInput, ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput,
+    SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
 use rusqlite::{params, Connection};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -54,6 +55,19 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             api_key_ref TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS model_protocols (
+            id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            base_url TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS model_catalog (
+            id TEXT PRIMARY KEY,
+            protocol_id TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            request_name TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS agent_bindings (
             role TEXT PRIMARY KEY,
             provider TEXT NOT NULL,
@@ -65,11 +79,14 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             active_project_id TEXT,
             ui_prefs_json TEXT
         );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_root_path ON projects(root_path);
         ",
     )
     .map_err(|e| e.to_string())?;
 
     ensure_ui_prefs_column(&conn)?;
+    ensure_agent_binding_model_id_column(&conn)?;
 
     conn.execute(
         "INSERT OR IGNORE INTO app_settings (id, active_project_id, ui_prefs_json) VALUES (1, NULL, NULL)",
@@ -77,7 +94,11 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    migrate_legacy_provider_profiles(&conn)?;
+    seed_default_protocols(&conn)?;
+    seed_default_model_catalog(&conn)?;
     seed_default_bindings(&conn)?;
+    backfill_legacy_agent_bindings(&conn)?;
     seed_default_providers(&conn)?;
     Ok(())
 }
@@ -99,23 +120,217 @@ fn ensure_ui_prefs_column(conn: &Connection) -> Result<(), String> {
     }
 }
 
-fn seed_default_bindings(conn: &Connection) -> Result<(), String> {
-    let defaults = [
-        ("plan", "openai", "gpt-4.1"),
-        ("task", "anthropic", "claude-3-7-sonnet-latest"),
-        ("explore", "openai", "gpt-4.1-mini"),
-        ("web_search", "openai", "gpt-4.1-mini"),
-        ("review", "gemini", "gemini-2.0-flash"),
-        ("ephemeral", "openai", "gpt-4.1-mini"),
-    ];
+fn ensure_agent_binding_model_id_column(conn: &Connection) -> Result<(), String> {
+    match conn.execute("ALTER TABLE agent_bindings ADD COLUMN model_id TEXT", []) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let message = error.to_string().to_lowercase();
+            if message.contains("duplicate column name")
+                || message.contains("already exists")
+                || message.contains("no such table")
+            {
+                Ok(())
+            } else {
+                Err(error.to_string())
+            }
+        }
+    }
+}
 
-    for (role, provider, model) in defaults {
+fn protocol_display_name(protocol_id: &str) -> String {
+    match protocol_id {
+        "openai-compatible" => "OpenAI-Compatible".to_string(),
+        "anthropic" => "Anthropic".to_string(),
+        "gemini" => "Gemini".to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn default_base_url(protocol_id: &str) -> &'static str {
+    match protocol_id {
+        "openai-compatible" => "https://api.openai.com/v1",
+        "anthropic" => "https://api.anthropic.com",
+        "gemini" => "https://generativelanguage.googleapis.com",
+        _ => "",
+    }
+}
+
+fn legacy_provider_to_protocol(provider: &str) -> String {
+    match provider {
+        "openai" => "openai-compatible".to_string(),
+        "anthropic" => "anthropic".to_string(),
+        "gemini" => "gemini".to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn normalize_model_key(input: &str) -> String {
+    let mut output = String::new();
+    let mut previous_dash = false;
+    for ch in input.chars() {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch.to_ascii_lowercase());
+            previous_dash = false;
+        } else if !previous_dash {
+            output.push('-');
+            previous_dash = true;
+        }
+    }
+    output.trim_matches('-').to_string()
+}
+
+fn migrate_legacy_provider_profiles(conn: &Connection) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("SELECT provider, base_url FROM provider_profiles")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?;
+
+    for row in rows {
+        let (provider, base_url) = row.map_err(|e| e.to_string())?;
+        let protocol_id = legacy_provider_to_protocol(&provider);
         conn.execute(
-            "INSERT OR IGNORE INTO agent_bindings (role, provider, model) VALUES (?1, ?2, ?3)",
-            params![role, provider, model],
+            "INSERT OR IGNORE INTO model_protocols (id, display_name, base_url) VALUES (?1, ?2, ?3)",
+            params![protocol_id, protocol_display_name(&protocol_id), base_url],
         )
         .map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+fn seed_default_protocols(conn: &Connection) -> Result<(), String> {
+    let defaults = [
+        ("openai-compatible", "OpenAI-Compatible", "https://api.openai.com/v1"),
+        ("anthropic", "Anthropic", "https://api.anthropic.com"),
+        ("gemini", "Gemini", "https://generativelanguage.googleapis.com"),
+    ];
+
+    for (id, display_name, base_url) in defaults {
+        conn.execute(
+            "INSERT OR IGNORE INTO model_protocols (id, display_name, base_url) VALUES (?1, ?2, ?3)",
+            params![id, display_name, base_url],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn seed_default_model_catalog(conn: &Connection) -> Result<(), String> {
+    let defaults = [
+        (
+            "openai-gpt-4-1",
+            "openai-compatible",
+            "GPT-4.1",
+            "gpt-4.1",
+        ),
+        (
+            "openai-gpt-4-1-mini",
+            "openai-compatible",
+            "GPT-4.1 Mini",
+            "gpt-4.1-mini",
+        ),
+        (
+            "anthropic-claude-3-7-sonnet-latest",
+            "anthropic",
+            "Claude 3.7 Sonnet",
+            "claude-3-7-sonnet-latest",
+        ),
+        (
+            "gemini-2-0-flash",
+            "gemini",
+            "Gemini 2.0 Flash",
+            "gemini-2.0-flash",
+        ),
+    ];
+
+    for (id, protocol_id, display_name, request_name) in defaults {
+        conn.execute(
+            "INSERT OR IGNORE INTO model_catalog (id, protocol_id, display_name, request_name)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![id, protocol_id, display_name, request_name],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn seed_default_bindings(conn: &Connection) -> Result<(), String> {
+    let defaults = [
+        ("plan", "openai-gpt-4-1"),
+        ("task", "anthropic-claude-3-7-sonnet-latest"),
+        ("explore", "openai-gpt-4-1-mini"),
+        ("web_search", "openai-gpt-4-1-mini"),
+        ("review", "gemini-2-0-flash"),
+        ("ephemeral", "openai-gpt-4-1-mini"),
+    ];
+
+    for (role, model_id) in defaults {
+        let (protocol_id, request_name): (String, String) = conn
+            .query_row(
+                "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
+                params![model_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?;
+
+        conn.execute(
+            "INSERT OR IGNORE INTO agent_bindings (role, provider, model, model_id) VALUES (?1, ?2, ?3, ?4)",
+            params![role, protocol_id, request_name, model_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn backfill_legacy_agent_bindings(conn: &Connection) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("SELECT role, provider, model, COALESCE(model_id, '') FROM agent_bindings")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    for row in rows {
+        let (role, provider, model, model_id) = row.map_err(|e| e.to_string())?;
+        if !model_id.trim().is_empty() {
+            continue;
+        }
+
+        let protocol_id = legacy_provider_to_protocol(&provider);
+        let generated_model_id = format!("{protocol_id}-{}", normalize_model_key(&model));
+
+        conn.execute(
+            "INSERT OR IGNORE INTO model_protocols (id, display_name, base_url) VALUES (?1, ?2, ?3)",
+            params![
+                protocol_id,
+                protocol_display_name(&protocol_id),
+                default_base_url(&protocol_id)
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+        conn.execute(
+            "INSERT OR IGNORE INTO model_catalog (id, protocol_id, display_name, request_name)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![generated_model_id, protocol_id, model, model],
+        )
+        .map_err(|e| e.to_string())?;
+
+        conn.execute(
+            "UPDATE agent_bindings SET provider = ?1, model = ?2, model_id = ?3 WHERE role = ?4",
+            params![protocol_id, model, generated_model_id, role],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
     Ok(())
 }
 
@@ -160,6 +375,106 @@ pub fn create_project(db_path: &Path, projects_dir: &Path, name: &str) -> Result
     .map_err(|e| e.to_string())?;
 
     project_snapshot(db_path, &project_id)
+}
+
+pub fn initialize_project_from_folder(
+    db_path: &Path,
+    folder_path: &Path,
+) -> Result<ProjectSnapshot, String> {
+    if !folder_path.exists() || !folder_path.is_dir() {
+        return Err("Selected folder is not accessible".to_string());
+    }
+
+    let canonical_root = folder_path.canonicalize().map_err(|e| e.to_string())?;
+    ensure_workspace_bootstrap_files(&canonical_root)?;
+    let root_str = canonical_root.to_string_lossy().to_string();
+    let folder_name = canonical_root
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| "Workspace".to_string());
+
+    let now = now_iso();
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+
+    let existing_id: Result<String, _> = conn.query_row(
+        "SELECT id FROM projects WHERE root_path = ?1",
+        params![root_str],
+        |row| row.get(0),
+    );
+
+    let project_id = match existing_id {
+        Ok(id) => {
+            conn.execute(
+                "UPDATE projects SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![folder_name, now, id],
+            )
+            .map_err(|e| e.to_string())?;
+            id
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            let new_id = Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO projects (id, name, root_path, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![new_id, folder_name, root_str, now, now],
+            )
+            .map_err(|e| e.to_string())?;
+            new_id
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+
+    conn.execute(
+        "UPDATE app_settings SET active_project_id = ?1 WHERE id = 1",
+        params![project_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    project_snapshot(db_path, &project_id)
+}
+
+fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
+    let latotex_dir = root.join(".latotex");
+    fs::create_dir_all(&latotex_dir).map_err(|e| e.to_string())?;
+
+    let config_path = latotex_dir.join("config.json");
+    if !config_path.exists() {
+        let config = json!({
+            "version": 1,
+            "createdAt": now_iso(),
+            "workspace": root
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Workspace".to_string())
+        });
+        fs::write(
+            config_path,
+            serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    let permissions_path = latotex_dir.join("permissions.json");
+    if !permissions_path.exists() {
+        let permissions = json!({
+            "allowAgentWrite": true,
+            "allowAgentRead": true,
+            "allowShellExec": false
+        });
+        fs::write(
+            permissions_path,
+            serde_json::to_string_pretty(&permissions).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    let main_path = root.join("main.tex");
+    if !main_path.exists() {
+        let content = "\\documentclass{article}\n\\begin{document}\nHello, LatoTex!\\\\\n\\end{document}\n";
+        fs::write(main_path, content).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 pub fn list_projects(db_path: &Path) -> Result<Vec<ProjectSummary>, String> {
@@ -465,45 +780,96 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
         None => None,
     };
 
-    let mut providers = Vec::new();
-    let mut provider_stmt = conn
-        .prepare("SELECT provider, base_url FROM provider_profiles ORDER BY provider")
+    let mut model_protocols = Vec::new();
+    let mut protocol_stmt = conn
+        .prepare("SELECT id, display_name, base_url FROM model_protocols ORDER BY id")
         .map_err(|e| e.to_string())?;
-    let provider_rows = provider_stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+    let protocol_rows = protocol_stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
         .map_err(|e| e.to_string())?;
 
-    for row in provider_rows {
-        let (provider, base_url) = row.map_err(|e| e.to_string())?;
-        let api_key_set = secure::has_api_key(&provider).unwrap_or(false);
-        providers.push(ProviderConfig {
-            provider,
+    for row in protocol_rows {
+        let (id, display_name, base_url) = row.map_err(|e| e.to_string())?;
+        model_protocols.push(ModelProtocol {
+            api_key_set: secure::has_api_key(&id).unwrap_or(false),
+            id,
+            display_name,
             base_url,
-            api_key_set,
         });
+    }
+
+    let mut model_catalog = Vec::new();
+    let mut catalog_stmt = conn
+        .prepare(
+            "SELECT id, protocol_id, display_name, request_name
+             FROM model_catalog ORDER BY protocol_id, display_name",
+        )
+        .map_err(|e| e.to_string())?;
+    let catalog_rows = catalog_stmt
+        .query_map([], |row| {
+            Ok(ModelCatalogItem {
+                id: row.get(0)?,
+                protocol_id: row.get(1)?,
+                display_name: row.get(2)?,
+                request_name: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    for row in catalog_rows {
+        model_catalog.push(row.map_err(|e| e.to_string())?);
     }
 
     let mut agent_bindings = Vec::new();
     let mut binding_stmt = conn
-        .prepare("SELECT role, provider, model FROM agent_bindings ORDER BY role")
+        .prepare("SELECT role, provider, model, COALESCE(model_id, '') FROM agent_bindings ORDER BY role")
         .map_err(|e| e.to_string())?;
     let binding_rows = binding_stmt
         .query_map([], |row| {
-            Ok(AgentModelBinding {
-                role: row.get(0)?,
-                provider: row.get(1)?,
-                model: row.get(2)?,
-            })
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
         })
         .map_err(|e| e.to_string())?;
 
     for row in binding_rows {
-        agent_bindings.push(row.map_err(|e| e.to_string())?);
+        let (role, provider, model, model_id) = row.map_err(|e| e.to_string())?;
+        let resolved_model_id = if model_id.trim().is_empty() {
+            let protocol_id = legacy_provider_to_protocol(&provider);
+            let generated_model_id = upsert_catalog_for_legacy_binding(
+                &conn,
+                &protocol_id,
+                &model,
+                &model,
+            )?;
+            conn.execute(
+                "UPDATE agent_bindings SET provider = ?1, model = ?2, model_id = ?3 WHERE role = ?4",
+                params![protocol_id, model, generated_model_id, role],
+            )
+            .map_err(|e| e.to_string())?;
+            generated_model_id
+        } else {
+            model_id
+        };
+
+        agent_bindings.push(AgentModelBinding {
+            role,
+            model_id: resolved_model_id,
+        });
     }
 
     Ok(AppSettings {
         active_project_id,
-        providers,
+        model_protocols,
+        model_catalog,
         agent_bindings,
         ui_prefs,
     })
@@ -524,45 +890,98 @@ pub fn update_settings(db_path: &Path, input: SettingsUpdateInput) -> Result<App
     )
     .map_err(|e| e.to_string())?;
 
-    update_provider_profiles(&conn, input.providers)?;
+    update_model_protocols(&conn, input.model_protocols)?;
+    update_model_catalog(&conn, input.model_catalog)?;
     update_agent_bindings(&conn, input.agent_bindings)?;
     load_settings(db_path)
 }
 
-fn update_provider_profiles(conn: &Connection, providers: Vec<ProviderConfigInput>) -> Result<(), String> {
-    for provider in providers {
+fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>) -> Result<(), String> {
+    for protocol in protocols {
+        conn.execute(
+            "INSERT INTO model_protocols (id, display_name, base_url)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET display_name = excluded.display_name, base_url = excluded.base_url",
+            params![&protocol.id, &protocol.display_name, &protocol.base_url],
+        )
+        .map_err(|e| e.to_string())?;
+
+        let legacy_provider = match protocol.id.as_str() {
+            "openai-compatible" => "openai".to_string(),
+            "anthropic" => "anthropic".to_string(),
+            "gemini" => "gemini".to_string(),
+            other => other.to_string(),
+        };
+
         conn.execute(
             "INSERT INTO provider_profiles (provider, base_url, api_key_ref)
              VALUES (?1, ?2, ?3)
              ON CONFLICT(provider) DO UPDATE SET base_url = excluded.base_url, api_key_ref = excluded.api_key_ref",
             params![
-                provider.provider,
-                provider.base_url,
-                format!("provider:{}", provider.provider)
+                legacy_provider,
+                &protocol.base_url,
+                format!("protocol:{}", protocol.id)
             ],
         )
         .map_err(|e| e.to_string())?;
 
-        if let Some(api_key) = provider.api_key {
+        if let Some(api_key) = protocol.api_key {
             if !api_key.trim().is_empty() {
-                secure::store_api_key(&provider.provider, api_key.trim())?;
+                secure::store_api_key(&protocol.id, api_key.trim())?;
             }
         }
     }
     Ok(())
 }
 
-fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) -> Result<(), String> {
-    for binding in bindings {
+fn update_model_catalog(conn: &Connection, models: Vec<ModelCatalogItemInput>) -> Result<(), String> {
+    for model in models {
         conn.execute(
-            "INSERT INTO agent_bindings (role, provider, model)
-             VALUES (?1, ?2, ?3)
-             ON CONFLICT(role) DO UPDATE SET provider = excluded.provider, model = excluded.model",
-            params![binding.role, binding.provider, binding.model],
+            "INSERT INTO model_catalog (id, protocol_id, display_name, request_name)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(id) DO UPDATE SET protocol_id = excluded.protocol_id, display_name = excluded.display_name, request_name = excluded.request_name",
+            params![model.id, model.protocol_id, model.display_name, model.request_name],
         )
         .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) -> Result<(), String> {
+    for binding in bindings {
+        let model_id = binding.model_id.clone();
+        let (protocol_id, request_name): (String, String) = conn
+            .query_row(
+                "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
+                params![&model_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|_| format!("modelId not found for role {}: {}", binding.role, model_id))?;
+
+        conn.execute(
+            "INSERT INTO agent_bindings (role, provider, model, model_id)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(role) DO UPDATE SET provider = excluded.provider, model = excluded.model, model_id = excluded.model_id",
+            params![binding.role, protocol_id, request_name, model_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn upsert_catalog_for_legacy_binding(
+    conn: &Connection,
+    protocol_id: &str,
+    display_name: &str,
+    request_name: &str,
+) -> Result<String, String> {
+    let model_id = format!("{protocol_id}-{}", normalize_model_key(request_name));
+    conn.execute(
+        "INSERT OR IGNORE INTO model_catalog (id, protocol_id, display_name, request_name) VALUES (?1, ?2, ?3, ?4)",
+        params![model_id, protocol_id, display_name, request_name],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(model_id)
 }
 
 pub fn now_iso() -> String {

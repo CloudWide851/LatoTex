@@ -11,6 +11,7 @@ node_modules/
 dist/
 .vite/
 coverage/
+public/core/busytex/
 *.log
 pnpm-debug.log*
 npm-debug.log*

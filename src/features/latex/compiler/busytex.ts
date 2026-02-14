@@ -1,9 +1,25 @@
+import { BusyTexRunner, XeLatex } from "texlyre-busytex";
+
+type BusyTexCompileResponse = {
+  success?: boolean;
+  pdf?: Uint8Array | ArrayBuffer | number[];
+  log?: string;
+  logs?: unknown;
+  exitCode?: number;
+};
+
 export type BusyTeXCompileResult = {
   status: "success" | "error";
   pdfBytes?: Uint8Array;
   diagnostics: string[];
   durationMs: number;
 };
+
+const BUSYTEX_BASE_PATH = "/core/busytex";
+const BUSYTEX_ASSET_HINT =
+  "BusyTeX assets missing. Run `pnpm run busytex:assets` to download /public/core/busytex files.";
+
+let runner: BusyTexRunner | null = null;
 
 function normalizeToUint8Array(input: unknown): Uint8Array | null {
   if (!input) {
@@ -18,84 +34,68 @@ function normalizeToUint8Array(input: unknown): Uint8Array | null {
   if (input instanceof ArrayBuffer) {
     return new Uint8Array(input);
   }
-  if (typeof input === "object" && "buffer" in (input as Record<string, unknown>)) {
-    const buffer = (input as { buffer?: unknown }).buffer;
-    if (buffer instanceof ArrayBuffer) {
-      return new Uint8Array(buffer);
-    }
-  }
   return null;
 }
 
-type BusyTeXCompiler = (payload: {
-  mainSource: string;
-  files: Record<string, string>;
-  format: "pdf";
-}) => Promise<unknown>;
-
-function resolveCompiler(module: Record<string, unknown>): BusyTeXCompiler | null {
-  const direct = module.compile as BusyTeXCompiler | undefined;
-  const latex = module.compileLatex as BusyTeXCompiler | undefined;
-  if (typeof direct === "function") {
-    return direct;
+function flattenLogs(raw: unknown): string[] {
+  if (!raw) {
+    return [];
   }
-  if (typeof latex === "function") {
-    return latex;
+  if (typeof raw === "string") {
+    return raw.trim() ? [raw] : [];
   }
-  const defaultExport = module.default as Record<string, unknown> | undefined;
-  if (!defaultExport) {
-    return null;
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+      .filter((line) => line.trim().length > 0);
   }
-  if (typeof defaultExport === "function") {
-    return defaultExport as unknown as BusyTeXCompiler;
-  }
-  if (typeof defaultExport.compile === "function") {
-    return defaultExport.compile as BusyTeXCompiler;
-  }
-  if (typeof defaultExport.compileLatex === "function") {
-    return defaultExport.compileLatex as BusyTeXCompiler;
-  }
-  return null;
+  return [JSON.stringify(raw)];
 }
 
-async function loadBusyTeXModule(): Promise<Record<string, unknown>> {
-  // Deliberately dynamic to tolerate unstable package export shapes in alpha releases.
-  const dynamicImporter = new Function(
-    "moduleName",
-    "return import(moduleName);"
-  ) as (moduleName: string) => Promise<Record<string, unknown>>;
-  return dynamicImporter("texlyre-busytex");
+async function getRunner(): Promise<BusyTexRunner> {
+  if (!runner) {
+    runner = new BusyTexRunner({
+      busytexBasePath: BUSYTEX_BASE_PATH
+    });
+  }
+  if (!runner.isInitialized()) {
+    await runner.initialize(true);
+  }
+  return runner;
 }
 
 export async function compileWithBusyTeX(
   mainSource: string,
-  files: Record<string, string>
+  files: Record<string, string>,
+  mainFilePath = "main.tex"
 ): Promise<BusyTeXCompileResult> {
   const start = performance.now();
   try {
-    const module = await loadBusyTeXModule();
-    const compiler = resolveCompiler(module);
-    if (!compiler) {
+    const currentRunner = await getRunner();
+    const compiler = new XeLatex(currentRunner);
+    const additionalFiles = Object.entries(files)
+      .filter(([path]) => path !== mainFilePath)
+      .map(([path, content]) => ({ path, content }));
+
+    const rawResult = (await compiler.compile({
+      input: mainSource,
+      additionalFiles
+    })) as BusyTexCompileResponse;
+
+    const diagnostics = [
+      ...flattenLogs(rawResult.logs),
+      ...(rawResult.log ? [rawResult.log] : [])
+    ];
+
+    const pdfBytes = normalizeToUint8Array(rawResult.pdf);
+    if (!rawResult.success || !pdfBytes) {
+      const finalDiagnostics =
+        diagnostics.length > 0
+          ? diagnostics
+          : [`BusyTeX compilation failed with exit code ${rawResult.exitCode ?? -1}.`];
       return {
         status: "error",
-        diagnostics: ["Unable to resolve compile API from texlyre-busytex module."],
-        durationMs: Math.round(performance.now() - start)
-      };
-    }
-
-    const rawResult = await compiler({ mainSource, files, format: "pdf" });
-    const result = rawResult as Record<string, unknown>;
-    const pdfBytes =
-      normalizeToUint8Array(result?.pdf) ??
-      normalizeToUint8Array(result?.output) ??
-      normalizeToUint8Array(result?.pdfBytes);
-
-    if (!pdfBytes) {
-      return {
-        status: "error",
-        diagnostics: [
-          "Compilation finished but no PDF bytes were returned by texlyre-busytex."
-        ],
+        diagnostics: finalDiagnostics,
         durationMs: Math.round(performance.now() - start)
       };
     }
@@ -103,15 +103,20 @@ export async function compileWithBusyTeX(
     return {
       status: "success",
       pdfBytes,
-      diagnostics: [],
+      diagnostics,
       durationMs: Math.round(performance.now() - start)
     };
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const hint =
+      message.includes("busytex") ||
+      message.includes("busytex_worker.js") ||
+      message.includes("Failed to fetch")
+        ? [BUSYTEX_ASSET_HINT]
+        : [];
     return {
       status: "error",
-      diagnostics: [
-        error instanceof Error ? error.message : "Unknown BusyTeX compilation error."
-      ],
+      diagnostics: [message, ...hint],
       durationMs: Math.round(performance.now() - start)
     };
   }
