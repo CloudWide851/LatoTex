@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  Ack,
   AgentModelBinding,
   AppSettings,
   BusyTexCacheInfo,
@@ -79,6 +80,14 @@ export function getLibraryTree(projectId: string): Promise<ResourceNode[]> {
 
 export function rescanLibrary(projectId: string) {
   return invoke("library_rescan", { input: { projectId } });
+}
+
+export function importLibraryPdf(projectId: string): Promise<Ack | null> {
+  return invoke<Ack | null>("library_import_pdf", { input: { projectId } });
+}
+
+export function importLibraryLink(projectId: string, link: string): Promise<Ack> {
+  return invoke<Ack>("library_import_link", { input: { projectId, link } });
 }
 
 export function runAgent(input: {

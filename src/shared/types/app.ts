@@ -225,3 +225,13 @@ export type BusyTexCacheInfo = {
   installDirWritable: boolean;
   usingFallback: boolean;
 };
+
+export type Ack = {
+  ok: boolean;
+  message: string;
+};
+
+export type GitInitProgress = {
+  phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
+  message: string;
+};

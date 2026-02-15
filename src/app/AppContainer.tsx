@@ -6,7 +6,7 @@ import { AppTopbar } from "./components/AppTopbar";
 import { AppWorkspaceShell } from "./components/AppWorkspaceShell";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { useI18n } from "../i18n";
-import logoMark from "../assets/logo-mark.svg";
+import logoMark from "../assets/logo-mark.png";
 import {
   getLibraryTree,
   gitBranches,
@@ -32,6 +32,7 @@ import type {
   GitBranchInfo,
   GitCommitInfo,
   GitDownloadStatus,
+  GitInitProgress,
   GitStatus,
   PanelLayoutPrefs,
   ProjectSearchHit,
@@ -60,11 +61,9 @@ import {
 } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
 import { useAppHandlers } from "./hooks/useAppHandlers";
-
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
-  const [status, setStatus] = useState<"ready" | "offline">("ready");
-  const [toast, setToast] = useState<Toast>(null);
+  const [status, setStatus] = useState<"ready" | "offline">("ready"); const [toast, setToast] = useState<Toast>(null);
   const [page, setPage] = useState<WorkspacePage>("latex");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -107,6 +106,7 @@ export function AppContainer() {
   const [gitCommits, setGitCommits] = useState<GitCommitInfo[]>([]);
   const [gitAvailability, setGitAvailability] = useState<GitAvailability | null>(null);
   const [gitDownloadState, setGitDownloadState] = useState<GitDownloadStatus | null>(null);
+  const [gitInitProgress, setGitInitProgress] = useState<GitInitProgress | null>(null);
   const [gitDownloadTaskId, setGitDownloadTaskId] = useState<string | null>(null);
   const [gitInstallerLaunched, setGitInstallerLaunched] = useState(false);
   const [suppressAutoGitInstall, setSuppressAutoGitInstall] = useState(false);
@@ -115,7 +115,6 @@ export function AppContainer() {
   const activeProjectIdRef = useRef<string | null>(null);
   const panelLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPanelLayoutRef = useRef<Partial<PanelLayoutPrefs>>({});
-
   const isTauriRuntime = isTauri();
   activeProjectIdRef.current = activeProjectId;
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
@@ -269,6 +268,8 @@ export function AppContainer() {
     handleGitInstallerCancel,
     handleGitRunInstaller,
     handleLibraryRescan,
+    handleLibraryImportPdf,
+    handleLibraryImportLink,
   } = useAppHandlers({
     isTauriRuntime,
     t,
@@ -425,6 +426,7 @@ export function AppContainer() {
       commits={gitCommits}
       availability={gitAvailability}
       downloadStatus={gitDownloadState}
+      initProgress={gitInitProgress}
       busy={busy}
       onRefresh={() =>
         refreshGitWorkspace().catch((error) => setToast({ type: "error", message: String(error) }))
@@ -436,7 +438,31 @@ export function AppContainer() {
       onStage={(paths) => handleGitAction(async () => gitStage(activeProjectId, paths))}
       onUnstage={(paths) => handleGitAction(async () => gitUnstage(activeProjectId, paths))}
       onCommit={(message) => handleGitAction(async () => gitCommit(activeProjectId, message))}
-      onInitRepo={() => handleGitAction(async () => gitInitRepo(activeProjectId))}
+      onInitRepo={async () => {
+        setBusy(true);
+        setGitInitProgress({ phase: "checking", message: t("git.init.checking") });
+        try {
+          const current = await gitStatus(activeProjectId).catch(() => null);
+          if (!current?.isRepo) {
+            setGitInitProgress({ phase: "initializing", message: t("git.init.initializing") });
+            await gitInitRepo(activeProjectId);
+          }
+          setGitInitProgress({ phase: "refreshing", message: t("git.init.refreshing") });
+          await refreshGitWorkspace(activeProjectId);
+          setGitInitProgress({ phase: "done", message: t("git.init.done") });
+          setToast({ type: "info", message: t("git.init.done") });
+          window.setTimeout(() => {
+            setGitInitProgress((prev) =>
+              prev?.phase === "done" ? { phase: "idle", message: "" } : prev,
+            );
+          }, 1400);
+        } catch (error) {
+          setGitInitProgress({ phase: "error", message: String(error) });
+          setToast({ type: "error", message: String(error) });
+        } finally {
+          setBusy(false);
+        }
+      }}
       onLoadDiff={(path, staged) => gitDiffFile(activeProjectId, path, staged, 3)}
       onStartGitInstall={handleGitInstallerDownloadStart}
       onCancelDownload={handleGitInstallerCancel}
@@ -521,6 +547,8 @@ export function AppContainer() {
           setOverlay("logs");
         }}
         onLibraryRescan={handleLibraryRescan}
+        onLibraryImportPdf={handleLibraryImportPdf}
+        onLibraryImportLink={handleLibraryImportLink}
         onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
         onFsAction={(scope, action, path, targetPath, content) =>
           requestFsAction(scope, action, path, targetPath, content)

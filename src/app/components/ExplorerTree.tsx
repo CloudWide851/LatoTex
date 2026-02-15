@@ -34,20 +34,36 @@ function joinPath(parent: string, name: string): string {
 }
 
 export function ExplorerTree(props: {
+  mode?: "workspace" | "library";
   tree: ResourceNode[];
   selectedPath: string | null;
   allowRescan?: boolean;
   busy?: boolean;
   onSelect: (path: string) => void;
-  onAction: (action: FsAction, path: string, targetPath?: string, content?: string) => Promise<void>;
+  onAction?: (action: FsAction, path: string, targetPath?: string, content?: string) => Promise<void>;
   onRescan?: () => void;
+  onImportPdf?: () => void;
+  onImportLink?: (link: string) => void;
   t: TranslationFn;
 }) {
-  const { tree, selectedPath, allowRescan, busy, onSelect, onAction, onRescan, t } = props;
+  const {
+    mode = "workspace",
+    tree,
+    selectedPath,
+    allowRescan,
+    busy,
+    onSelect,
+    onAction,
+    onRescan,
+    onImportPdf,
+    onImportLink,
+    t,
+  } = props;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [menu, setMenu] = useState<ExplorerMenuTarget | null>(null);
   const [editing, setEditing] = useState<EditingState>(null);
   const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
+  const [linkDraft, setLinkDraft] = useState<string | null>(null);
 
   useEffect(() => {
     const closeMenu = () => setMenu(null);
@@ -85,6 +101,10 @@ export function ExplorerTree(props: {
   };
 
   const submitEditing = async () => {
+    if (!onAction) {
+      setEditing(null);
+      return;
+    }
     if (!editing) {
       return;
     }
@@ -116,7 +136,26 @@ export function ExplorerTree(props: {
     }
 
     const items: Array<{ key: string; onClick: () => void }> = [];
-    if (menu.kind === "blank") {
+    if (mode === "library") {
+      items.push(
+        {
+          key: "library.action.importPdf",
+          onClick: () => onImportPdf?.(),
+        },
+        {
+          key: "library.action.importLink",
+          onClick: () => {
+            setLinkDraft("");
+          },
+        },
+      );
+      if (allowRescan && onRescan) {
+        items.push({
+          key: "explorer.action.rescan",
+          onClick: () => onRescan(),
+        });
+      }
+    } else if (menu.kind === "blank") {
       items.push(
         {
           key: "explorer.action.newFile",
@@ -158,7 +197,10 @@ export function ExplorerTree(props: {
           onClick: () =>
             setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
         },
-        { key: "explorer.action.delete", onClick: () => onAction("delete", menu.path) },
+        {
+          key: "explorer.action.delete",
+          onClick: () => onAction?.("delete", menu.path),
+        },
       );
     } else {
       items.push(
@@ -180,7 +222,10 @@ export function ExplorerTree(props: {
           onClick: () =>
             setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
         },
-        { key: "explorer.action.delete", onClick: () => onAction("delete", menu.path) },
+        {
+          key: "explorer.action.delete",
+          onClick: () => onAction?.("delete", menu.path),
+        },
       );
     }
 
@@ -207,6 +252,9 @@ export function ExplorerTree(props: {
   };
 
   const renderCreateEditor = (parentPath: string) => {
+    if (mode !== "workspace") {
+      return null;
+    }
     if (
       !editing ||
       (editing.mode !== "create_file" && editing.mode !== "create_folder") ||
@@ -279,7 +327,9 @@ export function ExplorerTree(props: {
           }}
           onDoubleClick={(event) => {
             event.stopPropagation();
-            triggerRename(node.relativePath, node.name);
+            if (mode === "workspace") {
+              triggerRename(node.relativePath, node.name);
+            }
           }}
         >
           {isDirectory ? (
@@ -347,6 +397,9 @@ export function ExplorerTree(props: {
         setMenu({ x: event.clientX, y: event.clientY, path: "", kind: "blank" });
       }}
       onDoubleClick={(event) => {
+        if (mode !== "workspace") {
+          return;
+        }
         if (event.target !== event.currentTarget) {
           return;
         }
@@ -369,7 +422,7 @@ export function ExplorerTree(props: {
         )}
       </div>
 
-      {transferPanel && (
+      {mode === "workspace" && transferPanel && (
         <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
           <div className="truncate text-slate-600">{transferPanel.sourcePath}</div>
           <input
@@ -393,12 +446,41 @@ export function ExplorerTree(props: {
               className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-white hover:bg-primary-500 disabled:opacity-50"
               disabled={busy || !transferPanel.targetPath.trim()}
               onClick={async () => {
-                await onAction(
+                await onAction?.(
                   transferPanel.action,
                   transferPanel.sourcePath,
                   transferPanel.targetPath.trim(),
                 );
                 setTransferPanel(null);
+              }}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+      {mode === "library" && linkDraft !== null && (
+        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
+          <div className="text-slate-600">{t("library.action.importLink")}</div>
+          <input
+            className="mt-2 w-full rounded border border-slate-300 bg-white px-2 py-1 outline-none focus:border-primary-500"
+            value={linkDraft}
+            placeholder={t("library.linkPlaceholder")}
+            onChange={(event) => setLinkDraft(event.target.value)}
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-600 hover:bg-slate-100"
+              onClick={() => setLinkDraft(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <button
+              className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-white hover:bg-primary-500 disabled:opacity-50"
+              disabled={busy || !linkDraft.trim()}
+              onClick={() => {
+                onImportLink?.(linkDraft.trim());
+                setLinkDraft(null);
               }}
             >
               <Check className="h-3.5 w-3.5" />

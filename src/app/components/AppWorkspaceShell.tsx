@@ -60,6 +60,8 @@ export function AppWorkspaceShell(props: {
   onEditorRedo: () => void;
   onOpenLogs: (tab: LogTab) => void;
   onLibraryRescan: () => void;
+  onLibraryImportPdf: () => void;
+  onLibraryImportLink: (link: string) => void;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
   onFsAction: (
     scope: FsScope,
@@ -110,6 +112,8 @@ export function AppWorkspaceShell(props: {
     onEditorRedo,
     onOpenLogs,
     onLibraryRescan,
+    onLibraryImportPdf,
+    onLibraryImportLink,
     onSavePanelLayout,
     onFsAction,
     t,
@@ -365,15 +369,16 @@ export function AppWorkspaceShell(props: {
                   </h2>
                   <div className="h-[calc(100%-24px)] overflow-auto pr-1">
                     <ExplorerTree
+                      mode="library"
                       tree={libraryTree}
                       selectedPath={selectedLibraryPath}
                       allowRescan
                       busy={busy}
                       onSelect={onSelectLibraryPath}
                       onRescan={onLibraryRescan}
-                      onAction={(action, path, targetPath, content) =>
-                        onFsAction("library", action, path, targetPath, content)
-                      }
+                      onImportPdf={onLibraryImportPdf}
+                      onImportLink={onLibraryImportLink}
+                      onAction={() => Promise.resolve()}
                       t={t}
                     />
                   </div>

@@ -3,6 +3,16 @@ fn node_sort_key(node: &ResourceNode) -> (u8, String) {
     (rank, node.name.to_lowercase())
 }
 
+fn should_show_workspace_entry(name: &str, is_dir: bool) -> bool {
+    if is_dir && name == ".git" {
+        return false;
+    }
+    if !name.starts_with('.') {
+        return true;
+    }
+    matches!(name, ".gitignore" | ".editorconfig")
+}
+
 fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, String> {
     let relative_path = path
         .strip_prefix(root_path)
@@ -19,10 +29,11 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
         for item in fs::read_dir(path).map_err(|e| e.to_string())? {
             let item = item.map_err(|e| e.to_string())?;
             let item_name = item.file_name().to_string_lossy().to_string();
-            if item_name.starts_with('.') {
+            let item_path = item.path();
+            if !should_show_workspace_entry(&item_name, item_path.is_dir()) {
                 continue;
             }
-            children.push(build_resource_node(root_path, &item.path())?);
+            children.push(build_resource_node(root_path, &item_path)?);
         }
         children.sort_by_key(node_sort_key);
         Ok(ResourceNode {
@@ -230,6 +241,220 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
     Ok(Ack {
         ok: true,
         message: "Library index refreshed".to_string(),
+    })
+}
+
+fn slugify_name(input: &str, fallback: &str) -> String {
+    let mut output = String::new();
+    let mut prev_dash = false;
+    for ch in input.chars() {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch.to_ascii_lowercase());
+            prev_dash = false;
+            continue;
+        }
+        if !prev_dash {
+            output.push('-');
+            prev_dash = true;
+        }
+    }
+    let trimmed = output.trim_matches('-');
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn normalize_doi(text: &str) -> Option<String> {
+    let value = text
+        .trim()
+        .trim_start_matches("doi:")
+        .trim_start_matches("DOI:")
+        .trim();
+    let lower = value.to_lowercase();
+    let from_url = if let Some(index) = lower.find("doi.org/") {
+        &value[index + "doi.org/".len()..]
+    } else {
+        value
+    };
+    let token = from_url
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(['.', ',', ';']);
+    if token.starts_with("10.") && token.contains('/') {
+        Some(token.to_string())
+    } else {
+        None
+    }
+}
+
+fn extract_arxiv_id(text: &str) -> Option<String> {
+    let value = text.trim();
+    let lower = value.to_lowercase();
+    let token = if let Some(index) = lower.find("arxiv.org/abs/") {
+        &value[index + "arxiv.org/abs/".len()..]
+    } else if let Some(index) = lower.find("arxiv.org/pdf/") {
+        &value[index + "arxiv.org/pdf/".len()..]
+    } else if lower.starts_with("arxiv:") {
+        &value["arxiv:".len()..]
+    } else {
+        ""
+    };
+    if token.is_empty() {
+        return None;
+    }
+    let normalized = token
+        .split(['?', '#', '/'])
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(".pdf")
+        .trim();
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized.to_string())
+    }
+}
+
+fn sanitize_citation_key(input: &str) -> String {
+    let mut output = String::new();
+    for ch in input.chars() {
+        if ch.is_ascii_alphanumeric() {
+            output.push(ch.to_ascii_lowercase());
+        } else if matches!(ch, '-' | '_' | ':') {
+            output.push('-');
+        }
+    }
+    let trimmed = output.trim_matches('-');
+    if trimmed.is_empty() {
+        "paper".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn unique_path_with_extension(dir: &Path, stem: &str, extension: &str) -> PathBuf {
+    let ext = extension.trim_start_matches('.');
+    let mut index = 1_u32;
+    loop {
+        let candidate = if index == 1 {
+            dir.join(format!("{stem}.{ext}"))
+        } else {
+            dir.join(format!("{stem}-{index}.{ext}"))
+        };
+        if !candidate.exists() {
+            return candidate;
+        }
+        index = index.saturating_add(1);
+    }
+}
+
+fn touch_project_updated_at(db_path: &Path, project_id: &str) -> Result<(), String> {
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE projects SET updated_at = ?1 WHERE id = ?2",
+        params![now_iso(), project_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub fn import_library_pdf(db_path: &Path, project_id: &str, source_path: &Path) -> Result<Ack, String> {
+    if !source_path.exists() || !source_path.is_file() {
+        return Err("Selected PDF file is not accessible".to_string());
+    }
+    let extension = source_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    if extension != "pdf" {
+        return Err("Only PDF files can be imported into the paper library".to_string());
+    }
+
+    let project_root = load_project_root(db_path, project_id)?;
+    let papers_root = library_root(&project_root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+
+    let stem = source_path
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("paper");
+    let normalized_stem = slugify_name(stem, "paper");
+    let target_pdf = unique_path_with_extension(&papers_root, &normalized_stem, "pdf");
+    fs::copy(source_path, &target_pdf).map_err(|e| e.to_string())?;
+
+    let citation_key = sanitize_citation_key(
+        target_pdf
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("paper"),
+    );
+    let title = stem.replace(['_', '-'], " ");
+    let bib_entry = format!(
+        "@misc{{{citation_key},\n  title = {{{title}}},\n  note = {{Imported from local PDF by LatoTex}}\n}}\n"
+    );
+    fs::write(target_pdf.with_extension("bib"), bib_entry).map_err(|e| e.to_string())?;
+
+    refresh_workspace_index(&project_root)?;
+    refresh_library_index(&project_root)?;
+    touch_project_updated_at(db_path, project_id)?;
+
+    Ok(Ack {
+        ok: true,
+        message: "Paper PDF imported".to_string(),
+    })
+}
+
+pub fn import_library_link(db_path: &Path, project_id: &str, link: &str) -> Result<Ack, String> {
+    let trimmed = link.trim();
+    if trimmed.is_empty() {
+        return Err("Link cannot be empty".to_string());
+    }
+
+    let project_root = load_project_root(db_path, project_id)?;
+    let papers_root = library_root(&project_root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+
+    let (stem, citation_key, bib_entry) = if let Some(doi) = normalize_doi(trimmed) {
+        let stem = format!("doi-{}", slugify_name(&doi, "doi"));
+        let key = sanitize_citation_key(&stem);
+        let entry = format!(
+            "@article{{{key},\n  doi = {{{doi}}},\n  url = {{https://doi.org/{doi}}}\n}}\n"
+        );
+        (stem, key, entry)
+    } else if let Some(arxiv_id) = extract_arxiv_id(trimmed) {
+        let stem = format!("arxiv-{}", slugify_name(&arxiv_id, "arxiv"));
+        let key = sanitize_citation_key(&stem);
+        let entry = format!(
+            "@misc{{{key},\n  eprint = {{{arxiv_id}}},\n  archivePrefix = {{arXiv}},\n  url = {{https://arxiv.org/abs/{arxiv_id}}}\n}}\n"
+        );
+        (stem, key, entry)
+    } else {
+        let timestamp = Utc::now().format("%Y%m%d%H%M%S").to_string();
+        let stem = format!("link-{timestamp}");
+        let key = sanitize_citation_key(&stem);
+        let entry = format!("@misc{{{key},\n  url = {{{trimmed}}}\n}}\n");
+        (stem, key, entry)
+    };
+
+    let bib_path = unique_path_with_extension(&papers_root, &stem, "bib");
+    let final_entry = if bib_entry.contains(&format!("@misc{{{citation_key}")) || bib_entry.contains(&format!("@article{{{citation_key}")) {
+        bib_entry
+    } else {
+        format!("@misc{{{citation_key},\n  url = {{{trimmed}}}\n}}\n")
+    };
+    fs::write(bib_path, final_entry).map_err(|e| e.to_string())?;
+
+    refresh_workspace_index(&project_root)?;
+    refresh_library_index(&project_root)?;
+    touch_project_updated_at(db_path, project_id)?;
+
+    Ok(Ack {
+        ok: true,
+        message: "Paper link imported".to_string(),
     })
 }
 

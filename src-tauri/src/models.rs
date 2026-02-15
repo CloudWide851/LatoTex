@@ -256,6 +256,13 @@ pub struct LibraryRefInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LibraryLinkImportInput {
+    pub project_id: String,
+    pub link: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectSearchInput {
     pub project_id: String,
     pub query: String,

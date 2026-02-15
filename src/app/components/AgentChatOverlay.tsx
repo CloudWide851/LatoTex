@@ -44,7 +44,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "absolute bottom-3 right-3 z-20 flex max-w-[360px] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-2 right-2 z-20 flex max-w-[min(420px,calc(100vw-96px))] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -59,7 +59,7 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="absolute bottom-3 right-3 z-20 grid h-[330px] w-[360px] grid-rows-[38px_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
+    <div className="absolute bottom-2 right-2 z-20 grid h-[min(52vh,420px)] max-h-[calc(100vh-110px)] w-[min(420px,calc(100vw-96px))] grid-rows-[38px_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
       <div className="flex items-center justify-between border-b border-slate-200 px-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
           <MessageSquareMore className="h-3.5 w-3.5" />

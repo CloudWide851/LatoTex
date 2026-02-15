@@ -13,6 +13,29 @@ import type { DeleteIntent, LogTab, OverlayType, ThemeTransition, Toast } from "
 
 type TranslationFn = (key: any) => string;
 
+function tryFormatJson(input: unknown): string | null {
+  if (typeof input !== "string") {
+    try {
+      return JSON.stringify(input, null, 2);
+    } catch {
+      return null;
+    }
+  }
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return input;
+  }
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return null;
+  }
+}
+
 export function AppOverlays(props: {
   overlay: OverlayType;
   logsTab: LogTab;
@@ -104,18 +127,42 @@ export function AppOverlays(props: {
               {logsTab === "events" ? (
                 <ul className="space-y-2 text-xs text-slate-700">
                   {(events.length > 0
-                    ? events.slice(-160).reverse().map((event) => `${event.createdAt} | ${event.role} | ${event.kind}`)
+                    ? events
+                        .slice(-160)
+                        .reverse()
+                        .map((event) =>
+                          JSON.stringify(
+                            {
+                              createdAt: event.createdAt,
+                              role: event.role,
+                              kind: event.kind,
+                              payload: event.payload,
+                            },
+                            null,
+                            2,
+                          ),
+                        )
                     : [t("preview.none")]).map((line, index) => (
-                    <li key={`${line}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      {line}
+                    <li
+                      key={`${line}-${index}`}
+                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
+                        {line}
+                      </pre>
                     </li>
                   ))}
                 </ul>
               ) : (
                 <ul className="space-y-2 text-xs text-slate-700">
                   {(compileDiagnostics.length > 0 ? compileDiagnostics : [t("preview.none")]).map((line, index) => (
-                    <li key={`${line}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      {line}
+                    <li
+                      key={`${line}-${index}`}
+                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
+                        {tryFormatJson(line) ?? line}
+                      </pre>
                     </li>
                   ))}
                 </ul>

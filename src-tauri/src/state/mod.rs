@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Condvar, Mutex};
 use tauri::{AppHandle, Manager};
@@ -48,11 +48,20 @@ struct InstallState {
     launch_count: u64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeRootPointer {
+    runtime_root: String,
+    updated_at: String,
+}
+
 impl AppState {
     pub fn bootstrap(app: &AppHandle) -> Result<Self, String> {
         let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let previous_runtime_root = read_runtime_root_pointer(&app_data_dir);
         let runtime_root = resolve_runtime_root()?;
         migrate_legacy_data_if_needed(&app_data_dir, &runtime_root)?;
+        migrate_previous_runtime_data_if_needed(previous_runtime_root.as_ref(), &runtime_root)?;
 
         let projects_dir = runtime_root.join("projects");
         let db_path = runtime_root.join("latotex.db");
@@ -67,7 +76,9 @@ impl AppState {
         logging::install_panic_hook(logs_dir.clone(), session_log_path.clone());
 
         let app_version = env!("CARGO_PKG_VERSION").to_string();
-        let install_mode = detect_install_mode_and_persist(&runtime_root, &app_version)?;
+        let install_mode =
+            detect_install_mode_and_persist(&runtime_root, &app_data_dir, &app_version)?;
+        let _ = persist_runtime_root_pointer(&app_data_dir, &runtime_root);
 
         let state = Self {
             app_name: "LatoTex".to_string(),
@@ -108,7 +119,7 @@ fn resolve_runtime_root() -> Result<PathBuf, String> {
     Ok(runtime_root)
 }
 
-fn copy_recursively(source: &PathBuf, target: &PathBuf) -> Result<(), String> {
+fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
     if source.is_dir() {
         fs::create_dir_all(target).map_err(|e| e.to_string())?;
         for item in fs::read_dir(source).map_err(|e| e.to_string())? {
@@ -126,6 +137,74 @@ fn copy_recursively(source: &PathBuf, target: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
+fn copy_runtime_candidates(source_root: &Path, runtime_root: &Path) -> Result<(), String> {
+    let candidates = vec![
+        "latotex.db",
+        "install-state.json",
+        "projects",
+        "downloads",
+        "busytex-cache",
+        "logs",
+    ];
+    for name in candidates {
+        let source = source_root.join(name);
+        if !source.exists() {
+            continue;
+        }
+        let target = runtime_root.join(name);
+        if target.exists() {
+            continue;
+        }
+        copy_recursively(&source, &target)?;
+    }
+    Ok(())
+}
+
+fn runtime_root_pointer_path(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join("runtime-root.json")
+}
+
+fn read_runtime_root_pointer(app_data_dir: &PathBuf) -> Option<PathBuf> {
+    let pointer_path = runtime_root_pointer_path(app_data_dir);
+    if !pointer_path.exists() {
+        return None;
+    }
+    let raw = fs::read_to_string(pointer_path).ok()?;
+    let pointer = serde_json::from_str::<RuntimeRootPointer>(&raw).ok()?;
+    let runtime_root = PathBuf::from(pointer.runtime_root);
+    if runtime_root.exists() {
+        Some(runtime_root)
+    } else {
+        None
+    }
+}
+
+fn persist_runtime_root_pointer(app_data_dir: &PathBuf, runtime_root: &PathBuf) -> Result<(), String> {
+    fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
+    let pointer = RuntimeRootPointer {
+        runtime_root: runtime_root.to_string_lossy().to_string(),
+        updated_at: Utc::now().to_rfc3339(),
+    };
+    let serialized = serde_json::to_string_pretty(&pointer).map_err(|e| e.to_string())?;
+    fs::write(runtime_root_pointer_path(app_data_dir), serialized).map_err(|e| e.to_string())
+}
+
+fn migrate_previous_runtime_data_if_needed(
+    previous_runtime_root: Option<&PathBuf>,
+    runtime_root: &PathBuf,
+) -> Result<(), String> {
+    let Some(previous_root) = previous_runtime_root else {
+        return Ok(());
+    };
+    if previous_root == runtime_root {
+        return Ok(());
+    }
+    if !previous_root.exists() {
+        return Ok(());
+    }
+    copy_runtime_candidates(previous_root, runtime_root)
+}
+
 fn migrate_legacy_data_if_needed(legacy_data_dir: &PathBuf, runtime_root: &PathBuf) -> Result<(), String> {
     if legacy_data_dir == runtime_root {
         return Ok(());
@@ -138,25 +217,7 @@ fn migrate_legacy_data_if_needed(legacy_data_dir: &PathBuf, runtime_root: &PathB
         return Ok(());
     }
 
-    let candidates = vec![
-        "latotex.db",
-        "install-state.json",
-        "projects",
-        "downloads",
-        "busytex-cache",
-    ];
-
-    for name in candidates {
-        let source = legacy_data_dir.join(name);
-        if !source.exists() {
-            continue;
-        }
-        let target = runtime_root.join(name);
-        if target.exists() {
-            continue;
-        }
-        copy_recursively(&source, &target)?;
-    }
+    copy_runtime_candidates(legacy_data_dir, runtime_root)?;
 
     let marker_content = format!("migrated_at={}", Utc::now().to_rfc3339());
     match fs::write(marker, marker_content) {
@@ -166,10 +227,39 @@ fn migrate_legacy_data_if_needed(legacy_data_dir: &PathBuf, runtime_root: &PathB
     }
 }
 
-fn detect_install_mode_and_persist(runtime_root: &PathBuf, app_version: &str) -> Result<String, String> {
+fn read_install_state(path: &Path) -> Result<Option<InstallState>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    match serde_json::from_str::<InstallState>(&raw) {
+        Ok(state) => Ok(Some(state)),
+        Err(_) => Ok(None),
+    }
+}
+
+fn detect_install_mode_and_persist(
+    runtime_root: &PathBuf,
+    app_data_dir: &PathBuf,
+    app_version: &str,
+) -> Result<String, String> {
     let marker_path = runtime_root.join("install-state.json");
     let now = Utc::now().to_rfc3339();
     if !marker_path.exists() {
+        if let Some(mut previous) = read_install_state(&app_data_dir.join("install-state.json"))? {
+            let mode = if previous.version != app_version {
+                "updated-install"
+            } else {
+                "existing-install"
+            }
+            .to_string();
+            previous.version = app_version.to_string();
+            previous.last_started_at = now;
+            previous.launch_count = previous.launch_count.saturating_add(1);
+            write_install_state(&marker_path, &previous)?;
+            return Ok(mode);
+        }
+
         let state = InstallState {
             version: app_version.to_string(),
             installed_at: now.clone(),

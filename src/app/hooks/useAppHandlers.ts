@@ -129,6 +129,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleGitInstallerCancel,
     handleGitRunInstaller,
     handleLibraryRescan,
+    handleLibraryImportPdf,
+    handleLibraryImportLink,
   } = useGitHandlers({
     t,
     activeProjectId,
@@ -160,14 +162,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         return;
       }
       if (action === "toggle") {
-        const maximized = await appWindow.isMaximized();
-        if (maximized) {
-          await appWindow.unmaximize();
-          setIsMaximized(false);
-        } else {
-          await appWindow.maximize();
-          setIsMaximized(true);
-        }
+        await appWindow.toggleMaximize();
+        setIsMaximized(await appWindow.isMaximized());
         return;
       }
       await appWindow.close();
@@ -606,5 +602,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleGitInstallerCancel,
     handleGitRunInstaller,
     handleLibraryRescan,
+    handleLibraryImportPdf,
+    handleLibraryImportLink,
   };
 }

@@ -1,6 +1,8 @@
 import { useCallback } from "react";
 import {
   getLibraryTree,
+  importLibraryLink,
+  importLibraryPdf,
   gitDownloadCancel,
   gitDownloadInstallerStart,
   gitRunInstaller,
@@ -125,11 +127,54 @@ export function useGitHandlers(params: {
     }
   }, [activeProjectId, setBusy, setLibraryTree, setToast]);
 
+  const handleLibraryImportPdf = useCallback(async () => {
+    if (!activeProjectId) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await importLibraryPdf(activeProjectId);
+      if (!result) {
+        return;
+      }
+      const nextTree = await getLibraryTree(activeProjectId);
+      setLibraryTree(nextTree);
+      setToast({ type: "info", message: t("toast.fsUpdated") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
+
+  const handleLibraryImportLink = useCallback(async (link: string) => {
+    if (!activeProjectId) {
+      return;
+    }
+    const normalized = link.trim();
+    if (!normalized) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await importLibraryLink(activeProjectId, normalized);
+      const nextTree = await getLibraryTree(activeProjectId);
+      setLibraryTree(nextTree);
+      setToast({ type: "info", message: t("toast.fsUpdated") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
+
   return {
     handleGitAction,
     handleGitInstallerDownloadStart,
     handleGitInstallerCancel,
     handleGitRunInstaller,
     handleLibraryRescan,
+    handleLibraryImportPdf,
+    handleLibraryImportLink,
   };
 }

@@ -15,7 +15,7 @@ export function PageRail(props: {
 }) {
   const { items, activePage, onChange } = props;
   return (
-    <aside className="rounded-none border-r border-slate-200 bg-white/95 p-2 shadow-soft motion-slide-up">
+    <aside className="rounded-none border-r border-slate-200 bg-transparent p-2 motion-slide-up">
       <div className="flex h-full flex-col gap-2">
         {items.map((item) => {
           const Icon = item.icon;

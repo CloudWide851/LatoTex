@@ -354,7 +354,7 @@ pub fn list_workspace_tree(root_path: &Path) -> Result<Vec<ResourceNode>, String
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') {
+        if !should_show_workspace_entry(&name, path.is_dir()) {
             continue;
         }
         entries.push(build_resource_node(root_path, &path)?);

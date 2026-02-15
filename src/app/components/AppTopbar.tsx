@@ -63,7 +63,7 @@ export function AppTopbar(props: {
           className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1"
           data-tauri-drag-region
         >
-          <img src={logoMark} alt={t("app.brand")} className="h-5 w-5 rounded-sm" />
+          <img src={logoMark} alt={t("app.brand")} className="h-5 w-5 object-contain" />
           <span className="text-sm font-semibold tracking-wide text-zinc-100">{t("app.brand")}</span>
         </div>
         {status === "offline" && (

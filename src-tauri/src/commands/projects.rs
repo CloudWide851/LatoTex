@@ -1,7 +1,7 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadInput, FileReadResponse, FileWriteInput, FsOperationInput,
-    FsOperationResult, LibraryRefInput, ProjectRefInput, ProjectSearchHit, ProjectSearchInput,
-    ProjectSnapshot, ProjectSummary, ResourceNode,
+    FsOperationResult, LibraryLinkImportInput, LibraryRefInput, ProjectRefInput, ProjectSearchHit,
+    ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -93,6 +93,30 @@ pub fn library_tree(
 pub fn library_rescan(state: State<'_, AppState>, input: LibraryRefInput) -> Result<Ack, String> {
     state.log("INFO", &format!("library_rescan: {}", input.project_id));
     storage::rescan_library(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn library_import_pdf(
+    state: State<'_, AppState>,
+    input: LibraryRefInput,
+) -> Result<Option<Ack>, String> {
+    state.log("INFO", &format!("library_import_pdf: {}", input.project_id));
+    let selected = FileDialog::new()
+        .add_filter("PDF", &["pdf"])
+        .pick_file();
+    match selected {
+        Some(path) => storage::import_library_pdf(&state.db_path, &input.project_id, &path).map(Some),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub fn library_import_link(
+    state: State<'_, AppState>,
+    input: LibraryLinkImportInput,
+) -> Result<Ack, String> {
+    state.log("INFO", &format!("library_import_link: {}", input.project_id));
+    storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())
 }
 
 #[tauri::command]

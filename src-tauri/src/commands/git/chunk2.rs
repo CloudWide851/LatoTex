@@ -233,6 +233,48 @@ pub fn git_checkout(state: State<'_, AppState>, input: GitCheckoutInput) -> Resu
     })
 }
 
+fn synthetic_untracked_diff(root: &Path, relative_path: &str) -> Option<GitDiffResponse> {
+    let porcelain = run_git(root, &["status", "--porcelain=v1", "--", relative_path]).ok()?;
+    if !porcelain.lines().any(|line| line.starts_with("?? ")) {
+        return None;
+    }
+    let file_path = root.join(relative_path);
+    if !file_path.exists() || !file_path.is_file() {
+        return None;
+    }
+    let bytes = fs::read(file_path).ok()?;
+    if bytes.contains(&0) {
+        return Some(GitDiffResponse {
+            path: relative_path.to_string(),
+            staged: false,
+            added_lines: 0,
+            removed_lines: 0,
+            hunks: Vec::new(),
+        });
+    }
+    let content = String::from_utf8_lossy(&bytes);
+    let mut lines = Vec::new();
+    for (index, line) in content.lines().enumerate() {
+        lines.push(GitDiffLine {
+            kind: "added".to_string(),
+            old_line: None,
+            new_line: Some((index + 1) as u32),
+            text: format!("+{line}"),
+        });
+    }
+    let hunk = GitDiffHunk {
+        header: format!("@@ -0,0 +1,{} @@", lines.len()),
+        lines,
+    };
+    Some(GitDiffResponse {
+        path: relative_path.to_string(),
+        staged: false,
+        added_lines: hunk.lines.len() as u32,
+        removed_lines: 0,
+        hunks: vec![hunk],
+    })
+}
+
 #[tauri::command]
 pub fn git_diff_file(
     state: State<'_, AppState>,
@@ -323,6 +365,12 @@ pub fn git_diff_file(
 
     if let Some(hunk) = current_hunk.take() {
         hunks.push(hunk);
+    }
+
+    if hunks.is_empty() && !staged {
+        if let Some(synthetic) = synthetic_untracked_diff(&root, &input.path) {
+            return Ok(synthetic);
+        }
     }
 
     Ok(GitDiffResponse {
