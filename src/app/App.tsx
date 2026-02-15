@@ -3,7 +3,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Bot,
   FileCode2,
-  Files,
   FolderOpen,
   Globe,
   Languages,
@@ -19,6 +18,9 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { ExplorerTree } from "./components/ExplorerTree";
+import { LogOverlay } from "./components/LogOverlay";
+import { PageRail } from "./components/PageRail";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
@@ -157,84 +159,6 @@ function upsertProject(projects: ProjectSummary[], snapshot: ProjectSummary): Pr
   return next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-function TreeNode(props: {
-  node: ResourceNode;
-  selectedPath: string | null;
-  onSelect: (path: string) => void;
-}) {
-  const { node, selectedPath, onSelect } = props;
-  if (node.kind === "file") {
-    return (
-      <button
-        className={cn(
-          "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-600 transition",
-          "hover:bg-slate-100 hover:text-slate-900",
-          selectedPath === node.relativePath && "bg-primary-100 text-primary-900",
-        )}
-        onClick={() => onSelect(node.relativePath)}
-        title={node.relativePath}
-      >
-        <FileCode2 className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{node.name}</span>
-      </button>
-    );
-  }
-
-  return (
-    <div className="mt-2">
-      <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-        <Files className="h-3.5 w-3.5" />
-        <span>{node.name}</span>
-      </div>
-      <div className="ml-3 space-y-1 border-l border-dashed border-slate-200 pl-2">
-        {node.children.map((child) => (
-          <TreeNode
-            key={child.relativePath}
-            node={child}
-            selectedPath={selectedPath}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LogOverlay(props: { title: string; lines: string[]; onClose: () => void }) {
-  const { title, lines, onClose } = props;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
-      <div className="grid h-[70vh] w-full max-w-3xl grid-rows-[48px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4">
-          <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="overflow-auto px-4 py-3">
-          {lines.length === 0 ? (
-            <p className="text-sm text-slate-500">-</p>
-          ) : (
-            <ul className="space-y-2 text-xs text-slate-700">
-              {lines.map((line, index) => (
-                <li
-                  key={`${line}-${index}`}
-                  className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-                >
-                  {line}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function App() {
   const { locale, setLocale, t } = useI18n();
   const [status, setStatus] = useState<"ready" | "offline">("ready");
@@ -268,6 +192,35 @@ export function App() {
     () => t(PAGE_ITEMS.find((item) => item.id === page)?.key ?? "nav.latex"),
     [page, t],
   );
+  const pageRailItems = useMemo(
+    () =>
+      PAGE_ITEMS.map((item) => ({
+        id: item.id,
+        icon: item.icon,
+        label: t(item.key),
+      })),
+    [t],
+  );
+  const isLatexPage = page === "latex";
+  const showExplorer = page !== "settings";
+  const mainGridClass = useMemo(() => {
+    if (page === "latex") {
+      return cn(
+        "grid-cols-[56px_minmax(220px,0.2fr)_minmax(520px,1fr)_minmax(300px,0.4fr)]",
+        "max-[1680px]:grid-cols-[56px_minmax(210px,0.22fr)_minmax(460px,1fr)_minmax(280px,0.38fr)]",
+        "max-[1320px]:grid-cols-[56px_minmax(190px,0.24fr)_minmax(360px,1fr)_minmax(240px,0.34fr)]",
+        "max-[960px]:grid-cols-[56px_minmax(0,1fr)]",
+      );
+    }
+    if (page === "settings") {
+      return "grid-cols-[56px_minmax(0,1fr)]";
+    }
+    return cn(
+      "grid-cols-[56px_minmax(230px,0.24fr)_minmax(620px,1fr)]",
+      "max-[1240px]:grid-cols-[56px_minmax(180px,0.3fr)_minmax(0,1fr)]",
+      "max-[960px]:grid-cols-[56px_minmax(0,1fr)]",
+    );
+  }, [page]);
 
   useEffect(() => {
     const init = async () => {
@@ -660,7 +613,7 @@ export function App() {
     };
 
     return (
-      <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft max-[980px]:grid-cols-1">
+      <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
         <aside className="border-r border-slate-200 bg-slate-50 p-2 max-[980px]:border-r-0 max-[980px]:border-b">
           <div className="space-y-1">
             {SETTINGS_SECTIONS.map((item) => {
@@ -974,7 +927,7 @@ export function App() {
   };
 
   const renderNoProjectPanel = () => (
-    <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4">
+    <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
       <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
       <Button onClick={handleInitProjectFromFolder} disabled={busy}>
         <FolderOpen className="mr-2 h-4 w-4" />
@@ -986,14 +939,14 @@ export function App() {
   const renderMainPanel = () => {
     if (page === "analysis") {
       return (
-        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500">
+        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500 motion-slide-up">
           {t("workspace.analysis")}
         </div>
       );
     }
     if (page === "library") {
       return (
-        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500">
+        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500 motion-slide-up">
           {t("workspace.library")}
         </div>
       );
@@ -1006,7 +959,7 @@ export function App() {
     }
 
     return (
-      <div className="grid h-full grid-rows-[48px_minmax(260px,1fr)_250px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+      <div className="grid h-full grid-rows-[48px_minmax(260px,1fr)_250px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
           <div className="truncate text-sm font-medium text-slate-700">
             {selectedFile ?? t("workspace.noFile")}
@@ -1073,8 +1026,8 @@ export function App() {
       : t("preview.none");
 
   return (
-    <div className="flex h-screen flex-col gap-3 overflow-hidden bg-slate-100 p-3">
-      <header className="flex h-11 items-center justify-between rounded-md border border-zinc-800 bg-zinc-950 px-2 text-zinc-100 shadow-soft">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-100">
+      <header className="flex h-12 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-3 text-zinc-100">
         <div className="flex min-w-0 items-center gap-3" data-tauri-drag-region>
           <div className="rounded bg-zinc-800 px-2 py-1 text-xs font-semibold tracking-wide">
             {t("app.brand")}
@@ -1087,7 +1040,7 @@ export function App() {
           )}
         </div>
 
-        <div className="flex w-[500px] max-w-[56vw] items-center gap-2">
+        <div className="flex w-[560px] max-w-[56vw] items-center gap-2">
           <Select
             aria-label={t("topbar.selectProject")}
             value={activeProjectId ?? ""}
@@ -1148,61 +1101,28 @@ export function App() {
         </div>
       </header>
 
-      <main
-        className={cn(
-          "grid flex-1 min-h-0 gap-3 overflow-hidden",
-          page === "latex"
-            ? "grid-cols-[70px_260px_minmax(460px,1fr)_minmax(320px,0.38fr)]"
-            : "grid-cols-[70px_260px_minmax(620px,1fr)]",
-          "max-[1380px]:grid-cols-[60px_230px_minmax(360px,1fr)]",
-          "max-[1380px]:grid-rows-[minmax(420px,1fr)_minmax(280px,340px)]",
-          "max-[900px]:grid-cols-1 max-[900px]:grid-rows-[auto_auto_auto]",
+      <main className={cn("grid flex-1 min-h-0 gap-3 overflow-hidden p-3", mainGridClass)}>
+        <PageRail items={pageRailItems} activePage={page} onChange={setPage} />
+
+        {showExplorer && (
+          <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up max-[960px]:hidden">
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("explorer.title")}
+            </h2>
+            <div className="h-[calc(100%-22px)] overflow-auto pr-1">
+              {activeProjectId ? (
+                <ExplorerTree tree={tree} selectedFile={selectedFile} onSelect={setSelectedFile} />
+              ) : (
+                <div className="text-xs text-slate-500">{t("workspace.noProject")}</div>
+              )}
+            </div>
+          </aside>
         )}
-      >
-        <aside className="rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
-          <div className="flex flex-col gap-2 max-[900px]:flex-row">
-            {PAGE_ITEMS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Button
-                  key={item.id}
-                  variant={page === item.id ? "default" : "ghost"}
-                  size="icon"
-                  className="h-12 w-full flex-col gap-1 rounded-md text-[11px] max-[900px]:w-20"
-                  onClick={() => setPage(item.id)}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{t(item.key)}</span>
-                </Button>
-              );
-            })}
-          </div>
-        </aside>
 
-        <aside className="min-h-0 rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t("explorer.title")}
-          </h2>
-          <div className="h-[calc(100%-22px)] overflow-auto pr-1">
-            {activeProjectId ? (
-              tree.map((node) => (
-                <TreeNode
-                  key={node.relativePath}
-                  node={node}
-                  selectedPath={selectedFile}
-                  onSelect={setSelectedFile}
-                />
-              ))
-            ) : (
-              <div className="text-xs text-slate-500">{t("workspace.noProject")}</div>
-            )}
-          </div>
-        </aside>
+        <section className="min-h-0 motion-fade-in">{renderMainPanel()}</section>
 
-        <section className="min-h-0">{renderMainPanel()}</section>
-
-        {page === "latex" && (
-          <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft max-[1380px]:col-span-2 max-[900px]:col-span-1">
+        {isLatexPage && (
+          <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up max-[960px]:hidden">
             <h2 className="mb-2 text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
             <div className="grid h-[calc(100%-28px)] grid-rows-[minmax(220px,1fr)_auto] gap-3">
               {pdfUrl ? (
