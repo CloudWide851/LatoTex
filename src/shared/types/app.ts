@@ -74,7 +74,17 @@ export type AppSettings = {
   uiPrefs?: {
     language?: "en-US" | "zh-CN";
     skipDeleteConfirm?: boolean;
+    panelLayout?: PanelLayoutPrefs;
   };
+};
+
+export type PanelLayoutPrefs = {
+  shell?: number[];
+  latex?: number[];
+  analysis?: number[];
+  library?: number[];
+  git?: number[];
+  settings?: number[];
 };
 
 export type RuntimeLogInfo = {
@@ -151,4 +161,27 @@ export type GitCommitInfo = {
   author: string;
   date: string;
   subject: string;
+};
+
+export type GitAvailability = {
+  installed: boolean;
+  version?: string;
+};
+
+export type GitDownloadStart = {
+  taskId: string;
+  fileName: string;
+  downloadUrl: string;
+};
+
+export type GitDownloadStatus = {
+  taskId: string;
+  status: string;
+  fileName: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  speedBps: number;
+  progressPercent: number;
+  installerPath: string;
+  error?: string;
 };

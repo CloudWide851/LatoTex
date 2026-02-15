@@ -163,10 +163,11 @@ export async function compileWithBusyTeX(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const normalized = message.toLowerCase();
     const hint =
-      message.includes("busytex") ||
-      message.includes("busytex_worker.js") ||
-      message.includes("Failed to fetch")
+      normalized.includes("busytex") ||
+      normalized.includes("busytex_worker.js") ||
+      normalized.includes("failed to fetch")
         ? [BUSYTEX_ASSET_HINT]
         : [];
     return {

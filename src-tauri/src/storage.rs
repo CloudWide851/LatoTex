@@ -357,10 +357,7 @@ pub fn create_project(db_path: &Path, projects_dir: &Path, name: &str) -> Result
     let now = now_iso();
     let root_dir = projects_dir.join(&project_id);
     fs::create_dir_all(&root_dir).map_err(|e| e.to_string())?;
-
-    let main_file = "main.tex";
-    let main_content = "\\documentclass{article}\n\\begin{document}\nHello, LatoTex!\\\\\n\\end{document}\n";
-    fs::write(root_dir.join(main_file), main_content).map_err(|e| e.to_string())?;
+    ensure_workspace_bootstrap_files(&root_dir)?;
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     conn.execute(
@@ -475,6 +472,54 @@ fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
     if !main_path.exists() {
         let content = "\\documentclass{article}\n\\begin{document}\nHello, LatoTex!\\\\\n\\end{document}\n";
         fs::write(main_path, content).map_err(|e| e.to_string())?;
+    }
+
+    let readme_path = root.join("README.md");
+    if !readme_path.exists() {
+        let project_name = root
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "LatoTex Project".to_string());
+        let content = format!(
+            "# {project_name}\n\nManaged by LatoTex.\n\n## Structure\n\n- `main.tex`: default LaTeX entry file\n- `.latotex/`: workspace metadata\n"
+        );
+        fs::write(readme_path, content).map_err(|e| e.to_string())?;
+    }
+
+    let gitignore_path = root.join(".gitignore");
+    if !gitignore_path.exists() {
+        let content = [
+            "# Build outputs",
+            "dist/",
+            "build/",
+            "",
+            "# Dependencies",
+            "node_modules/",
+            "",
+            "# LatoTex cache/index",
+            ".latotex/index/",
+            "",
+            "# Logs",
+            "*.log",
+        ]
+        .join("\n");
+        fs::write(gitignore_path, format!("{content}\n")).map_err(|e| e.to_string())?;
+    }
+
+    let editorconfig_path = root.join(".editorconfig");
+    if !editorconfig_path.exists() {
+        let content = [
+            "root = true",
+            "",
+            "[*]",
+            "charset = utf-8",
+            "end_of_line = lf",
+            "insert_final_newline = true",
+            "indent_style = space",
+            "indent_size = 2",
+        ]
+        .join("\n");
+        fs::write(editorconfig_path, format!("{content}\n")).map_err(|e| e.to_string())?;
     }
 
     refresh_workspace_index(root)?;

@@ -6,8 +6,9 @@ mod state;
 mod storage;
 
 use commands::git::{
-    git_branches, git_checkout, git_commit, git_fetch, git_log, git_pull, git_push, git_stage,
-    git_status, git_unstage,
+    git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
+    git_download_installer_start, git_download_status, git_fetch, git_init_repo, git_log,
+    git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
 };
 use commands::health::health_check;
 use commands::projects::{
@@ -50,6 +51,12 @@ pub fn run() {
             runtime_log_write,
             runtime_log_info,
             git_status,
+            git_check_installed,
+            git_init_repo,
+            git_download_installer_start,
+            git_download_status,
+            git_download_cancel,
+            git_run_installer,
             git_branches,
             git_log,
             git_stage,

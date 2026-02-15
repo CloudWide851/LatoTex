@@ -199,6 +199,7 @@ pub struct AppSettings {
 pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
+    pub panel_layout: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -344,4 +345,39 @@ pub struct GitCheckoutInput {
     pub project_id: String,
     pub branch: String,
     pub create: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitAvailabilityResponse {
+    pub installed: bool,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDownloadStartResponse {
+    pub task_id: String,
+    pub file_name: String,
+    pub download_url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDownloadStatusResponse {
+    pub task_id: String,
+    pub status: String,
+    pub file_name: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: u64,
+    pub speed_bps: u64,
+    pub progress_percent: f64,
+    pub installer_path: String,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitTaskInput {
+    pub task_id: String,
 }

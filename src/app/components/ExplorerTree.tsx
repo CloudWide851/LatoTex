@@ -1,62 +1,412 @@
-import { FileCode2, Files } from "lucide-react";
+import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { cn } from "../../lib/utils";
-import type { ResourceNode } from "../../shared/types/app";
+import type { FsAction, ResourceNode } from "../../shared/types/app";
 
-function TreeNode(props: {
-  node: ResourceNode;
-  selectedPath: string | null;
-  onSelect: (path: string) => void;
-}) {
-  const { node, selectedPath, onSelect } = props;
-  if (node.kind === "file") {
-    return (
-      <button
-        className={cn(
-          "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-600 transition",
-          "hover:bg-slate-100 hover:text-slate-900",
-          selectedPath === node.relativePath && "bg-primary-100 text-primary-900",
-        )}
-        onClick={() => onSelect(node.relativePath)}
-        title={node.relativePath}
-      >
-        <FileCode2 className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{node.name}</span>
-      </button>
-    );
+type ExplorerMenuTarget = {
+  x: number;
+  y: number;
+  path: string;
+  kind: "file" | "directory" | "blank";
+};
+
+type EditingState =
+  | { mode: "rename"; path: string; value: string }
+  | { mode: "create_file" | "create_folder"; parentPath: string; value: string }
+  | null;
+
+type MoveCopyPanel =
+  | { action: "copy" | "move"; sourcePath: string; targetPath: string }
+  | null;
+
+type TranslationFn = (key: any) => string;
+
+function dirnameOf(path: string): string {
+  const index = path.lastIndexOf("/");
+  return index < 0 ? "" : path.slice(0, index);
+}
+
+function joinPath(parent: string, name: string): string {
+  if (!parent) {
+    return name;
   }
-
-  return (
-    <div className="mt-2">
-      <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-        <Files className="h-3.5 w-3.5" />
-        <span>{node.name}</span>
-      </div>
-      <div className="ml-3 space-y-1 border-l border-dashed border-slate-200 pl-2">
-        {node.children.map((child) => (
-          <TreeNode
-            key={child.relativePath}
-            node={child}
-            selectedPath={selectedPath}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  return `${parent}/${name}`;
 }
 
 export function ExplorerTree(props: {
   tree: ResourceNode[];
-  selectedFile: string | null;
+  selectedPath: string | null;
+  allowRescan?: boolean;
+  busy?: boolean;
   onSelect: (path: string) => void;
+  onAction: (action: FsAction, path: string, targetPath?: string, content?: string) => Promise<void>;
+  onRescan?: () => void;
+  t: TranslationFn;
 }) {
-  const { tree, selectedFile, onSelect } = props;
-  return tree.map((node) => (
-    <TreeNode
-      key={node.relativePath}
-      node={node}
-      selectedPath={selectedFile}
-      onSelect={onSelect}
-    />
-  ));
+  const { tree, selectedPath, allowRescan, busy, onSelect, onAction, onRescan, t } = props;
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [menu, setMenu] = useState<ExplorerMenuTarget | null>(null);
+  const [editing, setEditing] = useState<EditingState>(null);
+  const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
+
+  useEffect(() => {
+    const closeMenu = () => setMenu(null);
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("blur", closeMenu);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("blur", closeMenu);
+    };
+  }, []);
+
+  const expandedMap = useMemo(() => {
+    if (Object.keys(expanded).length > 0) {
+      return expanded;
+    }
+    const defaults: Record<string, boolean> = {};
+    const walk = (nodes: ResourceNode[]) => {
+      for (const node of nodes) {
+        if (node.kind === "directory") {
+          defaults[node.relativePath] = true;
+          walk(node.children);
+        }
+      }
+    };
+    walk(tree);
+    return defaults;
+  }, [expanded, tree]);
+
+  const triggerRename = (path: string, name: string) => {
+    setEditing({ mode: "rename", path, value: name });
+  };
+
+  const triggerCreate = (parentPath: string, mode: "create_file" | "create_folder") => {
+    setEditing({ mode, parentPath, value: "" });
+  };
+
+  const submitEditing = async () => {
+    if (!editing) {
+      return;
+    }
+    const nextName = editing.value.trim();
+    if (!nextName) {
+      setEditing(null);
+      return;
+    }
+
+    if (editing.mode === "rename") {
+      const targetPath = joinPath(dirnameOf(editing.path), nextName);
+      await onAction("rename", editing.path, targetPath);
+      setEditing(null);
+      return;
+    }
+
+    const path = joinPath(editing.parentPath, nextName);
+    if (editing.mode === "create_file") {
+      await onAction("create_file", path, undefined, "");
+    } else {
+      await onAction("create_folder", path);
+    }
+    setEditing(null);
+  };
+
+  const renderMenu = () => {
+    if (!menu) {
+      return null;
+    }
+
+    const items: Array<{ key: string; onClick: () => void }> = [];
+    if (menu.kind === "blank") {
+      items.push(
+        {
+          key: "explorer.action.newFile",
+          onClick: () => triggerCreate("", "create_file"),
+        },
+        {
+          key: "explorer.action.newFolder",
+          onClick: () => triggerCreate("", "create_folder"),
+        },
+      );
+      if (allowRescan && onRescan) {
+        items.push({
+          key: "explorer.action.rescan",
+          onClick: () => onRescan(),
+        });
+      }
+    } else if (menu.kind === "directory") {
+      items.push(
+        { key: "explorer.action.newFile", onClick: () => triggerCreate(menu.path, "create_file") },
+        {
+          key: "explorer.action.newFolder",
+          onClick: () => triggerCreate(menu.path, "create_folder"),
+        },
+        {
+          key: "explorer.action.rename",
+          onClick: () => {
+            const parts = menu.path.split("/");
+            const name = parts[parts.length - 1] ?? menu.path;
+            triggerRename(menu.path, name);
+          },
+        },
+        {
+          key: "explorer.action.copy",
+          onClick: () =>
+            setTransferPanel({ action: "copy", sourcePath: menu.path, targetPath: menu.path }),
+        },
+        {
+          key: "explorer.action.move",
+          onClick: () =>
+            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
+        },
+        { key: "explorer.action.delete", onClick: () => onAction("delete", menu.path) },
+      );
+    } else {
+      items.push(
+        {
+          key: "explorer.action.rename",
+          onClick: () => {
+            const parts = menu.path.split("/");
+            const name = parts[parts.length - 1] ?? menu.path;
+            triggerRename(menu.path, name);
+          },
+        },
+        {
+          key: "explorer.action.copy",
+          onClick: () =>
+            setTransferPanel({ action: "copy", sourcePath: menu.path, targetPath: menu.path }),
+        },
+        {
+          key: "explorer.action.move",
+          onClick: () =>
+            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
+        },
+        { key: "explorer.action.delete", onClick: () => onAction("delete", menu.path) },
+      );
+    }
+
+    return (
+      <div
+        className="fixed z-50 min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+        style={{ left: menu.x, top: menu.y }}
+      >
+        {items.map((item) => (
+          <button
+            key={item.key}
+            className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+            onClick={async (event) => {
+              event.stopPropagation();
+              setMenu(null);
+              await item.onClick();
+            }}
+          >
+            {t(item.key)}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderCreateEditor = (parentPath: string) => {
+    if (
+      !editing ||
+      (editing.mode !== "create_file" && editing.mode !== "create_folder") ||
+      editing.parentPath !== parentPath
+    ) {
+      return null;
+    }
+    const icon =
+      editing.mode === "create_folder" ? (
+        <Folder className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+      ) : (
+        <FileCode2 className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+      );
+    return (
+      <div className="flex items-center gap-1 rounded-md border border-primary-200 bg-primary-50 px-2 py-1">
+        {icon}
+        <input
+          autoFocus
+          className="w-full bg-transparent text-xs text-slate-700 outline-none"
+          value={editing.value}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) =>
+            setEditing((prev) => (prev ? { ...prev, value: event.target.value } : prev))
+          }
+          onKeyDown={async (event) => {
+            if (event.key === "Enter") {
+              await submitEditing();
+            }
+            if (event.key === "Escape") {
+              setEditing(null);
+            }
+          }}
+          onBlur={() => setEditing(null)}
+        />
+      </div>
+    );
+  };
+
+  const renderNode = (node: ResourceNode, depth: number) => {
+    const isDirectory = node.kind === "directory";
+    const isExpanded = isDirectory ? expandedMap[node.relativePath] !== false : false;
+    const isRenaming = editing?.mode === "rename" && editing.path === node.relativePath;
+    const indentStyle = { paddingLeft: `${depth * 10}px` };
+    return (
+      <Fragment key={node.relativePath}>
+        <div
+          className={cn(
+            "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
+            selectedPath === node.relativePath
+              ? "bg-primary-100 text-primary-900"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+          )}
+          style={indentStyle}
+          title={node.relativePath}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setMenu({
+              x: event.clientX,
+              y: event.clientY,
+              path: node.relativePath,
+              kind: node.kind,
+            });
+          }}
+          onClick={() => {
+            if (isDirectory) {
+              setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
+            }
+            onSelect(node.relativePath);
+          }}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            triggerRename(node.relativePath, node.name);
+          }}
+        >
+          {isDirectory ? (
+            <>
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform",
+                  isExpanded && "rotate-90",
+                )}
+              />
+              {isExpanded ? (
+                <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <Folder className="h-3.5 w-3.5 shrink-0" />
+              )}
+            </>
+          ) : (
+            <>
+              <span className="h-3.5 w-3.5 shrink-0" />
+              <FileCode2 className="h-3.5 w-3.5 shrink-0" />
+            </>
+          )}
+
+          {isRenaming ? (
+            <input
+              autoFocus
+              className="w-full bg-transparent text-xs text-slate-800 outline-none"
+              value={editing.value}
+              onClick={(event) => event.stopPropagation()}
+              onChange={(event) =>
+                setEditing((prev) => (prev ? { ...prev, value: event.target.value } : prev))
+              }
+              onKeyDown={async (event) => {
+                if (event.key === "Enter") {
+                  await submitEditing();
+                }
+                if (event.key === "Escape") {
+                  setEditing(null);
+                }
+              }}
+              onBlur={() => setEditing(null)}
+            />
+          ) : (
+            <span className="truncate">{node.name}</span>
+          )}
+        </div>
+        {isDirectory && isExpanded && (
+          <div className="space-y-1">
+            {node.children.map((child) => renderNode(child, depth + 1))}
+            {renderCreateEditor(node.relativePath)}
+          </div>
+        )}
+      </Fragment>
+    );
+  };
+
+  return (
+    <div
+      className="relative flex h-full min-h-0 flex-col"
+      onContextMenu={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+        event.preventDefault();
+        setMenu({ x: event.clientX, y: event.clientY, path: "", kind: "blank" });
+      }}
+      onDoubleClick={(event) => {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+        triggerCreate("", "create_file");
+      }}
+    >
+      <div className="min-h-0 flex-1 space-y-1 overflow-auto pr-1">
+        {tree.length === 0 ? (
+          <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+              <Files className="h-4 w-4" />
+              <span>{t("explorer.empty")}</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {tree.map((node) => renderNode(node, 0))}
+            {renderCreateEditor("")}
+          </>
+        )}
+      </div>
+
+      {transferPanel && (
+        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
+          <div className="truncate text-slate-600">{transferPanel.sourcePath}</div>
+          <input
+            className="mt-2 w-full rounded border border-slate-300 bg-white px-2 py-1 outline-none focus:border-primary-500"
+            value={transferPanel.targetPath}
+            placeholder={t("explorer.prompt.targetPath")}
+            onChange={(event) =>
+              setTransferPanel((prev) =>
+                prev ? { ...prev, targetPath: event.target.value } : prev,
+              )
+            }
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-600 hover:bg-slate-100"
+              onClick={() => setTransferPanel(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <button
+              className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-white hover:bg-primary-500 disabled:opacity-50"
+              disabled={busy || !transferPanel.targetPath.trim()}
+              onClick={async () => {
+                await onAction(
+                  transferPanel.action,
+                  transferPanel.sourcePath,
+                  transferPanel.targetPath.trim(),
+                );
+                setTransferPanel(null);
+              }}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+      {renderMenu()}
+    </div>
+  );
 }

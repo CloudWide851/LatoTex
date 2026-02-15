@@ -30,6 +30,30 @@ body {
   overflow: hidden;
 }
 
+.resizable-handle {
+  width: 6px;
+  border-radius: 9999px;
+  background: transparent;
+  position: relative;
+}
+
+.resizable-handle::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  border-radius: 9999px;
+  background: #d4d4d8;
+  transition: background-color 140ms ease;
+}
+
+.resizable-handle:hover::before,
+.resizable-handle[data-resize-handle-active]::before {
+  background: #2563eb;
+}
+
 .rail-tooltip {
   pointer-events: none;
   position: absolute;

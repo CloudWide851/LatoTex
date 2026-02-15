@@ -1,12 +1,25 @@
 use crate::models::{
-    Ack, GitBranchInfo, GitCheckoutInput, GitCommitInfo, GitCommitInput, GitLogInput, GitPathsInput,
-    GitRefInput, GitRemoteInput, GitStatusEntry, GitStatusResponse,
+    Ack, GitAvailabilityResponse, GitBranchInfo, GitCheckoutInput, GitCommitInfo, GitCommitInput,
+    GitDownloadStartResponse, GitDownloadStatusResponse, GitLogInput, GitPathsInput, GitRefInput,
+    GitRemoteInput, GitStatusEntry, GitStatusResponse, GitTaskInput,
 };
-use crate::state::AppState;
+use crate::state::{AppState, GitDownloadTask};
 use crate::storage;
+use reqwest::blocking::Client;
+use serde::Deserialize;
+use std::fs::{self, File};
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::Command;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::State;
+use uuid::Uuid;
+
+const GIT_RELEASE_API: &str = "https://api.github.com/repos/git-for-windows/git/releases/latest";
+const DOWNLOAD_USER_AGENT: &str = "LatoTex/0.1.0 (+https://github.com/git-for-windows/git)";
 
 fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
@@ -20,6 +33,26 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
         Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+fn read_git_version() -> Option<String> {
+    let output = Command::new("git").arg("--version").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn set_task_status(status_lock: &Arc<Mutex<String>>, status: &str) {
+    if let Ok(mut guard) = status_lock.lock() {
+        *guard = status.to_string();
+    }
+}
+
+fn set_task_error(error_lock: &Arc<Mutex<Option<String>>>, message: Option<String>) {
+    if let Ok(mut guard) = error_lock.lock() {
+        *guard = message;
     }
 }
 
@@ -62,6 +95,265 @@ fn parse_branch_header(line: &str) -> (String, Option<String>, u32, u32) {
     }
 
     (branch, upstream, ahead, behind)
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubRelease {
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+fn select_git_windows_asset(release: GitHubRelease) -> Option<GitHubAsset> {
+    release.assets.into_iter().find(|asset| {
+        let name = asset.name.to_ascii_lowercase();
+        name.contains("64-bit.exe") && name.starts_with("git-")
+    })
+}
+
+#[tauri::command]
+pub fn git_check_installed(state: State<'_, AppState>) -> Result<GitAvailabilityResponse, String> {
+    state.log("INFO", "git_check_installed");
+    let version = read_git_version();
+    Ok(GitAvailabilityResponse {
+        installed: version.is_some(),
+        version,
+    })
+}
+
+#[tauri::command]
+pub fn git_init_repo(state: State<'_, AppState>, input: GitRefInput) -> Result<Ack, String> {
+    state.log("INFO", &format!("git_init_repo: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    run_git(&root, &["init"])?;
+    Ok(Ack {
+        ok: true,
+        message: "initialized".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_download_installer_start(
+    state: State<'_, AppState>,
+) -> Result<GitDownloadStartResponse, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Git auto installer download is only supported on Windows".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let client = Client::builder()
+            .user_agent(DOWNLOAD_USER_AGENT)
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let release = client
+            .get(GIT_RELEASE_API)
+            .header("Accept", "application/vnd.github+json")
+            .send()
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| e.to_string())?
+            .json::<GitHubRelease>()
+            .map_err(|e| e.to_string())?;
+
+        let asset = select_git_windows_asset(release)
+            .ok_or_else(|| "No Windows x64 Git installer asset found".to_string())?;
+
+        let task_id = Uuid::new_v4().to_string();
+        let destination = state.downloads_dir.join(&asset.name);
+        if destination.exists() {
+            fs::remove_file(&destination).map_err(|e| e.to_string())?;
+        }
+
+        let task = GitDownloadTask {
+            id: task_id.clone(),
+            file_name: asset.name.clone(),
+            download_url: asset.browser_download_url.clone(),
+            destination_path: destination.clone(),
+            downloaded_bytes: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            total_bytes: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            speed_bps: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            cancel_flag: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            status: Arc::new(Mutex::new("downloading".to_string())),
+            error: Arc::new(Mutex::new(None)),
+        };
+
+        let cloned_task = task.clone();
+        {
+            let mut tasks = state
+                .git_download_tasks
+                .lock()
+                .map_err(|_| "failed to lock git download tasks".to_string())?;
+            tasks.insert(task_id.clone(), task);
+        }
+
+        thread::spawn(move || {
+            let run = || -> Result<(), String> {
+                let mut response = Client::builder()
+                    .user_agent(DOWNLOAD_USER_AGENT)
+                    .timeout(Duration::from_secs(60))
+                    .build()
+                    .map_err(|e| e.to_string())?
+                    .get(&cloned_task.download_url)
+                    .send()
+                    .and_then(|r| r.error_for_status())
+                    .map_err(|e| e.to_string())?;
+
+                let total = response.content_length().unwrap_or(0);
+                cloned_task.total_bytes.store(total, Ordering::Relaxed);
+
+                let mut file = File::create(&cloned_task.destination_path).map_err(|e| e.to_string())?;
+                let mut buffer = [0_u8; 64 * 1024];
+                let mut bytes_since_tick = 0_u64;
+                let mut last_tick = Instant::now();
+
+                loop {
+                    if cloned_task.cancel_flag.load(Ordering::Relaxed) {
+                        set_task_status(&cloned_task.status, "cancelled");
+                        cloned_task.speed_bps.store(0, Ordering::Relaxed);
+                        drop(file);
+                        let _ = fs::remove_file(&cloned_task.destination_path);
+                        return Ok(());
+                    }
+
+                    let read_size = response.read(&mut buffer).map_err(|e| e.to_string())?;
+                    if read_size == 0 {
+                        break;
+                    }
+
+                    file.write_all(&buffer[..read_size]).map_err(|e| e.to_string())?;
+                    cloned_task
+                        .downloaded_bytes
+                        .fetch_add(read_size as u64, Ordering::Relaxed);
+                    bytes_since_tick += read_size as u64;
+
+                    let elapsed = last_tick.elapsed();
+                    if elapsed >= Duration::from_millis(350) {
+                        let speed = (bytes_since_tick as f64 / elapsed.as_secs_f64()) as u64;
+                        cloned_task.speed_bps.store(speed, Ordering::Relaxed);
+                        bytes_since_tick = 0;
+                        last_tick = Instant::now();
+                    }
+                }
+
+                file.flush().map_err(|e| e.to_string())?;
+                cloned_task.speed_bps.store(0, Ordering::Relaxed);
+                set_task_status(&cloned_task.status, "completed");
+                Ok(())
+            };
+
+            if let Err(error) = run() {
+                set_task_error(&cloned_task.error, Some(error));
+                set_task_status(&cloned_task.status, "failed");
+                cloned_task.speed_bps.store(0, Ordering::Relaxed);
+            }
+        });
+
+        Ok(GitDownloadStartResponse {
+            task_id,
+            file_name: asset.name,
+            download_url: asset.browser_download_url,
+        })
+    }
+}
+
+#[tauri::command]
+pub fn git_download_status(
+    state: State<'_, AppState>,
+    input: GitTaskInput,
+) -> Result<GitDownloadStatusResponse, String> {
+    let tasks = state
+        .git_download_tasks
+        .lock()
+        .map_err(|_| "failed to lock git download tasks".to_string())?;
+    let task = tasks
+        .get(&input.task_id)
+        .ok_or_else(|| "download task not found".to_string())?;
+
+    let downloaded = task.downloaded_bytes.load(Ordering::Relaxed);
+    let total = task.total_bytes.load(Ordering::Relaxed);
+    let speed = task.speed_bps.load(Ordering::Relaxed);
+    let status = task
+        .status
+        .lock()
+        .map_err(|_| "failed to read task status".to_string())?
+        .clone();
+    let error = task
+        .error
+        .lock()
+        .map_err(|_| "failed to read task error".to_string())?
+        .clone();
+    let progress_percent = if total > 0 {
+        ((downloaded as f64 / total as f64) * 100.0).clamp(0.0, 100.0)
+    } else {
+        0.0
+    };
+
+    Ok(GitDownloadStatusResponse {
+        task_id: task.id.clone(),
+        status,
+        file_name: task.file_name.clone(),
+        downloaded_bytes: downloaded,
+        total_bytes: total,
+        speed_bps: speed,
+        progress_percent,
+        installer_path: task.destination_path.to_string_lossy().to_string(),
+        error,
+    })
+}
+
+#[tauri::command]
+pub fn git_download_cancel(state: State<'_, AppState>, input: GitTaskInput) -> Result<Ack, String> {
+    let tasks = state
+        .git_download_tasks
+        .lock()
+        .map_err(|_| "failed to lock git download tasks".to_string())?;
+    let task = tasks
+        .get(&input.task_id)
+        .ok_or_else(|| "download task not found".to_string())?;
+    task.cancel_flag.store(true, Ordering::Relaxed);
+    set_task_status(&task.status, "cancelling");
+    Ok(Ack {
+        ok: true,
+        message: "cancelling".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_run_installer(state: State<'_, AppState>, input: GitTaskInput) -> Result<Ack, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Git installer launch is only supported on Windows".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let tasks = state
+            .git_download_tasks
+            .lock()
+            .map_err(|_| "failed to lock git download tasks".to_string())?;
+        let task = tasks
+            .get(&input.task_id)
+            .ok_or_else(|| "download task not found".to_string())?;
+        if !task.destination_path.exists() {
+            return Err("Installer file does not exist".to_string());
+        }
+
+        Command::new(&task.destination_path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        set_task_status(&task.status, "installer-started");
+        Ok(Ack {
+            ok: true,
+            message: "installer started".to_string(),
+        })
+    }
 }
 
 #[tauri::command]

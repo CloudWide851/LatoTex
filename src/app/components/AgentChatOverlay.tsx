@@ -1,5 +1,4 @@
 import { MessageSquareMore, Send, Sparkles, X } from "lucide-react";
-import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
@@ -96,18 +95,31 @@ export function AgentChatOverlay(props: {
       </div>
 
       <div className="grid gap-2 border-t border-slate-200 p-3">
-        <textarea
-          className="h-20 w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-          value={prompt}
-          placeholder={placeholder}
-          onChange={(event) => onPromptChange(event.target.value)}
-        />
-        <div className="flex justify-end">
-          <Button size="sm" onClick={onRun} disabled={busy || !prompt.trim()}>
-            <Send className="mr-2 h-3.5 w-3.5" />
-            {runLabel}
-          </Button>
+        <div className="relative">
+          <textarea
+            className="h-20 w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+            value={prompt}
+            placeholder={placeholder}
+            onChange={(event) => onPromptChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (!busy && prompt.trim()) {
+                  onRun();
+                }
+              }
+            }}
+          />
+          <button
+            className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={onRun}
+            disabled={busy || !prompt.trim()}
+            title={runLabel}
+          >
+            <Send className="h-3.5 w-3.5" />
+          </button>
         </div>
+        <div className="text-[11px] text-slate-500">{runLabel}</div>
       </div>
     </div>
   );

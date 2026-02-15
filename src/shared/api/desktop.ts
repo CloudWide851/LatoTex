@@ -7,11 +7,15 @@ import type {
   FileReadResponse,
   FsOperationInput,
   FsOperationResult,
+  GitAvailability,
   GitBranchInfo,
   GitCommitInfo,
+  GitDownloadStart,
+  GitDownloadStatus,
   GitStatus,
   ModelCatalogItemInput,
   ModelProtocolInput,
+  PanelLayoutPrefs,
   ProtocolHealth,
   ProjectSnapshot,
   ProjectSummary,
@@ -97,7 +101,11 @@ export function updateSettings(input: {
   modelProtocols: ModelProtocolInput[];
   modelCatalog: ModelCatalogItemInput[];
   agentBindings: AgentModelBinding[];
-  uiPrefs?: { language?: "en-US" | "zh-CN"; skipDeleteConfirm?: boolean };
+  uiPrefs?: {
+    language?: "en-US" | "zh-CN";
+    skipDeleteConfirm?: boolean;
+    panelLayout?: PanelLayoutPrefs;
+  };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
 }
@@ -116,6 +124,30 @@ export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
 
 export function gitStatus(projectId: string): Promise<GitStatus> {
   return invoke<GitStatus>("git_status", { input: { projectId } });
+}
+
+export function gitCheckInstalled(): Promise<GitAvailability> {
+  return invoke<GitAvailability>("git_check_installed");
+}
+
+export function gitInitRepo(projectId: string) {
+  return invoke("git_init_repo", { input: { projectId } });
+}
+
+export function gitDownloadInstallerStart(): Promise<GitDownloadStart> {
+  return invoke<GitDownloadStart>("git_download_installer_start");
+}
+
+export function gitDownloadStatus(taskId: string): Promise<GitDownloadStatus> {
+  return invoke<GitDownloadStatus>("git_download_status", { input: { taskId } });
+}
+
+export function gitDownloadCancel(taskId: string) {
+  return invoke("git_download_cancel", { input: { taskId } });
+}
+
+export function gitRunInstaller(taskId: string) {
+  return invoke("git_run_installer", { input: { taskId } });
 }
 
 export function gitBranches(projectId: string): Promise<GitBranchInfo[]> {

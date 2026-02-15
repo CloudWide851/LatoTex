@@ -19,10 +19,10 @@ import {
   Save,
   SearchCode,
   Settings2,
-  Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./components/AgentChatOverlay";
 import { ExplorerTree } from "./components/ExplorerTree";
 import { GitWorkspace } from "./components/GitWorkspace";
@@ -39,13 +39,19 @@ import {
   getHealthCheck,
   getLibraryTree,
   getSettings,
+  gitCheckInstalled,
   gitBranches,
   gitCheckout,
   gitCommit,
+  gitDownloadCancel,
+  gitDownloadInstallerStart,
+  gitDownloadStatus,
   gitFetch,
+  gitInitRepo,
   gitLog,
   gitPull,
   gitPush,
+  gitRunInstaller,
   gitStage,
   gitStatus,
   gitUnstage,
@@ -67,9 +73,12 @@ import type {
   AppSettings,
   FsAction,
   FsScope,
+  GitAvailability,
   GitBranchInfo,
   GitCommitInfo,
+  GitDownloadStatus,
   GitStatus,
+  PanelLayoutPrefs,
   ModelCatalogItem,
   ModelProtocol,
   ProjectSummary,
@@ -174,6 +183,31 @@ const DEFAULT_BINDINGS: AgentModelBinding[] = [
   { role: "ephemeral", modelId: "openai-gpt-4-1-mini" },
 ];
 
+const DEFAULT_PANEL_LAYOUT: PanelLayoutPrefs = {
+  shell: [7, 93],
+  latex: [22, 48, 30],
+  analysis: [26, 74],
+  library: [30, 70],
+  git: [100],
+  settings: [100],
+};
+
+const SHELL_MIN = [6, 80];
+
+function clampLayout(layout: number[] | undefined, fallback: number[]): number[] {
+  if (!layout || layout.length !== fallback.length) {
+    return fallback;
+  }
+  const cleaned = layout.map((value) =>
+    Number.isFinite(value) ? Math.max(5, Math.min(95, value)) : 0,
+  );
+  const sum = cleaned.reduce((acc, value) => acc + value, 0);
+  if (sum <= 0) {
+    return fallback;
+  }
+  return cleaned.map((value) => (value / sum) * 100);
+}
+
 function flattenFiles(nodes: ResourceNode[], acc: string[] = []): string[] {
   for (const node of nodes) {
     if (node.kind === "file") {
@@ -219,14 +253,21 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [windowActionBusy, setWindowActionBusy] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
-  const [logsTab, setLogsTab] = useState<LogTab>("status");
+  const [logsTab, setLogsTab] = useState<LogTab>("events");
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [deleteIntent, setDeleteIntent] = useState<DeleteIntent>(null);
   const [deleteDontAskAgain, setDeleteDontAskAgain] = useState(false);
   const [gitStatusState, setGitStatusState] = useState<GitStatus | null>(null);
   const [gitBranchesState, setGitBranchesState] = useState<GitBranchInfo[]>([]);
   const [gitCommits, setGitCommits] = useState<GitCommitInfo[]>([]);
+  const [gitAvailability, setGitAvailability] = useState<GitAvailability | null>(null);
+  const [gitDownloadState, setGitDownloadState] = useState<GitDownloadStatus | null>(null);
+  const [gitDownloadTaskId, setGitDownloadTaskId] = useState<string | null>(null);
+  const [gitInstallerLaunched, setGitInstallerLaunched] = useState(false);
+  const [suppressAutoGitInstall, setSuppressAutoGitInstall] = useState(false);
+  const resizeFrameRef = useRef<number | null>(null);
 
   const isTauriRuntime = isTauri();
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
@@ -243,41 +284,14 @@ export function App() {
       })),
     [t],
   );
-  const isLatexPage = page === "latex";
-  const showExplorer = page === "latex" || page === "analysis";
-  const mainGridClass = useMemo(() => {
-    if (page === "latex") {
-      return cn(
-        "grid-cols-[56px_minmax(220px,0.2fr)_minmax(520px,1fr)_minmax(300px,0.4fr)]",
-        "max-[1680px]:grid-cols-[56px_minmax(210px,0.22fr)_minmax(460px,1fr)_minmax(280px,0.38fr)]",
-        "max-[1320px]:grid-cols-[56px_minmax(190px,0.24fr)_minmax(360px,1fr)_minmax(240px,0.34fr)]",
-        "max-[960px]:grid-cols-[56px_minmax(0,1fr)]",
-      );
-    }
-    if (page === "settings") {
-      return "grid-cols-[56px_minmax(0,1fr)]";
-    }
-    return cn(
-      "grid-cols-[56px_minmax(0,1fr)]",
-      "max-[960px]:grid-cols-[56px_minmax(0,1fr)]",
-    );
-  }, [page]);
-
   const loadProjectData = async (projectId: string) => {
     const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
-    const [papers, gitState, branches, commits] = await Promise.all([
-      getLibraryTree(projectId),
-      gitStatus(projectId),
-      gitBranches(projectId).catch(() => []),
-      gitLog(projectId, 50).catch(() => []),
-    ]);
+    const [papers] = await Promise.all([getLibraryTree(projectId)]);
     setLibraryTree(papers);
     setSelectedLibraryPath(null);
-    setGitStatusState(gitState);
-    setGitBranchesState(branches);
-    setGitCommits(commits);
+    await refreshGitWorkspace(projectId);
   };
 
   const persistSettings = async (nextSettings: AppSettings) => {
@@ -299,6 +313,7 @@ export function App() {
       uiPrefs: {
         language: nextSettings.uiPrefs?.language ?? locale,
         skipDeleteConfirm: nextSettings.uiPrefs?.skipDeleteConfirm ?? false,
+        panelLayout: nextSettings.uiPrefs?.panelLayout,
       },
     });
     setSettings(updated);
@@ -306,18 +321,59 @@ export function App() {
     return updated;
   };
 
-  const refreshGitWorkspace = async () => {
-    if (!activeProjectId) {
+  const refreshGitWorkspace = async (projectIdOverride?: string) => {
+    const projectId = projectIdOverride ?? activeProjectId;
+    if (!projectId) {
+      return;
+    }
+    const availability = await gitCheckInstalled().catch(() => ({
+      installed: false,
+      version: undefined,
+    }));
+    setGitAvailability(availability);
+    if (availability.installed) {
+      setSuppressAutoGitInstall(false);
+    }
+    if (!availability.installed) {
+      setGitStatusState({
+        isRepo: false,
+        branch: "-",
+        ahead: 0,
+        behind: 0,
+        changes: [],
+      });
+      setGitBranchesState([]);
+      setGitCommits([]);
       return;
     }
     const [state, branches, commits] = await Promise.all([
-      gitStatus(activeProjectId),
-      gitBranches(activeProjectId).catch(() => []),
-      gitLog(activeProjectId, 50).catch(() => []),
+      gitStatus(projectId),
+      gitBranches(projectId).catch(() => []),
+      gitLog(projectId, 50).catch(() => []),
     ]);
     setGitStatusState(state);
     setGitBranchesState(branches);
     setGitCommits(commits);
+  };
+
+  const savePanelLayout = (panelKey: keyof PanelLayoutPrefs, layout: number[]) => {
+    setSettings((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        uiPrefs: {
+          ...(prev.uiPrefs ?? {}),
+          language: prev.uiPrefs?.language ?? locale,
+          panelLayout: {
+            ...DEFAULT_PANEL_LAYOUT,
+            ...(prev.uiPrefs?.panelLayout ?? {}),
+            [panelKey]: layout,
+          },
+        },
+      };
+    });
   };
 
   useEffect(() => {
@@ -349,6 +405,13 @@ export function App() {
           appSettings.agentBindings.length > 0
             ? appSettings.agentBindings
             : DEFAULT_BINDINGS,
+        uiPrefs: {
+          ...(appSettings.uiPrefs ?? {}),
+          panelLayout: {
+            ...DEFAULT_PANEL_LAYOUT,
+            ...(appSettings.uiPrefs?.panelLayout ?? {}),
+          },
+        },
       });
       setRuntimeInfo(info);
 
@@ -430,12 +493,20 @@ export function App() {
       const appWindow = getCurrentWindow();
       setIsMaximized(await appWindow.isMaximized());
       unlisten = await appWindow.onResized(async () => {
-        setIsMaximized(await appWindow.isMaximized());
+        if (resizeFrameRef.current) {
+          cancelAnimationFrame(resizeFrameRef.current);
+        }
+        resizeFrameRef.current = requestAnimationFrame(async () => {
+          setIsMaximized(await appWindow.isMaximized());
+        });
       });
     };
 
     syncWindowState().catch(() => undefined);
     return () => {
+      if (resizeFrameRef.current) {
+        cancelAnimationFrame(resizeFrameRef.current);
+      }
       unlisten?.();
     };
   }, [isTauriRuntime]);
@@ -448,11 +519,59 @@ export function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (page !== "git" || !activeProjectId) {
+      return;
+    }
+    refreshGitWorkspace(activeProjectId).catch(() => undefined);
+  }, [page, activeProjectId]);
+
+  useEffect(() => {
+    if (!gitDownloadTaskId) {
+      return;
+    }
+    const timer = setInterval(() => {
+      gitDownloadStatus(gitDownloadTaskId)
+        .then((nextState) => {
+          setGitDownloadState(nextState);
+          if (nextState.status === "completed" && !gitInstallerLaunched) {
+            handleGitRunInstaller().catch(() => undefined);
+          }
+          if (nextState.status === "failed" || nextState.status === "cancelled") {
+            setGitDownloadTaskId(null);
+            setSuppressAutoGitInstall(true);
+          }
+          if (nextState.status === "completed" && gitInstallerLaunched) {
+            setGitDownloadTaskId(null);
+          }
+        })
+        .catch(() => undefined);
+    }, 500);
+    return () => clearInterval(timer);
+  }, [gitDownloadTaskId, gitInstallerLaunched]);
+
+  useEffect(() => {
+    if (
+      page !== "git" ||
+      !activeProjectId ||
+      gitAvailability?.installed !== false ||
+      gitDownloadTaskId ||
+      suppressAutoGitInstall
+    ) {
+      return;
+    }
+    handleGitInstallerDownloadStart().catch(() => undefined);
+  }, [page, activeProjectId, gitAvailability?.installed, gitDownloadTaskId, suppressAutoGitInstall]);
+
   const handleWindowControl = async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
       setToast({ type: "error", message: t("toast.windowUnavailable") });
       return;
     }
+    if (windowActionBusy) {
+      return;
+    }
+    setWindowActionBusy(true);
     try {
       const appWindow = getCurrentWindow();
       if (action === "minimize") {
@@ -460,8 +579,14 @@ export function App() {
         return;
       }
       if (action === "toggle") {
-        await appWindow.toggleMaximize();
-        setIsMaximized(await appWindow.isMaximized());
+        const maximized = await appWindow.isMaximized();
+        if (maximized) {
+          await appWindow.unmaximize();
+          setIsMaximized(false);
+        } else {
+          await appWindow.maximize();
+          setIsMaximized(true);
+        }
         return;
       }
       await appWindow.close();
@@ -469,6 +594,8 @@ export function App() {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       await runtimeLogWrite("ERROR", `window action failed: ${message}`);
+    } finally {
+      setWindowActionBusy(false);
     }
   };
 
@@ -641,7 +768,7 @@ export function App() {
       prev
         ? {
             ...prev,
-            uiPrefs: { ...(prev.uiPrefs ?? {}), language: nextLocale },
+            uiPrefs: { ...(prev.uiPrefs ?? {}), language: nextLocale, panelLayout: prev.uiPrefs?.panelLayout },
           }
         : prev,
     );
@@ -695,36 +822,27 @@ export function App() {
     }
   };
 
-  const askAndRunFsAction = (scope: FsScope, action: FsAction) => {
-    const basePath = scope === "workspace" ? selectedFile ?? "" : selectedLibraryPath ?? "";
-    const path = window.prompt(t("explorer.prompt.path"), basePath);
-    if (!path || !path.trim()) {
+  const requestFsAction = async (
+    scope: FsScope,
+    action: FsAction,
+    path: string,
+    targetPath?: string,
+    content?: string,
+  ) => {
+    const normalizedPath = path.trim();
+    if (!normalizedPath) {
       return;
     }
-
-    if (action === "create_file") {
-      runFsAction(scope, action, path.trim(), undefined, "");
+    if (action !== "delete") {
+      await runFsAction(scope, action, normalizedPath, targetPath, content);
       return;
     }
-    if (action === "create_folder") {
-      runFsAction(scope, action, path.trim());
-      return;
-    }
-    if (action === "rename" || action === "copy" || action === "move") {
-      const target = window.prompt(t("explorer.prompt.targetPath"), path.trim());
-      if (!target || !target.trim()) {
-        return;
-      }
-      runFsAction(scope, action, path.trim(), target.trim());
-      return;
-    }
-
     const skipConfirm = settings?.uiPrefs?.skipDeleteConfirm ?? false;
     if (skipConfirm) {
-      runFsAction(scope, "delete", path.trim());
+      await runFsAction(scope, "delete", normalizedPath);
       return;
     }
-    setDeleteIntent({ scope, path: path.trim() });
+    setDeleteIntent({ scope, path: normalizedPath });
     setDeleteDontAskAgain(false);
   };
 
@@ -740,6 +858,7 @@ export function App() {
           ...(settings.uiPrefs ?? {}),
           language: settings.uiPrefs?.language ?? locale,
           skipDeleteConfirm: true,
+          panelLayout: settings.uiPrefs?.panelLayout,
         },
       };
       await persistSettings(nextSettings);
@@ -761,6 +880,55 @@ export function App() {
     }
   };
 
+  const handleGitInstallerDownloadStart = async () => {
+    setBusy(true);
+    try {
+      const started = await gitDownloadInstallerStart();
+      setSuppressAutoGitInstall(false);
+      setGitInstallerLaunched(false);
+      setGitDownloadTaskId(started.taskId);
+      setGitDownloadState({
+        taskId: started.taskId,
+        status: "downloading",
+        fileName: started.fileName,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        speedBps: 0,
+        progressPercent: 0,
+        installerPath: "",
+      });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleGitInstallerCancel = async () => {
+    if (!gitDownloadTaskId) {
+      return;
+    }
+    try {
+      await gitDownloadCancel(gitDownloadTaskId);
+      setSuppressAutoGitInstall(true);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    }
+  };
+
+  const handleGitRunInstaller = async () => {
+    if (!gitDownloadTaskId || gitInstallerLaunched) {
+      return;
+    }
+    try {
+      await gitRunInstaller(gitDownloadTaskId);
+      setGitInstallerLaunched(true);
+      setToast({ type: "info", message: t("git.installerStarted") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    }
+  };
+
   const activeModelCatalog = settings?.modelCatalog ?? DEFAULT_CATALOG;
   const sessionLogName = useMemo(() => {
     if (!runtimeInfo?.sessionLogFile) {
@@ -775,73 +943,27 @@ export function App() {
     }
     return compileDiagnostics[0];
   }, [compileDiagnostics, lastCompileFailed]);
+  const panelLayout = settings?.uiPrefs?.panelLayout ?? DEFAULT_PANEL_LAYOUT;
+  const shellLayout = clampLayout(panelLayout.shell, DEFAULT_PANEL_LAYOUT.shell!);
+  const latexLayout = clampLayout(panelLayout.latex, DEFAULT_PANEL_LAYOUT.latex!);
+  const analysisLayout = clampLayout(panelLayout.analysis, DEFAULT_PANEL_LAYOUT.analysis!);
+  const libraryLayout = clampLayout(panelLayout.library, DEFAULT_PANEL_LAYOUT.library!);
 
-  const renderExplorerTools = (scope: FsScope) => (
-    <div className="mb-2 flex items-center gap-1 border-b border-slate-200 pb-2">
-      <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-        title={t("explorer.action.newFile")}
-        onClick={() => askAndRunFsAction(scope, "create_file")}
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-        title={t("explorer.action.newFolder")}
-        onClick={() => askAndRunFsAction(scope, "create_folder")}
-      >
-        <FolderOpen className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-        title={t("explorer.action.rename")}
-        onClick={() => askAndRunFsAction(scope, "rename")}
-      >
-        <Save className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-        title={t("explorer.action.copy")}
-        onClick={() => askAndRunFsAction(scope, "copy")}
-      >
-        <ListChecks className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-        title={t("explorer.action.move")}
-        onClick={() => askAndRunFsAction(scope, "move")}
-      >
-        <Play className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-rose-600 hover:bg-rose-50"
-        title={t("explorer.action.delete")}
-        onClick={() => askAndRunFsAction(scope, "delete")}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
-      {scope === "library" && activeProjectId && (
-        <button
-          className="ml-auto rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-          title={t("explorer.action.rescan")}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await rescanLibrary(activeProjectId);
-              const nextTree = await getLibraryTree(activeProjectId);
-              setLibraryTree(nextTree);
-            } catch (error) {
-              setToast({ type: "error", message: String(error) });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <ListChecks className="h-3.5 w-3.5" />
-        </button>
-      )}
-    </div>
-  );
+  const handleLibraryRescan = async () => {
+    if (!activeProjectId) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await rescanLibrary(activeProjectId);
+      const nextTree = await getLibraryTree(activeProjectId);
+      setLibraryTree(nextTree);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const renderSettingsPanel = () => {
     const localSettings = settings ?? {
@@ -849,7 +971,7 @@ export function App() {
       modelProtocols: DEFAULT_PROTOCOLS,
       modelCatalog: DEFAULT_CATALOG,
       agentBindings: DEFAULT_BINDINGS,
-      uiPrefs: { language: locale },
+      uiPrefs: { language: locale, panelLayout: DEFAULT_PANEL_LAYOUT },
     };
 
     return (
@@ -932,6 +1054,7 @@ export function App() {
                                 ...(prev.uiPrefs ?? {}),
                                 language: prev.uiPrefs?.language ?? locale,
                                 skipDeleteConfirm: !event.target.checked,
+                                panelLayout: prev.uiPrefs?.panelLayout,
                               },
                             }
                           : prev,
@@ -1073,6 +1196,85 @@ export function App() {
     </div>
   );
 
+  const renderWorkspaceExplorerPanel = () => (
+    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {t("explorer.title")}
+      </h2>
+      <div className="h-[calc(100%-24px)] overflow-auto pr-1">
+        {activeProjectId ? (
+          <ExplorerTree
+            tree={tree}
+            selectedPath={selectedFile}
+            busy={busy}
+            onSelect={setSelectedFile}
+            onAction={async (action, path, targetPath, content) =>
+              requestFsAction("workspace", action, path, targetPath, content)
+            }
+            t={t}
+          />
+        ) : (
+          <div className="text-xs text-slate-500">{t("workspace.noProject")}</div>
+        )}
+      </div>
+    </aside>
+  );
+
+  const renderPdfPreviewPanel = () => (
+    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
+        <div className="flex items-center gap-1">
+          <button
+            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+            title={t("preview.diagnostics")}
+            onClick={() => {
+              setLogsTab("status");
+              setOverlay("logs");
+            }}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+          </button>
+          <button
+            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+            title={t("preview.events")}
+            onClick={() => {
+              setLogsTab("events");
+              setOverlay("logs");
+            }}
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {compileErrorLine && (
+        <button
+          className="mb-2 w-full truncate rounded border border-rose-300 bg-rose-50 px-2 py-1 text-left text-xs text-rose-700"
+          onClick={() => {
+            setLogsTab("status");
+            setOverlay("logs");
+          }}
+          title={compileErrorLine}
+        >
+          {compileErrorLine}
+        </button>
+      )}
+      <div className="h-[calc(100%-52px)]">
+        {pdfUrl ? (
+          <iframe
+            title={t("preview.title")}
+            src={pdfUrl}
+            className="h-full w-full rounded-lg border border-slate-200"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+            {t("preview.empty")}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+
   const renderMainPanel = () => {
     if (page === "analysis") {
       return (
@@ -1082,33 +1284,7 @@ export function App() {
       );
     }
     if (page === "library") {
-      return (
-        activeProjectId ? (
-          <div className="grid h-full min-h-0 grid-cols-[260px_minmax(0,1fr)] gap-3 motion-slide-up">
-            <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {t("library.title")}
-              </h2>
-              {renderExplorerTools("library")}
-              <div className="h-[calc(100%-64px)] overflow-auto pr-1">
-                <ExplorerTree
-                  tree={libraryTree}
-                  selectedFile={selectedLibraryPath}
-                  onSelect={setSelectedLibraryPath}
-                />
-              </div>
-            </aside>
-            <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-              <h3 className="mb-2 text-sm font-semibold text-slate-700">{t("library.detailTitle")}</h3>
-              <p className="text-xs text-slate-500">
-                {selectedLibraryPath ? selectedLibraryPath : t("library.noSelection")}
-              </p>
-            </section>
-          </div>
-        ) : (
-          renderNoProjectPanel()
-        )
-      );
+      return renderNoProjectPanel();
     }
     if (page === "git") {
       return activeProjectId ? (
@@ -1116,8 +1292,14 @@ export function App() {
           status={gitStatusState}
           branches={gitBranchesState}
           commits={gitCommits}
+          availability={gitAvailability}
+          downloadStatus={gitDownloadState}
           busy={busy}
-          onRefresh={() => handleGitAction(refreshGitWorkspace)}
+          onRefresh={() =>
+            refreshGitWorkspace().catch((error) =>
+              setToast({ type: "error", message: String(error) }),
+            )
+          }
           onFetch={() => handleGitAction(async () => gitFetch(activeProjectId))}
           onPull={() => handleGitAction(async () => gitPull(activeProjectId))}
           onPush={() => handleGitAction(async () => gitPush(activeProjectId))}
@@ -1129,6 +1311,10 @@ export function App() {
             handleGitAction(async () => gitUnstage(activeProjectId, paths))
           }
           onCommit={(message) => handleGitAction(async () => gitCommit(activeProjectId, message))}
+          onInitRepo={() => handleGitAction(async () => gitInitRepo(activeProjectId))}
+          onStartGitInstall={handleGitInstallerDownloadStart}
+          onCancelDownload={handleGitInstallerCancel}
+          onRunInstaller={handleGitRunInstaller}
           t={t}
         />
       ) : (
@@ -1240,7 +1426,7 @@ export function App() {
             aria-label={t("window.minimize")}
             className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40"
             onClick={() => handleWindowControl("minimize")}
-            disabled={!isTauriRuntime}
+            disabled={!isTauriRuntime || windowActionBusy}
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -1248,7 +1434,7 @@ export function App() {
             aria-label={t("window.maximize")}
             className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40"
             onClick={() => handleWindowControl("toggle")}
-            disabled={!isTauriRuntime}
+            disabled={!isTauriRuntime || windowActionBusy}
           >
             {isMaximized ? (
               <Minimize2 className="h-4 w-4" />
@@ -1260,88 +1446,113 @@ export function App() {
             aria-label={t("window.close")}
             className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-rose-600 hover:text-white disabled:opacity-40"
             onClick={() => handleWindowControl("close")}
-            disabled={!isTauriRuntime}
+            disabled={!isTauriRuntime || windowActionBusy}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
       </header>
 
-      <main className={cn("grid flex-1 min-h-0 gap-3 overflow-hidden p-3", mainGridClass)}>
-        <PageRail items={pageRailItems} activePage={page} onChange={setPage} />
-
-        {showExplorer && (
-          <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up max-[960px]:hidden">
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("explorer.title")}
-            </h2>
-            {renderExplorerTools("workspace")}
-            <div className="h-[calc(100%-64px)] overflow-auto pr-1">
-              {activeProjectId ? (
-                <ExplorerTree tree={tree} selectedFile={selectedFile} onSelect={setSelectedFile} />
-              ) : (
-                <div className="text-xs text-slate-500">{t("workspace.noProject")}</div>
-              )}
-            </div>
-          </aside>
-        )}
-
-        <section key={page} className="min-h-0 motion-page-in">{renderMainPanel()}</section>
-
-        {isLatexPage && (
-          <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up max-[960px]:hidden">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
-              <div className="flex items-center gap-1">
-                <button
-                  className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-                  title={t("preview.events")}
-                  onClick={() => {
-                    setLogsTab("events");
-                    setOverlay("logs");
-                  }}
-                >
-                  <ListChecks className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-                  title={t("preview.diagnostics")}
-                  onClick={() => {
-                    setLogsTab("status");
-                    setOverlay("logs");
-                  }}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-            {compileErrorLine && (
-              <button
-                className="mb-2 w-full truncate rounded border border-rose-300 bg-rose-50 px-2 py-1 text-left text-xs text-rose-700"
-                onClick={() => {
-                  setLogsTab("status");
-                  setOverlay("logs");
-                }}
-                title={compileErrorLine}
+      <main className="flex-1 min-h-0 overflow-hidden p-3">
+        <PanelGroup
+          direction="horizontal"
+          className="h-full gap-3"
+          onLayout={(layout) => savePanelLayout("shell", layout)}
+        >
+          <Panel
+            defaultSize={shellLayout[0]}
+            minSize={SHELL_MIN[0]}
+            maxSize={SHELL_MIN[1]}
+            className="min-w-[52px]"
+          >
+            <PageRail items={pageRailItems} activePage={page} onChange={setPage} />
+          </Panel>
+          <PanelResizeHandle className="resizable-handle" />
+          <Panel defaultSize={shellLayout[1]} minSize={20}>
+            {page === "latex" && activeProjectId ? (
+              <PanelGroup
+                direction="horizontal"
+                className="h-full gap-3"
+                onLayout={(layout) => savePanelLayout("latex", layout)}
               >
-                {compileErrorLine}
-              </button>
+                <Panel defaultSize={latexLayout[0]} minSize={16}>
+                  {renderWorkspaceExplorerPanel()}
+                </Panel>
+                <PanelResizeHandle className="resizable-handle" />
+                <Panel defaultSize={latexLayout[1]} minSize={30}>
+                  <section key={page} className="h-full min-h-0 motion-page-in">
+                    {renderMainPanel()}
+                  </section>
+                </Panel>
+                <PanelResizeHandle className="resizable-handle" />
+                <Panel defaultSize={latexLayout[2]} minSize={20}>
+                  {renderPdfPreviewPanel()}
+                </Panel>
+              </PanelGroup>
+            ) : page === "analysis" ? (
+              <PanelGroup
+                direction="horizontal"
+                className="h-full gap-3"
+                onLayout={(layout) => savePanelLayout("analysis", layout)}
+              >
+                <Panel defaultSize={analysisLayout[0]} minSize={18}>
+                  {renderWorkspaceExplorerPanel()}
+                </Panel>
+                <PanelResizeHandle className="resizable-handle" />
+                <Panel defaultSize={analysisLayout[1]} minSize={30}>
+                  <section key={page} className="h-full min-h-0 motion-page-in">
+                    {renderMainPanel()}
+                  </section>
+                </Panel>
+              </PanelGroup>
+            ) : page === "library" && activeProjectId ? (
+              <PanelGroup
+                direction="horizontal"
+                className="h-full gap-3"
+                onLayout={(layout) => savePanelLayout("library", layout)}
+              >
+                <Panel defaultSize={libraryLayout[0]} minSize={20}>
+                  <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t("library.title")}
+                    </h2>
+                    <div className="h-[calc(100%-24px)] overflow-auto pr-1">
+                      <ExplorerTree
+                        tree={libraryTree}
+                        selectedPath={selectedLibraryPath}
+                        allowRescan
+                        busy={busy}
+                        onSelect={setSelectedLibraryPath}
+                        onRescan={handleLibraryRescan}
+                        onAction={async (action, path, targetPath, content) =>
+                          requestFsAction("library", action, path, targetPath, content)
+                        }
+                        t={t}
+                      />
+                    </div>
+                  </aside>
+                </Panel>
+                <PanelResizeHandle className="resizable-handle" />
+                <Panel defaultSize={libraryLayout[1]} minSize={28}>
+                  <section className="h-full min-h-0 motion-page-in">
+                    <div className="h-full min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+                      <h3 className="mb-2 text-sm font-semibold text-slate-700">
+                        {t("library.detailTitle")}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {selectedLibraryPath ? selectedLibraryPath : t("library.noSelection")}
+                      </p>
+                    </div>
+                  </section>
+                </Panel>
+              </PanelGroup>
+            ) : (
+              <section key={page} className="h-full min-h-0 motion-page-in">
+                {renderMainPanel()}
+              </section>
             )}
-            <div className="h-[calc(100%-52px)]">
-              {pdfUrl ? (
-                <iframe
-                  title={t("preview.title")}
-                  src={pdfUrl}
-                  className="h-full w-full rounded-lg border border-slate-200"
-                />
-              ) : (
-                <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-                  {t("preview.empty")}
-                </div>
-              )}
-            </div>
-          </aside>
-        )}
+          </Panel>
+        </PanelGroup>
       </main>
 
       {overlay === "logs" && (
@@ -1357,17 +1568,6 @@ export function App() {
               <button
                 className={cn(
                   "rounded border px-2 py-1 text-xs",
-                  logsTab === "status"
-                    ? "border-primary-600 bg-primary-600 text-white"
-                    : "border-slate-300 bg-white text-slate-600",
-                )}
-                onClick={() => setLogsTab("status")}
-              >
-                {t("preview.diagnostics")}
-              </button>
-              <button
-                className={cn(
-                  "rounded border px-2 py-1 text-xs",
                   logsTab === "events"
                     ? "border-primary-600 bg-primary-600 text-white"
                     : "border-slate-300 bg-white text-slate-600",
@@ -1376,11 +1576,24 @@ export function App() {
               >
                 {t("preview.events")}
               </button>
+              <button
+                className={cn(
+                  "rounded border px-2 py-1 text-xs",
+                  logsTab === "status"
+                    ? "border-primary-600 bg-primary-600 text-white"
+                    : "border-slate-300 bg-white text-slate-600",
+                )}
+                onClick={() => setLogsTab("status")}
+              >
+                {t("preview.diagnostics")}
+              </button>
             </div>
             <div className="overflow-auto p-4">
-              {logsTab === "status" ? (
+              {logsTab === "events" ? (
                 <ul className="space-y-2 text-xs text-slate-700">
-                  {(compileDiagnostics.length > 0 ? compileDiagnostics : [t("preview.none")]).map((line, index) => (
+                  {(events.length > 0
+                    ? events.slice(-160).reverse().map((event) => `${event.createdAt} | ${event.role} | ${event.kind}`)
+                    : [t("preview.none")]).map((line, index) => (
                     <li key={`${line}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
                       {line}
                     </li>
@@ -1388,9 +1601,7 @@ export function App() {
                 </ul>
               ) : (
                 <ul className="space-y-2 text-xs text-slate-700">
-                  {(events.length > 0
-                    ? events.slice(-160).reverse().map((event) => `${event.createdAt} | ${event.role} | ${event.kind}`)
-                    : [t("preview.none")]).map((line, index) => (
+                  {(compileDiagnostics.length > 0 ? compileDiagnostics : [t("preview.none")]).map((line, index) => (
                     <li key={`${line}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
                       {line}
                     </li>
