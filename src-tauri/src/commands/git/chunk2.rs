@@ -1,0 +1,336 @@
+#[tauri::command]
+pub fn git_download_cancel(state: State<'_, AppState>, input: GitTaskInput) -> Result<Ack, String> {
+    let tasks = state
+        .git_download_tasks
+        .lock()
+        .map_err(|_| "failed to lock git download tasks".to_string())?;
+    let task = tasks
+        .get(&input.task_id)
+        .ok_or_else(|| "download task not found".to_string())?;
+    task.cancel_flag.store(true, Ordering::Relaxed);
+    set_task_status(&task.status, "cancelling");
+    Ok(Ack {
+        ok: true,
+        message: "cancelling".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_run_installer(state: State<'_, AppState>, input: GitTaskInput) -> Result<Ack, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Git installer launch is only supported on Windows".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let tasks = state
+            .git_download_tasks
+            .lock()
+            .map_err(|_| "failed to lock git download tasks".to_string())?;
+        let task = tasks
+            .get(&input.task_id)
+            .ok_or_else(|| "download task not found".to_string())?;
+        if !task.destination_path.exists() {
+            return Err("Installer file does not exist".to_string());
+        }
+
+        Command::new(&task.destination_path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        set_task_status(&task.status, "installer-started");
+        Ok(Ack {
+            ok: true,
+            message: "installer started".to_string(),
+        })
+    }
+}
+
+#[tauri::command]
+pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitStatusResponse, String> {
+    state.log("INFO", &format!("git_status: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+
+    let repo_check = run_git(&root, &["rev-parse", "--is-inside-work-tree"]);
+    if repo_check.is_err() {
+        return Ok(GitStatusResponse {
+            is_repo: false,
+            branch: "-".to_string(),
+            upstream: None,
+            ahead: 0,
+            behind: 0,
+            changes: Vec::new(),
+        });
+    }
+
+    let raw = run_git(&root, &["status", "--porcelain=v1", "-b"])?;
+    let unstaged_numstat = parse_numstat(&run_git(&root, &["diff", "--numstat"]).unwrap_or_default());
+    let staged_numstat = parse_numstat(&run_git(&root, &["diff", "--cached", "--numstat"]).unwrap_or_default());
+    let mut lines = raw.lines();
+    let header = lines.next().unwrap_or_default();
+    let (branch, upstream, ahead, behind) = parse_branch_header(header);
+
+    let mut changes = Vec::new();
+    for line in lines {
+        if line.len() < 4 {
+            continue;
+        }
+        let mut chars = line.chars();
+        let index_status = chars.next().unwrap_or(' ').to_string();
+        let worktree_status = chars.next().unwrap_or(' ').to_string();
+        let path = line[3..].trim().to_string();
+        let staged = staged_numstat.get(&path).copied().unwrap_or((0, 0));
+        let unstaged = unstaged_numstat.get(&path).copied().unwrap_or((0, 0));
+        changes.push(GitStatusEntry {
+            path,
+            index_status,
+            worktree_status,
+            added_lines: staged.0.saturating_add(unstaged.0),
+            removed_lines: staged.1.saturating_add(unstaged.1),
+        });
+    }
+
+    Ok(GitStatusResponse {
+        is_repo: true,
+        branch,
+        upstream,
+        ahead,
+        behind,
+        changes,
+    })
+}
+
+#[tauri::command]
+pub fn git_branches(state: State<'_, AppState>, input: GitRefInput) -> Result<Vec<GitBranchInfo>, String> {
+    state.log("INFO", &format!("git_branches: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let raw = run_git(&root, &["branch", "--format=%(HEAD)%09%(refname:short)"])?;
+    let mut branches = Vec::new();
+    for line in raw.lines() {
+        let mut parts = line.split('\t');
+        let head = parts.next().unwrap_or_default();
+        let name = parts.next().unwrap_or_default().trim();
+        if name.is_empty() {
+            continue;
+        }
+        branches.push(GitBranchInfo {
+            name: name.to_string(),
+            current: head.trim() == "*",
+        });
+    }
+    Ok(branches)
+}
+
+#[tauri::command]
+pub fn git_log(state: State<'_, AppState>, input: GitLogInput) -> Result<Vec<GitCommitInfo>, String> {
+    state.log("INFO", &format!("git_log: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let limit = input.limit.unwrap_or(50).min(200).to_string();
+    let raw = run_git(
+        &root,
+        &[
+            "log",
+            "--date=iso",
+            "--pretty=format:%H%x09%h%x09%an%x09%ad%x09%s",
+            "-n",
+            &limit,
+        ],
+    )?;
+    let mut commits = Vec::new();
+    for line in raw.lines() {
+        let parts = line.splitn(5, '\t').collect::<Vec<_>>();
+        if parts.len() < 5 {
+            continue;
+        }
+        commits.push(GitCommitInfo {
+            hash: parts[0].to_string(),
+            short_hash: parts[1].to_string(),
+            author: parts[2].to_string(),
+            date: parts[3].to_string(),
+            subject: parts[4].to_string(),
+        });
+    }
+    Ok(commits)
+}
+
+#[tauri::command]
+pub fn git_stage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack, String> {
+    state.log("INFO", &format!("git_stage: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    if input.paths.is_empty() {
+        run_git(&root, &["add", "-A"])?;
+    } else {
+        let mut command = Command::new("git");
+        command.arg("-C").arg(&root).arg("add").arg("--");
+        for path in input.paths {
+            command.arg(path);
+        }
+        let output = command.output().map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        }
+    }
+    Ok(Ack {
+        ok: true,
+        message: "staged".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_unstage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack, String> {
+    state.log("INFO", &format!("git_unstage: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    if input.paths.is_empty() {
+        run_git(&root, &["restore", "--staged", "."])?;
+    } else {
+        let mut command = Command::new("git");
+        command
+            .arg("-C")
+            .arg(&root)
+            .arg("restore")
+            .arg("--staged")
+            .arg("--");
+        for path in input.paths {
+            command.arg(path);
+        }
+        let output = command.output().map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        }
+    }
+    Ok(Ack {
+        ok: true,
+        message: "unstaged".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_commit(state: State<'_, AppState>, input: GitCommitInput) -> Result<Ack, String> {
+    state.log("INFO", &format!("git_commit: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    if input.message.trim().is_empty() {
+        return Err("Commit message cannot be empty".to_string());
+    }
+    run_git(&root, &["commit", "-m", input.message.trim()])?;
+    Ok(Ack {
+        ok: true,
+        message: "committed".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_checkout(state: State<'_, AppState>, input: GitCheckoutInput) -> Result<Ack, String> {
+    state.log("INFO", &format!("git_checkout: {}", input.project_id));
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    if input.create.unwrap_or(false) {
+        run_git(&root, &["checkout", "-b", input.branch.trim()])?;
+    } else {
+        run_git(&root, &["checkout", input.branch.trim()])?;
+    }
+    Ok(Ack {
+        ok: true,
+        message: "checked out".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn git_diff_file(
+    state: State<'_, AppState>,
+    input: GitDiffInput,
+) -> Result<GitDiffResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "git_diff_file: project={}, path={}, staged={}",
+            input.project_id,
+            input.path,
+            input.staged.unwrap_or(false)
+        ),
+    );
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let staged = input.staged.unwrap_or(false);
+    let context_lines = input.context_lines.unwrap_or(3).min(10).to_string();
+
+    let mut args = vec!["diff"];
+    if staged {
+        args.push("--cached");
+    }
+    args.push("--unified");
+    args.push(&context_lines);
+    args.push("--");
+    args.push(input.path.as_str());
+
+    let patch = run_git(&root, &args)?;
+    let numstat_args = if staged {
+        vec!["diff", "--cached", "--numstat", "--", input.path.as_str()]
+    } else {
+        vec!["diff", "--numstat", "--", input.path.as_str()]
+    };
+    let numstat = parse_numstat(&run_git(&root, &numstat_args).unwrap_or_default());
+    let (added_lines, removed_lines) = numstat.get(&input.path).copied().unwrap_or((0, 0));
+
+    let mut hunks: Vec<GitDiffHunk> = Vec::new();
+    let mut current_hunk: Option<GitDiffHunk> = None;
+    let mut old_line = None::<u32>;
+    let mut new_line = None::<u32>;
+
+    for raw_line in patch.lines() {
+        if raw_line.starts_with("@@") {
+            if let Some(hunk) = current_hunk.take() {
+                hunks.push(hunk);
+            }
+            let (old_start, new_start) = parse_hunk_header(raw_line);
+            old_line = old_start;
+            new_line = new_start;
+            current_hunk = Some(GitDiffHunk {
+                header: raw_line.to_string(),
+                lines: Vec::new(),
+            });
+            continue;
+        }
+
+        if current_hunk.is_none() {
+            continue;
+        }
+
+        let (kind, old_at, new_at) = if raw_line.starts_with('+') && !raw_line.starts_with("+++") {
+            let old_at = None;
+            let new_at = new_line;
+            new_line = new_line.map(|line| line.saturating_add(1));
+            ("added".to_string(), old_at, new_at)
+        } else if raw_line.starts_with('-') && !raw_line.starts_with("---") {
+            let old_at = old_line;
+            let new_at = None;
+            old_line = old_line.map(|line| line.saturating_add(1));
+            ("removed".to_string(), old_at, new_at)
+        } else {
+            let old_at = old_line;
+            let new_at = new_line;
+            old_line = old_line.map(|line| line.saturating_add(1));
+            new_line = new_line.map(|line| line.saturating_add(1));
+            ("context".to_string(), old_at, new_at)
+        };
+
+        if let Some(hunk) = current_hunk.as_mut() {
+            hunk.lines.push(GitDiffLine {
+                kind,
+                old_line: old_at,
+                new_line: new_at,
+                text: raw_line.to_string(),
+            });
+        }
+    }
+
+    if let Some(hunk) = current_hunk.take() {
+        hunks.push(hunk);
+    }
+
+    Ok(GitDiffResponse {
+        path: input.path,
+        staged,
+        added_lines,
+        removed_lines,
+        hunks,
+    })
+}
+

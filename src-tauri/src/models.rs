@@ -200,6 +200,8 @@ pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
     pub theme: Option<String>,
+    pub busytex_cache_policy: Option<String>,
+    pub busytex_cache_dir: Option<String>,
     pub panel_layout: Option<Value>,
 }
 
@@ -291,6 +293,8 @@ pub struct GitStatusEntry {
     pub path: String,
     pub index_status: String,
     pub worktree_status: String,
+    pub added_lines: u32,
+    pub removed_lines: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -397,4 +401,55 @@ pub struct GitDownloadStatusResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GitTaskInput {
     pub task_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffInput {
+    pub project_id: String,
+    pub path: String,
+    pub staged: Option<bool>,
+    pub context_lines: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffLine {
+    pub kind: String,
+    pub old_line: Option<u32>,
+    pub new_line: Option<u32>,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffHunk {
+    pub header: String,
+    pub lines: Vec<GitDiffLine>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitDiffResponse {
+    pub path: String,
+    pub staged: bool,
+    pub added_lines: u32,
+    pub removed_lines: u32,
+    pub hunks: Vec<GitDiffHunk>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusyTexCacheInfo {
+    pub policy: String,
+    pub requested_dir: String,
+    pub actual_dir: String,
+    pub install_dir_writable: bool,
+    pub using_fallback: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusyTexCachePrepareInput {
+    pub policy: String,
 }

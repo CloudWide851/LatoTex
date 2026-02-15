@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use tauri::{AppHandle, Manager};
 
 #[derive(Clone)]
@@ -34,6 +34,7 @@ pub struct AppState {
     pub install_mode: String,
     pub app_version: String,
     pub git_download_tasks: Arc<Mutex<HashMap<String, GitDownloadTask>>>,
+    pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,6 +74,7 @@ impl AppState {
             install_mode,
             app_version,
             git_download_tasks: Arc::new(Mutex::new(HashMap::new())),
+            agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
         };
         state.log("INFO", "application startup completed");
         Ok(state)

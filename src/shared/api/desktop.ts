@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentModelBinding,
   AppSettings,
+  BusyTexCacheInfo,
   CompileRecord,
   EventBatch,
   FileReadResponse,
@@ -10,6 +11,7 @@ import type {
   GitAvailability,
   GitBranchInfo,
   GitCommitInfo,
+  GitDiffResponse,
   GitDownloadStart,
   GitDownloadStatus,
   GitStatus,
@@ -116,6 +118,8 @@ export function updateSettings(input: {
     language?: "en-US" | "zh-CN";
     skipDeleteConfirm?: boolean;
     theme?: "light" | "dark" | "system";
+    busytexCachePolicy?: "install-first" | "appdata-only";
+    busytexCacheDir?: string;
     panelLayout?: PanelLayoutPrefs;
   };
 }): Promise<AppSettings> {
@@ -196,4 +200,19 @@ export function gitPull(projectId: string, remote?: string, branch?: string) {
 
 export function gitPush(projectId: string, remote?: string, branch?: string) {
   return invoke("git_push", { input: { projectId, remote, branch } });
+}
+
+export function gitDiffFile(
+  projectId: string,
+  path: string,
+  staged = false,
+  contextLines = 3
+): Promise<GitDiffResponse> {
+  return invoke<GitDiffResponse>("git_diff_file", {
+    input: { projectId, path, staged, contextLines }
+  });
+}
+
+export function busytexCachePrepare(policy: "install-first" | "appdata-only"): Promise<BusyTexCacheInfo> {
+  return invoke<BusyTexCacheInfo>("busytex_cache_prepare", { input: { policy } });
 }

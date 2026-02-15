@@ -75,6 +75,8 @@ export type AppSettings = {
     language?: "en-US" | "zh-CN";
     skipDeleteConfirm?: boolean;
     theme?: "light" | "dark" | "system";
+    busytexCachePolicy?: "install-first" | "appdata-only";
+    busytexCacheDir?: string;
     panelLayout?: PanelLayoutPrefs;
   };
 };
@@ -146,6 +148,8 @@ export type GitStatusEntry = {
   path: string;
   indexStatus: string;
   worktreeStatus: string;
+  addedLines: number;
+  removedLines: number;
 };
 
 export type GitStatus = {
@@ -191,4 +195,32 @@ export type GitDownloadStatus = {
   progressPercent: number;
   installerPath: string;
   error?: string;
+};
+
+export type GitDiffLine = {
+  kind: "added" | "removed" | "context" | "meta";
+  oldLine?: number;
+  newLine?: number;
+  text: string;
+};
+
+export type GitDiffHunk = {
+  header: string;
+  lines: GitDiffLine[];
+};
+
+export type GitDiffResponse = {
+  path: string;
+  staged: boolean;
+  addedLines: number;
+  removedLines: number;
+  hunks: GitDiffHunk[];
+};
+
+export type BusyTexCacheInfo = {
+  policy: string;
+  requestedDir: string;
+  actualDir: string;
+  installDirWritable: boolean;
+  usingFallback: boolean;
 };

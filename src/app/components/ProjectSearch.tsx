@@ -1,7 +1,8 @@
-import { Loader2, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { ProjectSearchHit } from "../../shared/types/app";
+import { SvgSpinner } from "../../components/ui/svg-spinner";
 
 type TranslationFn = (key: any) => string;
 
@@ -75,7 +76,7 @@ export function ProjectSearch(props: {
           }}
         />
         {searching ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-zinc-400" />
+          <SvgSpinner className="h-4 w-4 shrink-0 text-zinc-400" />
         ) : query.trim().length > 0 ? (
           <button
             className="rounded p-0.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"

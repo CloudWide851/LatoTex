@@ -1,4 +1,6 @@
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { BusyTexRunner, XeLatex } from "texlyre-busytex";
+import { busytexCachePrepare } from "../../../shared/api/desktop";
 
 type BusyTexCompileResponse = {
   success?: boolean;
@@ -20,20 +22,55 @@ const BUSYTEX_ASSET_HINT =
 
 let runner: BusyTexRunner | null = null;
 let resolvedBasePath: string | null = null;
+let preparedCacheBasePath: string | null = null;
+let preparingCache = false;
 
-function buildBasePathCandidates(): string[] {
+async function resolveCacheBasePath(): Promise<string | null> {
+  if (preparedCacheBasePath) {
+    return preparedCacheBasePath;
+  }
+  if (!isTauri() || preparingCache) {
+    return null;
+  }
+
+  preparingCache = true;
+  try {
+    const policy =
+      typeof window !== "undefined"
+        ? (window.localStorage.getItem("latotex.busytex.cachePolicy") as
+            | "install-first"
+            | "appdata-only"
+            | null)
+        : null;
+    const info = await busytexCachePrepare(policy ?? "install-first");
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
+      window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
+    }
+    preparedCacheBasePath = convertFileSrc(info.actualDir).replace(/\/+$/, "");
+    return preparedCacheBasePath;
+  } catch {
+    return null;
+  } finally {
+    preparingCache = false;
+  }
+}
+
+async function buildBasePathCandidates(): Promise<string[]> {
   const baseUrl =
     typeof import.meta !== "undefined" && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
       : "/";
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  const cachePath = await resolveCacheBasePath();
   return Array.from(
     new Set([
+      cachePath ? `${cachePath}` : "",
       `${normalizedBase}core/busytex`,
       "/core/busytex",
       "./core/busytex",
       "core/busytex",
-    ]),
+    ].filter((value) => value.length > 0)),
   );
 }
 
@@ -62,7 +99,7 @@ async function resolveBusyTexBasePath(): Promise<string> {
   if (resolvedBasePath) {
     return resolvedBasePath;
   }
-  const candidates = buildBasePathCandidates().map(normalizePath);
+  const candidates = (await buildBasePathCandidates()).map(normalizePath);
   for (const candidate of candidates) {
     // Validate worker asset first to avoid "Unexpected token '<'" from HTML fallback pages.
     if (await hasValidWorkerAsset(candidate)) {

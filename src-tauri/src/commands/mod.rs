@@ -1,3 +1,4 @@
+pub mod busytex;
 pub mod git;
 pub mod health;
 pub mod projects;

@@ -5,10 +5,11 @@ mod secure;
 mod state;
 mod storage;
 
+use commands::busytex::busytex_cache_prepare;
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
-    git_download_installer_start, git_download_status, git_fetch, git_init_repo, git_log,
-    git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
+    git_diff_file, git_download_installer_start, git_download_status, git_fetch, git_init_repo,
+    git_log, git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
 };
 use commands::health::health_check;
 use commands::projects::{
@@ -64,9 +65,11 @@ pub fn run() {
             git_unstage,
             git_commit,
             git_checkout,
+            git_diff_file,
             git_fetch,
             git_pull,
-            git_push
+            git_push,
+            busytex_cache_prepare
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
