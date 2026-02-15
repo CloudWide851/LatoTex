@@ -88,6 +88,7 @@ pub struct RuntimeLogWriteInput {
 pub struct RuntimeLogInfo {
     pub session_log_file: String,
     pub logs_dir: String,
+    pub runtime_root: String,
     pub install_mode: String,
     pub version: String,
 }

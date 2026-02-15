@@ -4,6 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Condvar, Mutex};
@@ -25,7 +26,8 @@ pub struct GitDownloadTask {
 
 pub struct AppState {
     pub app_name: String,
-    pub _data_dir: PathBuf,
+    pub runtime_root: PathBuf,
+    pub app_data_dir: PathBuf,
     pub projects_dir: PathBuf,
     pub db_path: PathBuf,
     pub logs_dir: PathBuf,
@@ -48,24 +50,29 @@ struct InstallState {
 
 impl AppState {
     pub fn bootstrap(app: &AppHandle) -> Result<Self, String> {
-        let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-        let projects_dir = data_dir.join("projects");
-        let db_path = data_dir.join("latotex.db");
-        let logs_dir = data_dir.join("logs");
-        let downloads_dir = data_dir.join("downloads");
-        let session_log_path = logging::create_session_log(&logs_dir)?;
+        let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+        let runtime_root = resolve_runtime_root()?;
+        migrate_legacy_data_if_needed(&app_data_dir, &runtime_root)?;
+
+        let projects_dir = runtime_root.join("projects");
+        let db_path = runtime_root.join("latotex.db");
+        let logs_dir = runtime_root.join("logs");
+        let downloads_dir = runtime_root.join("downloads");
 
         fs::create_dir_all(&projects_dir).map_err(|e| e.to_string())?;
         fs::create_dir_all(&downloads_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&logs_dir).map_err(|e| e.to_string())?;
+        let session_log_path = logging::create_session_log(&logs_dir)?;
         storage::initialize_database(&db_path)?;
         logging::install_panic_hook(logs_dir.clone(), session_log_path.clone());
 
         let app_version = env!("CARGO_PKG_VERSION").to_string();
-        let install_mode = detect_install_mode_and_persist(&data_dir, &app_version)?;
+        let install_mode = detect_install_mode_and_persist(&runtime_root, &app_version)?;
 
         let state = Self {
             app_name: "LatoTex".to_string(),
-            _data_dir: data_dir,
+            runtime_root,
+            app_data_dir,
             projects_dir,
             db_path,
             logs_dir,
@@ -85,8 +92,82 @@ impl AppState {
     }
 }
 
-fn detect_install_mode_and_persist(data_dir: &PathBuf, app_version: &str) -> Result<String, String> {
-    let marker_path = data_dir.join("install-state.json");
+fn resolve_runtime_root() -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Unable to resolve executable directory".to_string())?;
+    let runtime_root = exe_dir.join("runtime-data");
+    fs::create_dir_all(&runtime_root).map_err(|e| {
+        format!(
+            "Failed to create runtime-data folder in install directory ({}): {}",
+            runtime_root.to_string_lossy(),
+            e
+        )
+    })?;
+    Ok(runtime_root)
+}
+
+fn copy_recursively(source: &PathBuf, target: &PathBuf) -> Result<(), String> {
+    if source.is_dir() {
+        fs::create_dir_all(target).map_err(|e| e.to_string())?;
+        for item in fs::read_dir(source).map_err(|e| e.to_string())? {
+            let item = item.map_err(|e| e.to_string())?;
+            let from = item.path();
+            let to = target.join(item.file_name());
+            copy_recursively(&from, &to)?;
+        }
+        return Ok(());
+    }
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::copy(source, target).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn migrate_legacy_data_if_needed(legacy_data_dir: &PathBuf, runtime_root: &PathBuf) -> Result<(), String> {
+    if legacy_data_dir == runtime_root {
+        return Ok(());
+    }
+    if !legacy_data_dir.exists() {
+        return Ok(());
+    }
+    let marker = runtime_root.join(".migrated-from-appdata");
+    if marker.exists() {
+        return Ok(());
+    }
+
+    let candidates = vec![
+        "latotex.db",
+        "install-state.json",
+        "projects",
+        "downloads",
+        "busytex-cache",
+    ];
+
+    for name in candidates {
+        let source = legacy_data_dir.join(name);
+        if !source.exists() {
+            continue;
+        }
+        let target = runtime_root.join(name);
+        if target.exists() {
+            continue;
+        }
+        copy_recursively(&source, &target)?;
+    }
+
+    let marker_content = format!("migrated_at={}", Utc::now().to_rfc3339());
+    match fs::write(marker, marker_content) {
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::PermissionDenied => Ok(()),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn detect_install_mode_and_persist(runtime_root: &PathBuf, app_version: &str) -> Result<String, String> {
+    let marker_path = runtime_root.join("install-state.json");
     let now = Utc::now().to_rfc3339();
     if !marker_path.exists() {
         let state = InstallState {

@@ -63,6 +63,7 @@ pub fn runtime_log_info(state: State<'_, AppState>) -> Result<RuntimeLogInfo, St
     Ok(RuntimeLogInfo {
         session_log_file: state.session_log_path.to_string_lossy().to_string(),
         logs_dir: state.logs_dir.to_string_lossy().to_string(),
+        runtime_root: state.runtime_root.to_string_lossy().to_string(),
         install_mode: state.install_mode.clone(),
         version: state.app_version.clone(),
     })

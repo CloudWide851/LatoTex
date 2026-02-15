@@ -29,7 +29,7 @@
     "windows": {
       "allowDowngrades": false,
       "nsis": {
-        "installMode": "perMachine",
+        "installMode": "currentUser",
         "startMenuFolder": "LatoTex"
       }
     },

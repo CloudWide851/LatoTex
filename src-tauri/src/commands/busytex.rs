@@ -72,8 +72,8 @@ pub fn busytex_cache_prepare(
     let install_dir = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(|parent| parent.join("busytex-cache")))
-        .unwrap_or_else(|| state.downloads_dir.join("busytex-cache"));
-    let appdata_dir = state._data_dir.join("busytex-cache");
+        .unwrap_or_else(|| state.runtime_root.join("busytex-cache"));
+    let appdata_dir = state.app_data_dir.join("busytex-cache");
 
     let requested_dir = if policy == "appdata-only" {
         appdata_dir.clone()

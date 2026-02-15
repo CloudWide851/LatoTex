@@ -93,6 +93,7 @@ export type PanelLayoutPrefs = {
 export type RuntimeLogInfo = {
   sessionLogFile: string;
   logsDir: string;
+  runtimeRoot: string;
   installMode: string;
   version: string;
 };

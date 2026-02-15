@@ -48,27 +48,18 @@ body {
 }
 
 .resizable-handle {
-  width: 6px;
-  border-radius: 9999px;
+  width: 2px;
   background: transparent;
   position: relative;
 }
 
 .resizable-handle::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  top: 12px;
-  bottom: 12px;
-  width: 2px;
-  border-radius: 9999px;
-  background: #d4d4d8;
-  transition: background-color 140ms ease;
+  content: none;
 }
 
 .resizable-handle:hover::before,
 .resizable-handle[data-resize-handle-active]::before {
-  background: #2563eb;
+  content: none;
 }
 
 .rail-tooltip {
@@ -119,11 +110,11 @@ body {
 }
 
 .motion-fade-in {
-  animation: fade-in 180ms ease-out;
+  animation: fade-in 140ms ease-out;
 }
 
 .motion-slide-up {
-  animation: slide-up 220ms ease-out;
+  animation: slide-up 170ms ease-out;
 }
 
 @keyframes page-in {
@@ -138,7 +129,7 @@ body {
 }
 
 .motion-page-in {
-  animation: page-in 180ms ease-out;
+  animation: page-in 140ms ease-out;
 }
 
 .theme-ripple-overlay {
@@ -153,7 +144,7 @@ body {
   width: 100%;
   background: var(--ripple-color);
   clip-path: circle(0px at var(--ripple-x) var(--ripple-y));
-  transition: clip-path 380ms cubic-bezier(0.2, 0.9, 0.28, 1);
+  transition: clip-path 260ms cubic-bezier(0.22, 0.84, 0.32, 1);
 }
 
 .theme-ripple-surface.is-active {
@@ -192,6 +183,13 @@ body {
 [data-theme="dark"] .hover\:bg-slate-100:hover,
 [data-theme="dark"] .hover\:bg-slate-200:hover {
   background-color: #1f2937 !important;
+}
+
+.suppress-motion *,
+.suppress-motion *::before,
+.suppress-motion *::after {
+  animation: none !important;
+  transition: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

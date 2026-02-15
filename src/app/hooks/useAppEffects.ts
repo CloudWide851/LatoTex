@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { resolveLocale } from "../../i18n";
 import {
   busytexCachePrepare,
@@ -25,7 +25,6 @@ type TranslationFn = (key: any) => string;
 export function useAppEffects(params: {
   t: TranslationFn;
   isTauriRuntime: boolean;
-  locale: string;
   activeProjectId: string | null;
   selectedFile: string | null;
   pendingRevealLine: number | null;
@@ -61,7 +60,7 @@ export function useAppEffects(params: {
   setCursor: (value: number) => void;
   setBusytexCacheInfo: (value: any) => void;
   resizeFrameRef: React.MutableRefObject<number | null>;
-  setIsMaximized: (value: boolean) => void;
+  setIsMaximized: React.Dispatch<React.SetStateAction<boolean>>;
   editorRef: React.MutableRefObject<any>;
   setPendingRevealLine: (value: number | null) => void;
   setGitDownloadState: (value: any) => void;
@@ -71,7 +70,6 @@ export function useAppEffects(params: {
   const {
     t,
     isTauriRuntime,
-    locale,
     activeProjectId,
     selectedFile,
     pendingRevealLine,
@@ -115,7 +113,30 @@ export function useAppEffects(params: {
     setSuppressAutoGitInstall,
   } = params;
 
+  const initDoneRef = useRef(false);
+  const tRef = useRef(t);
+  const loadProjectDataRef = useRef(loadProjectData);
+  const cursorRef = useRef(cursor);
+  const isMaximizedRef = useRef(false);
+
   useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
+    loadProjectDataRef.current = loadProjectData;
+  }, [loadProjectData]);
+
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
+
+  useEffect(() => {
+    if (initDoneRef.current) {
+      return;
+    }
+    initDoneRef.current = true;
+
     const init = async () => {
       try {
         await getHealthCheck();
@@ -180,14 +201,14 @@ export function useAppEffects(params: {
       }
       setActiveProjectId(targetProjectId ?? null);
       if (targetProjectId) {
-        await loadProjectData(targetProjectId);
+        await loadProjectDataRef.current(targetProjectId);
       }
     };
 
     init().catch(() => {
-      setToast({ type: "error", message: t("toast.initFailed") });
+      setToast({ type: "error", message: tRef.current("toast.initFailed") });
     });
-  }, [loadProjectData, setActiveProjectId, setLocale, setProjects, setRuntimeInfo, setSettings, setStatus, setToast, t]);
+  }, [setActiveProjectId, setLocale, setProjects, setRuntimeInfo, setSettings, setStatus, setToast]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -242,17 +263,18 @@ export function useAppEffects(params: {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      getEvents(cursor, 120)
+      getEvents(cursorRef.current, 120)
         .then((batch) => {
           if (batch.events.length > 0) {
             setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
+            cursorRef.current = batch.nextCursor;
             setCursor(batch.nextCursor);
           }
         })
         .catch(() => undefined);
     }, 2400);
     return () => clearInterval(timer);
-  }, [cursor, setCursor, setEvents]);
+  }, [setCursor, setEvents]);
 
   useEffect(() => {
     const policy = busytexCachePolicy ?? null;
@@ -277,13 +299,19 @@ export function useAppEffects(params: {
     let unlisten: (() => void) | null = null;
     const syncWindowState = async () => {
       const appWindow = getCurrentWindow();
-      setIsMaximized(await appWindow.isMaximized());
+      const initialMaximized = await appWindow.isMaximized();
+      isMaximizedRef.current = initialMaximized;
+      setIsMaximized(initialMaximized);
       unlisten = await appWindow.onResized(async () => {
         if (resizeFrameRef.current) {
           cancelAnimationFrame(resizeFrameRef.current);
         }
         resizeFrameRef.current = requestAnimationFrame(async () => {
-          setIsMaximized(await appWindow.isMaximized());
+          const next = await appWindow.isMaximized();
+          if (next !== isMaximizedRef.current) {
+            isMaximizedRef.current = next;
+            setIsMaximized(next);
+          }
         });
       });
     };

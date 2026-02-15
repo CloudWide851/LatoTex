@@ -300,10 +300,10 @@ export function AppWorkspaceShell(props: {
   };
 
   return (
-    <main className="flex-1 min-h-0 overflow-hidden p-2">
+    <main className="flex-1 min-h-0 overflow-hidden p-1">
       <PanelGroup
         direction="horizontal"
-        className="h-full gap-2"
+        className="h-full gap-px"
         onLayout={(layout) => onSavePanelLayout("shell", layout)}
       >
         <Panel
@@ -319,7 +319,7 @@ export function AppWorkspaceShell(props: {
           {page === "latex" && activeProjectId ? (
             <PanelGroup
               direction="horizontal"
-              className="h-full gap-2"
+              className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("latex", layout)}
             >
               <Panel defaultSize={latexLayout[0]} minSize={16}>
@@ -339,7 +339,7 @@ export function AppWorkspaceShell(props: {
           ) : page === "analysis" ? (
             <PanelGroup
               direction="horizontal"
-              className="h-full gap-2"
+              className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("analysis", layout)}
             >
               <Panel defaultSize={analysisLayout[0]} minSize={18}>
@@ -355,7 +355,7 @@ export function AppWorkspaceShell(props: {
           ) : page === "library" && activeProjectId ? (
             <PanelGroup
               direction="horizontal"
-              className="h-full gap-2"
+              className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("library", layout)}
             >
               <Panel defaultSize={libraryLayout[0]} minSize={20}>

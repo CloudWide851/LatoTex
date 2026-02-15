@@ -18,76 +18,54 @@ import {
 } from "../../shared/api/desktop";
 import type {
   AppSettings,
-  BusyTexCacheInfo,
   FsAction,
   FsScope,
-  GitDownloadStatus,
   ProjectSearchHit,
-  ResourceNode,
 } from "../../shared/types/app";
-import { applyTheme, resolveTheme, THEME_TRANSITION_MS, type AgentStatusKey, type ThemeMode } from "../app-config";
+import { applyTheme, resolveTheme, THEME_TRANSITION_MS, type ThemeMode } from "../app-config";
 import { useGitHandlers } from "./useGitHandlers";
+import type { UseAppHandlersParams } from "./useAppHandlers.types";
 
-type TranslationFn = (key: any) => string;
-type DeleteIntent = { scope: FsScope; path: string } | null;
+const MAX_AGENT_MESSAGES = 200;
+const COMPILE_SKIP_EXTENSIONS = new Set([
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "bmp",
+  "webp",
+  "ico",
+  "svg",
+  "zip",
+  "7z",
+  "rar",
+  "mp4",
+  "mp3",
+  "wav",
+  "ogg",
+  "mov",
+  "avi",
+  "wasm",
+  "dll",
+  "exe",
+  "bin",
+]);
 
-export function useAppHandlers(params: {
-  isTauriRuntime: boolean;
-  t: TranslationFn;
-  locale: Locale;
-  activeProjectId: string | null;
-  selectedFile: string | null;
-  fileList: string[];
-  editorContent: string;
-  pdfUrl: string | null;
-  agentPrompt: string;
-  agentMessages: { id: string; role: "user" | "agent"; text: string }[];
-  windowActionBusy: boolean;
-  settings: AppSettings | null;
-  projectSearchQuery: string;
-  gitDownloadTaskId: string | null;
-  gitInstallerLaunched: boolean;
-  deleteIntent: DeleteIntent;
-  deleteDontAskAgain: boolean;
-  setBusy: (value: boolean) => void;
-  setTree: (value: ResourceNode[]) => void;
-  setLibraryTree: (value: ResourceNode[]) => void;
-  setSelectedFile: (value: string | null) => void;
-  setSelectedLibraryPath: (value: string | null) => void;
-  setProjects: React.Dispatch<React.SetStateAction<any[]>>;
-  setActiveProjectId: (value: string | null) => void;
-  setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
-  setToast: (value: { type: "info" | "error"; message: string } | null) => void;
-  setCompileDiagnostics: (value: string[]) => void;
-  setLastCompileFailed: (value: boolean) => void;
-  setPdfUrl: (value: string | null) => void;
-  setAgentMessages: React.Dispatch<React.SetStateAction<{ id: string; role: "user" | "agent"; text: string }[]>>;
-  setAgentPrompt: (value: string) => void;
-  setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;
-  setAgentPhase: (value: "idle" | "running" | "done" | "error") => void;
-  setAgentStatusKey: (value: AgentStatusKey) => void;
-  setWindowActionBusy: (value: boolean) => void;
-  setIsMaximized: (value: boolean) => void;
-  setProjectSearchResults: (value: ProjectSearchHit[]) => void;
-  setProjectSearchSearched: (value: boolean) => void;
-  setProjectSearchBusy: (value: boolean) => void;
-  setPage: (value: any) => void;
-  setPendingRevealLine: (value: number | null) => void;
-  setBusytexCacheInfo: (value: BusyTexCacheInfo | null) => void;
-  setDeleteIntent: (value: DeleteIntent) => void;
-  setDeleteDontAskAgain: (value: boolean) => void;
-  setThemeTransition: (value: any) => void;
-  setGitDownloadTaskId: (value: string | null) => void;
-  setGitDownloadState: (value: GitDownloadStatus | null) => void;
-  setGitInstallerLaunched: (value: boolean) => void;
-  setSuppressAutoGitInstall: (value: boolean) => void;
-  editorRef: React.MutableRefObject<any>;
-  loadProjectData: (projectId: string) => Promise<void>;
-  persistSettings: (settings: AppSettings) => Promise<AppSettings>;
-  refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
-  setLocale: (next: Locale) => void;
-  upsertProject: (projects: any[], snapshot: any) => any[];
-}) {
+function shouldIncludeCompileFile(path: string): boolean {
+  const normalized = path.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  const dot = normalized.lastIndexOf(".");
+  if (dot < 0 || dot === normalized.length - 1) {
+    return true;
+  }
+  const extension = normalized.slice(dot + 1);
+  return !COMPILE_SKIP_EXTENSIONS.has(extension);
+}
+
+export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
     t,
@@ -254,6 +232,9 @@ export function useAppHandlers(params: {
           fileMap[filePath] = editorContent;
           continue;
         }
+        if (!shouldIncludeCompileFile(filePath)) {
+          continue;
+        }
         const data = await readFile(activeProjectId, filePath);
         fileMap[filePath] = data.content;
       }
@@ -325,14 +306,16 @@ export function useAppHandlers(params: {
       return;
     }
     const prompt = agentPrompt.trim();
-    setAgentMessages((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-user`,
-        role: "user",
-        text: prompt,
-      },
-    ]);
+    setAgentMessages((prev) =>
+      [
+        ...prev,
+        {
+          id: `${Date.now()}-user`,
+          role: "user" as const,
+          text: prompt,
+        },
+      ].slice(-MAX_AGENT_MESSAGES),
+    );
     setAgentPrompt("");
     setAgentCollapsed(true);
     setAgentPhase("running");
@@ -345,14 +328,16 @@ export function useAppHandlers(params: {
         contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
       });
       await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);
-      setAgentMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-agent`,
-          role: "agent",
-          text: response.output,
-        },
-      ]);
+      setAgentMessages((prev) =>
+        [
+          ...prev,
+          {
+            id: `${Date.now()}-agent`,
+            role: "agent" as const,
+            text: response.output,
+          },
+        ].slice(-MAX_AGENT_MESSAGES),
+      );
       setAgentPhase("done");
       setAgentStatusKey("agent.statusDone");
     } catch (error) {
