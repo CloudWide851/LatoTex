@@ -1,4 +1,4 @@
-export type WorkspacePage = "latex" | "analysis" | "library" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "library" | "git" | "settings";
 
 export type ProjectSummary = {
   id: string;
@@ -73,6 +73,7 @@ export type AppSettings = {
   agentBindings: AgentModelBinding[];
   uiPrefs?: {
     language?: "en-US" | "zh-CN";
+    skipDeleteConfirm?: boolean;
   };
 };
 
@@ -105,4 +106,49 @@ export type ModelCatalogItemInput = {
   protocolId: string;
   displayName: string;
   requestName: string;
+};
+
+export type FsScope = "workspace" | "library";
+export type FsAction = "create_file" | "create_folder" | "rename" | "copy" | "move" | "delete";
+
+export type FsOperationInput = {
+  projectId: string;
+  scope: FsScope;
+  action: FsAction;
+  path: string;
+  targetPath?: string;
+  content?: string;
+};
+
+export type FsOperationResult = {
+  ok: boolean;
+  message: string;
+};
+
+export type GitStatusEntry = {
+  path: string;
+  indexStatus: string;
+  worktreeStatus: string;
+};
+
+export type GitStatus = {
+  isRepo: boolean;
+  branch: string;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  changes: GitStatusEntry[];
+};
+
+export type GitBranchInfo = {
+  name: string;
+  current: boolean;
+};
+
+export type GitCommitInfo = {
+  hash: string;
+  shortHash: string;
+  author: string;
+  date: string;
+  subject: string;
 };

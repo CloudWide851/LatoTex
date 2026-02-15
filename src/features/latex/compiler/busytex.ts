@@ -15,11 +15,65 @@ export type BusyTeXCompileResult = {
   durationMs: number;
 };
 
-const BUSYTEX_BASE_PATH = "/core/busytex";
 const BUSYTEX_ASSET_HINT =
   "BusyTeX assets missing. Run `pnpm run busytex:assets` to download /public/core/busytex files.";
 
 let runner: BusyTexRunner | null = null;
+let resolvedBasePath: string | null = null;
+
+function buildBasePathCandidates(): string[] {
+  const baseUrl =
+    typeof import.meta !== "undefined" && import.meta.env?.BASE_URL
+      ? import.meta.env.BASE_URL
+      : "/";
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+  return Array.from(
+    new Set([
+      `${normalizedBase}core/busytex`,
+      "/core/busytex",
+      "./core/busytex",
+      "core/busytex",
+    ]),
+  );
+}
+
+function normalizePath(path: string): string {
+  return path
+    .replace(/\\/g, "/")
+    .replace(/\/{2,}/g, "/")
+    .replace(/^(\.)\/+/, "./");
+}
+
+async function hasValidWorkerAsset(basePath: string): Promise<boolean> {
+  try {
+    const workerUrl = `${basePath}/busytex_worker.js`;
+    const response = await fetch(workerUrl, { cache: "no-store" });
+    if (!response.ok) {
+      return false;
+    }
+    const source = (await response.text()).trimStart();
+    return !source.startsWith("<");
+  } catch {
+    return false;
+  }
+}
+
+async function resolveBusyTexBasePath(): Promise<string> {
+  if (resolvedBasePath) {
+    return resolvedBasePath;
+  }
+  const candidates = buildBasePathCandidates().map(normalizePath);
+  for (const candidate of candidates) {
+    // Validate worker asset first to avoid "Unexpected token '<'" from HTML fallback pages.
+    if (await hasValidWorkerAsset(candidate)) {
+      resolvedBasePath = candidate;
+      return candidate;
+    }
+  }
+  throw new Error(
+    `BusyTeX worker asset not found. Tried: ${candidates.join(", ")}. ${BUSYTEX_ASSET_HINT}`,
+  );
+}
 
 function normalizeToUint8Array(input: unknown): Uint8Array | null {
   if (!input) {
@@ -54,8 +108,9 @@ function flattenLogs(raw: unknown): string[] {
 
 async function getRunner(): Promise<BusyTexRunner> {
   if (!runner) {
+    const basePath = await resolveBusyTexBasePath();
     runner = new BusyTexRunner({
-      busytexBasePath: BUSYTEX_BASE_PATH
+      busytexBasePath: basePath,
     });
   }
   if (!runner.isInitialized()) {

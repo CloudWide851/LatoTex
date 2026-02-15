@@ -1,14 +1,15 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
-    FileReadResponse, FileWriteInput, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
-    ModelProtocolInput, ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput,
-    SwarmEvent, UiPrefs,
+    FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult, ModelCatalogItem,
+    ModelCatalogItemInput, ModelProtocol, ModelProtocolInput, ProjectSnapshot, ProjectSummary,
+    ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
 use rusqlite::{params, Connection};
 use serde_json::{json, Value};
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -436,6 +437,8 @@ pub fn initialize_project_from_folder(
 fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
     let latotex_dir = root.join(".latotex");
     fs::create_dir_all(&latotex_dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(library_root(root)).map_err(|e| e.to_string())?;
+    fs::create_dir_all(latotex_dir.join("index")).map_err(|e| e.to_string())?;
 
     let config_path = latotex_dir.join("config.json");
     if !config_path.exists() {
@@ -474,7 +477,107 @@ fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
         fs::write(main_path, content).map_err(|e| e.to_string())?;
     }
 
+    refresh_workspace_index(root)?;
+    refresh_library_index(root)?;
+
     Ok(())
+}
+
+fn library_root(project_root: &Path) -> PathBuf {
+    project_root.join(".latotex").join("papers")
+}
+
+fn workspace_index_path(project_root: &Path) -> PathBuf {
+    project_root
+        .join(".latotex")
+        .join("index")
+        .join("workspace-index.json")
+}
+
+fn library_index_path(project_root: &Path) -> PathBuf {
+    project_root
+        .join(".latotex")
+        .join("index")
+        .join("papers-index.json")
+}
+
+fn collect_file_index_entries(root: &Path, base: &Path, entries: &mut Vec<Value>) -> Result<(), String> {
+    if !base.exists() {
+        return Ok(());
+    }
+    for item in fs::read_dir(base).map_err(|e| e.to_string())? {
+        let item = item.map_err(|e| e.to_string())?;
+        let path = item.path();
+        let name = item.file_name().to_string_lossy().to_string();
+        if name == ".git" {
+            continue;
+        }
+
+        let rel = path
+            .strip_prefix(root)
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|ts| ts.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        entries.push(json!({
+            "relativePath": rel,
+            "name": name,
+            "kind": if metadata.is_dir() { "directory" } else { "file" },
+            "size": metadata.len(),
+            "modifiedEpochSec": modified
+        }));
+
+        if metadata.is_dir() {
+            collect_file_index_entries(root, &path, entries)?;
+        }
+    }
+    Ok(())
+}
+
+fn refresh_workspace_index(project_root: &Path) -> Result<(), String> {
+    let mut entries = Vec::new();
+    collect_file_index_entries(project_root, project_root, &mut entries)?;
+    let payload = json!({
+        "updatedAt": now_iso(),
+        "entries": entries
+    });
+    let index_path = workspace_index_path(project_root);
+    if let Some(parent) = index_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(
+        index_path,
+        serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn refresh_library_index(project_root: &Path) -> Result<(), String> {
+    let papers_root = library_root(project_root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    let mut entries = Vec::new();
+    collect_file_index_entries(project_root, &papers_root, &mut entries)?;
+    let payload = json!({
+        "updatedAt": now_iso(),
+        "root": ".latotex/papers",
+        "entries": entries
+    });
+    let index_path = library_index_path(project_root);
+    if let Some(parent) = index_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(
+        index_path,
+        serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
 }
 
 pub fn list_projects(db_path: &Path) -> Result<Vec<ProjectSummary>, String> {
@@ -520,6 +623,9 @@ pub fn project_snapshot(db_path: &Path, project_id: &str) -> Result<ProjectSnaps
         .map_err(|e| e.to_string())?;
 
     let root_path = PathBuf::from(&summary.root_path);
+    ensure_workspace_bootstrap_files(&root_path)?;
+    refresh_workspace_index(&root_path)?;
+    refresh_library_index(&root_path)?;
     let tree = list_workspace_tree(&root_path)?;
     Ok(ProjectSnapshot {
         summary,
@@ -590,7 +696,7 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
     }
 }
 
-fn load_project_root(db_path: &Path, project_id: &str) -> Result<PathBuf, String> {
+pub fn load_project_root(db_path: &Path, project_id: &str) -> Result<PathBuf, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     conn.query_row(
         "SELECT root_path FROM projects WHERE id = ?1",
@@ -607,15 +713,18 @@ fn safe_join(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
 
     let normalized_candidate = if candidate.exists() {
         candidate.canonicalize().map_err(|e| e.to_string())?
-    } else if let Some(parent) = candidate.parent() {
-        let canonical_parent = parent.canonicalize().map_err(|e| e.to_string())?;
-        canonical_parent.join(
-            candidate
-                .file_name()
-                .ok_or_else(|| "Invalid file name".to_string())?,
-        )
     } else {
-        candidate.clone()
+        let mut existing_parent = candidate.as_path();
+        while !existing_parent.exists() {
+            existing_parent = existing_parent
+                .parent()
+                .ok_or_else(|| "Invalid target path".to_string())?;
+        }
+        let canonical_existing = existing_parent.canonicalize().map_err(|e| e.to_string())?;
+        let stripped = candidate
+            .strip_prefix(existing_parent)
+            .map_err(|e| e.to_string())?;
+        canonical_existing.join(stripped)
     };
 
     if !normalized_candidate.starts_with(&canonical_root) {
@@ -656,6 +765,128 @@ pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, 
     Ok(Ack {
         ok: true,
         message: "File saved".to_string(),
+    })
+}
+
+pub fn list_library_tree(db_path: &Path, project_id: &str) -> Result<Vec<ResourceNode>, String> {
+    let root = load_project_root(db_path, project_id)?;
+    let papers_root = library_root(&root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    refresh_library_index(&root)?;
+    list_workspace_tree(&papers_root)
+}
+
+pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
+    let root = load_project_root(db_path, project_id)?;
+    refresh_workspace_index(&root)?;
+    refresh_library_index(&root)?;
+    Ok(Ack {
+        ok: true,
+        message: "Library index refreshed".to_string(),
+    })
+}
+
+fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
+    if source.is_dir() {
+        fs::create_dir_all(target).map_err(|e| e.to_string())?;
+        for item in fs::read_dir(source).map_err(|e| e.to_string())? {
+            let item = item.map_err(|e| e.to_string())?;
+            let from = item.path();
+            let to = target.join(item.file_name());
+            copy_recursively(&from, &to)?;
+        }
+        return Ok(());
+    }
+
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::copy(source, target).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn move_recursively(source: &Path, target: &Path) -> Result<(), String> {
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    match fs::rename(source, target) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            if error.kind() == io::ErrorKind::CrossesDevices {
+                copy_recursively(source, target)?;
+                if source.is_dir() {
+                    fs::remove_dir_all(source).map_err(|e| e.to_string())?;
+                } else {
+                    fs::remove_file(source).map_err(|e| e.to_string())?;
+                }
+                Ok(())
+            } else {
+                Err(error.to_string())
+            }
+        }
+    }
+}
+
+fn scope_root(project_root: &Path, scope: &str) -> Result<PathBuf, String> {
+    match scope {
+        "workspace" => Ok(project_root.to_path_buf()),
+        "library" => {
+            let root = library_root(project_root);
+            fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+            Ok(root)
+        }
+        _ => Err("Unsupported scope".to_string()),
+    }
+}
+
+pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperationResult, String> {
+    let project_root = load_project_root(db_path, &input.project_id)?;
+    let root = scope_root(&project_root, input.scope.trim())?;
+    let path = safe_join(&root, &input.path)?;
+
+    match input.action.as_str() {
+        "create_file" => {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            fs::write(&path, input.content.unwrap_or_default()).map_err(|e| e.to_string())?;
+        }
+        "create_folder" => {
+            fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+        }
+        "rename" | "move" => {
+            let target_relative = input
+                .target_path
+                .ok_or_else(|| "targetPath is required".to_string())?;
+            let target = safe_join(&root, &target_relative)?;
+            move_recursively(&path, &target)?;
+        }
+        "copy" => {
+            let target_relative = input
+                .target_path
+                .ok_or_else(|| "targetPath is required".to_string())?;
+            let target = safe_join(&root, &target_relative)?;
+            copy_recursively(&path, &target)?;
+        }
+        "delete" => {
+            trash::delete(&path).map_err(|e| e.to_string())?;
+        }
+        _ => return Err("Unsupported file action".to_string()),
+    }
+
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE projects SET updated_at = ?1 WHERE id = ?2",
+        params![now_iso(), input.project_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    refresh_workspace_index(&project_root)?;
+    refresh_library_index(&project_root)?;
+
+    Ok(FsOperationResult {
+        ok: true,
+        message: "Operation completed".to_string(),
     })
 }
 

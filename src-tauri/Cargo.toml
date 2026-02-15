@@ -24,3 +24,4 @@ uuid = { version = "1", features = ["v4", "serde"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 keyring = "3"
 rfd = "0.15"
+trash = "5"

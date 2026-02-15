@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
-    "build": "tsc && vite build",
+    "build": "node scripts/ensure-busytex-assets.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",

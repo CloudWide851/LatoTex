@@ -5,6 +5,11 @@ import type {
   CompileRecord,
   EventBatch,
   FileReadResponse,
+  FsOperationInput,
+  FsOperationResult,
+  GitBranchInfo,
+  GitCommitInfo,
+  GitStatus,
   ModelCatalogItemInput,
   ModelProtocolInput,
   ProtocolHealth,
@@ -47,6 +52,18 @@ export function writeFile(projectId: string, relativePath: string, content: stri
   return invoke("file_write", { input: { projectId, relativePath, content } });
 }
 
+export function fsOperation(input: FsOperationInput): Promise<FsOperationResult> {
+  return invoke<FsOperationResult>("fs_operation", { input });
+}
+
+export function getLibraryTree(projectId: string): Promise<ResourceNode[]> {
+  return invoke<ResourceNode[]>("library_tree", { input: { projectId } });
+}
+
+export function rescanLibrary(projectId: string) {
+  return invoke("library_rescan", { input: { projectId } });
+}
+
 export function runAgent(input: {
   projectId: string;
   role: string;
@@ -80,7 +97,7 @@ export function updateSettings(input: {
   modelProtocols: ModelProtocolInput[];
   modelCatalog: ModelCatalogItemInput[];
   agentBindings: AgentModelBinding[];
-  uiPrefs?: { language?: "en-US" | "zh-CN" };
+  uiPrefs?: { language?: "en-US" | "zh-CN"; skipDeleteConfirm?: boolean };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
 }
@@ -95,4 +112,44 @@ export function runtimeLogWrite(level: string, message: string) {
 
 export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
   return invoke<RuntimeLogInfo>("runtime_log_info");
+}
+
+export function gitStatus(projectId: string): Promise<GitStatus> {
+  return invoke<GitStatus>("git_status", { input: { projectId } });
+}
+
+export function gitBranches(projectId: string): Promise<GitBranchInfo[]> {
+  return invoke<GitBranchInfo[]>("git_branches", { input: { projectId } });
+}
+
+export function gitLog(projectId: string, limit = 50): Promise<GitCommitInfo[]> {
+  return invoke<GitCommitInfo[]>("git_log", { input: { projectId, limit } });
+}
+
+export function gitStage(projectId: string, paths: string[]) {
+  return invoke("git_stage", { input: { projectId, paths } });
+}
+
+export function gitUnstage(projectId: string, paths: string[]) {
+  return invoke("git_unstage", { input: { projectId, paths } });
+}
+
+export function gitCommit(projectId: string, message: string) {
+  return invoke("git_commit", { input: { projectId, message } });
+}
+
+export function gitCheckout(projectId: string, branch: string, create = false) {
+  return invoke("git_checkout", { input: { projectId, branch, create } });
+}
+
+export function gitFetch(projectId: string, remote?: string) {
+  return invoke("git_fetch", { input: { projectId, remote } });
+}
+
+export function gitPull(projectId: string, remote?: string, branch?: string) {
+  return invoke("git_pull", { input: { projectId, remote, branch } });
+}
+
+export function gitPush(projectId: string, remote?: string, branch?: string) {
+  return invoke("git_push", { input: { projectId, remote, branch } });
 }

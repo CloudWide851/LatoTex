@@ -1,6 +1,7 @@
 use crate::models::{
-    Ack, CreateProjectInput, FileReadInput, FileReadResponse, FileWriteInput, ProjectRefInput,
-    ProjectSnapshot, ProjectSummary, ResourceNode,
+    Ack, CreateProjectInput, FileReadInput, FileReadResponse, FileWriteInput, FsOperationInput,
+    FsOperationResult, LibraryRefInput, ProjectRefInput, ProjectSnapshot, ProjectSummary,
+    ResourceNode,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -77,4 +78,34 @@ pub fn file_write(state: State<'_, AppState>, input: FileWriteInput) -> Result<A
         &format!("file_write: {} ({})", input.relative_path, input.project_id),
     );
     storage::write_project_file(&state.db_path, input)
+}
+
+#[tauri::command]
+pub fn library_tree(
+    state: State<'_, AppState>,
+    input: LibraryRefInput,
+) -> Result<Vec<ResourceNode>, String> {
+    state.log("INFO", &format!("library_tree: {}", input.project_id));
+    storage::list_library_tree(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn library_rescan(state: State<'_, AppState>, input: LibraryRefInput) -> Result<Ack, String> {
+    state.log("INFO", &format!("library_rescan: {}", input.project_id));
+    storage::rescan_library(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn fs_operation(
+    state: State<'_, AppState>,
+    input: FsOperationInput,
+) -> Result<FsOperationResult, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "fs_operation: action={}, scope={}, path={}, project={}",
+            input.action, input.scope, input.path, input.project_id
+        ),
+    );
+    storage::fs_operation(&state.db_path, input)
 }

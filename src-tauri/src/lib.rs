@@ -5,10 +5,14 @@ mod secure;
 mod state;
 mod storage;
 
+use commands::git::{
+    git_branches, git_checkout, git_commit, git_fetch, git_log, git_pull, git_push, git_stage,
+    git_status, git_unstage,
+};
 use commands::health::health_check;
 use commands::projects::{
-    file_read, file_write, project_create, project_init_from_folder, project_list, project_open,
-    workspace_tree,
+    file_read, file_write, fs_operation, library_rescan, library_tree, project_create,
+    project_init_from_folder, project_list, project_open, workspace_tree,
 };
 use commands::settings::{
     protocol_test, runtime_log_info, runtime_log_write, settings_get, settings_update,
@@ -34,6 +38,9 @@ pub fn run() {
             workspace_tree,
             file_read,
             file_write,
+            library_tree,
+            library_rescan,
+            fs_operation,
             latex_compile_record,
             agent_run,
             events_subscribe,
@@ -41,7 +48,17 @@ pub fn run() {
             settings_update,
             protocol_test,
             runtime_log_write,
-            runtime_log_info
+            runtime_log_info,
+            git_status,
+            git_branches,
+            git_log,
+            git_stage,
+            git_unstage,
+            git_commit,
+            git_checkout,
+            git_fetch,
+            git_pull,
+            git_push
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

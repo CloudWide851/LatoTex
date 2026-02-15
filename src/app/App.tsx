@@ -1,41 +1,60 @@
 import MonacoEditor from "@monaco-editor/react";
+import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  AlertTriangle,
   Bot,
   FileCode2,
   FolderOpen,
+  GitBranch,
   Globe,
   Languages,
   Library,
+  ListChecks,
   Maximize2,
   Minimize2,
   Minus,
   Play,
+  Plus,
   Save,
   SearchCode,
   Settings2,
-  Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./components/AgentChatOverlay";
 import { ExplorerTree } from "./components/ExplorerTree";
-import { LogOverlay } from "./components/LogOverlay";
+import { GitWorkspace } from "./components/GitWorkspace";
+import { ModelModal } from "./components/ModelModal";
 import { PageRail } from "./components/PageRail";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { compileWithBusyTeX } from "../features/latex/compiler/busytex";
 import { detectSystemLocale, resolveLocale, useI18n, type Locale } from "../i18n";
 import { cn } from "../lib/utils";
 import {
+  fsOperation,
   getEvents,
   getHealthCheck,
+  getLibraryTree,
   getSettings,
+  gitBranches,
+  gitCheckout,
+  gitCommit,
+  gitFetch,
+  gitLog,
+  gitPull,
+  gitPush,
+  gitStage,
+  gitStatus,
+  gitUnstage,
   initProjectFromFolder,
   listProjects,
   openProject,
   readFile,
   recordCompile,
+  rescanLibrary,
   runAgent,
   runtimeLogInfo,
   runtimeLogWrite,
@@ -46,6 +65,11 @@ import {
 import type {
   AgentModelBinding,
   AppSettings,
+  FsAction,
+  FsScope,
+  GitBranchInfo,
+  GitCommitInfo,
+  GitStatus,
   ModelCatalogItem,
   ModelProtocol,
   ProjectSummary,
@@ -57,16 +81,24 @@ import type {
 
 type Toast = { type: "info" | "error"; message: string } | null;
 type SettingsSection = "general" | "models" | "agents" | "diagnostics";
-type OverlayType = "diagnostics" | "events" | null;
+type OverlayType = "logs" | null;
+type LogTab = "status" | "events";
+type DeleteIntent = { scope: FsScope; path: string } | null;
+type AgentStatusKey =
+  | "agent.statusIdle"
+  | "agent.statusRunning"
+  | "agent.statusDone"
+  | "agent.statusError";
 
 const PAGE_ITEMS: Array<{
   id: WorkspacePage;
-  key: "nav.latex" | "nav.analysis" | "nav.library" | "nav.settings";
+  key: "nav.latex" | "nav.analysis" | "nav.library" | "nav.git" | "nav.settings";
   icon: typeof FileCode2;
 }> = [
   { id: "latex", key: "nav.latex", icon: FileCode2 },
   { id: "analysis", key: "nav.analysis", icon: SearchCode },
   { id: "library", key: "nav.library", icon: Library },
+  { id: "git", key: "nav.git", icon: GitBranch },
   { id: "settings", key: "nav.settings", icon: Settings2 },
 ];
 
@@ -167,13 +199,19 @@ export function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [tree, setTree] = useState<ResourceNode[]>([]);
+  const [libraryTree, setLibraryTree] = useState<ResourceNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedLibraryPath, setSelectedLibraryPath] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [agentPrompt, setAgentPrompt] = useState("");
-  const [agentOutput, setAgentOutput] = useState("");
+  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
+  const [agentCollapsed, setAgentCollapsed] = useState(false);
+  const [agentPhase, setAgentPhase] = useState<AgentPhase>("idle");
+  const [agentStatusKey, setAgentStatusKey] = useState<AgentStatusKey>("agent.statusIdle");
   const [events, setEvents] = useState<SwarmEvent[]>([]);
   const [cursor, setCursor] = useState(0);
   const [compileDiagnostics, setCompileDiagnostics] = useState<string[]>([]);
+  const [lastCompileFailed, setLastCompileFailed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
@@ -182,11 +220,15 @@ export function App() {
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
-  const [diagIndex, setDiagIndex] = useState(0);
-  const [eventIndex, setEventIndex] = useState(0);
+  const [logsTab, setLogsTab] = useState<LogTab>("status");
+  const [modelModalOpen, setModelModalOpen] = useState(false);
+  const [deleteIntent, setDeleteIntent] = useState<DeleteIntent>(null);
+  const [deleteDontAskAgain, setDeleteDontAskAgain] = useState(false);
+  const [gitStatusState, setGitStatusState] = useState<GitStatus | null>(null);
+  const [gitBranchesState, setGitBranchesState] = useState<GitBranchInfo[]>([]);
+  const [gitCommits, setGitCommits] = useState<GitCommitInfo[]>([]);
 
-  const isTauriRuntime =
-    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const isTauriRuntime = isTauri();
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
   const pageLabel = useMemo(
     () => t(PAGE_ITEMS.find((item) => item.id === page)?.key ?? "nav.latex"),
@@ -202,7 +244,7 @@ export function App() {
     [t],
   );
   const isLatexPage = page === "latex";
-  const showExplorer = page !== "settings";
+  const showExplorer = page === "latex" || page === "analysis";
   const mainGridClass = useMemo(() => {
     if (page === "latex") {
       return cn(
@@ -216,11 +258,67 @@ export function App() {
       return "grid-cols-[56px_minmax(0,1fr)]";
     }
     return cn(
-      "grid-cols-[56px_minmax(230px,0.24fr)_minmax(620px,1fr)]",
-      "max-[1240px]:grid-cols-[56px_minmax(180px,0.3fr)_minmax(0,1fr)]",
+      "grid-cols-[56px_minmax(0,1fr)]",
       "max-[960px]:grid-cols-[56px_minmax(0,1fr)]",
     );
   }, [page]);
+
+  const loadProjectData = async (projectId: string) => {
+    const snapshot = await openProject(projectId);
+    setTree(snapshot.tree);
+    setSelectedFile(snapshot.mainFile);
+    const [papers, gitState, branches, commits] = await Promise.all([
+      getLibraryTree(projectId),
+      gitStatus(projectId),
+      gitBranches(projectId).catch(() => []),
+      gitLog(projectId, 50).catch(() => []),
+    ]);
+    setLibraryTree(papers);
+    setSelectedLibraryPath(null);
+    setGitStatusState(gitState);
+    setGitBranchesState(branches);
+    setGitCommits(commits);
+  };
+
+  const persistSettings = async (nextSettings: AppSettings) => {
+    const updated = await updateSettings({
+      activeProjectId,
+      modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
+        id: protocol.id,
+        displayName: protocol.displayName,
+        baseUrl: protocol.baseUrl,
+        apiKey: draftApiKeys[protocol.id],
+      })),
+      modelCatalog: nextSettings.modelCatalog.map((model) => ({
+        id: model.id,
+        protocolId: model.protocolId,
+        displayName: model.displayName,
+        requestName: model.requestName,
+      })),
+      agentBindings: nextSettings.agentBindings,
+      uiPrefs: {
+        language: nextSettings.uiPrefs?.language ?? locale,
+        skipDeleteConfirm: nextSettings.uiPrefs?.skipDeleteConfirm ?? false,
+      },
+    });
+    setSettings(updated);
+    setDraftApiKeys({});
+    return updated;
+  };
+
+  const refreshGitWorkspace = async () => {
+    if (!activeProjectId) {
+      return;
+    }
+    const [state, branches, commits] = await Promise.all([
+      gitStatus(activeProjectId),
+      gitBranches(activeProjectId).catch(() => []),
+      gitLog(activeProjectId, 50).catch(() => []),
+    ]);
+    setGitStatusState(state);
+    setGitBranchesState(branches);
+    setGitCommits(commits);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -275,25 +373,26 @@ export function App() {
         targetProjectId = projectList[0].id;
       }
       setActiveProjectId(targetProjectId ?? null);
+      if (targetProjectId) {
+        await loadProjectData(targetProjectId);
+      }
     };
 
     init().catch(() => {
       setToast({ type: "error", message: t("toast.initFailed") });
     });
-  }, [setLocale, t]);
+  }, [setLocale]);
 
   useEffect(() => {
     if (!activeProjectId) {
       setTree([]);
+      setLibraryTree([]);
       setSelectedFile(null);
+      setSelectedLibraryPath(null);
       setEditorContent("");
       return;
     }
-    openProject(activeProjectId)
-      .then((snapshot) => {
-        setTree(snapshot.tree);
-        setSelectedFile(snapshot.mainFile);
-      })
+    loadProjectData(activeProjectId)
       .catch((error) => {
         setToast({ type: "error", message: String(error) });
       });
@@ -348,28 +447,6 @@ export function App() {
     const timer = setTimeout(() => setToast(null), 2600);
     return () => clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-    if (compileDiagnostics.length <= 1) {
-      setDiagIndex(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setDiagIndex((prev) => (prev + 1) % compileDiagnostics.length);
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [compileDiagnostics]);
-
-  useEffect(() => {
-    if (events.length <= 1) {
-      setEventIndex(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setEventIndex((prev) => (prev + 1) % events.length);
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [events]);
 
   const handleWindowControl = async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
@@ -453,6 +530,7 @@ export function App() {
       }
 
       const result = await compileWithBusyTeX(editorContent, fileMap, selectedFile);
+      setLastCompileFailed(result.status !== "success");
       await runtimeLogWrite(
         result.status === "success" ? "INFO" : "ERROR",
         `${t("log.compileDone")}, file=${selectedFile}, status=${result.status}, durationMs=${result.durationMs}`,
@@ -485,7 +563,9 @@ export function App() {
             : t("toast.compileFailed"),
       });
     } catch (error) {
+      setLastCompileFailed(true);
       setToast({ type: "error", message: String(error) });
+      setCompileDiagnostics([String(error)]);
     } finally {
       setBusy(false);
     }
@@ -495,18 +575,41 @@ export function App() {
     if (!activeProjectId || !agentPrompt.trim()) {
       return;
     }
+    const prompt = agentPrompt.trim();
+    setAgentMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        role: "user",
+        text: prompt,
+      },
+    ]);
+    setAgentPrompt("");
+    setAgentCollapsed(true);
+    setAgentPhase("running");
+    setAgentStatusKey("agent.statusRunning");
     setBusy(true);
     try {
       const response = await runAgent({
         projectId: activeProjectId,
         role: "task",
-        prompt: agentPrompt,
+        prompt,
         contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
       });
       await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);
-      setAgentOutput(response.output);
-      setAgentPrompt("");
+      setAgentMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-agent`,
+          role: "agent",
+          text: response.output,
+        },
+      ]);
+      setAgentPhase("done");
+      setAgentStatusKey("agent.statusDone");
     } catch (error) {
+      setAgentPhase("error");
+      setAgentStatusKey("agent.statusError");
       setToast({ type: "error", message: String(error) });
     } finally {
       setBusy(false);
@@ -519,25 +622,7 @@ export function App() {
     }
     setBusy(true);
     try {
-      const updated = await updateSettings({
-        activeProjectId,
-        modelProtocols: settings.modelProtocols.map((protocol) => ({
-          id: protocol.id,
-          displayName: protocol.displayName,
-          baseUrl: protocol.baseUrl,
-          apiKey: draftApiKeys[protocol.id],
-        })),
-        modelCatalog: settings.modelCatalog.map((model) => ({
-          id: model.id,
-          protocolId: model.protocolId,
-          displayName: model.displayName,
-          requestName: model.requestName,
-        })),
-        agentBindings: settings.agentBindings,
-        uiPrefs: { language: locale },
-      });
-      setSettings(updated);
-      setDraftApiKeys({});
+      await persistSettings(settings);
       await runtimeLogWrite("INFO", t("log.settingsSaved"));
       setToast({ type: "info", message: t("toast.settingsSaved") });
     } catch (error) {
@@ -572,26 +657,108 @@ export function App() {
       result.ok ? "INFO" : "WARN",
       `protocol test: ${protocolId}, ok=${result.ok}`,
     );
+    return result.ok;
   };
 
-  const handleAddModel = (protocolId: string) => {
-    const now = Date.now();
-    setSettings((prev) =>
-      prev
-        ? {
-            ...prev,
-            modelCatalog: [
-              ...prev.modelCatalog,
-              {
-                id: `custom-${protocolId}-${now}`,
-                protocolId,
-                displayName: `Custom ${now}`,
-                requestName: "",
-              },
-            ],
-          }
-        : prev,
-    );
+  const runFsAction = async (
+    scope: FsScope,
+    action: FsAction,
+    path: string,
+    targetPath?: string,
+    content?: string,
+  ) => {
+    if (!activeProjectId) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await fsOperation({
+        projectId: activeProjectId,
+        scope,
+        action,
+        path,
+        targetPath,
+        content,
+      });
+      if (scope === "workspace") {
+        const snapshot = await openProject(activeProjectId);
+        setTree(snapshot.tree);
+      } else {
+        const nextTree = await getLibraryTree(activeProjectId);
+        setLibraryTree(nextTree);
+      }
+      setToast({ type: "info", message: t("toast.fsUpdated") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const askAndRunFsAction = (scope: FsScope, action: FsAction) => {
+    const basePath = scope === "workspace" ? selectedFile ?? "" : selectedLibraryPath ?? "";
+    const path = window.prompt(t("explorer.prompt.path"), basePath);
+    if (!path || !path.trim()) {
+      return;
+    }
+
+    if (action === "create_file") {
+      runFsAction(scope, action, path.trim(), undefined, "");
+      return;
+    }
+    if (action === "create_folder") {
+      runFsAction(scope, action, path.trim());
+      return;
+    }
+    if (action === "rename" || action === "copy" || action === "move") {
+      const target = window.prompt(t("explorer.prompt.targetPath"), path.trim());
+      if (!target || !target.trim()) {
+        return;
+      }
+      runFsAction(scope, action, path.trim(), target.trim());
+      return;
+    }
+
+    const skipConfirm = settings?.uiPrefs?.skipDeleteConfirm ?? false;
+    if (skipConfirm) {
+      runFsAction(scope, "delete", path.trim());
+      return;
+    }
+    setDeleteIntent({ scope, path: path.trim() });
+    setDeleteDontAskAgain(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteIntent || !settings) {
+      return;
+    }
+
+    if (deleteDontAskAgain) {
+      const nextSettings: AppSettings = {
+        ...settings,
+        uiPrefs: {
+          ...(settings.uiPrefs ?? {}),
+          language: settings.uiPrefs?.language ?? locale,
+          skipDeleteConfirm: true,
+        },
+      };
+      await persistSettings(nextSettings);
+    }
+
+    await runFsAction(deleteIntent.scope, "delete", deleteIntent.path);
+    setDeleteIntent(null);
+  };
+
+  const handleGitAction = async (action: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await action();
+      await refreshGitWorkspace();
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const activeModelCatalog = settings?.modelCatalog ?? DEFAULT_CATALOG;
@@ -602,6 +769,79 @@ export function App() {
     const parts = runtimeInfo.sessionLogFile.split(/[\\/]/);
     return parts[parts.length - 1] || runtimeInfo.sessionLogFile;
   }, [runtimeInfo?.sessionLogFile]);
+  const compileErrorLine = useMemo(() => {
+    if (!lastCompileFailed || compileDiagnostics.length === 0) {
+      return null;
+    }
+    return compileDiagnostics[0];
+  }, [compileDiagnostics, lastCompileFailed]);
+
+  const renderExplorerTools = (scope: FsScope) => (
+    <div className="mb-2 flex items-center gap-1 border-b border-slate-200 pb-2">
+      <button
+        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+        title={t("explorer.action.newFile")}
+        onClick={() => askAndRunFsAction(scope, "create_file")}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+      <button
+        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+        title={t("explorer.action.newFolder")}
+        onClick={() => askAndRunFsAction(scope, "create_folder")}
+      >
+        <FolderOpen className="h-3.5 w-3.5" />
+      </button>
+      <button
+        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+        title={t("explorer.action.rename")}
+        onClick={() => askAndRunFsAction(scope, "rename")}
+      >
+        <Save className="h-3.5 w-3.5" />
+      </button>
+      <button
+        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+        title={t("explorer.action.copy")}
+        onClick={() => askAndRunFsAction(scope, "copy")}
+      >
+        <ListChecks className="h-3.5 w-3.5" />
+      </button>
+      <button
+        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+        title={t("explorer.action.move")}
+        onClick={() => askAndRunFsAction(scope, "move")}
+      >
+        <Play className="h-3.5 w-3.5" />
+      </button>
+      <button
+        className="rounded border border-slate-300 bg-white p-1.5 text-rose-600 hover:bg-rose-50"
+        title={t("explorer.action.delete")}
+        onClick={() => askAndRunFsAction(scope, "delete")}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+      {scope === "library" && activeProjectId && (
+        <button
+          className="ml-auto rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+          title={t("explorer.action.rescan")}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await rescanLibrary(activeProjectId);
+              const nextTree = await getLibraryTree(activeProjectId);
+              setLibraryTree(nextTree);
+            } catch (error) {
+              setToast({ type: "error", message: String(error) });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <ListChecks className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
 
   const renderSettingsPanel = () => {
     const localSettings = settings ?? {
@@ -677,184 +917,76 @@ export function App() {
                   </p>
                 </div>
               </div>
+              <div className="rounded-lg border border-slate-200 p-4">
+                <label className="flex items-center justify-between text-sm text-slate-700">
+                  <span>{t("settings.deleteConfirm")}</span>
+                  <input
+                    type="checkbox"
+                    checked={!(localSettings.uiPrefs?.skipDeleteConfirm ?? false)}
+                    onChange={(event) =>
+                      setSettings((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              uiPrefs: {
+                                ...(prev.uiPrefs ?? {}),
+                                language: prev.uiPrefs?.language ?? locale,
+                                skipDeleteConfirm: !event.target.checked,
+                              },
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                </label>
+              </div>
             </div>
           )}
 
           {settingsSection === "models" && (
-            <div className="space-y-5">
-              <h3 className="text-sm font-semibold text-slate-800">
-                {t("settings.modelManagementTitle")}
-              </h3>
-              {localSettings.modelProtocols.map((protocol) => (
-                <div
-                  key={protocol.id}
-                  className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <Input
-                      value={protocol.displayName}
-                      className="max-w-xs"
-                      onChange={(event) =>
-                        setSettings((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                modelProtocols: prev.modelProtocols.map((item) =>
-                                  item.id === protocol.id
-                                    ? { ...item, displayName: event.target.value }
-                                    : item,
-                                ),
-                              }
-                            : prev,
-                        )
-                      }
-                    />
-                    <span className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-500">
-                      {protocol.apiKeySet
-                        ? t("settings.protocolConnected")
-                        : t("settings.protocolNotConnected")}
-                    </span>
-                  </div>
-
-                  <label className="grid gap-1 text-xs text-slate-500">
-                    {t("settings.baseUrl")}
-                    <Input
-                      value={protocol.baseUrl}
-                      onChange={(event) =>
-                        setSettings((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                modelProtocols: prev.modelProtocols.map((item) =>
-                                  item.id === protocol.id
-                                    ? { ...item, baseUrl: event.target.value }
-                                    : item,
-                                ),
-                              }
-                            : prev,
-                        )
-                      }
-                    />
-                  </label>
-
-                  <label className="grid gap-1 text-xs text-slate-500">
-                    {t("settings.apiKey")}
-                    <Input
-                      type="password"
-                      placeholder={
-                        protocol.apiKeySet
-                          ? t("settings.keyStored")
-                          : t("settings.keyNotSet")
-                      }
-                      value={draftApiKeys[protocol.id] ?? ""}
-                      onChange={(event) =>
-                        setDraftApiKeys((prev) => ({
-                          ...prev,
-                          [protocol.id]: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        {t("settings.modelCatalogTitle")}
-                      </h4>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-800">
+                  {t("settings.modelCatalogTitle")}
+                </h3>
+                <Button size="sm" onClick={() => setModelModalOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("settings.addModel")}
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {localSettings.modelCatalog.map((model) => {
+                  const protocol = localSettings.modelProtocols.find(
+                    (item) => item.id === model.protocolId,
+                  );
+                  return (
+                    <div
+                      key={model.id}
+                      className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1fr)_minmax(140px,1fr)_auto] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs max-[980px]:grid-cols-1"
+                    >
+                      <span>{model.displayName}</span>
+                      <span className="font-mono text-slate-600">{model.requestName}</span>
+                      <span className="text-slate-500">{protocol?.displayName ?? model.protocolId}</span>
                       <Button
-                        variant="secondary"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => handleAddModel(protocol.id)}
+                        onClick={() =>
+                          setSettings((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  modelCatalog: prev.modelCatalog.filter((item) => item.id !== model.id),
+                                }
+                              : prev,
+                          )
+                        }
                       >
-                        {t("settings.addModel")}
+                        {t("settings.removeModel")}
                       </Button>
                     </div>
-                    <div className="space-y-2">
-                      {localSettings.modelCatalog
-                        .filter((item) => item.protocolId === protocol.id)
-                        .map((model) => (
-                          <div
-                            key={model.id}
-                            className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1fr)_auto] items-center gap-2 rounded-md border border-slate-200 bg-white p-2 max-[980px]:grid-cols-1"
-                          >
-                            <Input
-                              value={model.displayName}
-                              onChange={(event) =>
-                                setSettings((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        modelCatalog: prev.modelCatalog.map((item) =>
-                                          item.id === model.id
-                                            ? { ...item, displayName: event.target.value }
-                                            : item,
-                                        ),
-                                      }
-                                    : prev,
-                                )
-                              }
-                            />
-                            <Input
-                              value={model.requestName}
-                              onChange={(event) =>
-                                setSettings((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        modelCatalog: prev.modelCatalog.map((item) =>
-                                          item.id === model.id
-                                            ? { ...item, requestName: event.target.value }
-                                            : item,
-                                        ),
-                                      }
-                                    : prev,
-                                )
-                              }
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setSettings((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        modelCatalog: prev.modelCatalog.filter(
-                                          (item) => item.id !== model.id,
-                                        ),
-                                        agentBindings: prev.agentBindings.map((binding) =>
-                                          binding.modelId === model.id
-                                            ? {
-                                                ...binding,
-                                                modelId:
-                                                  DEFAULT_BINDINGS.find(
-                                                    (it) => it.role === binding.role,
-                                                  )?.modelId ?? binding.modelId,
-                                              }
-                                            : binding,
-                                        ),
-                                      }
-                                    : prev,
-                                )
-                              }
-                            >
-                              {t("settings.removeModel")}
-                            </Button>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="secondary"
-                    className="w-fit"
-                    onClick={() => handleProtocolPing(protocol.id)}
-                  >
-                    <Globe className="mr-2 h-4 w-4" />
-                    {t("settings.testProtocol")}
-                  </Button>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -929,10 +1061,15 @@ export function App() {
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
       <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
-      <Button onClick={handleInitProjectFromFolder} disabled={busy}>
-        <FolderOpen className="mr-2 h-4 w-4" />
-        {t("topbar.openFolder")}
-      </Button>
+      <button
+        className="rounded border border-slate-300 bg-white p-2 text-slate-700 hover:bg-slate-100"
+        onClick={handleInitProjectFromFolder}
+        disabled={busy}
+        title={t("topbar.openFolder")}
+        aria-label={t("topbar.openFolder")}
+      >
+        <FolderOpen className="h-5 w-5" />
+      </button>
     </div>
   );
 
@@ -946,9 +1083,56 @@ export function App() {
     }
     if (page === "library") {
       return (
-        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500 motion-slide-up">
-          {t("workspace.library")}
-        </div>
+        activeProjectId ? (
+          <div className="grid h-full min-h-0 grid-cols-[260px_minmax(0,1fr)] gap-3 motion-slide-up">
+            <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t("library.title")}
+              </h2>
+              {renderExplorerTools("library")}
+              <div className="h-[calc(100%-64px)] overflow-auto pr-1">
+                <ExplorerTree
+                  tree={libraryTree}
+                  selectedFile={selectedLibraryPath}
+                  onSelect={setSelectedLibraryPath}
+                />
+              </div>
+            </aside>
+            <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">{t("library.detailTitle")}</h3>
+              <p className="text-xs text-slate-500">
+                {selectedLibraryPath ? selectedLibraryPath : t("library.noSelection")}
+              </p>
+            </section>
+          </div>
+        ) : (
+          renderNoProjectPanel()
+        )
+      );
+    }
+    if (page === "git") {
+      return activeProjectId ? (
+        <GitWorkspace
+          status={gitStatusState}
+          branches={gitBranchesState}
+          commits={gitCommits}
+          busy={busy}
+          onRefresh={() => handleGitAction(refreshGitWorkspace)}
+          onFetch={() => handleGitAction(async () => gitFetch(activeProjectId))}
+          onPull={() => handleGitAction(async () => gitPull(activeProjectId))}
+          onPush={() => handleGitAction(async () => gitPush(activeProjectId))}
+          onCheckout={(branch, create) =>
+            handleGitAction(async () => gitCheckout(activeProjectId, branch, create))
+          }
+          onStage={(paths) => handleGitAction(async () => gitStage(activeProjectId, paths))}
+          onUnstage={(paths) =>
+            handleGitAction(async () => gitUnstage(activeProjectId, paths))
+          }
+          onCommit={(message) => handleGitAction(async () => gitCommit(activeProjectId, message))}
+          t={t}
+        />
+      ) : (
+        renderNoProjectPanel()
       );
     }
     if (page === "settings") {
@@ -959,7 +1143,7 @@ export function App() {
     }
 
     return (
-      <div className="grid h-full grid-rows-[48px_minmax(260px,1fr)_250px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
+      <div className="grid h-full grid-rows-[48px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
           <div className="truncate text-sm font-medium text-slate-700">
             {selectedFile ?? t("workspace.noFile")}
@@ -976,7 +1160,7 @@ export function App() {
           </div>
         </div>
 
-        <div className="min-h-0">
+        <div className="relative min-h-0">
           <MonacoEditor
             language="latex"
             value={editorContent}
@@ -987,43 +1171,25 @@ export function App() {
               smoothScrolling: true,
             }}
           />
-        </div>
-
-        <div className="grid grid-rows-[auto_minmax(88px,1fr)_auto_minmax(70px,1fr)] gap-2 border-t border-slate-200 p-3">
-          <h3 className="text-sm font-semibold text-slate-700">{t("workspace.agentTitle")}</h3>
-          <textarea
-            className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-            value={agentPrompt}
-            onChange={(event) => setAgentPrompt(event.target.value)}
+          <AgentChatOverlay
+            collapsed={agentCollapsed}
+            phase={agentPhase}
+            statusLine={t(agentStatusKey)}
+            title={t("agent.chatTitle")}
+            collapseLabel={t("agent.collapse")}
+            prompt={agentPrompt}
+            busy={busy}
+            messages={agentMessages}
+            onPromptChange={setAgentPrompt}
+            onRun={handleRunAgent}
+            onToggle={() => setAgentCollapsed((prev) => !prev)}
+            runLabel={t("workspace.runTaskAgent")}
             placeholder={t("workspace.agentPlaceholder")}
           />
-          <Button
-            className="w-fit"
-            onClick={handleRunAgent}
-            disabled={busy}
-            variant="secondary"
-          >
-            <Sparkles className="mr-2 h-4 w-4" />
-            {t("workspace.runTaskAgent")}
-          </Button>
-          <pre className="m-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            {agentOutput || t("workspace.noAgentOutput")}
-          </pre>
         </div>
       </div>
     );
   };
-
-  const activeDiagnosticsLine =
-    compileDiagnostics.length > 0
-      ? compileDiagnostics[diagIndex % compileDiagnostics.length]
-      : t("preview.none");
-  const activeEventLine =
-    events.length > 0
-      ? `${events[eventIndex % events.length].role} · ${
-          events[eventIndex % events.length].kind
-        }`
-      : t("preview.none");
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-100">
@@ -1058,15 +1224,15 @@ export function App() {
               ))
             )}
           </Select>
-          <Button
-            className="h-8 border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
-            variant="secondary"
+          <button
+            className="rounded border border-zinc-700 bg-zinc-800 p-1.5 text-zinc-100 hover:bg-zinc-700"
             onClick={handleInitProjectFromFolder}
             disabled={busy}
+            title={t("topbar.openFolder")}
+            aria-label={t("topbar.openFolder")}
           >
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {t("topbar.openFolder")}
-          </Button>
+            <FolderOpen className="h-4 w-4" />
+          </button>
         </div>
 
         <div className="flex items-center">
@@ -1109,7 +1275,8 @@ export function App() {
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("explorer.title")}
             </h2>
-            <div className="h-[calc(100%-22px)] overflow-auto pr-1">
+            {renderExplorerTools("workspace")}
+            <div className="h-[calc(100%-64px)] overflow-auto pr-1">
               {activeProjectId ? (
                 <ExplorerTree tree={tree} selectedFile={selectedFile} onSelect={setSelectedFile} />
               ) : (
@@ -1119,12 +1286,48 @@ export function App() {
           </aside>
         )}
 
-        <section className="min-h-0 motion-fade-in">{renderMainPanel()}</section>
+        <section key={page} className="min-h-0 motion-page-in">{renderMainPanel()}</section>
 
         {isLatexPage && (
           <aside className="min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up max-[960px]:hidden">
-            <h2 className="mb-2 text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
-            <div className="grid h-[calc(100%-28px)] grid-rows-[minmax(220px,1fr)_auto] gap-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
+              <div className="flex items-center gap-1">
+                <button
+                  className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+                  title={t("preview.events")}
+                  onClick={() => {
+                    setLogsTab("events");
+                    setOverlay("logs");
+                  }}
+                >
+                  <ListChecks className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
+                  title={t("preview.diagnostics")}
+                  onClick={() => {
+                    setLogsTab("status");
+                    setOverlay("logs");
+                  }}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            {compileErrorLine && (
+              <button
+                className="mb-2 w-full truncate rounded border border-rose-300 bg-rose-50 px-2 py-1 text-left text-xs text-rose-700"
+                onClick={() => {
+                  setLogsTab("status");
+                  setOverlay("logs");
+                }}
+                title={compileErrorLine}
+              >
+                {compileErrorLine}
+              </button>
+            )}
+            <div className="h-[calc(100%-52px)]">
               {pdfUrl ? (
                 <iframe
                   title={t("preview.title")}
@@ -1136,53 +1339,128 @@ export function App() {
                   {t("preview.empty")}
                 </div>
               )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  className="grid min-h-16 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-slate-50 p-2 text-left"
-                  onClick={() => setOverlay("diagnostics")}
-                >
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {t("preview.diagnostics")}
-                  </span>
-                  <span className="truncate text-xs text-slate-700">{activeDiagnosticsLine}</span>
-                </button>
-                <button
-                  className="grid min-h-16 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-slate-50 p-2 text-left"
-                  onClick={() => setOverlay("events")}
-                >
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {t("preview.events")}
-                  </span>
-                  <span className="truncate text-xs text-slate-700">{activeEventLine}</span>
-                </button>
-              </div>
             </div>
           </aside>
         )}
       </main>
 
-      {overlay === "diagnostics" && (
-        <LogOverlay
-          title={t("preview.diagnostics")}
-          lines={compileDiagnostics.length > 0 ? compileDiagnostics : [t("preview.none")]}
-          onClose={() => setOverlay(null)}
+      {overlay === "logs" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
+          <div className="grid h-[72vh] w-full max-w-3xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4">
+              <h3 className="text-sm font-semibold text-slate-800">{t("preview.title")}</h3>
+              <button className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={() => setOverlay(null)}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2">
+              <button
+                className={cn(
+                  "rounded border px-2 py-1 text-xs",
+                  logsTab === "status"
+                    ? "border-primary-600 bg-primary-600 text-white"
+                    : "border-slate-300 bg-white text-slate-600",
+                )}
+                onClick={() => setLogsTab("status")}
+              >
+                {t("preview.diagnostics")}
+              </button>
+              <button
+                className={cn(
+                  "rounded border px-2 py-1 text-xs",
+                  logsTab === "events"
+                    ? "border-primary-600 bg-primary-600 text-white"
+                    : "border-slate-300 bg-white text-slate-600",
+                )}
+                onClick={() => setLogsTab("events")}
+              >
+                {t("preview.events")}
+              </button>
+            </div>
+            <div className="overflow-auto p-4">
+              {logsTab === "status" ? (
+                <ul className="space-y-2 text-xs text-slate-700">
+                  {(compileDiagnostics.length > 0 ? compileDiagnostics : [t("preview.none")]).map((line, index) => (
+                    <li key={`${line}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="space-y-2 text-xs text-slate-700">
+                  {(events.length > 0
+                    ? events.slice(-160).reverse().map((event) => `${event.createdAt} | ${event.role} | ${event.kind}`)
+                    : [t("preview.none")]).map((line, index) => (
+                    <li key={`${line}-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modelModalOpen && settings && (
+        <ModelModal
+          open={modelModalOpen}
+          protocols={settings.modelProtocols}
+          onClose={() => setModelModalOpen(false)}
+          onTest={handleProtocolPing}
+          onSubmit={({ protocol, model }) =>
+            setSettings((prev) => {
+              if (!prev) {
+                return prev;
+              }
+              const nextProtocols = protocol.isNew
+                ? [
+                    ...prev.modelProtocols,
+                    {
+                      id: protocol.id,
+                      displayName: protocol.displayName,
+                      baseUrl: protocol.baseUrl,
+                      apiKeySet: Boolean(protocol.apiKey),
+                    },
+                  ]
+                : prev.modelProtocols;
+              if (protocol.apiKey?.trim()) {
+                setDraftApiKeys((current) => ({ ...current, [protocol.id]: protocol.apiKey ?? "" }));
+              }
+              return {
+                ...prev,
+                modelProtocols: nextProtocols,
+                modelCatalog: [...prev.modelCatalog, model],
+              };
+            })
+          }
+          t={t}
         />
       )}
 
-      {overlay === "events" && (
-        <LogOverlay
-          title={t("preview.events")}
-          lines={
-            events.length > 0
-              ? events
-                  .slice(-120)
-                  .reverse()
-                  .map((event) => `${event.createdAt} | ${event.role} | ${event.kind}`)
-              : [t("preview.none")]
-          }
-          onClose={() => setOverlay(null)}
-        />
+      {deleteIntent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+          <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
+            <h3 className="text-sm font-semibold text-slate-800">{t("explorer.deleteConfirmTitle")}</h3>
+            <p className="mt-2 text-xs text-slate-600">{deleteIntent.path}</p>
+            <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={deleteDontAskAgain}
+                onChange={(event) => setDeleteDontAskAgain(event.target.checked)}
+              />
+              {t("explorer.deleteDontAsk")}
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setDeleteIntent(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button size="sm" onClick={confirmDelete}>
+                {t("common.confirm")}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (

@@ -198,6 +198,7 @@ pub struct AppSettings {
 #[serde(rename_all = "camelCase")]
 pub struct UiPrefs {
     pub language: Option<String>,
+    pub skip_delete_confirm: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -240,4 +241,107 @@ pub struct ProtocolHealth {
     pub protocol_id: String,
     pub ok: bool,
     pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryRefInput {
+    pub project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsOperationInput {
+    pub project_id: String,
+    pub scope: String,
+    pub action: String,
+    pub path: String,
+    pub target_path: Option<String>,
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsOperationResult {
+    pub ok: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatusEntry {
+    pub path: String,
+    pub index_status: String,
+    pub worktree_status: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatusResponse {
+    pub is_repo: bool,
+    pub branch: String,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub changes: Vec<GitStatusEntry>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitBranchInfo {
+    pub name: String,
+    pub current: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitInfo {
+    pub hash: String,
+    pub short_hash: String,
+    pub author: String,
+    pub date: String,
+    pub subject: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRefInput {
+    pub project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitLogInput {
+    pub project_id: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPathsInput {
+    pub project_id: String,
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitInput {
+    pub project_id: String,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoteInput {
+    pub project_id: String,
+    pub remote: Option<String>,
+    pub branch: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCheckoutInput {
+    pub project_id: String,
+    pub branch: String,
+    pub create: Option<bool>,
 }
