@@ -1,5 +1,5 @@
 import { Beaker, Plus, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
@@ -31,6 +31,8 @@ export function ModelModal(props: {
   const [newProtocolName, setNewProtocolName] = useState("");
   const [newProtocolBaseUrl, setNewProtocolBaseUrl] = useState("");
   const [newProtocolApiKey, setNewProtocolApiKey] = useState("");
+  const [existingProtocolBaseUrl, setExistingProtocolBaseUrl] = useState("");
+  const [existingProtocolApiKey, setExistingProtocolApiKey] = useState("");
   const [modelDisplayName, setModelDisplayName] = useState("");
   const [modelRequestName, setModelRequestName] = useState("");
   const [testState, setTestState] = useState<"idle" | "ok" | "fail">("idle");
@@ -40,6 +42,11 @@ export function ModelModal(props: {
     () => protocols.find((item) => item.id === protocolId),
     [protocolId, protocols],
   );
+
+  useEffect(() => {
+    setExistingProtocolBaseUrl(selectedProtocol?.baseUrl ?? "");
+    setExistingProtocolApiKey("");
+  }, [selectedProtocol?.baseUrl, selectedProtocol?.id]);
 
   if (!open) {
     return null;
@@ -56,8 +63,8 @@ export function ModelModal(props: {
     : {
         id: protocolId,
         displayName: selectedProtocol?.displayName ?? protocolId,
-        baseUrl: selectedProtocol?.baseUrl ?? "",
-        apiKey: "",
+        baseUrl: existingProtocolBaseUrl.trim(),
+        apiKey: existingProtocolApiKey.trim(),
         isNew: false,
       };
 
@@ -72,7 +79,7 @@ export function ModelModal(props: {
   const handleTest = async () => {
     setTesting(true);
     try {
-      if (mode === "new") {
+      if (mode === "new" || (mode === "existing" && resolvedProtocol.apiKey.length > 0)) {
         setTestState(
           resolvedProtocol.baseUrl.startsWith("http://") ||
             resolvedProtocol.baseUrl.startsWith("https://")
@@ -90,7 +97,7 @@ export function ModelModal(props: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
-      <div className="grid w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
+      <div className="grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">{t("settings.addModel")}</h3>
           <button
@@ -120,22 +127,45 @@ export function ModelModal(props: {
           </div>
 
           {mode === "existing" ? (
-            <label className="grid gap-1">
-              <span className="text-xs text-slate-500">{t("settings.modal.protocol")}</span>
-              <Select
-                value={protocolId}
-                onChange={(event) => {
-                  setProtocolId(event.target.value);
-                  setTestState("idle");
-                }}
-              >
-                {protocols.map((protocol) => (
-                  <option key={protocol.id} value={protocol.id}>
-                    {protocol.displayName}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            <div className="grid gap-2">
+              <label className="grid gap-1">
+                <span className="text-xs text-slate-500">{t("settings.modal.protocol")}</span>
+                <Select
+                  value={protocolId}
+                  onChange={(event) => {
+                    setProtocolId(event.target.value);
+                    setTestState("idle");
+                  }}
+                >
+                  {protocols.map((protocol) => (
+                    <option key={protocol.id} value={protocol.id}>
+                      {protocol.displayName}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs text-slate-500">{t("settings.baseUrl")}</span>
+                <Input
+                  value={existingProtocolBaseUrl}
+                  onChange={(event) => {
+                    setExistingProtocolBaseUrl(event.target.value);
+                    setTestState("idle");
+                  }}
+                />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs text-slate-500">{t("settings.apiKey")}</span>
+                <Input
+                  type="password"
+                  value={existingProtocolApiKey}
+                  onChange={(event) => {
+                    setExistingProtocolApiKey(event.target.value);
+                    setTestState("idle");
+                  }}
+                />
+              </label>
+            </div>
           ) : (
             <div className="grid gap-2">
               <label className="grid gap-1">

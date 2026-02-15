@@ -16,6 +16,7 @@ import type {
   ModelCatalogItemInput,
   ModelProtocolInput,
   PanelLayoutPrefs,
+  ProjectSearchHit,
   ProtocolHealth,
   ProjectSnapshot,
   ProjectSummary,
@@ -42,6 +43,16 @@ export function initProjectFromFolder(): Promise<ProjectSnapshot | null> {
 
 export function openProject(projectId: string): Promise<ProjectSnapshot> {
   return invoke<ProjectSnapshot>("project_open", { input: { projectId } });
+}
+
+export function projectSearchContent(
+  projectId: string,
+  query: string,
+  limit = 200
+): Promise<ProjectSearchHit[]> {
+  return invoke<ProjectSearchHit[]>("project_search_content", {
+    input: { projectId, query, limit }
+  });
 }
 
 export function getWorkspaceTree(projectId: string): Promise<ResourceNode[]> {
@@ -104,6 +115,7 @@ export function updateSettings(input: {
   uiPrefs?: {
     language?: "en-US" | "zh-CN";
     skipDeleteConfirm?: boolean;
+    theme?: "light" | "dark" | "system";
     panelLayout?: PanelLayoutPrefs;
   };
 }): Promise<AppSettings> {

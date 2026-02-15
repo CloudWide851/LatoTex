@@ -74,6 +74,7 @@ export type AppSettings = {
   uiPrefs?: {
     language?: "en-US" | "zh-CN";
     skipDeleteConfirm?: boolean;
+    theme?: "light" | "dark" | "system";
     panelLayout?: PanelLayoutPrefs;
   };
 };
@@ -133,6 +134,12 @@ export type FsOperationInput = {
 export type FsOperationResult = {
   ok: boolean;
   message: string;
+};
+
+export type ProjectSearchHit = {
+  relativePath: string;
+  lineNumber: number;
+  snippet: string;
 };
 
 export type GitStatusEntry = {

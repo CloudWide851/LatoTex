@@ -1,12 +1,12 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
     FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult, ModelCatalogItem,
-    ModelCatalogItemInput, ModelProtocol, ModelProtocolInput, ProjectSnapshot, ProjectSummary,
-    ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
+    ModelCatalogItemInput, ModelProtocol, ModelProtocolInput, ProjectSearchHit, ProjectSearchInput,
+    ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::fs;
 use std::io;
@@ -813,6 +813,108 @@ pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, 
     })
 }
 
+const SEARCH_MAX_FILE_SIZE_BYTES: u64 = 1_048_576;
+
+fn truncate_chars(input: &str, max_chars: usize) -> String {
+    let mut output = String::new();
+    for (idx, ch) in input.chars().enumerate() {
+        if idx >= max_chars {
+            output.push_str("...");
+            return output;
+        }
+        output.push(ch);
+    }
+    output
+}
+
+fn is_ignored_search_dir(name: &str) -> bool {
+    matches!(name, ".git" | "node_modules" | "target" | "dist" | ".pnpm-store")
+}
+
+fn search_tree_for_content(
+    root: &Path,
+    current: &Path,
+    query_lower: &str,
+    hits: &mut Vec<ProjectSearchHit>,
+    limit: usize,
+) -> Result<(), String> {
+    if hits.len() >= limit {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(current).map_err(|e| e.to_string())? {
+        if hits.len() >= limit {
+            break;
+        }
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if path.is_dir() {
+            if is_ignored_search_dir(&name) {
+                continue;
+            }
+            search_tree_for_content(root, &path, query_lower, hits, limit)?;
+            continue;
+        }
+
+        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+        if metadata.len() > SEARCH_MAX_FILE_SIZE_BYTES {
+            continue;
+        }
+
+        let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+        if bytes.contains(&0) {
+            continue;
+        }
+
+        let content = String::from_utf8_lossy(&bytes);
+        let relative_path = path
+            .strip_prefix(root)
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        for (index, line) in content.lines().enumerate() {
+            if hits.len() >= limit {
+                break;
+            }
+            if line.to_lowercase().contains(query_lower) {
+                hits.push(ProjectSearchHit {
+                    relative_path: relative_path.clone(),
+                    line_number: (index + 1) as u32,
+                    snippet: truncate_chars(line.trim(), 220),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn search_project_content(
+    db_path: &Path,
+    input: ProjectSearchInput,
+) -> Result<Vec<ProjectSearchHit>, String> {
+    let query = input.query.trim();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let limit = input.limit.unwrap_or(200).clamp(1, 500) as usize;
+    let root = load_project_root(db_path, &input.project_id)?;
+    let mut hits = Vec::new();
+    search_tree_for_content(&root, &root, &query.to_lowercase(), &mut hits, limit)?;
+    hits.sort_by(|a, b| {
+        a.relative_path
+            .cmp(&b.relative_path)
+            .then(a.line_number.cmp(&b.line_number))
+    });
+    if hits.len() > limit {
+        hits.truncate(limit);
+    }
+    Ok(hits)
+}
+
 pub fn list_library_tree(db_path: &Path, project_id: &str) -> Result<Vec<ResourceNode>, String> {
     let root = load_project_root(db_path, project_id)?;
     let papers_root = library_root(&root);
@@ -1152,9 +1254,10 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
 }
 
 pub fn update_settings(db_path: &Path, input: SettingsUpdateInput) -> Result<AppSettings, String> {
-    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let mut conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    conn.execute(
+    tx.execute(
         "UPDATE app_settings SET active_project_id = ?1, ui_prefs_json = ?2 WHERE id = 1",
         params![
             input.active_project_id,
@@ -1166,13 +1269,22 @@ pub fn update_settings(db_path: &Path, input: SettingsUpdateInput) -> Result<App
     )
     .map_err(|e| e.to_string())?;
 
-    update_model_protocols(&conn, input.model_protocols)?;
-    update_model_catalog(&conn, input.model_catalog)?;
-    update_agent_bindings(&conn, input.agent_bindings)?;
+    update_model_protocols(&tx, input.model_protocols)?;
+    update_model_catalog(&tx, input.model_catalog)?;
+    update_agent_bindings(&tx, input.agent_bindings)?;
+    tx.commit().map_err(|e| e.to_string())?;
     load_settings(db_path)
 }
 
 fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>) -> Result<(), String> {
+    conn.execute("DELETE FROM model_protocols", [])
+        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM provider_profiles WHERE api_key_ref LIKE 'protocol:%'",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
     for protocol in protocols {
         conn.execute(
             "INSERT INTO model_protocols (id, display_name, base_url)
@@ -1211,6 +1323,8 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
 }
 
 fn update_model_catalog(conn: &Connection, models: Vec<ModelCatalogItemInput>) -> Result<(), String> {
+    conn.execute("DELETE FROM model_catalog", [])
+        .map_err(|e| e.to_string())?;
     for model in models {
         conn.execute(
             "INSERT INTO model_catalog (id, protocol_id, display_name, request_name)
@@ -1224,15 +1338,25 @@ fn update_model_catalog(conn: &Connection, models: Vec<ModelCatalogItemInput>) -
 }
 
 fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) -> Result<(), String> {
+    conn.execute("DELETE FROM agent_bindings", [])
+        .map_err(|e| e.to_string())?;
+
     for binding in bindings {
-        let model_id = binding.model_id.clone();
-        let (protocol_id, request_name): (String, String) = conn
+        let model_id = binding.model_id.trim().to_string();
+        if model_id.is_empty() {
+            continue;
+        }
+        let resolved: Option<(String, String)> = conn
             .query_row(
                 "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
                 params![&model_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
-            .map_err(|_| format!("modelId not found for role {}: {}", binding.role, model_id))?;
+            .optional()
+            .map_err(|e| e.to_string())?;
+        let Some((protocol_id, request_name)) = resolved else {
+            continue;
+        };
 
         conn.execute(
             "INSERT INTO agent_bindings (role, provider, model, model_id)

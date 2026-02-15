@@ -14,25 +14,32 @@ import {
   Maximize2,
   Minimize2,
   Minus,
+  MoonStar,
+  Palette,
   Play,
   Plus,
   Save,
   SearchCode,
   Settings2,
+  Sun,
+  SunMoon,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./components/AgentChatOverlay";
 import { ExplorerTree } from "./components/ExplorerTree";
 import { GitWorkspace } from "./components/GitWorkspace";
 import { ModelModal } from "./components/ModelModal";
 import { PageRail } from "./components/PageRail";
+import { ProjectSearch } from "./components/ProjectSearch";
+import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { Button } from "../components/ui/button";
 import { Select } from "../components/ui/select";
 import { compileWithBusyTeX } from "../features/latex/compiler/busytex";
 import { detectSystemLocale, resolveLocale, useI18n, type Locale } from "../i18n";
 import { cn } from "../lib/utils";
+import logoMark from "../assets/logo-mark.svg";
 import {
   fsOperation,
   getEvents,
@@ -58,6 +65,7 @@ import {
   initProjectFromFolder,
   listProjects,
   openProject,
+  projectSearchContent,
   readFile,
   recordCompile,
   rescanLibrary,
@@ -81,6 +89,7 @@ import type {
   PanelLayoutPrefs,
   ModelCatalogItem,
   ModelProtocol,
+  ProjectSearchHit,
   ProjectSummary,
   ResourceNode,
   RuntimeLogInfo,
@@ -89,10 +98,18 @@ import type {
 } from "../shared/types/app";
 
 type Toast = { type: "info" | "error"; message: string } | null;
-type SettingsSection = "general" | "models" | "agents" | "diagnostics";
+type SettingsSection = "general" | "appearance" | "models" | "agents" | "diagnostics";
 type OverlayType = "logs" | null;
 type LogTab = "status" | "events";
 type DeleteIntent = { scope: FsScope; path: string } | null;
+type ThemeMode = "light" | "dark" | "system";
+type ThemeTransition = {
+  x: number;
+  y: number;
+  radius: number;
+  target: "light" | "dark";
+  active: boolean;
+};
 type AgentStatusKey =
   | "agent.statusIdle"
   | "agent.statusRunning"
@@ -115,12 +132,14 @@ const SETTINGS_SECTIONS: Array<{
   id: SettingsSection;
   key:
     | "settings.section.general"
+    | "settings.section.appearance"
     | "settings.section.models"
     | "settings.section.agents"
     | "settings.section.diagnostics";
   icon: typeof Languages;
 }> = [
   { id: "general", key: "settings.section.general", icon: Languages },
+  { id: "appearance", key: "settings.section.appearance", icon: Palette },
   { id: "models", key: "settings.section.models", icon: Globe },
   { id: "agents", key: "settings.section.agents", icon: Bot },
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
@@ -193,6 +212,28 @@ const DEFAULT_PANEL_LAYOUT: PanelLayoutPrefs = {
 };
 
 const SHELL_MIN = [6, 80];
+const THEME_TRANSITION_MS = 420;
+
+function detectSystemTheme(): "light" | "dark" {
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return "light";
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function resolveTheme(mode: ThemeMode): "light" | "dark" {
+  return mode === "system" ? detectSystemTheme() : mode;
+}
+
+function applyTheme(mode: ThemeMode) {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const actual = resolveTheme(mode);
+  const root = document.documentElement;
+  root.dataset.theme = actual;
+  root.classList.toggle("dark", actual === "dark");
+}
 
 function clampLayout(layout: number[] | undefined, fallback: number[]): number[] {
   if (!layout || layout.length !== fallback.length) {
@@ -236,6 +277,7 @@ export function App() {
   const [libraryTree, setLibraryTree] = useState<ResourceNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [selectedLibraryPath, setSelectedLibraryPath] = useState<string | null>(null);
+  const [pendingRevealLine, setPendingRevealLine] = useState<number | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [agentPrompt, setAgentPrompt] = useState("");
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
@@ -250,6 +292,10 @@ export function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [draftApiKeys, setDraftApiKeys] = useState<Record<string, string>>({});
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [projectSearchResults, setProjectSearchResults] = useState<ProjectSearchHit[]>([]);
+  const [projectSearchBusy, setProjectSearchBusy] = useState(false);
+  const [projectSearchSearched, setProjectSearchSearched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -258,6 +304,7 @@ export function App() {
   const [logsTab, setLogsTab] = useState<LogTab>("events");
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [deleteIntent, setDeleteIntent] = useState<DeleteIntent>(null);
+  const [themeTransition, setThemeTransition] = useState<ThemeTransition | null>(null);
   const [deleteDontAskAgain, setDeleteDontAskAgain] = useState(false);
   const [gitStatusState, setGitStatusState] = useState<GitStatus | null>(null);
   const [gitBranchesState, setGitBranchesState] = useState<GitBranchInfo[]>([]);
@@ -268,13 +315,10 @@ export function App() {
   const [gitInstallerLaunched, setGitInstallerLaunched] = useState(false);
   const [suppressAutoGitInstall, setSuppressAutoGitInstall] = useState(false);
   const resizeFrameRef = useRef<number | null>(null);
+  const editorRef = useRef<any>(null);
 
   const isTauriRuntime = isTauri();
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
-  const pageLabel = useMemo(
-    () => t(PAGE_ITEMS.find((item) => item.id === page)?.key ?? "nav.latex"),
-    [page, t],
-  );
   const pageRailItems = useMemo(
     () =>
       PAGE_ITEMS.map((item) => ({
@@ -296,7 +340,7 @@ export function App() {
 
   const persistSettings = async (nextSettings: AppSettings) => {
     const updated = await updateSettings({
-      activeProjectId,
+      activeProjectId: nextSettings.activeProjectId ?? activeProjectId,
       modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
         id: protocol.id,
         displayName: protocol.displayName,
@@ -313,6 +357,7 @@ export function App() {
       uiPrefs: {
         language: nextSettings.uiPrefs?.language ?? locale,
         skipDeleteConfirm: nextSettings.uiPrefs?.skipDeleteConfirm ?? false,
+        theme: (nextSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
         panelLayout: nextSettings.uiPrefs?.panelLayout,
       },
     });
@@ -391,28 +436,18 @@ export function App() {
         runtimeLogInfo(),
       ]);
       setProjects(projectList);
-      setSettings({
+      const normalizedSettings: AppSettings = {
         ...appSettings,
-        modelProtocols:
-          appSettings.modelProtocols.length > 0
-            ? appSettings.modelProtocols
-            : DEFAULT_PROTOCOLS,
-        modelCatalog:
-          appSettings.modelCatalog.length > 0
-            ? appSettings.modelCatalog
-            : DEFAULT_CATALOG,
-        agentBindings:
-          appSettings.agentBindings.length > 0
-            ? appSettings.agentBindings
-            : DEFAULT_BINDINGS,
         uiPrefs: {
           ...(appSettings.uiPrefs ?? {}),
+          theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
           panelLayout: {
             ...DEFAULT_PANEL_LAYOUT,
             ...(appSettings.uiPrefs?.panelLayout ?? {}),
           },
         },
-      });
+      };
+      setSettings(normalizedSettings);
       setRuntimeInfo(info);
 
       const initialLocale = resolveLocale(
@@ -425,6 +460,9 @@ export function App() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem("latotex.locale", initialLocale);
       }
+      applyTheme(
+        (normalizedSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
+      );
 
       await runtimeLogWrite(
         "INFO",
@@ -469,6 +507,34 @@ export function App() {
       .then((result) => setEditorContent(result.content))
       .catch((error) => setToast({ type: "error", message: String(error) }));
   }, [activeProjectId, selectedFile]);
+
+  useEffect(() => {
+    if (!pendingRevealLine || !editorRef.current) {
+      return;
+    }
+    editorRef.current.revealLineInCenter(pendingRevealLine);
+    editorRef.current.setPosition({ lineNumber: pendingRevealLine, column: 1 });
+    setPendingRevealLine(null);
+  }, [pendingRevealLine, selectedFile]);
+
+  useEffect(() => {
+    setProjectSearchQuery("");
+    setProjectSearchResults([]);
+    setProjectSearchSearched(false);
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    const mode = (settings?.uiPrefs?.theme as ThemeMode | undefined) ?? "system";
+    applyTheme(mode);
+
+    if (mode !== "system" || typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme("system");
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, [settings?.uiPrefs?.theme]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -749,7 +815,14 @@ export function App() {
     }
     setBusy(true);
     try {
-      await persistSettings(settings);
+      const validModelIds = new Set(settings.modelCatalog.map((item) => item.id));
+      const nextSettings: AppSettings = {
+        ...settings,
+        agentBindings: settings.agentBindings.filter((item) =>
+          validModelIds.has(item.modelId),
+        ),
+      };
+      await persistSettings(nextSettings);
       await runtimeLogWrite("INFO", t("log.settingsSaved"));
       setToast({ type: "info", message: t("toast.settingsSaved") });
     } catch (error) {
@@ -772,6 +845,76 @@ export function App() {
           }
         : prev,
     );
+  };
+
+  const handleThemeModeChange = (
+    nextTheme: ThemeMode,
+    event?: { clientX: number; clientY: number },
+  ) => {
+    const originX = event?.clientX ?? window.innerWidth / 2;
+    const originY = event?.clientY ?? window.innerHeight / 2;
+    const radius = Math.hypot(
+      Math.max(originX, window.innerWidth - originX),
+      Math.max(originY, window.innerHeight - originY),
+    );
+    const target = resolveTheme(nextTheme);
+
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            uiPrefs: {
+              ...(prev.uiPrefs ?? {}),
+              language: prev.uiPrefs?.language ?? locale,
+              theme: nextTheme,
+              panelLayout: prev.uiPrefs?.panelLayout,
+            },
+          }
+        : prev,
+    );
+
+    if (typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setThemeTransition({
+        x: originX,
+        y: originY,
+        radius,
+        target,
+        active: false,
+      });
+      requestAnimationFrame(() => {
+        setThemeTransition((prev) => (prev ? { ...prev, active: true } : prev));
+      });
+      window.setTimeout(() => applyTheme(nextTheme), 140);
+      window.setTimeout(() => setThemeTransition(null), THEME_TRANSITION_MS);
+      return;
+    }
+
+    applyTheme(nextTheme);
+  };
+
+  const handleProjectSearch = async () => {
+    if (!activeProjectId || !projectSearchQuery.trim()) {
+      setProjectSearchResults([]);
+      setProjectSearchSearched(true);
+      return;
+    }
+    setProjectSearchBusy(true);
+    setProjectSearchSearched(true);
+    try {
+      const hits = await projectSearchContent(activeProjectId, projectSearchQuery.trim(), 180);
+      setProjectSearchResults(hits);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+      setProjectSearchResults([]);
+    } finally {
+      setProjectSearchBusy(false);
+    }
+  };
+
+  const handleProjectSearchSelect = (hit: ProjectSearchHit) => {
+    setPage("latex");
+    setSelectedFile(hit.relativePath);
+    setPendingRevealLine(hit.lineNumber);
   };
 
   const handleProtocolPing = async (protocolId: string) => {
@@ -971,7 +1114,7 @@ export function App() {
       modelProtocols: DEFAULT_PROTOCOLS,
       modelCatalog: DEFAULT_CATALOG,
       agentBindings: DEFAULT_BINDINGS,
-      uiPrefs: { language: locale, panelLayout: DEFAULT_PANEL_LAYOUT },
+      uiPrefs: { language: locale, theme: "system", panelLayout: DEFAULT_PANEL_LAYOUT },
     };
 
     return (
@@ -1066,6 +1209,46 @@ export function App() {
             </div>
           )}
 
+          {settingsSection === "appearance" && (
+            <div className="grid gap-5">
+              <div className="rounded-lg border border-slate-200 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                  {t("settings.themeTitle")}
+                </h3>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    { id: "light" as const, key: "settings.theme.light" as const, icon: Sun },
+                    { id: "dark" as const, key: "settings.theme.dark" as const, icon: MoonStar },
+                    { id: "system" as const, key: "settings.theme.system" as const, icon: SunMoon },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const selected = (localSettings.uiPrefs?.theme ?? "system") === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        className={cn(
+                          "flex h-11 items-center justify-center gap-2 rounded-md border text-sm transition",
+                          selected
+                            ? "border-primary-600 bg-primary-600 text-white"
+                            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
+                        )}
+                        onClick={(event) =>
+                          handleThemeModeChange(item.id, {
+                            clientX: event.clientX,
+                            clientY: event.clientY,
+                          })
+                        }
+                      >
+                        <Icon className="h-4 w-4" />
+                        <span>{t(item.key)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {settingsSection === "models" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -1078,6 +1261,7 @@ export function App() {
                 </Button>
               </div>
               <div className="space-y-2">
+                <div className="max-h-[42vh] space-y-2 overflow-auto pr-1">
                 {localSettings.modelCatalog.map((model) => {
                   const protocol = localSettings.modelProtocols.find(
                     (item) => item.id === model.protocolId,
@@ -1099,6 +1283,7 @@ export function App() {
                               ? {
                                   ...prev,
                                   modelCatalog: prev.modelCatalog.filter((item) => item.id !== model.id),
+                                  agentBindings: prev.agentBindings.filter((item) => item.modelId !== model.id),
                                 }
                               : prev,
                           )
@@ -1109,6 +1294,7 @@ export function App() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
           )}
@@ -1351,6 +1537,9 @@ export function App() {
             language="latex"
             value={editorContent}
             onChange={(value) => setEditorContent(value ?? "")}
+            onMount={(editor) => {
+              editorRef.current = editor;
+            }}
             options={{
               minimap: { enabled: false },
               fontSize: 14,
@@ -1380,11 +1569,14 @@ export function App() {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-100">
       <header className="flex h-12 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-3 text-zinc-100">
-        <div className="flex min-w-0 items-center gap-3" data-tauri-drag-region>
-          <div className="rounded bg-zinc-800 px-2 py-1 text-xs font-semibold tracking-wide">
-            {t("app.brand")}
+        <div className="flex min-w-0 items-center gap-3">
+          <div
+            className="flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1"
+            data-tauri-drag-region
+          >
+            <img src={logoMark} alt={t("app.brand")} className="h-5 w-5 rounded-sm" />
+            <span className="text-sm font-semibold tracking-wide text-zinc-100">{t("app.brand")}</span>
           </div>
-          <span className="text-xs text-zinc-400">{pageLabel}</span>
           {status === "offline" && (
             <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-300">
               {t("app.offline")}
@@ -1392,24 +1584,30 @@ export function App() {
           )}
         </div>
 
-        <div className="flex w-[560px] max-w-[56vw] items-center gap-2">
-          <Select
-            aria-label={t("topbar.selectProject")}
-            value={activeProjectId ?? ""}
-            className="h-8 border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-primary-400"
+        <div className="mx-3 flex min-w-0 flex-1 items-center gap-2">
+          <ProjectSwitcher
+            projects={projects}
+            activeProjectId={activeProjectId}
             disabled={projects.length === 0}
-            onChange={(event) => setActiveProjectId(event.target.value || null)}
-          >
-            {projects.length === 0 ? (
-              <option value="">{t("workspace.noProject")}</option>
-            ) : (
-              projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))
-            )}
-          </Select>
+            onChange={setActiveProjectId}
+            t={t}
+          />
+          <ProjectSearch
+            query={projectSearchQuery}
+            onQueryChange={setProjectSearchQuery}
+            searching={projectSearchBusy}
+            searched={projectSearchSearched}
+            results={projectSearchResults}
+            onSearch={handleProjectSearch}
+            onSelect={handleProjectSearchSelect}
+            onClear={() => {
+              setProjectSearchQuery("");
+              setProjectSearchResults([]);
+              setProjectSearchSearched(false);
+            }}
+            disabled={!activeProjectId}
+            t={t}
+          />
           <button
             className="rounded border border-zinc-700 bg-zinc-800 p-1.5 text-zinc-100 hover:bg-zinc-700"
             onClick={handleInitProjectFromFolder}
@@ -1631,17 +1829,28 @@ export function App() {
                       id: protocol.id,
                       displayName: protocol.displayName,
                       baseUrl: protocol.baseUrl,
-                      apiKeySet: Boolean(protocol.apiKey),
+                      apiKeySet: Boolean(protocol.apiKey?.trim()),
                     },
                   ]
-                : prev.modelProtocols;
+                : prev.modelProtocols.map((item) =>
+                    item.id === protocol.id
+                      ? {
+                          ...item,
+                          baseUrl: protocol.baseUrl,
+                          apiKeySet: item.apiKeySet || Boolean(protocol.apiKey?.trim()),
+                        }
+                      : item,
+                  );
               if (protocol.apiKey?.trim()) {
                 setDraftApiKeys((current) => ({ ...current, [protocol.id]: protocol.apiKey ?? "" }));
               }
+              const nextCatalog = prev.modelCatalog.some((item) => item.id === model.id)
+                ? prev.modelCatalog.map((item) => (item.id === model.id ? model : item))
+                : [...prev.modelCatalog, model];
               return {
                 ...prev,
                 modelProtocols: nextProtocols,
-                modelCatalog: [...prev.modelCatalog, model],
+                modelCatalog: nextCatalog,
               };
             })
           }
@@ -1671,6 +1880,24 @@ export function App() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {themeTransition && (
+        <div className="theme-ripple-overlay" aria-hidden>
+          <div
+            className={cn(
+              "theme-ripple-surface",
+              themeTransition.active && "is-active",
+            )}
+            style={{
+              "--ripple-x": `${themeTransition.x}px`,
+              "--ripple-y": `${themeTransition.y}px`,
+              "--ripple-radius": `${themeTransition.radius}px`,
+              "--ripple-color":
+                themeTransition.target === "dark" ? "#0b1220" : "#f3f4f6",
+            } as CSSProperties}
+          />
         </div>
       )}
 

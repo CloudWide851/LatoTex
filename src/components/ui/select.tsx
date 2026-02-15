@@ -1,20 +1,35 @@
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "../../lib/utils";
 
-export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
+  tone?: "light" | "dark";
+  wrapperClassName?: string;
+};
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, ...props }, ref) => (
-    <select
-      ref={ref}
-      className={cn(
-        "h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </select>
+  ({ className, wrapperClassName, children, tone = "light", ...props }, ref) => (
+    <div className={cn("relative w-full", wrapperClassName)}>
+      <select
+        ref={ref}
+        className={cn(
+          "h-10 w-full appearance-none rounded-lg border px-3 pr-9 text-sm outline-none transition",
+          tone === "dark"
+            ? "border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/25"
+            : "border-slate-300 bg-white text-slate-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        className={cn(
+          "pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2",
+          tone === "dark" ? "text-zinc-400" : "text-slate-500"
+        )}
+      />
+    </div>
   )
 );
 Select.displayName = "Select";

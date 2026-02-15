@@ -199,6 +199,7 @@ pub struct AppSettings {
 pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
+    pub theme: Option<String>,
     pub panel_layout: Option<Value>,
 }
 
@@ -248,6 +249,22 @@ pub struct ProtocolHealth {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryRefInput {
     pub project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchInput {
+    pub project_id: String,
+    pub query: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchHit {
+    pub relative_path: String,
+    pub line_number: u32,
+    pub snippet: String,
 }
 
 #[derive(Debug, Deserialize)]

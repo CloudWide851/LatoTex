@@ -3,11 +3,26 @@
 @tailwind utilities;
 
 :root {
+  --app-bg: #f3f4f6;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f8fafc;
+  --app-border: #e2e8f0;
+  --app-text: #0f172a;
+  --app-muted: #64748b;
   color: #111827;
-  background-color: #f3f4f6;
+  background-color: var(--app-bg);
   font-family: "Sohne", "Inter", "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="dark"] {
+  --app-bg: #0b1220;
+  --app-surface: #111827;
+  --app-surface-muted: #0f172a;
+  --app-border: #243041;
+  --app-text: #e5e7eb;
+  --app-muted: #9ca3af;
 }
 
 * {
@@ -21,12 +36,14 @@ html {
 body {
   margin: 0;
   height: 100vh;
-  background-color: #f3f4f6;
+  background-color: var(--app-bg);
+  color: var(--app-text);
   overflow: hidden;
 }
 
 #root {
   height: 100vh;
+  background-color: var(--app-bg);
   overflow: hidden;
 }
 
@@ -124,11 +141,66 @@ body {
   animation: page-in 180ms ease-out;
 }
 
+.theme-ripple-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.theme-ripple-surface {
+  height: 100%;
+  width: 100%;
+  background: var(--ripple-color);
+  clip-path: circle(0px at var(--ripple-x) var(--ripple-y));
+  transition: clip-path 380ms cubic-bezier(0.2, 0.9, 0.28, 1);
+}
+
+.theme-ripple-surface.is-active {
+  clip-path: circle(var(--ripple-radius) at var(--ripple-x) var(--ripple-y));
+}
+
+[data-theme="dark"] .bg-slate-100 {
+  background-color: var(--app-bg) !important;
+}
+
+[data-theme="dark"] .bg-white {
+  background-color: var(--app-surface) !important;
+}
+
+[data-theme="dark"] .bg-slate-50 {
+  background-color: var(--app-surface-muted) !important;
+}
+
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-slate-300 {
+  border-color: var(--app-border) !important;
+}
+
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-slate-800,
+[data-theme="dark"] .text-slate-700 {
+  color: var(--app-text) !important;
+}
+
+[data-theme="dark"] .text-slate-600,
+[data-theme="dark"] .text-slate-500,
+[data-theme="dark"] .text-slate-400 {
+  color: var(--app-muted) !important;
+}
+
+[data-theme="dark"] .hover\:bg-slate-100:hover,
+[data-theme="dark"] .hover\:bg-slate-200:hover {
+  background-color: #1f2937 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-fade-in,
   .motion-slide-up,
-  .motion-page-in {
+  .motion-page-in,
+  .theme-ripple-surface {
     animation: none;
+    transition: none;
   }
   .rail-tooltip {
     transition: none;

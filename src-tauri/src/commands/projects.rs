@@ -1,7 +1,7 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadInput, FileReadResponse, FileWriteInput, FsOperationInput,
-    FsOperationResult, LibraryRefInput, ProjectRefInput, ProjectSnapshot, ProjectSummary,
-    ResourceNode,
+    FsOperationResult, LibraryRefInput, ProjectRefInput, ProjectSearchHit, ProjectSearchInput,
+    ProjectSnapshot, ProjectSummary, ResourceNode,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -108,4 +108,19 @@ pub fn fs_operation(
         ),
     );
     storage::fs_operation(&state.db_path, input)
+}
+
+#[tauri::command]
+pub fn project_search_content(
+    state: State<'_, AppState>,
+    input: ProjectSearchInput,
+) -> Result<Vec<ProjectSearchHit>, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "project_search_content: project={}, query={}",
+            input.project_id, input.query
+        ),
+    );
+    storage::search_project_content(&state.db_path, input)
 }
