@@ -92,8 +92,7 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
 
     migrate_legacy_provider_profiles(&conn)?;
     seed_default_protocols(&conn)?;
-    seed_default_model_catalog(&conn)?;
-    seed_default_bindings(&conn)?;
+    prune_seeded_model_defaults(&conn)?;
     backfill_legacy_agent_bindings(&conn)?;
     seed_default_providers(&conn)?;
     Ok(())
@@ -212,70 +211,39 @@ fn seed_default_protocols(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-fn seed_default_model_catalog(conn: &Connection) -> Result<(), String> {
-    let defaults = [
-        (
-            "openai-gpt-4-1",
-            "openai-compatible",
-            "GPT-4.1",
-            "gpt-4.1",
-        ),
-        (
-            "openai-gpt-4-1-mini",
-            "openai-compatible",
-            "GPT-4.1 Mini",
-            "gpt-4.1-mini",
-        ),
-        (
-            "anthropic-claude-3-7-sonnet-latest",
-            "anthropic",
-            "Claude 3.7 Sonnet",
-            "claude-3-7-sonnet-latest",
-        ),
-        (
-            "gemini-2-0-flash",
-            "gemini",
-            "Gemini 2.0 Flash",
-            "gemini-2.0-flash",
-        ),
+fn prune_seeded_model_defaults(conn: &Connection) -> Result<(), String> {
+    let seeded_ids = [
+        "openai-gpt-4-1",
+        "openai-gpt-4-1-mini",
+        "anthropic-claude-3-7-sonnet-latest",
+        "gemini-2-0-flash",
     ];
 
-    for (id, protocol_id, display_name, request_name) in defaults {
-        conn.execute(
-            "INSERT OR IGNORE INTO model_catalog (id, protocol_id, display_name, request_name)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![id, protocol_id, display_name, request_name],
-        )
+    let mut stmt = conn
+        .prepare("SELECT id FROM model_catalog")
         .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn seed_default_bindings(conn: &Connection) -> Result<(), String> {
-    let defaults = [
-        ("plan", "openai-gpt-4-1"),
-        ("task", "anthropic-claude-3-7-sonnet-latest"),
-        ("explore", "openai-gpt-4-1-mini"),
-        ("web_search", "openai-gpt-4-1-mini"),
-        ("review", "gemini-2-0-flash"),
-        ("ephemeral", "openai-gpt-4-1-mini"),
-    ];
-
-    for (role, model_id) in defaults {
-        let (protocol_id, request_name): (String, String) = conn
-            .query_row(
-                "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
-                params![model_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .map_err(|e| e.to_string())?;
-
-        conn.execute(
-            "INSERT OR IGNORE INTO agent_bindings (role, provider, model, model_id) VALUES (?1, ?2, ?3, ?4)",
-            params![role, protocol_id, request_name, model_id],
-        )
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
         .map_err(|e| e.to_string())?;
+
+    let mut ids = Vec::new();
+    for row in rows {
+        ids.push(row.map_err(|e| e.to_string())?);
     }
+
+    if ids.is_empty() {
+        return Ok(());
+    }
+
+    let all_seeded = ids.iter().all(|id| seeded_ids.contains(&id.as_str()));
+    if !all_seeded {
+        return Ok(());
+    }
+
+    conn.execute("DELETE FROM model_catalog", [])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM agent_bindings", [])
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

@@ -10,8 +10,6 @@ import type {
   RuntimeLogInfo,
 } from "../../shared/types/app";
 import {
-  DEFAULT_BINDINGS,
-  DEFAULT_CATALOG,
   DEFAULT_PANEL_LAYOUT,
   DEFAULT_PROTOCOLS,
   type SettingsSection,
@@ -79,8 +77,8 @@ export function SettingsPanel(props: {
   const localSettings = settings ?? {
     activeProjectId,
     modelProtocols: DEFAULT_PROTOCOLS,
-    modelCatalog: DEFAULT_CATALOG,
-    agentBindings: DEFAULT_BINDINGS,
+    modelCatalog: [],
+    agentBindings: [],
     uiPrefs: {
       language: locale,
       theme: "system",

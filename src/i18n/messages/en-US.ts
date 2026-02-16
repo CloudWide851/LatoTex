@@ -133,6 +133,8 @@ export const enUS = {
   "agent.statusError": "Agent task failed.",
   "agent.chatTitle": "Agent",
   "agent.collapse": "Collapse",
+  "agent.activityShow": "Show activity",
+  "agent.activityHide": "Hide activity",
   "common.cancel": "Cancel",
   "common.confirm": "Confirm",
   "common.close": "Close",

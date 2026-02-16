@@ -44,7 +44,6 @@ import type {
 } from "../shared/types/app";
 import {
   clampLayout,
-  DEFAULT_CATALOG,
   DEFAULT_PANEL_LAYOUT,
   flattenFiles,
   PAGE_ITEMS,
@@ -395,7 +394,7 @@ export function AppContainer() {
   const analysisLayout = clampLayout(panelLayout.analysis, DEFAULT_PANEL_LAYOUT.analysis!);
   const libraryLayout = clampLayout(panelLayout.library, DEFAULT_PANEL_LAYOUT.library!);
 
-  const activeModelCatalog = settings?.modelCatalog ?? DEFAULT_CATALOG;
+  const activeModelCatalog = settings?.modelCatalog ?? [];
 
   const settingsPanel = (
     <SettingsPanel
@@ -473,88 +472,90 @@ export function AppContainer() {
 
   return (
     <div
-      className={`flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""}`}
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""}`}
     >
-      <AppTopbar
-        status={status}
-        logoMark={logoMark}
-        projects={projects}
-        activeProjectId={activeProjectId}
-        busy={busy}
-        isTauriRuntime={isTauriRuntime}
-        windowActionBusy={windowActionBusy}
-        isMaximized={isMaximized}
-        projectSearchQuery={projectSearchQuery}
-        projectSearchBusy={projectSearchBusy}
-        projectSearchSearched={projectSearchSearched}
-        projectSearchResults={projectSearchResults}
-        onProjectChange={setActiveProjectId}
-        onProjectSearchQueryChange={setProjectSearchQuery}
-        onProjectSearch={handleProjectSearch}
-        onProjectSearchSelect={handleProjectSearchSelect}
-        onProjectSearchClear={() => {
-          setProjectSearchQuery("");
-          setProjectSearchResults([]);
-          setProjectSearchSearched(false);
-        }}
-        onOpenFolder={handleInitProjectFromFolder}
-        onWindowControl={handleWindowControl}
-        t={t}
-      />
+      <div className="relative z-10 flex h-full w-full flex-col">
+        <AppTopbar
+          status={status}
+          logoMark={logoMark}
+          projects={projects}
+          activeProjectId={activeProjectId}
+          busy={busy}
+          isTauriRuntime={isTauriRuntime}
+          windowActionBusy={windowActionBusy}
+          isMaximized={isMaximized}
+          projectSearchQuery={projectSearchQuery}
+          projectSearchBusy={projectSearchBusy}
+          projectSearchSearched={projectSearchSearched}
+          projectSearchResults={projectSearchResults}
+          onProjectChange={setActiveProjectId}
+          onProjectSearchQueryChange={setProjectSearchQuery}
+          onProjectSearch={handleProjectSearch}
+          onProjectSearchSelect={handleProjectSearchSelect}
+          onProjectSearchClear={() => {
+            setProjectSearchQuery("");
+            setProjectSearchResults([]);
+            setProjectSearchSearched(false);
+          }}
+          onOpenFolder={handleInitProjectFromFolder}
+          onWindowControl={handleWindowControl}
+          t={t}
+        />
 
-      <AppWorkspaceShell
-        page={page}
-        pageRailItems={pageRailItems}
-        activeProjectId={activeProjectId}
-        busy={busy}
-        shellLayout={shellLayout}
-        latexLayout={latexLayout}
-        analysisLayout={analysisLayout}
-        libraryLayout={libraryLayout}
-        tree={tree}
-        libraryTree={libraryTree}
-        selectedFile={selectedFile}
-        selectedLibraryPath={selectedLibraryPath}
-        editorContent={editorContent}
-        pdfUrl={pdfUrl}
-        compileErrorLine={compileErrorLine}
-        compileDiagnostics={compileDiagnostics}
-        agentCollapsed={agentCollapsed}
-        agentPhase={agentPhase}
-        agentStatusKey={agentStatusKey}
-        agentPrompt={agentPrompt}
-        agentMessages={agentMessages}
-        shellMin={SHELL_MIN}
-        settingsPanel={settingsPanel}
-        gitPanel={gitPanel}
-        onPageChange={setPage}
-        onSelectFile={setSelectedFile}
-        onSelectLibraryPath={setSelectedLibraryPath}
-        onEditorChange={setEditorContent}
-        onEditorMount={(editor) => {
-          editorRef.current = editor;
-        }}
-        onAgentPromptChange={setAgentPrompt}
-        onAgentToggle={() => setAgentCollapsed((prev) => !prev)}
-        onAgentRun={handleRunAgent}
-        onOpenFolder={handleInitProjectFromFolder}
-        onSaveFile={handleSaveFile}
-        onCompile={handleCompile}
-        onEditorUndo={handleEditorUndo}
-        onEditorRedo={handleEditorRedo}
-        onOpenLogs={(tab) => {
-          setLogsTab(tab);
-          setOverlay("logs");
-        }}
-        onLibraryRescan={handleLibraryRescan}
-        onLibraryImportPdf={handleLibraryImportPdf}
-        onLibraryImportLink={handleLibraryImportLink}
-        onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
-        onFsAction={(scope, action, path, targetPath, content) =>
-          requestFsAction(scope, action, path, targetPath, content)
-        }
-        t={t}
-      />
+        <AppWorkspaceShell
+          page={page}
+          pageRailItems={pageRailItems}
+          activeProjectId={activeProjectId}
+          busy={busy}
+          shellLayout={shellLayout}
+          latexLayout={latexLayout}
+          analysisLayout={analysisLayout}
+          libraryLayout={libraryLayout}
+          tree={tree}
+          libraryTree={libraryTree}
+          selectedFile={selectedFile}
+          selectedLibraryPath={selectedLibraryPath}
+          editorContent={editorContent}
+          pdfUrl={pdfUrl}
+          compileErrorLine={compileErrorLine}
+          compileDiagnostics={compileDiagnostics}
+          agentCollapsed={agentCollapsed}
+          agentPhase={agentPhase}
+          agentStatusKey={agentStatusKey}
+          agentPrompt={agentPrompt}
+          agentMessages={agentMessages}
+          shellMin={SHELL_MIN}
+          settingsPanel={settingsPanel}
+          gitPanel={gitPanel}
+          onPageChange={setPage}
+          onSelectFile={setSelectedFile}
+          onSelectLibraryPath={setSelectedLibraryPath}
+          onEditorChange={setEditorContent}
+          onEditorMount={(editor) => {
+            editorRef.current = editor;
+          }}
+          onAgentPromptChange={setAgentPrompt}
+          onAgentToggle={() => setAgentCollapsed((prev) => !prev)}
+          onAgentRun={handleRunAgent}
+          onOpenFolder={handleInitProjectFromFolder}
+          onSaveFile={handleSaveFile}
+          onCompile={handleCompile}
+          onEditorUndo={handleEditorUndo}
+          onEditorRedo={handleEditorRedo}
+          onOpenLogs={(tab) => {
+            setLogsTab(tab);
+            setOverlay("logs");
+          }}
+          onLibraryRescan={handleLibraryRescan}
+          onLibraryImportPdf={handleLibraryImportPdf}
+          onLibraryImportLink={handleLibraryImportLink}
+          onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
+          onFsAction={(scope, action, path, targetPath, content) =>
+            requestFsAction(scope, action, path, targetPath, content)
+          }
+          t={t}
+        />
+      </div>
 
       <AppOverlays
         overlay={overlay}

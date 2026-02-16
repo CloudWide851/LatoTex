@@ -89,39 +89,11 @@ export const DEFAULT_PROTOCOLS: ModelProtocol[] = [
 ];
 
 export const DEFAULT_CATALOG: ModelCatalogItem[] = [
-  {
-    id: "openai-gpt-4-1",
-    protocolId: "openai-compatible",
-    displayName: "GPT-4.1",
-    requestName: "gpt-4.1",
-  },
-  {
-    id: "openai-gpt-4-1-mini",
-    protocolId: "openai-compatible",
-    displayName: "GPT-4.1 Mini",
-    requestName: "gpt-4.1-mini",
-  },
-  {
-    id: "anthropic-claude-3-7-sonnet-latest",
-    protocolId: "anthropic",
-    displayName: "Claude 3.7 Sonnet",
-    requestName: "claude-3-7-sonnet-latest",
-  },
-  {
-    id: "gemini-2-0-flash",
-    protocolId: "gemini",
-    displayName: "Gemini 2.0 Flash",
-    requestName: "gemini-2.0-flash",
-  },
+  // Intentionally empty: models are user-defined in settings.
 ];
 
 export const DEFAULT_BINDINGS: AgentModelBinding[] = [
-  { role: "plan", modelId: "openai-gpt-4-1" },
-  { role: "task", modelId: "anthropic-claude-3-7-sonnet-latest" },
-  { role: "explore", modelId: "openai-gpt-4-1-mini" },
-  { role: "web_search", modelId: "openai-gpt-4-1-mini" },
-  { role: "review", modelId: "gemini-2-0-flash" },
-  { role: "ephemeral", modelId: "openai-gpt-4-1-mini" },
+  // Intentionally empty until user adds models.
 ];
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutPrefs = {

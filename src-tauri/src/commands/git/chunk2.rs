@@ -161,6 +161,7 @@ pub fn git_stage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack
         run_git(&root, &["add", "-A"])?;
     } else {
         let mut command = Command::new("git");
+        hide_console_window(&mut command);
         command.arg("-C").arg(&root).arg("add").arg("--");
         for path in input.paths {
             command.arg(path);
@@ -184,6 +185,7 @@ pub fn git_unstage(state: State<'_, AppState>, input: GitPathsInput) -> Result<A
         run_git(&root, &["restore", "--staged", "."])?;
     } else {
         let mut command = Command::new("git");
+        hide_console_window(&mut command);
         command
             .arg("-C")
             .arg(&root)

@@ -1,4 +1,5 @@
-import { MessageSquareMore, Send, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageSquareMore, Send, Sparkles, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { cn } from "../../lib/utils";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
@@ -23,6 +24,8 @@ export function AgentChatOverlay(props: {
   onToggle: () => void;
   runLabel: string;
   placeholder: string;
+  activityShowLabel: string;
+  activityHideLabel: string;
 }) {
   const {
     collapsed,
@@ -38,13 +41,18 @@ export function AgentChatOverlay(props: {
     onToggle,
     runLabel,
     placeholder,
+    activityShowLabel,
+    activityHideLabel,
   } = props;
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const canShowActivity = phase !== "idle" || messages.length > 0;
+  const recentMessages = useMemo(() => messages.slice(-8), [messages]);
 
   if (collapsed) {
     return (
       <button
         className={cn(
-          "absolute bottom-2 right-2 z-20 flex max-w-[min(420px,calc(100vw-96px))] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-3 left-1/2 z-20 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -59,67 +67,97 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="absolute bottom-2 right-2 z-20 grid h-[min(52vh,420px)] max-h-[calc(100vh-110px)] w-[min(420px,calc(100vw-96px))] grid-rows-[38px_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
-      <div className="flex items-center justify-between border-b border-slate-200 px-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-          <MessageSquareMore className="h-3.5 w-3.5" />
-          <span>{title}</span>
-        </div>
-        <button
-          className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-          onClick={onToggle}
-          title={collapseLabel}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <div className="space-y-2 overflow-auto p-3">
-        {messages.length === 0 ? (
-          <p className="text-xs text-slate-500">{statusLine}</p>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "rounded-md px-2 py-1.5 text-xs",
-                message.role === "user"
-                  ? "ml-8 bg-primary-50 text-primary-900"
-                  : "mr-8 bg-slate-100 text-slate-700",
-              )}
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-3 py-4">
+      <div
+        className="pointer-events-auto grid w-[min(72%,880px)] max-w-[calc(100%-8px)] min-w-[320px] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        style={{
+          height: activityExpanded ? "clamp(220px, 46%, 430px)" : "clamp(160px, 32%, 280px)",
+        }}
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-3">
+          <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-700">
+            <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{title}</span>
+            <span className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+              {statusLine}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            {canShowActivity && (
+              <button
+                className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                onClick={() => setActivityExpanded((prev) => !prev)}
+                title={activityExpanded ? activityHideLabel : activityShowLabel}
+                aria-label={activityExpanded ? activityHideLabel : activityShowLabel}
+              >
+                {activityExpanded ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+            <button
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              onClick={onToggle}
+              title={collapseLabel}
             >
-              {message.text}
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="grid gap-2 border-t border-slate-200 p-3">
-        <div className="relative">
-          <textarea
-            className="h-20 w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-            value={prompt}
-            placeholder={placeholder}
-            onChange={(event) => onPromptChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                if (!busy && prompt.trim()) {
-                  onRun();
-                }
-              }
-            }}
-          />
-          <button
-            className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
-            onClick={onRun}
-            disabled={busy || !prompt.trim()}
-            title={runLabel}
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-        <div className="text-[11px] text-slate-500">{runLabel}</div>
+
+        <div className="flex min-h-0 flex-col">
+          {activityExpanded && (
+            <div className="min-h-0 flex-1 space-y-1 overflow-auto border-b border-slate-200 px-3 py-2">
+              {recentMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-xs leading-5",
+                    message.role === "user"
+                      ? "bg-primary-50 text-primary-900"
+                      : "bg-slate-100 text-slate-700",
+                  )}
+                >
+                  {message.text}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="p-3">
+            <div className="relative">
+              <textarea
+                className={cn(
+                  "w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
+                  activityExpanded
+                    ? "h-[clamp(88px,18vh,150px)]"
+                    : "h-[clamp(96px,22vh,200px)]",
+                )}
+                value={prompt}
+                placeholder={placeholder}
+                onChange={(event) => onPromptChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (!busy && prompt.trim()) {
+                      onRun();
+                    }
+                  }
+                }}
+              />
+              <button
+                className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={onRun}
+                disabled={busy || !prompt.trim()}
+                title={runLabel}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

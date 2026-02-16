@@ -297,29 +297,35 @@ export function useAppEffects(params: {
       return;
     }
     let unlisten: (() => void) | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const syncWindowState = async () => {
       const appWindow = getCurrentWindow();
       const initialMaximized = await appWindow.isMaximized();
       isMaximizedRef.current = initialMaximized;
       setIsMaximized(initialMaximized);
       unlisten = await appWindow.onResized(async () => {
-        if (resizeFrameRef.current) {
-          cancelAnimationFrame(resizeFrameRef.current);
+        if (resizeTimer) {
+          clearTimeout(resizeTimer);
         }
-        resizeFrameRef.current = requestAnimationFrame(async () => {
+        resizeTimer = setTimeout(async () => {
+          resizeTimer = null;
           const next = await appWindow.isMaximized();
           if (next !== isMaximizedRef.current) {
             isMaximizedRef.current = next;
             setIsMaximized(next);
           }
-        });
+        }, 90);
       });
     };
 
     syncWindowState().catch(() => undefined);
     return () => {
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
       if (resizeFrameRef.current) {
         cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
       }
       unlisten?.();
     };

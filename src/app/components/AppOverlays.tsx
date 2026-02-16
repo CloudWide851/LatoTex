@@ -231,7 +231,7 @@ export function AppOverlays(props: {
       {toast && (
         <div
           className={cn(
-            "fixed bottom-4 right-4 rounded-md px-4 py-2 text-sm text-white shadow-soft",
+            "fixed bottom-4 right-4 z-40 rounded-md px-4 py-2 text-sm text-white shadow-soft",
             toast.type === "info" ? "bg-emerald-600" : "bg-rose-600",
           )}
         >

@@ -79,6 +79,8 @@ impl AppState {
         let install_mode =
             detect_install_mode_and_persist(&runtime_root, &app_data_dir, &app_version)?;
         let _ = persist_runtime_root_pointer(&app_data_dir, &runtime_root);
+        #[cfg(target_os = "windows")]
+        let _ = dedupe_desktop_shortcuts("LatoTex");
 
         let state = Self {
             app_name: "LatoTex".to_string(),
@@ -117,6 +119,85 @@ fn resolve_runtime_root() -> Result<PathBuf, String> {
         )
     })?;
     Ok(runtime_root)
+}
+
+#[cfg(target_os = "windows")]
+fn shortcut_sort_key(path: &PathBuf) -> std::time::SystemTime {
+    fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+}
+
+#[cfg(target_os = "windows")]
+fn dedupe_desktop_shortcuts(app_name: &str) -> Result<(), String> {
+    let app_name_lower = app_name.to_ascii_lowercase();
+    let desktop_candidates = [
+        std::env::var("USERPROFILE")
+            .ok()
+            .map(|value| PathBuf::from(value).join("Desktop")),
+        std::env::var("OneDrive")
+            .ok()
+            .map(|value| PathBuf::from(value).join("Desktop")),
+        std::env::var("PUBLIC")
+            .ok()
+            .map(|value| PathBuf::from(value).join("Desktop")),
+    ];
+
+    for desktop_dir in desktop_candidates.into_iter().flatten() {
+        if !desktop_dir.exists() {
+            continue;
+        }
+        let mut matches = Vec::<PathBuf>::new();
+        let entries = fs::read_dir(&desktop_dir).map_err(|e| e.to_string())?;
+        for entry in entries {
+            let path = entry.map_err(|e| e.to_string())?.path();
+            if !path.is_file() {
+                continue;
+            }
+            let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            let file_name_lower = file_name.to_ascii_lowercase();
+            if !file_name_lower.ends_with(".lnk") {
+                continue;
+            }
+            if file_name_lower == format!("{app_name_lower}.lnk")
+                || file_name_lower.starts_with(&(app_name_lower.clone() + " ("))
+            {
+                matches.push(path);
+            }
+        }
+
+        if matches.len() <= 1 {
+            continue;
+        }
+
+        let canonical = desktop_dir.join(format!("{app_name}.lnk"));
+        let canonical_exists = canonical.exists();
+        if canonical_exists {
+            for candidate in matches {
+                if candidate == canonical {
+                    continue;
+                }
+                let _ = fs::remove_file(candidate);
+            }
+            continue;
+        }
+
+        matches.sort_by_key(shortcut_sort_key);
+        let keep = matches.pop();
+        for candidate in matches {
+            let _ = fs::remove_file(candidate);
+        }
+
+        if let Some(path_to_keep) = keep {
+            if path_to_keep != canonical {
+                let _ = fs::rename(&path_to_keep, &canonical);
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {

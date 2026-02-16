@@ -1,5 +1,7 @@
 fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    hide_console_window(&mut command);
+    let output = command
         .arg("-C")
         .arg(root)
         .args(args)
@@ -14,7 +16,9 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn read_git_version() -> Option<String> {
-    let output = Command::new("git").arg("--version").output().ok()?;
+    let mut command = Command::new("git");
+    hide_console_window(&mut command);
+    let output = command.arg("--version").output().ok()?;
     if !output.status.success() {
         return None;
     }

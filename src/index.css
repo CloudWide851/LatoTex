@@ -62,33 +62,6 @@ body {
   content: none;
 }
 
-.rail-tooltip {
-  pointer-events: none;
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 50%;
-  z-index: 20;
-  transform: translateY(-50%) scale(0.96);
-  transform-origin: left center;
-  white-space: nowrap;
-  border-radius: 6px;
-  border: 1px solid #d4d4d8;
-  background: #18181b;
-  padding: 4px 8px;
-  font-size: 11px;
-  color: #fafafa;
-  opacity: 0;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-}
-
-.group\/rail:hover .rail-tooltip,
-.group\/rail:focus-visible .rail-tooltip {
-  opacity: 1;
-  transform: translateY(-50%) scale(1);
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -133,10 +106,11 @@ body {
 }
 
 .theme-ripple-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 60;
+  z-index: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .theme-ripple-surface {
@@ -198,9 +172,6 @@ body {
   .motion-page-in,
   .theme-ripple-surface {
     animation: none;
-    transition: none;
-  }
-  .rail-tooltip {
     transition: none;
   }
 }

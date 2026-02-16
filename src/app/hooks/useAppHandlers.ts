@@ -151,10 +151,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: t("toast.windowUnavailable") });
       return;
     }
-    if (windowActionBusy) {
+    if (action === "toggle" && windowActionBusy) {
       return;
     }
-    setWindowActionBusy(true);
     try {
       const appWindow = getCurrentWindow();
       if (action === "minimize") {
@@ -162,8 +161,15 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         return;
       }
       if (action === "toggle") {
-        await appWindow.toggleMaximize();
-        setIsMaximized(await appWindow.isMaximized());
+        setWindowActionBusy(true);
+        const current = await appWindow.isMaximized();
+        if (current) {
+          await appWindow.unmaximize();
+          setIsMaximized(false);
+        } else {
+          await appWindow.maximize();
+          setIsMaximized(true);
+        }
         return;
       }
       await appWindow.close();
@@ -172,7 +178,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       await runtimeLogWrite("ERROR", `window action failed: ${message}`);
     } finally {
-      setWindowActionBusy(false);
+      if (action === "toggle") {
+        setWindowActionBusy(false);
+      }
     }
   }, [isTauriRuntime, setIsMaximized, setToast, setWindowActionBusy, t, windowActionBusy]);
 
@@ -313,7 +321,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       ].slice(-MAX_AGENT_MESSAGES),
     );
     setAgentPrompt("");
-    setAgentCollapsed(true);
+    setAgentCollapsed(false);
     setAgentPhase("running");
     setAgentStatusKey("agent.statusRunning");
     try {

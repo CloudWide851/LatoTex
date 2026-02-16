@@ -281,6 +281,10 @@ export function AppWorkspaceShell(props: {
               minimap: { enabled: false },
               fontSize: 14,
               smoothScrolling: true,
+              automaticLayout: true,
+              wordWrap: "on",
+              wordWrapColumn: 0,
+              wrappingIndent: "same",
             }}
           />
           <AgentChatOverlay
@@ -297,6 +301,8 @@ export function AppWorkspaceShell(props: {
             onToggle={onAgentToggle}
             runLabel={t("workspace.runTaskAgent")}
             placeholder={t("workspace.agentPlaceholder")}
+            activityShowLabel={t("agent.activityShow")}
+            activityHideLabel={t("agent.activityHide")}
           />
         </div>
       </div>

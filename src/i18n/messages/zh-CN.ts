@@ -133,6 +133,8 @@ export const zhCN: Record<MessageKey, string> = {
   "agent.statusError": "Agent 任务失败。",
   "agent.chatTitle": "Agent",
   "agent.collapse": "收起",
+  "agent.activityShow": "展开活动",
+  "agent.activityHide": "收起活动",
   "common.cancel": "取消",
   "common.confirm": "确认",
   "common.close": "关闭",
