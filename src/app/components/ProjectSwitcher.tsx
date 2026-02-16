@@ -1,4 +1,4 @@
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { ProjectSummary } from "../../shared/types/app";
@@ -14,6 +14,7 @@ export function ProjectSwitcher(props: {
 }) {
   const { projects, activeProjectId, disabled, onChange, t } = props;
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -29,11 +30,20 @@ export function ProjectSwitcher(props: {
     return () => window.removeEventListener("mousedown", onPointerDown);
   }, []);
 
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+    }
+  }, [open]);
+
   const active = projects.find((item) => item.id === activeProjectId);
   const label = active?.name ?? t("workspace.noProject");
+  const filtered = projects.filter((project) =>
+    project.name.toLowerCase().includes(query.trim().toLowerCase()),
+  );
 
   return (
-    <div className="relative min-w-[220px] max-w-[320px]" ref={rootRef}>
+    <div className="relative min-w-[170px] max-w-[248px]" ref={rootRef}>
       <button
         type="button"
         aria-label={t("topbar.selectProject")}
@@ -50,10 +60,21 @@ export function ProjectSwitcher(props: {
 
       {open && (
         <div className="absolute left-0 top-10 z-50 max-h-72 w-full overflow-auto rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-lg">
+          <div className="mb-1 flex h-8 items-center gap-1.5 rounded border border-zinc-700 bg-zinc-950 px-2">
+            <Search className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("topbar.projectFilterPlaceholder")}
+              className="h-full w-full border-none bg-transparent text-xs text-zinc-100 outline-none placeholder:text-zinc-500"
+            />
+          </div>
           {projects.length === 0 ? (
             <div className="px-2 py-1.5 text-xs text-zinc-400">{t("workspace.noProject")}</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-2 py-1.5 text-xs text-zinc-400">{t("topbar.noProjectMatches")}</div>
           ) : (
-            projects.map((project) => {
+            filtered.map((project) => {
               const selected = project.id === activeProjectId;
               return (
                 <button
@@ -66,6 +87,7 @@ export function ProjectSwitcher(props: {
                   )}
                   onClick={() => {
                     setOpen(false);
+                    setQuery("");
                     onChange(project.id);
                   }}
                 >

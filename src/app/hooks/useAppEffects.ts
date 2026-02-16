@@ -124,17 +124,12 @@ export function useAppEffects(params: {
 
   const initDoneRef = useRef(false);
   const tRef = useRef(t);
-  const loadProjectDataRef = useRef(loadProjectData);
   const cursorRef = useRef(cursor);
   const isMaximizedRef = useRef(false);
 
   useEffect(() => {
     tRef.current = t;
   }, [t]);
-
-  useEffect(() => {
-    loadProjectDataRef.current = loadProjectData;
-  }, [loadProjectData]);
 
   useEffect(() => {
     cursorRef.current = cursor;
@@ -210,9 +205,6 @@ export function useAppEffects(params: {
         targetProjectId = projectList[0].id;
       }
       setActiveProjectId(targetProjectId ?? null);
-      if (targetProjectId) {
-        await loadProjectDataRef.current(targetProjectId);
-      }
     };
 
     init().catch(() => {

@@ -47,6 +47,12 @@ body {
   overflow: hidden;
 }
 
+.brand-wordmark {
+  font-family: "Segoe Script", "Lucida Handwriting", "STKaiti", "KaiTi", cursive;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .resizable-handle {
   width: 2px;
   background: transparent;

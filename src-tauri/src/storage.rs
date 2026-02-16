@@ -2,7 +2,7 @@ use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
     FileReadBinaryResponse, FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult,
     LibraryCitationSummaryResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
-    ModelProtocolInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
+    ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
     ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };
 use crate::secure;

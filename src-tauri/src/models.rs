@@ -288,6 +288,8 @@ pub struct SettingsUpdateInput {
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolTestInput {
     pub protocol_id: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -344,6 +346,13 @@ pub struct ProjectSearchHit {
     pub relative_path: String,
     pub line_number: u32,
     pub snippet: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectIntegrityStatus {
+    pub project_id: String,
+    pub missing_required: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

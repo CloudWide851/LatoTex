@@ -47,6 +47,7 @@ export function AppOverlays(props: {
   settings: AppSettings | null;
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
+  integrityIssue: { projectId: string; missingRequired: string[] } | null;
   themeTransition: ThemeTransition | null;
   toast: Toast;
   onOverlayClose: () => void;
@@ -62,10 +63,12 @@ export function AppOverlays(props: {
     };
     model: ModelCatalogItem;
   }) => void;
-  onProtocolPing: (protocolId: string) => Promise<boolean>;
+  onProtocolPing: (input: { protocolId: string; baseUrl: string; apiKey?: string }) => Promise<boolean>;
   onDeleteCancel: () => void;
   onDeleteConfirm: () => void;
   onDeleteDontAskChange: (value: boolean) => void;
+  onIntegrityCancel: () => void;
+  onIntegrityRepair: () => void;
   t: TranslationFn;
 }) {
   const {
@@ -78,6 +81,7 @@ export function AppOverlays(props: {
     settings,
     deleteIntent,
     deleteDontAskAgain,
+    integrityIssue,
     themeTransition,
     toast,
     onOverlayClose,
@@ -88,6 +92,8 @@ export function AppOverlays(props: {
     onDeleteCancel,
     onDeleteConfirm,
     onDeleteDontAskChange,
+    onIntegrityCancel,
+    onIntegrityRepair,
     t,
   } = props;
 
@@ -257,6 +263,32 @@ export function AppOverlays(props: {
               </Button>
               <Button size="sm" onClick={onDeleteConfirm}>
                 {t("common.confirm")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {integrityIssue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+          <div className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
+            <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
+            <p className="mt-2 text-xs text-slate-600">
+              {t("workspace.integrityHint")}
+            </p>
+            <ul className="mt-3 max-h-48 space-y-1 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+              {integrityIssue.missingRequired.map((item) => (
+                <li key={item} className="font-mono">
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={onIntegrityCancel}>
+                {t("common.cancel")}
+              </Button>
+              <Button size="sm" onClick={onIntegrityRepair}>
+                {t("workspace.integrityRepair")}
               </Button>
             </div>
           </div>

@@ -5,7 +5,10 @@ use crate::models::{
 use crate::secure;
 use crate::state::AppState;
 use crate::storage;
+use reqwest::blocking::Client;
+use reqwest::StatusCode;
 use std::fs;
+use std::time::Duration;
 use tauri::State;
 
 #[tauri::command]
@@ -28,18 +31,136 @@ pub fn protocol_test(
     _state: State<'_, AppState>,
     input: ProtocolTestInput,
 ) -> Result<ProtocolHealth, String> {
-    _state.log("INFO", &format!("protocol_test: {}", input.protocol_id));
-    let has_key = secure::has_api_key(&input.protocol_id)?;
-    let message = if has_key {
-        "API key is available in system keyring"
-    } else {
-        "No API key found in system keyring"
+    _state.log(
+        "INFO",
+        &format!(
+            "protocol_test: protocol={}, baseUrl={}",
+            input.protocol_id,
+            input.base_url.as_deref().unwrap_or("-")
+        ),
+    );
+    let base_url = input.base_url.clone().unwrap_or_default().trim().to_string();
+    if base_url.is_empty() {
+        return Ok(ProtocolHealth {
+            protocol_id: input.protocol_id,
+            ok: false,
+            message: "Base URL is required".to_string(),
+        });
+    }
+
+    let api_key = match input.api_key.as_deref().map(str::trim) {
+        Some(value) if !value.is_empty() => Some(value.to_string()),
+        _ => secure::get_api_key(&input.protocol_id)?,
     };
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(12))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let result = match input.protocol_id.as_str() {
+        "anthropic" => probe_anthropic(&client, &base_url, api_key.as_deref()),
+        "gemini" => probe_gemini(&client, &base_url, api_key.as_deref()),
+        _ => probe_openai_compatible(&client, &base_url, api_key.as_deref()),
+    };
+
+    let (ok, message) = match result {
+        Ok(status) => (true, format!("Link test passed ({status})")),
+        Err(error) => (false, error),
+    };
+
     Ok(ProtocolHealth {
         protocol_id: input.protocol_id,
-        ok: has_key,
-        message: message.to_string(),
+        ok,
+        message,
     })
+}
+
+fn is_success_status(status: StatusCode) -> bool {
+    status.is_success()
+}
+
+fn probe_openai_compatible(
+    client: &Client,
+    base_url: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
+    let key = api_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "API key is required".to_string())?;
+    let normalized = base_url.trim_end_matches('/');
+    let mut endpoints = vec![format!("{normalized}/models")];
+    if !normalized.ends_with("/v1") {
+        endpoints.push(format!("{normalized}/v1/models"));
+    }
+
+    let mut last_error = "No response".to_string();
+    for endpoint in endpoints {
+        match client.get(endpoint).bearer_auth(key).send() {
+            Ok(response) => {
+                let status = response.status();
+                if is_success_status(status) {
+                    return Ok(status);
+                }
+                last_error = format!("HTTP {status}");
+            }
+            Err(error) => {
+                last_error = error.to_string();
+            }
+        }
+    }
+    Err(last_error)
+}
+
+fn probe_anthropic(client: &Client, base_url: &str, api_key: Option<&str>) -> Result<StatusCode, String> {
+    let key = api_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "API key is required".to_string())?;
+    let normalized = base_url.trim_end_matches('/');
+    let mut endpoints = vec![format!("{normalized}/v1/models")];
+    if normalized.ends_with("/v1") {
+        endpoints.push(format!("{normalized}/models"));
+    }
+
+    let mut last_error = "No response".to_string();
+    for endpoint in endpoints {
+        match client
+            .get(endpoint)
+            .header("x-api-key", key)
+            .header("anthropic-version", "2023-06-01")
+            .send()
+        {
+            Ok(response) => {
+                let status = response.status();
+                if is_success_status(status) {
+                    return Ok(status);
+                }
+                last_error = format!("HTTP {status}");
+            }
+            Err(error) => {
+                last_error = error.to_string();
+            }
+        }
+    }
+    Err(last_error)
+}
+
+fn probe_gemini(client: &Client, base_url: &str, api_key: Option<&str>) -> Result<StatusCode, String> {
+    let key = api_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "API key is required".to_string())?;
+    let normalized = base_url.trim_end_matches('/');
+    let endpoint = format!("{normalized}/v1beta/models?key={key}");
+    let response = client.get(endpoint).send().map_err(|e| e.to_string())?;
+    let status = response.status();
+    if is_success_status(status) {
+        Ok(status)
+    } else {
+        Err(format!("HTTP {status}"))
+    }
 }
 
 #[tauri::command]

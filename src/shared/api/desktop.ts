@@ -21,7 +21,9 @@ import type {
   ModelCatalogItemInput,
   ModelProtocolInput,
   PanelLayoutPrefs,
+  ProjectIntegrityStatus,
   ProjectSearchHit,
+  ProtocolTestInput,
   ProtocolHealth,
   ProjectSnapshot,
   ProjectSummary,
@@ -50,6 +52,14 @@ export function initProjectFromFolder(): Promise<ProjectSnapshot | null> {
 
 export function openProject(projectId: string): Promise<ProjectSnapshot> {
   return invoke<ProjectSnapshot>("project_open", { input: { projectId } });
+}
+
+export function projectIntegrityStatus(projectId: string): Promise<ProjectIntegrityStatus> {
+  return invoke<ProjectIntegrityStatus>("project_integrity_status", { input: { projectId } });
+}
+
+export function projectIntegrityRepair(projectId: string): Promise<ProjectIntegrityStatus> {
+  return invoke<ProjectIntegrityStatus>("project_integrity_repair", { input: { projectId } });
 }
 
 export function projectSearchContent(
@@ -183,8 +193,14 @@ export function updateSettings(input: {
   return invoke<AppSettings>("settings_update", { input });
 }
 
-export function testProtocol(protocolId: string): Promise<ProtocolHealth> {
-  return invoke<ProtocolHealth>("protocol_test", { input: { protocolId } });
+export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> {
+  return invoke<ProtocolHealth>("protocol_test", {
+    input: {
+      protocolId: input.protocolId,
+      baseUrl: input.baseUrl,
+      apiKey: input.apiKey,
+    },
+  });
 }
 
 export function runtimeLogWrite(level: string, message: string) {

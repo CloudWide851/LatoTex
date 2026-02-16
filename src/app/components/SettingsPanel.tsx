@@ -46,7 +46,6 @@ export function SettingsPanel(props: {
   sessionLogName: string;
   activeModelCatalog: ModelCatalogItem[];
   onSettingsSectionChange: (value: SettingsSection) => void;
-  onSaveSettings: () => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
@@ -66,7 +65,6 @@ export function SettingsPanel(props: {
     sessionLogName,
     activeModelCatalog,
     onSettingsSectionChange,
-    onSaveSettings,
     onLocaleChange,
     onThemeModeChange,
     onBusyTexCachePolicyChange,
@@ -115,7 +113,7 @@ export function SettingsPanel(props: {
       </aside>
 
       <section className="min-h-0 overflow-auto p-3">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+        <div className="mb-3 border-b border-slate-200 pb-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
               {t(
@@ -125,9 +123,6 @@ export function SettingsPanel(props: {
             </h2>
             <p className="text-xs text-slate-500">{t("settings.saveHint")}</p>
           </div>
-          <Button onClick={onSaveSettings} disabled={busy}>
-            {t("settings.saveSettings")}
-          </Button>
         </div>
 
         {settingsSection === "general" && (

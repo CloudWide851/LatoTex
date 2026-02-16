@@ -23,6 +23,8 @@ import {
   gitStatus,
   gitUnstage,
   openProject,
+  projectIntegrityRepair,
+  projectIntegrityStatus,
   runtimeLogRead,
   updateSettings,
 } from "../shared/api/desktop";
@@ -63,6 +65,12 @@ import {
 import { useAppEffects } from "./hooks/useAppEffects";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useWorkspaceShortcuts } from "./hooks/useWorkspaceShortcuts";
+
+type IntegrityIssue = {
+  projectId: string;
+  missingRequired: string[];
+};
+
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const [status, setStatus] = useState<"ready" | "offline">("ready"); const [toast, setToast] = useState<Toast>(null);
@@ -115,9 +123,15 @@ export function AppContainer() {
   const [gitDownloadTaskId, setGitDownloadTaskId] = useState<string | null>(null);
   const [gitInstallerLaunched, setGitInstallerLaunched] = useState(false);
   const [suppressAutoGitInstall, setSuppressAutoGitInstall] = useState(false);
+  const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
   const editorRef = useRef<any>(null);
   const activeProjectIdRef = useRef<string | null>(null);
+  const lastLoadedProjectIdRef = useRef<string | null>(null);
+  const integrityCheckedRef = useRef<Set<string>>(new Set());
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveReadyRef = useRef(false);
+  const lastAutoSavedHashRef = useRef<string | null>(null);
   const panelLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPanelLayoutRef = useRef<Partial<PanelLayoutPrefs>>({});
   const isTauriRuntime = isTauri();
@@ -164,12 +178,24 @@ export function AppContainer() {
   }, []);
 
   const loadProjectData = useCallback(async (projectId: string) => {
+    if (!integrityCheckedRef.current.has(projectId)) {
+      const integrity = await projectIntegrityStatus(projectId);
+      if (integrity.missingRequired.length > 0) {
+        setIntegrityIssue({
+          projectId,
+          missingRequired: integrity.missingRequired,
+        });
+        return;
+      }
+      integrityCheckedRef.current.add(projectId);
+    }
     const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
     const [papers] = await Promise.all([getLibraryTree(projectId)]);
     setLibraryTree(papers);
     setSelectedLibraryPath(null);
+    lastLoadedProjectIdRef.current = projectId;
     await refreshGitWorkspace(projectId);
   }, [refreshGitWorkspace]);
 
@@ -245,6 +271,14 @@ export function AppContainer() {
 
   useEffect(() => {
     return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
       }
@@ -269,6 +303,46 @@ export function AppContainer() {
     setCompiledPdfBytes(null);
   }, [activeProjectId]);
 
+  useEffect(() => {
+    if (!settings) {
+      return;
+    }
+    const hashPayload = JSON.stringify({
+      settings,
+      activeProjectId,
+      draftApiKeys: Object.keys(draftApiKeys)
+        .sort()
+        .reduce<Record<string, string>>((acc, key) => {
+          acc[key] = draftApiKeys[key];
+          return acc;
+        }, {}),
+    });
+    if (!autoSaveReadyRef.current) {
+      autoSaveReadyRef.current = true;
+      lastAutoSavedHashRef.current = hashPayload;
+      return;
+    }
+    if (hashPayload === lastAutoSavedHashRef.current) {
+      return;
+    }
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      persistSettings(settings)
+        .then((updated) => {
+          lastAutoSavedHashRef.current = JSON.stringify({
+            settings: updated,
+            activeProjectId: updated.activeProjectId ?? activeProjectId,
+            draftApiKeys: {},
+          });
+        })
+        .catch((error) => {
+          setToast({ type: "error", message: String(error) });
+        });
+    }, 640);
+  }, [activeProjectId, draftApiKeys, persistSettings, setToast, settings]);
+
   const {
     handleWindowControl,
     handleInitProjectFromFolder,
@@ -278,7 +352,6 @@ export function AppContainer() {
     handleEditorUndo,
     handleEditorRedo,
     handleRunAgent,
-    handleSaveSettings,
     handleLocaleChange,
     handleThemeModeChange,
     handleProjectSearch,
@@ -413,6 +486,73 @@ export function AppContainer() {
     handleExportCompiledPdf,
   });
 
+  const handleProjectChange = useCallback(async (projectId: string | null) => {
+    if (!projectId) {
+      setIntegrityIssue(null);
+      setActiveProjectId(null);
+      return;
+    }
+    if (projectId === activeProjectIdRef.current) {
+      return;
+    }
+    if (!integrityCheckedRef.current.has(projectId)) {
+      try {
+        const integrity = await projectIntegrityStatus(projectId);
+        if (integrity.missingRequired.length > 0) {
+          setIntegrityIssue({
+            projectId,
+            missingRequired: integrity.missingRequired,
+          });
+          return;
+        }
+        integrityCheckedRef.current.add(projectId);
+      } catch (error) {
+        setToast({ type: "error", message: String(error) });
+        return;
+      }
+    }
+    setIntegrityIssue(null);
+    setActiveProjectId(projectId);
+  }, [setToast]);
+
+  const handleIntegrityRepair = useCallback(async () => {
+    if (!integrityIssue) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await projectIntegrityRepair(integrityIssue.projectId);
+      if (result.missingRequired.length > 0) {
+        setToast({ type: "error", message: t("toast.integrityRepairFailed") });
+        return;
+      }
+      integrityCheckedRef.current.add(integrityIssue.projectId);
+      setIntegrityIssue(null);
+      if (activeProjectIdRef.current === integrityIssue.projectId) {
+        await loadProjectData(integrityIssue.projectId);
+      } else {
+        setActiveProjectId(integrityIssue.projectId);
+      }
+      setToast({ type: "info", message: t("toast.integrityRepaired") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [integrityIssue, loadProjectData, t]);
+
+  const handleIntegrityCancel = useCallback(() => {
+    const fallback = lastLoadedProjectIdRef.current;
+    setIntegrityIssue(null);
+    if (!fallback) {
+      setActiveProjectId(null);
+      return;
+    }
+    if (activeProjectIdRef.current !== fallback) {
+      setActiveProjectId(fallback);
+    }
+  }, []);
+
   const sessionLogName = useMemo(() => {
     if (!runtimeInfo?.sessionLogFile) {
       return "-";
@@ -446,7 +586,6 @@ export function AppContainer() {
       sessionLogName={sessionLogName}
       activeModelCatalog={activeModelCatalog}
       onSettingsSectionChange={setSettingsSection}
-      onSaveSettings={handleSaveSettings}
       onLocaleChange={handleLocaleChange}
       onThemeModeChange={handleThemeModeChange}
       onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
@@ -539,7 +678,7 @@ export function AppContainer() {
           projectSearchBusy={projectSearchBusy}
           projectSearchSearched={projectSearchSearched}
           projectSearchResults={projectSearchResults}
-          onProjectChange={setActiveProjectId}
+          onProjectChange={handleProjectChange}
           onProjectSearchQueryChange={setProjectSearchQuery}
           onProjectSearch={handleProjectSearch}
           onProjectSearchSelect={handleProjectSearchSelect}
@@ -622,6 +761,7 @@ export function AppContainer() {
         settings={settings}
         deleteIntent={deleteIntent}
         deleteDontAskAgain={deleteDontAskAgain}
+        integrityIssue={integrityIssue}
         themeTransition={themeTransition}
         toast={toast}
         onOverlayClose={() => setOverlay(null)}
@@ -668,6 +808,8 @@ export function AppContainer() {
         onDeleteCancel={() => setDeleteIntent(null)}
         onDeleteConfirm={confirmDelete}
         onDeleteDontAskChange={setDeleteDontAskAgain}
+        onIntegrityCancel={handleIntegrityCancel}
+        onIntegrityRepair={handleIntegrityRepair}
         t={t}
       />
     </div>

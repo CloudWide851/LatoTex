@@ -11,7 +11,7 @@ export function ModelModal(props: {
   open: boolean;
   protocols: ModelProtocol[];
   onClose: () => void;
-  onTest: (protocolId: string) => Promise<boolean>;
+  onTest: (input: { protocolId: string; baseUrl: string; apiKey?: string }) => Promise<boolean>;
   onSubmit: (payload: {
     protocol: {
       id: string;
@@ -77,19 +77,18 @@ export function ModelModal(props: {
     testState === "ok";
 
   const handleTest = async () => {
+    if (!resolvedProtocol.baseUrl.trim()) {
+      setTestState("fail");
+      return;
+    }
     setTesting(true);
     try {
-      if (mode === "new" || (mode === "existing" && resolvedProtocol.apiKey.length > 0)) {
-        setTestState(
-          resolvedProtocol.baseUrl.startsWith("http://") ||
-            resolvedProtocol.baseUrl.startsWith("https://")
-            ? "ok"
-            : "fail",
-        );
-      } else {
-        const ok = await onTest(protocolId);
-        setTestState(ok ? "ok" : "fail");
-      }
+      const ok = await onTest({
+        protocolId: resolvedProtocol.id,
+        baseUrl: resolvedProtocol.baseUrl,
+        apiKey: resolvedProtocol.apiKey || undefined,
+      });
+      setTestState(ok ? "ok" : "fail");
     } finally {
       setTesting(false);
     }

@@ -571,15 +571,19 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
   }, [locale, setBusy, setBusytexCacheInfo, setSettings, setToast, t]);
 
-  const handleProtocolPing = useCallback(async (protocolId: string) => {
-    const result = await testProtocol(protocolId);
+  const handleProtocolPing = useCallback(async (input: {
+    protocolId: string;
+    baseUrl: string;
+    apiKey?: string;
+  }) => {
+    const result = await testProtocol(input);
     setToast({
       type: result.ok ? "info" : "error",
       message: result.ok ? t("toast.protocolOk") : t("toast.protocolFail"),
     });
     await runtimeLogWrite(
       result.ok ? "INFO" : "WARN",
-      `protocol test: ${protocolId}, ok=${result.ok}`,
+      `protocol test: ${input.protocolId}, ok=${result.ok}, message=${result.message}`,
     );
     return result.ok;
   }, [setToast, t]);

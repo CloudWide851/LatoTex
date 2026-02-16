@@ -2,7 +2,7 @@ use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteInput,
     FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
     LibraryCitationSummaryInput, LibraryCitationSummaryResponse, ProjectPathActionInput,
-    ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
+    ProjectIntegrityStatus, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
     ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
@@ -39,6 +39,30 @@ pub fn project_open(
 ) -> Result<ProjectSnapshot, String> {
     state.log("INFO", &format!("project_open: {}", input.project_id));
     storage::project_snapshot(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn project_integrity_status(
+    state: State<'_, AppState>,
+    input: ProjectRefInput,
+) -> Result<ProjectIntegrityStatus, String> {
+    state.log(
+        "INFO",
+        &format!("project_integrity_status: {}", input.project_id),
+    );
+    storage::project_integrity_status(&state.db_path, &input.project_id)
+}
+
+#[tauri::command]
+pub fn project_integrity_repair(
+    state: State<'_, AppState>,
+    input: ProjectRefInput,
+) -> Result<ProjectIntegrityStatus, String> {
+    state.log(
+        "INFO",
+        &format!("project_integrity_repair: {}", input.project_id),
+    );
+    storage::repair_project_integrity(&state.db_path, &input.project_id)
 }
 
 #[tauri::command]

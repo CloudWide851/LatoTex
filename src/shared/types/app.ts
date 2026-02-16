@@ -76,6 +76,12 @@ export type ProtocolHealth = {
   message: string;
 };
 
+export type ProtocolTestInput = {
+  protocolId: string;
+  baseUrl: string;
+  apiKey?: string;
+};
+
 export type AppSettings = {
   activeProjectId: string | null;
   modelProtocols: ModelProtocol[];
@@ -174,6 +180,11 @@ export type ProjectSearchHit = {
   relativePath: string;
   lineNumber: number;
   snippet: string;
+};
+
+export type ProjectIntegrityStatus = {
+  projectId: string;
+  missingRequired: string[];
 };
 
 export type GitStatusEntry = {

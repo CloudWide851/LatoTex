@@ -67,11 +67,11 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center px-3 pb-3 pt-6">
+    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
       <div
-        className="pointer-events-auto grid w-[min(78%,920px)] max-w-[calc(100%-8px)] min-w-[320px] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(78%,920px)] max-w-[calc(100%-6px)] min-w-[320px] max-h-[calc(100%-12px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(240px, 54%, 460px)" : "clamp(150px, 34%, 280px)",
+          height: activityExpanded ? "clamp(220px, 46%, 420px)" : "clamp(136px, 29%, 236px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">

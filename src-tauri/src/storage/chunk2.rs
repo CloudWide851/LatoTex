@@ -193,6 +193,50 @@ Create new files from the explorer, then use the Agent panel to iterate on your 
     Ok(())
 }
 
+fn collect_missing_required_paths(root: &Path) -> Vec<String> {
+    let required = [
+        ".latotex",
+        ".latotex/config.json",
+        ".latotex/permissions.json",
+        ".latotex/index",
+        ".editorconfig",
+    ];
+    required
+        .iter()
+        .filter_map(|relative| {
+            let path = root.join(relative);
+            if path.exists() {
+                None
+            } else {
+                Some((*relative).to_string())
+            }
+        })
+        .collect()
+}
+
+pub fn project_integrity_status(
+    db_path: &Path,
+    project_id: &str,
+) -> Result<ProjectIntegrityStatus, String> {
+    let root = load_project_root(db_path, project_id)?;
+    Ok(ProjectIntegrityStatus {
+        project_id: project_id.to_string(),
+        missing_required: collect_missing_required_paths(&root),
+    })
+}
+
+pub fn repair_project_integrity(
+    db_path: &Path,
+    project_id: &str,
+) -> Result<ProjectIntegrityStatus, String> {
+    let root = load_project_root(db_path, project_id)?;
+    ensure_workspace_bootstrap_files(&root)?;
+    Ok(ProjectIntegrityStatus {
+        project_id: project_id.to_string(),
+        missing_required: collect_missing_required_paths(&root),
+    })
+}
+
 fn library_root(project_root: &Path) -> PathBuf {
     project_root.join(".latotex").join("papers")
 }
