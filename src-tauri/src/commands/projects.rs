@@ -1,11 +1,13 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadInput, FileReadResponse, FileWriteInput, FsOperationInput,
-    FsOperationResult, LibraryLinkImportInput, LibraryRefInput, ProjectRefInput, ProjectSearchHit,
-    ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode,
+    FsOperationResult, LibraryLinkImportInput, LibraryRefInput, ProjectPathActionInput,
+    ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
+    ResourceNode,
 };
 use crate::state::AppState;
 use crate::storage;
 use rfd::FileDialog;
+use std::process::Command;
 use tauri::State;
 
 #[tauri::command]
@@ -147,4 +149,171 @@ pub fn project_search_content(
         ),
     );
     storage::search_project_content(&state.db_path, input)
+}
+
+fn resolve_workspace_path(
+    state: &State<'_, AppState>,
+    input: &ProjectPathActionInput,
+) -> Result<std::path::PathBuf, String> {
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
+    let relative = input
+        .relative_path
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .replace('\\', "/");
+    if relative.is_empty() {
+        return Ok(canonical_root);
+    }
+    let candidate = canonical_root.join(relative);
+    if !candidate.exists() {
+        return Err("Path does not exist".to_string());
+    }
+    let canonical_target = candidate.canonicalize().map_err(|e| e.to_string())?;
+    if !canonical_target.starts_with(&canonical_root) {
+        return Err("Path traversal detected".to_string());
+    }
+    Ok(canonical_target)
+}
+
+#[tauri::command]
+pub fn workspace_reveal_in_system(
+    state: State<'_, AppState>,
+    input: ProjectPathActionInput,
+) -> Result<Ack, String> {
+    let target = resolve_workspace_path(&state, &input)?;
+    state.log(
+        "INFO",
+        &format!(
+            "workspace_reveal_in_system: project={}, path={}",
+            input.project_id,
+            target.to_string_lossy()
+        ),
+    );
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = Command::new("explorer");
+        if target.is_file() {
+            command.arg("/select,").arg(&target);
+        } else {
+            command.arg(&target);
+        }
+        command.spawn().map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if target.is_file() {
+            Command::new("open")
+                .arg("-R")
+                .arg(&target)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            Command::new("open")
+                .arg(&target)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let open_target = if target.is_file() {
+            target.parent().unwrap_or(&target).to_path_buf()
+        } else {
+            target.clone()
+        };
+        Command::new("xdg-open")
+            .arg(open_target)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(Ack {
+        ok: true,
+        message: "Opened in system file manager".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn workspace_open_terminal(
+    state: State<'_, AppState>,
+    input: ProjectPathActionInput,
+) -> Result<Ack, String> {
+    let target = resolve_workspace_path(&state, &input)?;
+    let directory = if target.is_file() {
+        target
+            .parent()
+            .ok_or_else(|| "Cannot resolve parent directory".to_string())?
+            .to_path_buf()
+    } else {
+        target
+    };
+
+    state.log(
+        "INFO",
+        &format!(
+            "workspace_open_terminal: project={}, dir={}",
+            input.project_id,
+            directory.to_string_lossy()
+        ),
+    );
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .arg("/K")
+            .arg(format!("cd /d \"{}\"", directory.to_string_lossy()))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg("-a")
+            .arg("Terminal")
+            .arg(&directory)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let directory_string = directory.to_string_lossy().to_string();
+        let mut launched = false;
+        if Command::new("x-terminal-emulator")
+            .arg("--working-directory")
+            .arg(&directory_string)
+            .spawn()
+            .is_ok()
+        {
+            launched = true;
+        } else if Command::new("gnome-terminal")
+            .arg("--working-directory")
+            .arg(&directory_string)
+            .spawn()
+            .is_ok()
+        {
+            launched = true;
+        } else if Command::new("konsole")
+            .arg("--workdir")
+            .arg(&directory_string)
+            .spawn()
+            .is_ok()
+        {
+            launched = true;
+        }
+        if !launched {
+            return Err("No terminal application available".to_string());
+        }
+    }
+
+    Ok(Ack {
+        ok: true,
+        message: "Terminal opened".to_string(),
+    })
 }

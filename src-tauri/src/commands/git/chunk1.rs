@@ -98,6 +98,12 @@ fn parse_numstat(raw: &str) -> std::collections::HashMap<String, (u32, u32)> {
     map
 }
 
+fn normalize_status_path(raw: &str) -> String {
+    let candidate = raw.rsplit(" -> ").next().unwrap_or(raw).trim();
+    let unquoted = candidate.trim_matches('"');
+    unquoted.replace('\\', "/")
+}
+
 fn parse_hunk_header(header: &str) -> (Option<u32>, Option<u32>) {
     let mut old_line = None;
     let mut new_line = None;

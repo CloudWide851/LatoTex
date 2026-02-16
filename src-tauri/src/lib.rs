@@ -15,7 +15,7 @@ use commands::health::health_check;
 use commands::projects::{
     file_read, file_write, fs_operation, library_import_link, library_import_pdf, library_rescan,
     library_tree, project_create, project_init_from_folder, project_list, project_open,
-    project_search_content, workspace_tree,
+    project_search_content, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::settings::{
     protocol_test, runtime_log_info, runtime_log_write, settings_get, settings_update,
@@ -39,6 +39,8 @@ pub fn run() {
             project_init_from_folder,
             project_open,
             project_search_content,
+            workspace_reveal_in_system,
+            workspace_open_terminal,
             workspace_tree,
             file_read,
             file_write,

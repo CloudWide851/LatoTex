@@ -24,8 +24,8 @@ export function PageRail(props: {
   const [tooltip, setTooltip] = useState<RailTooltip | null>(null);
 
   return (
-    <aside className="relative rounded-none border-r border-slate-200 bg-transparent p-2 motion-slide-up">
-      <div className="flex h-full flex-col gap-2">
+    <aside className="relative h-full bg-transparent px-1.5 py-2 motion-slide-up">
+      <div className="flex h-full flex-col items-center gap-2">
         {items.map((item) => {
           const Icon = item.icon;
           const selected = activePage === item.id;

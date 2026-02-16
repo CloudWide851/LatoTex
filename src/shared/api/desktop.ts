@@ -62,6 +62,18 @@ export function getWorkspaceTree(projectId: string): Promise<ResourceNode[]> {
   return invoke<ResourceNode[]>("workspace_tree", { input: { projectId } });
 }
 
+export function workspaceRevealInSystem(projectId: string, relativePath?: string) {
+  return invoke("workspace_reveal_in_system", {
+    input: { projectId, relativePath }
+  });
+}
+
+export function workspaceOpenTerminal(projectId: string, relativePath?: string) {
+  return invoke("workspace_open_terminal", {
+    input: { projectId, relativePath }
+  });
+}
+
 export function readFile(projectId: string, relativePath: string): Promise<FileReadResponse> {
   return invoke<FileReadResponse>("file_read", { input: { projectId, relativePath } });
 }

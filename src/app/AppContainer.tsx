@@ -260,6 +260,8 @@ export function AppContainer() {
     handleProjectSearchSelect,
     handleBusyTexCachePolicyChange,
     handleProtocolPing,
+    handleWorkspaceRevealInSystem,
+    handleWorkspaceOpenTerminal,
     requestFsAction,
     confirmDelete,
     handleGitAction,
@@ -463,6 +465,9 @@ export function AppContainer() {
         }
       }}
       onLoadDiff={(path, staged) => gitDiffFile(activeProjectId, path, staged, 3)}
+      onOpenFile={(path) => {
+        setSelectedFile(path);
+      }}
       onStartGitInstall={handleGitInstallerDownloadStart}
       onCancelDownload={handleGitInstallerCancel}
       onRunInstaller={handleGitRunInstaller}
@@ -547,9 +552,11 @@ export function AppContainer() {
             setOverlay("logs");
           }}
           onLibraryRescan={handleLibraryRescan}
-          onLibraryImportPdf={handleLibraryImportPdf}
-          onLibraryImportLink={handleLibraryImportLink}
-          onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
+        onLibraryImportPdf={handleLibraryImportPdf}
+        onLibraryImportLink={handleLibraryImportLink}
+        onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
+        onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
+        onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
           onFsAction={(scope, action, path, targetPath, content) =>
             requestFsAction(scope, action, path, targetPath, content)
           }

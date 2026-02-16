@@ -59,6 +59,7 @@ export function GitWorkspace(props: {
   onCommit: (message: string) => void;
   onInitRepo: () => void;
   onLoadDiff: (path: string, staged: boolean) => Promise<GitDiffResponse>;
+  onOpenFile: (path: string) => void;
   onStartGitInstall: () => void;
   onCancelDownload: () => void;
   onRunInstaller: () => void;
@@ -82,6 +83,7 @@ export function GitWorkspace(props: {
     onCommit,
     onInitRepo,
     onLoadDiff,
+    onOpenFile,
     onStartGitInstall,
     onCancelDownload,
     onRunInstaller,
@@ -151,6 +153,7 @@ export function GitWorkspace(props: {
                 className="min-w-0 flex-1 truncate text-left text-slate-700 hover:text-primary-700"
                 title={entry.path}
                 onClick={() => {
+                  onOpenFile(entry.path);
                   toggleDiff(entry.path, staged).catch(() => undefined);
                 }}
               >
@@ -168,10 +171,6 @@ export function GitWorkspace(props: {
               ) : null}
               <span className="font-mono text-[10px] text-emerald-600">+{entry.addedLines}</span>
               <span className="font-mono text-[10px] text-rose-600">-{entry.removedLines}</span>
-              <span className="font-mono text-[10px] text-slate-500">
-                {entry.indexStatus}
-                {entry.worktreeStatus}
-              </span>
             </div>
           </div>
           {expandedKey === `${staged ? "s" : "u"}:${entry.path}` && diffByKey[`${staged ? "s" : "u"}:${entry.path}`] && (
@@ -344,7 +343,11 @@ export function GitWorkspace(props: {
       <div className="grid min-h-0 grid-cols-[minmax(280px,0.44fr)_minmax(0,1fr)] gap-3">
         <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
           <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
-            <Select value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)}>
+            <Select
+              value={selectedBranch}
+              uiSize="sm"
+              onChange={(e) => setSelectedBranch(e.target.value)}
+            >
               <option value="">{t("git.selectBranch")}</option>
               {branches.map((branch) => (
                 <option key={branch.name} value={branch.name}>

@@ -63,7 +63,10 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
         });
     }
 
-    let raw = run_git(&root, &["status", "--porcelain=v1", "-b"])?;
+    let raw = run_git(
+        &root,
+        &["status", "--porcelain=v1", "-b", "--untracked-files=all"],
+    )?;
     let unstaged_numstat = parse_numstat(&run_git(&root, &["diff", "--numstat"]).unwrap_or_default());
     let staged_numstat = parse_numstat(&run_git(&root, &["diff", "--cached", "--numstat"]).unwrap_or_default());
     let mut lines = raw.lines();
@@ -78,7 +81,11 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
         let mut chars = line.chars();
         let index_status = chars.next().unwrap_or(' ').to_string();
         let worktree_status = chars.next().unwrap_or(' ').to_string();
-        let path = line[3..].trim().to_string();
+        let path = normalize_status_path(&line[3..]);
+        let absolute_path = root.join(&path);
+        if absolute_path.exists() && absolute_path.is_dir() {
+            continue;
+        }
         let staged = staged_numstat.get(&path).copied().unwrap_or((0, 0));
         let unstaged = unstaged_numstat.get(&path).copied().unwrap_or((0, 0));
         changes.push(GitStatusEntry {

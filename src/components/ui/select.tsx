@@ -4,19 +4,21 @@ import { cn } from "../../lib/utils";
 
 export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   tone?: "light" | "dark";
+  uiSize?: "default" | "sm";
   wrapperClassName?: string;
 };
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, wrapperClassName, children, tone = "light", ...props }, ref) => (
+  ({ className, wrapperClassName, children, tone = "light", uiSize = "default", ...props }, ref) => (
     <div className={cn("relative w-full", wrapperClassName)}>
       <select
         ref={ref}
         className={cn(
-          "h-10 w-full appearance-none rounded-lg border px-3 pr-9 text-sm outline-none transition",
+          "w-full appearance-none rounded-lg border px-3 pr-9 outline-none transition",
+          uiSize === "sm" ? "h-8 text-xs" : "h-10 text-sm",
           tone === "dark"
             ? "border-zinc-700 bg-zinc-900 text-zinc-100 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/25"
-            : "border-slate-300 bg-white text-slate-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
+            : "border-slate-300 bg-slate-50 text-slate-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
           className
         )}
         {...props}

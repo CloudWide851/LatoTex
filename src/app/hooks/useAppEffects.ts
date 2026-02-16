@@ -16,7 +16,12 @@ import type {
   AppSettings,
   SwarmEvent,
 } from "../../shared/types/app";
-import { applyTheme, DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
+import {
+  applyTheme,
+  DEFAULT_PANEL_LAYOUT,
+  normalizeAgentBindings,
+  type ThemeMode,
+} from "../app-config";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -153,6 +158,7 @@ export function useAppEffects(params: {
       setProjects(projectList);
       const normalizedSettings: AppSettings = {
         ...appSettings,
+        agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
         uiPrefs: {
           ...(appSettings.uiPrefs ?? {}),
           theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",

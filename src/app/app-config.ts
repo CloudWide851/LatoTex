@@ -38,6 +38,15 @@ export type AgentStatusKey =
   | "agent.statusDone"
   | "agent.statusError";
 
+export const FIXED_AGENT_ROLES = [
+  "plan",
+  "task",
+  "explore",
+  "web_search",
+  "review",
+  "ephemeral",
+] as const;
+
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
   key: "nav.latex" | "nav.analysis" | "nav.library" | "nav.git" | "nav.settings";
@@ -93,7 +102,7 @@ export const DEFAULT_CATALOG: ModelCatalogItem[] = [
 ];
 
 export const DEFAULT_BINDINGS: AgentModelBinding[] = [
-  // Intentionally empty until user adds models.
+  ...FIXED_AGENT_ROLES.map((role) => ({ role, modelId: "" })),
 ];
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutPrefs = {
@@ -158,4 +167,15 @@ export function upsertProject(projects: ProjectSummary[], snapshot: ProjectSumma
   const next = projects.filter((item) => item.id !== snapshot.id);
   next.unshift(snapshot);
   return next.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function normalizeAgentBindings(bindings: AgentModelBinding[]): AgentModelBinding[] {
+  const map = new Map<string, string>();
+  for (const item of bindings) {
+    map.set(item.role, item.modelId ?? "");
+  }
+  return FIXED_AGENT_ROLES.map((role) => ({
+    role,
+    modelId: map.get(role) ?? "",
+  }));
 }

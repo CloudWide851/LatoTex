@@ -62,6 +62,8 @@ export function AppWorkspaceShell(props: {
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (link: string) => void;
+  onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
+  onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
   onFsAction: (
     scope: FsScope,
@@ -114,6 +116,8 @@ export function AppWorkspaceShell(props: {
     onLibraryRescan,
     onLibraryImportPdf,
     onLibraryImportLink,
+    onWorkspaceRevealInSystem,
+    onWorkspaceOpenTerminal,
     onSavePanelLayout,
     onFsAction,
     t,
@@ -149,6 +153,8 @@ export function AppWorkspaceShell(props: {
             onAction={(action, path, targetPath, content) =>
               onFsAction("workspace", action, path, targetPath, content)
             }
+            onRevealInSystem={onWorkspaceRevealInSystem}
+            onOpenTerminal={onWorkspaceOpenTerminal}
             t={t}
           />
         ) : (
@@ -311,21 +317,11 @@ export function AppWorkspaceShell(props: {
 
   return (
     <main className="flex-1 min-h-0 overflow-hidden p-1">
-      <PanelGroup
-        direction="horizontal"
-        className="h-full gap-px"
-        onLayout={(layout) => onSavePanelLayout("shell", layout)}
-      >
-        <Panel
-          defaultSize={shellLayout[0]}
-          minSize={shellMin[0]}
-          maxSize={shellMin[1]}
-          className="min-w-[52px]"
-        >
+      <div className="flex h-full gap-0">
+        <div className="w-14 shrink-0">
           <PageRail items={pageRailItems} activePage={page} onChange={onPageChange} />
-        </Panel>
-        <PanelResizeHandle className="resizable-handle" />
-        <Panel defaultSize={shellLayout[1]} minSize={20}>
+        </div>
+        <div className="min-w-0 flex-1">
           {page === "latex" && activeProjectId ? (
             <PanelGroup
               direction="horizontal"
@@ -409,8 +405,8 @@ export function AppWorkspaceShell(props: {
               {renderMainPanel()}
             </section>
           )}
-        </Panel>
-      </PanelGroup>
+        </div>
+      </div>
     </main>
   );
 }

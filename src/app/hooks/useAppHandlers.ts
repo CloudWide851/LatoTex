@@ -13,6 +13,8 @@ import {
   runAgent,
   runtimeLogWrite,
   testProtocol,
+  workspaceOpenTerminal,
+  workspaceRevealInSystem,
   writeFile,
   busytexCachePrepare,
 } from "../../shared/api/desktop";
@@ -22,7 +24,13 @@ import type {
   FsScope,
   ProjectSearchHit,
 } from "../../shared/types/app";
-import { applyTheme, resolveTheme, THEME_TRANSITION_MS, type ThemeMode } from "../app-config";
+import {
+  applyTheme,
+  normalizeAgentBindings,
+  resolveTheme,
+  THEME_TRANSITION_MS,
+  type ThemeMode,
+} from "../app-config";
 import { useGitHandlers } from "./useGitHandlers";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 
@@ -358,11 +366,13 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setBusy(true);
     try {
       const validModelIds = new Set(settings.modelCatalog.map((item) => item.id));
+      const normalizedBindings = normalizeAgentBindings(settings.agentBindings ?? []);
       const nextSettings: AppSettings = {
         ...settings,
-        agentBindings: settings.agentBindings.filter((item) =>
-          validModelIds.has(item.modelId),
-        ),
+        agentBindings: normalizedBindings.map((item) => ({
+          ...item,
+          modelId: validModelIds.has(item.modelId) ? item.modelId : "",
+        })),
       };
       await persistSettings(nextSettings);
       await runtimeLogWrite("INFO", t("log.settingsSaved"));
@@ -393,6 +403,10 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     nextTheme: ThemeMode,
     event?: { clientX: number; clientY: number },
   ) => {
+    const currentTheme = (settings?.uiPrefs?.theme as ThemeMode | undefined) ?? "system";
+    if (resolveTheme(currentTheme) === resolveTheme(nextTheme)) {
+      return;
+    }
     const originX = event?.clientX ?? window.innerWidth / 2;
     const originY = event?.clientY ?? window.innerHeight / 2;
     const radius = Math.hypot(
@@ -432,7 +446,29 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
 
     applyTheme(nextTheme);
-  }, [locale, setSettings, setThemeTransition]);
+  }, [locale, setSettings, setThemeTransition, settings?.uiPrefs?.theme]);
+
+  const handleWorkspaceRevealInSystem = useCallback(async (relativePath?: string) => {
+    if (!activeProjectId) {
+      return;
+    }
+    try {
+      await workspaceRevealInSystem(activeProjectId, relativePath);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    }
+  }, [activeProjectId, setToast]);
+
+  const handleWorkspaceOpenTerminal = useCallback(async (relativePath?: string) => {
+    if (!activeProjectId) {
+      return;
+    }
+    try {
+      await workspaceOpenTerminal(activeProjectId, relativePath);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    }
+  }, [activeProjectId, setToast]);
 
   const handleProjectSearch = useCallback(async () => {
     if (!activeProjectId || !projectSearchQuery.trim()) {
@@ -602,6 +638,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleProjectSearchSelect,
     handleBusyTexCachePolicyChange,
     handleProtocolPing,
+    handleWorkspaceRevealInSystem,
+    handleWorkspaceOpenTerminal,
     runFsAction,
     requestFsAction,
     confirmDelete,

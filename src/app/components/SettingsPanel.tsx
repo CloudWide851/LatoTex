@@ -320,6 +320,7 @@ export function SettingsPanel(props: {
                     )
                   }
                 >
+                  <option value="">{t("settings.noModelAssigned")}</option>
                   {localSettings.modelProtocols.map((protocol) => (
                     <optgroup key={protocol.id} label={protocol.displayName}>
                       {activeModelCatalog

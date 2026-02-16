@@ -1,5 +1,5 @@
 import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { FsAction, ResourceNode } from "../../shared/types/app";
 
@@ -44,6 +44,8 @@ export function ExplorerTree(props: {
   onRescan?: () => void;
   onImportPdf?: () => void;
   onImportLink?: (link: string) => void;
+  onRevealInSystem?: (path?: string) => Promise<void> | void;
+  onOpenTerminal?: (path?: string) => Promise<void> | void;
   t: TranslationFn;
 }) {
   const {
@@ -57,6 +59,8 @@ export function ExplorerTree(props: {
     onRescan,
     onImportPdf,
     onImportLink,
+    onRevealInSystem,
+    onOpenTerminal,
     t,
   } = props;
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -64,14 +68,29 @@ export function ExplorerTree(props: {
   const [editing, setEditing] = useState<EditingState>(null);
   const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const closeMenu = () => setMenu(null);
-    window.addEventListener("click", closeMenu);
-    window.addEventListener("blur", closeMenu);
+    const closeMenuOnOutside = (event: MouseEvent) => {
+      if (event.button === 2) {
+        return;
+      }
+      const target = event.target as Node | null;
+      if (menuRef.current && target && menuRef.current.contains(target)) {
+        return;
+      }
+      if (rootRef.current && target && rootRef.current.contains(target)) {
+        return;
+      }
+      setMenu(null);
+    };
+    const closeMenuOnBlur = () => setMenu(null);
+    window.addEventListener("mousedown", closeMenuOnOutside);
+    window.addEventListener("blur", closeMenuOnBlur);
     return () => {
-      window.removeEventListener("click", closeMenu);
-      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("mousedown", closeMenuOnOutside);
+      window.removeEventListener("blur", closeMenuOnBlur);
     };
   }, []);
 
@@ -165,6 +184,14 @@ export function ExplorerTree(props: {
           key: "explorer.action.newFolder",
           onClick: () => triggerCreate("", "create_folder"),
         },
+        {
+          key: "explorer.action.revealInSystem",
+          onClick: () => onRevealInSystem?.(""),
+        },
+        {
+          key: "explorer.action.openTerminal",
+          onClick: () => onOpenTerminal?.(""),
+        },
       );
       if (allowRescan && onRescan) {
         items.push({
@@ -201,6 +228,14 @@ export function ExplorerTree(props: {
           key: "explorer.action.delete",
           onClick: () => onAction?.("delete", menu.path),
         },
+        {
+          key: "explorer.action.revealInSystem",
+          onClick: () => onRevealInSystem?.(menu.path),
+        },
+        {
+          key: "explorer.action.openTerminal",
+          onClick: () => onOpenTerminal?.(menu.path),
+        },
       );
     } else {
       items.push(
@@ -226,11 +261,20 @@ export function ExplorerTree(props: {
           key: "explorer.action.delete",
           onClick: () => onAction?.("delete", menu.path),
         },
+        {
+          key: "explorer.action.revealInSystem",
+          onClick: () => onRevealInSystem?.(menu.path),
+        },
+        {
+          key: "explorer.action.openTerminal",
+          onClick: () => onOpenTerminal?.(menu.path),
+        },
       );
     }
 
     return (
       <div
+        ref={menuRef}
         className="fixed z-50 min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
         style={{ left: menu.x, top: menu.y }}
       >
@@ -388,11 +432,9 @@ export function ExplorerTree(props: {
 
   return (
     <div
+      ref={rootRef}
       className="relative flex h-full min-h-0 flex-col"
       onContextMenu={(event) => {
-        if (event.target !== event.currentTarget) {
-          return;
-        }
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY, path: "", kind: "blank" });
       }}

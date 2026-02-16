@@ -49,6 +49,13 @@ pub struct ProjectRefInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProjectPathActionInput {
+    pub project_id: String,
+    pub relative_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileReadInput {
     pub project_id: String,
     pub relative_path: String,
