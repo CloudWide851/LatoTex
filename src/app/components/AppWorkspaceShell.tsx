@@ -1,5 +1,5 @@
 import MonacoEditor from "@monaco-editor/react";
-import { AlertTriangle, FolderOpen, ListChecks, Play, Redo2, Save, Undo2 } from "lucide-react";
+import { AlertTriangle, Download, FolderOpen, ListChecks, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   FsAction,
@@ -10,7 +10,9 @@ import type {
 import type { LogTab } from "../app-config";
 import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./AgentChatOverlay";
 import { ExplorerTree } from "./ExplorerTree";
+import { FilePreviewPane } from "./FilePreviewPane";
 import { PageRail } from "./PageRail";
+import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
 
 type TranslationFn = (key: any) => string;
 
@@ -34,7 +36,8 @@ export function AppWorkspaceShell(props: {
   selectedFile: string | null;
   selectedLibraryPath: string | null;
   editorContent: string;
-  pdfUrl: string | null;
+  compiledPdfUrl: string | null;
+  selectedFilePdfUrl: string | null;
   compileErrorLine: string | null;
   compileDiagnostics: string[];
   agentCollapsed: boolean;
@@ -56,6 +59,7 @@ export function AppWorkspaceShell(props: {
   onOpenFolder: () => void;
   onSaveFile: () => void;
   onCompile: () => void;
+  onExportPdf: () => void;
   onEditorUndo: () => void;
   onEditorRedo: () => void;
   onOpenLogs: (tab: LogTab) => void;
@@ -88,7 +92,8 @@ export function AppWorkspaceShell(props: {
     selectedFile,
     selectedLibraryPath,
     editorContent,
-    pdfUrl,
+    compiledPdfUrl,
+    selectedFilePdfUrl,
     compileErrorLine,
     compileDiagnostics,
     agentCollapsed,
@@ -110,6 +115,7 @@ export function AppWorkspaceShell(props: {
     onOpenFolder,
     onSaveFile,
     onCompile,
+    onExportPdf,
     onEditorUndo,
     onEditorRedo,
     onOpenLogs,
@@ -122,6 +128,20 @@ export function AppWorkspaceShell(props: {
     onFsAction,
     t,
   } = props;
+
+  const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
+  const selectedIsPdf = isPdfPath(selectedFile);
+  const selectedIsMarkdown = isMarkdownPath(selectedFile);
+  const previewMode: "pdf" | "markdown" | "empty" = selectedIsPdf
+    ? selectedFilePdfUrl
+      ? "pdf"
+      : "empty"
+    : selectedIsMarkdown
+      ? "markdown"
+      : compiledPdfUrl
+        ? "pdf"
+        : "empty";
+  const previewPdfUrl = selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl;
 
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
@@ -170,6 +190,15 @@ export function AppWorkspaceShell(props: {
         <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
         <div className="flex items-center gap-1">
           <button
+            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            title={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
+            aria-label={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
+            onClick={onExportPdf}
+            disabled={!compiledPdfUrl}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
+          <button
             className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
             title={t("preview.diagnostics")}
             onClick={() => onOpenLogs("status")}
@@ -195,17 +224,13 @@ export function AppWorkspaceShell(props: {
         </button>
       )}
       <div className="h-[calc(100%-52px)]">
-        {pdfUrl ? (
-          <iframe
-            title={t("preview.title")}
-            src={pdfUrl}
-            className="h-full w-full rounded-lg border border-slate-200"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-            {t("preview.empty")}
-          </div>
-        )}
+        <FilePreviewPane
+          mode={previewMode}
+          pdfUrl={previewPdfUrl ?? null}
+          markdownContent={selectedIsMarkdown ? editorContent : ""}
+          title={t("preview.title")}
+          emptyText={selectedIsMarkdown ? t("preview.markdownEmpty") : t("preview.empty")}
+        />
       </div>
     </aside>
   );
@@ -242,8 +267,8 @@ export function AppWorkspaceShell(props: {
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onEditorUndo}
               disabled={busy}
-              title={t("workspace.undo")}
-              aria-label={t("workspace.undo")}
+              title={composeTitleWithShortcut(t("workspace.undo"), t("shortcut.undo"))}
+              aria-label={composeTitleWithShortcut(t("workspace.undo"), t("shortcut.undo"))}
             >
               <Undo2 className="h-4 w-4" />
             </button>
@@ -251,8 +276,8 @@ export function AppWorkspaceShell(props: {
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onEditorRedo}
               disabled={busy}
-              title={t("workspace.redo")}
-              aria-label={t("workspace.redo")}
+              title={composeTitleWithShortcut(t("workspace.redo"), t("shortcut.redo"))}
+              aria-label={composeTitleWithShortcut(t("workspace.redo"), t("shortcut.redo"))}
             >
               <Redo2 className="h-4 w-4" />
             </button>
@@ -260,8 +285,8 @@ export function AppWorkspaceShell(props: {
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onSaveFile}
               disabled={busy}
-              title={t("workspace.save")}
-              aria-label={t("workspace.save")}
+              title={composeTitleWithShortcut(t("workspace.save"), t("shortcut.save"))}
+              aria-label={composeTitleWithShortcut(t("workspace.save"), t("shortcut.save"))}
             >
               <Save className="h-4 w-4" />
             </button>
@@ -269,8 +294,8 @@ export function AppWorkspaceShell(props: {
               className="rounded border border-primary-600 bg-primary-600 p-1.5 text-white transition hover:bg-primary-700 disabled:opacity-50"
               onClick={onCompile}
               disabled={busy}
-              title={t("workspace.compile")}
-              aria-label={t("workspace.compile")}
+              title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
+              aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
             >
               <Play className="h-4 w-4" />
             </button>

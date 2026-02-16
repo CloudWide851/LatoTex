@@ -112,7 +112,9 @@ export function ExplorerTree(props: {
   }, [expanded, tree]);
 
   const triggerRename = (path: string, name: string) => {
-    setEditing({ mode: "rename", path, value: name });
+    requestAnimationFrame(() => {
+      setEditing({ mode: "rename", path, value: name });
+    });
   };
 
   const triggerCreate = (parentPath: string, mode: "create_file" | "create_folder") => {
@@ -370,8 +372,9 @@ export function ExplorerTree(props: {
             onSelect(node.relativePath);
           }}
           onDoubleClick={(event) => {
+            event.preventDefault();
             event.stopPropagation();
-            if (mode === "workspace") {
+            if (mode === "workspace" && node.kind === "file") {
               triggerRename(node.relativePath, node.name);
             }
           }}

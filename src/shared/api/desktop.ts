@@ -6,6 +6,7 @@ import type {
   BusyTexCacheInfo,
   CompileRecord,
   EventBatch,
+  FileReadBinaryResponse,
   FileReadResponse,
   FsOperationInput,
   FsOperationResult,
@@ -24,7 +25,8 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   RuntimeLogInfo,
-  ResourceNode
+  ResourceNode,
+  WorkspaceExportPdfResponse,
 } from "../types/app";
 import type { HealthCheckResponse } from "../types/health";
 
@@ -78,8 +80,31 @@ export function readFile(projectId: string, relativePath: string): Promise<FileR
   return invoke<FileReadResponse>("file_read", { input: { projectId, relativePath } });
 }
 
+export function readFileBinary(
+  projectId: string,
+  relativePath: string,
+): Promise<FileReadBinaryResponse> {
+  return invoke<FileReadBinaryResponse>("file_read_binary", {
+    input: { projectId, relativePath },
+  });
+}
+
 export function writeFile(projectId: string, relativePath: string, content: string) {
   return invoke("file_write", { input: { projectId, relativePath, content } });
+}
+
+export function workspaceExportPdf(
+  projectId: string,
+  defaultFileName: string,
+  bytes: Uint8Array | number[],
+): Promise<WorkspaceExportPdfResponse | null> {
+  return invoke<WorkspaceExportPdfResponse | null>("workspace_export_pdf", {
+    input: {
+      projectId,
+      defaultFileName,
+      bytes: Array.from(bytes),
+    },
+  });
 }
 
 export function fsOperation(input: FsOperationInput): Promise<FsOperationResult> {

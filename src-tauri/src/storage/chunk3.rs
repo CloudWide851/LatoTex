@@ -103,6 +103,20 @@ pub fn read_project_file(
     })
 }
 
+pub fn read_project_file_binary(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<FileReadBinaryResponse, String> {
+    let root = load_project_root(db_path, project_id)?;
+    let target = safe_join(&root, relative_path)?;
+    let bytes = fs::read(target).map_err(|e| e.to_string())?;
+    Ok(FileReadBinaryResponse {
+        relative_path: relative_path.to_string(),
+        bytes,
+    })
+}
+
 pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, String> {
     let root = load_project_root(db_path, &input.project_id)?;
     let target = safe_join(&root, &input.relative_path)?;

@@ -22,6 +22,7 @@ export type UseAppHandlersParams = {
   fileList: string[];
   editorContent: string;
   pdfUrl: string | null;
+  compiledPdfBytes: Uint8Array | null;
   agentPrompt: string;
   windowActionBusy: boolean;
   settings: AppSettings | null;
@@ -42,6 +43,7 @@ export type UseAppHandlersParams = {
   setCompileDiagnostics: (value: string[]) => void;
   setLastCompileFailed: (value: boolean) => void;
   setPdfUrl: (value: string | null) => void;
+  setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;

@@ -56,6 +56,21 @@ pub struct ProjectPathActionInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportPdfInput {
+    pub project_id: String,
+    pub default_file_name: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportPdfResponse {
+    pub saved_path: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileReadInput {
     pub project_id: String,
     pub relative_path: String,
@@ -66,6 +81,13 @@ pub struct FileReadInput {
 pub struct FileReadResponse {
     pub relative_path: String,
     pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileReadBinaryResponse {
+    pub relative_path: String,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -9,9 +9,11 @@ import {
   gitDownloadStatus,
   listProjects,
   readFile,
+  readFileBinary,
   runtimeLogInfo,
   runtimeLogWrite,
 } from "../../shared/api/desktop";
+import { isPdfPath } from "../../shared/utils/fileKind";
 import type {
   AppSettings,
   SwarmEvent,
@@ -57,6 +59,7 @@ export function useAppEffects(params: {
   setSelectedFile: (value: string | null) => void;
   setSelectedLibraryPath: (value: string | null) => void;
   setEditorContent: (value: string) => void;
+  setSelectedFilePdfUrl: (value: string | null) => void;
   setToast: ToastSetter;
   setProjectSearchQuery: (value: string) => void;
   setProjectSearchResults: (value: any) => void;
@@ -102,6 +105,7 @@ export function useAppEffects(params: {
     setSelectedFile,
     setSelectedLibraryPath,
     setEditorContent,
+    setSelectedFilePdfUrl,
     setToast,
     setProjectSearchQuery,
     setProjectSearchResults,
@@ -223,21 +227,57 @@ export function useAppEffects(params: {
       setSelectedFile(null);
       setSelectedLibraryPath(null);
       setEditorContent("");
+      setSelectedFilePdfUrl(null);
       return;
     }
     loadProjectData(activeProjectId).catch((error) => {
       setToast({ type: "error", message: String(error) });
     });
-  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setSelectedFile, setSelectedLibraryPath, setToast, setTree]);
+  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setSelectedFile, setSelectedFilePdfUrl, setSelectedLibraryPath, setToast, setTree]);
 
   useEffect(() => {
     if (!activeProjectId || !selectedFile) {
+      setSelectedFilePdfUrl(null);
       return;
     }
+    let cancelled = false;
+    if (isPdfPath(selectedFile)) {
+      readFileBinary(activeProjectId, selectedFile)
+        .then((result) => {
+          if (cancelled) {
+            return;
+          }
+          const url = URL.createObjectURL(
+            new Blob([Uint8Array.from(result.bytes)], { type: "application/pdf" }),
+          );
+          setSelectedFilePdfUrl(url);
+          setEditorContent("");
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setToast({ type: "error", message: String(error) });
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    setSelectedFilePdfUrl(null);
     readFile(activeProjectId, selectedFile)
-      .then((result) => setEditorContent(result.content))
-      .catch((error) => setToast({ type: "error", message: String(error) }));
-  }, [activeProjectId, selectedFile, setEditorContent, setToast]);
+      .then((result) => {
+        if (!cancelled) {
+          setEditorContent(result.content);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setToast({ type: "error", message: String(error) });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, selectedFile, setEditorContent, setSelectedFilePdfUrl, setToast]);
 
   useEffect(() => {
     if (!pendingRevealLine || !editorRef.current) {

@@ -25,6 +25,16 @@ export type FileReadResponse = {
   content: string;
 };
 
+export type FileReadBinaryResponse = {
+  relativePath: string;
+  bytes: number[];
+};
+
+export type WorkspaceExportPdfResponse = {
+  savedPath: string;
+  fileName: string;
+};
+
 export type SwarmEvent = {
   seq: number;
   id: string;

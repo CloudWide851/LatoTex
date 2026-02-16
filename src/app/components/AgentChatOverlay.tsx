@@ -67,11 +67,11 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-3 py-4">
+    <div className="pointer-events-none absolute inset-0 z-20 flex items-end justify-center px-3 pb-3 pt-6">
       <div
-        className="pointer-events-auto grid w-[min(72%,880px)] max-w-[calc(100%-8px)] min-w-[320px] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(78%,920px)] max-w-[calc(100%-8px)] min-w-[320px] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(220px, 46%, 430px)" : "clamp(160px, 32%, 280px)",
+          height: activityExpanded ? "clamp(240px, 54%, 460px)" : "clamp(150px, 34%, 280px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
@@ -107,7 +107,7 @@ export function AgentChatOverlay(props: {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {activityExpanded && (
             <div className="min-h-0 flex-1 space-y-1 overflow-auto border-b border-slate-200 px-3 py-2">
               {recentMessages.map((message) => (
@@ -126,14 +126,14 @@ export function AgentChatOverlay(props: {
             </div>
           )}
 
-          <div className="p-3">
+          <div className="mt-auto p-3">
             <div className="relative">
               <textarea
                 className={cn(
                   "w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
                   activityExpanded
-                    ? "h-[clamp(88px,18vh,150px)]"
-                    : "h-[clamp(96px,22vh,200px)]",
+                    ? "h-[clamp(84px,16vh,132px)]"
+                    : "h-[clamp(78px,15vh,112px)]",
                 )}
                 value={prompt}
                 placeholder={placeholder}

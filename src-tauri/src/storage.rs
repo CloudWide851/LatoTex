@@ -1,6 +1,6 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
-    FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult, ModelCatalogItem,
+    FileReadBinaryResponse, FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult, ModelCatalogItem,
     ModelCatalogItemInput, ModelProtocol, ModelProtocolInput, ProjectSearchHit, ProjectSearchInput,
     ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };

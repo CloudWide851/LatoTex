@@ -13,11 +13,13 @@ import {
   runAgent,
   runtimeLogWrite,
   testProtocol,
+  workspaceExportPdf,
   workspaceOpenTerminal,
   workspaceRevealInSystem,
   writeFile,
   busytexCachePrepare,
 } from "../../shared/api/desktop";
+import { isPdfPath } from "../../shared/utils/fileKind";
 import type {
   AppSettings,
   FsAction,
@@ -83,6 +85,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     fileList,
     editorContent,
     pdfUrl,
+    compiledPdfBytes,
     agentPrompt,
     windowActionBusy,
     settings,
@@ -103,6 +106,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setCompileDiagnostics,
     setLastCompileFailed,
     setPdfUrl,
+    setCompiledPdfBytes,
     setAgentMessages,
     setAgentPrompt,
     setAgentCollapsed,
@@ -275,6 +279,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
           new Blob([normalizedBytes], { type: "application/pdf" }),
         );
         setPdfUrl(url);
+        setCompiledPdfBytes(normalizedBytes);
       }
       setCompileDiagnostics(result.diagnostics);
       setToast({
@@ -288,6 +293,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setLastCompileFailed(true);
       setToast({ type: "error", message: String(error) });
       setCompileDiagnostics([String(error)]);
+      setCompiledPdfBytes(null);
     } finally {
       setBusy(false);
     }
@@ -296,12 +302,48 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     editorContent,
     fileList,
     pdfUrl,
+    setCompiledPdfBytes,
     selectedFile,
     setBusy,
     setCompileDiagnostics,
     setLastCompileFailed,
     setPdfUrl,
     setToast,
+    t,
+  ]);
+
+  const handleExportCompiledPdf = useCallback(async () => {
+    if (!activeProjectId || !compiledPdfBytes || compiledPdfBytes.length === 0) {
+      setToast({ type: "error", message: t("toast.pdfNotReady") });
+      return;
+    }
+    const fallbackName = isPdfPath(selectedFile)
+      ? selectedFile!.split("/").pop() ?? "compiled.pdf"
+      : `${(selectedFile ?? "compiled").replace(/\.[^/.]+$/, "")}.pdf`;
+    setBusy(true);
+    try {
+      const saved = await workspaceExportPdf(activeProjectId, fallbackName, compiledPdfBytes);
+      if (!saved) {
+        return;
+      }
+      await runtimeLogWrite("INFO", `compiled pdf exported: ${saved.savedPath}`);
+      const snapshot = await openProject(activeProjectId);
+      setTree(snapshot.tree);
+      setSelectedFile(saved.savedPath);
+      setToast({ type: "info", message: t("toast.pdfSaved") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    activeProjectId,
+    compiledPdfBytes,
+    selectedFile,
+    setBusy,
+    setSelectedFile,
+    setToast,
+    setTree,
     t,
   ]);
 
@@ -628,6 +670,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleInitProjectFromFolder,
     handleSaveFile,
     handleCompile,
+    handleExportCompiledPdf,
     handleEditorUndo,
     handleEditorRedo,
     handleRunAgent,

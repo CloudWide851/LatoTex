@@ -60,6 +60,7 @@ import {
 } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
 import { useAppHandlers } from "./hooks/useAppHandlers";
+import { useWorkspaceShortcuts } from "./hooks/useWorkspaceShortcuts";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const [status, setStatus] = useState<"ready" | "offline">("ready"); const [toast, setToast] = useState<Toast>(null);
@@ -82,6 +83,8 @@ export function AppContainer() {
   const [compileDiagnostics, setCompileDiagnostics] = useState<string[]>([]);
   const [lastCompileFailed, setLastCompileFailed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [compiledPdfBytes, setCompiledPdfBytes] = useState<Uint8Array | null>(null);
+  const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [draftApiKeys, setDraftApiKeys] = useState<Record<string, string>>({});
@@ -245,11 +248,30 @@ export function AppContainer() {
     };
   }, [pdfUrl]);
 
+  useEffect(() => {
+    return () => {
+      if (selectedFilePdfUrl) {
+        URL.revokeObjectURL(selectedFilePdfUrl);
+      }
+    };
+  }, [selectedFilePdfUrl]);
+
+  useEffect(() => {
+    setPdfUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+    setCompiledPdfBytes(null);
+  }, [activeProjectId]);
+
   const {
     handleWindowControl,
     handleInitProjectFromFolder,
     handleSaveFile,
     handleCompile,
+    handleExportCompiledPdf,
     handleEditorUndo,
     handleEditorRedo,
     handleRunAgent,
@@ -280,6 +302,7 @@ export function AppContainer() {
     fileList,
     editorContent,
     pdfUrl,
+    compiledPdfBytes,
     agentPrompt,
     windowActionBusy,
     settings,
@@ -300,6 +323,7 @@ export function AppContainer() {
     setCompileDiagnostics,
     setLastCompileFailed,
     setPdfUrl,
+    setCompiledPdfBytes,
     setAgentMessages,
     setAgentPrompt,
     setAgentCollapsed,
@@ -361,6 +385,7 @@ export function AppContainer() {
     setSelectedFile,
     setSelectedLibraryPath,
     setEditorContent,
+    setSelectedFilePdfUrl,
     setToast,
     setProjectSearchQuery,
     setProjectSearchResults,
@@ -375,6 +400,14 @@ export function AppContainer() {
     setGitDownloadState,
     setGitDownloadTaskId,
     setSuppressAutoGitInstall,
+  });
+
+  useWorkspaceShortcuts({
+    handleEditorUndo,
+    handleEditorRedo,
+    handleSaveFile,
+    handleCompile,
+    handleExportCompiledPdf,
   });
 
   const sessionLogName = useMemo(() => {
@@ -521,7 +554,8 @@ export function AppContainer() {
           selectedFile={selectedFile}
           selectedLibraryPath={selectedLibraryPath}
           editorContent={editorContent}
-          pdfUrl={pdfUrl}
+          compiledPdfUrl={pdfUrl}
+          selectedFilePdfUrl={selectedFilePdfUrl}
           compileErrorLine={compileErrorLine}
           compileDiagnostics={compileDiagnostics}
           agentCollapsed={agentCollapsed}
@@ -545,6 +579,7 @@ export function AppContainer() {
           onOpenFolder={handleInitProjectFromFolder}
           onSaveFile={handleSaveFile}
           onCompile={handleCompile}
+          onExportPdf={handleExportCompiledPdf}
           onEditorUndo={handleEditorUndo}
           onEditorRedo={handleEditorRedo}
           onOpenLogs={(tab) => {

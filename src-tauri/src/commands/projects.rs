@@ -1,12 +1,14 @@
 use crate::models::{
-    Ack, CreateProjectInput, FileReadInput, FileReadResponse, FileWriteInput, FsOperationInput,
-    FsOperationResult, LibraryLinkImportInput, LibraryRefInput, ProjectPathActionInput,
-    ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
-    ResourceNode,
+    Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteInput,
+    FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
+    ProjectPathActionInput, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot,
+    ProjectSummary, ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
 use rfd::FileDialog;
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 use tauri::State;
 
@@ -74,12 +76,96 @@ pub fn file_read(
 }
 
 #[tauri::command]
+pub fn file_read_binary(
+    state: State<'_, AppState>,
+    input: FileReadInput,
+) -> Result<FileReadBinaryResponse, String> {
+    state.log(
+        "INFO",
+        &format!("file_read_binary: {} ({})", input.relative_path, input.project_id),
+    );
+    storage::read_project_file_binary(&state.db_path, &input.project_id, &input.relative_path)
+}
+
+#[tauri::command]
 pub fn file_write(state: State<'_, AppState>, input: FileWriteInput) -> Result<Ack, String> {
     state.log(
         "INFO",
         &format!("file_write: {} ({})", input.relative_path, input.project_id),
     );
     storage::write_project_file(&state.db_path, input)
+}
+
+fn ensure_within_project_root(root: &PathBuf, candidate: &PathBuf) -> Result<(), String> {
+    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
+    let parent = candidate
+        .parent()
+        .ok_or_else(|| "Cannot resolve save directory".to_string())?;
+    let canonical_parent = parent.canonicalize().map_err(|e| e.to_string())?;
+    if !canonical_parent.starts_with(&canonical_root) {
+        return Err("Export path must stay inside project workspace".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn workspace_export_pdf(
+    state: State<'_, AppState>,
+    input: WorkspaceExportPdfInput,
+) -> Result<Option<WorkspaceExportPdfResponse>, String> {
+    if input.bytes.is_empty() {
+        return Err("PDF bytes are empty".to_string());
+    }
+    let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let default_name_raw = input.default_file_name.trim();
+    let default_name = if default_name_raw.is_empty() {
+        "document.pdf".to_string()
+    } else if default_name_raw.to_lowercase().ends_with(".pdf") {
+        default_name_raw.to_string()
+    } else {
+        format!("{default_name_raw}.pdf")
+    };
+
+    let selected = FileDialog::new()
+        .add_filter("PDF", &["pdf"])
+        .set_directory(&project_root)
+        .set_file_name(&default_name)
+        .save_file();
+
+    let Some(mut save_path) = selected else {
+        return Ok(None);
+    };
+
+    if save_path.extension().is_none() {
+        save_path.set_extension("pdf");
+    }
+    ensure_within_project_root(&project_root, &save_path)?;
+    fs::write(&save_path, &input.bytes).map_err(|e| e.to_string())?;
+
+    let canonical_root = project_root.canonicalize().map_err(|e| e.to_string())?;
+    let saved_relative = save_path
+        .strip_prefix(&canonical_root)
+        .map_err(|_| "Saved file is outside project root".to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+    let file_name = save_path
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "document.pdf".to_string());
+
+    state.log(
+        "INFO",
+        &format!(
+            "workspace_export_pdf: project={}, path={}",
+            input.project_id,
+            save_path.to_string_lossy()
+        ),
+    );
+
+    Ok(Some(WorkspaceExportPdfResponse {
+        saved_path: saved_relative,
+        file_name,
+    }))
 }
 
 #[tauri::command]
