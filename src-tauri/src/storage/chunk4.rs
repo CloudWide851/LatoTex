@@ -360,3 +360,33 @@ pub fn resolve_agent_model(
     Ok((protocol_id, base_url, model_name))
 }
 
+pub fn resolve_model_test_connection(
+    db_path: &Path,
+    model_id: &str,
+) -> Result<(String, String, String, Option<String>), String> {
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let trimmed_model_id = model_id.trim();
+    if trimmed_model_id.is_empty() {
+        return Err("Model id is required".to_string());
+    }
+
+    let (protocol_id, model_name): (String, String) = conn
+        .query_row(
+            "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
+            params![trimmed_model_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| format!("Model not found: {trimmed_model_id}"))?;
+
+    let base_url = conn
+        .query_row(
+            "SELECT base_url FROM model_protocols WHERE id = ?1",
+            params![&protocol_id],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|_| format!("Protocol not found for model: {trimmed_model_id}"))?;
+
+    let api_key = secure::get_api_key(&protocol_id)?;
+    Ok((protocol_id, base_url, model_name, api_key))
+}
+

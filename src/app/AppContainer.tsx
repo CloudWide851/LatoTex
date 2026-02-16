@@ -26,6 +26,7 @@ import {
   projectIntegrityRepair,
   projectIntegrityStatus,
   runtimeLogRead,
+  testModel,
   updateSettings,
 } from "../shared/api/desktop";
 import type {
@@ -106,6 +107,7 @@ export function AppContainer() {
   const [busy, setBusy] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
   const [runtimeLogs, setRuntimeLogs] = useState<RuntimeLogEntry[]>([]);
+  const [runtimeLogLoading, setRuntimeLogLoading] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [windowActionBusy, setWindowActionBusy] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
@@ -124,6 +126,9 @@ export function AppContainer() {
   const [gitInstallerLaunched, setGitInstallerLaunched] = useState(false);
   const [suppressAutoGitInstall, setSuppressAutoGitInstall] = useState(false);
   const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
+  const [modelTestBusy, setModelTestBusy] = useState(false);
+  const [modelTestActiveId, setModelTestActiveId] = useState<string | null>(null);
+  const [modelTestById, setModelTestById] = useState<Record<string, { modelId: string; ok: boolean; message: string }>>({});
   const resizeFrameRef = useRef<number | null>(null);
   const editorRef = useRef<any>(null);
   const activeProjectIdRef = useRef<string | null>(null);
@@ -574,6 +579,58 @@ export function AppContainer() {
 
   const activeModelCatalog = settings?.modelCatalog ?? [];
 
+  const handleTestModel = useCallback(async (modelId: string) => {
+    setModelTestBusy(true);
+    setModelTestActiveId(modelId);
+    try {
+      const result = await testModel(modelId);
+      setModelTestById((prev) => ({ ...prev, [modelId]: result }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setModelTestById((prev) => ({
+        ...prev,
+        [modelId]: {
+          modelId,
+          ok: false,
+          message,
+        },
+      }));
+    } finally {
+      setModelTestActiveId(null);
+      setModelTestBusy(false);
+    }
+  }, []);
+
+  const handleTestAllModels = useCallback(async () => {
+    const catalog = settings?.modelCatalog ?? [];
+    if (catalog.length === 0) {
+      return;
+    }
+    setModelTestBusy(true);
+    try {
+      for (const model of catalog) {
+        setModelTestActiveId(model.id);
+        try {
+          const result = await testModel(model.id);
+          setModelTestById((prev) => ({ ...prev, [model.id]: result }));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          setModelTestById((prev) => ({
+            ...prev,
+            [model.id]: {
+              modelId: model.id,
+              ok: false,
+              message,
+            },
+          }));
+        }
+      }
+    } finally {
+      setModelTestActiveId(null);
+      setModelTestBusy(false);
+    }
+  }, [settings?.modelCatalog]);
+
   const settingsPanel = (
     <SettingsPanel
       settings={settings}
@@ -583,23 +640,29 @@ export function AppContainer() {
       settingsSection={settingsSection}
       busytexCacheInfo={busytexCacheInfo}
       runtimeInfo={runtimeInfo}
+      runtimeLogs={runtimeLogs}
+      runtimeLogLoading={runtimeLogLoading}
       sessionLogName={sessionLogName}
       activeModelCatalog={activeModelCatalog}
+      modelTestBusy={modelTestBusy}
+      modelTestActiveId={modelTestActiveId}
+      modelTestById={modelTestById}
       onSettingsSectionChange={setSettingsSection}
       onLocaleChange={handleLocaleChange}
       onThemeModeChange={handleThemeModeChange}
       onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
       onOpenModelModal={() => setModelModalOpen(true)}
       onOpenLogViewer={() => {
-        setBusy(true);
+        setRuntimeLogLoading(true);
         runtimeLogRead(1200)
           .then((response) => {
             setRuntimeLogs(response.entries);
-            setOverlay("runtimeLogs");
           })
           .catch((error) => setToast({ type: "error", message: String(error) }))
-          .finally(() => setBusy(false));
+          .finally(() => setRuntimeLogLoading(false));
       }}
+      onTestModel={(modelId) => void handleTestModel(modelId)}
+      onTestAllModels={() => void handleTestAllModels()}
       setSettings={setSettings}
       t={t}
     />
@@ -756,7 +819,6 @@ export function AppContainer() {
         logsTab={logsTab}
         events={events}
         compileDiagnostics={compileDiagnostics}
-        runtimeLogs={runtimeLogs}
         modelModalOpen={modelModalOpen}
         settings={settings}
         deleteIntent={deleteIntent}

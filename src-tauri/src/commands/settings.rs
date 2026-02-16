@@ -1,12 +1,14 @@
 use crate::models::{
-    Ack, AppSettings, ProtocolHealth, ProtocolTestInput, RuntimeLogEntry, RuntimeLogInfo,
-    RuntimeLogReadInput, RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
+    Ack, AppSettings, ModelTestInput, ModelTestResult, ProtocolHealth, ProtocolTestInput,
+    RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput, RuntimeLogReadResponse,
+    RuntimeLogWriteInput, SettingsUpdateInput,
 };
 use crate::secure;
 use crate::state::AppState;
 use crate::storage;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
+use serde_json::json;
 use std::fs;
 use std::time::Duration;
 use tauri::State;
@@ -71,6 +73,40 @@ pub fn protocol_test(
 
     Ok(ProtocolHealth {
         protocol_id: input.protocol_id,
+        ok,
+        message,
+    })
+}
+
+#[tauri::command]
+pub fn model_test(
+    state: State<'_, AppState>,
+    input: ModelTestInput,
+) -> Result<ModelTestResult, String> {
+    state.log("INFO", &format!("model_test: {}", input.model_id));
+    let (protocol_id, base_url, request_name, api_key) =
+        storage::resolve_model_test_connection(&state.db_path, &input.model_id)?;
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(18))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let result = call_model_generation_test(
+        &client,
+        &protocol_id,
+        &base_url,
+        &request_name,
+        api_key.as_deref(),
+    );
+
+    let (ok, message) = match result {
+        Ok(status) => (true, format!("Model test passed ({status})")),
+        Err(error) => (false, error),
+    };
+
+    Ok(ModelTestResult {
+        model_id: input.model_id,
         ok,
         message,
     })
@@ -160,6 +196,113 @@ fn probe_gemini(client: &Client, base_url: &str, api_key: Option<&str>) -> Resul
         Ok(status)
     } else {
         Err(format!("HTTP {status}"))
+    }
+}
+
+fn call_model_generation_test(
+    client: &Client,
+    protocol_id: &str,
+    base_url: &str,
+    model_name: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
+    match protocol_id {
+        "anthropic" => test_anthropic_model(client, base_url, model_name, api_key),
+        "gemini" => test_gemini_model(client, base_url, model_name, api_key),
+        _ => test_openai_model(client, base_url, model_name, api_key),
+    }
+}
+
+fn test_openai_model(
+    client: &Client,
+    base_url: &str,
+    model_name: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
+    let key = api_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "API key is required".to_string())?;
+    let endpoint = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+    let response = client
+        .post(endpoint)
+        .bearer_auth(key)
+        .json(&json!({
+            "model": model_name,
+            "messages": [{ "role": "user", "content": "ping" }],
+            "max_tokens": 8
+        }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    if is_success_status(status) {
+        Ok(status)
+    } else {
+        let body = response.text().unwrap_or_default();
+        Err(format!("HTTP {status}: {body}"))
+    }
+}
+
+fn test_anthropic_model(
+    client: &Client,
+    base_url: &str,
+    model_name: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
+    let key = api_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "API key is required".to_string())?;
+    let endpoint = format!("{}/v1/messages", base_url.trim_end_matches('/'));
+    let response = client
+        .post(endpoint)
+        .header("x-api-key", key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model_name,
+            "max_tokens": 8,
+            "messages": [{ "role": "user", "content": "ping" }]
+        }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    if is_success_status(status) {
+        Ok(status)
+    } else {
+        let body = response.text().unwrap_or_default();
+        Err(format!("HTTP {status}: {body}"))
+    }
+}
+
+fn test_gemini_model(
+    client: &Client,
+    base_url: &str,
+    model_name: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
+    let key = api_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "API key is required".to_string())?;
+    let endpoint = format!(
+        "{}/v1beta/models/{}:generateContent?key={}",
+        base_url.trim_end_matches('/'),
+        model_name,
+        key,
+    );
+    let response = client
+        .post(endpoint)
+        .json(&json!({
+            "contents": [{ "role": "user", "parts": [{ "text": "ping" }] }]
+        }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    if is_success_status(status) {
+        Ok(status)
+    } else {
+        let body = response.text().unwrap_or_default();
+        Err(format!("HTTP {status}: {body}"))
     }
 }
 

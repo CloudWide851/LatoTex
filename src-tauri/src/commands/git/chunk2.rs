@@ -306,8 +306,8 @@ pub fn git_diff_file(
     if staged {
         args.push("--cached");
     }
-    args.push("--unified");
-    args.push(&context_lines);
+    let unified_arg = format!("--unified={context_lines}");
+    args.push(unified_arg.as_str());
     args.push("--");
     args.push(input.path.as_str());
 

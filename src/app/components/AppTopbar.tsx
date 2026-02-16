@@ -57,7 +57,7 @@ export function AppTopbar(props: {
   } = props;
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-3 text-zinc-100">
+    <header className="app-topbar flex h-12 items-center justify-between border-b px-3">
       <div className="flex min-w-0 items-center gap-2">
         <div
           className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1"
@@ -94,7 +94,7 @@ export function AppTopbar(props: {
           t={t}
         />
         <button
-          className="rounded border border-zinc-700 bg-zinc-800 p-1.5 text-zinc-100 hover:bg-zinc-700"
+          className="app-topbar-field rounded p-1.5"
           onClick={onOpenFolder}
           disabled={busy}
           title={t("topbar.openFolder")}
@@ -107,7 +107,7 @@ export function AppTopbar(props: {
       <div className="flex items-center">
         <button
           aria-label={t("window.minimize")}
-          className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40"
+          className="app-topbar-btn flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("minimize")}
           disabled={!isTauriRuntime || windowActionBusy}
         >
@@ -115,7 +115,7 @@ export function AppTopbar(props: {
         </button>
         <button
           aria-label={t("window.maximize")}
-          className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:opacity-40"
+          className="app-topbar-btn flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("toggle")}
           disabled={!isTauriRuntime || windowActionBusy}
         >
@@ -127,7 +127,7 @@ export function AppTopbar(props: {
         </button>
         <button
           aria-label={t("window.close")}
-          className="flex h-8 w-10 items-center justify-center rounded text-zinc-300 transition hover:bg-rose-600 hover:text-white disabled:opacity-40"
+          className="app-topbar-btn-close flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("close")}
           disabled={!isTauriRuntime || windowActionBusy}
         >

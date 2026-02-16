@@ -7,6 +7,8 @@ import type {
   AppSettings,
   BusyTexCacheInfo,
   ModelCatalogItem,
+  ModelTestResult,
+  RuntimeLogEntry,
   RuntimeLogInfo,
 } from "../../shared/types/app";
 import {
@@ -43,14 +45,21 @@ export function SettingsPanel(props: {
   settingsSection: SettingsSection;
   busytexCacheInfo: BusyTexCacheInfo | null;
   runtimeInfo: RuntimeLogInfo | null;
+  runtimeLogs: RuntimeLogEntry[];
+  runtimeLogLoading: boolean;
   sessionLogName: string;
   activeModelCatalog: ModelCatalogItem[];
+  modelTestBusy: boolean;
+  modelTestActiveId: string | null;
+  modelTestById: Record<string, ModelTestResult>;
   onSettingsSectionChange: (value: SettingsSection) => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
   onOpenModelModal: () => void;
   onOpenLogViewer: () => void;
+  onTestModel: (modelId: string) => void;
+  onTestAllModels: () => void;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
   t: TranslationFn;
 }) {
@@ -62,14 +71,21 @@ export function SettingsPanel(props: {
     settingsSection,
     busytexCacheInfo,
     runtimeInfo,
+    runtimeLogs,
+    runtimeLogLoading,
     sessionLogName,
     activeModelCatalog,
+    modelTestBusy,
+    modelTestActiveId,
+    modelTestById,
     onSettingsSectionChange,
     onLocaleChange,
     onThemeModeChange,
     onBusyTexCachePolicyChange,
     onOpenModelModal,
     onOpenLogViewer,
+    onTestModel,
+    onTestAllModels,
     setSettings,
     t,
   } = props;
@@ -250,6 +266,16 @@ export function SettingsPanel(props: {
                 {t("settings.addModel")}
               </Button>
             </div>
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={onTestAllModels}
+                disabled={modelTestBusy || localSettings.modelCatalog.length === 0}
+              >
+                {modelTestBusy ? t("settings.testingAllModels") : t("settings.testAllModels")}
+              </Button>
+            </div>
             <div className="space-y-2">
               <div className="max-h-[42vh] space-y-2 overflow-auto pr-1">
                 {localSettings.modelCatalog.map((model) => {
@@ -264,23 +290,47 @@ export function SettingsPanel(props: {
                       <span>{model.displayName}</span>
                       <span className="font-mono text-slate-600">{model.requestName}</span>
                       <span className="text-slate-500">{protocol?.displayName ?? model.protocolId}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setSettings((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  modelCatalog: prev.modelCatalog.filter((item) => item.id !== model.id),
-                                  agentBindings: prev.agentBindings.filter((item) => item.modelId !== model.id),
-                                }
-                              : prev,
-                          )
-                        }
-                      >
-                        {t("settings.removeModel")}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onTestModel(model.id)}
+                          disabled={modelTestBusy}
+                        >
+                          {modelTestActiveId === model.id && modelTestBusy
+                            ? t("common.loading")
+                            : t("settings.testProtocol")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setSettings((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    modelCatalog: prev.modelCatalog.filter((item) => item.id !== model.id),
+                                    agentBindings: prev.agentBindings.filter((item) => item.modelId !== model.id),
+                                  }
+                                : prev,
+                            )
+                          }
+                        >
+                          {t("settings.removeModel")}
+                        </Button>
+                      </div>
+                      {modelTestById[model.id] && (
+                        <div
+                          className={cn(
+                            "col-span-full rounded border px-2 py-1 text-[11px]",
+                            modelTestById[model.id].ok
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                              : "border-rose-300 bg-rose-50 text-rose-700",
+                          )}
+                        >
+                          {modelTestById[model.id].message}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -318,16 +368,10 @@ export function SettingsPanel(props: {
                   }
                 >
                   <option value="">{t("settings.noModelAssigned")}</option>
-                  {localSettings.modelProtocols.map((protocol) => (
-                    <optgroup key={protocol.id} label={protocol.displayName}>
-                      {activeModelCatalog
-                        .filter((item) => item.protocolId === protocol.id)
-                        .map((model) => (
-                          <option key={model.id} value={model.id}>
-                            {model.displayName} ({model.requestName || "-"})
-                          </option>
-                        ))}
-                    </optgroup>
+                  {activeModelCatalog.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.displayName} ({model.requestName || "-"})
+                    </option>
                   ))}
                 </Select>
               </div>
@@ -355,6 +399,45 @@ export function SettingsPanel(props: {
                   {t("settings.openCurrentLog")}
                 </Button>
               </div>
+            </div>
+            <div className="min-h-[240px] rounded-lg border border-slate-200 bg-slate-50 p-3">
+              {runtimeLogLoading ? (
+                <div className="text-xs text-slate-500">{t("common.loading")}</div>
+              ) : runtimeLogs.length === 0 ? (
+                <div className="text-xs text-slate-500">{t("settings.logViewerEmpty")}</div>
+              ) : (
+                <div className="max-h-[48vh] space-y-2 overflow-auto pr-1">
+                  {runtimeLogs.map((entry, index) => {
+                    const upper = entry.level.toUpperCase();
+                    const lowerMessage = entry.message.toLowerCase();
+                    const toneClass =
+                      upper.includes("ERROR") || upper.includes("CRASH")
+                        ? "border-rose-300 bg-rose-50 text-rose-700"
+                        : upper.includes("WARN")
+                          ? "border-amber-300 bg-amber-50 text-amber-700"
+                          : lowerMessage.includes("success") ||
+                              lowerMessage.includes("completed") ||
+                              lowerMessage.includes("ok=true")
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : "border-slate-300 bg-white text-slate-700";
+                    return (
+                      <div key={`${entry.timestamp}-${entry.level}-${index}`} className={`rounded border px-3 py-2 ${toneClass}`}>
+                        <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                          <span className="font-semibold">
+                            {t("settings.logLevel")}: {entry.level}
+                          </span>
+                          <span>
+                            {t("settings.logTime")}: {entry.timestamp || "-"}
+                          </span>
+                        </div>
+                        <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5">
+                          {entry.message || entry.raw}
+                        </pre>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

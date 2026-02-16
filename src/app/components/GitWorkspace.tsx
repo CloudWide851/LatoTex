@@ -14,6 +14,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
+import { cn } from "../../lib/utils";
 import type {
   GitAvailability,
   GitBranchInfo,
@@ -92,7 +93,7 @@ export function GitWorkspace(props: {
   const [message, setMessage] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [activeDiffKey, setActiveDiffKey] = useState<string | null>(null);
   const [loadingDiffKey, setLoadingDiffKey] = useState<string | null>(null);
   const [diffByKey, setDiffByKey] = useState<Record<string, GitDiffResponse>>({});
   const [diffErrorByKey, setDiffErrorByKey] = useState<Record<string, string>>({});
@@ -113,12 +114,10 @@ export function GitWorkspace(props: {
     );
   };
 
-  const toggleDiff = async (path: string, staged: boolean) => {
+  const openDiff = async (path: string, staged: boolean) => {
     const key = `${staged ? "s" : "u"}:${path}`;
-    if (expandedKey === key) {
-      setExpandedKey(null);
-      return;
-    }
+    setActiveDiffKey(key);
+    onOpenFile(path);
     if (!diffByKey[key]) {
       setLoadingDiffKey(key);
       try {
@@ -135,8 +134,10 @@ export function GitWorkspace(props: {
         setLoadingDiffKey(null);
       }
     }
-    setExpandedKey(key);
   };
+
+  const activeDiff = activeDiffKey ? diffByKey[activeDiffKey] : undefined;
+  const activeDiffError = activeDiffKey ? diffErrorByKey[activeDiffKey] : "";
 
   const renderChanges = (entries: GitStatusEntry[], staged: boolean) => (
     <div className="space-y-1">
@@ -158,11 +159,15 @@ export function GitWorkspace(props: {
                 )}
               </button>
               <button
-                className="min-w-0 flex-1 truncate text-left text-slate-700 hover:text-primary-700"
+                className={cn(
+                  "min-w-0 flex-1 truncate text-left hover:text-primary-700",
+                  activeDiffKey === `${staged ? "s" : "u"}:${entry.path}`
+                    ? "text-primary-700"
+                    : "text-slate-700",
+                )}
                 title={entry.path}
                 onClick={() => {
-                  onOpenFile(entry.path);
-                  void toggleDiff(entry.path, staged);
+                  void openDiff(entry.path, staged);
                 }}
               >
                 {entry.path}
@@ -172,7 +177,7 @@ export function GitWorkspace(props: {
               {loadingDiffKey === `${staged ? "s" : "u"}:${entry.path}` ? (
                 <SvgSpinner className="h-3 w-3 text-slate-500" />
               ) : null}
-              {expandedKey === `${staged ? "s" : "u"}:${entry.path}` ? (
+              {activeDiffKey === `${staged ? "s" : "u"}:${entry.path}` ? (
                 <span className="rounded border border-primary-200 bg-primary-50 px-1 py-0 text-[9px] text-primary-700">
                   {t("git.diff")}
                 </span>
@@ -181,41 +186,6 @@ export function GitWorkspace(props: {
               <span className="font-mono text-[10px] text-rose-600">-{entry.removedLines}</span>
             </div>
           </div>
-          {expandedKey === `${staged ? "s" : "u"}:${entry.path}` && (
-            <div className="max-h-64 overflow-auto border-t border-slate-200 bg-slate-50 px-2 py-1">
-              {diffErrorByKey[`${staged ? "s" : "u"}:${entry.path}`] ? (
-                <div className="rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700">
-                  {diffErrorByKey[`${staged ? "s" : "u"}:${entry.path}`]}
-                </div>
-              ) : diffByKey[`${staged ? "s" : "u"}:${entry.path}`]?.hunks.length ? (
-                diffByKey[`${staged ? "s" : "u"}:${entry.path}`].hunks.map((hunk, hunkIndex) => (
-                  <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
-                    <div className="font-mono text-[10px] text-slate-500">{hunk.header}</div>
-                    <div className="space-y-0.5">
-                      {hunk.lines.map((line, lineIndex) => (
-                        <div
-                          key={`${hunkIndex}-${lineIndex}-${line.text}`}
-                          className={
-                            line.kind === "added"
-                              ? "rounded bg-emerald-50 px-1 font-mono text-[10px] text-emerald-800"
-                              : line.kind === "removed"
-                                ? "rounded bg-rose-50 px-1 font-mono text-[10px] text-rose-800"
-                                : "rounded px-1 font-mono text-[10px] text-slate-600"
-                          }
-                        >
-                          {line.text}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
-                  {t("git.diffEmpty")}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -430,23 +400,69 @@ export function GitWorkspace(props: {
           </div>
         </div>
 
-        <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-          <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.history")}</h4>
-          <ul className="space-y-2">
-            {commits.map((commit) => (
-              <li
-                key={commit.hash}
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
-              >
-                <div className="flex items-center justify-between text-slate-500">
-                  <span className="font-mono">{commit.shortHash}</span>
-                  <span>{commit.date}</span>
+        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(170px,0.9fr)] gap-2">
+          <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+            <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
+            {!activeDiffKey ? (
+              <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                {t("git.selectFileToDiff")}
+              </div>
+            ) : loadingDiffKey === activeDiffKey ? (
+              <div className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                <SvgSpinner className="h-3.5 w-3.5 text-slate-500" />
+                {t("common.loading")}
+              </div>
+            ) : activeDiffError ? (
+              <div className="rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700">
+                {activeDiffError}
+              </div>
+            ) : activeDiff?.hunks.length ? (
+              activeDiff.hunks.map((hunk, hunkIndex) => (
+                <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
+                  <div className="font-mono text-[10px] text-slate-500">{hunk.header}</div>
+                  <div className="space-y-0.5">
+                    {hunk.lines.map((line, lineIndex) => (
+                      <div
+                        key={`${hunkIndex}-${lineIndex}-${line.text}`}
+                        className={
+                          line.kind === "added"
+                            ? "rounded bg-emerald-50 px-1 font-mono text-[10px] text-emerald-800"
+                            : line.kind === "removed"
+                              ? "rounded bg-rose-50 px-1 font-mono text-[10px] text-rose-800"
+                              : "rounded px-1 font-mono text-[10px] text-slate-600"
+                        }
+                      >
+                        {line.text}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-1 font-medium text-slate-700">{commit.subject}</div>
-                <div className="mt-1 text-slate-500">{commit.author}</div>
-              </li>
-            ))}
-          </ul>
+              ))
+            ) : (
+              <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                {t("git.diffEmpty")}
+              </div>
+            )}
+          </div>
+
+          <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+            <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.history")}</h4>
+            <ul className="space-y-2">
+              {commits.map((commit) => (
+                <li
+                  key={commit.hash}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="font-mono">{commit.shortHash}</span>
+                    <span>{commit.date}</span>
+                  </div>
+                  <div className="mt-1 font-medium text-slate-700">{commit.subject}</div>
+                  <div className="mt-1 text-slate-500">{commit.author}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </div>

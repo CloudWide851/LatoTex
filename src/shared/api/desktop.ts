@@ -19,6 +19,7 @@ import type {
   GitStatus,
   LibraryCitationSummary,
   ModelCatalogItemInput,
+  ModelTestResult,
   ModelProtocolInput,
   PanelLayoutPrefs,
   ProjectIntegrityStatus,
@@ -201,6 +202,10 @@ export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> 
       apiKey: input.apiKey,
     },
   });
+}
+
+export function testModel(modelId: string): Promise<ModelTestResult> {
+  return invoke<ModelTestResult>("model_test", { input: { modelId } });
 }
 
 export function runtimeLogWrite(level: string, message: string) {

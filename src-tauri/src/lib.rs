@@ -19,7 +19,7 @@ use commands::projects::{
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::settings::{
-    protocol_test, runtime_log_info, runtime_log_read, runtime_log_write, settings_get,
+    model_test, protocol_test, runtime_log_info, runtime_log_read, runtime_log_write, settings_get,
     settings_update,
 };
 use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
@@ -62,6 +62,7 @@ pub fn run() {
             settings_get,
             settings_update,
             protocol_test,
+            model_test,
             runtime_log_write,
             runtime_log_info,
             runtime_log_read,

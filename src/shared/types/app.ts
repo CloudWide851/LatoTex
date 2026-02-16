@@ -82,6 +82,12 @@ export type ProtocolTestInput = {
   apiKey?: string;
 };
 
+export type ModelTestResult = {
+  modelId: string;
+  ok: boolean;
+  message: string;
+};
+
 export type AppSettings = {
   activeProjectId: string | null;
   modelProtocols: ModelProtocol[];

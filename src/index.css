@@ -9,6 +9,13 @@
   --app-border: #e2e8f0;
   --app-text: #0f172a;
   --app-muted: #64748b;
+  --topbar-bg: #111827;
+  --topbar-border: #1f2937;
+  --topbar-fg: #f8fafc;
+  --topbar-muted: #cbd5e1;
+  --topbar-field-bg: #1f2937;
+  --topbar-field-border: #374151;
+  --topbar-field-hover: #273244;
   color: #111827;
   background-color: var(--app-bg);
   font-family: "Sohne", "Inter", "Segoe UI", sans-serif;
@@ -23,6 +30,13 @@
   --app-border: #243041;
   --app-text: #e5e7eb;
   --app-muted: #9ca3af;
+  --topbar-bg: #162033;
+  --topbar-border: #2a3a55;
+  --topbar-fg: #e5e7eb;
+  --topbar-muted: #bac7db;
+  --topbar-field-bg: #22304a;
+  --topbar-field-border: #324564;
+  --topbar-field-hover: #2b3d5b;
 }
 
 * {
@@ -45,6 +59,40 @@ body {
   height: 100vh;
   background-color: var(--app-bg);
   overflow: hidden;
+}
+
+.app-topbar {
+  background-color: var(--topbar-bg);
+  border-color: var(--topbar-border);
+  color: var(--topbar-fg);
+}
+
+.app-topbar-field {
+  background-color: var(--topbar-field-bg);
+  border: 1px solid var(--topbar-field-border);
+  color: var(--topbar-fg);
+}
+
+.app-topbar-field:hover {
+  background-color: var(--topbar-field-hover);
+}
+
+.app-topbar-btn {
+  color: var(--topbar-muted);
+}
+
+.app-topbar-btn:hover {
+  background-color: var(--topbar-field-hover);
+  color: var(--topbar-fg);
+}
+
+.app-topbar-btn-close {
+  color: var(--topbar-muted);
+}
+
+.app-topbar-btn-close:hover {
+  background-color: #e11d48;
+  color: #ffffff;
 }
 
 .brand-wordmark {

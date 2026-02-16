@@ -302,6 +302,20 @@ pub struct ProtocolHealth {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelTestInput {
+    pub model_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelTestResult {
+    pub model_id: String,
+    pub ok: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryRefInput {
     pub project_id: String,
 }

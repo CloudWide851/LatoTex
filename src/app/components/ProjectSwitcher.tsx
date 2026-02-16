@@ -48,7 +48,7 @@ export function ProjectSwitcher(props: {
         type="button"
         aria-label={t("topbar.selectProject")}
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 transition hover:border-zinc-500 hover:bg-zinc-800",
+          "app-topbar-field flex h-9 w-full items-center justify-between rounded-md px-3 text-sm transition",
           disabled && "cursor-not-allowed opacity-60"
         )}
         disabled={disabled}
@@ -59,20 +59,20 @@ export function ProjectSwitcher(props: {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-10 z-50 max-h-72 w-full overflow-auto rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-lg">
-          <div className="mb-1 flex h-8 items-center gap-1.5 rounded border border-zinc-700 bg-zinc-950 px-2">
-            <Search className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+        <div className="absolute left-0 top-10 z-50 max-h-72 w-full overflow-auto rounded-md border border-slate-300 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="mb-1 flex h-8 items-center gap-1.5 rounded border border-slate-300 bg-slate-50 px-2 dark:border-zinc-700 dark:bg-zinc-950">
+            <Search className="h-3.5 w-3.5 shrink-0 text-slate-500 dark:text-zinc-500" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("topbar.projectFilterPlaceholder")}
-              className="h-full w-full border-none bg-transparent text-xs text-zinc-100 outline-none placeholder:text-zinc-500"
+              className="h-full w-full border-none bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-500 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
           </div>
           {projects.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-zinc-400">{t("workspace.noProject")}</div>
+            <div className="px-2 py-1.5 text-xs text-slate-500 dark:text-zinc-400">{t("workspace.noProject")}</div>
           ) : filtered.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-zinc-400">{t("topbar.noProjectMatches")}</div>
+            <div className="px-2 py-1.5 text-xs text-slate-500 dark:text-zinc-400">{t("topbar.noProjectMatches")}</div>
           ) : (
             filtered.map((project) => {
               const selected = project.id === activeProjectId;
@@ -83,7 +83,7 @@ export function ProjectSwitcher(props: {
                     "flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm transition",
                     selected
                       ? "bg-primary-600 text-white"
-                      : "text-zinc-200 hover:bg-zinc-800"
+                      : "text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
                   )}
                   onClick={() => {
                     setOpen(false);
