@@ -456,7 +456,7 @@ export function ExplorerTree(props: {
           <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
             <div className="flex items-center gap-2">
               <Files className="h-4 w-4" />
-              <span>{t("explorer.empty")}</span>
+              <span>{mode === "library" ? t("library.empty") : t("explorer.empty")}</span>
             </div>
           </div>
         ) : (

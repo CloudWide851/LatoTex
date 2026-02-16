@@ -1,8 +1,9 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteInput,
     FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
-    ProjectPathActionInput, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot,
-    ProjectSummary, ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
+    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, ProjectPathActionInput,
+    ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
+    ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -205,6 +206,21 @@ pub fn library_import_link(
 ) -> Result<Ack, String> {
     state.log("INFO", &format!("library_import_link: {}", input.project_id));
     storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())
+}
+
+#[tauri::command]
+pub fn library_citation_summary(
+    state: State<'_, AppState>,
+    input: LibraryCitationSummaryInput,
+) -> Result<LibraryCitationSummaryResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "library_citation_summary: project={}, path={}",
+            input.project_id, input.relative_path
+        ),
+    );
+    storage::library_citation_summary(&state.db_path, &input.project_id, &input.relative_path)
 }
 
 #[tauri::command]

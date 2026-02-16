@@ -472,6 +472,165 @@ pub fn import_library_link(db_path: &Path, project_id: &str, link: &str) -> Resu
     })
 }
 
+fn extract_bib_entry_key(content: &str) -> Option<String> {
+    let marker = content.find('@')?;
+    let rest = &content[marker..];
+    let open = rest.find('{')?;
+    let after_open = &rest[open + 1..];
+    let end = after_open.find(',')?;
+    let key = after_open[..end].trim();
+    if key.is_empty() {
+        None
+    } else {
+        Some(key.to_string())
+    }
+}
+
+fn trim_bib_value(raw: &str) -> String {
+    let mut value = raw.trim().trim_end_matches(',').trim().to_string();
+    if (value.starts_with('{') && value.ends_with('}'))
+        || (value.starts_with('"') && value.ends_with('"'))
+    {
+        value = value[1..value.len() - 1].trim().to_string();
+    }
+    value
+}
+
+fn extract_bib_field_value(content: &str, field: &str) -> Option<String> {
+    let needle = field.to_lowercase();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        let lower = trimmed.to_lowercase();
+        if !lower.starts_with(&needle) {
+            continue;
+        }
+        let tail = trimmed[needle.len()..].trim_start();
+        if !tail.starts_with('=') {
+            continue;
+        }
+        let value = trim_bib_value(&tail[1..]);
+        if !value.is_empty() {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn push_unique_url(urls: &mut Vec<String>, url: String) {
+    if url.is_empty() {
+        return;
+    }
+    if urls.iter().any(|item| item.eq_ignore_ascii_case(&url)) {
+        return;
+    }
+    urls.push(url);
+}
+
+fn normalize_url(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_end_matches(',').trim().to_string();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Some(trimmed);
+    }
+    if let Some(doi) = normalize_doi(&trimmed) {
+        return Some(format!("https://doi.org/{doi}"));
+    }
+    None
+}
+
+pub fn library_citation_summary(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<LibraryCitationSummaryResponse, String> {
+    let project_root = load_project_root(db_path, project_id)?;
+    let papers_root = library_root(&project_root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+
+    let normalized_relative = relative_path.trim().replace('\\', "/");
+    if normalized_relative.is_empty() {
+        return Err("Library path cannot be empty".to_string());
+    }
+
+    let source = safe_join(&papers_root, &normalized_relative)?;
+    if !source.exists() || !source.is_file() {
+        return Err("Library file does not exist".to_string());
+    }
+
+    let bib_candidate = if source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("bib")
+    {
+        Some(source.clone())
+    } else {
+        let candidate = source.with_extension("bib");
+        if candidate.exists() && candidate.is_file() {
+            Some(candidate)
+        } else {
+            None
+        }
+    };
+
+    let mut urls: Vec<String> = Vec::new();
+    let mut citation_key = None;
+    let mut title = None;
+    let mut doi = None;
+    let mut arxiv_id = None;
+    let mut bib_relative_path = None;
+
+    if let Some(bib_path) = bib_candidate {
+        let bib_content = fs::read_to_string(&bib_path).map_err(|e| e.to_string())?;
+        citation_key = extract_bib_entry_key(&bib_content);
+        title = extract_bib_field_value(&bib_content, "title");
+        doi = extract_bib_field_value(&bib_content, "doi");
+        arxiv_id = extract_bib_field_value(&bib_content, "eprint");
+
+        if let Some(url_value) = extract_bib_field_value(&bib_content, "url") {
+            if let Some(normalized_url) = normalize_url(&url_value) {
+                push_unique_url(&mut urls, normalized_url);
+            } else {
+                push_unique_url(&mut urls, url_value);
+            }
+        }
+        if let Some(doi_value) = doi.as_ref() {
+            push_unique_url(&mut urls, format!("https://doi.org/{doi_value}"));
+        }
+        if let Some(arxiv_value) = arxiv_id.as_ref() {
+            push_unique_url(&mut urls, format!("https://arxiv.org/abs/{arxiv_value}"));
+        }
+
+        if arxiv_id.is_none() {
+            for url in &urls {
+                if let Some(extracted) = extract_arxiv_id(url) {
+                    arxiv_id = Some(extracted);
+                    break;
+                }
+            }
+        }
+
+        let rel = bib_path
+            .strip_prefix(&papers_root)
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        bib_relative_path = Some(rel);
+    }
+
+    Ok(LibraryCitationSummaryResponse {
+        source_path: normalized_relative,
+        bib_path: bib_relative_path,
+        citation_key,
+        title,
+        doi,
+        arxiv_id,
+        urls,
+    })
+}
+
 fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
     if source.is_dir() {
         fs::create_dir_all(target).map_err(|e| e.to_string())?;

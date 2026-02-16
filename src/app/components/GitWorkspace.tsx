@@ -95,6 +95,7 @@ export function GitWorkspace(props: {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [loadingDiffKey, setLoadingDiffKey] = useState<string | null>(null);
   const [diffByKey, setDiffByKey] = useState<Record<string, GitDiffResponse>>({});
+  const [diffErrorByKey, setDiffErrorByKey] = useState<Record<string, string>>({});
 
   const changedFiles = status?.changes ?? [];
   const stagedFiles = useMemo(
@@ -121,8 +122,15 @@ export function GitWorkspace(props: {
     if (!diffByKey[key]) {
       setLoadingDiffKey(key);
       try {
+        setDiffErrorByKey((prev) => ({ ...prev, [key]: "" }));
         const patch = await onLoadDiff(path, staged);
         setDiffByKey((prev) => ({ ...prev, [key]: patch }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setDiffErrorByKey((prev) => ({
+          ...prev,
+          [key]: `${t("git.diffLoadFailed")} ${message}`,
+        }));
       } finally {
         setLoadingDiffKey(null);
       }
@@ -154,7 +162,7 @@ export function GitWorkspace(props: {
                 title={entry.path}
                 onClick={() => {
                   onOpenFile(entry.path);
-                  toggleDiff(entry.path, staged).catch(() => undefined);
+                  void toggleDiff(entry.path, staged);
                 }}
               >
                 {entry.path}
@@ -173,29 +181,39 @@ export function GitWorkspace(props: {
               <span className="font-mono text-[10px] text-rose-600">-{entry.removedLines}</span>
             </div>
           </div>
-          {expandedKey === `${staged ? "s" : "u"}:${entry.path}` && diffByKey[`${staged ? "s" : "u"}:${entry.path}`] && (
+          {expandedKey === `${staged ? "s" : "u"}:${entry.path}` && (
             <div className="max-h-64 overflow-auto border-t border-slate-200 bg-slate-50 px-2 py-1">
-              {diffByKey[`${staged ? "s" : "u"}:${entry.path}`].hunks.map((hunk, hunkIndex) => (
-                <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
-                  <div className="font-mono text-[10px] text-slate-500">{hunk.header}</div>
-                  <div className="space-y-0.5">
-                    {hunk.lines.map((line, lineIndex) => (
-                      <div
-                        key={`${hunkIndex}-${lineIndex}-${line.text}`}
-                        className={
-                          line.kind === "added"
-                            ? "rounded bg-emerald-50 px-1 font-mono text-[10px] text-emerald-800"
-                            : line.kind === "removed"
-                              ? "rounded bg-rose-50 px-1 font-mono text-[10px] text-rose-800"
-                              : "rounded px-1 font-mono text-[10px] text-slate-600"
-                        }
-                      >
-                        {line.text}
-                      </div>
-                    ))}
-                  </div>
+              {diffErrorByKey[`${staged ? "s" : "u"}:${entry.path}`] ? (
+                <div className="rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700">
+                  {diffErrorByKey[`${staged ? "s" : "u"}:${entry.path}`]}
                 </div>
-              ))}
+              ) : diffByKey[`${staged ? "s" : "u"}:${entry.path}`]?.hunks.length ? (
+                diffByKey[`${staged ? "s" : "u"}:${entry.path}`].hunks.map((hunk, hunkIndex) => (
+                  <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
+                    <div className="font-mono text-[10px] text-slate-500">{hunk.header}</div>
+                    <div className="space-y-0.5">
+                      {hunk.lines.map((line, lineIndex) => (
+                        <div
+                          key={`${hunkIndex}-${lineIndex}-${line.text}`}
+                          className={
+                            line.kind === "added"
+                              ? "rounded bg-emerald-50 px-1 font-mono text-[10px] text-emerald-800"
+                              : line.kind === "removed"
+                                ? "rounded bg-rose-50 px-1 font-mono text-[10px] text-rose-800"
+                                : "rounded px-1 font-mono text-[10px] text-slate-600"
+                          }
+                        >
+                          {line.text}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                  {t("git.diffEmpty")}
+                </div>
+              )}
             </div>
           )}
         </div>

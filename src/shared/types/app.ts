@@ -108,6 +108,27 @@ export type RuntimeLogInfo = {
   version: string;
 };
 
+export type RuntimeLogEntry = {
+  timestamp: string;
+  level: string;
+  message: string;
+  raw: string;
+};
+
+export type RuntimeLogReadResponse = {
+  entries: RuntimeLogEntry[];
+};
+
+export type LibraryCitationSummary = {
+  sourcePath: string;
+  bibPath?: string | null;
+  citationKey?: string | null;
+  title?: string | null;
+  doi?: string | null;
+  arxivId?: string | null;
+  urls: string[];
+};
+
 export type CompileRecord = {
   id: string;
   projectId: string;

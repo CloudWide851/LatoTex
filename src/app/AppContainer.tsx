@@ -23,6 +23,7 @@ import {
   gitStatus,
   gitUnstage,
   openProject,
+  runtimeLogRead,
   updateSettings,
 } from "../shared/api/desktop";
 import type {
@@ -39,6 +40,7 @@ import type {
   ProjectSummary,
   ResourceNode,
   RuntimeLogInfo,
+  RuntimeLogEntry,
   SwarmEvent,
   WorkspacePage,
 } from "../shared/types/app";
@@ -95,6 +97,7 @@ export function AppContainer() {
   const [busytexCacheInfo, setBusytexCacheInfo] = useState<BusyTexCacheInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
+  const [runtimeLogs, setRuntimeLogs] = useState<RuntimeLogEntry[]>([]);
   const [isMaximized, setIsMaximized] = useState(false);
   const [windowActionBusy, setWindowActionBusy] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
@@ -448,6 +451,16 @@ export function AppContainer() {
       onThemeModeChange={handleThemeModeChange}
       onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
       onOpenModelModal={() => setModelModalOpen(true)}
+      onOpenLogViewer={() => {
+        setBusy(true);
+        runtimeLogRead(1200)
+          .then((response) => {
+            setRuntimeLogs(response.entries);
+            setOverlay("runtimeLogs");
+          })
+          .catch((error) => setToast({ type: "error", message: String(error) }))
+          .finally(() => setBusy(false));
+      }}
       setSettings={setSettings}
       t={t}
     />
@@ -604,6 +617,7 @@ export function AppContainer() {
         logsTab={logsTab}
         events={events}
         compileDiagnostics={compileDiagnostics}
+        runtimeLogs={runtimeLogs}
         modelModalOpen={modelModalOpen}
         settings={settings}
         deleteIntent={deleteIntent}

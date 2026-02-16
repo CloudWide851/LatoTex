@@ -21,7 +21,7 @@ import type {
 
 export type Toast = { type: "info" | "error"; message: string } | null;
 export type SettingsSection = "general" | "appearance" | "models" | "agents" | "diagnostics";
-export type OverlayType = "logs" | null;
+export type OverlayType = "logs" | "runtimeLogs" | null;
 export type LogTab = "status" | "events";
 export type DeleteIntent = { scope: "workspace" | "library"; path: string } | null;
 export type ThemeMode = "light" | "dark" | "system";

@@ -14,12 +14,13 @@ use commands::git::{
 use commands::health::health_check;
 use commands::projects::{
     file_read, file_read_binary, file_write, fs_operation, library_import_link, library_import_pdf,
-    library_rescan, library_tree, project_create, project_init_from_folder, project_list,
-    project_open, project_search_content, workspace_export_pdf, workspace_open_terminal,
-    workspace_reveal_in_system, workspace_tree,
+    library_citation_summary, library_rescan, library_tree, project_create,
+    project_init_from_folder, project_list, project_open, project_search_content,
+    workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::settings::{
-    protocol_test, runtime_log_info, runtime_log_write, settings_get, settings_update,
+    protocol_test, runtime_log_info, runtime_log_read, runtime_log_write, settings_get,
+    settings_update,
 };
 use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
 use tauri::Manager;
@@ -51,6 +52,7 @@ pub fn run() {
             library_rescan,
             library_import_pdf,
             library_import_link,
+            library_citation_summary,
             fs_operation,
             latex_compile_record,
             agent_run,
@@ -60,6 +62,7 @@ pub fn run() {
             protocol_test,
             runtime_log_write,
             runtime_log_info,
+            runtime_log_read,
             git_status,
             git_check_installed,
             git_init_repo,

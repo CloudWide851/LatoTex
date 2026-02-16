@@ -7,6 +7,7 @@ import type {
   AppSettings,
   ModelCatalogItem,
   ModelProtocol,
+  RuntimeLogEntry,
   SwarmEvent,
 } from "../../shared/types/app";
 import type { DeleteIntent, LogTab, OverlayType, ThemeTransition, Toast } from "../app-config";
@@ -41,6 +42,7 @@ export function AppOverlays(props: {
   logsTab: LogTab;
   events: SwarmEvent[];
   compileDiagnostics: string[];
+  runtimeLogs: RuntimeLogEntry[];
   modelModalOpen: boolean;
   settings: AppSettings | null;
   deleteIntent: DeleteIntent;
@@ -71,6 +73,7 @@ export function AppOverlays(props: {
     logsTab,
     events,
     compileDiagnostics,
+    runtimeLogs,
     modelModalOpen,
     settings,
     deleteIntent,
@@ -165,6 +168,58 @@ export function AppOverlays(props: {
                       </pre>
                     </li>
                   ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {overlay === "runtimeLogs" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
+          <div className="grid h-[72vh] w-full max-w-4xl grid-rows-[48px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4">
+              <h3 className="text-sm font-semibold text-slate-800">{t("settings.logViewerTitle")}</h3>
+              <button className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={onOverlayClose}>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-auto p-4">
+              {runtimeLogs.length === 0 ? (
+                <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  {t("settings.logViewerEmpty")}
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {runtimeLogs.map((entry, index) => {
+                    const upper = entry.level.toUpperCase();
+                    const lowerMessage = entry.message.toLowerCase();
+                    const toneClass =
+                      upper.includes("ERROR") || upper.includes("CRASH")
+                        ? "border-rose-300 bg-rose-50 text-rose-700"
+                        : upper.includes("WARN")
+                          ? "border-amber-300 bg-amber-50 text-amber-700"
+                          : lowerMessage.includes("success") ||
+                              lowerMessage.includes("completed") ||
+                              lowerMessage.includes("ok=true")
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : "border-slate-300 bg-slate-50 text-slate-700";
+                    return (
+                      <li key={`${entry.timestamp}-${entry.level}-${index}`} className={`rounded border px-3 py-2 ${toneClass}`}>
+                        <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                          <span className="font-semibold">
+                            {t("settings.logLevel")}: {entry.level}
+                          </span>
+                          <span>
+                            {t("settings.logTime")}: {entry.timestamp || "-"}
+                          </span>
+                        </div>
+                        <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5">
+                          {entry.message || entry.raw}
+                        </pre>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

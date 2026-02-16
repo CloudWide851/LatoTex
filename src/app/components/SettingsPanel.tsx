@@ -51,6 +51,7 @@ export function SettingsPanel(props: {
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
   onOpenModelModal: () => void;
+  onOpenLogViewer: () => void;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
   t: TranslationFn;
 }) {
@@ -70,6 +71,7 @@ export function SettingsPanel(props: {
     onThemeModeChange,
     onBusyTexCachePolicyChange,
     onOpenModelModal,
+    onOpenLogViewer,
     setSettings,
     t,
   } = props;
@@ -352,6 +354,11 @@ export function SettingsPanel(props: {
               <div className="flex items-center justify-between gap-2">
                 <span className="text-slate-500">{t("settings.version")}</span>
                 <span className="text-slate-700">{runtimeInfo?.version ?? "-"}</span>
+              </div>
+              <div className="pt-1">
+                <Button size="sm" variant="secondary" onClick={onOpenLogViewer}>
+                  {t("settings.openCurrentLog")}
+                </Button>
               </div>
             </div>
           </div>

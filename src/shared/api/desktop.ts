@@ -17,6 +17,7 @@ import type {
   GitDownloadStart,
   GitDownloadStatus,
   GitStatus,
+  LibraryCitationSummary,
   ModelCatalogItemInput,
   ModelProtocolInput,
   PanelLayoutPrefs,
@@ -25,6 +26,7 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   RuntimeLogInfo,
+  RuntimeLogReadResponse,
   ResourceNode,
   WorkspaceExportPdfResponse,
 } from "../types/app";
@@ -127,6 +129,15 @@ export function importLibraryLink(projectId: string, link: string): Promise<Ack>
   return invoke<Ack>("library_import_link", { input: { projectId, link } });
 }
 
+export function libraryCitationSummary(
+  projectId: string,
+  relativePath: string,
+): Promise<LibraryCitationSummary> {
+  return invoke<LibraryCitationSummary>("library_citation_summary", {
+    input: { projectId, relativePath },
+  });
+}
+
 export function runAgent(input: {
   projectId: string;
   role: string;
@@ -182,6 +193,10 @@ export function runtimeLogWrite(level: string, message: string) {
 
 export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
   return invoke<RuntimeLogInfo>("runtime_log_info");
+}
+
+export function runtimeLogRead(limit = 500): Promise<RuntimeLogReadResponse> {
+  return invoke<RuntimeLogReadResponse>("runtime_log_read", { input: { limit } });
 }
 
 export function gitStatus(projectId: string): Promise<GitStatus> {

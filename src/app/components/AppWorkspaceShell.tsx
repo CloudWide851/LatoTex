@@ -11,6 +11,8 @@ import type { LogTab } from "../app-config";
 import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./AgentChatOverlay";
 import { ExplorerTree } from "./ExplorerTree";
 import { FilePreviewPane } from "./FilePreviewPane";
+import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
+import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
 import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
 
@@ -391,10 +393,18 @@ export function AppWorkspaceShell(props: {
             >
               <Panel defaultSize={libraryLayout[0]} minSize={20}>
                 <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {t("library.title")}
-                  </h2>
-                  <div className="h-[calc(100%-24px)] overflow-auto pr-1">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t("library.title")}
+                    </h2>
+                    <LibraryUploadMenu
+                      busy={busy}
+                      onImportPdf={onLibraryImportPdf}
+                      onImportLink={onLibraryImportLink}
+                      t={t}
+                    />
+                  </div>
+                  <div className="h-[calc(100%-32px)] overflow-auto pr-1">
                     <ExplorerTree
                       mode="library"
                       tree={libraryTree}
@@ -414,14 +424,11 @@ export function AppWorkspaceShell(props: {
               <PanelResizeHandle className="resizable-handle" />
               <Panel defaultSize={libraryLayout[1]} minSize={28}>
                 <section className="h-full min-h-0 motion-page-in">
-                  <div className="h-full min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-                    <h3 className="mb-2 text-sm font-semibold text-slate-700">
-                      {t("library.detailTitle")}
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      {selectedLibraryPath ? selectedLibraryPath : t("library.noSelection")}
-                    </p>
-                  </div>
+                  <LibraryDocumentViewer
+                    projectId={activeProjectId}
+                    selectedPath={selectedLibraryPath}
+                    t={t}
+                  />
                 </section>
               </Panel>
             </PanelGroup>

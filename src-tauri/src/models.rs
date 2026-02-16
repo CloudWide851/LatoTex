@@ -112,6 +112,27 @@ pub struct RuntimeLogWriteInput {
     pub message: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogReadInput {
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
+    pub raw: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogReadResponse {
+    pub entries: Vec<RuntimeLogEntry>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeLogInfo {
@@ -281,6 +302,25 @@ pub struct ProtocolHealth {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryRefInput {
     pub project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationSummaryInput {
+    pub project_id: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationSummaryResponse {
+    pub source_path: String,
+    pub bib_path: Option<String>,
+    pub citation_key: Option<String>,
+    pub title: Option<String>,
+    pub doi: Option<String>,
+    pub arxiv_id: Option<String>,
+    pub urls: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
