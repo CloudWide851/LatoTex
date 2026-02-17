@@ -26,6 +26,7 @@ import {
   projectIntegrityRepair,
   projectIntegrityStatus,
   runtimeLogRead,
+  setModelApiKey,
   testModel,
   updateSettings,
 } from "../shared/api/desktop";
@@ -98,7 +99,7 @@ export function AppContainer() {
   const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
-  const [draftApiKeys, setDraftApiKeys] = useState<Record<string, string>>({});
+  const [draftModelApiKeys, setDraftModelApiKeys] = useState<Record<string, string>>({});
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
   const [projectSearchResults, setProjectSearchResults] = useState<ProjectSearchHit[]>([]);
   const [projectSearchBusy, setProjectSearchBusy] = useState(false);
@@ -211,7 +212,6 @@ export function AppContainer() {
         id: protocol.id,
         displayName: protocol.displayName,
         baseUrl: protocol.baseUrl,
-        apiKey: draftApiKeys[protocol.id],
       })),
       modelCatalog: nextSettings.modelCatalog.map((model) => ({
         id: model.id,
@@ -226,13 +226,22 @@ export function AppContainer() {
         theme: (nextSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
         busytexCachePolicy: nextSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
         busytexCacheDir: nextSettings.uiPrefs?.busytexCacheDir,
+        previewDefaultZoom: nextSettings.uiPrefs?.previewDefaultZoom ?? 1,
         panelLayout: nextSettings.uiPrefs?.panelLayout,
       },
     });
+    const keyEntries = Object.entries(draftModelApiKeys).filter(
+      ([, value]) => typeof value === "string" && value.trim().length > 0,
+    );
+    if (keyEntries.length > 0) {
+      await Promise.all(
+        keyEntries.map(([modelId, apiKey]) => setModelApiKey(modelId, apiKey)),
+      );
+    }
     setSettings(updated);
-    setDraftApiKeys({});
+    setDraftModelApiKeys({});
     return updated;
-  }, [activeProjectId, draftApiKeys, locale]);
+  }, [activeProjectId, draftModelApiKeys, locale]);
 
   const savePanelLayout = useCallback((panelKey: keyof PanelLayoutPrefs, layout: number[]) => {
     pendingPanelLayoutRef.current = {
@@ -315,10 +324,10 @@ export function AppContainer() {
     const hashPayload = JSON.stringify({
       settings,
       activeProjectId,
-      draftApiKeys: Object.keys(draftApiKeys)
+      draftApiKeys: Object.keys(draftModelApiKeys)
         .sort()
         .reduce<Record<string, string>>((acc, key) => {
-          acc[key] = draftApiKeys[key];
+          acc[key] = draftModelApiKeys[key];
           return acc;
         }, {}),
     });
@@ -346,7 +355,7 @@ export function AppContainer() {
           setToast({ type: "error", message: String(error) });
         });
     }, 640);
-  }, [activeProjectId, draftApiKeys, persistSettings, setToast, settings]);
+  }, [activeProjectId, draftModelApiKeys, persistSettings, setToast, settings]);
 
   const {
     handleWindowControl,
@@ -712,7 +721,7 @@ export function AppContainer() {
           setBusy(false);
         }
       }}
-      onLoadDiff={(path, staged) => gitDiffFile(activeProjectId, path, staged, 3)}
+      onLoadDiff={(path, staged, revision) => gitDiffFile(activeProjectId, path, staged, 3, revision)}
       onOpenFile={(path) => {
         setSelectedFile(path);
       }}
@@ -764,6 +773,7 @@ export function AppContainer() {
           latexLayout={latexLayout}
           analysisLayout={analysisLayout}
           libraryLayout={libraryLayout}
+          previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
           tree={tree}
           libraryTree={libraryTree}
           selectedFile={selectedFile}
@@ -829,7 +839,7 @@ export function AppContainer() {
         onOverlayClose={() => setOverlay(null)}
         onLogsTabChange={setLogsTab}
         onModelModalClose={() => setModelModalOpen(false)}
-        onModelSubmit={({ protocol, model }) =>
+        onModelSubmit={({ protocol, model, modelApiKey }) =>
           setSettings((prev) => {
             if (!prev) {
               return prev;
@@ -841,7 +851,7 @@ export function AppContainer() {
                     id: protocol.id,
                     displayName: protocol.displayName,
                     baseUrl: protocol.baseUrl,
-                    apiKeySet: Boolean(protocol.apiKey?.trim()),
+                    apiKeySet: Boolean(modelApiKey?.trim()),
                   },
                 ]
               : prev.modelProtocols.map((item) =>
@@ -849,12 +859,12 @@ export function AppContainer() {
                     ? {
                         ...item,
                         baseUrl: protocol.baseUrl,
-                        apiKeySet: item.apiKeySet || Boolean(protocol.apiKey?.trim()),
+                        apiKeySet: item.apiKeySet || Boolean(modelApiKey?.trim()),
                       }
                     : item,
                 );
-            if (protocol.apiKey?.trim()) {
-              setDraftApiKeys((current) => ({ ...current, [protocol.id]: protocol.apiKey ?? "" }));
+            if (modelApiKey?.trim()) {
+              setDraftModelApiKeys((current) => ({ ...current, [model.id]: modelApiKey ?? "" }));
             }
             const nextCatalog = prev.modelCatalog.some((item) => item.id === model.id)
               ? prev.modelCatalog.map((item) => (item.id === model.id ? model : item))

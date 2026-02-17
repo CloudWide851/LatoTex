@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { AlertTriangle, Download, FolderOpen, ListChecks, Play, Redo2, Save, Undo2 } from "lucide-react";
+import { AlertTriangle, Download, FolderOpen, ListChecks, Minus, Play, Plus, Redo2, RotateCcw, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   FsAction,
@@ -71,6 +72,7 @@ export function AppWorkspaceShell(props: {
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
+  previewDefaultZoom: number;
   onFsAction: (
     scope: FsScope,
     action: FsAction,
@@ -127,9 +129,17 @@ export function AppWorkspaceShell(props: {
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
     onSavePanelLayout,
+    previewDefaultZoom,
     onFsAction,
     t,
   } = props;
+
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
+
+  useEffect(() => {
+    setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
+  }, [previewDefaultZoom]);
 
   const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
   const selectedIsPdf = isPdfPath(selectedFile);
@@ -144,6 +154,7 @@ export function AppWorkspaceShell(props: {
         ? "pdf"
         : "empty";
   const previewPdfUrl = selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl;
+  const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
 
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
@@ -214,6 +225,33 @@ export function AppWorkspaceShell(props: {
           >
             <ListChecks className="h-3.5 w-3.5" />
           </button>
+          <button
+            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            title={t("preview.zoomOut")}
+            aria-label={t("preview.zoomOut")}
+            onClick={() => setPreviewZoom((prev) => clampPreviewZoom(prev - 0.1))}
+            disabled={!canZoomPreview || previewZoom <= 0.5}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            title={t("preview.zoomIn")}
+            aria-label={t("preview.zoomIn")}
+            onClick={() => setPreviewZoom((prev) => clampPreviewZoom(prev + 0.1))}
+            disabled={!canZoomPreview || previewZoom >= 3}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            title={t("preview.zoomReset")}
+            aria-label={t("preview.zoomReset")}
+            onClick={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
+            disabled={!canZoomPreview}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
       {compileErrorLine && (
@@ -232,6 +270,14 @@ export function AppWorkspaceShell(props: {
           markdownContent={selectedIsMarkdown ? editorContent : ""}
           title={t("preview.title")}
           emptyText={selectedIsMarkdown ? t("preview.markdownEmpty") : t("preview.empty")}
+          pdfZoom={previewZoom}
+          onPdfZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
+          onPdfClickZoomIn={() => {
+            if (!canZoomPreview) {
+              return;
+            }
+            setPreviewZoom((prev) => clampPreviewZoom(prev + 0.1));
+          }}
         />
       </div>
     </aside>

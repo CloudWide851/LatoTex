@@ -88,12 +88,17 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
         }
         let staged = staged_numstat.get(&path).copied().unwrap_or((0, 0));
         let unstaged = unstaged_numstat.get(&path).copied().unwrap_or((0, 0));
+        let mut added_lines = staged.0.saturating_add(unstaged.0);
+        let removed_lines = staged.1.saturating_add(unstaged.1);
+        if added_lines == 0 && removed_lines == 0 && (index_status == "?" || worktree_status == "?") {
+            added_lines = estimate_untracked_added_lines(&root, &path);
+        }
         changes.push(GitStatusEntry {
             path,
             index_status,
             worktree_status,
-            added_lines: staged.0.saturating_add(unstaged.0),
-            removed_lines: staged.1.saturating_add(unstaged.1),
+            added_lines,
+            removed_lines,
         });
     }
 
@@ -301,18 +306,44 @@ pub fn git_diff_file(
     let root = storage::load_project_root(&state.db_path, &input.project_id)?;
     let staged = input.staged.unwrap_or(false);
     let context_lines = input.context_lines.unwrap_or(3).min(10).to_string();
+    let revision = input
+        .revision
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
 
-    let mut args = vec!["diff"];
-    if staged {
-        args.push("--cached");
-    }
     let unified_arg = format!("--unified={context_lines}");
-    args.push(unified_arg.as_str());
-    args.push("--");
-    args.push(input.path.as_str());
+    let args = if let Some(commit_rev) = revision {
+        vec![
+            "show",
+            "--format=",
+            unified_arg.as_str(),
+            commit_rev,
+            "--",
+            input.path.as_str(),
+        ]
+    } else {
+        let mut built = vec!["diff"];
+        if staged {
+            built.push("--cached");
+        }
+        built.push(unified_arg.as_str());
+        built.push("--");
+        built.push(input.path.as_str());
+        built
+    };
 
     let patch = run_git(&root, &args)?;
-    let numstat_args = if staged {
+    let numstat_args = if let Some(commit_rev) = revision {
+        vec![
+            "show",
+            "--format=",
+            "--numstat",
+            commit_rev,
+            "--",
+            input.path.as_str(),
+        ]
+    } else if staged {
         vec!["diff", "--cached", "--numstat", "--", input.path.as_str()]
     } else {
         vec!["diff", "--numstat", "--", input.path.as_str()]
@@ -376,7 +407,7 @@ pub fn git_diff_file(
         hunks.push(hunk);
     }
 
-    if hunks.is_empty() && !staged {
+    if hunks.is_empty() && !staged && revision.is_none() {
         if let Some(synthetic) = synthetic_untracked_diff(&root, &input.path) {
             return Ok(synthetic);
         }

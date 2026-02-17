@@ -59,7 +59,7 @@ export function GitWorkspace(props: {
   onUnstage: (paths: string[]) => void;
   onCommit: (message: string) => void;
   onInitRepo: () => void;
-  onLoadDiff: (path: string, staged: boolean) => Promise<GitDiffResponse>;
+  onLoadDiff: (path: string, staged: boolean, revision?: string) => Promise<GitDiffResponse>;
   onOpenFile: (path: string) => void;
   onStartGitInstall: () => void;
   onCancelDownload: () => void;
@@ -94,9 +94,12 @@ export function GitWorkspace(props: {
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [activeDiffKey, setActiveDiffKey] = useState<string | null>(null);
+  const [activeDiffMeta, setActiveDiffMeta] = useState<{ path: string; staged: boolean } | null>(null);
   const [loadingDiffKey, setLoadingDiffKey] = useState<string | null>(null);
   const [diffByKey, setDiffByKey] = useState<Record<string, GitDiffResponse>>({});
   const [diffErrorByKey, setDiffErrorByKey] = useState<Record<string, string>>({});
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [selectedHistoryHash, setSelectedHistoryHash] = useState("");
 
   const changedFiles = status?.changes ?? [];
   const stagedFiles = useMemo(
@@ -107,6 +110,18 @@ export function GitWorkspace(props: {
     () => changedFiles.filter((item) => item.worktreeStatus !== " " || item.indexStatus === "?"),
     [changedFiles],
   );
+  const filteredCommits = useMemo(() => {
+    const query = historyQuery.trim().toLowerCase();
+    if (!query) {
+      return commits;
+    }
+    return commits.filter((commit) =>
+      `${commit.shortHash} ${commit.subject} ${commit.author}`.toLowerCase().includes(query),
+    );
+  }, [commits, historyQuery]);
+
+  const buildDiffKey = (path: string, staged: boolean, revision?: string) =>
+    `${revision?.trim() || "working"}:${staged ? "s" : "u"}:${path}`;
 
   const togglePath = (path: string) => {
     setSelectedPaths((prev) =>
@@ -114,15 +129,17 @@ export function GitWorkspace(props: {
     );
   };
 
-  const openDiff = async (path: string, staged: boolean) => {
-    const key = `${staged ? "s" : "u"}:${path}`;
+  const openDiff = async (path: string, staged: boolean, revisionOverride?: string) => {
+    const revision = revisionOverride?.trim() || selectedHistoryHash.trim() || undefined;
+    const key = buildDiffKey(path, staged, revision);
+    setActiveDiffMeta({ path, staged });
     setActiveDiffKey(key);
     onOpenFile(path);
     if (!diffByKey[key]) {
       setLoadingDiffKey(key);
       try {
         setDiffErrorByKey((prev) => ({ ...prev, [key]: "" }));
-        const patch = await onLoadDiff(path, staged);
+        const patch = await onLoadDiff(path, staged, revision);
         setDiffByKey((prev) => ({ ...prev, [key]: patch }));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -161,7 +178,7 @@ export function GitWorkspace(props: {
               <button
                 className={cn(
                   "min-w-0 flex-1 truncate text-left hover:text-primary-700",
-                  activeDiffKey === `${staged ? "s" : "u"}:${entry.path}`
+                  activeDiffKey === buildDiffKey(entry.path, staged, selectedHistoryHash || undefined)
                     ? "text-primary-700"
                     : "text-slate-700",
                 )}
@@ -174,10 +191,10 @@ export function GitWorkspace(props: {
               </button>
             </div>
             <div className="flex items-center gap-1">
-              {loadingDiffKey === `${staged ? "s" : "u"}:${entry.path}` ? (
+              {loadingDiffKey === buildDiffKey(entry.path, staged, selectedHistoryHash || undefined) ? (
                 <SvgSpinner className="h-3 w-3 text-slate-500" />
               ) : null}
-              {activeDiffKey === `${staged ? "s" : "u"}:${entry.path}` ? (
+              {activeDiffKey === buildDiffKey(entry.path, staged, selectedHistoryHash || undefined) ? (
                 <span className="rounded border border-primary-200 bg-primary-50 px-1 py-0 text-[9px] text-primary-700">
                   {t("git.diff")}
                 </span>
@@ -400,9 +417,38 @@ export function GitWorkspace(props: {
           </div>
         </div>
 
-        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(170px,0.9fr)] gap-2">
+        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)] gap-2">
           <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-            <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h4 className="text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={historyQuery}
+                  onChange={(event) => setHistoryQuery(event.target.value)}
+                  placeholder={t("git.historySearchPlaceholder")}
+                  className="h-8 w-40 text-xs"
+                />
+                <Select
+                  value={selectedHistoryHash}
+                  uiSize="sm"
+                  className="w-56"
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setSelectedHistoryHash(next);
+                    if (activeDiffMeta) {
+                      void openDiff(activeDiffMeta.path, activeDiffMeta.staged, next || undefined);
+                    }
+                  }}
+                >
+                  <option value="">{t("git.historyWorkingTree")}</option>
+                  {filteredCommits.map((commit) => (
+                    <option key={commit.hash} value={commit.hash}>
+                      {`${commit.shortHash} ${commit.subject}`}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
             {!activeDiffKey ? (
               <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
                 {t("git.selectFileToDiff")}
@@ -419,7 +465,6 @@ export function GitWorkspace(props: {
             ) : activeDiff?.hunks.length ? (
               activeDiff.hunks.map((hunk, hunkIndex) => (
                 <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
-                  <div className="font-mono text-[10px] text-slate-500">{hunk.header}</div>
                   <div className="space-y-0.5">
                     {hunk.lines.map((line, lineIndex) => (
                       <div
@@ -443,25 +488,6 @@ export function GitWorkspace(props: {
                 {t("git.diffEmpty")}
               </div>
             )}
-          </div>
-
-          <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-            <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.history")}</h4>
-            <ul className="space-y-2">
-              {commits.map((commit) => (
-                <li
-                  key={commit.hash}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
-                >
-                  <div className="flex items-center justify-between text-slate-500">
-                    <span className="font-mono">{commit.shortHash}</span>
-                    <span>{commit.date}</span>
-                  </div>
-                  <div className="mt-1 font-medium text-slate-700">{commit.subject}</div>
-                  <div className="mt-1 text-slate-500">{commit.author}</div>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </div>

@@ -2,6 +2,8 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
     let mut command = Command::new("git");
     hide_console_window(&mut command);
     let output = command
+        .arg("-c")
+        .arg("core.quotepath=false")
         .arg("-C")
         .arg(root)
         .args(args)
@@ -87,7 +89,7 @@ fn parse_numstat(raw: &str) -> std::collections::HashMap<String, (u32, u32)> {
         }
         let added = parts[0].parse::<u32>().unwrap_or(0);
         let removed = parts[1].parse::<u32>().unwrap_or(0);
-        let path = parts[2].trim().to_string();
+        let path = normalize_numstat_path(parts[2..].join("\t").trim());
         if path.is_empty() {
             continue;
         }
@@ -102,6 +104,43 @@ fn normalize_status_path(raw: &str) -> String {
     let candidate = raw.rsplit(" -> ").next().unwrap_or(raw).trim();
     let unquoted = candidate.trim_matches('"');
     unquoted.replace('\\', "/")
+}
+
+fn normalize_numstat_path(raw: &str) -> String {
+    let candidate = raw.rsplit(" -> ").next().unwrap_or(raw).trim();
+    let unquoted = candidate.trim_matches('"');
+    let path = expand_brace_rename_path(unquoted);
+    path.replace('\\', "/")
+}
+
+fn expand_brace_rename_path(input: &str) -> String {
+    let Some(start) = input.find('{') else {
+        return input.to_string();
+    };
+    let Some(end) = input[start..].find('}') else {
+        return input.to_string();
+    };
+    let end_index = start + end;
+    let inside = &input[start + 1..end_index];
+    let Some((_, right)) = inside.split_once("=>") else {
+        return input.to_string();
+    };
+    let prefix = &input[..start];
+    let suffix = &input[end_index + 1..];
+    format!("{prefix}{}{suffix}", right.trim())
+}
+
+fn estimate_untracked_added_lines(root: &Path, relative_path: &str) -> u32 {
+    let file_path = root.join(relative_path);
+    let Ok(bytes) = fs::read(&file_path) else {
+        return 0;
+    };
+    if bytes.contains(&0) {
+        return 0;
+    }
+    let content = String::from_utf8_lossy(&bytes);
+    let line_count = content.lines().count();
+    u32::try_from(line_count).unwrap_or(0)
 }
 
 fn parse_hunk_header(header: &str) -> (Option<u32>, Option<u32>) {

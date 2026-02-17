@@ -188,6 +188,7 @@ export function updateSettings(input: {
     theme?: "light" | "dark" | "system";
     busytexCachePolicy?: "install-first" | "appdata-only";
     busytexCacheDir?: string;
+    previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
   };
 }): Promise<AppSettings> {
@@ -206,6 +207,12 @@ export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> 
 
 export function testModel(modelId: string): Promise<ModelTestResult> {
   return invoke<ModelTestResult>("model_test", { input: { modelId } });
+}
+
+export function setModelApiKey(modelId: string, apiKey: string): Promise<Ack> {
+  return invoke<Ack>("model_api_key_set", {
+    input: { modelId, apiKey },
+  });
 }
 
 export function runtimeLogWrite(level: string, message: string) {
@@ -288,10 +295,11 @@ export function gitDiffFile(
   projectId: string,
   path: string,
   staged = false,
-  contextLines = 3
+  contextLines = 3,
+  revision?: string
 ): Promise<GitDiffResponse> {
   return invoke<GitDiffResponse>("git_diff_file", {
-    input: { projectId, path, staged, contextLines }
+    input: { projectId, path, staged, contextLines, revision }
   });
 }
 

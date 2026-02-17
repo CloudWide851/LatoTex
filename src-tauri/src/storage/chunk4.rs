@@ -252,6 +252,21 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
 }
 
 fn update_model_catalog(conn: &Connection, models: Vec<ModelCatalogItemInput>) -> Result<(), String> {
+    let incoming_ids: std::collections::HashSet<String> =
+        models.iter().map(|item| item.id.clone()).collect();
+    let mut existing_stmt = conn
+        .prepare("SELECT id FROM model_catalog")
+        .map_err(|e| e.to_string())?;
+    let existing_rows = existing_stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    for row in existing_rows {
+        let existing_id = row.map_err(|e| e.to_string())?;
+        if !incoming_ids.contains(&existing_id) {
+            secure::delete_model_api_key(&existing_id)?;
+        }
+    }
+
     conn.execute("DELETE FROM model_catalog", [])
         .map_err(|e| e.to_string())?;
     for model in models {
@@ -317,7 +332,7 @@ pub fn resolve_agent_model(
     db_path: &Path,
     role: &str,
     model_override: Option<&str>,
-) -> Result<(String, String, String), String> {
+) -> Result<(String, String, String, String), String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let model_id = if let Some(override_id) = model_override {
         let trimmed = override_id.trim();
@@ -357,7 +372,7 @@ pub fn resolve_agent_model(
         )
         .map_err(|_| "Protocol configuration not found for model".to_string())?;
 
-    Ok((protocol_id, base_url, model_name))
+    Ok((protocol_id, base_url, model_name, resolved_model_id))
 }
 
 pub fn resolve_model_test_connection(
@@ -386,7 +401,10 @@ pub fn resolve_model_test_connection(
         )
         .map_err(|_| format!("Protocol not found for model: {trimmed_model_id}"))?;
 
-    let api_key = secure::get_api_key(&protocol_id)?;
+    let api_key = match secure::get_model_api_key(trimmed_model_id)? {
+        Some(value) => Some(value),
+        None => secure::get_api_key(&protocol_id)?,
+    };
     Ok((protocol_id, base_url, model_name, api_key))
 }
 

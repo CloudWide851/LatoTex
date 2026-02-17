@@ -164,6 +164,7 @@ export function useAppEffects(params: {
           busytexCachePolicy:
             appSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
           busytexCacheDir: appSettings.uiPrefs?.busytexCacheDir,
+          previewDefaultZoom: appSettings.uiPrefs?.previewDefaultZoom ?? 1,
           panelLayout: {
             ...DEFAULT_PANEL_LAYOUT,
             ...(appSettings.uiPrefs?.panelLayout ?? {}),

@@ -36,6 +36,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: "agents", key: "settings.section.agents", icon: Bot },
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];
+const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
 
 export function SettingsPanel(props: {
   settings: AppSettings | null;
@@ -99,6 +100,7 @@ export function SettingsPanel(props: {
       language: locale,
       theme: "system",
       busytexCachePolicy: "install-first",
+      previewDefaultZoom: 1,
       panelLayout: DEFAULT_PANEL_LAYOUT,
     },
   };
@@ -250,6 +252,36 @@ export function SettingsPanel(props: {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                {t("settings.previewZoomTitle")}
+              </h3>
+              <div className="grid max-w-xs gap-2">
+                <Select
+                  value={String(localSettings.uiPrefs?.previewDefaultZoom ?? 1)}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              previewDefaultZoom: Number(event.target.value),
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  {PREVIEW_ZOOM_OPTIONS.map((value) => (
+                    <option key={value} value={String(value)}>
+                      {`${Math.round(value * 100)}%`}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-slate-500">{t("settings.previewZoomHint")}</p>
               </div>
             </div>
           </div>

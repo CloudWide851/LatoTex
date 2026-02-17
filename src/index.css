@@ -57,8 +57,41 @@ body {
 
 #root {
   height: 100vh;
+  position: relative;
+  z-index: 1;
   background-color: var(--app-bg);
   overflow: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  background-image:
+    radial-gradient(1px 1px at 12% 24%, rgba(255, 255, 255, 0.5) 0, transparent 100%),
+    radial-gradient(1px 1px at 26% 78%, rgba(255, 255, 255, 0.44) 0, transparent 100%),
+    radial-gradient(1.2px 1.2px at 48% 16%, rgba(255, 255, 255, 0.5) 0, transparent 100%),
+    radial-gradient(1px 1px at 63% 58%, rgba(255, 255, 255, 0.38) 0, transparent 100%),
+    radial-gradient(1.1px 1.1px at 78% 34%, rgba(255, 255, 255, 0.46) 0, transparent 100%),
+    radial-gradient(1px 1px at 92% 68%, rgba(255, 255, 255, 0.4) 0, transparent 100%);
+  transition: opacity 240ms ease-out;
+}
+
+@keyframes stars-twinkle {
+  0%, 100% {
+    opacity: 0.36;
+  }
+  50% {
+    opacity: 0.56;
+  }
+}
+
+[data-theme="dark"] body::before {
+  opacity: 1;
+  animation: stars-twinkle 5.4s ease-in-out infinite;
 }
 
 .app-topbar {
@@ -227,5 +260,9 @@ body {
   .theme-ripple-surface {
     animation: none;
     transition: none;
+  }
+
+  [data-theme="dark"] body::before {
+    animation: none;
   }
 }

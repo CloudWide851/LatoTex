@@ -21,6 +21,7 @@ export function ModelModal(props: {
       isNew: boolean;
     };
     model: ModelCatalogItem;
+    modelApiKey?: string;
   }) => void;
   t: TranslationFn;
 }) {
@@ -30,11 +31,10 @@ export function ModelModal(props: {
   const [newProtocolId, setNewProtocolId] = useState("");
   const [newProtocolName, setNewProtocolName] = useState("");
   const [newProtocolBaseUrl, setNewProtocolBaseUrl] = useState("");
-  const [newProtocolApiKey, setNewProtocolApiKey] = useState("");
   const [existingProtocolBaseUrl, setExistingProtocolBaseUrl] = useState("");
-  const [existingProtocolApiKey, setExistingProtocolApiKey] = useState("");
   const [modelDisplayName, setModelDisplayName] = useState("");
   const [modelRequestName, setModelRequestName] = useState("");
+  const [modelApiKey, setModelApiKey] = useState("");
   const [testState, setTestState] = useState<"idle" | "ok" | "fail">("idle");
   const [testing, setTesting] = useState(false);
 
@@ -45,7 +45,6 @@ export function ModelModal(props: {
 
   useEffect(() => {
     setExistingProtocolBaseUrl(selectedProtocol?.baseUrl ?? "");
-    setExistingProtocolApiKey("");
   }, [selectedProtocol?.baseUrl, selectedProtocol?.id]);
 
   if (!open) {
@@ -57,14 +56,14 @@ export function ModelModal(props: {
         id: newProtocolId.trim(),
         displayName: newProtocolName.trim(),
         baseUrl: newProtocolBaseUrl.trim(),
-        apiKey: newProtocolApiKey.trim(),
+        apiKey: modelApiKey.trim(),
         isNew: true,
       }
     : {
         id: protocolId,
         displayName: selectedProtocol?.displayName ?? protocolId,
         baseUrl: existingProtocolBaseUrl.trim(),
-        apiKey: existingProtocolApiKey.trim(),
+        apiKey: modelApiKey.trim(),
         isNew: false,
       };
 
@@ -153,17 +152,6 @@ export function ModelModal(props: {
                   }}
                 />
               </label>
-              <label className="grid gap-1">
-                <span className="text-xs text-slate-500">{t("settings.apiKey")}</span>
-                <Input
-                  type="password"
-                  value={existingProtocolApiKey}
-                  onChange={(event) => {
-                    setExistingProtocolApiKey(event.target.value);
-                    setTestState("idle");
-                  }}
-                />
-              </label>
             </div>
           ) : (
             <div className="grid gap-2">
@@ -197,14 +185,6 @@ export function ModelModal(props: {
                   }}
                 />
               </label>
-              <label className="grid gap-1">
-                <span className="text-xs text-slate-500">{t("settings.apiKey")}</span>
-                <Input
-                  type="password"
-                  value={newProtocolApiKey}
-                  onChange={(event) => setNewProtocolApiKey(event.target.value)}
-                />
-              </label>
             </div>
           )}
 
@@ -216,6 +196,18 @@ export function ModelModal(props: {
             <label className="grid gap-1">
               <span className="text-xs text-slate-500">{t("settings.modal.modelRequestName")}</span>
               <Input value={modelRequestName} onChange={(e) => setModelRequestName(e.target.value)} />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs text-slate-500">{t("settings.apiKey")}</span>
+              <Input
+                type="password"
+                value={modelApiKey}
+                onChange={(event) => {
+                  setModelApiKey(event.target.value);
+                  setTestState("idle");
+                }}
+                placeholder={t("settings.apiKey")}
+              />
             </label>
           </div>
         </div>
@@ -244,6 +236,7 @@ export function ModelModal(props: {
                     displayName: modelDisplayName.trim(),
                     requestName: modelRequestName.trim(),
                   },
+                  modelApiKey: modelApiKey.trim() || undefined,
                 });
                 onClose();
               }}

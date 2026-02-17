@@ -253,6 +253,7 @@ pub struct UiPrefs {
     pub theme: Option<String>,
     pub busytex_cache_policy: Option<String>,
     pub busytex_cache_dir: Option<String>,
+    pub preview_default_zoom: Option<f64>,
     pub panel_layout: Option<Value>,
 }
 
@@ -282,6 +283,13 @@ pub struct SettingsUpdateInput {
     pub model_catalog: Vec<ModelCatalogItemInput>,
     pub agent_bindings: Vec<AgentModelBinding>,
     pub ui_prefs: Option<UiPrefs>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelApiKeySetInput {
+    pub model_id: String,
+    pub api_key: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -510,6 +518,7 @@ pub struct GitDiffInput {
     pub path: String,
     pub staged: Option<bool>,
     pub context_lines: Option<u32>,
+    pub revision: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

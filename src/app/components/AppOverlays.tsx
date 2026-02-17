@@ -60,6 +60,7 @@ export function AppOverlays(props: {
       isNew: boolean;
     };
     model: ModelCatalogItem;
+    modelApiKey?: string;
   }) => void;
   onProtocolPing: (input: { protocolId: string; baseUrl: string; apiKey?: string }) => Promise<boolean>;
   onDeleteCancel: () => void;

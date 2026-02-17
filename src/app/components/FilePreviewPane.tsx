@@ -45,15 +45,45 @@ export function FilePreviewPane(props: {
   markdownContent: string;
   title: string;
   emptyText: string;
+  pdfZoom: number;
+  onPdfZoomChange: (nextZoom: number) => void;
+  onPdfClickZoomIn: () => void;
 }) {
-  const { mode, pdfUrl, markdownContent, title, emptyText } = props;
+  const { mode, pdfUrl, markdownContent, title, emptyText, pdfZoom, onPdfZoomChange, onPdfClickZoomIn } = props;
   const markdownBlocks = useMemo(
     () => (mode === "markdown" ? parseMarkdownBlocks(markdownContent) : []),
     [markdownContent, mode],
   );
-
   if (mode === "pdf" && pdfUrl) {
-    return <iframe title={title} src={pdfUrl} className="h-full w-full rounded-lg border border-slate-200" />;
+    return (
+      <div
+        className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 cursor-zoom-in"
+        onWheel={(event) => {
+          if (!event.ctrlKey) {
+            return;
+          }
+          event.preventDefault();
+          const step = event.deltaY < 0 ? 0.1 : -0.1;
+          const nextZoom = Math.max(0.5, Math.min(3, Number((pdfZoom + step).toFixed(2))));
+          onPdfZoomChange(nextZoom);
+        }}
+        onClick={onPdfClickZoomIn}
+      >
+        <iframe
+          title={title}
+          src={pdfUrl}
+          className="rounded-lg border-0"
+          style={{
+            width: "100%",
+            height: "100%",
+            minHeight: "100%",
+            transform: `scale(${pdfZoom})`,
+            transformOrigin: "top left",
+            pointerEvents: "none",
+          }}
+        />
+      </div>
+    );
   }
 
   if (mode === "markdown") {
@@ -105,4 +135,3 @@ export function FilePreviewPane(props: {
     </div>
   );
 }
-

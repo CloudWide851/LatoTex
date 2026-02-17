@@ -99,6 +99,7 @@ export type AppSettings = {
     theme?: "light" | "dark" | "system";
     busytexCachePolicy?: "install-first" | "appdata-only";
     busytexCacheDir?: string;
+    previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
   };
 };
