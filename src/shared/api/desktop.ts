@@ -29,6 +29,7 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   RuntimeLogInfo,
+  RuntimeLogReadFilters,
   RuntimeLogReadResponse,
   ResourceNode,
   WorkspaceExportPdfResponse,
@@ -223,8 +224,14 @@ export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
   return invoke<RuntimeLogInfo>("runtime_log_info");
 }
 
-export function runtimeLogRead(limit = 500): Promise<RuntimeLogReadResponse> {
-  return invoke<RuntimeLogReadResponse>("runtime_log_read", { input: { limit } });
+export function runtimeLogRead(filters: RuntimeLogReadFilters = {}): Promise<RuntimeLogReadResponse> {
+  return invoke<RuntimeLogReadResponse>("runtime_log_read", { input: filters });
+}
+
+export function runtimeLogClearCurrentSession(confirmToken = "CLEAR_CURRENT_SESSION"): Promise<Ack> {
+  return invoke<Ack>("runtime_log_clear_current_session", {
+    input: { confirmToken },
+  });
 }
 
 export function gitStatus(projectId: string): Promise<GitStatus> {

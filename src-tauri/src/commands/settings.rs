@@ -1,7 +1,7 @@
 use crate::models::{
     Ack, AppSettings, ModelApiKeySetInput, ModelTestInput, ModelTestResult, ProtocolHealth,
-    ProtocolTestInput, RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput, RuntimeLogReadResponse,
-    RuntimeLogWriteInput, SettingsUpdateInput,
+    ProtocolTestInput, RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput,
+    RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
 };
 use crate::secure;
 use crate::state::AppState;
@@ -395,6 +395,41 @@ fn parse_runtime_log_line(raw_line: &str) -> RuntimeLogEntry {
     }
 }
 
+fn runtime_log_entry_matches(entry: &RuntimeLogEntry, input: &RuntimeLogReadInput) -> bool {
+    if let Some(level) = input.level.as_deref() {
+        let level = level.trim().to_uppercase();
+        if !level.is_empty() && entry.level.to_uppercase() != level {
+            return false;
+        }
+    }
+
+    if let Some(keyword) = input.keyword.as_deref() {
+        let keyword = keyword.trim().to_lowercase();
+        if !keyword.is_empty() {
+            let haystack = format!("{} {}", entry.message, entry.raw).to_lowercase();
+            if !haystack.contains(&keyword) {
+                return false;
+            }
+        }
+    }
+
+    if let Some(from_time) = input.from_time.as_deref() {
+        let from_time = from_time.trim();
+        if !from_time.is_empty() && !entry.timestamp.is_empty() && entry.timestamp.as_str() < from_time {
+            return false;
+        }
+    }
+
+    if let Some(to_time) = input.to_time.as_deref() {
+        let to_time = to_time.trim();
+        if !to_time.is_empty() && !entry.timestamp.is_empty() && entry.timestamp.as_str() > to_time {
+            return false;
+        }
+    }
+
+    true
+}
+
 #[tauri::command]
 pub fn runtime_log_read(
     state: State<'_, AppState>,
@@ -402,15 +437,33 @@ pub fn runtime_log_read(
 ) -> Result<RuntimeLogReadResponse, String> {
     let max_limit = 5000_u32;
     let limit = input.limit.unwrap_or(500).clamp(1, max_limit) as usize;
-    let content = fs::read_to_string(&state.session_log_path).map_err(|e| e.to_string())?;
+    let content = fs::read_to_string(&state.session_log_path).unwrap_or_default();
     let mut entries: Vec<RuntimeLogEntry> = content
         .lines()
         .filter(|line| !line.trim().is_empty())
         .map(parse_runtime_log_line)
+        .filter(|entry| runtime_log_entry_matches(entry, &input))
         .collect();
     if entries.len() > limit {
         let start = entries.len() - limit;
         entries = entries.split_off(start);
     }
     Ok(RuntimeLogReadResponse { entries })
+}
+
+#[tauri::command]
+pub fn runtime_log_clear_current_session(
+    state: State<'_, AppState>,
+    input: RuntimeLogClearInput,
+) -> Result<Ack, String> {
+    let token = input.confirm_token.unwrap_or_default();
+    if token.trim() != "CLEAR_CURRENT_SESSION" {
+        return Err("Invalid confirm token".to_string());
+    }
+    fs::write(&state.session_log_path, "").map_err(|e| e.to_string())?;
+    state.log("WARN", "runtime_log_clear_current_session");
+    Ok(Ack {
+        ok: true,
+        message: "cleared".to_string(),
+    })
 }

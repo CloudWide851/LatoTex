@@ -132,6 +132,14 @@ export type RuntimeLogReadResponse = {
   entries: RuntimeLogEntry[];
 };
 
+export type RuntimeLogReadFilters = {
+  limit?: number;
+  level?: string;
+  keyword?: string;
+  fromTime?: string;
+  toTime?: string;
+};
+
 export type LibraryCitationSummary = {
   sourcePath: string;
   bibPath?: string | null;

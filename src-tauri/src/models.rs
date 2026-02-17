@@ -116,6 +116,10 @@ pub struct RuntimeLogWriteInput {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeLogReadInput {
     pub limit: Option<u32>,
+    pub level: Option<String>,
+    pub keyword: Option<String>,
+    pub from_time: Option<String>,
+    pub to_time: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -131,6 +135,12 @@ pub struct RuntimeLogEntry {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeLogReadResponse {
     pub entries: Vec<RuntimeLogEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogClearInput {
+    pub confirm_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

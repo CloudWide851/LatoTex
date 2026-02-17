@@ -1,20 +1,18 @@
 import {
-  CheckSquare,
   Download,
   GitBranch,
   Plus,
   RefreshCcw,
   Send,
-  Square,
   Upload,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { GitChangeList } from "./GitChangeList";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
-import { cn } from "../../lib/utils";
 import type {
   GitAvailability,
   GitBranchInfo,
@@ -23,7 +21,6 @@ import type {
   GitDownloadStatus,
   GitInitProgress,
   GitStatus,
-  GitStatusEntry,
 } from "../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
@@ -55,9 +52,10 @@ export function GitWorkspace(props: {
   onPull: () => void;
   onPush: () => void;
   onCheckout: (branch: string, create: boolean) => void;
-  onStage: (paths: string[]) => void;
-  onUnstage: (paths: string[]) => void;
-  onCommit: (message: string) => void;
+  onStage: (paths: string[]) => Promise<void> | void;
+  onUnstage: (paths: string[]) => Promise<void> | void;
+  onCommit: (message: string) => Promise<void> | void;
+  onGenerateSummary: (includedPaths: string[]) => Promise<string>;
   onInitRepo: () => void;
   onLoadDiff: (path: string, staged: boolean, revision?: string) => Promise<GitDiffResponse>;
   onOpenFile: (path: string) => void;
@@ -82,6 +80,7 @@ export function GitWorkspace(props: {
     onStage,
     onUnstage,
     onCommit,
+    onGenerateSummary,
     onInitRepo,
     onLoadDiff,
     onOpenFile,
@@ -92,7 +91,7 @@ export function GitWorkspace(props: {
   } = props;
   const [message, setMessage] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [excludedPaths, setExcludedPaths] = useState<string[]>([]);
   const [activeDiffKey, setActiveDiffKey] = useState<string | null>(null);
   const [activeDiffMeta, setActiveDiffMeta] = useState<{ path: string; staged: boolean } | null>(null);
   const [loadingDiffKey, setLoadingDiffKey] = useState<string | null>(null);
@@ -100,6 +99,8 @@ export function GitWorkspace(props: {
   const [diffErrorByKey, setDiffErrorByKey] = useState<Record<string, string>>({});
   const [historyQuery, setHistoryQuery] = useState("");
   const [selectedHistoryHash, setSelectedHistoryHash] = useState("");
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const changedFiles = status?.changes ?? [];
   const stagedFiles = useMemo(
@@ -109,6 +110,23 @@ export function GitWorkspace(props: {
   const unstagedFiles = useMemo(
     () => changedFiles.filter((item) => item.worktreeStatus !== " " || item.indexStatus === "?"),
     [changedFiles],
+  );
+  const changedPathSet = useMemo(() => new Set(changedFiles.map((item) => item.path)), [changedFiles]);
+  const includedPaths = useMemo(
+    () => changedFiles.map((item) => item.path).filter((path) => !excludedPaths.includes(path)),
+    [changedFiles, excludedPaths],
+  );
+  const includedUnstagedPaths = useMemo(
+    () => unstagedFiles.map((item) => item.path).filter((path) => !excludedPaths.includes(path)),
+    [excludedPaths, unstagedFiles],
+  );
+  const includedStagedPaths = useMemo(
+    () => stagedFiles.map((item) => item.path).filter((path) => !excludedPaths.includes(path)),
+    [excludedPaths, stagedFiles],
+  );
+  const excludedExistingPaths = useMemo(
+    () => excludedPaths.filter((path) => changedPathSet.has(path)),
+    [changedPathSet, excludedPaths],
   );
   const filteredCommits = useMemo(() => {
     const query = historyQuery.trim().toLowerCase();
@@ -124,9 +142,31 @@ export function GitWorkspace(props: {
     `${revision?.trim() || "working"}:${staged ? "s" : "u"}:${path}`;
 
   const togglePath = (path: string) => {
-    setSelectedPaths((prev) =>
+    setExcludedPaths((prev) =>
       prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path],
     );
+  };
+
+  useEffect(() => {
+    setExcludedPaths((prev) => prev.filter((path) => changedPathSet.has(path)));
+  }, [changedPathSet]);
+
+  const syncIncludedSelection = async () => {
+    const allPaths = changedFiles.map((item) => item.path);
+    if (includedPaths.length === 0) {
+      if (excludedExistingPaths.length > 0) {
+        await Promise.resolve(onUnstage(excludedExistingPaths));
+      }
+      return;
+    }
+    if (includedPaths.length === allPaths.length) {
+      await Promise.resolve(onStage([]));
+    } else {
+      await Promise.resolve(onStage(includedPaths));
+    }
+    if (excludedExistingPaths.length > 0) {
+      await Promise.resolve(onUnstage(excludedExistingPaths));
+    }
   };
 
   const openDiff = async (path: string, staged: boolean, revisionOverride?: string) => {
@@ -155,58 +195,6 @@ export function GitWorkspace(props: {
 
   const activeDiff = activeDiffKey ? diffByKey[activeDiffKey] : undefined;
   const activeDiffError = activeDiffKey ? diffErrorByKey[activeDiffKey] : "";
-
-  const renderChanges = (entries: GitStatusEntry[], staged: boolean) => (
-    <div className="space-y-1">
-      {entries.map((entry) => (
-        <div
-          key={`${entry.path}-${entry.indexStatus}-${entry.worktreeStatus}-${staged ? "staged" : "unstaged"}`}
-          className="rounded-md border border-slate-200 bg-white"
-        >
-          <div className="flex items-center justify-between gap-2 px-2 py-1 text-left text-xs hover:bg-slate-50">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <button
-                className="flex h-4 w-4 items-center justify-center"
-                onClick={() => togglePath(entry.path)}
-              >
-                {selectedPaths.includes(entry.path) ? (
-                  <CheckSquare className="h-3.5 w-3.5 text-primary-600" />
-                ) : (
-                  <Square className="h-3.5 w-3.5 text-slate-400" />
-                )}
-              </button>
-              <button
-                className={cn(
-                  "min-w-0 flex-1 truncate text-left hover:text-primary-700",
-                  activeDiffKey === buildDiffKey(entry.path, staged, selectedHistoryHash || undefined)
-                    ? "text-primary-700"
-                    : "text-slate-700",
-                )}
-                title={entry.path}
-                onClick={() => {
-                  void openDiff(entry.path, staged);
-                }}
-              >
-                {entry.path}
-              </button>
-            </div>
-            <div className="flex items-center gap-1">
-              {loadingDiffKey === buildDiffKey(entry.path, staged, selectedHistoryHash || undefined) ? (
-                <SvgSpinner className="h-3 w-3 text-slate-500" />
-              ) : null}
-              {activeDiffKey === buildDiffKey(entry.path, staged, selectedHistoryHash || undefined) ? (
-                <span className="rounded border border-primary-200 bg-primary-50 px-1 py-0 text-[9px] text-primary-700">
-                  {t("git.diff")}
-                </span>
-              ) : null}
-              <span className="font-mono text-[10px] text-emerald-600">+{entry.addedLines}</span>
-              <span className="font-mono text-[10px] text-rose-600">-{entry.removedLines}</span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
 
   if (availability && !availability.installed) {
     const statusText = downloadStatus?.status ?? "idle";
@@ -381,38 +369,135 @@ export function GitWorkspace(props: {
 
           <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
             <h4 className="text-xs font-semibold text-slate-600">{t("git.commit")}</h4>
+            <p className="text-[11px] text-slate-500">{t("git.defaultIncludeHint")}</p>
             <Input
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder={t("git.commitPlaceholder")}
             />
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => onStage(selectedPaths)} disabled={busy}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setActionError("");
+                  const paths = includedUnstagedPaths;
+                  if (paths.length === 0) {
+                    return;
+                  }
+                  if (paths.length === unstagedFiles.length) {
+                    void Promise.resolve(onStage([])).catch((error) =>
+                      setActionError(error instanceof Error ? error.message : String(error)),
+                    );
+                    return;
+                  }
+                  void Promise.resolve(onStage(paths)).catch((error) =>
+                    setActionError(error instanceof Error ? error.message : String(error)),
+                  );
+                }}
+                disabled={busy || includedUnstagedPaths.length === 0}
+              >
                 {t("git.stage")}
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => onUnstage(selectedPaths)}
-                disabled={busy}
+                onClick={() => {
+                  setActionError("");
+                  const paths = includedStagedPaths;
+                  if (paths.length === 0) {
+                    return;
+                  }
+                  if (paths.length === stagedFiles.length) {
+                    void Promise.resolve(onUnstage([])).catch((error) =>
+                      setActionError(error instanceof Error ? error.message : String(error)),
+                    );
+                    return;
+                  }
+                  void Promise.resolve(onUnstage(paths)).catch((error) =>
+                    setActionError(error instanceof Error ? error.message : String(error)),
+                  );
+                }}
+                disabled={busy || includedStagedPaths.length === 0}
               >
                 {t("git.unstage")}
               </Button>
-              <Button size="sm" onClick={() => onCommit(message)} disabled={busy || !message.trim()}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  setActionError("");
+                  setSummaryBusy(true);
+                  try {
+                    await syncIncludedSelection();
+                    const summary = await onGenerateSummary(includedPaths);
+                    if (summary) {
+                      setMessage(summary);
+                    }
+                  } catch (error) {
+                    setActionError(error instanceof Error ? error.message : String(error));
+                  } finally {
+                    setSummaryBusy(false);
+                  }
+                }}
+                disabled={busy || summaryBusy || includedPaths.length === 0}
+              >
+                {summaryBusy ? t("git.generatingSummary") : t("git.aiSummary")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  setActionError("");
+                  try {
+                    await syncIncludedSelection();
+                    await Promise.resolve(onCommit(message));
+                  } catch (error) {
+                    setActionError(error instanceof Error ? error.message : String(error));
+                  }
+                }}
+                disabled={busy || !message.trim()}
+              >
                 <Send className="mr-1 h-3.5 w-3.5" />
                 {t("git.commit")}
               </Button>
             </div>
+            {actionError ? (
+              <div className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+                {actionError}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
             <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
               <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.unstaged")}</h4>
-              {renderChanges(unstagedFiles, false)}
+              <GitChangeList
+                entries={unstagedFiles}
+                staged={false}
+                excludedPaths={excludedPaths}
+                activeDiffKey={activeDiffKey}
+                selectedHistoryHash={selectedHistoryHash}
+                loadingDiffKey={loadingDiffKey}
+                buildDiffKey={buildDiffKey}
+                onTogglePath={togglePath}
+                onOpenDiff={openDiff}
+                t={t}
+              />
             </div>
             <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
               <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.staged")}</h4>
-              {renderChanges(stagedFiles, true)}
+              <GitChangeList
+                entries={stagedFiles}
+                staged
+                excludedPaths={excludedPaths}
+                activeDiffKey={activeDiffKey}
+                selectedHistoryHash={selectedHistoryHash}
+                loadingDiffKey={loadingDiffKey}
+                buildDiffKey={buildDiffKey}
+                onTogglePath={togglePath}
+                onOpenDiff={openDiff}
+                t={t}
+              />
             </div>
           </div>
         </div>

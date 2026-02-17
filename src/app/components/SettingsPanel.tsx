@@ -1,4 +1,5 @@
 import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
@@ -57,8 +58,9 @@ export function SettingsPanel(props: {
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
-  onOpenModelModal: () => void;
+  onOpenModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
   onOpenLogViewer: () => void;
+  onClearCurrentLog: () => Promise<void>;
   onTestModel: (modelId: string) => void;
   onTestAllModels: () => void;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
@@ -85,11 +87,18 @@ export function SettingsPanel(props: {
     onBusyTexCachePolicyChange,
     onOpenModelModal,
     onOpenLogViewer,
+    onClearCurrentLog,
     onTestModel,
     onTestAllModels,
     setSettings,
     t,
   } = props;
+
+  const [logLevelFilter, setLogLevelFilter] = useState("ALL");
+  const [logKeyword, setLogKeyword] = useState("");
+  const [logFrom, setLogFrom] = useState("");
+  const [logTo, setLogTo] = useState("");
+  const [selectedLogKey, setSelectedLogKey] = useState<string | null>(null);
 
   const localSettings = settings ?? {
     activeProjectId,
@@ -104,6 +113,40 @@ export function SettingsPanel(props: {
       panelLayout: DEFAULT_PANEL_LAYOUT,
     },
   };
+
+  const filteredRuntimeLogs = useMemo(() => {
+    const from = logFrom.trim() ? logFrom.replace("T", " ") : "";
+    const to = logTo.trim() ? logTo.replace("T", " ") : "";
+    const keyword = logKeyword.trim().toLowerCase();
+    return runtimeLogs.filter((entry) => {
+      const level = entry.level.toUpperCase();
+      if (logLevelFilter !== "ALL" && level !== logLevelFilter) {
+        return false;
+      }
+      if (keyword) {
+        const haystack = `${entry.message} ${entry.raw}`.toLowerCase();
+        if (!haystack.includes(keyword)) {
+          return false;
+        }
+      }
+      if (from && entry.timestamp && entry.timestamp < from) {
+        return false;
+      }
+      if (to && entry.timestamp && entry.timestamp > to) {
+        return false;
+      }
+      return true;
+    });
+  }, [logFrom, logKeyword, logLevelFilter, logTo, runtimeLogs]);
+
+  const selectedLogEntry = useMemo(() => {
+    if (!selectedLogKey) {
+      return null;
+    }
+    return filteredRuntimeLogs.find(
+      (entry, index) => `${entry.timestamp}-${entry.level}-${index}` === selectedLogKey,
+    ) ?? null;
+  }, [filteredRuntimeLogs, selectedLogKey]);
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
@@ -293,7 +336,7 @@ export function SettingsPanel(props: {
               <h3 className="text-sm font-semibold text-slate-800">
                 {t("settings.modelCatalogTitle")}
               </h3>
-              <Button size="sm" onClick={onOpenModelModal}>
+              <Button size="sm" onClick={() => onOpenModelModal("create", null)}>
                 <Plus className="mr-2 h-4 w-4" />
                 {t("settings.addModel")}
               </Button>
@@ -332,6 +375,13 @@ export function SettingsPanel(props: {
                           {modelTestActiveId === model.id && modelTestBusy
                             ? t("common.loading")
                             : t("settings.testProtocol")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onOpenModelModal("edit", model)}
+                        >
+                          {t("settings.editModel")}
                         </Button>
                         <Button
                           variant="ghost"
@@ -427,19 +477,69 @@ export function SettingsPanel(props: {
                 <span className="text-slate-700">{runtimeInfo?.version ?? "-"}</span>
               </div>
               <div className="pt-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={onOpenLogViewer}>
+                    {t("settings.openCurrentLog")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      if (window.confirm(t("settings.logClearCurrentConfirm"))) {
+                        void onClearCurrentLog();
+                        setSelectedLogKey(null);
+                      }
+                    }}
+                  >
+                    {t("settings.logClearCurrent")}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs text-slate-500">{t("settings.logDoubleClickHint")}</p>
+              <div className="grid grid-cols-[minmax(120px,160px)_minmax(180px,1fr)_minmax(170px,1fr)_minmax(170px,1fr)_auto] gap-2 max-[1200px]:grid-cols-1">
+                <Select value={logLevelFilter} uiSize="sm" onChange={(event) => setLogLevelFilter(event.target.value)}>
+                  <option value="ALL">{t("settings.logFilterAllLevels")}</option>
+                  <option value="INFO">INFO</option>
+                  <option value="WARN">WARN</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="CRASH">CRASH</option>
+                </Select>
+                <input
+                  className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  value={logKeyword}
+                  onChange={(event) => setLogKeyword(event.target.value)}
+                  placeholder={t("settings.logFilterKeyword")}
+                />
+                <input
+                  className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  type="datetime-local"
+                  value={logFrom}
+                  onChange={(event) => setLogFrom(event.target.value)}
+                  title={t("settings.logFilterFrom")}
+                />
+                <input
+                  className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  type="datetime-local"
+                  value={logTo}
+                  onChange={(event) => setLogTo(event.target.value)}
+                  title={t("settings.logFilterTo")}
+                />
                 <Button size="sm" variant="secondary" onClick={onOpenLogViewer}>
-                  {t("settings.openCurrentLog")}
+                  {t("settings.logApplyFilter")}
                 </Button>
               </div>
             </div>
-            <div className="min-h-[240px] rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="grid min-h-[280px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 max-[1100px]:grid-cols-1">
               {runtimeLogLoading ? (
                 <div className="text-xs text-slate-500">{t("common.loading")}</div>
-              ) : runtimeLogs.length === 0 ? (
+              ) : filteredRuntimeLogs.length === 0 ? (
                 <div className="text-xs text-slate-500">{t("settings.logViewerEmpty")}</div>
               ) : (
-                <div className="max-h-[48vh] space-y-2 overflow-auto pr-1">
-                  {runtimeLogs.map((entry, index) => {
+                <>
+                  <div className="max-h-[50vh] space-y-2 overflow-auto pr-1">
+                  {filteredRuntimeLogs.map((entry, index) => {
                     const upper = entry.level.toUpperCase();
                     const lowerMessage = entry.message.toLowerCase();
                     const toneClass =
@@ -452,8 +552,13 @@ export function SettingsPanel(props: {
                               lowerMessage.includes("ok=true")
                             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                             : "border-slate-300 bg-white text-slate-700";
+                    const entryKey = `${entry.timestamp}-${entry.level}-${index}`;
                     return (
-                      <div key={`${entry.timestamp}-${entry.level}-${index}`} className={`rounded border px-3 py-2 ${toneClass}`}>
+                      <div
+                        key={entryKey}
+                        className={`rounded border px-3 py-2 ${toneClass} ${selectedLogKey === entryKey ? "ring-2 ring-primary-300" : ""}`}
+                        onDoubleClick={() => setSelectedLogKey(entryKey)}
+                      >
                         <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                           <span className="font-semibold">
                             {t("settings.logLevel")}: {entry.level}
@@ -469,6 +574,17 @@ export function SettingsPanel(props: {
                     );
                   })}
                 </div>
+                  <div className="min-h-0 rounded-md border border-slate-300 bg-white p-3">
+                    <h4 className="mb-2 text-xs font-semibold text-slate-700">{t("settings.logDetailTitle")}</h4>
+                    {selectedLogEntry ? (
+                      <pre className="max-h-[46vh] overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
+                        {selectedLogEntry.raw || selectedLogEntry.message}
+                      </pre>
+                    ) : (
+                      <div className="text-xs text-slate-500">{t("settings.logDoubleClickHint")}</div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>

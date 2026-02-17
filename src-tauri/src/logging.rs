@@ -40,7 +40,8 @@ pub fn append_log_line(log_file: &Path, level: &str, message: &str) -> Result<()
         .map_err(|e| e.to_string())?;
     let sanitized = message.replace('\n', " ");
     let line = format!("[{}] [{}] {}\n", now_for_line(), level, sanitized);
-    file.write_all(line.as_bytes()).map_err(|e| e.to_string())
+    file.write_all(line.as_bytes()).map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())
 }
 
 pub fn install_panic_hook(logs_dir: PathBuf, session_log: PathBuf) {

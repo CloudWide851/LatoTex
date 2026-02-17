@@ -19,8 +19,8 @@ use commands::projects::{
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::settings::{
-    model_api_key_set, model_test, protocol_test, runtime_log_info, runtime_log_read,
-    runtime_log_write, settings_get, settings_update,
+    model_api_key_set, model_test, protocol_test, runtime_log_clear_current_session,
+    runtime_log_info, runtime_log_read, runtime_log_write, settings_get, settings_update,
 };
 use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
 use tauri::Manager;
@@ -67,6 +67,7 @@ pub fn run() {
             runtime_log_write,
             runtime_log_info,
             runtime_log_read,
+            runtime_log_clear_current_session,
             git_status,
             git_check_installed,
             git_init_repo,

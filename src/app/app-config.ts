@@ -45,6 +45,7 @@ export const FIXED_AGENT_ROLES = [
   "web_search",
   "review",
   "ephemeral",
+  "git_summary",
 ] as const;
 
 export const PAGE_ITEMS: Array<{

@@ -25,6 +25,8 @@ import {
   openProject,
   projectIntegrityRepair,
   projectIntegrityStatus,
+  runAgent,
+  runtimeLogClearCurrentSession,
   runtimeLogRead,
   setModelApiKey,
   testModel,
@@ -39,6 +41,7 @@ import type {
   GitDownloadStatus,
   GitInitProgress,
   GitStatus,
+  ModelCatalogItem,
   PanelLayoutPrefs,
   ProjectSearchHit,
   ProjectSummary,
@@ -114,6 +117,8 @@ export function AppContainer() {
   const [overlay, setOverlay] = useState<OverlayType>(null);
   const [logsTab, setLogsTab] = useState<LogTab>("events");
   const [modelModalOpen, setModelModalOpen] = useState(false);
+  const [modelModalMode, setModelModalMode] = useState<"create" | "edit">("create");
+  const [modelModalInitial, setModelModalInitial] = useState<ModelCatalogItem | null>(null);
   const [deleteIntent, setDeleteIntent] = useState<DeleteIntent>(null);
   const [themeTransition, setThemeTransition] = useState<ThemeTransition | null>(null);
   const [deleteDontAskAgain, setDeleteDontAskAgain] = useState(false);
@@ -230,8 +235,9 @@ export function AppContainer() {
         panelLayout: nextSettings.uiPrefs?.panelLayout,
       },
     });
+    const validModelIds = new Set(nextSettings.modelCatalog.map((item) => item.id));
     const keyEntries = Object.entries(draftModelApiKeys).filter(
-      ([, value]) => typeof value === "string" && value.trim().length > 0,
+      ([modelId]) => validModelIds.has(modelId),
     );
     if (keyEntries.length > 0) {
       await Promise.all(
@@ -640,6 +646,76 @@ export function AppContainer() {
     }
   }, [settings?.modelCatalog]);
 
+  const openModelModal = useCallback((mode: "create" | "edit" = "create", model: ModelCatalogItem | null = null) => {
+    setModelModalMode(mode);
+    setModelModalInitial(model);
+    setModelModalOpen(true);
+  }, []);
+
+  const handleGenerateGitSummary = useCallback(async (includedPaths: string[]) => {
+    if (!activeProjectId) {
+      throw new Error("No active project");
+    }
+    const files = Array.from(
+      new Set(
+        includedPaths
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0),
+      ),
+    ).slice(0, 24);
+    if (files.length === 0) {
+      return "";
+    }
+
+    const patches = await Promise.all(
+      files.map(async (path) => {
+        try {
+          const diff = await gitDiffFile(activeProjectId, path, true, 2);
+          const lines = diff.hunks
+            .flatMap((hunk) => hunk.lines)
+            .map((line) => line.text)
+            .join("\n");
+          return lines.trim().length > 0 ? `### ${path}\n${lines}` : "";
+        } catch {
+          return "";
+        }
+      }),
+    );
+
+    const joinedPatch = patches.filter((item) => item.length > 0).join("\n\n").slice(0, 48_000);
+    const prompt = [
+      "Summarize the staged Git changes and return a commit message proposal.",
+      "Output format:",
+      "TITLE: <single line, <=72 chars>",
+      "BODY:",
+      "- <bullet 1>",
+      "- <bullet 2>",
+      "Use concise, technical wording.",
+      "",
+      `Files: ${files.join(", ")}`,
+      "",
+      "Patch:",
+      joinedPatch || "(empty patch text)",
+    ].join("\n");
+
+    const result = await runAgent({
+      projectId: activeProjectId,
+      role: "git_summary",
+      prompt,
+      contextRefs: files,
+    });
+
+    const output = result.output?.trim() ?? "";
+    if (!output) {
+      return "";
+    }
+    const titleMatch = output.match(/^TITLE:\s*(.+)$/im);
+    if (titleMatch?.[1]) {
+      return titleMatch[1].trim();
+    }
+    return output.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
+  }, [activeProjectId]);
+
   const settingsPanel = (
     <SettingsPanel
       settings={settings}
@@ -660,15 +736,24 @@ export function AppContainer() {
       onLocaleChange={handleLocaleChange}
       onThemeModeChange={handleThemeModeChange}
       onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
-      onOpenModelModal={() => setModelModalOpen(true)}
+      onOpenModelModal={openModelModal}
       onOpenLogViewer={() => {
         setRuntimeLogLoading(true);
-        runtimeLogRead(1200)
+        runtimeLogRead({ limit: 1600 })
           .then((response) => {
             setRuntimeLogs(response.entries);
           })
           .catch((error) => setToast({ type: "error", message: String(error) }))
           .finally(() => setRuntimeLogLoading(false));
+      }}
+      onClearCurrentLog={async () => {
+        try {
+          await runtimeLogClearCurrentSession("CLEAR_CURRENT_SESSION");
+          const refreshed = await runtimeLogRead({ limit: 1600 });
+          setRuntimeLogs(refreshed.entries);
+        } catch (error) {
+          setToast({ type: "error", message: String(error) });
+        }
       }}
       onTestModel={(modelId) => void handleTestModel(modelId)}
       onTestAllModels={() => void handleTestAllModels()}
@@ -696,6 +781,14 @@ export function AppContainer() {
       onStage={(paths) => handleGitAction(async () => gitStage(activeProjectId, paths))}
       onUnstage={(paths) => handleGitAction(async () => gitUnstage(activeProjectId, paths))}
       onCommit={(message) => handleGitAction(async () => gitCommit(activeProjectId, message))}
+      onGenerateSummary={async (includedPaths) => {
+        try {
+          return await handleGenerateGitSummary(includedPaths);
+        } catch (error) {
+          setToast({ type: "error", message: String(error) });
+          return "";
+        }
+      }}
       onInitRepo={async () => {
         setBusy(true);
         setGitInitProgress({ phase: "checking", message: t("git.init.checking") });
@@ -830,6 +923,8 @@ export function AppContainer() {
         events={events}
         compileDiagnostics={compileDiagnostics}
         modelModalOpen={modelModalOpen}
+        modelModalMode={modelModalMode}
+        modelModalInitial={modelModalInitial}
         settings={settings}
         deleteIntent={deleteIntent}
         deleteDontAskAgain={deleteDontAskAgain}
@@ -838,8 +933,12 @@ export function AppContainer() {
         toast={toast}
         onOverlayClose={() => setOverlay(null)}
         onLogsTabChange={setLogsTab}
-        onModelModalClose={() => setModelModalOpen(false)}
-        onModelSubmit={({ protocol, model, modelApiKey }) =>
+        onModelModalClose={() => {
+          setModelModalOpen(false);
+          setModelModalInitial(null);
+          setModelModalMode("create");
+        }}
+        onModelSubmit={({ protocol, model, modelApiKey, modelApiKeyAction }) =>
           setSettings((prev) => {
             if (!prev) {
               return prev;
@@ -863,9 +962,17 @@ export function AppContainer() {
                       }
                     : item,
                 );
-            if (modelApiKey?.trim()) {
-              setDraftModelApiKeys((current) => ({ ...current, [model.id]: modelApiKey ?? "" }));
-            }
+            setDraftModelApiKeys((current) => {
+              const next = { ...current };
+              if (modelApiKeyAction === "set") {
+                next[model.id] = modelApiKey ?? "";
+              } else if (modelApiKeyAction === "clear") {
+                next[model.id] = "";
+              } else {
+                delete next[model.id];
+              }
+              return next;
+            });
             const nextCatalog = prev.modelCatalog.some((item) => item.id === model.id)
               ? prev.modelCatalog.map((item) => (item.id === model.id ? model : item))
               : [...prev.modelCatalog, model];

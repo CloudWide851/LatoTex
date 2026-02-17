@@ -379,6 +379,43 @@ export function useAppEffects(params: {
   }, [toast, setToast]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const onError = (event: ErrorEvent) => {
+      const location = event.filename
+        ? `${event.filename}:${event.lineno}:${event.colno}`
+        : "unknown";
+      const message = event.message || "unknown error";
+      runtimeLogWrite("ERROR", `frontend.error: ${message} @ ${location}`).catch(() => undefined);
+    };
+    const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+      let reason = "unknown reason";
+      if (typeof event.reason === "string") {
+        reason = event.reason;
+      } else if (event.reason instanceof Error) {
+        reason = event.reason.message;
+      } else {
+        try {
+          reason = JSON.stringify(event.reason);
+        } catch {
+          reason = String(event.reason);
+        }
+      }
+      runtimeLogWrite("ERROR", `frontend.unhandledrejection: ${reason || "unknown reason"}`).catch(
+        () => undefined,
+      );
+    };
+
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onUnhandledRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onUnhandledRejection);
+    };
+  }, []);
+
+  useEffect(() => {
     if (page !== "git" || !activeProjectId) {
       return;
     }

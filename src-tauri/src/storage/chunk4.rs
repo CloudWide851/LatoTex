@@ -73,6 +73,30 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
     Ok(EventBatch { next_cursor, events })
 }
 
+const FIXED_AGENT_ROLES: [&str; 7] = [
+    "plan",
+    "task",
+    "explore",
+    "web_search",
+    "review",
+    "ephemeral",
+    "git_summary",
+];
+
+fn normalize_agent_bindings(bindings: Vec<AgentModelBinding>) -> Vec<AgentModelBinding> {
+    let mut by_role = std::collections::HashMap::<String, String>::new();
+    for binding in bindings {
+        by_role.insert(binding.role, binding.model_id);
+    }
+    FIXED_AGENT_ROLES
+        .iter()
+        .map(|role| AgentModelBinding {
+            role: (*role).to_string(),
+            model_id: by_role.get(*role).cloned().unwrap_or_default(),
+        })
+        .collect()
+}
+
 pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let (active_project_id, ui_prefs_json): (Option<String>, Option<String>) = conn
@@ -172,6 +196,8 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
             model_id: resolved_model_id,
         });
     }
+
+    let agent_bindings = normalize_agent_bindings(agent_bindings);
 
     Ok(AppSettings {
         active_project_id,
@@ -406,5 +432,32 @@ pub fn resolve_model_test_connection(
         None => secure::get_api_key(&protocol_id)?,
     };
     Ok((protocol_id, base_url, model_name, api_key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_agent_bindings_fills_fixed_roles() {
+        let bindings = vec![
+            AgentModelBinding {
+                role: "task".to_string(),
+                model_id: "model-task".to_string(),
+            },
+            AgentModelBinding {
+                role: "git_summary".to_string(),
+                model_id: "model-git".to_string(),
+            },
+        ];
+        let normalized = normalize_agent_bindings(bindings);
+        assert_eq!(normalized.len(), FIXED_AGENT_ROLES.len());
+        let task = normalized.iter().find(|item| item.role == "task");
+        assert_eq!(task.map(|item| item.model_id.as_str()), Some("model-task"));
+        let git = normalized.iter().find(|item| item.role == "git_summary");
+        assert_eq!(git.map(|item| item.model_id.as_str()), Some("model-git"));
+        let review = normalized.iter().find(|item| item.role == "review");
+        assert_eq!(review.map(|item| item.model_id.as_str()), Some(""));
+    }
 }
 

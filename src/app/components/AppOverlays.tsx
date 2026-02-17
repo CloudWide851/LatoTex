@@ -42,6 +42,8 @@ export function AppOverlays(props: {
   events: SwarmEvent[];
   compileDiagnostics: string[];
   modelModalOpen: boolean;
+  modelModalMode: "create" | "edit";
+  modelModalInitial: ModelCatalogItem | null;
   settings: AppSettings | null;
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
@@ -61,6 +63,7 @@ export function AppOverlays(props: {
     };
     model: ModelCatalogItem;
     modelApiKey?: string;
+    modelApiKeyAction: "keep" | "set" | "clear";
   }) => void;
   onProtocolPing: (input: { protocolId: string; baseUrl: string; apiKey?: string }) => Promise<boolean>;
   onDeleteCancel: () => void;
@@ -76,6 +79,8 @@ export function AppOverlays(props: {
     events,
     compileDiagnostics,
     modelModalOpen,
+    modelModalMode,
+    modelModalInitial,
     settings,
     deleteIntent,
     deleteDontAskAgain,
@@ -182,6 +187,8 @@ export function AppOverlays(props: {
       {modelModalOpen && settings && (
         <ModelModal
           open={modelModalOpen}
+          mode={modelModalMode}
+          initialModel={modelModalInitial}
           protocols={settings.modelProtocols}
           onClose={onModelModalClose}
           onTest={onProtocolPing}
