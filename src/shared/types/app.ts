@@ -116,6 +116,13 @@ export type ModelTestResult = {
   message: string;
 };
 
+export type ModelDraftTestInput = {
+  protocolId: string;
+  baseUrl: string;
+  requestName: string;
+  apiKey: string;
+};
+
 export type AppSettings = {
   activeProjectId: string | null;
   modelProtocols: ModelProtocol[];

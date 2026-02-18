@@ -19,6 +19,7 @@ import type {
   GitStatus,
   LibraryCitationSummary,
   ModelCatalogItemInput,
+  ModelDraftTestInput,
   ModelTestResult,
   ModelProtocolInput,
   PanelLayoutPrefs,
@@ -208,6 +209,17 @@ export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> 
 
 export function testModel(modelId: string): Promise<ModelTestResult> {
   return invoke<ModelTestResult>("model_test", { input: { modelId } });
+}
+
+export function testModelDraft(input: ModelDraftTestInput): Promise<ModelTestResult> {
+  return invoke<ModelTestResult>("model_test_draft", {
+    input: {
+      protocolId: input.protocolId,
+      baseUrl: input.baseUrl,
+      requestName: input.requestName,
+      apiKey: input.apiKey,
+    },
+  });
 }
 
 export function setModelApiKey(modelId: string, apiKey: string): Promise<Ack> {

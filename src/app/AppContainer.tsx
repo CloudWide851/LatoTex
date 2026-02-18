@@ -1174,6 +1174,87 @@ export function AppContainer() {
     return output.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
   }, [activeProjectId]);
 
+  const handleModelModalSubmit = useCallback((payload: {
+    protocol: {
+      id: string;
+      displayName: string;
+      baseUrl: string;
+      apiKey?: string;
+      isNew: boolean;
+    };
+    model: ModelCatalogItem;
+    modelApiKey?: string;
+    modelApiKeyAction: "keep" | "set" | "clear";
+  }) => {
+    const { protocol, model, modelApiKey, modelApiKeyAction } = payload;
+    setSettings((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const nextProtocols = protocol.isNew
+        ? [
+            ...prev.modelProtocols,
+            {
+              id: protocol.id,
+              displayName: protocol.displayName,
+              baseUrl: protocol.baseUrl,
+              apiKeySet: Boolean(modelApiKey?.trim()),
+            },
+          ]
+        : prev.modelProtocols.map((item) =>
+            item.id === protocol.id
+              ? {
+                  ...item,
+                  baseUrl: protocol.baseUrl,
+                  apiKeySet:
+                    modelApiKeyAction === "set"
+                      ? Boolean(modelApiKey?.trim())
+                      : modelApiKeyAction === "clear"
+                        ? false
+                        : item.apiKeySet,
+                }
+              : item,
+          );
+      const nextCatalog = prev.modelCatalog.some((item) => item.id === model.id)
+        ? prev.modelCatalog.map((item) => (item.id === model.id ? model : item))
+        : [...prev.modelCatalog, model];
+      const nextSettings: AppSettings = {
+        ...prev,
+        modelProtocols: nextProtocols,
+        modelCatalog: nextCatalog,
+      };
+
+      setDraftModelApiKeys((current) => {
+        const next = { ...current };
+        if (modelApiKeyAction === "set") {
+          next[model.id] = modelApiKey ?? "";
+        } else if (modelApiKeyAction === "clear") {
+          next[model.id] = "";
+        } else {
+          delete next[model.id];
+        }
+        return next;
+      });
+
+      queueMicrotask(() => {
+        if (modelApiKeyAction === "set") {
+          void setModelApiKey(model.id, modelApiKey?.trim() ?? "").catch((error) =>
+            setToast({ type: "error", message: String(error) }),
+          );
+        } else if (modelApiKeyAction === "clear") {
+          void setModelApiKey(model.id, "").catch((error) =>
+            setToast({ type: "error", message: String(error) }),
+          );
+        }
+        void persistSettings(nextSettings).catch((error) =>
+          setToast({ type: "error", message: String(error) }),
+        );
+      });
+
+      return nextSettings;
+    });
+  }, [persistSettings]);
+
   const settingsPanel = (
     <SettingsPanel
       settings={settings}
@@ -1403,51 +1484,7 @@ export function AppContainer() {
           setModelModalInitial(null);
           setModelModalMode("create");
         }}
-        onModelSubmit={({ protocol, model, modelApiKey, modelApiKeyAction }) =>
-          setSettings((prev) => {
-            if (!prev) {
-              return prev;
-            }
-            const nextProtocols = protocol.isNew
-              ? [
-                  ...prev.modelProtocols,
-                  {
-                    id: protocol.id,
-                    displayName: protocol.displayName,
-                    baseUrl: protocol.baseUrl,
-                    apiKeySet: Boolean(modelApiKey?.trim()),
-                  },
-                ]
-              : prev.modelProtocols.map((item) =>
-                  item.id === protocol.id
-                    ? {
-                        ...item,
-                        baseUrl: protocol.baseUrl,
-                        apiKeySet: item.apiKeySet || Boolean(modelApiKey?.trim()),
-                      }
-                    : item,
-                );
-            setDraftModelApiKeys((current) => {
-              const next = { ...current };
-              if (modelApiKeyAction === "set") {
-                next[model.id] = modelApiKey ?? "";
-              } else if (modelApiKeyAction === "clear") {
-                next[model.id] = "";
-              } else {
-                delete next[model.id];
-              }
-              return next;
-            });
-            const nextCatalog = prev.modelCatalog.some((item) => item.id === model.id)
-              ? prev.modelCatalog.map((item) => (item.id === model.id ? model : item))
-              : [...prev.modelCatalog, model];
-            return {
-              ...prev,
-              modelProtocols: nextProtocols,
-              modelCatalog: nextCatalog,
-            };
-          })
-        }
+        onModelSubmit={handleModelModalSubmit}
         onProtocolPing={handleProtocolPing}
         onDeleteCancel={() => setDeleteIntent(null)}
         onDeleteConfirm={confirmDelete}

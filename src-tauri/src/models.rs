@@ -324,6 +324,15 @@ pub struct ModelTestInput {
     pub model_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelDraftTestInput {
+    pub protocol_id: String,
+    pub base_url: String,
+    pub request_name: String,
+    pub api_key: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelTestResult {

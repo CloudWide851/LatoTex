@@ -289,12 +289,6 @@ export function AppWorkspaceShell(props: {
           emptyText={selectedIsMarkdown ? t("preview.markdownEmpty") : t("preview.empty")}
           pdfZoom={previewZoom}
           onPdfZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
-          onPdfClickZoomIn={() => {
-            if (!canZoomPreview) {
-              return;
-            }
-            setPreviewZoom((prev) => clampPreviewZoom(prev + 0.1));
-          }}
         />
       </div>
     </aside>
@@ -423,6 +417,7 @@ export function AppWorkspaceShell(props: {
         <div className="min-w-0 flex-1">
           {page === "latex" && activeProjectId ? (
             <PanelGroup
+              key={`panelgroup-latex-${activeProjectId}`}
               direction="horizontal"
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("latex", layout)}
@@ -443,6 +438,7 @@ export function AppWorkspaceShell(props: {
             </PanelGroup>
           ) : page === "analysis" ? (
             <PanelGroup
+              key="panelgroup-analysis"
               direction="horizontal"
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("analysis", layout)}
@@ -459,6 +455,7 @@ export function AppWorkspaceShell(props: {
             </PanelGroup>
           ) : page === "library" && activeProjectId ? (
             <PanelGroup
+              key={`panelgroup-library-${activeProjectId}`}
               direction="horizontal"
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("library", layout)}

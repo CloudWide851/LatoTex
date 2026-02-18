@@ -1,7 +1,7 @@
 use crate::models::{
-    Ack, AppSettings, ModelApiKeySetInput, ModelTestInput, ModelTestResult, ProtocolHealth,
-    ProtocolTestInput, RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput,
-    RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
+    Ack, AppSettings, ModelApiKeySetInput, ModelDraftTestInput, ModelTestInput, ModelTestResult,
+    ProtocolHealth, ProtocolTestInput, RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo,
+    RuntimeLogReadInput, RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
 };
 use crate::secure;
 use crate::state::AppState;
@@ -107,6 +107,59 @@ pub fn model_test(
 
     Ok(ModelTestResult {
         model_id: input.model_id,
+        ok,
+        message,
+    })
+}
+
+#[tauri::command]
+pub fn model_test_draft(
+    state: State<'_, AppState>,
+    input: ModelDraftTestInput,
+) -> Result<ModelTestResult, String> {
+    let protocol_id = input.protocol_id.trim();
+    let base_url = input.base_url.trim();
+    let request_name = input.request_name.trim();
+    let api_key = input.api_key.trim();
+
+    if protocol_id.is_empty() {
+        return Err("Protocol id is required".to_string());
+    }
+    if base_url.is_empty() {
+        return Err("Base URL is required".to_string());
+    }
+    if request_name.is_empty() {
+        return Err("Model request name is required".to_string());
+    }
+    if api_key.is_empty() {
+        return Err("API key is required".to_string());
+    }
+
+    state.log(
+        "INFO",
+        &format!("model_test_draft: protocol={protocol_id}, model={request_name}"),
+    );
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(18))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let result = call_model_generation_test(
+        &client,
+        protocol_id,
+        base_url,
+        request_name,
+        Some(api_key),
+    );
+
+    let (ok, message) = match result {
+        Ok(status) => (true, format!("Model test passed ({status})")),
+        Err(error) => (false, error),
+    };
+
+    Ok(ModelTestResult {
+        model_id: request_name.to_string(),
         ok,
         message,
     })

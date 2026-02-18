@@ -498,37 +498,42 @@ export function SettingsPanel(props: {
             </div>
             <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs text-slate-500">{t("settings.logDoubleClickHint")}</p>
-              <div className="grid grid-cols-[minmax(120px,160px)_minmax(180px,1fr)_minmax(170px,1fr)_minmax(170px,1fr)_auto] gap-2 max-[1200px]:grid-cols-1">
-                <Select value={logLevelFilter} uiSize="sm" onChange={(event) => setLogLevelFilter(event.target.value)}>
-                  <option value="ALL">{t("settings.logFilterAllLevels")}</option>
-                  <option value="INFO">INFO</option>
-                  <option value="WARN">WARN</option>
-                  <option value="ERROR">ERROR</option>
-                  <option value="CRASH">CRASH</option>
-                </Select>
-                <input
-                  className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                  value={logKeyword}
-                  onChange={(event) => setLogKeyword(event.target.value)}
-                  placeholder={t("settings.logFilterKeyword")}
-                />
-                <input
-                  className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                  type="datetime-local"
-                  value={logFrom}
-                  onChange={(event) => setLogFrom(event.target.value)}
-                  title={t("settings.logFilterFrom")}
-                />
-                <input
-                  className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
-                  type="datetime-local"
-                  value={logTo}
-                  onChange={(event) => setLogTo(event.target.value)}
-                  title={t("settings.logFilterTo")}
-                />
-                <Button size="sm" variant="secondary" onClick={onOpenLogViewer}>
-                  {t("settings.logApplyFilter")}
-                </Button>
+              <div className="grid gap-2">
+                <div className="grid grid-cols-[minmax(140px,220px)_minmax(260px,1fr)] gap-2 max-[980px]:grid-cols-1">
+                  <Select
+                    value={logLevelFilter}
+                    uiSize="sm"
+                    onChange={(event) => setLogLevelFilter(event.target.value)}
+                  >
+                    <option value="ALL">{t("settings.logFilterAllLevels")}</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARN">WARN</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="CRASH">CRASH</option>
+                  </Select>
+                  <input
+                    className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                    value={logKeyword}
+                    onChange={(event) => setLogKeyword(event.target.value)}
+                    placeholder={t("settings.logFilterKeyword")}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2 max-[980px]:grid-cols-1">
+                  <input
+                    className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                    type="datetime-local"
+                    value={logFrom}
+                    onChange={(event) => setLogFrom(event.target.value)}
+                    title={t("settings.logFilterFrom")}
+                  />
+                  <input
+                    className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                    type="datetime-local"
+                    value={logTo}
+                    onChange={(event) => setLogTo(event.target.value)}
+                    title={t("settings.logFilterTo")}
+                  />
+                </div>
               </div>
             </div>
             <div className="grid min-h-[280px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 max-[1100px]:grid-cols-1">

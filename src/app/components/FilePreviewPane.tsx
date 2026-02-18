@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type MarkdownBlock =
   | { kind: "heading"; level: number; text: string }
@@ -47,17 +47,24 @@ export function FilePreviewPane(props: {
   emptyText: string;
   pdfZoom: number;
   onPdfZoomChange: (nextZoom: number) => void;
-  onPdfClickZoomIn: () => void;
 }) {
-  const { mode, pdfUrl, markdownContent, title, emptyText, pdfZoom, onPdfZoomChange, onPdfClickZoomIn } = props;
+  const { mode, pdfUrl, markdownContent, title, emptyText, pdfZoom, onPdfZoomChange } = props;
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [lensActive, setLensActive] = useState(false);
+  const [lensPoint, setLensPoint] = useState({ x: 0, y: 0 });
+  const lensSize = 220;
+  const lensScale = 1.85;
   const markdownBlocks = useMemo(
     () => (mode === "markdown" ? parseMarkdownBlocks(markdownContent) : []),
     [markdownContent, mode],
   );
   if (mode === "pdf" && pdfUrl) {
+    const zoomPercent = Math.round(pdfZoom * 100);
+    const pdfSrc = `${pdfUrl}#view=FitH&zoom=${zoomPercent}`;
     return (
       <div
-        className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 cursor-zoom-in"
+        ref={viewportRef}
+        className={`relative h-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 ${lensActive ? "cursor-zoom-out" : "cursor-zoom-in"}`}
         onWheel={(event) => {
           if (!event.ctrlKey) {
             return;
@@ -67,21 +74,65 @@ export function FilePreviewPane(props: {
           const nextZoom = Math.max(0.5, Math.min(3, Number((pdfZoom + step).toFixed(2))));
           onPdfZoomChange(nextZoom);
         }}
-        onClick={onPdfClickZoomIn}
+        onMouseMove={(event) => {
+          if (!lensActive) {
+            return;
+          }
+          const rect = viewportRef.current?.getBoundingClientRect();
+          if (!rect) {
+            return;
+          }
+          setLensPoint({
+            x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+            y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+          });
+        }}
+        onMouseLeave={() => setLensActive(false)}
+        onClick={(event) => {
+          const rect = viewportRef.current?.getBoundingClientRect();
+          if (!rect) {
+            return;
+          }
+          setLensPoint({
+            x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+            y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+          });
+          setLensActive((prev) => !prev);
+        }}
       >
         <iframe
           title={title}
-          src={pdfUrl}
-          className="rounded-lg border-0"
+          src={pdfSrc}
+          className="h-full w-full rounded-lg border-0"
           style={{
-            width: "100%",
-            height: "100%",
             minHeight: "100%",
-            transform: `scale(${pdfZoom})`,
-            transformOrigin: "top left",
             pointerEvents: "none",
           }}
         />
+        {lensActive && (
+          <div
+            className="pointer-events-none absolute z-20 overflow-hidden rounded-full border-2 border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.22)]"
+            style={{
+              width: `${lensSize}px`,
+              height: `${lensSize}px`,
+              left: `${Math.max(lensSize / 2, lensPoint.x) - lensSize / 2}px`,
+              top: `${Math.max(lensSize / 2, lensPoint.y) - lensSize / 2}px`,
+            }}
+          >
+            <iframe
+              title={`${title}-lens`}
+              src={pdfSrc}
+              className="border-0"
+              style={{
+                width: `${viewportRef.current?.clientWidth ?? 0}px`,
+                height: `${viewportRef.current?.clientHeight ?? 0}px`,
+                pointerEvents: "none",
+                transformOrigin: "top left",
+                transform: `translate(${lensSize / 2 - lensScale * lensPoint.x}px, ${lensSize / 2 - lensScale * lensPoint.y}px) scale(${lensScale})`,
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }

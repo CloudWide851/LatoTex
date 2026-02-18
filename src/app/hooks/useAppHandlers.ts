@@ -12,6 +12,7 @@ import {
   recordCompile,
   runAgent,
   runtimeLogWrite,
+  testModelDraft,
   testProtocol,
   workspaceExportPdf,
   workspaceOpenTerminal,
@@ -577,15 +578,29 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     protocolId: string;
     baseUrl: string;
     apiKey?: string;
+    requestName?: string;
   }) => {
-    const result = await testProtocol(input);
+    const requestName = input.requestName?.trim();
+    const apiKey = input.apiKey?.trim();
+    const result = requestName
+      ? await testModelDraft({
+          protocolId: input.protocolId,
+          baseUrl: input.baseUrl,
+          requestName,
+          apiKey: apiKey ?? "",
+        })
+      : await testProtocol({
+          protocolId: input.protocolId,
+          baseUrl: input.baseUrl,
+          apiKey,
+        });
     setToast({
       type: result.ok ? "info" : "error",
       message: result.ok ? t("toast.protocolOk") : t("toast.protocolFail"),
     });
     await runtimeLogWrite(
       result.ok ? "INFO" : "WARN",
-      `protocol test: ${input.protocolId}, ok=${result.ok}, message=${result.message}`,
+      `${requestName ? "model draft test" : "protocol test"}: ${input.protocolId}, ok=${result.ok}, message=${result.message}`,
     );
     return result.ok;
   }, [setToast, t]);

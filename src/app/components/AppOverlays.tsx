@@ -65,7 +65,12 @@ export function AppOverlays(props: {
     modelApiKey?: string;
     modelApiKeyAction: "keep" | "set" | "clear";
   }) => void;
-  onProtocolPing: (input: { protocolId: string; baseUrl: string; apiKey?: string }) => Promise<boolean>;
+  onProtocolPing: (input: {
+    protocolId: string;
+    baseUrl: string;
+    apiKey?: string;
+    requestName?: string;
+  }) => Promise<boolean>;
   onDeleteCancel: () => void;
   onDeleteConfirm: () => void;
   onDeleteDontAskChange: (value: boolean) => void;
