@@ -5,6 +5,9 @@ mod secure;
 mod state;
 mod storage;
 
+use commands::analysis::{
+    analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
+};
 use commands::busytex::busytex_cache_prepare;
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
@@ -43,6 +46,10 @@ pub fn run() {
             project_integrity_status,
             project_integrity_repair,
             project_search_content,
+            reference_check,
+            analysis_save_report,
+            analysis_list_reports,
+            analysis_export_artifact,
             workspace_reveal_in_system,
             workspace_open_terminal,
             workspace_tree,

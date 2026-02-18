@@ -551,7 +551,9 @@ export function GitWorkspace(props: {
               activeDiff.hunks.map((hunk, hunkIndex) => (
                 <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
                   <div className="space-y-0.5">
-                    {hunk.lines.map((line, lineIndex) => (
+                    {hunk.lines
+                      .filter((line) => line.text.trim() !== "\\ No newline at end of file")
+                      .map((line, lineIndex) => (
                       <div
                         key={`${hunkIndex}-${lineIndex}-${line.text}`}
                         className={

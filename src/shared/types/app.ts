@@ -195,6 +195,50 @@ export type CompileRecord = {
   createdAt: string;
 };
 
+export type ReferenceEvidence = {
+  title: string;
+  url: string;
+  snippet: string;
+};
+
+export type ReferenceCheckItem = {
+  query: string;
+  ok: boolean;
+  message: string;
+  results: ReferenceEvidence[];
+};
+
+export type ReferenceCheckResponse = {
+  items: ReferenceCheckItem[];
+};
+
+export type AnalysisAssetInput = {
+  fileName: string;
+  dataUrl: string;
+};
+
+export type AnalysisSaveReportResponse = {
+  runId: string;
+  runDir: string;
+  reportRelativePath: string;
+  assetRelativePaths: string[];
+};
+
+export type AnalysisReportItem = {
+  runId: string;
+  reportRelativePath: string;
+  assetRelativePaths: string[];
+  updatedAtUnixMs: number;
+};
+
+export type AnalysisListReportsResponse = {
+  reports: AnalysisReportItem[];
+};
+
+export type AnalysisExportArtifactResponse = {
+  savedPath: string;
+};
+
 export type ModelProtocolInput = {
   id: string;
   displayName: string;

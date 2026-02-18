@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, MessageSquareMore, Send, Sparkles, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "../../lib/utils";
+import { pickCommandSuggestions } from "../hooks/agentCommands";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -8,6 +9,12 @@ export type AgentMessage = {
   id: string;
   role: "user" | "agent";
   text: string;
+};
+
+export type AgentCommandItem = {
+  token: "/review" | "/check-ref";
+  label: string;
+  description: string;
 };
 
 export function AgentChatOverlay(props: {
@@ -26,6 +33,7 @@ export function AgentChatOverlay(props: {
   placeholder: string;
   activityShowLabel: string;
   activityHideLabel: string;
+  commands: AgentCommandItem[];
 }) {
   const {
     collapsed,
@@ -43,10 +51,20 @@ export function AgentChatOverlay(props: {
     placeholder,
     activityShowLabel,
     activityHideLabel,
+    commands,
   } = props;
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [commandIndex, setCommandIndex] = useState(0);
   const canShowActivity = phase !== "idle" || messages.length > 0;
   const recentMessages = useMemo(() => messages.slice(-8), [messages]);
+  const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
+  const commandSuggestions = useMemo(
+    () => suggestedTokens
+      .map((token) => commands.find((item) => item.token === token))
+      .filter((item): item is AgentCommandItem => Boolean(item)),
+    [commands, suggestedTokens],
+  );
+  const activeCommandIndex = Math.min(Math.max(commandIndex, 0), Math.max(commandSuggestions.length - 1, 0));
 
   if (collapsed) {
     return (
@@ -139,6 +157,25 @@ export function AgentChatOverlay(props: {
                 placeholder={placeholder}
                 onChange={(event) => onPromptChange(event.target.value)}
                 onKeyDown={(event) => {
+                  if (commandSuggestions.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                    event.preventDefault();
+                    setCommandIndex((prev) => {
+                      if (event.key === "ArrowDown") {
+                        return Math.min(prev + 1, commandSuggestions.length - 1);
+                      }
+                      return Math.max(prev - 1, 0);
+                    });
+                    return;
+                  }
+                  if (commandSuggestions.length > 0 && event.key === "Tab") {
+                    event.preventDefault();
+                    const next = commandSuggestions[activeCommandIndex];
+                    if (next) {
+                      onPromptChange(`${next.token} `);
+                      setCommandIndex(0);
+                    }
+                    return;
+                  }
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
                     if (!busy && prompt.trim()) {
@@ -147,6 +184,27 @@ export function AgentChatOverlay(props: {
                   }
                 }}
               />
+              {commandSuggestions.length > 0 && (
+                <div className="absolute bottom-10 left-1 right-10 z-20 max-h-36 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft">
+                  {commandSuggestions.map((item, index) => (
+                    <button
+                      key={item.token}
+                      className={cn(
+                        "flex w-full items-start justify-between gap-2 rounded px-2 py-1 text-left text-xs transition",
+                        index === activeCommandIndex ? "bg-primary-50 text-primary-700" : "hover:bg-slate-100",
+                      )}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        onPromptChange(`${item.token} `);
+                        setCommandIndex(0);
+                      }}
+                    >
+                      <span className="font-mono">{item.label}</span>
+                      <span className="text-[11px] text-slate-500">{item.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <button
                 className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={onRun}

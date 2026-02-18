@@ -36,6 +36,7 @@ export type UseAppHandlersParams = {
   setLibraryTree: (value: ResourceNode[]) => void;
   setSelectedFile: (value: string | null) => void;
   setSelectedLibraryPath: (value: string | null) => void;
+  setEditorContent: (value: string) => void;
   setProjects: React.Dispatch<React.SetStateAction<any[]>>;
   setActiveProjectId: (value: string | null) => void;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;

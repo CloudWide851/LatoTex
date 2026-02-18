@@ -5,6 +5,8 @@ import { GitWorkspace } from "./components/GitWorkspace";
 import { AppOverlays } from "./components/AppOverlays";
 import { AppTopbar } from "./components/AppTopbar";
 import { AppWorkspaceShell } from "./components/AppWorkspaceShell";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import { AnalysisWorkspace } from "./components/analysis/AnalysisWorkspace";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { UnsavedChangesDialog } from "./components/editor/UnsavedChangesDialog";
 import { useI18n } from "../i18n";
@@ -78,6 +80,7 @@ import {
 import { useAppEffects } from "./hooks/useAppEffects";
 import { buildEditorTab, getTabIdsByAction } from "./hooks/useEditorTabs";
 import { useAppHandlers } from "./hooks/useAppHandlers";
+import { useAnalysisWorkspace } from "./hooks/useAnalysisWorkspace";
 import { useWorkspaceShortcuts } from "./hooks/useWorkspaceShortcuts";
 import { isPdfPath } from "../shared/utils/fileKind";
 
@@ -455,9 +458,24 @@ export function AppContainer() {
   }, [activeProjectId, draftModelApiKeys, locale]);
 
   const savePanelLayout = useCallback((panelKey: keyof PanelLayoutPrefs, layout: number[]) => {
+    const expectedLengthMap: Record<keyof PanelLayoutPrefs, number> = {
+      shell: 2,
+      latex: 3,
+      analysis: 2,
+      library: 2,
+      git: 1,
+      settings: 1,
+    };
+    const expectedLength = expectedLengthMap[panelKey];
+    const normalizedLayout = layout
+      .filter((value) => Number.isFinite(value))
+      .map((value) => Math.max(5, Math.min(95, Number(value))));
+    if (normalizedLayout.length !== expectedLength) {
+      return;
+    }
     pendingPanelLayoutRef.current = {
       ...pendingPanelLayoutRef.current,
-      [panelKey]: layout,
+      [panelKey]: normalizedLayout,
     };
 
     if (panelLayoutSaveTimerRef.current) {
@@ -617,6 +635,7 @@ export function AppContainer() {
     setLibraryTree,
     setSelectedFile,
     setSelectedLibraryPath,
+    setEditorContent,
     setProjects,
     setActiveProjectId,
     setSettings,
@@ -1031,6 +1050,14 @@ export function AppContainer() {
     }
   }, []);
 
+  const analysisWorkspace = useAnalysisWorkspace({
+    projectId: activeProjectId,
+    selectedFile,
+    editorContent,
+    t,
+    setToast,
+  });
+
   const sessionLogName = useMemo(() => {
     if (!runtimeInfo?.sessionLogFile) {
       return "-";
@@ -1255,6 +1282,59 @@ export function AppContainer() {
     });
   }, [persistSettings]);
 
+  const analysisPanel = (
+    <AnalysisWorkspace
+      busy={busy}
+      prompt={analysisWorkspace.prompt}
+      canRun={analysisWorkspace.canRun}
+      running={analysisWorkspace.running}
+      result={analysisWorkspace.result}
+      reports={analysisWorkspace.reports}
+      onPromptChange={analysisWorkspace.setPrompt}
+      onRun={() => {
+        void analysisWorkspace.runAnalysis();
+      }}
+      onRefresh={() => {
+        void analysisWorkspace.refreshReports();
+      }}
+      onExportArtifact={(relativePath) => {
+        void analysisWorkspace.exportArtifact(relativePath);
+      }}
+      onRevealArtifact={(relativePath) => {
+        void analysisWorkspace.revealArtifact(relativePath);
+      }}
+      t={t}
+    />
+  );
+
+  const recoverWorkspaceLayout = useCallback(() => {
+    setSettings((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const nextPanelLayout = {
+        ...DEFAULT_PANEL_LAYOUT,
+        ...(prev.uiPrefs?.panelLayout ?? {}),
+      };
+      if (page === "latex") {
+        nextPanelLayout.latex = [...(DEFAULT_PANEL_LAYOUT.latex ?? [22, 48, 30])];
+      } else if (page === "analysis") {
+        nextPanelLayout.analysis = [...(DEFAULT_PANEL_LAYOUT.analysis ?? [26, 74])];
+      } else if (page === "library") {
+        nextPanelLayout.library = [...(DEFAULT_PANEL_LAYOUT.library ?? [30, 70])];
+      }
+      return {
+        ...prev,
+        uiPrefs: {
+          ...(prev.uiPrefs ?? {}),
+          language: prev.uiPrefs?.language ?? locale,
+          panelLayout: nextPanelLayout,
+        },
+      };
+    });
+    setToast({ type: "error", message: t("workspace.layoutRecovered") });
+  }, [locale, page, setToast, t]);
+
   const settingsPanel = (
     <SettingsPanel
       settings={settings}
@@ -1396,71 +1476,79 @@ export function AppContainer() {
           t={t}
         />
 
-        <AppWorkspaceShell
-          page={page}
-          pageRailItems={pageRailItems}
-          activeProjectId={activeProjectId}
-          busy={busy}
-          shellLayout={shellLayout}
-          latexLayout={latexLayout}
-          analysisLayout={analysisLayout}
-          libraryLayout={libraryLayout}
-          previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
-          tree={tree}
-          libraryTree={libraryTree}
-          selectedFile={selectedFile}
-          selectedLibraryPath={selectedLibraryPath}
-          editorContent={editorContent}
-          editorTabs={editorTabs}
-          activeTabId={activeTabId}
-          dirtyByPath={dirtyByPath}
-          compiledPdfUrl={pdfUrl}
-          selectedFilePdfUrl={selectedFilePdfUrl}
-          compileErrorLine={compileErrorLine}
-          compileDiagnostics={compileDiagnostics}
-          agentCollapsed={agentCollapsed}
-          agentPhase={agentPhase}
-          agentStatusKey={agentStatusKey}
-          agentPrompt={agentPrompt}
-          agentMessages={agentMessages}
-          shellMin={SHELL_MIN}
-          settingsPanel={settingsPanel}
-          gitPanel={gitPanel}
-          onPageChange={setPage}
-          onSelectFile={handleSelectWorkspacePath}
-          onSelectLibraryPath={setSelectedLibraryPath}
-          onEditorChange={setEditorContent}
-          onTabSelect={handleTabSelect}
-          onTabClose={handleTabClose}
-          onTabCloseAction={handleTabCloseAction}
-          onTabPin={handleTabPin}
-          onEditorMount={(editor) => {
-            editorRef.current = editor;
-          }}
-          onAgentPromptChange={setAgentPrompt}
-          onAgentToggle={() => setAgentCollapsed((prev) => !prev)}
-          onAgentRun={handleRunAgent}
-          onOpenFolder={handleInitProjectFromFolderWithGuard}
-          onSaveFile={handleSaveActiveFile}
-          onCompile={handleCompile}
-          onExportPdf={handleExportCompiledPdf}
-          onEditorUndo={handleEditorUndo}
-          onEditorRedo={handleEditorRedo}
-          onOpenLogs={(tab) => {
-            setLogsTab(tab);
-            setOverlay("logs");
-          }}
-          onLibraryRescan={handleLibraryRescan}
-        onLibraryImportPdf={handleLibraryImportPdf}
-        onLibraryImportLink={handleLibraryImportLink}
-        onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
-        onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
-        onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
-          onFsAction={(scope, action, path, targetPath, content) =>
-            requestFsAction(scope, action, path, targetPath, content)
-          }
-          t={t}
-        />
+        <AppErrorBoundary
+          fallbackTitle={t("workspace.crashedTitle")}
+          fallbackHint={t("workspace.crashedHint")}
+          retryLabel={t("workspace.crashedRetry")}
+          onRecover={recoverWorkspaceLayout}
+        >
+          <AppWorkspaceShell
+            page={page}
+            pageRailItems={pageRailItems}
+            activeProjectId={activeProjectId}
+            busy={busy}
+            shellLayout={shellLayout}
+            latexLayout={latexLayout}
+            analysisLayout={analysisLayout}
+            libraryLayout={libraryLayout}
+            previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
+            tree={tree}
+            libraryTree={libraryTree}
+            selectedFile={selectedFile}
+            selectedLibraryPath={selectedLibraryPath}
+            editorContent={editorContent}
+            editorTabs={editorTabs}
+            activeTabId={activeTabId}
+            dirtyByPath={dirtyByPath}
+            compiledPdfUrl={pdfUrl}
+            selectedFilePdfUrl={selectedFilePdfUrl}
+            compileErrorLine={compileErrorLine}
+            compileDiagnostics={compileDiagnostics}
+            agentCollapsed={agentCollapsed}
+            agentPhase={agentPhase}
+            agentStatusKey={agentStatusKey}
+            agentPrompt={agentPrompt}
+            agentMessages={agentMessages}
+            shellMin={SHELL_MIN}
+            settingsPanel={settingsPanel}
+            gitPanel={gitPanel}
+            analysisPanel={analysisPanel}
+            onPageChange={setPage}
+            onSelectFile={handleSelectWorkspacePath}
+            onSelectLibraryPath={setSelectedLibraryPath}
+            onEditorChange={setEditorContent}
+            onTabSelect={handleTabSelect}
+            onTabClose={handleTabClose}
+            onTabCloseAction={handleTabCloseAction}
+            onTabPin={handleTabPin}
+            onEditorMount={(editor) => {
+              editorRef.current = editor;
+            }}
+            onAgentPromptChange={setAgentPrompt}
+            onAgentToggle={() => setAgentCollapsed((prev) => !prev)}
+            onAgentRun={handleRunAgent}
+            onOpenFolder={handleInitProjectFromFolderWithGuard}
+            onSaveFile={handleSaveActiveFile}
+            onCompile={handleCompile}
+            onExportPdf={handleExportCompiledPdf}
+            onEditorUndo={handleEditorUndo}
+            onEditorRedo={handleEditorRedo}
+            onOpenLogs={(tab) => {
+              setLogsTab(tab);
+              setOverlay("logs");
+            }}
+            onLibraryRescan={handleLibraryRescan}
+            onLibraryImportPdf={handleLibraryImportPdf}
+            onLibraryImportLink={handleLibraryImportLink}
+            onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
+            onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
+            onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
+            onFsAction={(scope, action, path, targetPath, content) =>
+              requestFsAction(scope, action, path, targetPath, content)
+            }
+            t={t}
+          />
+        </AppErrorBoundary>
       </div>
 
       <AppOverlays

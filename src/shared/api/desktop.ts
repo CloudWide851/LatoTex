@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Ack,
+  AnalysisAssetInput,
+  AnalysisExportArtifactResponse,
+  AnalysisListReportsResponse,
+  AnalysisSaveReportResponse,
   AgentModelBinding,
   AppSettings,
   BusyTexCacheInfo,
@@ -25,6 +29,7 @@ import type {
   PanelLayoutPrefs,
   ProjectIntegrityStatus,
   ProjectSearchHit,
+  ReferenceCheckResponse,
   ProtocolTestInput,
   ProtocolHealth,
   ProjectSnapshot,
@@ -72,6 +77,49 @@ export function projectSearchContent(
 ): Promise<ProjectSearchHit[]> {
   return invoke<ProjectSearchHit[]>("project_search_content", {
     input: { projectId, query, limit }
+  });
+}
+
+export function referenceCheck(
+  queries: string[],
+  limit = 5,
+): Promise<ReferenceCheckResponse> {
+  return invoke<ReferenceCheckResponse>("reference_check", {
+    input: { queries, limit },
+  });
+}
+
+export function analysisSaveReport(input: {
+  projectId: string;
+  runId?: string;
+  title?: string;
+  reportHtml: string;
+  assets?: AnalysisAssetInput[];
+}): Promise<AnalysisSaveReportResponse> {
+  return invoke<AnalysisSaveReportResponse>("analysis_save_report", {
+    input: {
+      projectId: input.projectId,
+      runId: input.runId,
+      title: input.title,
+      reportHtml: input.reportHtml,
+      assets: input.assets ?? [],
+    },
+  });
+}
+
+export function analysisListReports(projectId: string): Promise<AnalysisListReportsResponse> {
+  return invoke<AnalysisListReportsResponse>("analysis_list_reports", {
+    input: { projectId },
+  });
+}
+
+export function analysisExportArtifact(
+  projectId: string,
+  relativePath: string,
+  defaultFileName?: string,
+): Promise<AnalysisExportArtifactResponse | null> {
+  return invoke<AnalysisExportArtifactResponse | null>("analysis_export_artifact", {
+    input: { projectId, relativePath, defaultFileName },
   });
 }
 

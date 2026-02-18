@@ -1,42 +1,18 @@
 import { useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import "katex/dist/katex.min.css";
+import "highlight.js/styles/github.css";
 
-type MarkdownBlock =
-  | { kind: "heading"; level: number; text: string }
-  | { kind: "bullet"; text: string }
-  | { kind: "paragraph"; text: string }
-  | { kind: "divider" };
-
-function parseMarkdownBlocks(input: string): MarkdownBlock[] {
-  const lines = input.replace(/\r\n/g, "\n").split("\n");
-  const blocks: MarkdownBlock[] = [];
-
-  for (const line of lines) {
-    const heading = line.match(/^(#{1,6})\s+(.+)$/);
-    if (heading) {
-      blocks.push({
-        kind: "heading",
-        level: heading[1].length,
-        text: heading[2].trim(),
-      });
-      continue;
-    }
-    if (/^\s*[-*+]\s+/.test(line)) {
-      blocks.push({
-        kind: "bullet",
-        text: line.replace(/^\s*[-*+]\s+/, "").trim(),
-      });
-      continue;
-    }
-    if (/^\s*---+\s*$/.test(line)) {
-      blocks.push({ kind: "divider" });
-      continue;
-    }
-    if (line.trim().length > 0) {
-      blocks.push({ kind: "paragraph", text: line.trim() });
-    }
-  }
-
-  return blocks;
+function sanitizePreviewText(input: string): string {
+  return input
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => line.trim() !== "\\ No newline at end of file")
+    .join("\n");
 }
 
 export function FilePreviewPane(props: {
@@ -54,10 +30,11 @@ export function FilePreviewPane(props: {
   const [lensPoint, setLensPoint] = useState({ x: 0, y: 0 });
   const lensSize = 220;
   const lensScale = 1.85;
-  const markdownBlocks = useMemo(
-    () => (mode === "markdown" ? parseMarkdownBlocks(markdownContent) : []),
-    [markdownContent, mode],
+  const sanitizedMarkdown = useMemo(
+    () => sanitizePreviewText(markdownContent ?? ""),
+    [markdownContent],
   );
+
   if (mode === "pdf" && pdfUrl) {
     const zoomPercent = Math.round(pdfZoom * 100);
     const pdfSrc = `${pdfUrl}#view=FitH&zoom=${zoomPercent}`;
@@ -140,42 +117,36 @@ export function FilePreviewPane(props: {
   if (mode === "markdown") {
     return (
       <div className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-        <div className="space-y-2">
-          {markdownBlocks.length === 0 ? (
-            <p className="text-xs text-slate-500">{emptyText}</p>
-          ) : (
-            markdownBlocks.map((block, index) => {
-              if (block.kind === "divider") {
-                return <hr key={`divider-${index}`} className="border-slate-300" />;
-              }
-              if (block.kind === "bullet") {
-                return (
-                  <p key={`bullet-${index}`} className="pl-3 text-sm leading-6 text-slate-700">
-                    {"\u2022"} {block.text}
-                  </p>
-                );
-              }
-              if (block.kind === "heading") {
-                const size =
-                  block.level <= 1
-                    ? "text-lg"
-                    : block.level === 2
-                      ? "text-base"
-                      : "text-sm";
-                return (
-                  <h3 key={`heading-${index}`} className={`${size} font-semibold text-slate-800`}>
-                    {block.text}
-                  </h3>
-                );
-              }
-              return (
-                <p key={`paragraph-${index}`} className="text-sm leading-6 text-slate-700">
-                  {block.text}
-                </p>
-              );
-            })
-          )}
-        </div>
+        {sanitizedMarkdown.trim().length === 0 ? (
+          <p className="text-xs text-slate-500">{emptyText}</p>
+        ) : (
+          <article className="markdown-preview space-y-3 text-sm leading-6 text-slate-700">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex, rehypeHighlight]}
+              components={{
+                a: ({ ...props }) => (
+                  <a
+                    {...props}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-primary-700 underline decoration-primary-400 underline-offset-2"
+                  />
+                ),
+                code: ({ className, children, ...props }) => (
+                  <code
+                    {...props}
+                    className={`rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] ${className ?? ""}`}
+                  >
+                    {children}
+                  </code>
+                ),
+              }}
+            >
+              {sanitizedMarkdown}
+            </ReactMarkdown>
+          </article>
+        )}
       </div>
     );
   }

@@ -9,6 +9,7 @@ import {
   openProject,
   projectSearchContent,
   readFile,
+  referenceCheck,
   recordCompile,
   runAgent,
   runtimeLogWrite,
@@ -34,6 +35,7 @@ import {
   THEME_TRANSITION_MS,
   type ThemeMode,
 } from "../app-config";
+import { extractReferenceQueries, parseAgentPrompt } from "./agentCommands";
 import { useGitHandlers } from "./useGitHandlers";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 
@@ -100,6 +102,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setLibraryTree,
     setSelectedFile,
     setSelectedLibraryPath,
+    setEditorContent,
     setProjects,
     setActiveProjectId,
     setSettings,
@@ -238,6 +241,79 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
   }, [activeProjectId, editorContent, selectedFile, setBusy, setToast, t]);
 
+  const buildCompileFileMap = useCallback(async (
+    projectId: string,
+    mainPath: string,
+    mainContent: string,
+  ) => {
+    const fileMap: Record<string, string> = {};
+    for (const filePath of fileList) {
+      if (filePath === mainPath) {
+        fileMap[filePath] = mainContent;
+        continue;
+      }
+      if (!shouldIncludeCompileFile(filePath)) {
+        continue;
+      }
+      const data = await readFile(projectId, filePath);
+      fileMap[filePath] = data.content;
+    }
+    return fileMap;
+  }, [fileList]);
+
+  const runCompilePass = useCallback(async (
+    projectId: string,
+    mainPath: string,
+    mainContent: string,
+    options: { updatePreview: boolean; emitToast: boolean },
+  ) => {
+    const fileMap = await buildCompileFileMap(projectId, mainPath, mainContent);
+    const result = await compileWithBusyTeX(mainContent, fileMap, mainPath);
+    setLastCompileFailed(result.status !== "success");
+    setCompileDiagnostics(result.diagnostics);
+    await runtimeLogWrite(
+      result.status === "success" ? "INFO" : "ERROR",
+      `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
+    );
+    await recordCompile({
+      projectId,
+      mainFile: mainPath,
+      status: result.status,
+      diagnostics: result.diagnostics,
+      durationMs: result.durationMs,
+    });
+    if (result.status === "success" && result.pdfBytes && options.updatePreview) {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+      const normalizedBytes = Uint8Array.from(result.pdfBytes);
+      const url = URL.createObjectURL(
+        new Blob([normalizedBytes], { type: "application/pdf" }),
+      );
+      setPdfUrl(url);
+      setCompiledPdfBytes(normalizedBytes);
+    }
+    if (options.emitToast) {
+      setToast({
+        type: result.status === "success" ? "info" : "error",
+        message:
+          result.status === "success"
+            ? t("toast.compileSuccess")
+            : t("toast.compileFailed"),
+      });
+    }
+    return result;
+  }, [
+    buildCompileFileMap,
+    pdfUrl,
+    setCompileDiagnostics,
+    setCompiledPdfBytes,
+    setLastCompileFailed,
+    setPdfUrl,
+    setToast,
+    t,
+  ]);
+
   const handleCompile = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
       return;
@@ -245,52 +321,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setBusy(true);
     setCompileDiagnostics([]);
     try {
-      const fileMap: Record<string, string> = {};
-      for (const filePath of fileList) {
-        if (filePath === selectedFile) {
-          fileMap[filePath] = editorContent;
-          continue;
-        }
-        if (!shouldIncludeCompileFile(filePath)) {
-          continue;
-        }
-        const data = await readFile(activeProjectId, filePath);
-        fileMap[filePath] = data.content;
-      }
-
-      const result = await compileWithBusyTeX(editorContent, fileMap, selectedFile);
-      setLastCompileFailed(result.status !== "success");
-      await runtimeLogWrite(
-        result.status === "success" ? "INFO" : "ERROR",
-        `${t("log.compileDone")}, file=${selectedFile}, status=${result.status}, durationMs=${result.durationMs}`,
-      );
-
-      await recordCompile({
-        projectId: activeProjectId,
-        mainFile: selectedFile,
-        status: result.status,
-        diagnostics: result.diagnostics,
-        durationMs: result.durationMs,
-      });
-
-      if (result.status === "success" && result.pdfBytes) {
-        if (pdfUrl) {
-          URL.revokeObjectURL(pdfUrl);
-        }
-        const normalizedBytes = Uint8Array.from(result.pdfBytes);
-        const url = URL.createObjectURL(
-          new Blob([normalizedBytes], { type: "application/pdf" }),
-        );
-        setPdfUrl(url);
-        setCompiledPdfBytes(normalizedBytes);
-      }
-      setCompileDiagnostics(result.diagnostics);
-      setToast({
-        type: result.status === "success" ? "info" : "error",
-        message:
-          result.status === "success"
-            ? t("toast.compileSuccess")
-            : t("toast.compileFailed"),
+      await runCompilePass(activeProjectId, selectedFile, editorContent, {
+        updatePreview: true,
+        emitToast: true,
       });
     } catch (error) {
       setLastCompileFailed(true);
@@ -303,16 +336,13 @@ export function useAppHandlers(params: UseAppHandlersParams) {
   }, [
     activeProjectId,
     editorContent,
-    fileList,
-    pdfUrl,
-    setCompiledPdfBytes,
+    runCompilePass,
     selectedFile,
     setBusy,
     setCompileDiagnostics,
+    setCompiledPdfBytes,
     setLastCompileFailed,
-    setPdfUrl,
     setToast,
-    t,
   ]);
 
   const handleExportCompiledPdf = useCallback(async () => {
@@ -363,6 +393,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       return;
     }
     const prompt = agentPrompt.trim();
+    const parsed = parseAgentPrompt(prompt);
     setAgentMessages((prev) =>
       [
         ...prev,
@@ -377,7 +408,119 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setAgentCollapsed(false);
     setAgentPhase("running");
     setAgentStatusKey("agent.statusRunning");
+
+    const pushAgentMessage = (text: string) => {
+      setAgentMessages((prev) =>
+        [
+          ...prev,
+          {
+            id: `${Date.now()}-agent`,
+            role: "agent" as const,
+            text,
+          },
+        ].slice(-MAX_AGENT_MESSAGES),
+      );
+    };
+
     try {
+      if (parsed.kind === "command" && parsed.command === "review") {
+        if (!selectedFile) {
+          throw new Error(t("agent.command.requiresFile"));
+        }
+        let workingContent = editorContent;
+        let compileResult = await runCompilePass(activeProjectId, selectedFile, workingContent, {
+          updatePreview: true,
+          emitToast: false,
+        });
+        if (compileResult.status === "success") {
+          pushAgentMessage(t("agent.command.review.noIssues"));
+          setAgentPhase("done");
+          setAgentStatusKey("agent.statusDone");
+          return;
+        }
+
+        const extraInstruction = parsed.args ? `\nAdditional instruction: ${parsed.args}` : "";
+        let fixed = false;
+        for (let round = 0; round < 3; round += 1) {
+          const reviewPrompt = [
+            "You are a LaTeX fixer.",
+            "Apply minimal changes so the document compiles.",
+            "Return ONLY the full fixed LaTeX document content.",
+            "",
+            `Compile diagnostics:\n${compileResult.diagnostics.join("\n")}`,
+            extraInstruction,
+            "",
+            "Current LaTeX content:",
+            workingContent,
+          ].join("\n");
+          const response = await runAgent({
+            projectId: activeProjectId,
+            role: "review",
+            prompt: reviewPrompt,
+            contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+          });
+          let candidate = response.output.trim();
+          const fenced = candidate.match(/```(?:latex|tex)?\s*([\s\S]*?)```/i);
+          if (fenced?.[1]) {
+            candidate = fenced[1].trim();
+          }
+          if (!candidate) {
+            continue;
+          }
+          workingContent = candidate;
+          setEditorContent(candidate);
+
+          compileResult = await runCompilePass(activeProjectId, selectedFile, candidate, {
+            updatePreview: true,
+            emitToast: false,
+          });
+          if (compileResult.status === "success") {
+            fixed = true;
+            break;
+          }
+        }
+        if (fixed) {
+          pushAgentMessage(t("agent.command.review.fixed"));
+          setToast({ type: "info", message: t("toast.compileSuccess") });
+          setAgentPhase("done");
+          setAgentStatusKey("agent.statusDone");
+          return;
+        }
+        pushAgentMessage(t("agent.command.review.failed"));
+        setToast({ type: "error", message: t("toast.compileFailed") });
+        setAgentPhase("error");
+        setAgentStatusKey("agent.statusError");
+        return;
+      }
+
+      if (parsed.kind === "command" && parsed.command === "check-ref") {
+        const queries = extractReferenceQueries(editorContent, parsed.args);
+        if (queries.length === 0) {
+          pushAgentMessage(t("agent.command.checkRef.noTargets"));
+          setAgentPhase("done");
+          setAgentStatusKey("agent.statusDone");
+          return;
+        }
+        const references = await referenceCheck(queries, 5);
+        const analysisPrompt = [
+          "You are a citation verifier.",
+          "Assess if each reference appears real and correctly linked to source evidence.",
+          "Return concise sections: PASS, WARNING, ACTION.",
+          "",
+          JSON.stringify(references, null, 2),
+        ].join("\n");
+        const response = await runAgent({
+          projectId: activeProjectId,
+          role: "web_search",
+          prompt: analysisPrompt,
+          contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+        });
+        pushAgentMessage(response.output);
+        setAgentPhase("done");
+        setAgentStatusKey("agent.statusDone");
+        return;
+      }
+
       const response = await runAgent({
         projectId: activeProjectId,
         role: "task",
@@ -385,16 +528,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
       });
       await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);
-      setAgentMessages((prev) =>
-        [
-          ...prev,
-          {
-            id: `${Date.now()}-agent`,
-            role: "agent" as const,
-            text: response.output,
-          },
-        ].slice(-MAX_AGENT_MESSAGES),
-      );
+      pushAgentMessage(response.output);
       setAgentPhase("done");
       setAgentStatusKey("agent.statusDone");
     } catch (error) {
@@ -402,7 +536,21 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setAgentStatusKey("agent.statusError");
       setToast({ type: "error", message: String(error) });
     }
-  }, [activeProjectId, agentPrompt, selectedFile, setAgentCollapsed, setAgentMessages, setAgentPhase, setAgentPrompt, setAgentStatusKey, setToast, t]);
+  }, [
+    activeProjectId,
+    agentPrompt,
+    editorContent,
+    runCompilePass,
+    selectedFile,
+    setAgentCollapsed,
+    setEditorContent,
+    setAgentMessages,
+    setAgentPhase,
+    setAgentPrompt,
+    setAgentStatusKey,
+    setToast,
+    t,
+  ]);
 
   const handleSaveSettings = useCallback(async () => {
     if (!settings) {

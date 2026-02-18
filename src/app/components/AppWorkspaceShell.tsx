@@ -57,6 +57,7 @@ export function AppWorkspaceShell(props: {
   shellMin: readonly [number, number];
   settingsPanel: React.ReactNode;
   gitPanel: React.ReactNode;
+  analysisPanel: React.ReactNode;
   onPageChange: (page: WorkspacePage) => void;
   onSelectFile: (path: string | null) => void;
   onSelectLibraryPath: (path: string | null) => void;
@@ -121,6 +122,7 @@ export function AppWorkspaceShell(props: {
     shellMin,
     settingsPanel,
     gitPanel,
+    analysisPanel,
     onPageChange,
     onSelectFile,
     onSelectLibraryPath,
@@ -172,6 +174,9 @@ export function AppWorkspaceShell(props: {
         : "empty";
   const previewPdfUrl = selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
+  const latexLayoutKey = latexLayout.map((value) => value.toFixed(2)).join("-");
+  const analysisLayoutKey = analysisLayout.map((value) => value.toFixed(2)).join("-");
+  const libraryLayoutKey = libraryLayout.map((value) => value.toFixed(2)).join("-");
 
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
@@ -296,11 +301,7 @@ export function AppWorkspaceShell(props: {
 
   const renderMainPanel = () => {
     if (page === "analysis") {
-      return (
-        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-sm text-slate-500 motion-slide-up">
-          {t("workspace.analysis")}
-        </div>
-      );
+      return <section className="h-full min-h-0">{analysisPanel}</section>;
     }
     if (page === "library") {
       return renderNoProjectPanel();
@@ -402,6 +403,18 @@ export function AppWorkspaceShell(props: {
             placeholder={t("workspace.agentPlaceholder")}
             activityShowLabel={t("agent.activityShow")}
             activityHideLabel={t("agent.activityHide")}
+            commands={[
+              {
+                token: "/review",
+                label: t("agent.command.review.label"),
+                description: t("agent.command.review.description"),
+              },
+              {
+                token: "/check-ref",
+                label: t("agent.command.checkRef.label"),
+                description: t("agent.command.checkRef.description"),
+              },
+            ]}
           />
         </div>
       </div>
@@ -417,37 +430,37 @@ export function AppWorkspaceShell(props: {
         <div className="min-w-0 flex-1">
           {page === "latex" && activeProjectId ? (
             <PanelGroup
-              key={`panelgroup-latex-${activeProjectId}`}
+              key={`panelgroup-latex-${activeProjectId}-${latexLayoutKey}`}
               direction="horizontal"
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("latex", layout)}
             >
-              <Panel defaultSize={latexLayout[0]} minSize={16}>
+              <Panel id={`latex-explorer-${activeProjectId}`} order={1} defaultSize={latexLayout[0]} minSize={16}>
                 {renderWorkspaceExplorerPanel()}
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel defaultSize={latexLayout[1]} minSize={30}>
+              <Panel id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
                 <section key={page} className="h-full min-h-0 motion-page-in">
                   {renderMainPanel()}
                 </section>
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel defaultSize={latexLayout[2]} minSize={20}>
+              <Panel id={`latex-preview-${activeProjectId}`} order={3} defaultSize={latexLayout[2]} minSize={20}>
                 {renderPdfPreviewPanel()}
               </Panel>
             </PanelGroup>
           ) : page === "analysis" ? (
             <PanelGroup
-              key="panelgroup-analysis"
+              key={`panelgroup-analysis-${activeProjectId ?? "none"}-${analysisLayoutKey}`}
               direction="horizontal"
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("analysis", layout)}
             >
-              <Panel defaultSize={analysisLayout[0]} minSize={18}>
+              <Panel id={`analysis-explorer-${activeProjectId ?? "none"}`} order={1} defaultSize={analysisLayout[0]} minSize={18}>
                 {renderWorkspaceExplorerPanel()}
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel defaultSize={analysisLayout[1]} minSize={30}>
+              <Panel id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
                 <section key={page} className="h-full min-h-0 motion-page-in">
                   {renderMainPanel()}
                 </section>
@@ -455,12 +468,12 @@ export function AppWorkspaceShell(props: {
             </PanelGroup>
           ) : page === "library" && activeProjectId ? (
             <PanelGroup
-              key={`panelgroup-library-${activeProjectId}`}
+              key={`panelgroup-library-${activeProjectId}-${libraryLayoutKey}`}
               direction="horizontal"
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("library", layout)}
             >
-              <Panel defaultSize={libraryLayout[0]} minSize={20}>
+              <Panel id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
                 <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -491,7 +504,7 @@ export function AppWorkspaceShell(props: {
                 </aside>
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel defaultSize={libraryLayout[1]} minSize={28}>
+              <Panel id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
                 <section className="h-full min-h-0 motion-page-in">
                   <LibraryDocumentViewer
                     projectId={activeProjectId}
