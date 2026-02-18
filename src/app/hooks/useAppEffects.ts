@@ -74,6 +74,8 @@ export function useAppEffects(params: {
   setGitDownloadState: (value: any) => void;
   setGitDownloadTaskId: (value: string | null) => void;
   setSuppressAutoGitInstall: (value: boolean) => void;
+  getCachedTextContent?: (relativePath: string) => string | null;
+  onTextFileLoaded?: (relativePath: string, content: string) => void;
 }) {
   const {
     t,
@@ -120,6 +122,8 @@ export function useAppEffects(params: {
     setGitDownloadState,
     setGitDownloadTaskId,
     setSuppressAutoGitInstall,
+    getCachedTextContent,
+    onTextFileLoaded,
   } = params;
 
   const initDoneRef = useRef(false);
@@ -256,10 +260,18 @@ export function useAppEffects(params: {
       };
     }
     setSelectedFilePdfUrl(null);
+    const cached = getCachedTextContent?.(selectedFile);
+    if (typeof cached === "string") {
+      setEditorContent(cached);
+      return () => {
+        cancelled = true;
+      };
+    }
     readFile(activeProjectId, selectedFile)
       .then((result) => {
         if (!cancelled) {
           setEditorContent(result.content);
+          onTextFileLoaded?.(selectedFile, result.content);
         }
       })
       .catch((error) => {
@@ -270,7 +282,15 @@ export function useAppEffects(params: {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, selectedFile, setEditorContent, setSelectedFilePdfUrl, setToast]);
+  }, [
+    activeProjectId,
+    getCachedTextContent,
+    onTextFileLoaded,
+    selectedFile,
+    setEditorContent,
+    setSelectedFilePdfUrl,
+    setToast,
+  ]);
 
   useEffect(() => {
     if (!pendingRevealLine || !editorRef.current) {

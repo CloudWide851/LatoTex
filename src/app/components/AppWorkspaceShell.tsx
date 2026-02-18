@@ -3,6 +3,8 @@ import MonacoEditor from "@monaco-editor/react";
 import { AlertTriangle, Download, FolderOpen, ListChecks, Minus, Play, Plus, Redo2, RotateCcw, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
+  CloseTabsAction,
+  EditorTab,
   FsAction,
   FsScope,
   ResourceNode,
@@ -16,6 +18,7 @@ import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
 import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
+import { EditorTabsBar } from "./editor/EditorTabsBar";
 
 type TranslationFn = (key: any) => string;
 
@@ -39,6 +42,9 @@ export function AppWorkspaceShell(props: {
   selectedFile: string | null;
   selectedLibraryPath: string | null;
   editorContent: string;
+  editorTabs: EditorTab[];
+  activeTabId: string | null;
+  dirtyByPath: Record<string, boolean>;
   compiledPdfUrl: string | null;
   selectedFilePdfUrl: string | null;
   compileErrorLine: string | null;
@@ -54,6 +60,10 @@ export function AppWorkspaceShell(props: {
   onPageChange: (page: WorkspacePage) => void;
   onSelectFile: (path: string | null) => void;
   onSelectLibraryPath: (path: string | null) => void;
+  onTabSelect: (tabId: string) => void;
+  onTabClose: (tabId: string) => void;
+  onTabCloseAction: (action: CloseTabsAction, tabId: string) => void;
+  onTabPin: (tabId: string) => void;
   onEditorChange: (value: string) => void;
   onEditorMount: (editor: any) => void;
   onAgentPromptChange: (value: string) => void;
@@ -96,6 +106,9 @@ export function AppWorkspaceShell(props: {
     selectedFile,
     selectedLibraryPath,
     editorContent,
+    editorTabs,
+    activeTabId,
+    dirtyByPath,
     compiledPdfUrl,
     selectedFilePdfUrl,
     compileErrorLine,
@@ -111,6 +124,10 @@ export function AppWorkspaceShell(props: {
     onPageChange,
     onSelectFile,
     onSelectLibraryPath,
+    onTabSelect,
+    onTabClose,
+    onTabCloseAction,
+    onTabPin,
     onEditorChange,
     onEditorMount,
     onAgentPromptChange,
@@ -305,11 +322,8 @@ export function AppWorkspaceShell(props: {
     }
 
     return (
-      <div className="grid h-full grid-rows-[48px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
-        <div className="flex items-center justify-between border-b border-slate-200 px-3">
-          <div className="truncate text-sm font-medium text-slate-700">
-            {selectedFile ?? t("workspace.noFile")}
-          </div>
+      <div className="grid h-full grid-rows-[44px_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
+        <div className="flex items-center justify-end border-b border-slate-200 px-3">
           <div className="flex items-center gap-2">
             <button
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
@@ -349,6 +363,18 @@ export function AppWorkspaceShell(props: {
             </button>
           </div>
         </div>
+
+        <EditorTabsBar
+          tabs={editorTabs}
+          activeTabId={activeTabId}
+          dirtyByPath={dirtyByPath}
+          busy={busy}
+          onSelect={onTabSelect}
+          onClose={onTabClose}
+          onCloseAction={onTabCloseAction}
+          onPin={onTabPin}
+          t={t}
+        />
 
         <div className="relative min-h-0">
           <MonacoEditor

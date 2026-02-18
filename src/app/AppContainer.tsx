@@ -1,10 +1,12 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitWorkspace } from "./components/GitWorkspace";
 import { AppOverlays } from "./components/AppOverlays";
 import { AppTopbar } from "./components/AppTopbar";
 import { AppWorkspaceShell } from "./components/AppWorkspaceShell";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { UnsavedChangesDialog } from "./components/editor/UnsavedChangesDialog";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/logo-mark.png";
 import {
@@ -28,13 +30,17 @@ import {
   runAgent,
   runtimeLogClearCurrentSession,
   runtimeLogRead,
+  runtimeLogWrite,
   setModelApiKey,
   testModel,
   updateSettings,
+  writeFile,
 } from "../shared/api/desktop";
 import type {
   AppSettings,
   BusyTexCacheInfo,
+  CloseTabsAction,
+  EditorTab,
   GitAvailability,
   GitBranchInfo,
   GitCommitInfo,
@@ -48,7 +54,9 @@ import type {
   ResourceNode,
   RuntimeLogInfo,
   RuntimeLogEntry,
+  PendingNavigationIntent,
   SwarmEvent,
+  UnsavedChangeItem,
   WorkspacePage,
 } from "../shared/types/app";
 import {
@@ -68,8 +76,10 @@ import {
   upsertProject,
 } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
+import { buildEditorTab, getTabIdsByAction } from "./hooks/useEditorTabs";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useWorkspaceShortcuts } from "./hooks/useWorkspaceShortcuts";
+import { isPdfPath } from "../shared/utils/fileKind";
 
 type IntegrityIssue = {
   projectId: string;
@@ -88,6 +98,14 @@ export function AppContainer() {
   const [selectedLibraryPath, setSelectedLibraryPath] = useState<string | null>(null);
   const [pendingRevealLine, setPendingRevealLine] = useState<number | null>(null);
   const [editorContent, setEditorContent] = useState("");
+  const [editorTabs, setEditorTabs] = useState<EditorTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [previewTabId, setPreviewTabId] = useState<string | null>(null);
+  const [dirtyByPath, setDirtyByPath] = useState<Record<string, boolean>>({});
+  const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
+  const [unsavedDialogIntent, setUnsavedDialogIntent] = useState<PendingNavigationIntent>("closeTabs");
+  const [unsavedDialogItems, setUnsavedDialogItems] = useState<UnsavedChangeItem[]>([]);
+  const [unsavedDialogBusy, setUnsavedDialogBusy] = useState(false);
   const [agentPrompt, setAgentPrompt] = useState("");
   const [agentMessages, setAgentMessages] = useState<{ id: string; role: "user" | "agent"; text: string }[]>([]);
   const [agentCollapsed, setAgentCollapsed] = useState(false);
@@ -145,6 +163,15 @@ export function AppContainer() {
   const lastAutoSavedHashRef = useRef<string | null>(null);
   const panelLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPanelLayoutRef = useRef<Partial<PanelLayoutPrefs>>({});
+  const editorTabsRef = useRef<EditorTab[]>([]);
+  const activeTabIdRef = useRef<string | null>(null);
+  const previewTabIdRef = useRef<string | null>(null);
+  const dirtyByPathRef = useRef<Record<string, boolean>>({});
+  const savedContentByPathRef = useRef<Record<string, string>>({});
+  const workingContentByPathRef = useRef<Record<string, string>>({});
+  const closeGuardUnlockedRef = useRef(false);
+  const pendingUnsavedActionRef = useRef<null | (() => void | Promise<void>)>(null);
+  const pendingUnsavedPathsRef = useRef<string[]>([]);
   const isTauriRuntime = isTauri();
   activeProjectIdRef.current = activeProjectId;
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
@@ -152,6 +179,184 @@ export function AppContainer() {
     () => PAGE_ITEMS.map((item) => ({ id: item.id, icon: item.icon, label: t(item.key) })),
     [t],
   );
+  const fileSet = useMemo(() => new Set(fileList), [fileList]);
+
+  useEffect(() => {
+    editorTabsRef.current = editorTabs;
+  }, [editorTabs]);
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  useEffect(() => {
+    previewTabIdRef.current = previewTabId;
+  }, [previewTabId]);
+
+  useEffect(() => {
+    dirtyByPathRef.current = dirtyByPath;
+  }, [dirtyByPath]);
+
+  const resetEditorSession = useCallback(() => {
+    setEditorTabs([]);
+    setActiveTabId(null);
+    setPreviewTabId(null);
+    setDirtyByPath({});
+    setEditorContent("");
+    savedContentByPathRef.current = {};
+    workingContentByPathRef.current = {};
+    pendingUnsavedActionRef.current = null;
+    pendingUnsavedPathsRef.current = [];
+    setUnsavedDialogItems([]);
+    setUnsavedDialogOpen(false);
+    setUnsavedDialogBusy(false);
+  }, []);
+
+  const collectDirtyPaths = useCallback((candidatePaths: string[]) => {
+    const unique = Array.from(new Set(candidatePaths.filter((path) => path.trim().length > 0)));
+    return unique.filter((path) => dirtyByPathRef.current[path]);
+  }, []);
+
+  const markPathSaved = useCallback((path: string, content: string) => {
+    savedContentByPathRef.current[path] = content;
+    workingContentByPathRef.current[path] = content;
+    setDirtyByPath((prev) => {
+      if (!prev[path]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[path];
+      return next;
+    });
+  }, []);
+
+  const markPathDiscarded = useCallback((path: string) => {
+    const saved = savedContentByPathRef.current[path] ?? "";
+    workingContentByPathRef.current[path] = saved;
+    setDirtyByPath((prev) => {
+      if (!prev[path]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[path];
+      return next;
+    });
+    if (selectedFile === path) {
+      setEditorContent(saved);
+    }
+  }, [selectedFile]);
+
+  const closeTabsNow = useCallback((tabIds: string[]) => {
+    const closing = new Set(tabIds);
+    if (closing.size === 0) {
+      return;
+    }
+    const currentTabs = editorTabsRef.current;
+    const activeId = activeTabIdRef.current;
+    const activeIndex = activeId ? currentTabs.findIndex((tab) => tab.id === activeId) : -1;
+    const nextTabs = currentTabs.filter((tab) => !closing.has(tab.id));
+    for (const tab of currentTabs) {
+      if (!closing.has(tab.id)) {
+        continue;
+      }
+      if (dirtyByPathRef.current[tab.path]) {
+        continue;
+      }
+      delete workingContentByPathRef.current[tab.path];
+      delete savedContentByPathRef.current[tab.path];
+    }
+    let nextActiveId: string | null = activeId;
+    if (!nextActiveId || closing.has(nextActiveId)) {
+      if (nextTabs.length === 0) {
+        nextActiveId = null;
+      } else {
+        const fallbackIndex = activeIndex < 0 ? nextTabs.length - 1 : Math.min(activeIndex, nextTabs.length - 1);
+        nextActiveId = nextTabs[fallbackIndex]?.id ?? nextTabs[nextTabs.length - 1]?.id ?? null;
+      }
+    }
+    const currentPreviewId = previewTabIdRef.current;
+    const nextPreviewId = currentPreviewId && closing.has(currentPreviewId) ? null : currentPreviewId;
+
+    setEditorTabs(nextTabs);
+    setActiveTabId(nextActiveId);
+    setPreviewTabId(nextPreviewId);
+    const activeTab = nextTabs.find((tab) => tab.id === nextActiveId) ?? null;
+    setSelectedFile(activeTab?.path ?? null);
+    if (!activeTab) {
+      setEditorContent("");
+    }
+  }, []);
+
+  const requestUnsavedGuard = useCallback(
+    (
+      intent: PendingNavigationIntent,
+      candidatePaths: string[],
+      onProceed: () => void | Promise<void>,
+    ) => {
+      const dirtyPaths = collectDirtyPaths(candidatePaths);
+      if (dirtyPaths.length === 0) {
+        void onProceed();
+        return;
+      }
+      pendingUnsavedActionRef.current = onProceed;
+      pendingUnsavedPathsRef.current = dirtyPaths;
+      setUnsavedDialogIntent(intent);
+      setUnsavedDialogItems(dirtyPaths.map((path) => ({ path })));
+      setUnsavedDialogOpen(true);
+    },
+    [collectDirtyPaths],
+  );
+
+  const handleUnsavedDialogCancel = useCallback(() => {
+    pendingUnsavedActionRef.current = null;
+    pendingUnsavedPathsRef.current = [];
+    setUnsavedDialogOpen(false);
+  }, []);
+
+  const handleUnsavedDialogDiscardAndContinue = useCallback(async () => {
+    const pendingPaths = [...pendingUnsavedPathsRef.current];
+    for (const path of pendingPaths) {
+      markPathDiscarded(path);
+    }
+    const action = pendingUnsavedActionRef.current;
+    pendingUnsavedActionRef.current = null;
+    pendingUnsavedPathsRef.current = [];
+    setUnsavedDialogOpen(false);
+    if (action) {
+      await action();
+    }
+  }, [markPathDiscarded]);
+
+  const handleUnsavedDialogSaveAndContinue = useCallback(async () => {
+    if (!activeProjectIdRef.current) {
+      return;
+    }
+    setUnsavedDialogBusy(true);
+    try {
+      const projectId = activeProjectIdRef.current;
+      const pendingPaths = [...pendingUnsavedPathsRef.current];
+      for (const path of pendingPaths) {
+        const content = workingContentByPathRef.current[path];
+        if (typeof content !== "string") {
+          continue;
+        }
+        await writeFile(projectId, path, content);
+        await runtimeLogWrite("INFO", `file saved (unsaved-guard): ${path}`);
+        markPathSaved(path, content);
+      }
+      const action = pendingUnsavedActionRef.current;
+      pendingUnsavedActionRef.current = null;
+      pendingUnsavedPathsRef.current = [];
+      setUnsavedDialogOpen(false);
+      if (action) {
+        await action();
+      }
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setUnsavedDialogBusy(false);
+    }
+  }, [markPathSaved, setToast]);
 
   const refreshGitWorkspace = useCallback(async (projectIdOverride?: string) => {
     const projectId = projectIdOverride ?? activeProjectIdRef.current;
@@ -448,6 +653,21 @@ export function AppContainer() {
     upsertProject,
   });
 
+  const getCachedTextContent = useCallback((relativePath: string) => {
+    if (isPdfPath(relativePath)) {
+      return null;
+    }
+    const cached = workingContentByPathRef.current[relativePath];
+    return typeof cached === "string" ? cached : null;
+  }, []);
+
+  const handleTextFileLoaded = useCallback((relativePath: string, content: string) => {
+    savedContentByPathRef.current[relativePath] = content;
+    if (!dirtyByPathRef.current[relativePath]) {
+      workingContentByPathRef.current[relativePath] = content;
+    }
+  }, []);
+
   useAppEffects({
     t,
     isTauriRuntime,
@@ -496,44 +716,282 @@ export function AppContainer() {
     setGitDownloadState,
     setGitDownloadTaskId,
     setSuppressAutoGitInstall,
+    getCachedTextContent,
+    onTextFileLoaded: handleTextFileLoaded,
   });
+
+  const handleSaveActiveFile = useCallback(async () => {
+    const ok = await handleSaveFile();
+    if (ok && selectedFile && !isPdfPath(selectedFile)) {
+      markPathSaved(selectedFile, editorContent);
+    }
+    return ok;
+  }, [editorContent, handleSaveFile, markPathSaved, selectedFile]);
+
+  const handleWindowControlWithGuard = useCallback((action: "minimize" | "toggle" | "close") => {
+    if (action !== "close") {
+      void handleWindowControl(action);
+      return;
+    }
+    requestUnsavedGuard(
+      "closeWindow",
+      editorTabsRef.current.map((tab) => tab.path),
+      async () => {
+        closeGuardUnlockedRef.current = true;
+        await handleWindowControl("close");
+        window.setTimeout(() => {
+          closeGuardUnlockedRef.current = false;
+        }, 400);
+      },
+    );
+  }, [handleWindowControl, requestUnsavedGuard]);
+
+  const handleInitProjectFromFolderWithGuard = useCallback(() => {
+    requestUnsavedGuard(
+      "switchProject",
+      editorTabsRef.current.map((tab) => tab.path),
+      async () => {
+        resetEditorSession();
+        await handleInitProjectFromFolder();
+      },
+    );
+  }, [handleInitProjectFromFolder, requestUnsavedGuard, resetEditorSession]);
 
   useWorkspaceShortcuts({
     handleEditorUndo,
     handleEditorRedo,
-    handleSaveFile,
+    handleSaveFile: () => {
+      void handleSaveActiveFile();
+    },
     handleCompile,
     handleExportCompiledPdf,
   });
 
-  const handleProjectChange = useCallback(async (projectId: string | null) => {
-    if (!projectId) {
-      setIntegrityIssue(null);
-      setActiveProjectId(null);
+  useEffect(() => {
+    if (!isTauriRuntime) {
       return;
     }
-    if (projectId === activeProjectIdRef.current) {
-      return;
-    }
-    if (!integrityCheckedRef.current.has(projectId)) {
-      try {
-        const integrity = await projectIntegrityStatus(projectId);
-        if (integrity.missingRequired.length > 0) {
-          setIntegrityIssue({
-            projectId,
-            missingRequired: integrity.missingRequired,
-          });
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (closeGuardUnlockedRef.current) {
           return;
         }
-        integrityCheckedRef.current.add(projectId);
-      } catch (error) {
-        setToast({ type: "error", message: String(error) });
+        const candidatePaths = editorTabsRef.current.map((tab) => tab.path);
+        const dirtyPaths = collectDirtyPaths(candidatePaths);
+        if (dirtyPaths.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        requestUnsavedGuard("closeWindow", candidatePaths, async () => {
+          closeGuardUnlockedRef.current = true;
+          await handleWindowControl("close");
+        });
+      })
+      .then((off) => {
+        unlisten = off;
+      })
+      .catch(() => undefined);
+    return () => {
+      unlisten?.();
+    };
+  }, [collectDirtyPaths, handleWindowControl, isTauriRuntime, requestUnsavedGuard]);
+
+  useEffect(() => {
+    if (!selectedFile || isPdfPath(selectedFile)) {
+      return;
+    }
+    workingContentByPathRef.current[selectedFile] = editorContent;
+    const saved = savedContentByPathRef.current[selectedFile];
+    if (typeof saved === "string") {
+      const dirty = editorContent !== saved;
+      setDirtyByPath((prev) => {
+        const wasDirty = Boolean(prev[selectedFile]);
+        if (dirty === wasDirty) {
+          return prev;
+        }
+        const next = { ...prev };
+        if (dirty) {
+          next[selectedFile] = true;
+        } else {
+          delete next[selectedFile];
+        }
+        return next;
+      });
+    }
+  }, [editorContent, selectedFile]);
+
+  const activateTabById = useCallback((tabId: string) => {
+    const target = editorTabsRef.current.find((tab) => tab.id === tabId);
+    if (!target) {
+      return;
+    }
+    setEditorTabs((prev) =>
+      prev.map((tab) => (tab.id === tabId ? { ...tab, lastAccessed: Date.now() } : tab)),
+    );
+    setActiveTabId(tabId);
+    setSelectedFile(target.path);
+  }, []);
+
+  const openWorkspaceFile = useCallback((path: string, mode: "preview" | "pinned" = "preview") => {
+    if (!path || !fileSet.has(path)) {
+      return;
+    }
+    const tabs = editorTabsRef.current;
+    const existing = tabs.find((tab) => tab.path === path);
+    if (existing) {
+      if (mode === "pinned" && (!existing.pinned || existing.preview)) {
+        setEditorTabs((prev) =>
+          prev.map((tab) =>
+            tab.id === existing.id
+              ? { ...tab, pinned: true, preview: false, lastAccessed: Date.now() }
+              : tab,
+          ),
+        );
+        if (previewTabIdRef.current === existing.id) {
+          setPreviewTabId(null);
+        }
+      }
+      activateTabById(existing.id);
+      return;
+    }
+
+    const openTab = () => {
+      let nextTabs = editorTabsRef.current;
+      if (mode === "preview") {
+        const currentPreviewId = previewTabIdRef.current;
+        const currentPreview = currentPreviewId
+          ? nextTabs.find((tab) => tab.id === currentPreviewId)
+          : null;
+        if (currentPreview && !currentPreview.pinned && currentPreview.path !== path) {
+          nextTabs = nextTabs.filter((tab) => tab.id !== currentPreview.id);
+        }
+      }
+      const newTab = buildEditorTab(path, mode === "pinned", mode === "preview");
+      setEditorTabs([...nextTabs, newTab]);
+      setActiveTabId(newTab.id);
+      setSelectedFile(path);
+      setPreviewTabId(mode === "preview" ? newTab.id : previewTabIdRef.current);
+    };
+
+    if (mode === "preview") {
+      const currentPreviewId = previewTabIdRef.current;
+      const currentPreview = currentPreviewId
+        ? tabs.find((tab) => tab.id === currentPreviewId)
+        : null;
+      if (currentPreview && !currentPreview.pinned && currentPreview.path !== path) {
+        requestUnsavedGuard("switchFile", [currentPreview.path], openTab);
         return;
       }
     }
-    setIntegrityIssue(null);
-    setActiveProjectId(projectId);
-  }, [setToast]);
+    openTab();
+  }, [activateTabById, fileSet, requestUnsavedGuard]);
+
+  const handleTabSelect = useCallback((tabId: string) => {
+    activateTabById(tabId);
+  }, [activateTabById]);
+
+  const handleTabPin = useCallback((tabId: string) => {
+    setEditorTabs((prev) =>
+      prev.map((tab) =>
+        tab.id === tabId
+          ? { ...tab, pinned: true, preview: false, lastAccessed: Date.now() }
+          : tab,
+      ),
+    );
+    if (previewTabIdRef.current === tabId) {
+      setPreviewTabId(null);
+    }
+  }, []);
+
+  const handleTabClose = useCallback((tabId: string) => {
+    const tab = editorTabsRef.current.find((item) => item.id === tabId);
+    if (!tab) {
+      return;
+    }
+    requestUnsavedGuard("closeTabs", [tab.path], () => closeTabsNow([tabId]));
+  }, [closeTabsNow, requestUnsavedGuard]);
+
+  const handleTabCloseAction = useCallback((action: CloseTabsAction, referenceTabId: string) => {
+    const tabIds = getTabIdsByAction(
+      editorTabsRef.current,
+      referenceTabId,
+      action,
+      dirtyByPathRef.current,
+    );
+    if (tabIds.length === 0) {
+      return;
+    }
+    const candidatePaths = editorTabsRef.current
+      .filter((tab) => tabIds.includes(tab.id))
+      .map((tab) => tab.path);
+    requestUnsavedGuard("closeTabs", candidatePaths, () => closeTabsNow(tabIds));
+  }, [closeTabsNow, requestUnsavedGuard]);
+
+  const handleSelectWorkspacePath = useCallback((path: string | null) => {
+    if (!path) {
+      return;
+    }
+    openWorkspaceFile(path, "preview");
+  }, [openWorkspaceFile]);
+
+  useEffect(() => {
+    if (!selectedFile || !fileSet.has(selectedFile)) {
+      return;
+    }
+    const existing = editorTabsRef.current.find((tab) => tab.path === selectedFile);
+    if (existing) {
+      if (activeTabIdRef.current !== existing.id) {
+        setActiveTabId(existing.id);
+      }
+      return;
+    }
+    const tab = buildEditorTab(selectedFile, true, false);
+    setEditorTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+  }, [fileSet, selectedFile]);
+
+  const handleProjectChange = useCallback((projectId: string | null) => {
+    const proceed = async () => {
+      if (!projectId) {
+        setIntegrityIssue(null);
+        resetEditorSession();
+        setActiveProjectId(null);
+        return;
+      }
+      if (projectId === activeProjectIdRef.current) {
+        return;
+      }
+      if (!integrityCheckedRef.current.has(projectId)) {
+        try {
+          const integrity = await projectIntegrityStatus(projectId);
+          if (integrity.missingRequired.length > 0) {
+            setIntegrityIssue({
+              projectId,
+              missingRequired: integrity.missingRequired,
+            });
+            return;
+          }
+          integrityCheckedRef.current.add(projectId);
+        } catch (error) {
+          setToast({ type: "error", message: String(error) });
+          return;
+        }
+      }
+      setIntegrityIssue(null);
+      resetEditorSession();
+      setActiveProjectId(projectId);
+    };
+
+    if (projectId === activeProjectIdRef.current) {
+      return;
+    }
+    requestUnsavedGuard(
+      "switchProject",
+      editorTabsRef.current.map((tab) => tab.path),
+      proceed,
+    );
+  }, [requestUnsavedGuard, resetEditorSession, setToast]);
 
   const handleIntegrityRepair = useCallback(async () => {
     if (!integrityIssue) {
@@ -816,7 +1274,7 @@ export function AppContainer() {
       }}
       onLoadDiff={(path, staged, revision) => gitDiffFile(activeProjectId, path, staged, 3, revision)}
       onOpenFile={(path) => {
-        setSelectedFile(path);
+        openWorkspaceFile(path, "pinned");
       }}
       onStartGitInstall={handleGitInstallerDownloadStart}
       onCancelDownload={handleGitInstallerCancel}
@@ -852,8 +1310,8 @@ export function AppContainer() {
             setProjectSearchResults([]);
             setProjectSearchSearched(false);
           }}
-          onOpenFolder={handleInitProjectFromFolder}
-          onWindowControl={handleWindowControl}
+          onOpenFolder={handleInitProjectFromFolderWithGuard}
+          onWindowControl={handleWindowControlWithGuard}
           t={t}
         />
 
@@ -872,6 +1330,9 @@ export function AppContainer() {
           selectedFile={selectedFile}
           selectedLibraryPath={selectedLibraryPath}
           editorContent={editorContent}
+          editorTabs={editorTabs}
+          activeTabId={activeTabId}
+          dirtyByPath={dirtyByPath}
           compiledPdfUrl={pdfUrl}
           selectedFilePdfUrl={selectedFilePdfUrl}
           compileErrorLine={compileErrorLine}
@@ -885,17 +1346,21 @@ export function AppContainer() {
           settingsPanel={settingsPanel}
           gitPanel={gitPanel}
           onPageChange={setPage}
-          onSelectFile={setSelectedFile}
+          onSelectFile={handleSelectWorkspacePath}
           onSelectLibraryPath={setSelectedLibraryPath}
           onEditorChange={setEditorContent}
+          onTabSelect={handleTabSelect}
+          onTabClose={handleTabClose}
+          onTabCloseAction={handleTabCloseAction}
+          onTabPin={handleTabPin}
           onEditorMount={(editor) => {
             editorRef.current = editor;
           }}
           onAgentPromptChange={setAgentPrompt}
           onAgentToggle={() => setAgentCollapsed((prev) => !prev)}
           onAgentRun={handleRunAgent}
-          onOpenFolder={handleInitProjectFromFolder}
-          onSaveFile={handleSaveFile}
+          onOpenFolder={handleInitProjectFromFolderWithGuard}
+          onSaveFile={handleSaveActiveFile}
           onCompile={handleCompile}
           onExportPdf={handleExportCompiledPdf}
           onEditorUndo={handleEditorUndo}
@@ -989,6 +1454,21 @@ export function AppContainer() {
         onDeleteDontAskChange={setDeleteDontAskAgain}
         onIntegrityCancel={handleIntegrityCancel}
         onIntegrityRepair={handleIntegrityRepair}
+        t={t}
+      />
+
+      <UnsavedChangesDialog
+        open={unsavedDialogOpen}
+        intent={unsavedDialogIntent}
+        items={unsavedDialogItems}
+        busy={unsavedDialogBusy}
+        onSaveAndContinue={() => {
+          void handleUnsavedDialogSaveAndContinue();
+        }}
+        onDiscardAndContinue={() => {
+          void handleUnsavedDialogDiscardAndContinue();
+        }}
+        onCancel={handleUnsavedDialogCancel}
         t={t}
       />
     </div>

@@ -1,5 +1,33 @@
 export type WorkspacePage = "latex" | "analysis" | "library" | "git" | "settings";
 
+export type EditorTab = {
+  id: string;
+  path: string;
+  title: string;
+  pinned: boolean;
+  preview: boolean;
+  lastAccessed: number;
+};
+
+export type CloseTabsAction =
+  | "close"
+  | "closeLeft"
+  | "closeRight"
+  | "closeOthers"
+  | "closeAll"
+  | "closeSaved";
+
+export type UnsavedChangeItem = {
+  path: string;
+  tabId?: string;
+};
+
+export type PendingNavigationIntent =
+  | "switchFile"
+  | "switchProject"
+  | "closeWindow"
+  | "closeTabs";
+
 export type ProjectSummary = {
   id: string;
   name: string;

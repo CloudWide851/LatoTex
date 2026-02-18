@@ -221,15 +221,17 @@ export function useAppHandlers(params: UseAppHandlersParams) {
 
   const handleSaveFile = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
-      return;
+      return false;
     }
     setBusy(true);
     try {
       await writeFile(activeProjectId, selectedFile, editorContent);
       await runtimeLogWrite("INFO", `${t("log.fileSaved")}: ${selectedFile}`);
       setToast({ type: "info", message: t("toast.fileSaved") });
+      return true;
     } catch (error) {
       setToast({ type: "error", message: String(error) });
+      return false;
     } finally {
       setBusy(false);
     }
