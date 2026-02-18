@@ -1,0 +1,269 @@
+import { AppErrorBoundary } from "./AppErrorBoundary";
+import { AppOverlays } from "./AppOverlays";
+import { AppTopbar } from "./AppTopbar";
+import { AppWorkspaceShell } from "./AppWorkspaceShell";
+import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
+
+export function AppContainerView(props: any) {
+  const {
+    windowActionBusy,
+    status,
+    logoMark,
+    projects,
+    activeProjectId,
+    busy,
+    isTauriRuntime,
+    isMaximized,
+    projectSearchQuery,
+    projectSearchBusy,
+    projectSearchSearched,
+    projectSearchResults,
+    handleProjectChange,
+    setProjectSearchQuery,
+    handleProjectSearch,
+    handleProjectSearchSelect,
+    setProjectSearchResults,
+    setProjectSearchSearched,
+    handleInitProjectFromFolderWithGuard,
+    handleWindowControlWithGuard,
+    t,
+    recoverWorkspaceLayout,
+    page,
+    pageRailItems,
+    shellLayout,
+    latexLayout,
+    analysisLayout,
+    libraryLayout,
+    settings,
+    tree,
+    libraryTree,
+    selectedFile,
+    selectedLibraryPath,
+    editorContent,
+    editorTabs,
+    activeTabId,
+    dirtyByPath,
+    pdfUrl,
+    selectedFilePdfUrl,
+    compileErrorLine,
+    compileDiagnostics,
+    agentCollapsed,
+    agentPhase,
+    agentStatusKey,
+    agentPrompt,
+    agentMessages,
+    SHELL_MIN,
+    settingsPanel,
+    gitPanel,
+    analysisPanel,
+    setPage,
+    handleSelectWorkspacePath,
+    setSelectedLibraryPath,
+    setEditorContent,
+    handleTabSelect,
+    handleTabClose,
+    handleTabCloseAction,
+    handleTabPin,
+    editorRef,
+    setAgentPrompt,
+    setAgentCollapsed,
+    handleRunAgent,
+    handleSaveActiveFile,
+    handleCompile,
+    handleExportCompiledPdf,
+    handleEditorUndo,
+    handleEditorRedo,
+    setLogsTab,
+    setOverlay,
+    handleLibraryRescan,
+    handleLibraryImportPdf,
+    handleLibraryImportLink,
+    handleWorkspaceRevealInSystem,
+    handleWorkspaceOpenTerminal,
+    savePanelLayout,
+    requestFsAction,
+    overlay,
+    logsTab,
+    events,
+    modelModalOpen,
+    modelModalMode,
+    modelModalInitial,
+    deleteIntent,
+    deleteDontAskAgain,
+    integrityIssue,
+    themeTransition,
+    toast,
+    setModelModalOpen,
+    setModelModalInitial,
+    setModelModalMode,
+    handleModelModalSubmit,
+    handleProtocolPing,
+    setDeleteIntent,
+    confirmDelete,
+    setDeleteDontAskAgain,
+    handleIntegrityCancel,
+    handleIntegrityRepair,
+    unsavedDialogOpen,
+    unsavedDialogIntent,
+    unsavedDialogItems,
+    unsavedDialogBusy,
+    handleUnsavedDialogSaveAndContinue,
+    handleUnsavedDialogDiscardAndContinue,
+    handleUnsavedDialogCancel,
+  } = props;
+
+  return (
+    <div
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""}`}
+    >
+      <div className="relative z-10 flex h-full w-full flex-col">
+        <AppTopbar
+          status={status}
+          logoMark={logoMark}
+          projects={projects}
+          activeProjectId={activeProjectId}
+          busy={busy}
+          isTauriRuntime={isTauriRuntime}
+          windowActionBusy={windowActionBusy}
+          isMaximized={isMaximized}
+          projectSearchQuery={projectSearchQuery}
+          projectSearchBusy={projectSearchBusy}
+          projectSearchSearched={projectSearchSearched}
+          projectSearchResults={projectSearchResults}
+          onProjectChange={handleProjectChange}
+          onProjectSearchQueryChange={setProjectSearchQuery}
+          onProjectSearch={handleProjectSearch}
+          onProjectSearchSelect={handleProjectSearchSelect}
+          onProjectSearchClear={() => {
+            setProjectSearchQuery("");
+            setProjectSearchResults([]);
+            setProjectSearchSearched(false);
+          }}
+          onOpenFolder={handleInitProjectFromFolderWithGuard}
+          onWindowControl={handleWindowControlWithGuard}
+          t={t}
+        />
+
+        <AppErrorBoundary
+          fallbackTitle={t("workspace.crashedTitle")}
+          fallbackHint={t("workspace.crashedHint")}
+          retryLabel={t("workspace.crashedRetry")}
+          onRecover={recoverWorkspaceLayout}
+        >
+          <AppWorkspaceShell
+            page={page}
+            pageRailItems={pageRailItems}
+            activeProjectId={activeProjectId}
+            busy={busy}
+            shellLayout={shellLayout}
+            latexLayout={latexLayout}
+            analysisLayout={analysisLayout}
+            libraryLayout={libraryLayout}
+            previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
+            tree={tree}
+            libraryTree={libraryTree}
+            selectedFile={selectedFile}
+            selectedLibraryPath={selectedLibraryPath}
+            editorContent={editorContent}
+            editorTabs={editorTabs}
+            activeTabId={activeTabId}
+            dirtyByPath={dirtyByPath}
+            compiledPdfUrl={pdfUrl}
+            selectedFilePdfUrl={selectedFilePdfUrl}
+            compileErrorLine={compileErrorLine}
+            compileDiagnostics={compileDiagnostics}
+            agentCollapsed={agentCollapsed}
+            agentPhase={agentPhase}
+            agentStatusKey={agentStatusKey}
+            agentPrompt={agentPrompt}
+            agentMessages={agentMessages}
+            shellMin={SHELL_MIN}
+            settingsPanel={settingsPanel}
+            gitPanel={gitPanel}
+            analysisPanel={analysisPanel}
+            onPageChange={setPage}
+            onSelectFile={handleSelectWorkspacePath}
+            onSelectLibraryPath={setSelectedLibraryPath}
+            onEditorChange={setEditorContent}
+            onTabSelect={handleTabSelect}
+            onTabClose={handleTabClose}
+            onTabCloseAction={handleTabCloseAction}
+            onTabPin={handleTabPin}
+            onEditorMount={(editor) => {
+              editorRef.current = editor;
+            }}
+            onAgentPromptChange={setAgentPrompt}
+            onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
+            onAgentRun={handleRunAgent}
+            onOpenFolder={handleInitProjectFromFolderWithGuard}
+            onSaveFile={handleSaveActiveFile}
+            onCompile={handleCompile}
+            onExportPdf={handleExportCompiledPdf}
+            onEditorUndo={handleEditorUndo}
+            onEditorRedo={handleEditorRedo}
+            onOpenLogs={(tab) => {
+              setLogsTab(tab);
+              setOverlay("logs");
+            }}
+            onLibraryRescan={handleLibraryRescan}
+            onLibraryImportPdf={handleLibraryImportPdf}
+            onLibraryImportLink={handleLibraryImportLink}
+            onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
+            onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
+            onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
+            onFsAction={(scope, action, path, targetPath, content) =>
+              requestFsAction(scope, action, path, targetPath, content)
+            }
+            t={t}
+          />
+        </AppErrorBoundary>
+      </div>
+
+      <AppOverlays
+        overlay={overlay}
+        logsTab={logsTab}
+        events={events}
+        compileDiagnostics={compileDiagnostics}
+        modelModalOpen={modelModalOpen}
+        modelModalMode={modelModalMode}
+        modelModalInitial={modelModalInitial}
+        settings={settings}
+        deleteIntent={deleteIntent}
+        deleteDontAskAgain={deleteDontAskAgain}
+        integrityIssue={integrityIssue}
+        themeTransition={themeTransition}
+        toast={toast}
+        onOverlayClose={() => setOverlay(null)}
+        onLogsTabChange={setLogsTab}
+        onModelModalClose={() => {
+          setModelModalOpen(false);
+          setModelModalInitial(null);
+          setModelModalMode("create");
+        }}
+        onModelSubmit={handleModelModalSubmit}
+        onProtocolPing={handleProtocolPing}
+        onDeleteCancel={() => setDeleteIntent(null)}
+        onDeleteConfirm={confirmDelete}
+        onDeleteDontAskChange={setDeleteDontAskAgain}
+        onIntegrityCancel={handleIntegrityCancel}
+        onIntegrityRepair={handleIntegrityRepair}
+        t={t}
+      />
+
+      <UnsavedChangesDialog
+        open={unsavedDialogOpen}
+        intent={unsavedDialogIntent}
+        items={unsavedDialogItems}
+        busy={unsavedDialogBusy}
+        onSaveAndContinue={() => {
+          void handleUnsavedDialogSaveAndContinue();
+        }}
+        onDiscardAndContinue={() => {
+          void handleUnsavedDialogDiscardAndContinue();
+        }}
+        onCancel={handleUnsavedDialogCancel}
+        t={t}
+      />
+    </div>
+  );
+}

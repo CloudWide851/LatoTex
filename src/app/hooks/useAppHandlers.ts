@@ -1,6 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
-import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
 import type { Locale } from "../../i18n";
 import {
   fsOperation,
@@ -8,18 +7,11 @@ import {
   initProjectFromFolder,
   openProject,
   projectSearchContent,
-  readFile,
-  referenceCheck,
-  recordCompile,
-  runAgent,
   runtimeLogWrite,
-  testModelDraft,
-  testProtocol,
   workspaceExportPdf,
   workspaceOpenTerminal,
   workspaceRevealInSystem,
   writeFile,
-  busytexCachePrepare,
 } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type {
@@ -29,54 +21,18 @@ import type {
   ProjectSearchHit,
 } from "../../shared/types/app";
 import {
-  applyTheme,
   normalizeAgentBindings,
-  resolveTheme,
-  THEME_TRANSITION_MS,
   type ThemeMode,
 } from "../app-config";
-import { extractReferenceQueries, parseAgentPrompt } from "./agentCommands";
+import { runAgentWorkflow } from "./agentWorkflow";
+import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
+import {
+  handleBusyTexCachePolicyChangeAction,
+  handleProtocolPingAction,
+  handleThemeModeChangeAction,
+} from "./settingsUiActions";
 import { useGitHandlers } from "./useGitHandlers";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
-
-const MAX_AGENT_MESSAGES = 200;
-const COMPILE_SKIP_EXTENSIONS = new Set([
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "bmp",
-  "webp",
-  "ico",
-  "svg",
-  "zip",
-  "7z",
-  "rar",
-  "mp4",
-  "mp3",
-  "wav",
-  "ogg",
-  "mov",
-  "avi",
-  "wasm",
-  "dll",
-  "exe",
-  "bin",
-]);
-
-function shouldIncludeCompileFile(path: string): boolean {
-  const normalized = path.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-  const dot = normalized.lastIndexOf(".");
-  if (dot < 0 || dot === normalized.length - 1) {
-    return true;
-  }
-  const extension = normalized.slice(dot + 1);
-  return !COMPILE_SKIP_EXTENSIONS.has(extension);
-}
 
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
@@ -188,7 +144,11 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         }
         return;
       }
-      await appWindow.close();
+      await appWindow.hide();
+      if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
+        setToast({ type: "info", message: t("toast.minimizedToTray") });
+      }
+      await runtimeLogWrite("INFO", "window hidden to tray");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });
@@ -198,7 +158,15 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         setWindowActionBusy(false);
       }
     }
-  }, [isTauriRuntime, setIsMaximized, setToast, setWindowActionBusy, t, windowActionBusy]);
+  }, [
+    isTauriRuntime,
+    setIsMaximized,
+    setToast,
+    setWindowActionBusy,
+    settings?.uiPrefs?.closeToTrayNoticeEnabled,
+    t,
+    windowActionBusy,
+  ]);
 
   const handleInitProjectFromFolder = useCallback(async () => {
     setBusy(true);
@@ -241,70 +209,29 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
   }, [activeProjectId, editorContent, selectedFile, setBusy, setToast, t]);
 
-  const buildCompileFileMap = useCallback(async (
-    projectId: string,
-    mainPath: string,
-    mainContent: string,
-  ) => {
-    const fileMap: Record<string, string> = {};
-    for (const filePath of fileList) {
-      if (filePath === mainPath) {
-        fileMap[filePath] = mainContent;
-        continue;
-      }
-      if (!shouldIncludeCompileFile(filePath)) {
-        continue;
-      }
-      const data = await readFile(projectId, filePath);
-      fileMap[filePath] = data.content;
-    }
-    return fileMap;
-  }, [fileList]);
-
   const runCompilePass = useCallback(async (
     projectId: string,
     mainPath: string,
     mainContent: string,
     options: { updatePreview: boolean; emitToast: boolean },
   ) => {
-    const fileMap = await buildCompileFileMap(projectId, mainPath, mainContent);
-    const result = await compileWithBusyTeX(mainContent, fileMap, mainPath);
-    setLastCompileFailed(result.status !== "success");
-    setCompileDiagnostics(result.diagnostics);
-    await runtimeLogWrite(
-      result.status === "success" ? "INFO" : "ERROR",
-      `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
-    );
-    await recordCompile({
+    return runCompilePassWorkflow({
       projectId,
-      mainFile: mainPath,
-      status: result.status,
-      diagnostics: result.diagnostics,
-      durationMs: result.durationMs,
+      mainPath,
+      mainContent,
+      fileList,
+      currentPdfUrl: pdfUrl,
+      updatePreview: options.updatePreview,
+      emitToast: options.emitToast,
+      t,
+      setLastCompileFailed,
+      setCompileDiagnostics,
+      setPdfUrl,
+      setCompiledPdfBytes,
+      setToast,
     });
-    if (result.status === "success" && result.pdfBytes && options.updatePreview) {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
-      const normalizedBytes = Uint8Array.from(result.pdfBytes);
-      const url = URL.createObjectURL(
-        new Blob([normalizedBytes], { type: "application/pdf" }),
-      );
-      setPdfUrl(url);
-      setCompiledPdfBytes(normalizedBytes);
-    }
-    if (options.emitToast) {
-      setToast({
-        type: result.status === "success" ? "info" : "error",
-        message:
-          result.status === "success"
-            ? t("toast.compileSuccess")
-            : t("toast.compileFailed"),
-      });
-    }
-    return result;
   }, [
-    buildCompileFileMap,
+    fileList,
     pdfUrl,
     setCompileDiagnostics,
     setCompiledPdfBytes,
@@ -392,150 +319,22 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     if (!activeProjectId || !agentPrompt.trim()) {
       return;
     }
-    const prompt = agentPrompt.trim();
-    const parsed = parseAgentPrompt(prompt);
-    setAgentMessages((prev) =>
-      [
-        ...prev,
-        {
-          id: `${Date.now()}-user`,
-          role: "user" as const,
-          text: prompt,
-        },
-      ].slice(-MAX_AGENT_MESSAGES),
-    );
-    setAgentPrompt("");
-    setAgentCollapsed(false);
-    setAgentPhase("running");
-    setAgentStatusKey("agent.statusRunning");
-
-    const pushAgentMessage = (text: string) => {
-      setAgentMessages((prev) =>
-        [
-          ...prev,
-          {
-            id: `${Date.now()}-agent`,
-            role: "agent" as const,
-            text,
-          },
-        ].slice(-MAX_AGENT_MESSAGES),
-      );
-    };
-
-    try {
-      if (parsed.kind === "command" && parsed.command === "review") {
-        if (!selectedFile) {
-          throw new Error(t("agent.command.requiresFile"));
-        }
-        let workingContent = editorContent;
-        let compileResult = await runCompilePass(activeProjectId, selectedFile, workingContent, {
-          updatePreview: true,
-          emitToast: false,
-        });
-        if (compileResult.status === "success") {
-          pushAgentMessage(t("agent.command.review.noIssues"));
-          setAgentPhase("done");
-          setAgentStatusKey("agent.statusDone");
-          return;
-        }
-
-        const extraInstruction = parsed.args ? `\nAdditional instruction: ${parsed.args}` : "";
-        let fixed = false;
-        for (let round = 0; round < 3; round += 1) {
-          const reviewPrompt = [
-            "You are a LaTeX fixer.",
-            "Apply minimal changes so the document compiles.",
-            "Return ONLY the full fixed LaTeX document content.",
-            "",
-            `Compile diagnostics:\n${compileResult.diagnostics.join("\n")}`,
-            extraInstruction,
-            "",
-            "Current LaTeX content:",
-            workingContent,
-          ].join("\n");
-          const response = await runAgent({
-            projectId: activeProjectId,
-            role: "review",
-            prompt: reviewPrompt,
-            contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
-          });
-          let candidate = response.output.trim();
-          const fenced = candidate.match(/```(?:latex|tex)?\s*([\s\S]*?)```/i);
-          if (fenced?.[1]) {
-            candidate = fenced[1].trim();
-          }
-          if (!candidate) {
-            continue;
-          }
-          workingContent = candidate;
-          setEditorContent(candidate);
-
-          compileResult = await runCompilePass(activeProjectId, selectedFile, candidate, {
-            updatePreview: true,
-            emitToast: false,
-          });
-          if (compileResult.status === "success") {
-            fixed = true;
-            break;
-          }
-        }
-        if (fixed) {
-          pushAgentMessage(t("agent.command.review.fixed"));
-          setToast({ type: "info", message: t("toast.compileSuccess") });
-          setAgentPhase("done");
-          setAgentStatusKey("agent.statusDone");
-          return;
-        }
-        pushAgentMessage(t("agent.command.review.failed"));
-        setToast({ type: "error", message: t("toast.compileFailed") });
-        setAgentPhase("error");
-        setAgentStatusKey("agent.statusError");
-        return;
-      }
-
-      if (parsed.kind === "command" && parsed.command === "check-ref") {
-        const queries = extractReferenceQueries(editorContent, parsed.args);
-        if (queries.length === 0) {
-          pushAgentMessage(t("agent.command.checkRef.noTargets"));
-          setAgentPhase("done");
-          setAgentStatusKey("agent.statusDone");
-          return;
-        }
-        const references = await referenceCheck(queries, 5);
-        const analysisPrompt = [
-          "You are a citation verifier.",
-          "Assess if each reference appears real and correctly linked to source evidence.",
-          "Return concise sections: PASS, WARNING, ACTION.",
-          "",
-          JSON.stringify(references, null, 2),
-        ].join("\n");
-        const response = await runAgent({
-          projectId: activeProjectId,
-          role: "web_search",
-          prompt: analysisPrompt,
-          contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
-        });
-        pushAgentMessage(response.output);
-        setAgentPhase("done");
-        setAgentStatusKey("agent.statusDone");
-        return;
-      }
-
-      const response = await runAgent({
-        projectId: activeProjectId,
-        role: "task",
-        prompt,
-        contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
-      });
-      await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);
-      pushAgentMessage(response.output);
-      setAgentPhase("done");
-      setAgentStatusKey("agent.statusDone");
-    } catch (error) {
-      setAgentPhase("error");
-      setAgentStatusKey("agent.statusError");
-      setToast({ type: "error", message: String(error) });
-    }
+    await runAgentWorkflow({
+      activeProjectId,
+      agentPrompt,
+      editorContent,
+      selectedFile,
+      t,
+      setAgentMessages,
+      setAgentPrompt,
+      setAgentCollapsed,
+      setAgentPhase,
+      setAgentStatusKey,
+      setToast,
+      setEditorContent,
+      runCompilePass: ({ projectId, mainPath, mainContent, options }) =>
+        runCompilePass(projectId, mainPath, mainContent, options),
+    });
   }, [
     activeProjectId,
     agentPrompt,
@@ -596,49 +395,14 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     nextTheme: ThemeMode,
     event?: { clientX: number; clientY: number },
   ) => {
-    const currentTheme = (settings?.uiPrefs?.theme as ThemeMode | undefined) ?? "system";
-    if (resolveTheme(currentTheme) === resolveTheme(nextTheme)) {
-      return;
-    }
-    const originX = event?.clientX ?? window.innerWidth / 2;
-    const originY = event?.clientY ?? window.innerHeight / 2;
-    const radius = Math.hypot(
-      Math.max(originX, window.innerWidth - originX),
-      Math.max(originY, window.innerHeight - originY),
-    );
-    const target = resolveTheme(nextTheme);
-
-    setSettings((prev) =>
-      prev
-        ? {
-            ...prev,
-            uiPrefs: {
-              ...(prev.uiPrefs ?? {}),
-              language: prev.uiPrefs?.language ?? locale,
-              theme: nextTheme,
-              panelLayout: prev.uiPrefs?.panelLayout,
-            },
-          }
-        : prev,
-    );
-
-    if (typeof window !== "undefined" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setThemeTransition({
-        x: originX,
-        y: originY,
-        radius,
-        target,
-        active: false,
-      });
-      requestAnimationFrame(() => {
-        setThemeTransition((prev: any) => (prev ? { ...prev, active: true } : prev));
-      });
-      window.setTimeout(() => applyTheme(nextTheme), 140);
-      window.setTimeout(() => setThemeTransition(null), THEME_TRANSITION_MS);
-      return;
-    }
-
-    applyTheme(nextTheme);
+    handleThemeModeChangeAction({
+      currentTheme: (settings?.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
+      nextTheme,
+      locale,
+      event,
+      setSettings,
+      setThemeTransition,
+    });
   }, [locale, setSettings, setThemeTransition, settings?.uiPrefs?.theme]);
 
   const handleWorkspaceRevealInSystem = useCallback(async (relativePath?: string) => {
@@ -691,35 +455,15 @@ export function useAppHandlers(params: UseAppHandlersParams) {
   const handleBusyTexCachePolicyChange = useCallback(async (
     policy: "install-first" | "appdata-only",
   ) => {
-    setBusy(true);
-    try {
-      const info = await busytexCachePrepare(policy);
-      setBusytexCacheInfo(info);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
-        window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
-      }
-      setSettings((prev) =>
-        prev
-          ? {
-              ...prev,
-              uiPrefs: {
-                ...(prev.uiPrefs ?? {}),
-                language: prev.uiPrefs?.language ?? locale,
-                busytexCachePolicy: info.policy as "install-first" | "appdata-only",
-                busytexCacheDir: info.actualDir,
-                panelLayout: prev.uiPrefs?.panelLayout,
-                theme: prev.uiPrefs?.theme,
-              },
-            }
-          : prev,
-      );
-      setToast({ type: "info", message: t("settings.busytexPrepared") });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
+    await handleBusyTexCachePolicyChangeAction({
+      policy,
+      locale,
+      t,
+      setBusy,
+      setBusytexCacheInfo,
+      setSettings,
+      setToast,
+    });
   }, [locale, setBusy, setBusytexCacheInfo, setSettings, setToast, t]);
 
   const handleProtocolPing = useCallback(async (input: {
@@ -728,29 +472,14 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     apiKey?: string;
     requestName?: string;
   }) => {
-    const requestName = input.requestName?.trim();
-    const apiKey = input.apiKey?.trim();
-    const result = requestName
-      ? await testModelDraft({
-          protocolId: input.protocolId,
-          baseUrl: input.baseUrl,
-          requestName,
-          apiKey: apiKey ?? "",
-        })
-      : await testProtocol({
-          protocolId: input.protocolId,
-          baseUrl: input.baseUrl,
-          apiKey,
-        });
-    setToast({
-      type: result.ok ? "info" : "error",
-      message: result.ok ? t("toast.protocolOk") : t("toast.protocolFail"),
+    return handleProtocolPingAction({
+      protocolId: input.protocolId,
+      baseUrl: input.baseUrl,
+      apiKey: input.apiKey,
+      requestName: input.requestName,
+      setToast,
+      t,
     });
-    await runtimeLogWrite(
-      result.ok ? "INFO" : "WARN",
-      `${requestName ? "model draft test" : "protocol test"}: ${input.protocolId}, ok=${result.ok}, message=${result.message}`,
-    );
-    return result.ok;
   }, [setToast, t]);
 
   const runFsAction = useCallback(async (

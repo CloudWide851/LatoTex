@@ -260,6 +260,7 @@ pub struct AppSettings {
 pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
+    pub close_to_tray_notice_enabled: Option<bool>,
     pub theme: Option<String>,
     pub busytex_cache_policy: Option<String>,
     pub busytex_cache_dir: Option<String>,

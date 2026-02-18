@@ -19,3 +19,5 @@ include!("storage/chunk2.rs");
 include!("storage/chunk3.rs");
 include!("storage/chunk4.rs");
 include!("storage/chunk5.rs");
+include!("storage/chunk6.rs");
+include!("storage/chunk7.rs");

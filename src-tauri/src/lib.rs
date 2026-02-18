@@ -26,7 +26,23 @@ use commands::settings::{
     runtime_log_info, runtime_log_read, runtime_log_write, settings_get, settings_update,
 };
 use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
-use tauri::Manager;
+use tauri::{
+    menu::MenuBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager,
+};
+
+const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
+const TRAY_MENU_EXIT_ID: &str = "tray_exit_app";
+const TRAY_ID: &str = "latotex-tray";
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -35,7 +51,38 @@ pub fn run() {
             let app_state = state::AppState::bootstrap(app.handle())
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
             app.manage(app_state);
+            let tray_menu = MenuBuilder::new(app)
+                .text(TRAY_MENU_SHOW_ID, "Show LatoTex")
+                .separator()
+                .text(TRAY_MENU_EXIT_ID, "Exit")
+                .build()?;
+            let mut tray_builder = TrayIconBuilder::with_id(TRAY_ID)
+                .menu(&tray_menu)
+                .tooltip("LatoTex")
+                .show_menu_on_left_click(false);
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+            let _ = tray_builder.build(app)?;
             Ok(())
+        })
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            TRAY_MENU_SHOW_ID => show_main_window(app),
+            TRAY_MENU_EXIT_ID => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|app, event| {
+            if event.id().as_ref() != TRAY_ID {
+                return;
+            }
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(app);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             health_check,

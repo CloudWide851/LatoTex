@@ -164,6 +164,7 @@ export function useAppEffects(params: {
         agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
         uiPrefs: {
           ...(appSettings.uiPrefs ?? {}),
+          closeToTrayNoticeEnabled: appSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true,
           theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
           busytexCachePolicy:
             appSettings.uiPrefs?.busytexCachePolicy ?? "install-first",

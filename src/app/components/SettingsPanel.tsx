@@ -107,6 +107,7 @@ export function SettingsPanel(props: {
     agentBindings: [],
     uiPrefs: {
       language: locale,
+      closeToTrayNoticeEnabled: true,
       theme: "system",
       busytexCachePolicy: "install-first",
       previewDefaultZoom: 1,
@@ -229,6 +230,18 @@ export function SettingsPanel(props: {
                         : prev,
                     )
                   }
+                />
+              </label>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4">
+              <label className="flex items-center justify-between text-sm text-slate-700">
+                <span>{t("settings.closeToTrayNotice")}</span>
+                <input
+                  type="checkbox"
+                  checked={localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true}
+                  onChange={(event) => setSettings((prev) => (prev
+                    ? { ...prev, uiPrefs: { ...(prev.uiPrefs ?? {}), closeToTrayNoticeEnabled: event.target.checked } }
+                    : prev))}
                 />
               </label>
             </div>
