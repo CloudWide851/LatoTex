@@ -1,9 +1,10 @@
-import { Beaker, Plus, X } from "lucide-react";
+import { Beaker, Eye, EyeOff, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
-import type { ModelCatalogItem, ModelProtocol } from "../../shared/types/app";
+import { SvgSpinner } from "../../components/ui/svg-spinner";
+import type { ModelCatalogItem, ModelProtocol, ModelTestResult } from "../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
@@ -13,12 +14,13 @@ export function ModelModal(props: {
   initialModel?: ModelCatalogItem | null;
   protocols: ModelProtocol[];
   onClose: () => void;
+  onGetModelApiKey: (modelId: string) => Promise<string>;
   onTest: (input: {
     protocolId: string;
     baseUrl: string;
     apiKey?: string;
     requestName?: string;
-  }) => Promise<boolean>;
+  }) => Promise<ModelTestResult>;
   onSubmit: (payload: {
     protocol: {
       id: string;
@@ -29,11 +31,22 @@ export function ModelModal(props: {
     };
     model: ModelCatalogItem;
     modelApiKey?: string;
-    modelApiKeyAction: "keep" | "set" | "clear";
-  }) => void;
+    modelApiKeyChanged: boolean;
+  }) => Promise<{ ok: boolean; message?: string }>;
   t: TranslationFn;
 }) {
-  const { open, mode: dialogMode = "create", initialModel, protocols, onClose, onTest, onSubmit, t } = props;
+  const {
+    open,
+    mode: dialogMode = "create",
+    initialModel,
+    protocols,
+    onClose,
+    onGetModelApiKey,
+    onTest,
+    onSubmit,
+    t,
+  } = props;
+
   const [protocolMode, setProtocolMode] = useState<"existing" | "new">("existing");
   const [protocolId, setProtocolId] = useState(protocols[0]?.id ?? "openai-compatible");
   const [newProtocolId, setNewProtocolId] = useState("");
@@ -43,14 +56,36 @@ export function ModelModal(props: {
   const [modelDisplayName, setModelDisplayName] = useState("");
   const [modelRequestName, setModelRequestName] = useState("");
   const [modelApiKey, setModelApiKey] = useState("");
-  const [apiKeyMode, setApiKeyMode] = useState<"keep" | "update" | "clear">("update");
-  const [testState, setTestState] = useState<"idle" | "ok" | "fail">("idle");
+  const [initialApiKey, setInitialApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [loadingApiKey, setLoadingApiKey] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testState, setTestState] = useState<"idle" | "ok" | "fail">("idle");
+  const [testMessage, setTestMessage] = useState("");
 
   const selectedProtocol = useMemo(
     () => protocols.find((item) => item.id === protocolId),
     [protocolId, protocols],
   );
+
+  const resolvedProtocol = protocolMode === "new"
+    ? {
+        id: newProtocolId.trim(),
+        displayName: newProtocolName.trim(),
+        baseUrl: newProtocolBaseUrl.trim(),
+        apiKey: modelApiKey.trim(),
+        isNew: true,
+      }
+    : {
+        id: protocolId,
+        displayName: selectedProtocol?.displayName ?? protocolId,
+        baseUrl: existingProtocolBaseUrl.trim(),
+        apiKey: modelApiKey.trim(),
+        isNew: false,
+      };
+
+  const apiKeyChanged = modelApiKey !== initialApiKey;
 
   useEffect(() => {
     setExistingProtocolBaseUrl(selectedProtocol?.baseUrl ?? "");
@@ -71,72 +106,118 @@ export function ModelModal(props: {
     setModelDisplayName(initialModel?.displayName ?? "");
     setModelRequestName(initialModel?.requestName ?? "");
     setModelApiKey("");
-    setApiKeyMode(dialogMode === "edit" ? "keep" : "update");
-    setTestState(dialogMode === "edit" ? "ok" : "idle");
+    setInitialApiKey("");
+    setShowApiKey(false);
+    setLoadingApiKey(false);
     setTesting(false);
-  }, [dialogMode, initialModel?.displayName, initialModel?.protocolId, initialModel?.requestName, open, protocols]);
+    setSaving(false);
+    setTestState("idle");
+    setTestMessage("");
+  }, [initialModel?.displayName, initialModel?.protocolId, initialModel?.requestName, open, protocols]);
+
+  useEffect(() => {
+    if (!open || dialogMode !== "edit" || !initialModel?.id) {
+      return;
+    }
+    let active = true;
+    setLoadingApiKey(true);
+    onGetModelApiKey(initialModel.id)
+      .then((key) => {
+        if (!active) {
+          return;
+        }
+        setInitialApiKey(key ?? "");
+        setModelApiKey(key ?? "");
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setInitialApiKey("");
+        setModelApiKey("");
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingApiKey(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [dialogMode, initialModel?.id, onGetModelApiKey, open]);
 
   if (!open) {
     return null;
   }
 
-  const resolvedProtocol = protocolMode === "new"
-    ? {
-        id: newProtocolId.trim(),
-        displayName: newProtocolName.trim(),
-        baseUrl: newProtocolBaseUrl.trim(),
-        apiKey: modelApiKey.trim(),
-        isNew: true,
-      }
-    : {
-        id: protocolId,
-        displayName: selectedProtocol?.displayName ?? protocolId,
-        baseUrl: existingProtocolBaseUrl.trim(),
-        apiKey: modelApiKey.trim(),
-        isNew: false,
-      };
-
-  const modelApiKeyAction: "keep" | "set" | "clear" = dialogMode === "edit"
-    ? apiKeyMode === "keep"
-      ? "keep"
-      : apiKeyMode === "clear"
-        ? "clear"
-        : "set"
-    : modelApiKey.trim().length > 0
-      ? "set"
-      : "keep";
-
-  const canSubmit =
+  const canSubmitBase =
     resolvedProtocol.id.length > 0 &&
     resolvedProtocol.displayName.length > 0 &&
     resolvedProtocol.baseUrl.length > 0 &&
     modelDisplayName.trim().length > 0 &&
-    modelRequestName.trim().length > 0 &&
-    (modelApiKeyAction !== "set" || modelApiKey.trim().length > 0) &&
-    testState === "ok";
+    modelRequestName.trim().length > 0;
 
-  const handleTest = async () => {
+  const runTest = async () => {
     if (!resolvedProtocol.baseUrl.trim() || !modelRequestName.trim() || !modelApiKey.trim()) {
       setTestState("fail");
-      return;
+      setTestMessage(t("settings.modal.apiKeyRequired"));
+      return { ok: false };
     }
-    const testStart = Date.now();
     setTesting(true);
     try {
-      const ok = await onTest({
+      const result = await onTest({
         protocolId: resolvedProtocol.id,
         baseUrl: resolvedProtocol.baseUrl,
-        apiKey: resolvedProtocol.apiKey || undefined,
+        apiKey: modelApiKey.trim(),
         requestName: modelRequestName.trim(),
       });
-      const elapsed = Date.now() - testStart;
-      if (elapsed < 600) {
-        await new Promise((resolve) => setTimeout(resolve, 600 - elapsed));
-      }
-      setTestState(ok ? "ok" : "fail");
+      setTestState(result.ok ? "ok" : "fail");
+      setTestMessage(result.message || "");
+      return result;
     } finally {
       setTesting(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!canSubmitBase) {
+      return;
+    }
+    if (apiKeyChanged) {
+      if (!modelApiKey.trim()) {
+        setTestState("fail");
+        setTestMessage(t("settings.modal.apiKeyRequired"));
+        return;
+      }
+      const result = await runTest();
+      if (!result.ok) {
+        return;
+      }
+    }
+
+    setSaving(true);
+    const requestName = modelRequestName.trim();
+    const modelId = dialogMode === "edit" && initialModel?.id
+      ? initialModel.id
+      : `${resolvedProtocol.id}-${requestName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
+    const response = await onSubmit({
+      protocol: resolvedProtocol,
+      model: {
+        id: modelId,
+        protocolId: resolvedProtocol.id,
+        displayName: modelDisplayName.trim(),
+        requestName,
+      },
+      modelApiKey: modelApiKey.trim(),
+      modelApiKeyChanged: apiKeyChanged,
+    });
+    setSaving(false);
+    if (!response.ok) {
+      setTestState("fail");
+      setTestMessage(response.message || t("settings.modal.saveFailed"));
+      return;
+    }
+    onClose();
   };
 
   return (
@@ -181,6 +262,7 @@ export function ModelModal(props: {
                   onChange={(event) => {
                     setProtocolId(event.target.value);
                     setTestState("idle");
+                    setTestMessage("");
                   }}
                 >
                   {protocols.map((protocol) => (
@@ -197,6 +279,7 @@ export function ModelModal(props: {
                   onChange={(event) => {
                     setExistingProtocolBaseUrl(event.target.value);
                     setTestState("idle");
+                    setTestMessage("");
                   }}
                 />
               </label>
@@ -210,6 +293,7 @@ export function ModelModal(props: {
                   onChange={(event) => {
                     setNewProtocolId(event.target.value);
                     setTestState("idle");
+                    setTestMessage("");
                   }}
                 />
               </label>
@@ -220,6 +304,7 @@ export function ModelModal(props: {
                   onChange={(event) => {
                     setNewProtocolName(event.target.value);
                     setTestState("idle");
+                    setTestMessage("");
                   }}
                 />
               </label>
@@ -230,6 +315,7 @@ export function ModelModal(props: {
                   onChange={(event) => {
                     setNewProtocolBaseUrl(event.target.value);
                     setTestState("idle");
+                    setTestMessage("");
                   }}
                 />
               </label>
@@ -245,111 +331,73 @@ export function ModelModal(props: {
               <span className="text-xs text-slate-500">{t("settings.modal.modelRequestName")}</span>
               <Input value={modelRequestName} onChange={(e) => setModelRequestName(e.target.value)} />
             </label>
-            {dialogMode === "edit" && (
-              <div className="grid gap-1">
-                <span className="text-xs text-slate-500">{t("settings.apiKey")}</span>
-                <div className="grid grid-cols-3 gap-1">
-                  <button
-                    className={`rounded-md border px-2 py-1 text-xs transition ${
-                      apiKeyMode === "keep"
-                        ? "border-primary-600 bg-primary-600 text-white"
-                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                    }`}
-                    onClick={() => {
-                      setApiKeyMode("keep");
-                      setModelApiKey("");
-                    }}
-                    type="button"
-                  >
-                    {t("settings.modal.apiKeyMode.keep")}
-                  </button>
-                  <button
-                    className={`rounded-md border px-2 py-1 text-xs transition ${
-                      apiKeyMode === "update"
-                        ? "border-primary-600 bg-primary-600 text-white"
-                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                    }`}
-                    onClick={() => setApiKeyMode("update")}
-                    type="button"
-                  >
-                    {t("settings.modal.apiKeyMode.update")}
-                  </button>
-                  <button
-                    className={`rounded-md border px-2 py-1 text-xs transition ${
-                      apiKeyMode === "clear"
-                        ? "border-primary-600 bg-primary-600 text-white"
-                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-                    }`}
-                    onClick={() => {
-                      setApiKeyMode("clear");
-                      setModelApiKey("");
-                    }}
-                    type="button"
-                  >
-                    {t("settings.modal.apiKeyMode.clear")}
-                  </button>
-                </div>
-              </div>
-            )}
             <label className="grid gap-1">
-              <span className="text-xs text-slate-500">{t("settings.apiKey")}</span>
-              <Input
-                type="password"
-                value={modelApiKey}
-                disabled={dialogMode === "edit" && apiKeyMode !== "update"}
-                onChange={(event) => {
-                  setModelApiKey(event.target.value);
-                  if (dialogMode === "edit") {
-                    setApiKeyMode("update");
-                  }
-                  setTestState("idle");
-                }}
-                placeholder={
-                  dialogMode === "edit" && apiKeyMode !== "update"
-                    ? t("settings.modal.apiKeyPlaceholderKeep")
-                    : t("settings.modal.apiKeyPlaceholderUpdate")
-                }
-              />
+              <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                {t("settings.apiKey")}
+                {apiKeyChanged ? (
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full bg-primary-600"
+                    title={t("settings.modal.apiKeyChanged")}
+                  />
+                ) : null}
+              </span>
+              <div className="relative">
+                <Input
+                  type={showApiKey ? "text" : "password"}
+                  value={modelApiKey}
+                  onChange={(event) => {
+                    setModelApiKey(event.target.value);
+                    setTestState("idle");
+                    setTestMessage("");
+                  }}
+                  placeholder={t("settings.modal.apiKeyPlaceholderUpdate")}
+                />
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  title={showApiKey ? t("settings.modal.hideApiKey") : t("settings.modal.showApiKey")}
+                  aria-label={showApiKey ? t("settings.modal.hideApiKey") : t("settings.modal.showApiKey")}
+                  onClick={() => setShowApiKey((prev) => !prev)}
+                  type="button"
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {loadingApiKey ? (
+                <span className="inline-flex items-center gap-2 text-[11px] text-slate-500">
+                  <SvgSpinner className="h-3.5 w-3.5 text-slate-500" />
+                  {t("common.loading")}
+                </span>
+              ) : null}
             </label>
           </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-200 px-4">
-          <div className="text-xs text-slate-500">
-            {testState === "ok" ? t("settings.modal.testOk") : testState === "fail" ? t("settings.modal.testFail") : t("settings.modal.testIdle")}
+          <div className="truncate text-xs text-slate-500">
+            {testState === "ok"
+              ? (testMessage || t("settings.modal.testOk"))
+              : testState === "fail"
+                ? (testMessage || t("settings.modal.testFail"))
+                : t("settings.modal.testIdle")}
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="rounded border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100"
-              onClick={handleTest}
-              disabled={testing}
+              className="rounded border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              onClick={() => {
+                void runTest();
+              }}
+              disabled={testing || loadingApiKey}
               title={t("settings.testProtocol")}
             >
-              <Beaker className="h-4 w-4" />
+              {testing ? <SvgSpinner className="h-4 w-4 text-slate-500" /> : <Beaker className="h-4 w-4" />}
             </button>
             <Button
-              disabled={!canSubmit}
+              disabled={!canSubmitBase || testing || saving || loadingApiKey}
               onClick={() => {
-                const requestName = modelRequestName.trim();
-                const modelId = dialogMode === "edit" && initialModel?.id
-                  ? initialModel.id
-                  : `${resolvedProtocol.id}-${requestName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
-                onSubmit({
-                  protocol: resolvedProtocol,
-                  model: {
-                    id: modelId,
-                    protocolId: resolvedProtocol.id,
-                    displayName: modelDisplayName.trim(),
-                    requestName,
-                  },
-                  modelApiKeyAction,
-                  modelApiKey:
-                    modelApiKeyAction === "set" ? modelApiKey.trim() || undefined : undefined,
-                });
-                onClose();
+                void handleSave();
               }}
             >
-              {t("settings.saveSettings")}
+              {saving ? t("common.loading") : t("settings.saveSettings")}
             </Button>
           </div>
         </div>

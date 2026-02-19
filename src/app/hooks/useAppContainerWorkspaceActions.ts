@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect } from "react";
-import { gitDiffFile, projectIntegrityRepair, projectIntegrityStatus, runAgent, setModelApiKey, testModel } from "../../shared/api/desktop";
+import { getModelApiKey, gitDiffFile, projectIntegrityRepair, projectIntegrityStatus, runAgent, runtimeLogWrite, setModelApiKey, testModel } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
 import { getTabIdsByAction } from "./useEditorTabs";
@@ -400,6 +400,11 @@ export function useAppContainerWorkspaceActions(params: any) {
     params.setModelModalOpen(true);
   }, [params]);
 
+  const handleGetModelApiKey = useCallback(async (modelId: string) => {
+    const result = await getModelApiKey(modelId);
+    return result.apiKey ?? "";
+  }, []);
+
   const handleGenerateGitSummary = useCallback(async (includedPaths: string[]) => {
     if (!activeProjectId) {
       throw new Error("No active project");
@@ -464,7 +469,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     return output.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
   }, [activeProjectId]);
 
-  const handleModelModalSubmit = useCallback((payload: {
+  const handleModelModalSubmit = useCallback(async (payload: {
     protocol: {
       id: string;
       displayName: string;
@@ -474,76 +479,66 @@ export function useAppContainerWorkspaceActions(params: any) {
     };
     model: ModelCatalogItem;
     modelApiKey?: string;
-    modelApiKeyAction: "keep" | "set" | "clear";
-  }) => {
-    const { protocol, model, modelApiKey, modelApiKeyAction } = payload;
-    setSettings((prev: any) => {
-      if (!prev) {
-        return prev;
-      }
-      const nextProtocols = protocol.isNew
-        ? [
-            ...prev.modelProtocols,
-            {
-              id: protocol.id,
-              displayName: protocol.displayName,
-              baseUrl: protocol.baseUrl,
-              apiKeySet: Boolean(modelApiKey?.trim()),
-            },
-          ]
-        : prev.modelProtocols.map((item: any) =>
-            item.id === protocol.id
-              ? {
-                  ...item,
-                  baseUrl: protocol.baseUrl,
-                  apiKeySet:
-                    modelApiKeyAction === "set"
-                      ? Boolean(modelApiKey?.trim())
-                      : modelApiKeyAction === "clear"
-                        ? false
-                        : item.apiKeySet,
-                }
-              : item,
-          );
-      const nextCatalog = prev.modelCatalog.some((item: any) => item.id === model.id)
-        ? prev.modelCatalog.map((item: any) => (item.id === model.id ? model : item))
-        : [...prev.modelCatalog, model];
-      const nextSettings = {
-        ...prev,
-        modelProtocols: nextProtocols,
-        modelCatalog: nextCatalog,
-      };
+    modelApiKeyChanged: boolean;
+  }): Promise<{ ok: boolean; message?: string }> => {
+    const { protocol, model, modelApiKey, modelApiKeyChanged } = payload;
+    if (!settings) {
+      return { ok: false, message: "Settings are not loaded yet." };
+    }
 
+    const normalizedKey = modelApiKey?.trim() ?? "";
+    const nextProtocols = protocol.isNew
+      ? [
+          ...settings.modelProtocols,
+          {
+            id: protocol.id,
+            displayName: protocol.displayName,
+            baseUrl: protocol.baseUrl,
+            apiKeySet: modelApiKeyChanged ? normalizedKey.length > 0 : false,
+          },
+        ]
+      : settings.modelProtocols.map((item: any) =>
+          item.id === protocol.id
+            ? {
+                ...item,
+                baseUrl: protocol.baseUrl,
+                apiKeySet: modelApiKeyChanged ? normalizedKey.length > 0 : item.apiKeySet,
+              }
+            : item,
+        );
+    const nextCatalog = settings.modelCatalog.some((item: any) => item.id === model.id)
+      ? settings.modelCatalog.map((item: any) => (item.id === model.id ? model : item))
+      : [...settings.modelCatalog, model];
+    const nextSettings = {
+      ...settings,
+      modelProtocols: nextProtocols,
+      modelCatalog: nextCatalog,
+    };
+
+    try {
+      await runtimeLogWrite("INFO", `model save started: ${model.id}`).catch(() => undefined);
+      if (modelApiKeyChanged) {
+        await setModelApiKey(model.id, normalizedKey);
+      }
+      const persisted = await persistSettings(nextSettings);
+      setSettings(persisted);
       setDraftModelApiKeys((current: Record<string, string>) => {
-        const next = { ...current };
-        if (modelApiKeyAction === "set") {
-          next[model.id] = modelApiKey ?? "";
-        } else if (modelApiKeyAction === "clear") {
-          next[model.id] = "";
-        } else {
-          delete next[model.id];
+        if (!(model.id in current)) {
+          return current;
         }
+        const next = { ...current };
+        delete next[model.id];
         return next;
       });
-
-      queueMicrotask(() => {
-        if (modelApiKeyAction === "set") {
-          void setModelApiKey(model.id, modelApiKey?.trim() ?? "").catch((error: unknown) =>
-            setToast({ type: "error", message: String(error) }),
-          );
-        } else if (modelApiKeyAction === "clear") {
-          void setModelApiKey(model.id, "").catch((error: unknown) =>
-            setToast({ type: "error", message: String(error) }),
-          );
-        }
-        void persistSettings(nextSettings).catch((error: unknown) =>
-          setToast({ type: "error", message: String(error) }),
-        );
-      });
-
-      return nextSettings;
-    });
-  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast]);
+      await runtimeLogWrite("INFO", `model save completed: ${model.id}`).catch(() => undefined);
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ type: "error", message });
+      await runtimeLogWrite("ERROR", `model save failed: ${model.id}, reason=${message}`).catch(() => undefined);
+      return { ok: false, message };
+    }
+  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast, settings]);
 
   return {
     handleSaveActiveFile,
@@ -560,6 +555,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     handleIntegrityCancel,
     handleTestModel,
     handleTestAllModels,
+    handleGetModelApiKey,
     openModelModal,
     handleGenerateGitSummary,
     handleModelModalSubmit,

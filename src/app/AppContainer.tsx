@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/logo-mark.png";
@@ -394,6 +394,25 @@ export function AppContainer() {
     setToast: s.setToast,
   });
 
+  const explorerGitDecorations = useMemo(() => {
+    const map: Record<string, { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }> = {};
+    for (const change of s.gitStatusState?.changes ?? []) {
+      const index = (change.indexStatus ?? " ").trim();
+      const worktree = (change.worktreeStatus ?? " ").trim();
+      const ignored = Boolean(change.ignored);
+      const untracked = index === "?" || worktree === "?";
+      const staged = !ignored && index.length > 0 && index !== "?";
+      const unstaged = !ignored && worktree.length > 0 && worktree !== "?";
+      const code = ignored
+        ? "!!"
+        : untracked
+          ? "U"
+          : index || worktree || "M";
+      map[change.path] = { code, ignored, staged, unstaged, untracked };
+    }
+    return map;
+  }, [s.gitStatusState?.changes]);
+
   const panels = useAppPanelNodes({
     settings: s.settings,
     locale,
@@ -488,6 +507,7 @@ export function AppContainer() {
       agentStatusKey={s.agentStatusKey}
       agentPrompt={s.agentPrompt}
       agentMessages={s.agentMessages}
+      explorerGitDecorations={explorerGitDecorations}
       SHELL_MIN={SHELL_MIN}
       settingsPanel={panels.settingsPanel}
       gitPanel={panels.gitPanel}
@@ -534,6 +554,7 @@ export function AppContainer() {
       setModelModalMode={s.setModelModalMode}
       handleModelModalSubmit={workspaceActions.handleModelModalSubmit}
       handleProtocolPing={handlers.handleProtocolPing}
+      handleGetModelApiKey={workspaceActions.handleGetModelApiKey}
       setDeleteIntent={s.setDeleteIntent}
       confirmDelete={handlers.confirmDelete}
       setDeleteDontAskAgain={s.setDeleteDontAskAgain}

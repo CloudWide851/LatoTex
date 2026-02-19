@@ -1,5 +1,6 @@
 import { busytexCachePrepare, runtimeLogWrite, testModelDraft, testProtocol } from "../../shared/api/desktop";
 import type { Dispatch, SetStateAction } from "react";
+import type { ModelTestResult } from "../../shared/types/app";
 import { applyTheme, resolveTheme, THEME_TRANSITION_MS, type ThemeMode } from "../app-config";
 
 export function handleThemeModeChangeAction(params: {
@@ -103,11 +104,11 @@ export async function handleProtocolPingAction(params: {
   requestName?: string;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   t: (key: any) => string;
-}) {
+}): Promise<ModelTestResult> {
   const { protocolId, baseUrl, apiKey, requestName, setToast, t } = params;
   const normalizedRequestName = requestName?.trim();
   const normalizedApiKey = apiKey?.trim();
-  const result = normalizedRequestName
+  const result: ModelTestResult = normalizedRequestName
     ? await testModelDraft({
         protocolId,
         baseUrl,
@@ -118,14 +119,18 @@ export async function handleProtocolPingAction(params: {
         protocolId,
         baseUrl,
         apiKey: normalizedApiKey,
-      });
+      }).then((res) => ({
+        modelId: normalizedRequestName ?? protocolId,
+        ok: res.ok,
+        message: res.message,
+      }));
   setToast({
     type: result.ok ? "info" : "error",
-    message: result.ok ? t("toast.protocolOk") : t("toast.protocolFail"),
+    message: result.message || (result.ok ? t("toast.protocolOk") : t("toast.protocolFail")),
   });
   await runtimeLogWrite(
     result.ok ? "INFO" : "WARN",
     `${normalizedRequestName ? "model draft test" : "protocol test"}: ${protocolId}, ok=${result.ok}, message=${result.message}`,
   );
-  return result.ok;
+  return result;
 }

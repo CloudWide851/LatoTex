@@ -305,6 +305,19 @@ pub struct ModelApiKeySetInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelApiKeyGetInput {
+    pub model_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelApiKeyValue {
+    pub model_id: String,
+    pub api_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProtocolTestInput {
     pub protocol_id: String,
     pub base_url: Option<String>,
@@ -423,6 +436,7 @@ pub struct GitStatusEntry {
     pub worktree_status: String,
     pub added_lines: u32,
     pub removed_lines: u32,
+    pub ignored: bool,
 }
 
 #[derive(Debug, Serialize)]

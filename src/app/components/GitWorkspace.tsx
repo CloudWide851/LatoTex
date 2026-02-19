@@ -102,7 +102,7 @@ export function GitWorkspace(props: {
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [actionError, setActionError] = useState("");
 
-  const changedFiles = status?.changes ?? [];
+  const changedFiles = (status?.changes ?? []).filter((item) => !item.ignored);
   const stagedFiles = useMemo(
     () => changedFiles.filter((item) => item.indexStatus !== " " && item.indexStatus !== "?"),
     [changedFiles],

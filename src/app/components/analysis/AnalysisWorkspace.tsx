@@ -1,8 +1,7 @@
-import { Download, FolderOpen, Play, RefreshCcw } from "lucide-react";
-import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
+import { Download, FolderOpen } from "lucide-react";
 import type { AnalysisReportItem } from "../../../shared/types/app";
 import type { AnalysisResultView } from "../../hooks/useAnalysisWorkspace";
+import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 
 type TranslationFn = (key: any) => string;
 
@@ -69,32 +68,13 @@ export function AnalysisWorkspace(props: {
   };
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-        <div className="flex items-center gap-2">
-          <Input
-            value={prompt}
-            onChange={(event) => onPromptChange(event.target.value)}
-            placeholder={t("analysis.promptPlaceholder")}
-            className="h-9"
-          />
-          <Button size="sm" onClick={onRun} disabled={!canRun || running || busy}>
-            <Play className="mr-1 h-3.5 w-3.5" />
-            {running ? t("analysis.running") : t("analysis.run")}
-          </Button>
-          <Button size="sm" variant="secondary" onClick={onRefresh} disabled={running || busy}>
-            <RefreshCcw className="mr-1 h-3.5 w-3.5" />
-            {t("analysis.refresh")}
-          </Button>
-        </div>
-      </div>
-
+    <div className="relative h-full min-h-0 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
       {!result ? (
-        <div className="flex min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+        <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 pb-28 text-sm text-slate-500">
           {t("analysis.blankHint")}
         </div>
       ) : (
-        <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-2">
+        <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-2 pb-32">
           <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
               <h3 className="text-sm font-semibold text-slate-800">{result.title}</h3>
@@ -161,6 +141,16 @@ export function AnalysisWorkspace(props: {
           </aside>
         </div>
       )}
+      <AnalysisPromptOverlay
+        prompt={prompt}
+        canRun={canRun}
+        running={running}
+        busy={busy}
+        onPromptChange={onPromptChange}
+        onRun={onRun}
+        onRefresh={onRefresh}
+        t={t}
+      />
     </div>
   );
 }

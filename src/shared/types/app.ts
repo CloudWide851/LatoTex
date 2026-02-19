@@ -116,6 +116,11 @@ export type ModelTestResult = {
   message: string;
 };
 
+export type ModelApiKeyValue = {
+  modelId: string;
+  apiKey: string;
+};
+
 export type ModelDraftTestInput = {
   protocolId: string;
   baseUrl: string;
@@ -288,6 +293,7 @@ export type GitStatusEntry = {
   worktreeStatus: string;
   addedLines: number;
   removedLines: number;
+  ignored: boolean;
 };
 
 export type GitStatus = {

@@ -88,7 +88,7 @@ export function FilePreviewPane(props: {
         />
         {lensActive && (
           <div
-            className="pointer-events-none absolute z-20 overflow-hidden rounded-full border-2 border-slate-200 shadow-[0_8px_24px_rgba(15,23,42,0.22)]"
+            className="pointer-events-none absolute z-20 overflow-hidden rounded-full border border-slate-200/80 bg-white/20 shadow-[0_18px_36px_rgba(15,23,42,0.28)] backdrop-blur-[1px] transition-[left,top] duration-75 ease-out"
             style={{
               width: `${lensSize}px`,
               height: `${lensSize}px`,
@@ -107,6 +107,14 @@ export function FilePreviewPane(props: {
                 transformOrigin: "top left",
                 transform: `translate(${lensSize / 2 - lensScale * lensPoint.x}px, ${lensSize / 2 - lensScale * lensPoint.y}px) scale(${lensScale})`,
               }}
+            />
+            <span
+              className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-slate-300/70"
+              aria-hidden
+            />
+            <span
+              className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-slate-300/70"
+              aria-hidden
             />
           </div>
         )}

@@ -71,6 +71,18 @@ export function useAppPanelNodes(params: any) {
     return parts[parts.length - 1] || runtimeInfo.sessionLogFile;
   }, [runtimeInfo?.sessionLogFile]);
 
+  const reloadRuntimeLogs = useCallback(async () => {
+    setRuntimeLogLoading(true);
+    try {
+      const response = await runtimeLogRead({ limit: 1600 });
+      setRuntimeLogs(response.entries);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setRuntimeLogLoading(false);
+    }
+  }, [setRuntimeLogLoading, setRuntimeLogs, setToast]);
+
   const compileErrorLine = useMemo(
     () => (params.lastCompileFailed && params.compileDiagnostics.length > 0 ? params.compileDiagnostics[0] : null),
     [params.compileDiagnostics, params.lastCompileFailed],
@@ -157,20 +169,11 @@ export function useAppPanelNodes(params: any) {
       onThemeModeChange={handleThemeModeChange}
       onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
       onOpenModelModal={openModelModal}
-      onOpenLogViewer={() => {
-        setRuntimeLogLoading(true);
-        runtimeLogRead({ limit: 1600 })
-          .then((response) => {
-            setRuntimeLogs(response.entries);
-          })
-          .catch((error) => setToast({ type: "error", message: String(error) }))
-          .finally(() => setRuntimeLogLoading(false));
-      }}
+      onReloadLogs={reloadRuntimeLogs}
       onClearCurrentLog={async () => {
         try {
           await runtimeLogClearCurrentSession("CLEAR_CURRENT_SESSION");
-          const refreshed = await runtimeLogRead({ limit: 1600 });
-          setRuntimeLogs(refreshed.entries);
+          await reloadRuntimeLogs();
         } catch (error) {
           setToast({ type: "error", message: String(error) });
         }

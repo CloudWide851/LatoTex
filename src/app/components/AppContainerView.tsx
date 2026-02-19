@@ -52,6 +52,7 @@ export function AppContainerView(props: any) {
     agentStatusKey,
     agentPrompt,
     agentMessages,
+    explorerGitDecorations,
     SHELL_MIN,
     settingsPanel,
     gitPanel,
@@ -98,6 +99,7 @@ export function AppContainerView(props: any) {
     setModelModalMode,
     handleModelModalSubmit,
     handleProtocolPing,
+    handleGetModelApiKey,
     setDeleteIntent,
     confirmDelete,
     setDeleteDontAskAgain,
@@ -177,6 +179,7 @@ export function AppContainerView(props: any) {
             agentStatusKey={agentStatusKey}
             agentPrompt={agentPrompt}
             agentMessages={agentMessages}
+            explorerGitDecorations={explorerGitDecorations}
             shellMin={SHELL_MIN}
             settingsPanel={settingsPanel}
             gitPanel={gitPanel}
@@ -242,6 +245,7 @@ export function AppContainerView(props: any) {
         }}
         onModelSubmit={handleModelModalSubmit}
         onProtocolPing={handleProtocolPing}
+        onGetModelApiKey={handleGetModelApiKey}
         onDeleteCancel={() => setDeleteIntent(null)}
         onDeleteConfirm={confirmDelete}
         onDeleteDontAskChange={setDeleteDontAskAgain}

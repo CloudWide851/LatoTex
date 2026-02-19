@@ -65,7 +65,13 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
 
     let raw = run_git(
         &root,
-        &["status", "--porcelain=v1", "-b", "--untracked-files=all"],
+        &[
+            "status",
+            "--porcelain=v1",
+            "-b",
+            "--untracked-files=all",
+            "--ignored=matching",
+        ],
     )?;
     let unstaged_numstat = parse_numstat(&run_git(&root, &["diff", "--numstat"]).unwrap_or_default());
     let staged_numstat = parse_numstat(&run_git(&root, &["diff", "--cached", "--numstat"]).unwrap_or_default());
@@ -79,8 +85,11 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
             continue;
         }
         let mut chars = line.chars();
-        let index_status = chars.next().unwrap_or(' ').to_string();
-        let worktree_status = chars.next().unwrap_or(' ').to_string();
+        let index_status_char = chars.next().unwrap_or(' ');
+        let worktree_status_char = chars.next().unwrap_or(' ');
+        let index_status = index_status_char.to_string();
+        let worktree_status = worktree_status_char.to_string();
+        let ignored = index_status_char == '!' && worktree_status_char == '!';
         let path = normalize_status_path(&line[3..]);
         let absolute_path = root.join(&path);
         if absolute_path.exists() && absolute_path.is_dir() {
@@ -99,6 +108,7 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
             worktree_status,
             added_lines,
             removed_lines,
+            ignored,
         });
     }
 

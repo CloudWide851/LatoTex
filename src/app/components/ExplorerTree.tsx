@@ -37,6 +37,10 @@ export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
   selectedPath: string | null;
+  gitDecorations?: Record<
+    string,
+    { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
+  >;
   allowRescan?: boolean;
   busy?: boolean;
   onSelect: (path: string) => void;
@@ -52,6 +56,7 @@ export function ExplorerTree(props: {
     mode = "workspace",
     tree,
     selectedPath,
+    gitDecorations,
     allowRescan,
     busy,
     onSelect,
@@ -343,6 +348,8 @@ export function ExplorerTree(props: {
     const isDirectory = node.kind === "directory";
     const isExpanded = isDirectory ? expandedMap[node.relativePath] !== false : false;
     const isRenaming = editing?.mode === "rename" && editing.path === node.relativePath;
+    const decoration = !isDirectory ? gitDecorations?.[node.relativePath] : undefined;
+    const isIgnored = Boolean(decoration?.ignored);
     const indentStyle = { paddingLeft: `${depth * 10}px` };
     return (
       <Fragment key={node.relativePath}>
@@ -351,7 +358,9 @@ export function ExplorerTree(props: {
             "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
             selectedPath === node.relativePath
               ? "bg-primary-100 text-primary-900"
-              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+              : isIgnored
+                ? "text-slate-400 hover:bg-slate-100 hover:text-slate-500"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
           )}
           style={indentStyle}
           title={node.relativePath}
@@ -420,7 +429,27 @@ export function ExplorerTree(props: {
               onBlur={() => setEditing(null)}
             />
           ) : (
-            <span className="truncate">{node.name}</span>
+            <>
+              <span className={cn("truncate", isIgnored && "opacity-80")}>{node.name}</span>
+              {!isDirectory && decoration ? (
+                <span
+                  className={cn(
+                    "ml-auto rounded border px-1 py-0 text-[9px] font-mono",
+                    decoration.ignored
+                      ? "border-slate-300 bg-slate-100 text-slate-500"
+                      : decoration.code === "A" || decoration.code === "U"
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                        : decoration.code === "D"
+                          ? "border-rose-300 bg-rose-50 text-rose-700"
+                          : decoration.code === "R"
+                            ? "border-sky-300 bg-sky-50 text-sky-700"
+                            : "border-amber-300 bg-amber-50 text-amber-700",
+                  )}
+                >
+                  {decoration.code}
+                </span>
+              ) : null}
+            </>
           )}
         </div>
         {isDirectory && isExpanded && (

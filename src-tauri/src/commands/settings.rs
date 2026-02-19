@@ -1,7 +1,8 @@
 use crate::models::{
-    Ack, AppSettings, ModelApiKeySetInput, ModelDraftTestInput, ModelTestInput, ModelTestResult,
-    ProtocolHealth, ProtocolTestInput, RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo,
-    RuntimeLogReadInput, RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
+    Ack, AppSettings, ModelApiKeyGetInput, ModelApiKeySetInput, ModelApiKeyValue,
+    ModelDraftTestInput, ModelTestInput, ModelTestResult, ProtocolHealth, ProtocolTestInput,
+    RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput,
+    RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
 };
 use crate::secure;
 use crate::state::AppState;
@@ -189,6 +190,23 @@ pub fn model_api_key_set(
     Ok(Ack {
         ok: true,
         message: "stored".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn model_api_key_get(
+    state: State<'_, AppState>,
+    input: ModelApiKeyGetInput,
+) -> Result<ModelApiKeyValue, String> {
+    let model_id = input.model_id.trim();
+    if model_id.is_empty() {
+        return Err("Model id is required".to_string());
+    }
+    let api_key = secure::get_model_api_key(model_id)?.unwrap_or_default();
+    state.log("INFO", &format!("model_api_key_get: loaded key for {model_id}"));
+    Ok(ModelApiKeyValue {
+        model_id: model_id.to_string(),
+        api_key,
     })
 }
 

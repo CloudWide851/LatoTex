@@ -24,6 +24,7 @@ import type {
   LibraryCitationSummary,
   ModelCatalogItemInput,
   ModelDraftTestInput,
+  ModelApiKeyValue,
   ModelTestResult,
   ModelProtocolInput,
   PanelLayoutPrefs,
@@ -274,6 +275,12 @@ export function testModelDraft(input: ModelDraftTestInput): Promise<ModelTestRes
 export function setModelApiKey(modelId: string, apiKey: string): Promise<Ack> {
   return invoke<Ack>("model_api_key_set", {
     input: { modelId, apiKey },
+  });
+}
+
+export function getModelApiKey(modelId: string): Promise<ModelApiKeyValue> {
+  return invoke<ModelApiKeyValue>("model_api_key_get", {
+    input: { modelId },
   });
 }
 

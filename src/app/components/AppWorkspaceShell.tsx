@@ -54,6 +54,10 @@ export function AppWorkspaceShell(props: {
   agentStatusKey: AgentStatusKey;
   agentPrompt: string;
   agentMessages: AgentMessage[];
+  explorerGitDecorations: Record<
+    string,
+    { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
+  >;
   shellMin: readonly [number, number];
   settingsPanel: React.ReactNode;
   gitPanel: React.ReactNode;
@@ -119,6 +123,7 @@ export function AppWorkspaceShell(props: {
     agentStatusKey,
     agentPrompt,
     agentMessages,
+    explorerGitDecorations,
     shellMin,
     settingsPanel,
     gitPanel,
@@ -203,6 +208,7 @@ export function AppWorkspaceShell(props: {
           <ExplorerTree
             tree={tree}
             selectedPath={selectedFile}
+            gitDecorations={explorerGitDecorations}
             busy={busy}
             onSelect={onSelectFile}
             onAction={(action, path, targetPath, content) =>
