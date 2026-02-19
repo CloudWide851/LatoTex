@@ -17,6 +17,7 @@ use commands::git::{
 use commands::health::health_check;
 use commands::projects::{
     file_read, file_read_binary, file_write, fs_operation, library_import_link, library_import_pdf,
+    open_external_link,
     library_citation_summary, library_rescan, library_tree, project_create,
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list, project_open, project_search_content,
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
@@ -99,6 +100,7 @@ pub fn run() {
             analysis_export_artifact,
             workspace_reveal_in_system,
             workspace_open_terminal,
+            open_external_link,
             workspace_tree,
             file_read,
             file_read_binary,

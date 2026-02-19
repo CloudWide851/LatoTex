@@ -107,7 +107,7 @@ export function EditorTabsBar(props: {
               >
                 <span className="truncate">{tab.title}</span>
                 {dirty && (
-                  <Circle className="h-2.5 w-2.5 shrink-0 fill-current text-amber-500" />
+                  <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
                 )}
                 {tab.preview && !tab.pinned && (
                   <span className="rounded border border-slate-300 px-1 text-[10px] text-slate-500">
@@ -163,7 +163,7 @@ export function EditorTabsBar(props: {
                 >
                   <span className="truncate">{tab.title}</span>
                   {dirtyByPath[tab.path] && (
-                    <Circle className="h-2.5 w-2.5 shrink-0 fill-current text-amber-500" />
+                    <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
                   )}
                 </button>
               ))}

@@ -140,6 +140,12 @@ export function workspaceOpenTerminal(projectId: string, relativePath?: string) 
   });
 }
 
+export function openExternalLink(url: string): Promise<Ack> {
+  return invoke<Ack>("open_external_link", {
+    input: { url },
+  });
+}
+
 export function readFile(projectId: string, relativePath: string): Promise<FileReadResponse> {
   return invoke<FileReadResponse>("file_read", { input: { projectId, relativePath } });
 }

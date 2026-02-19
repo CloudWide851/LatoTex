@@ -1,12 +1,13 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteInput,
     FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
-    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, ProjectPathActionInput,
+    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, OpenExternalLinkInput, ProjectPathActionInput,
     ProjectIntegrityStatus, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
     ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
+use reqwest::Url;
 use rfd::FileDialog;
 use std::fs;
 use std::path::PathBuf;
@@ -441,5 +442,53 @@ pub fn workspace_open_terminal(
     Ok(Ack {
         ok: true,
         message: "Terminal opened".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn open_external_link(
+    state: State<'_, AppState>,
+    input: OpenExternalLinkInput,
+) -> Result<Ack, String> {
+    let trimmed = input.url.trim();
+    if trimmed.is_empty() {
+        return Err("URL cannot be empty".to_string());
+    }
+    let parsed = Url::parse(trimmed).map_err(|_| "Invalid URL".to_string())?;
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err("Only http/https links are supported".to_string());
+    }
+
+    state.log("INFO", &format!("open_external_link: {}", trimmed));
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("rundll32")
+            .arg("url.dll,FileProtocolHandler")
+            .arg(trimmed)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(trimmed)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(trimmed)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(Ack {
+        ok: true,
+        message: "External link opened".to_string(),
     })
 }

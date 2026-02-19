@@ -56,6 +56,12 @@ pub struct ProjectPathActionInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OpenExternalLinkInput {
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceExportPdfInput {
     pub project_id: String,
     pub default_file_name: String,
@@ -375,8 +381,11 @@ pub struct LibraryCitationSummaryResponse {
     pub bib_path: Option<String>,
     pub citation_key: Option<String>,
     pub title: Option<String>,
+    pub authors: Vec<String>,
+    pub published_at: Option<String>,
     pub doi: Option<String>,
     pub arxiv_id: Option<String>,
+    pub source: Option<String>,
     pub urls: Vec<String>,
 }
 

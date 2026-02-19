@@ -208,6 +208,7 @@ export function AppWorkspaceShell(props: {
           <ExplorerTree
             tree={tree}
             selectedPath={selectedFile}
+            dirtyByPath={dirtyByPath}
             gitDecorations={explorerGitDecorations}
             busy={busy}
             onSelect={onSelectFile}

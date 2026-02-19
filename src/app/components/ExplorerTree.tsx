@@ -37,6 +37,7 @@ export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
   selectedPath: string | null;
+  dirtyByPath?: Record<string, boolean>;
   gitDecorations?: Record<
     string,
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
@@ -56,6 +57,7 @@ export function ExplorerTree(props: {
     mode = "workspace",
     tree,
     selectedPath,
+    dirtyByPath,
     gitDecorations,
     allowRescan,
     busy,
@@ -348,6 +350,7 @@ export function ExplorerTree(props: {
     const isDirectory = node.kind === "directory";
     const isExpanded = isDirectory ? expandedMap[node.relativePath] !== false : false;
     const isRenaming = editing?.mode === "rename" && editing.path === node.relativePath;
+    const isDirty = !isDirectory && mode === "workspace" && Boolean(dirtyByPath?.[node.relativePath]);
     const decoration = !isDirectory ? gitDecorations?.[node.relativePath] : undefined;
     const isIgnored = Boolean(decoration?.ignored);
     const indentStyle = { paddingLeft: `${depth * 10}px` };
@@ -431,6 +434,13 @@ export function ExplorerTree(props: {
           ) : (
             <>
               <span className={cn("truncate", isIgnored && "opacity-80")}>{node.name}</span>
+              {isDirty ? (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400"
+                  title={t("editor.unsaved.title")}
+                  aria-label={t("editor.unsaved.title")}
+                />
+              ) : null}
               {!isDirectory && decoration ? (
                 <span
                   className={cn(

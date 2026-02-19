@@ -186,8 +186,11 @@ export type LibraryCitationSummary = {
   bibPath?: string | null;
   citationKey?: string | null;
   title?: string | null;
+  authors: string[];
+  publishedAt?: string | null;
   doi?: string | null;
   arxivId?: string | null;
+  source?: string | null;
   urls: string[];
 };
 

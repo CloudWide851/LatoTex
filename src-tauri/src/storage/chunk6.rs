@@ -320,14 +320,20 @@ pub fn library_citation_summary(
     let mut urls: Vec<String> = Vec::new();
     let mut citation_key = None;
     let mut title = None;
+    let mut authors: Vec<String> = Vec::new();
+    let mut published_at = None;
     let mut doi = None;
     let mut arxiv_id = None;
+    let mut source_name = None;
     let mut bib_relative_path = None;
 
     if let Some(bib_path) = bib_candidate {
         let bib_content = fs::read_to_string(&bib_path).map_err(|e| e.to_string())?;
         citation_key = extract_bib_entry_key(&bib_content);
         title = extract_bib_field_value(&bib_content, "title");
+        authors = extract_bib_authors(&bib_content);
+        published_at = extract_bib_field_value(&bib_content, "year")
+            .or_else(|| extract_bib_field_value(&bib_content, "date"));
         doi = extract_bib_field_value(&bib_content, "doi");
         arxiv_id = extract_bib_field_value(&bib_content, "eprint");
 
@@ -362,13 +368,39 @@ pub fn library_citation_summary(
         bib_relative_path = Some(rel);
     }
 
+    if let Some(remote) = fetch_remote_metadata(doi.as_deref(), arxiv_id.as_deref(), &urls) {
+        if title.is_none() {
+            title = remote.title;
+        }
+        for author in remote.authors {
+            push_unique_author(&mut authors, author);
+        }
+        if published_at.is_none() {
+            published_at = remote.published_at;
+        }
+        if doi.is_none() {
+            doi = remote.doi;
+        }
+        if arxiv_id.is_none() {
+            arxiv_id = remote.arxiv_id;
+        }
+        source_name = remote.source;
+        for url in remote.urls {
+            push_unique_url(&mut urls, url);
+        }
+    }
+
     Ok(LibraryCitationSummaryResponse {
         source_path: normalized_relative,
         bib_path: bib_relative_path,
         citation_key,
         title,
+        authors,
+        published_at,
         doi,
         arxiv_id,
+        source: source_name,
         urls,
     })
 }
+

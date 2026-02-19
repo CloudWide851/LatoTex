@@ -451,6 +451,11 @@ export function GitWorkspace(props: {
                   try {
                     await syncIncludedSelection();
                     await Promise.resolve(onCommit(message));
+                    setMessage("");
+                    setSelectedHistoryHash("");
+                    if (activeDiffMeta) {
+                      await openDiff(activeDiffMeta.path, activeDiffMeta.staged, undefined);
+                    }
                   } catch (error) {
                     setActionError(error instanceof Error ? error.message : String(error));
                   }
@@ -511,28 +516,50 @@ export function GitWorkspace(props: {
                   value={historyQuery}
                   onChange={(event) => setHistoryQuery(event.target.value)}
                   placeholder={t("git.historySearchPlaceholder")}
-                  className="h-8 w-40 text-xs"
+                  className="h-8 w-56 text-xs"
                 />
-                <Select
-                  value={selectedHistoryHash}
-                  uiSize="sm"
-                  className="w-56"
-                  onChange={(event) => {
-                    const next = event.target.value;
+              </div>
+            </div>
+            <div className="mb-2 max-h-28 space-y-1 overflow-auto rounded border border-slate-200 bg-white p-1.5">
+              <button
+                className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-[11px] ${
+                  !selectedHistoryHash
+                    ? "bg-primary-50 text-primary-900"
+                    : "text-slate-700 hover:bg-slate-100"
+                }`}
+                onClick={() => {
+                  if (!selectedHistoryHash) {
+                    return;
+                  }
+                  setSelectedHistoryHash("");
+                  if (activeDiffMeta) {
+                    void openDiff(activeDiffMeta.path, activeDiffMeta.staged, undefined);
+                  }
+                }}
+              >
+                <span>{t("git.historyWorkingTree")}</span>
+              </button>
+              {filteredCommits.map((commit) => (
+                <button
+                  key={commit.hash}
+                  className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] ${
+                    selectedHistoryHash === commit.hash
+                      ? "bg-primary-50 text-primary-900"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                  onClick={() => {
+                    const next = commit.hash;
                     setSelectedHistoryHash(next);
                     if (activeDiffMeta) {
-                      void openDiff(activeDiffMeta.path, activeDiffMeta.staged, next || undefined);
+                      void openDiff(activeDiffMeta.path, activeDiffMeta.staged, next);
                     }
                   }}
+                  title={`${commit.shortHash} ${commit.subject}`}
                 >
-                  <option value="">{t("git.historyWorkingTree")}</option>
-                  {filteredCommits.map((commit) => (
-                    <option key={commit.hash} value={commit.hash}>
-                      {`${commit.shortHash} ${commit.subject}`}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+                  <span className="shrink-0 font-mono text-[10px] text-slate-500">{commit.shortHash}</span>
+                  <span className="truncate">{commit.subject}</span>
+                </button>
+              ))}
             </div>
             {!activeDiffKey ? (
               <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
