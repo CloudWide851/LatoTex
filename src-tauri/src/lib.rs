@@ -11,6 +11,7 @@ use commands::analysis::{
 use commands::busytex::busytex_cache_prepare;
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
+    git_commit_files,
     git_diff_file, git_download_installer_start, git_download_status, git_fetch, git_init_repo,
     git_log, git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
 };
@@ -18,7 +19,7 @@ use commands::health::health_check;
 use commands::projects::{
     file_read, file_read_binary, file_write, fs_operation, library_import_link, library_import_pdf,
     open_external_link,
-    library_citation_summary, library_rescan, library_tree, project_create,
+    library_citation_summary, library_rescan, library_resolve_pdf_preview, library_tree, project_create,
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list, project_open, project_search_content,
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
@@ -111,6 +112,7 @@ pub fn run() {
             library_import_pdf,
             library_import_link,
             library_citation_summary,
+            library_resolve_pdf_preview,
             fs_operation,
             latex_compile_record,
             agent_run,
@@ -135,6 +137,7 @@ pub fn run() {
             git_run_installer,
             git_branches,
             git_log,
+            git_commit_files,
             git_stage,
             git_unstage,
             git_commit,

@@ -374,6 +374,13 @@ pub struct LibraryCitationSummaryInput {
     pub relative_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPdfPreviewInput {
+    pub project_id: String,
+    pub relative_path: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCitationSummaryResponse {
@@ -387,6 +394,14 @@ pub struct LibraryCitationSummaryResponse {
     pub arxiv_id: Option<String>,
     pub source: Option<String>,
     pub urls: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPdfPreviewResponse {
+    pub relative_path: Option<String>,
+    pub source_url: Option<String>,
+    pub cached: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -476,6 +491,15 @@ pub struct GitCommitInfo {
     pub subject: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitFileEntry {
+    pub path: String,
+    pub status: String,
+    pub added_lines: u32,
+    pub removed_lines: u32,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitRefInput {
@@ -487,6 +511,13 @@ pub struct GitRefInput {
 pub struct GitLogInput {
     pub project_id: String,
     pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitFilesInput {
+    pub project_id: String,
+    pub revision: String,
 }
 
 #[derive(Debug, Deserialize)]

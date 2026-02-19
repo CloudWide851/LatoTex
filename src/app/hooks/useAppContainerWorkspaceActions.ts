@@ -243,7 +243,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     if (!path) {
       return;
     }
-    openWorkspaceFile(path, "preview");
+    openWorkspaceFile(path, "pinned");
   }, [openWorkspaceFile]);
 
   useEffect(() => {
@@ -517,10 +517,15 @@ export function useAppContainerWorkspaceActions(params: any) {
 
     try {
       await runtimeLogWrite("INFO", `model save started: ${model.id}`).catch(() => undefined);
+      const persisted = await persistSettings(nextSettings);
       if (modelApiKeyChanged) {
         await setModelApiKey(model.id, normalizedKey);
+        const verified = await getModelApiKey(model.id);
+        const verifiedKey = (verified.apiKey ?? "").trim();
+        if (verifiedKey !== normalizedKey) {
+          throw new Error(t("settings.modal.apiKeyVerifyFailed"));
+        }
       }
-      const persisted = await persistSettings(nextSettings);
       setSettings(persisted);
       setDraftModelApiKeys((current: Record<string, string>) => {
         if (!(model.id in current)) {

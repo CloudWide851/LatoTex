@@ -176,16 +176,96 @@ pub fn git_log(state: State<'_, AppState>, input: GitLogInput) -> Result<Vec<Git
 }
 
 #[tauri::command]
+pub fn git_commit_files(
+    state: State<'_, AppState>,
+    input: GitCommitFilesInput,
+) -> Result<Vec<GitCommitFileEntry>, String> {
+    state.log(
+        "INFO",
+        &format!("git_commit_files: {}@{}", input.project_id, input.revision),
+    );
+    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let revision = input.revision.trim();
+    if revision.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let numstat = parse_numstat(
+        &run_git(&root, &["show", "--format=", "--numstat", revision]).unwrap_or_default(),
+    );
+    let raw = run_git(
+        &root,
+        &["show", "--format=", "--name-status", "--find-renames", revision],
+    )?;
+
+    let mut files = Vec::new();
+    for line in raw.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let parts = line.split('\t').collect::<Vec<_>>();
+        if parts.len() < 2 {
+            continue;
+        }
+        let status_raw = parts[0].trim();
+        let status = status_raw.chars().next().unwrap_or('M').to_string();
+        let path_raw = parts.last().copied().unwrap_or_default();
+        let path = normalize_status_path(path_raw);
+        if path.is_empty() {
+            continue;
+        }
+        let absolute_path = root.join(&path);
+        if absolute_path.exists() && absolute_path.is_dir() {
+            continue;
+        }
+        let (added_lines, removed_lines) = numstat.get(&path).copied().unwrap_or((0, 0));
+        files.push(GitCommitFileEntry {
+            path,
+            status,
+            added_lines,
+            removed_lines,
+        });
+    }
+    files.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(files)
+}
+
+#[tauri::command]
 pub fn git_stage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack, String> {
     state.log("INFO", &format!("git_stage: {}", input.project_id));
     let root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    if input.paths.is_empty() {
-        run_git(&root, &["add", "-A"])?;
+    let raw_status = run_git(
+        &root,
+        &[
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignored=matching",
+        ],
+    )?;
+    let stageable = collect_stageable_paths(&raw_status);
+    let target_paths = if input.paths.is_empty() {
+        stageable.into_iter().collect::<Vec<_>>()
     } else {
+        input
+            .paths
+            .into_iter()
+            .filter(|path| stageable.contains(path))
+            .collect::<Vec<_>>()
+    };
+
+    if target_paths.is_empty() {
+        return Ok(Ack {
+            ok: true,
+            message: "nothing to stage".to_string(),
+        });
+    }
+
+    {
         let mut command = Command::new("git");
         hide_console_window(&mut command);
         command.arg("-C").arg(&root).arg("add").arg("--");
-        for path in input.paths {
+        for path in target_paths {
             command.arg(path);
         }
         let output = command.output().map_err(|e| e.to_string())?;

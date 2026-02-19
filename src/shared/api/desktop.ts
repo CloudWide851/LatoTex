@@ -16,12 +16,14 @@ import type {
   FsOperationResult,
   GitAvailability,
   GitBranchInfo,
+  GitCommitFileEntry,
   GitCommitInfo,
   GitDiffResponse,
   GitDownloadStart,
   GitDownloadStatus,
   GitStatus,
   LibraryCitationSummary,
+  LibraryPdfPreview,
   ModelCatalogItemInput,
   ModelDraftTestInput,
   ModelApiKeyValue,
@@ -206,6 +208,15 @@ export function libraryCitationSummary(
   });
 }
 
+export function libraryResolvePdfPreview(
+  projectId: string,
+  relativePath: string,
+): Promise<LibraryPdfPreview> {
+  return invoke<LibraryPdfPreview>("library_resolve_pdf_preview", {
+    input: { projectId, relativePath },
+  });
+}
+
 export function runAgent(input: {
   projectId: string;
   role: string;
@@ -342,6 +353,10 @@ export function gitBranches(projectId: string): Promise<GitBranchInfo[]> {
 
 export function gitLog(projectId: string, limit = 50): Promise<GitCommitInfo[]> {
   return invoke<GitCommitInfo[]>("git_log", { input: { projectId, limit } });
+}
+
+export function gitCommitFiles(projectId: string, revision: string): Promise<GitCommitFileEntry[]> {
+  return invoke<GitCommitFileEntry[]>("git_commit_files", { input: { projectId, revision } });
 }
 
 export function gitStage(projectId: string, paths: string[]) {

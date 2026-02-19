@@ -194,6 +194,12 @@ export type LibraryCitationSummary = {
   urls: string[];
 };
 
+export type LibraryPdfPreview = {
+  relativePath?: string | null;
+  sourceUrl?: string | null;
+  cached: boolean;
+};
+
 export type CompileRecord = {
   id: string;
   projectId: string;
@@ -319,6 +325,13 @@ export type GitCommitInfo = {
   author: string;
   date: string;
   subject: string;
+};
+
+export type GitCommitFileEntry = {
+  path: string;
+  status: string;
+  addedLines: number;
+  removedLines: number;
 };
 
 export type GitAvailability = {

@@ -1,21 +1,18 @@
 import {
   Download,
   GitBranch,
-  Plus,
   RefreshCcw,
-  Send,
   Upload,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { GitChangeList } from "./GitChangeList";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Select } from "../../components/ui/select";
-import { SvgSpinner } from "../../components/ui/svg-spinner";
+import { GitCommitTab } from "./git/GitCommitTab";
+import { GitHistoryTab } from "./git/GitHistoryTab";
 import type {
   GitAvailability,
   GitBranchInfo,
+  GitCommitFileEntry,
   GitCommitInfo,
   GitDiffResponse,
   GitDownloadStatus,
@@ -58,6 +55,7 @@ export function GitWorkspace(props: {
   onGenerateSummary: (includedPaths: string[]) => Promise<string>;
   onInitRepo: () => void;
   onLoadDiff: (path: string, staged: boolean, revision?: string) => Promise<GitDiffResponse>;
+  onLoadCommitFiles: (revision: string) => Promise<GitCommitFileEntry[]>;
   onOpenFile: (path: string) => void;
   onStartGitInstall: () => void;
   onCancelDownload: () => void;
@@ -83,12 +81,15 @@ export function GitWorkspace(props: {
     onGenerateSummary,
     onInitRepo,
     onLoadDiff,
+    onLoadCommitFiles,
     onOpenFile,
     onStartGitInstall,
     onCancelDownload,
     onRunInstaller,
     t,
   } = props;
+
+  const [activeTab, setActiveTab] = useState<"commit" | "history">("commit");
   const [message, setMessage] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
   const [excludedPaths, setExcludedPaths] = useState<string[]>([]);
@@ -97,10 +98,15 @@ export function GitWorkspace(props: {
   const [loadingDiffKey, setLoadingDiffKey] = useState<string | null>(null);
   const [diffByKey, setDiffByKey] = useState<Record<string, GitDiffResponse>>({});
   const [diffErrorByKey, setDiffErrorByKey] = useState<Record<string, string>>({});
-  const [historyQuery, setHistoryQuery] = useState("");
-  const [selectedHistoryHash, setSelectedHistoryHash] = useState("");
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [selectedHistoryHash, setSelectedHistoryHash] = useState("");
+  const [historyFiles, setHistoryFiles] = useState<GitCommitFileEntry[]>([]);
+  const [historyFilesBusy, setHistoryFilesBusy] = useState(false);
+  const [historyFilesError, setHistoryFilesError] = useState("");
+  const [historyFilePath, setHistoryFilePath] = useState("");
 
   const changedFiles = (status?.changes ?? []).filter((item) => !item.ignored);
   const stagedFiles = useMemo(
@@ -141,15 +147,42 @@ export function GitWorkspace(props: {
   const buildDiffKey = (path: string, staged: boolean, revision?: string) =>
     `${revision?.trim() || "working"}:${staged ? "s" : "u"}:${path}`;
 
-  const togglePath = (path: string) => {
-    setExcludedPaths((prev) =>
-      prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path],
-    );
-  };
-
   useEffect(() => {
     setExcludedPaths((prev) => prev.filter((path) => changedPathSet.has(path)));
   }, [changedPathSet]);
+
+  useEffect(() => {
+    if (!selectedHistoryHash) {
+      setHistoryFiles([]);
+      setHistoryFilePath("");
+      return;
+    }
+    let disposed = false;
+    setHistoryFilesBusy(true);
+    setHistoryFilesError("");
+    onLoadCommitFiles(selectedHistoryHash)
+      .then((files) => {
+        if (disposed) {
+          return;
+        }
+        setHistoryFiles(files);
+      })
+      .catch((error) => {
+        if (disposed) {
+          return;
+        }
+        setHistoryFiles([]);
+        setHistoryFilesError(`${t("git.diffLoadFailed")} ${String(error)}`);
+      })
+      .finally(() => {
+        if (!disposed) {
+          setHistoryFilesBusy(false);
+        }
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [onLoadCommitFiles, selectedHistoryHash, t]);
 
   const syncIncludedSelection = async () => {
     const allPaths = changedFiles.map((item) => item.path);
@@ -226,9 +259,7 @@ export function GitWorkspace(props: {
                 </span>
                 <span>{formatBytes(downloadStatus.speedBps)}/s</span>
               </div>
-              {downloadStatus.error && (
-                <p className="text-rose-600">{downloadStatus.error}</p>
-              )}
+              {downloadStatus.error ? <p className="text-rose-600">{downloadStatus.error}</p> : null}
             </div>
           )}
           <div className="mt-4 flex items-center gap-2">
@@ -268,19 +299,10 @@ export function GitWorkspace(props: {
       <div className="grid h-full place-items-center rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
         <div className="flex flex-col items-center gap-3">
           <div>{t("git.notRepo")}</div>
-          {initProgress?.message && (
-            <div className="text-xs text-slate-500">{initProgress.message}</div>
-          )}
+          {initProgress?.message ? <div className="text-xs text-slate-500">{initProgress.message}</div> : null}
           <Button size="sm" onClick={onInitRepo} disabled={busy || initRunning}>
             <GitBranch className="mr-2 h-4 w-4" />
-            {initRunning ? (
-              <span className="inline-flex items-center gap-2">
-                <SvgSpinner className="h-3.5 w-3.5 text-white" />
-                {t("git.initRepo")}
-              </span>
-            ) : (
-              t("git.initRepo")
-            )}
+            {t("git.initRepo")}
           </Button>
         </div>
       </div>
@@ -288,18 +310,18 @@ export function GitWorkspace(props: {
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[44px_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
+    <div className="grid h-full min-h-0 grid-rows-[44px_auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <GitBranch className="h-4 w-4" />
           <span>{status.branch}</span>
-          {availability?.version && <span className="text-slate-400">{availability.version}</span>}
-          {status.upstream && (
+          {availability?.version ? <span className="text-slate-400">{availability.version}</span> : null}
+          {status.upstream ? (
             <span className="text-slate-400">
               {status.upstream} {status.ahead > 0 ? `↑${status.ahead}` : ""}{" "}
               {status.behind > 0 ? `↓${status.behind}` : ""}
             </span>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -333,277 +355,150 @@ export function GitWorkspace(props: {
         </div>
       </div>
 
-      <div className="grid min-h-0 grid-cols-[minmax(280px,0.44fr)_minmax(0,1fr)] gap-3">
-        <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
-            <Select
-              value={selectedBranch}
-              uiSize="sm"
-              onChange={(e) => setSelectedBranch(e.target.value)}
-            >
-              <option value="">{t("git.selectBranch")}</option>
-              {branches.map((branch) => (
-                <option key={branch.name} value={branch.name}>
-                  {branch.current ? `* ${branch.name}` : branch.name}
-                </option>
-              ))}
-            </Select>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!selectedBranch}
-              onClick={() => onCheckout(selectedBranch, false)}
-            >
-              {t("git.checkout")}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!selectedBranch}
-              onClick={() => onCheckout(selectedBranch, true)}
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              {t("git.newBranch")}
-            </Button>
-          </div>
+      <div className="flex items-center gap-2">
+        <button
+          className={`rounded border px-2 py-1 text-xs ${
+            activeTab === "commit"
+              ? "border-primary-500 bg-primary-50 text-primary-900"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+          }`}
+          onClick={() => setActiveTab("commit")}
+        >
+          {t("git.commit")}
+        </button>
+        <button
+          className={`rounded border px-2 py-1 text-xs ${
+            activeTab === "history"
+              ? "border-primary-500 bg-primary-50 text-primary-900"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+          }`}
+          onClick={() => setActiveTab("history")}
+        >
+          {t("git.history")}
+        </button>
+      </div>
 
-          <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
-            <h4 className="text-xs font-semibold text-slate-600">{t("git.commit")}</h4>
-            <p className="text-[11px] text-slate-500">{t("git.defaultIncludeHint")}</p>
-            <Input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={t("git.commitPlaceholder")}
-            />
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setActionError("");
-                  const paths = includedUnstagedPaths;
-                  if (paths.length === 0) {
-                    return;
-                  }
-                  if (paths.length === unstagedFiles.length) {
-                    void Promise.resolve(onStage([])).catch((error) =>
-                      setActionError(error instanceof Error ? error.message : String(error)),
-                    );
-                    return;
-                  }
-                  void Promise.resolve(onStage(paths)).catch((error) =>
-                    setActionError(error instanceof Error ? error.message : String(error)),
-                  );
-                }}
-                disabled={busy || includedUnstagedPaths.length === 0}
-              >
-                {t("git.stage")}
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  setActionError("");
-                  const paths = includedStagedPaths;
-                  if (paths.length === 0) {
-                    return;
-                  }
-                  if (paths.length === stagedFiles.length) {
-                    void Promise.resolve(onUnstage([])).catch((error) =>
-                      setActionError(error instanceof Error ? error.message : String(error)),
-                    );
-                    return;
-                  }
-                  void Promise.resolve(onUnstage(paths)).catch((error) =>
-                    setActionError(error instanceof Error ? error.message : String(error)),
-                  );
-                }}
-                disabled={busy || includedStagedPaths.length === 0}
-              >
-                {t("git.unstage")}
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={async () => {
-                  setActionError("");
-                  setSummaryBusy(true);
-                  try {
-                    await syncIncludedSelection();
-                    const summary = await onGenerateSummary(includedPaths);
-                    if (summary) {
-                      setMessage(summary);
-                    }
-                  } catch (error) {
-                    setActionError(error instanceof Error ? error.message : String(error));
-                  } finally {
-                    setSummaryBusy(false);
-                  }
-                }}
-                disabled={busy || summaryBusy || includedPaths.length === 0}
-              >
-                {summaryBusy ? t("git.generatingSummary") : t("git.aiSummary")}
-              </Button>
-              <Button
-                size="sm"
-                onClick={async () => {
-                  setActionError("");
-                  try {
-                    await syncIncludedSelection();
-                    await Promise.resolve(onCommit(message));
-                    setMessage("");
-                    setSelectedHistoryHash("");
-                    if (activeDiffMeta) {
-                      await openDiff(activeDiffMeta.path, activeDiffMeta.staged, undefined);
-                    }
-                  } catch (error) {
-                    setActionError(error instanceof Error ? error.message : String(error));
-                  }
-                }}
-                disabled={busy || !message.trim()}
-              >
-                <Send className="mr-1 h-3.5 w-3.5" />
-                {t("git.commit")}
-              </Button>
-            </div>
-            {actionError ? (
-              <div className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
-                {actionError}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
-            <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-              <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.unstaged")}</h4>
-              <GitChangeList
-                entries={unstagedFiles}
-                staged={false}
-                excludedPaths={excludedPaths}
-                activeDiffKey={activeDiffKey}
-                selectedHistoryHash={selectedHistoryHash}
-                loadingDiffKey={loadingDiffKey}
-                buildDiffKey={buildDiffKey}
-                onTogglePath={togglePath}
-                onOpenDiff={openDiff}
-                t={t}
-              />
-            </div>
-            <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-              <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.staged")}</h4>
-              <GitChangeList
-                entries={stagedFiles}
-                staged
-                excludedPaths={excludedPaths}
-                activeDiffKey={activeDiffKey}
-                selectedHistoryHash={selectedHistoryHash}
-                loadingDiffKey={loadingDiffKey}
-                buildDiffKey={buildDiffKey}
-                onTogglePath={togglePath}
-                onOpenDiff={openDiff}
-                t={t}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)] gap-2">
-          <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h4 className="text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={historyQuery}
-                  onChange={(event) => setHistoryQuery(event.target.value)}
-                  placeholder={t("git.historySearchPlaceholder")}
-                  className="h-8 w-56 text-xs"
-                />
-              </div>
-            </div>
-            <div className="mb-2 max-h-28 space-y-1 overflow-auto rounded border border-slate-200 bg-white p-1.5">
-              <button
-                className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-[11px] ${
-                  !selectedHistoryHash
-                    ? "bg-primary-50 text-primary-900"
-                    : "text-slate-700 hover:bg-slate-100"
-                }`}
-                onClick={() => {
-                  if (!selectedHistoryHash) {
-                    return;
-                  }
-                  setSelectedHistoryHash("");
-                  if (activeDiffMeta) {
-                    void openDiff(activeDiffMeta.path, activeDiffMeta.staged, undefined);
-                  }
-                }}
-              >
-                <span>{t("git.historyWorkingTree")}</span>
-              </button>
-              {filteredCommits.map((commit) => (
-                <button
-                  key={commit.hash}
-                  className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] ${
-                    selectedHistoryHash === commit.hash
-                      ? "bg-primary-50 text-primary-900"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                  onClick={() => {
-                    const next = commit.hash;
-                    setSelectedHistoryHash(next);
-                    if (activeDiffMeta) {
-                      void openDiff(activeDiffMeta.path, activeDiffMeta.staged, next);
-                    }
-                  }}
-                  title={`${commit.shortHash} ${commit.subject}`}
-                >
-                  <span className="shrink-0 font-mono text-[10px] text-slate-500">{commit.shortHash}</span>
-                  <span className="truncate">{commit.subject}</span>
-                </button>
-              ))}
-            </div>
-            {!activeDiffKey ? (
-              <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
-                {t("git.selectFileToDiff")}
-              </div>
-            ) : loadingDiffKey === activeDiffKey ? (
-              <div className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
-                <SvgSpinner className="h-3.5 w-3.5 text-slate-500" />
-                {t("common.loading")}
-              </div>
-            ) : activeDiffError ? (
-              <div className="rounded border border-rose-300 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700">
-                {activeDiffError}
-              </div>
-            ) : activeDiff?.hunks.length ? (
-              activeDiff.hunks.map((hunk, hunkIndex) => (
-                <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
-                  <div className="space-y-0.5">
-                    {hunk.lines
-                      .filter((line) => line.text.trim() !== "\\ No newline at end of file")
-                      .map((line, lineIndex) => (
-                      <div
-                        key={`${hunkIndex}-${lineIndex}-${line.text}`}
-                        className={
-                          line.kind === "added"
-                            ? "rounded bg-emerald-50 px-1 font-mono text-[10px] text-emerald-800"
-                            : line.kind === "removed"
-                              ? "rounded bg-rose-50 px-1 font-mono text-[10px] text-rose-800"
-                              : "rounded px-1 font-mono text-[10px] text-slate-600"
-                        }
-                      >
-                        {line.text}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
-                {t("git.diffEmpty")}
-              </div>
-            )}
-          </div>
-        </div>
+      <div className="min-h-0">
+        {activeTab === "commit" ? (
+          <GitCommitTab
+            branches={branches}
+            selectedBranch={selectedBranch}
+            message={message}
+            busy={busy}
+            summaryBusy={summaryBusy}
+            actionError={actionError}
+            changedFiles={changedFiles}
+            stagedFiles={stagedFiles}
+            unstagedFiles={unstagedFiles}
+            excludedPaths={excludedPaths}
+            includedPaths={includedPaths}
+            includedUnstagedPaths={includedUnstagedPaths}
+            includedStagedPaths={includedStagedPaths}
+            activeDiffKey={activeDiffKey}
+            loadingDiffKey={loadingDiffKey}
+            selectedHistoryHash={selectedHistoryHash}
+            activeDiff={activeDiff}
+            activeDiffError={activeDiffError}
+            buildDiffKey={buildDiffKey}
+            onSelectBranch={setSelectedBranch}
+            onMessageChange={setMessage}
+            onCheckout={onCheckout}
+            onTogglePath={(path) =>
+              setExcludedPaths((prev) =>
+                prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path],
+              )
+            }
+            onOpenDiff={openDiff}
+            onStageIncluded={async () => {
+              setActionError("");
+              const paths = includedUnstagedPaths;
+              if (paths.length === 0) {
+                return;
+              }
+              try {
+                if (paths.length === unstagedFiles.length) {
+                  await Promise.resolve(onStage([]));
+                } else {
+                  await Promise.resolve(onStage(paths));
+                }
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : String(error));
+              }
+            }}
+            onUnstageIncluded={async () => {
+              setActionError("");
+              const paths = includedStagedPaths;
+              if (paths.length === 0) {
+                return;
+              }
+              try {
+                if (paths.length === stagedFiles.length) {
+                  await Promise.resolve(onUnstage([]));
+                } else {
+                  await Promise.resolve(onUnstage(paths));
+                }
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : String(error));
+              }
+            }}
+            onGenerateSummary={async () => {
+              setActionError("");
+              setSummaryBusy(true);
+              try {
+                await syncIncludedSelection();
+                const summary = await onGenerateSummary(includedPaths);
+                if (summary) {
+                  setMessage(summary);
+                }
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : String(error));
+              } finally {
+                setSummaryBusy(false);
+              }
+            }}
+            onCommit={async () => {
+              setActionError("");
+              try {
+                await syncIncludedSelection();
+                await Promise.resolve(onCommit(message));
+                setMessage("");
+                setSelectedHistoryHash("");
+                if (activeDiffMeta) {
+                  await openDiff(activeDiffMeta.path, activeDiffMeta.staged, undefined);
+                }
+              } catch (error) {
+                setActionError(error instanceof Error ? error.message : String(error));
+              }
+            }}
+            t={t}
+          />
+        ) : (
+          <GitHistoryTab
+            commits={filteredCommits}
+            query={historyQuery}
+            selectedHash={selectedHistoryHash}
+            commitFiles={historyFiles}
+            loadingFiles={historyFilesBusy}
+            filesError={historyFilesError}
+            selectedPath={historyFilePath}
+            activeDiffKey={activeDiffKey}
+            loadingDiffKey={loadingDiffKey}
+            activeDiff={activeDiff}
+            activeDiffError={activeDiffError}
+            buildDiffKey={buildDiffKey}
+            onQueryChange={setHistoryQuery}
+            onSelectCommit={(hash) => {
+              setSelectedHistoryHash(hash);
+              setHistoryFilePath("");
+              setActiveDiffKey(null);
+            }}
+            onSelectFile={async (path) => {
+              setHistoryFilePath(path);
+              await openDiff(path, false, selectedHistoryHash);
+            }}
+            t={t}
+          />
+        )}
       </div>
     </div>
   );

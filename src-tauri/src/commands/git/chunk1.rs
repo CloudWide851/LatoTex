@@ -100,6 +100,29 @@ fn parse_numstat(raw: &str) -> std::collections::HashMap<String, (u32, u32)> {
     map
 }
 
+fn collect_stageable_paths(raw_status: &str) -> std::collections::HashSet<String> {
+    let mut paths = std::collections::HashSet::new();
+    for line in raw_status.lines() {
+        if line.len() < 4 {
+            continue;
+        }
+        let mut chars = line.chars();
+        let index_status = chars.next().unwrap_or(' ');
+        let worktree_status = chars.next().unwrap_or(' ');
+        if index_status == '!' && worktree_status == '!' {
+            continue;
+        }
+        if worktree_status == ' ' && index_status != '?' {
+            continue;
+        }
+        let path = normalize_status_path(&line[3..]);
+        if !path.is_empty() {
+            paths.insert(path);
+        }
+    }
+    paths
+}
+
 fn normalize_status_path(raw: &str) -> String {
     let candidate = raw.rsplit(" -> ").next().unwrap_or(raw).trim();
     let unquoted = candidate.trim_matches('"');

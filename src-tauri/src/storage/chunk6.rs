@@ -404,3 +404,124 @@ pub fn library_citation_summary(
     })
 }
 
+fn hash_remote_url(url: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    url.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn to_workspace_relative(project_root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path
+        .strip_prefix(project_root)
+        .map_err(|e| e.to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(relative)
+}
+
+fn find_remote_pdf_url(summary: &LibraryCitationSummaryResponse) -> Option<String> {
+    for url in &summary.urls {
+        let lower = url.to_lowercase();
+        if lower.ends_with(".pdf") || lower.contains(".pdf?") {
+            return Some(url.clone());
+        }
+        if lower.contains("arxiv.org/abs/") {
+            if let Some(arxiv_id) = extract_arxiv_id(url) {
+                return Some(format!("https://arxiv.org/pdf/{arxiv_id}.pdf"));
+            }
+        }
+    }
+    summary
+        .arxiv_id
+        .as_ref()
+        .map(|arxiv_id| format!("https://arxiv.org/pdf/{arxiv_id}.pdf"))
+}
+
+fn cache_remote_pdf_file(cache_target: &Path, source_url: &str) -> Result<(), String> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(24))
+        .user_agent("LatoTex/0.1.0")
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client.get(source_url).send().map_err(|e| e.to_string())?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("HTTP {status}"));
+    }
+    let bytes = response.bytes().map_err(|e| e.to_string())?;
+    let is_pdf = bytes.starts_with(b"%PDF-")
+        || source_url.to_lowercase().contains(".pdf");
+    if !is_pdf {
+        return Err("Remote file is not a valid PDF stream".to_string());
+    }
+    fs::write(cache_target, bytes).map_err(|e| e.to_string())
+}
+
+pub fn library_resolve_pdf_preview(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<LibraryPdfPreviewResponse, String> {
+    let project_root = load_project_root(db_path, project_id)?;
+    let papers_root = library_root(&project_root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+
+    let normalized_relative = relative_path.trim().replace('\\', "/");
+    if normalized_relative.is_empty() {
+        return Err("Library path cannot be empty".to_string());
+    }
+
+    let source = safe_join(&papers_root, &normalized_relative)?;
+    if !source.exists() || !source.is_file() {
+        return Err("Library file does not exist".to_string());
+    }
+
+    let local_pdf = if source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .eq_ignore_ascii_case("pdf")
+    {
+        Some(source.clone())
+    } else {
+        let candidate = source.with_extension("pdf");
+        if candidate.exists() && candidate.is_file() {
+            Some(candidate)
+        } else {
+            None
+        }
+    };
+
+    if let Some(local_pdf_path) = local_pdf {
+        return Ok(LibraryPdfPreviewResponse {
+            relative_path: Some(to_workspace_relative(&project_root, &local_pdf_path)?),
+            source_url: None,
+            cached: false,
+        });
+    }
+
+    let citation = library_citation_summary(db_path, project_id, &normalized_relative)?;
+    let Some(source_url) = find_remote_pdf_url(&citation) else {
+        return Ok(LibraryPdfPreviewResponse {
+            relative_path: None,
+            source_url: None,
+            cached: false,
+        });
+    };
+
+    let cache_dir = papers_root.join(".cache").join("remote-pdf");
+    fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+    let cache_path = cache_dir.join(format!("{}.pdf", hash_remote_url(&source_url)));
+
+    if !cache_path.exists() || fs::metadata(&cache_path).map(|meta| meta.len()).unwrap_or(0) == 0 {
+        cache_remote_pdf_file(&cache_path, &source_url)?;
+    }
+
+    Ok(LibraryPdfPreviewResponse {
+        relative_path: Some(to_workspace_relative(&project_root, &cache_path)?),
+        source_url: Some(source_url),
+        cached: true,
+    })
+}
+

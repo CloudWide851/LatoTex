@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import {
+  gitCommitFiles,
   gitCheckout,
   gitCommit,
   gitDiffFile,
@@ -238,6 +239,7 @@ export function useAppPanelNodes(params: any) {
         }
       }}
       onLoadDiff={(path, staged, revision) => gitDiffFile(activeProjectId, path, staged, 3, revision)}
+      onLoadCommitFiles={(revision) => gitCommitFiles(activeProjectId, revision)}
       onOpenFile={(path) => {
         openWorkspaceFile(path, "pinned");
       }}

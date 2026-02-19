@@ -1,7 +1,8 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteInput,
     FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
-    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, OpenExternalLinkInput, ProjectPathActionInput,
+    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
+    OpenExternalLinkInput, ProjectPathActionInput,
     ProjectIntegrityStatus, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
     ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
@@ -246,6 +247,21 @@ pub fn library_citation_summary(
         ),
     );
     storage::library_citation_summary(&state.db_path, &input.project_id, &input.relative_path)
+}
+
+#[tauri::command]
+pub fn library_resolve_pdf_preview(
+    state: State<'_, AppState>,
+    input: LibraryPdfPreviewInput,
+) -> Result<LibraryPdfPreviewResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "library_resolve_pdf_preview: project={}, path={}",
+            input.project_id, input.relative_path
+        ),
+    );
+    storage::library_resolve_pdf_preview(&state.db_path, &input.project_id, &input.relative_path)
 }
 
 #[tauri::command]

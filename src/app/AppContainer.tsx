@@ -2,7 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
-import logoMark from "../assets/logo-mark.png";
+import logoMark from "../assets/logo-mark.svg";
 import {
   getLibraryTree,
   gitBranches,
