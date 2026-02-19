@@ -351,22 +351,28 @@ export function ModelModal(props: {
                     setTestMessage("");
                   }}
                   placeholder={t("settings.modal.apiKeyPlaceholderUpdate")}
+                  className="pr-10 [appearance:textfield] [&::-ms-clear]:hidden [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
                 />
-                <button
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                  title={showApiKey ? t("settings.modal.hideApiKey") : t("settings.modal.showApiKey")}
-                  aria-label={showApiKey ? t("settings.modal.hideApiKey") : t("settings.modal.showApiKey")}
-                  onClick={() => setShowApiKey((prev) => !prev)}
-                  type="button"
-                >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  {loadingApiKey ? (
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-500">
+                      <SvgSpinner className="h-3.5 w-3.5 text-slate-500" />
+                    </span>
+                  ) : (
+                    <button
+                      className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      title={showApiKey ? t("settings.modal.hideApiKey") : t("settings.modal.showApiKey")}
+                      aria-label={showApiKey ? t("settings.modal.hideApiKey") : t("settings.modal.showApiKey")}
+                      onClick={() => setShowApiKey((prev) => !prev)}
+                      type="button"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
               </div>
               {loadingApiKey ? (
-                <span className="inline-flex items-center gap-2 text-[11px] text-slate-500">
-                  <SvgSpinner className="h-3.5 w-3.5 text-slate-500" />
-                  {t("common.loading")}
-                </span>
+                <span className="text-[11px] text-slate-500">{t("common.loading")}</span>
               ) : null}
             </label>
           </div>

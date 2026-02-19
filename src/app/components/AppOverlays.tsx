@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
+import { Checkbox } from "../../components/ui/checkbox";
 import { ModelModal } from "./ModelModal";
 import type {
   AppSettings,
@@ -211,8 +212,7 @@ export function AppOverlays(props: {
             <h3 className="text-sm font-semibold text-slate-800">{t("explorer.deleteConfirmTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{deleteIntent.path}</p>
             <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={deleteDontAskAgain}
                 onChange={(event) => onDeleteDontAskChange(event.target.checked)}
               />

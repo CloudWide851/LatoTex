@@ -1,6 +1,8 @@
+import { Check, Copy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
 import type { RuntimeLogEntry, RuntimeLogInfo } from "../../../shared/types/app";
 import { Select } from "../../../components/ui/select";
 
@@ -22,6 +24,7 @@ export function DiagnosticsSettingsSection(props: {
   const [logTo, setLogTo] = useState("");
   const [selectedLogKey, setSelectedLogKey] = useState<string | null>(null);
   const [clearLogConfirmOpen, setClearLogConfirmOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     void onReloadLogs();
@@ -67,6 +70,20 @@ export function DiagnosticsSettingsSection(props: {
     ) ?? null;
   }, [filteredRuntimeLogs, selectedLogKey]);
 
+  const copyLogDetail = async () => {
+    if (!selectedLogEntry) {
+      return;
+    }
+    const text = selectedLogEntry.raw || selectedLogEntry.message;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
     <div className="grid gap-4">
       <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
@@ -97,7 +114,7 @@ export function DiagnosticsSettingsSection(props: {
       <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
         <p className="text-xs text-slate-500">{t("settings.logDoubleClickHint")}</p>
         <div className="grid gap-2">
-          <div className="grid grid-cols-[minmax(140px,220px)_minmax(260px,1fr)] gap-2 max-[980px]:grid-cols-1">
+          <div className="grid grid-cols-[minmax(128px,180px)_minmax(160px,1fr)_minmax(188px,220px)_minmax(188px,220px)] gap-2 max-[1220px]:grid-cols-2 max-[780px]:grid-cols-1">
             <Select
               value={logLevelFilter}
               uiSize="sm"
@@ -109,23 +126,21 @@ export function DiagnosticsSettingsSection(props: {
               <option value="ERROR">ERROR</option>
               <option value="CRASH">CRASH</option>
             </Select>
-            <input
-              className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+            <Input
+              className="h-8 text-xs"
               value={logKeyword}
               onChange={(event) => setLogKeyword(event.target.value)}
               placeholder={t("settings.logFilterKeyword")}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-2 max-[980px]:grid-cols-1">
-            <input
-              className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+            <Input
+              className="h-8 text-xs"
               type="datetime-local"
               value={logFrom}
               onChange={(event) => setLogFrom(event.target.value)}
               title={t("settings.logFilterFrom")}
             />
-            <input
-              className="h-8 rounded-xl border border-slate-300 bg-white px-3 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+            <Input
+              className="h-8 text-xs"
               type="datetime-local"
               value={logTo}
               onChange={(event) => setLogTo(event.target.value)}
@@ -178,7 +193,21 @@ export function DiagnosticsSettingsSection(props: {
               })}
             </div>
             <div className="min-h-0 rounded-md border border-slate-300 bg-white p-3">
-              <h4 className="mb-2 text-xs font-semibold text-slate-700">{t("settings.logDetailTitle")}</h4>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h4 className="text-xs font-semibold text-slate-700">{t("settings.logDetailTitle")}</h4>
+                <button
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  type="button"
+                  onClick={() => {
+                    void copyLogDetail();
+                  }}
+                  disabled={!selectedLogEntry}
+                  title={t("settings.logCopy")}
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  <span>{copied ? t("settings.logCopied") : t("settings.logCopy")}</span>
+                </button>
+              </div>
               {selectedLogEntry ? (
                 <pre className="max-h-[46vh] overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
                   {selectedLogEntry.raw || selectedLogEntry.message}

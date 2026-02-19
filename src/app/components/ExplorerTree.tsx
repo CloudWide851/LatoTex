@@ -2,36 +2,16 @@ import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lu
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { FsAction, ResourceNode } from "../../shared/types/app";
-
-type ExplorerMenuTarget = {
-  x: number;
-  y: number;
-  path: string;
-  kind: "file" | "directory" | "blank";
-};
-
-type EditingState =
-  | { mode: "rename"; path: string; value: string }
-  | { mode: "create_file" | "create_folder"; parentPath: string; value: string }
-  | null;
-
-type MoveCopyPanel =
-  | { action: "copy" | "move"; sourcePath: string; targetPath: string }
-  | null;
+import {
+  dirnameOf,
+  type EditingState,
+  type ExplorerMenuTarget,
+  joinPath,
+  type MoveCopyPanel,
+  resolveDecorationTone,
+} from "./explorer/treeUtils";
 
 type TranslationFn = (key: any) => string;
-
-function dirnameOf(path: string): string {
-  const index = path.lastIndexOf("/");
-  return index < 0 ? "" : path.slice(0, index);
-}
-
-function joinPath(parent: string, name: string): string {
-  if (!parent) {
-    return name;
-  }
-  return `${parent}/${name}`;
-}
 
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
@@ -353,6 +333,7 @@ export function ExplorerTree(props: {
     const isDirty = !isDirectory && mode === "workspace" && Boolean(dirtyByPath?.[node.relativePath]);
     const decoration = !isDirectory ? gitDecorations?.[node.relativePath] : undefined;
     const isIgnored = Boolean(decoration?.ignored);
+    const decorationTone = resolveDecorationTone(decoration);
     const indentStyle = { paddingLeft: `${depth * 10}px` };
     return (
       <Fragment key={node.relativePath}>
@@ -408,7 +389,12 @@ export function ExplorerTree(props: {
           ) : (
             <>
               <span className="h-3.5 w-3.5 shrink-0" />
-              <FileCode2 className="h-3.5 w-3.5 shrink-0" />
+              <FileCode2
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0",
+                  decoration ? decorationTone.iconClass : "text-slate-500",
+                )}
+              />
             </>
           )}
 
@@ -433,7 +419,15 @@ export function ExplorerTree(props: {
             />
           ) : (
             <>
-              <span className={cn("truncate", isIgnored && "opacity-80")}>{node.name}</span>
+              <span
+                className={cn(
+                  "truncate",
+                  isIgnored && "opacity-80",
+                  decoration ? decorationTone.textClass : undefined,
+                )}
+              >
+                {node.name}
+              </span>
               {isDirty ? (
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400"

@@ -160,6 +160,8 @@ export const enUS = {
   "settings.logClearModalConfirm": "Clear Log",
   "settings.logClearModalCancel": "Cancel",
   "settings.logDetailTitle": "Log Detail",
+  "settings.logCopy": "Copy",
+  "settings.logCopied": "Copied",
   "settings.logDoubleClickHint": "Double-click a log line to view details.",
   "settings.installMode": "Install mode",
   "settings.version": "Version",

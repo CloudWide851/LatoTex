@@ -161,6 +161,8 @@ export const zhCN: Record<MessageKey, string> = {
   "settings.logClearModalConfirm": "清空日志",
   "settings.logClearModalCancel": "取消",
   "settings.logDetailTitle": "日志详情",
+  "settings.logCopy": "复制",
+  "settings.logCopied": "已复制",
   "settings.logDoubleClickHint": "双击日志行可查看详情。",
   "settings.installMode": "安装模式",
   "settings.version": "版本",

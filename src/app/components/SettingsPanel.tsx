@@ -2,6 +2,7 @@ import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
+import { Checkbox } from "../../components/ui/checkbox";
 import { Select } from "../../components/ui/select";
 import type {
   AppSettings,
@@ -173,8 +174,7 @@ export function SettingsPanel(props: {
             <div className="rounded-lg border border-slate-200 p-4">
               <label className="flex items-center justify-between text-sm text-slate-700">
                 <span>{t("settings.deleteConfirm")}</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={!(localSettings.uiPrefs?.skipDeleteConfirm ?? false)}
                   onChange={(event) =>
                     setSettings((prev) =>
@@ -197,8 +197,7 @@ export function SettingsPanel(props: {
             <div className="rounded-lg border border-slate-200 p-4">
               <label className="flex items-center justify-between text-sm text-slate-700">
                 <span>{t("settings.closeToTrayNotice")}</span>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true}
                   onChange={(event) => setSettings((prev) => (prev
                     ? { ...prev, uiPrefs: { ...(prev.uiPrefs ?? {}), closeToTrayNoticeEnabled: event.target.checked } }

@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
 import { getModelApiKey, gitDiffFile, projectIntegrityRepair, projectIntegrityStatus, runAgent, runtimeLogWrite, setModelApiKey, testModel } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
@@ -91,6 +92,35 @@ export function useAppContainerWorkspaceActions(params: any) {
     );
   }, [handleInitProjectFromFolder, requestUnsavedGuard, resetEditorSession, editorTabsRef]);
 
+  const handleOpenNewWindow = useCallback(() => {
+    if (!isTauriRuntime) {
+      return;
+    }
+    try {
+      const label = `latotex-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const created = new WebviewWindow(label, {
+        title: t("app.brand"),
+        url: "/?newWindow=1",
+        width: 1200,
+        height: 760,
+        resizable: true,
+        decorations: false,
+      });
+      created.once("tauri://created", () => {
+        void runtimeLogWrite("INFO", `new window created: ${label}`).catch(() => undefined);
+      });
+      created.once("tauri://error", (error: unknown) => {
+        const reason = typeof error === "string" ? error : JSON.stringify(error);
+        setToast({ type: "error", message: t("toast.windowActionFailed") });
+        void runtimeLogWrite("ERROR", `new window create failed: ${reason}`).catch(() => undefined);
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setToast({ type: "error", message: t("toast.windowActionFailed") });
+      void runtimeLogWrite("ERROR", `new window create failed: ${reason}`).catch(() => undefined);
+    }
+  }, [isTauriRuntime, setToast, t]);
+
   useWorkspaceShortcuts({
     handleEditorUndo,
     handleEditorRedo,
@@ -99,6 +129,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     },
     handleCompile,
     handleExportCompiledPdf,
+    handleOpenNewWindow,
   });
 
   useEffect(() => {

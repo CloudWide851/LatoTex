@@ -206,8 +206,13 @@ export function useAppEffects(params: {
         `frontend initialization completed, installMode=${info.installMode}, version=${info.version}`,
       );
 
+      const newWindowMode =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("newWindow") === "1";
       let targetProjectId = appSettings.activeProjectId;
-      if (!targetProjectId && projectList.length > 0) {
+      if (newWindowMode) {
+        targetProjectId = null;
+      } else if (!targetProjectId && projectList.length > 0) {
         targetProjectId = projectList[0].id;
       }
       setActiveProjectId(targetProjectId ?? null);

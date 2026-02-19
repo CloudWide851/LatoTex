@@ -20,6 +20,7 @@ export function useWorkspaceShortcuts(params: {
   handleSaveFile: ShortcutHandler;
   handleCompile: ShortcutHandler;
   handleExportCompiledPdf: ShortcutHandler;
+  handleOpenNewWindow: ShortcutHandler;
 }) {
   const {
     handleEditorUndo,
@@ -27,6 +28,7 @@ export function useWorkspaceShortcuts(params: {
     handleSaveFile,
     handleCompile,
     handleExportCompiledPdf,
+    handleOpenNewWindow,
   } = params;
 
   useEffect(() => {
@@ -55,6 +57,11 @@ export function useWorkspaceShortcuts(params: {
         handleExportCompiledPdf();
         return;
       }
+      if (shift && key === "n") {
+        event.preventDefault();
+        handleOpenNewWindow();
+        return;
+      }
       if (!shift && key === "s") {
         event.preventDefault();
         handleSaveFile();
@@ -79,7 +86,7 @@ export function useWorkspaceShortcuts(params: {
     handleEditorRedo,
     handleEditorUndo,
     handleExportCompiledPdf,
+    handleOpenNewWindow,
     handleSaveFile,
   ]);
 }
-
