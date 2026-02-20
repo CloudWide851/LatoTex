@@ -60,7 +60,7 @@ export function SettingsPanel(props: {
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
   onOpenModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
-  onReloadLogs: () => Promise<void>;
+  onReloadLogs: (options?: { silent?: boolean }) => Promise<void>;
   onClearCurrentLog: () => Promise<void>;
   onTestModel: (modelId: string) => void;
   onTestAllModels: () => void;

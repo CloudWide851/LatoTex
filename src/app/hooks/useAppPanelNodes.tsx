@@ -72,17 +72,43 @@ export function useAppPanelNodes(params: any) {
     return parts[parts.length - 1] || runtimeInfo.sessionLogFile;
   }, [runtimeInfo?.sessionLogFile]);
 
-  const reloadRuntimeLogs = useCallback(async () => {
-    setRuntimeLogLoading(true);
+  const reloadRuntimeLogs = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    if (!silent && runtimeLogs.length === 0) {
+      setRuntimeLogLoading(true);
+    }
     try {
       const response = await runtimeLogRead({ limit: 1600 });
-      setRuntimeLogs(response.entries);
+      setRuntimeLogs((prev: any[]) => {
+        if (prev.length === response.entries.length && prev.length > 0) {
+          const prevLast = prev[prev.length - 1];
+          const nextLast = response.entries[response.entries.length - 1];
+          const prevFirst = prev[0];
+          const nextFirst = response.entries[0];
+          if (
+            prevLast?.raw === nextLast?.raw &&
+            prevLast?.timestamp === nextLast?.timestamp &&
+            prevLast?.level === nextLast?.level &&
+            prevFirst?.raw === nextFirst?.raw &&
+            prevFirst?.timestamp === nextFirst?.timestamp &&
+            prevFirst?.level === nextFirst?.level
+          ) {
+            return prev;
+          }
+        }
+        if (prev.length === 0 && response.entries.length === 0) {
+          return prev;
+        }
+        return response.entries;
+      });
     } catch (error) {
       setToast({ type: "error", message: String(error) });
     } finally {
-      setRuntimeLogLoading(false);
+      if (!silent || runtimeLogLoading) {
+        setRuntimeLogLoading(false);
+      }
     }
-  }, [setRuntimeLogLoading, setRuntimeLogs, setToast]);
+  }, [runtimeLogLoading, runtimeLogs.length, setRuntimeLogLoading, setRuntimeLogs, setToast]);
 
   const compileErrorLine = useMemo(
     () => (params.lastCompileFailed && params.compileDiagnostics.length > 0 ? params.compileDiagnostics[0] : null),
@@ -174,7 +200,7 @@ export function useAppPanelNodes(params: any) {
       onClearCurrentLog={async () => {
         try {
           await runtimeLogClearCurrentSession("CLEAR_CURRENT_SESSION");
-          await reloadRuntimeLogs();
+          await reloadRuntimeLogs({ silent: true });
         } catch (error) {
           setToast({ type: "error", message: String(error) });
         }

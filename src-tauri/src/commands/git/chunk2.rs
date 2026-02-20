@@ -90,6 +90,9 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
         let index_status = index_status_char.to_string();
         let worktree_status = worktree_status_char.to_string();
         let ignored = index_status_char == '!' && worktree_status_char == '!';
+        let untracked = index_status_char == '?' || worktree_status_char == '?';
+        let status_implies_change = matches!(index_status_char, 'R' | 'C' | 'T' | 'U' | 'D')
+            || matches!(worktree_status_char, 'R' | 'C' | 'T' | 'U' | 'D');
         let path = normalize_status_path(&line[3..]);
         let absolute_path = root.join(&path);
         if absolute_path.exists() && absolute_path.is_dir() {
@@ -99,8 +102,20 @@ pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitS
         let unstaged = unstaged_numstat.get(&path).copied().unwrap_or((0, 0));
         let mut added_lines = staged.0.saturating_add(unstaged.0);
         let removed_lines = staged.1.saturating_add(unstaged.1);
-        if added_lines == 0 && removed_lines == 0 && (index_status == "?" || worktree_status == "?") {
-            added_lines = estimate_untracked_added_lines(&root, &path);
+        if added_lines == 0 && removed_lines == 0 {
+            if untracked {
+                added_lines = estimate_untracked_added_lines(&root, &path);
+            } else if !ignored
+                && !status_implies_change
+                && !path_has_effective_content_change(
+                    &root,
+                    &path,
+                    index_status_char,
+                    worktree_status_char,
+                )?
+            {
+                continue;
+            }
         }
         changes.push(GitStatusEntry {
             path,

@@ -87,8 +87,18 @@ fn parse_numstat(raw: &str) -> std::collections::HashMap<String, (u32, u32)> {
         if parts.len() < 3 {
             continue;
         }
-        let added = parts[0].parse::<u32>().unwrap_or(0);
-        let removed = parts[1].parse::<u32>().unwrap_or(0);
+        let added_raw = parts[0].trim();
+        let removed_raw = parts[1].trim();
+        let added = if added_raw == "-" {
+            1
+        } else {
+            added_raw.parse::<u32>().unwrap_or(0)
+        };
+        let removed = if removed_raw == "-" {
+            1
+        } else {
+            removed_raw.parse::<u32>().unwrap_or(0)
+        };
         let path = normalize_numstat_path(parts[2..].join("\t").trim());
         if path.is_empty() {
             continue;
@@ -164,6 +174,43 @@ fn estimate_untracked_added_lines(root: &Path, relative_path: &str) -> u32 {
     let content = String::from_utf8_lossy(&bytes);
     let line_count = content.lines().count();
     u32::try_from(line_count).unwrap_or(0)
+}
+
+fn git_diff_has_changes(root: &Path, args: &[&str]) -> Result<bool, String> {
+    let mut command = Command::new("git");
+    hide_console_window(&mut command);
+    let output = command
+        .arg("-c")
+        .arg("core.quotepath=false")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output()
+        .map_err(|e| e.to_string())?;
+    match output.status.code() {
+        Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        _ => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+    }
+}
+
+fn path_has_effective_content_change(
+    root: &Path,
+    relative_path: &str,
+    index_status: char,
+    worktree_status: char,
+) -> Result<bool, String> {
+    if index_status != ' ' && index_status != '?' && index_status != '!' {
+        if git_diff_has_changes(root, &["diff", "--cached", "--quiet", "--", relative_path])? {
+            return Ok(true);
+        }
+    }
+    if worktree_status != ' ' && worktree_status != '?' && worktree_status != '!' {
+        if git_diff_has_changes(root, &["diff", "--quiet", "--", relative_path])? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn parse_hunk_header(header: &str) -> (Option<u32>, Option<u32>) {

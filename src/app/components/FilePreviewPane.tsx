@@ -15,6 +15,27 @@ function sanitizePreviewText(input: string): string {
     .join("\n");
 }
 
+function normalizeHtmlToMarkdown(input: string): string {
+  return input
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, "\n# $1\n")
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, "\n## $1\n")
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, "\n### $1\n")
+    .replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, "\n#### $1\n")
+    .replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, "\n##### $1\n")
+    .replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, "\n###### $1\n")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<\/li>/gi, "")
+    .replace(/<(strong|b)[^>]*>([\s\S]*?)<\/(strong|b)>/gi, "**$2**")
+    .replace(/<(em|i)[^>]*>([\s\S]*?)<\/(em|i)>/gi, "*$2*")
+    .replace(/<(code)[^>]*>([\s\S]*?)<\/code>/gi, "`$2`")
+    .replace(/<(p|div|section|article|blockquote|ul|ol|table|thead|tbody|tr)[^>]*>/gi, "\n")
+    .replace(/<\/(p|div|section|article|blockquote|ul|ol|table|thead|tbody|tr)>/gi, "\n")
+    .replace(/<(th|td)[^>]*>/gi, " ")
+    .replace(/<\/(th|td)>/gi, " ")
+    .replace(/<[^>]+>/g, "");
+}
+
 export function FilePreviewPane(props: {
   mode: "pdf" | "markdown" | "empty";
   pdfUrl: string | null;
@@ -31,7 +52,7 @@ export function FilePreviewPane(props: {
   const lensSize = 220;
   const lensScale = 1.85;
   const sanitizedMarkdown = useMemo(
-    () => sanitizePreviewText(markdownContent ?? ""),
+    () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
     [markdownContent],
   );
 
@@ -141,14 +162,19 @@ export function FilePreviewPane(props: {
                     className="text-primary-700 underline decoration-primary-400 underline-offset-2"
                   />
                 ),
-                code: ({ className, children, ...props }) => (
-                  <code
-                    {...props}
-                    className={`rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] ${className ?? ""}`}
-                  >
-                    {children}
-                  </code>
-                ),
+                code: ({ inline, className, children, ...props }: any) =>
+                  inline ? (
+                    <code
+                      {...props}
+                      className={`rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] ${className ?? ""}`}
+                    >
+                      {children}
+                    </code>
+                  ) : (
+                    <code {...props} className={`font-mono text-[12px] ${className ?? ""}`}>
+                      {children}
+                    </code>
+                  ),
               }}
             >
               {sanitizedMarkdown}

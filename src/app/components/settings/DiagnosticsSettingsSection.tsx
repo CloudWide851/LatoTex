@@ -13,7 +13,7 @@ export function DiagnosticsSettingsSection(props: {
   runtimeLogs: RuntimeLogEntry[];
   runtimeLogLoading: boolean;
   sessionLogName: string;
-  onReloadLogs: () => Promise<void>;
+  onReloadLogs: (options?: { silent?: boolean }) => Promise<void>;
   onClearCurrentLog: () => Promise<void>;
   t: TranslationFn;
 }) {
@@ -25,11 +25,13 @@ export function DiagnosticsSettingsSection(props: {
   const [selectedLogKey, setSelectedLogKey] = useState<string | null>(null);
   const [clearLogConfirmOpen, setClearLogConfirmOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const buildEntryKey = (entry: RuntimeLogEntry, index: number) =>
+    `${entry.timestamp}|${entry.level}|${entry.raw}|${index}`;
 
   useEffect(() => {
     void onReloadLogs();
     const timer = window.setInterval(() => {
-      void onReloadLogs();
+      void onReloadLogs({ silent: true });
     }, 2500);
     return () => {
       window.clearInterval(timer);
@@ -65,9 +67,7 @@ export function DiagnosticsSettingsSection(props: {
     if (!selectedLogKey) {
       return null;
     }
-    return filteredRuntimeLogs.find(
-      (entry, index) => `${entry.timestamp}-${entry.level}-${index}` === selectedLogKey,
-    ) ?? null;
+    return filteredRuntimeLogs.find((entry, index) => buildEntryKey(entry, index) === selectedLogKey) ?? null;
   }, [filteredRuntimeLogs, selectedLogKey]);
 
   const copyLogDetail = async () => {
@@ -170,7 +170,7 @@ export function DiagnosticsSettingsSection(props: {
                           lowerMessage.includes("ok=true")
                         ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                         : "border-slate-300 bg-white text-slate-700";
-                const entryKey = `${entry.timestamp}-${entry.level}-${index}`;
+                const entryKey = buildEntryKey(entry, index);
                 return (
                   <div
                     key={entryKey}

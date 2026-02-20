@@ -545,15 +545,28 @@ export function useAppContainerWorkspaceActions(params: any) {
       modelProtocols: nextProtocols,
       modelCatalog: nextCatalog,
     };
+    const verifyModelApiKeyPersisted = async (modelId: string, expectedKey: string) => {
+      const retryDelays = [0, 120, 220, 360, 520, 700];
+      for (const delayMs of retryDelays) {
+        if (delayMs > 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+        }
+        const verified = await getModelApiKey(modelId);
+        const verifiedKey = (verified.apiKey ?? "").trim();
+        if (verifiedKey === expectedKey) {
+          return true;
+        }
+      }
+      return false;
+    };
 
     try {
       await runtimeLogWrite("INFO", `model save started: ${model.id}`).catch(() => undefined);
       const persisted = await persistSettings(nextSettings);
       if (modelApiKeyChanged) {
         await setModelApiKey(model.id, normalizedKey);
-        const verified = await getModelApiKey(model.id);
-        const verifiedKey = (verified.apiKey ?? "").trim();
-        if (verifiedKey !== normalizedKey) {
+        const verified = await verifyModelApiKeyPersisted(model.id, normalizedKey);
+        if (!verified) {
           throw new Error(t("settings.modal.apiKeyVerifyFailed"));
         }
       }
@@ -574,7 +587,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       await runtimeLogWrite("ERROR", `model save failed: ${model.id}, reason=${message}`).catch(() => undefined);
       return { ok: false, message };
     }
-  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast, settings]);
+  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast, settings, t]);
 
   return {
     handleSaveActiveFile,
