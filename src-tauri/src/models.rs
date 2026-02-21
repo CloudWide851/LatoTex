@@ -324,6 +324,25 @@ pub struct ModelApiKeyValue {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelApiKeySaveVerifiedInput {
+    pub model_id: String,
+    pub protocol_id: String,
+    pub base_url: String,
+    pub request_name: String,
+    pub api_key: String,
+    pub require_probe: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialSaveResult {
+    pub ok: bool,
+    pub stage: String,
+    pub message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProtocolTestInput {
     pub protocol_id: String,
     pub base_url: Option<String>,

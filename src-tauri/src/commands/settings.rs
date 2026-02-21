@@ -14,6 +14,9 @@ use std::fs;
 use std::time::Duration;
 use tauri::State;
 
+mod settings_keysave;
+pub use settings_keysave::model_api_key_save_verified;
+
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");

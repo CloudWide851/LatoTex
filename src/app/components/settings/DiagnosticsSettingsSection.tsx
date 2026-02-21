@@ -1,12 +1,36 @@
-import { Check, Copy } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { cn } from "../../../lib/utils";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
-import type { RuntimeLogEntry, RuntimeLogInfo } from "../../../shared/types/app";
 import { Select } from "../../../components/ui/select";
+import type { RuntimeLogEntry, RuntimeLogInfo } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
+
+function resolveLineTone(entry: RuntimeLogEntry): string {
+  const upper = entry.level.toUpperCase();
+  const lowerMessage = entry.message.toLowerCase();
+  if (upper.includes("ERROR") || upper.includes("CRASH")) {
+    return "text-rose-300";
+  }
+  if (upper.includes("WARN")) {
+    return "text-amber-300";
+  }
+  if (
+    lowerMessage.includes("success") ||
+    lowerMessage.includes("completed") ||
+    lowerMessage.includes("ok=true")
+  ) {
+    return "text-emerald-300";
+  }
+  return "text-slate-200";
+}
+
+function renderConsoleLine(entry: RuntimeLogEntry): string {
+  const timestamp = entry.timestamp?.trim() || "-";
+  const level = entry.level?.trim().toUpperCase() || "INFO";
+  const message = entry.message?.trim() || entry.raw?.trim() || "-";
+  return `[${timestamp}] [${level}] ${message}`;
+}
 
 export function DiagnosticsSettingsSection(props: {
   runtimeInfo: RuntimeLogInfo | null;
@@ -22,11 +46,9 @@ export function DiagnosticsSettingsSection(props: {
   const [logKeyword, setLogKeyword] = useState("");
   const [logFrom, setLogFrom] = useState("");
   const [logTo, setLogTo] = useState("");
-  const [selectedLogKey, setSelectedLogKey] = useState<string | null>(null);
   const [clearLogConfirmOpen, setClearLogConfirmOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const buildEntryKey = (entry: RuntimeLogEntry, index: number) =>
-    `${entry.timestamp}|${entry.level}|${entry.raw}|${index}`;
+  const consoleRef = useRef<HTMLDivElement | null>(null);
+  const followTailRef = useRef(true);
 
   useEffect(() => {
     void onReloadLogs();
@@ -37,6 +59,17 @@ export function DiagnosticsSettingsSection(props: {
       window.clearInterval(timer);
     };
   }, [onReloadLogs]);
+
+  useEffect(() => {
+    if (!followTailRef.current) {
+      return;
+    }
+    const node = consoleRef.current;
+    if (!node) {
+      return;
+    }
+    node.scrollTop = node.scrollHeight;
+  }, [runtimeLogs.length]);
 
   const filteredRuntimeLogs = useMemo(() => {
     const from = logFrom.trim() ? logFrom.replace("T", " ") : "";
@@ -63,162 +96,90 @@ export function DiagnosticsSettingsSection(props: {
     });
   }, [logFrom, logKeyword, logLevelFilter, logTo, runtimeLogs]);
 
-  const selectedLogEntry = useMemo(() => {
-    if (!selectedLogKey) {
-      return null;
-    }
-    return filteredRuntimeLogs.find((entry, index) => buildEntryKey(entry, index) === selectedLogKey) ?? null;
-  }, [filteredRuntimeLogs, selectedLogKey]);
-
-  const copyLogDetail = async () => {
-    if (!selectedLogEntry) {
-      return;
-    }
-    const text = selectedLogEntry.raw || selectedLogEntry.message;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">{t("settings.currentLog")}</span>
-          <span className="font-mono text-slate-700">{sessionLogName}</span>
+    <div className="grid h-full min-h-0 gap-2 rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+        <div className="flex min-w-0 items-center gap-3 overflow-hidden">
+          <span className="truncate">
+            {t("settings.currentLog")}: <span className="font-mono">{sessionLogName}</span>
+          </span>
+          <span className="truncate">
+            {t("settings.installMode")}: {runtimeInfo?.installMode ?? "-"}
+          </span>
+          <span className="truncate">
+            {t("settings.version")}: {runtimeInfo?.version ?? "-"}
+          </span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">{t("settings.installMode")}</span>
-          <span className="text-slate-700">{runtimeInfo?.installMode ?? "-"}</span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">{t("settings.version")}</span>
-          <span className="text-slate-700">{runtimeInfo?.version ?? "-"}</span>
-        </div>
-        <div className="pt-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setClearLogConfirmOpen(true)}
-            >
-              {t("settings.logClearCurrent")}
-            </Button>
-          </div>
-        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => setClearLogConfirmOpen(true)}
+        >
+          {t("settings.logClearCurrent")}
+        </Button>
       </div>
-      <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <p className="text-xs text-slate-500">{t("settings.logDoubleClickHint")}</p>
-        <div className="grid gap-2">
-          <div className="grid grid-cols-[minmax(128px,180px)_minmax(160px,1fr)_minmax(188px,220px)_minmax(188px,220px)] gap-2 max-[1220px]:grid-cols-2 max-[780px]:grid-cols-1">
-            <Select
-              value={logLevelFilter}
-              uiSize="sm"
-              onChange={(event) => setLogLevelFilter(event.target.value)}
-            >
-              <option value="ALL">{t("settings.logFilterAllLevels")}</option>
-              <option value="INFO">INFO</option>
-              <option value="WARN">WARN</option>
-              <option value="ERROR">ERROR</option>
-              <option value="CRASH">CRASH</option>
-            </Select>
-            <Input
-              className="h-8 text-xs"
-              value={logKeyword}
-              onChange={(event) => setLogKeyword(event.target.value)}
-              placeholder={t("settings.logFilterKeyword")}
-            />
-            <Input
-              className="h-8 text-xs"
-              type="datetime-local"
-              value={logFrom}
-              onChange={(event) => setLogFrom(event.target.value)}
-              title={t("settings.logFilterFrom")}
-            />
-            <Input
-              className="h-8 text-xs"
-              type="datetime-local"
-              value={logTo}
-              onChange={(event) => setLogTo(event.target.value)}
-              title={t("settings.logFilterTo")}
-            />
-          </div>
-        </div>
+
+      <div className="grid grid-cols-[minmax(128px,168px)_minmax(180px,1fr)_minmax(188px,220px)_minmax(188px,220px)] gap-2 max-[1260px]:grid-cols-2 max-[780px]:grid-cols-1">
+        <Select
+          value={logLevelFilter}
+          uiSize="sm"
+          onChange={(event) => setLogLevelFilter(event.target.value)}
+        >
+          <option value="ALL">{t("settings.logFilterAllLevels")}</option>
+          <option value="INFO">INFO</option>
+          <option value="WARN">WARN</option>
+          <option value="ERROR">ERROR</option>
+          <option value="CRASH">CRASH</option>
+        </Select>
+        <Input
+          className="h-8 text-xs"
+          value={logKeyword}
+          onChange={(event) => setLogKeyword(event.target.value)}
+          placeholder={t("settings.logFilterKeyword")}
+        />
+        <Input
+          className="h-8 text-xs"
+          type="datetime-local"
+          value={logFrom}
+          onChange={(event) => setLogFrom(event.target.value)}
+          title={t("settings.logFilterFrom")}
+        />
+        <Input
+          className="h-8 text-xs"
+          type="datetime-local"
+          value={logTo}
+          onChange={(event) => setLogTo(event.target.value)}
+          title={t("settings.logFilterTo")}
+        />
       </div>
-      <div className="grid min-h-[280px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 max-[1100px]:grid-cols-1">
-        {runtimeLogLoading ? (
-          <div className="text-xs text-slate-500">{t("common.loading")}</div>
+
+      <div
+        ref={consoleRef}
+        className="min-h-[360px] flex-1 overflow-auto rounded-md border border-slate-300 bg-slate-950 p-3 font-mono text-[11px] leading-5"
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
+          followTailRef.current = distance <= 32;
+        }}
+      >
+        {runtimeLogLoading && filteredRuntimeLogs.length === 0 ? (
+          <div className="text-slate-300">{t("common.loading")}</div>
         ) : filteredRuntimeLogs.length === 0 ? (
-          <div className="text-xs text-slate-500">{t("settings.logViewerEmpty")}</div>
+          <div className="text-slate-400">{t("settings.logViewerEmpty")}</div>
         ) : (
-          <>
-            <div className="max-h-[50vh] space-y-2 overflow-auto pr-1">
-              {filteredRuntimeLogs.map((entry, index) => {
-                const upper = entry.level.toUpperCase();
-                const lowerMessage = entry.message.toLowerCase();
-                const toneClass =
-                  upper.includes("ERROR") || upper.includes("CRASH")
-                    ? "border-rose-300 bg-rose-50 text-rose-700"
-                    : upper.includes("WARN")
-                      ? "border-amber-300 bg-amber-50 text-amber-700"
-                      : lowerMessage.includes("success") ||
-                          lowerMessage.includes("completed") ||
-                          lowerMessage.includes("ok=true")
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                        : "border-slate-300 bg-white text-slate-700";
-                const entryKey = buildEntryKey(entry, index);
-                return (
-                  <div
-                    key={entryKey}
-                    className={`rounded border px-3 py-2 ${toneClass} ${selectedLogKey === entryKey ? "ring-2 ring-primary-300" : ""}`}
-                    onDoubleClick={() => setSelectedLogKey(entryKey)}
-                  >
-                    <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                      <span className="font-semibold">
-                        {t("settings.logLevel")}: {entry.level}
-                      </span>
-                      <span>
-                        {t("settings.logTime")}: {entry.timestamp || "-"}
-                      </span>
-                    </div>
-                    <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5">
-                      {entry.message || entry.raw}
-                    </pre>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="min-h-0 rounded-md border border-slate-300 bg-white p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-xs font-semibold text-slate-700">{t("settings.logDetailTitle")}</h4>
-                <button
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  type="button"
-                  onClick={() => {
-                    void copyLogDetail();
-                  }}
-                  disabled={!selectedLogEntry}
-                  title={t("settings.logCopy")}
-                >
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  <span>{copied ? t("settings.logCopied") : t("settings.logCopy")}</span>
-                </button>
-              </div>
-              {selectedLogEntry ? (
-                <pre className="max-h-[46vh] overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
-                  {selectedLogEntry.raw || selectedLogEntry.message}
-                </pre>
-              ) : (
-                <div className="text-xs text-slate-500">{t("settings.logDoubleClickHint")}</div>
-              )}
-            </div>
-          </>
+          <div className="space-y-1">
+            {filteredRuntimeLogs.map((entry, index) => (
+              <pre
+                key={`${entry.timestamp}-${entry.level}-${index}`}
+                className={`whitespace-pre-wrap break-all ${resolveLineTone(entry)}`}
+              >
+                {renderConsoleLine(entry)}
+              </pre>
+            ))}
+          </div>
         )}
       </div>
+
       {clearLogConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
           <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
@@ -236,7 +197,6 @@ export function DiagnosticsSettingsSection(props: {
                 size="sm"
                 onClick={() => {
                   void onClearCurrentLog();
-                  setSelectedLogKey(null);
                   setClearLogConfirmOpen(false);
                 }}
               >

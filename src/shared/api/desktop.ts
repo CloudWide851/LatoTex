@@ -9,6 +9,7 @@ import type {
   AppSettings,
   BusyTexCacheInfo,
   CompileRecord,
+  CredentialSaveResult,
   EventBatch,
   FileReadBinaryResponse,
   FileReadResponse,
@@ -298,6 +299,26 @@ export function setModelApiKey(modelId: string, apiKey: string): Promise<Ack> {
 export function getModelApiKey(modelId: string): Promise<ModelApiKeyValue> {
   return invoke<ModelApiKeyValue>("model_api_key_get", {
     input: { modelId },
+  });
+}
+
+export function saveModelApiKeyVerified(input: {
+  modelId: string;
+  protocolId: string;
+  baseUrl: string;
+  requestName: string;
+  apiKey: string;
+  requireProbe?: boolean;
+}): Promise<CredentialSaveResult> {
+  return invoke<CredentialSaveResult>("model_api_key_save_verified", {
+    input: {
+      modelId: input.modelId,
+      protocolId: input.protocolId,
+      baseUrl: input.baseUrl,
+      requestName: input.requestName,
+      apiKey: input.apiKey,
+      requireProbe: input.requireProbe ?? true,
+    },
   });
 }
 

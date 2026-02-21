@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
-import { getModelApiKey, gitDiffFile, projectIntegrityRepair, projectIntegrityStatus, runAgent, runtimeLogWrite, setModelApiKey, testModel } from "../../shared/api/desktop";
+import { getModelApiKey, gitDiffFile, projectIntegrityRepair, projectIntegrityStatus, runAgent, runtimeLogWrite, saveModelApiKeyVerified, testModel } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
 import { getTabIdsByAction } from "./useEditorTabs";
@@ -545,29 +545,25 @@ export function useAppContainerWorkspaceActions(params: any) {
       modelProtocols: nextProtocols,
       modelCatalog: nextCatalog,
     };
-    const verifyModelApiKeyPersisted = async (modelId: string, expectedKey: string) => {
-      const retryDelays = [0, 120, 220, 360, 520, 700];
-      for (const delayMs of retryDelays) {
-        if (delayMs > 0) {
-          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
-        }
-        const verified = await getModelApiKey(modelId);
-        const verifiedKey = (verified.apiKey ?? "").trim();
-        if (verifiedKey === expectedKey) {
-          return true;
-        }
-      }
-      return false;
-    };
 
     try {
       await runtimeLogWrite("INFO", `model save started: ${model.id}`).catch(() => undefined);
       const persisted = await persistSettings(nextSettings);
       if (modelApiKeyChanged) {
-        await setModelApiKey(model.id, normalizedKey);
-        const verified = await verifyModelApiKeyPersisted(model.id, normalizedKey);
-        if (!verified) {
-          throw new Error(t("settings.modal.apiKeyVerifyFailed"));
+        const result = await saveModelApiKeyVerified({
+          modelId: model.id,
+          protocolId: model.protocolId,
+          baseUrl: protocol.baseUrl,
+          requestName: model.requestName,
+          apiKey: normalizedKey,
+          requireProbe: normalizedKey.length > 0,
+        });
+        if (!result.ok) {
+          await runtimeLogWrite(
+            "WARN",
+            `model key save verify failed: ${model.id}, stage=${result.stage}, reason=${result.message}`,
+          ).catch(() => undefined);
+          throw new Error(result.message || t("settings.modal.apiKeyVerifyFailed"));
         }
       }
       setSettings(persisted);

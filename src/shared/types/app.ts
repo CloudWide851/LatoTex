@@ -121,6 +121,12 @@ export type ModelApiKeyValue = {
   apiKey: string;
 };
 
+export type CredentialSaveResult = {
+  ok: boolean;
+  stage: "write" | "readback" | "probe";
+  message: string;
+};
+
 export type ModelDraftTestInput = {
   protocolId: string;
   baseUrl: string;
