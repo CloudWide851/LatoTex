@@ -130,7 +130,6 @@ export const enUS = {
   "settings.modal.testOk": "Test passed",
   "settings.modal.testFail": "Test failed",
   "settings.modal.testIdle": "Test before save",
-  "settings.modal.saveNoTestHint": "Save applies immediately. Use model catalog tests for connectivity checks.",
   "preview.title": "Preview",
   "preview.empty": "No preview available for the current file.",
   "preview.markdownEmpty": "Markdown file is empty.",

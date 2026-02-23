@@ -459,6 +459,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     }
 
     const normalizedKey = modelApiKey?.trim() ?? "";
+    const willSetKey = modelApiKeyChanged && normalizedKey.length > 0;
     const nextProtocols = protocol.isNew
       ? [
           ...settings.modelProtocols,
@@ -466,7 +467,7 @@ export function useAppContainerWorkspaceActions(params: any) {
             id: protocol.id,
             displayName: protocol.displayName,
             baseUrl: protocol.baseUrl,
-            apiKeySet: modelApiKeyChanged ? normalizedKey.length > 0 : false,
+            apiKeySet: willSetKey,
           },
         ]
       : settings.modelProtocols.map((item: any) =>
@@ -474,7 +475,9 @@ export function useAppContainerWorkspaceActions(params: any) {
             ? {
                 ...item,
                 baseUrl: protocol.baseUrl,
-                apiKeySet: modelApiKeyChanged ? normalizedKey.length > 0 : item.apiKeySet,
+                apiKeySet: modelApiKeyChanged
+                  ? (normalizedKey.length > 0 || item.apiKeySet)
+                  : item.apiKeySet,
               }
             : item,
         );
@@ -507,7 +510,15 @@ export function useAppContainerWorkspaceActions(params: any) {
           throw new Error(result.message || t("settings.modal.apiKeyVerifyFailed"));
         }
       }
-      setSettings(persisted);
+      const patchedPersisted = willSetKey
+        ? {
+            ...persisted,
+            modelProtocols: persisted.modelProtocols.map((item: any) =>
+              item.id === model.protocolId ? { ...item, apiKeySet: true } : item,
+            ),
+          }
+        : persisted;
+      setSettings(patchedPersisted);
       setDraftModelApiKeys((current: Record<string, string>) => {
         if (!(model.id in current)) {
           return current;

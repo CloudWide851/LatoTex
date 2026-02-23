@@ -14,7 +14,7 @@ export function GitDiffViewer(props: {
 
   if (!active) {
     return (
-      <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+      <div className="flex h-full min-h-[160px] items-center justify-center rounded-md bg-slate-100/70 px-4 text-sm text-slate-500">
         {t("git.selectFileToDiff")}
       </div>
     );

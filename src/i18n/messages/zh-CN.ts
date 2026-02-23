@@ -131,7 +131,6 @@ export const zhCN: Record<MessageKey, string> = {
   "settings.modal.testOk": "测试通过",
   "settings.modal.testFail": "测试失败",
   "settings.modal.testIdle": "保存前请先测试",
-  "settings.modal.saveNoTestHint": "修改将直接保存，连通性请在模型目录中测试。",
   "preview.title": "预览",
   "preview.empty": "当前文件暂无可预览内容。",
   "preview.markdownEmpty": "Markdown 文件为空。",

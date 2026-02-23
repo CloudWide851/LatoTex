@@ -38,6 +38,7 @@ pub fn model_api_key_save_verified(
     }
 
     secure::store_model_api_key(model_id, &api_key)?;
+    secure::store_api_key(protocol_id, &api_key)?;
 
     if !require_probe {
         state.log(

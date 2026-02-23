@@ -111,30 +111,6 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
         None => None,
     };
 
-    let mut model_protocols = Vec::new();
-    let mut protocol_stmt = conn
-        .prepare("SELECT id, display_name, base_url FROM model_protocols ORDER BY id")
-        .map_err(|e| e.to_string())?;
-    let protocol_rows = protocol_stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })
-        .map_err(|e| e.to_string())?;
-
-    for row in protocol_rows {
-        let (id, display_name, base_url) = row.map_err(|e| e.to_string())?;
-        model_protocols.push(ModelProtocol {
-            api_key_set: secure::has_api_key(&id).unwrap_or(false),
-            id,
-            display_name,
-            base_url,
-        });
-    }
-
     let mut model_catalog = Vec::new();
     let mut catalog_stmt = conn
         .prepare(
@@ -154,6 +130,47 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
         .map_err(|e| e.to_string())?;
     for row in catalog_rows {
         model_catalog.push(row.map_err(|e| e.to_string())?);
+    }
+
+    let protocol_has_model_key = model_catalog.iter().fold(
+        std::collections::HashMap::<String, bool>::new(),
+        |mut acc, model| {
+            let has_key = secure::get_model_api_key(&model.id)
+                .ok()
+                .flatten()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false);
+            if has_key {
+                acc.insert(model.protocol_id.clone(), true);
+            }
+            acc
+        },
+    );
+
+    let mut model_protocols = Vec::new();
+    let mut protocol_stmt = conn
+        .prepare("SELECT id, display_name, base_url FROM model_protocols ORDER BY id")
+        .map_err(|e| e.to_string())?;
+    let protocol_rows = protocol_stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    for row in protocol_rows {
+        let (id, display_name, base_url) = row.map_err(|e| e.to_string())?;
+        let protocol_key_exists = secure::has_api_key(&id).unwrap_or(false);
+        let model_key_exists = protocol_has_model_key.get(&id).copied().unwrap_or(false);
+        model_protocols.push(ModelProtocol {
+            api_key_set: protocol_key_exists || model_key_exists,
+            id,
+            display_name,
+            base_url,
+        });
     }
 
     let mut agent_bindings = Vec::new();

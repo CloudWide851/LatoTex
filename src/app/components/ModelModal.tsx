@@ -343,9 +343,7 @@ export function ModelModal(props: {
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-200 px-4">
-          <div className="truncate text-xs text-slate-500">
-            {saveMessage || t("settings.modal.saveNoTestHint")}
-          </div>
+          <div className="min-h-[16px] truncate text-xs text-slate-500">{saveMessage}</div>
           <div className="flex items-center gap-2">
             <Button
               disabled={!canSubmitBase || saving || loadingApiKey}
