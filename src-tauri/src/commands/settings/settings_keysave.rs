@@ -2,23 +2,8 @@ use crate::models::{CredentialSaveResult, ModelApiKeySaveVerifiedInput};
 use crate::secure;
 use crate::state::AppState;
 use reqwest::blocking::Client;
-use std::thread;
 use std::time::Duration;
 use tauri::State;
-
-fn verify_model_api_key_readback(model_id: &str, expected: &str) -> Result<bool, String> {
-    let retry_delays = [0_u64, 120, 240, 380, 560, 820];
-    for delay in retry_delays {
-        if delay > 0 {
-            thread::sleep(Duration::from_millis(delay));
-        }
-        let current = secure::get_model_api_key(model_id)?.unwrap_or_default();
-        if current.trim() == expected {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
 
 #[tauri::command]
 pub fn model_api_key_save_verified(
@@ -37,19 +22,10 @@ pub fn model_api_key_save_verified(
 
     if api_key.is_empty() {
         secure::delete_model_api_key(model_id)?;
-        let readback_ok = verify_model_api_key_readback(model_id, "")?;
-        if !readback_ok {
-            state.log(
-                "WARN",
-                &format!("model_api_key_save_verified: clear readback mismatch for {model_id}"),
-            );
-            return Ok(CredentialSaveResult {
-                ok: false,
-                stage: "readback".to_string(),
-                message: "API key clear verification failed".to_string(),
-            });
-        }
-        state.log("INFO", &format!("model_api_key_save_verified: cleared key for {model_id}"));
+        state.log(
+            "INFO",
+            &format!("model_api_key_save_verified: cleared key for {model_id}"),
+        );
         return Ok(CredentialSaveResult {
             ok: true,
             stage: "write".to_string(),
@@ -62,18 +38,6 @@ pub fn model_api_key_save_verified(
     }
 
     secure::store_model_api_key(model_id, &api_key)?;
-    let readback_ok = verify_model_api_key_readback(model_id, &api_key)?;
-    if !readback_ok {
-        state.log(
-            "WARN",
-            &format!("model_api_key_save_verified: readback mismatch for {model_id}"),
-        );
-        return Ok(CredentialSaveResult {
-            ok: false,
-            stage: "readback".to_string(),
-            message: "API key readback verification failed".to_string(),
-        });
-    }
 
     if !require_probe {
         state.log(

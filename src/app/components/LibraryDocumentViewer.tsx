@@ -1,16 +1,32 @@
-import { Check, Copy, ExternalLink, FileText, FileUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, Copy, ExternalLink, FileText, FileUp, Highlighter, Trash2, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
   libraryResolvePdfPreview,
   openExternalLink,
   readFile,
   readFileBinary,
+  writeFile,
 } from "../../shared/api/desktop";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
 
 type TranslationFn = (key: any) => string;
+
+type AnnotationPoint = {
+  x: number;
+  y: number;
+};
+
+type AnnotationStroke = {
+  id: string;
+  points: AnnotationPoint[];
+};
+
+type AnnotationPayload = {
+  version: 1;
+  strokes: AnnotationStroke[];
+};
 
 function filenameFromPath(path: string | null): string {
   if (!path) {
@@ -18,6 +34,55 @@ function filenameFromPath(path: string | null): string {
   }
   const parts = path.split("/");
   return parts[parts.length - 1] ?? path;
+}
+
+function toLibraryAnnotationPath(selectedPath: string): string {
+  const normalized = selectedPath.trim().toLowerCase();
+  const safe = normalized
+    .replace(/[^a-z0-9._-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 96) || "library";
+  let hash = 2166136261;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const digest = (hash >>> 0).toString(16).padStart(8, "0");
+  return `.latotex/papers/.annotations/${safe}-${digest}.json`;
+}
+
+function clampPointToView(x: number, y: number, width: number, height: number): AnnotationPoint {
+  if (width <= 0 || height <= 0) {
+    return { x: 0, y: 0 };
+  }
+  return {
+    x: Math.max(0, Math.min(1000, Number(((x / width) * 1000).toFixed(2)))),
+    y: Math.max(0, Math.min(1000, Number(((y / height) * 1000).toFixed(2)))),
+  };
+}
+
+function parseAnnotationPayload(content: string): AnnotationStroke[] {
+  try {
+    const parsed = JSON.parse(content) as Partial<AnnotationPayload>;
+    if (!Array.isArray(parsed?.strokes)) {
+      return [];
+    }
+    return parsed.strokes
+      .filter((item) => Array.isArray(item?.points) && item.points.length > 1)
+      .map((item, index) => ({
+        id: typeof item.id === "string" && item.id.length > 0 ? item.id : `stroke-${index}`,
+        points: item.points
+          .map((point) => ({
+            x: Number(point?.x ?? 0),
+            y: Number(point?.y ?? 0),
+          }))
+          .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
+      }))
+      .filter((item) => item.points.length > 1);
+  } catch {
+    return [];
+  }
 }
 
 export function LibraryDocumentViewer(props: {
@@ -35,13 +100,23 @@ export function LibraryDocumentViewer(props: {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [resolvedLink, setResolvedLink] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"bib" | "pdf">("bib");
+  const [annotationEnabled, setAnnotationEnabled] = useState(false);
+  const [annotationStrokes, setAnnotationStrokes] = useState<AnnotationStroke[]>([]);
+  const [annotationDraft, setAnnotationDraft] = useState<AnnotationPoint[] | null>(null);
+  const [annotationLoaded, setAnnotationLoaded] = useState(false);
+
+  const drawingRef = useRef(false);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const hasPdf = Boolean(pdfUrl);
   const hasBib = bibPreview.trim().length > 0;
-  const hasLinks = (citation?.urls.length ?? 0) > 0 || Boolean(resolvedLink);
   const activeLink = useMemo(
     () => resolvedLink ?? citation?.urls?.[0] ?? null,
     [citation?.urls, resolvedLink],
+  );
+  const annotationPath = useMemo(
+    () => (selectedPath ? toLibraryAnnotationPath(selectedPath) : null),
+    [selectedPath],
   );
 
   useEffect(() => {
@@ -62,6 +137,9 @@ export function LibraryDocumentViewer(props: {
       setBibPreview("");
       setResolvedLink(null);
       setViewMode("bib");
+      setAnnotationEnabled(false);
+      setAnnotationStrokes([]);
+      setAnnotationDraft(null);
       setPdfUrl((prev) => {
         if (prev) {
           URL.revokeObjectURL(prev);
@@ -76,6 +154,7 @@ export function LibraryDocumentViewer(props: {
     setLinkError(null);
     setCopyState(false);
     setViewMode("bib");
+    setAnnotationEnabled(false);
 
     const load = async () => {
       const summary = await libraryCitationSummary(projectId, selectedPath);
@@ -144,6 +223,82 @@ export function LibraryDocumentViewer(props: {
     };
   }, [projectId, selectedPath]);
 
+  useEffect(() => {
+    let disposed = false;
+    if (!projectId || !annotationPath) {
+      setAnnotationLoaded(false);
+      setAnnotationStrokes([]);
+      setAnnotationDraft(null);
+      return;
+    }
+    setAnnotationLoaded(false);
+    setAnnotationStrokes([]);
+    setAnnotationDraft(null);
+
+    void readFile(projectId, annotationPath)
+      .then((result) => {
+        if (!disposed) {
+          setAnnotationStrokes(parseAnnotationPayload(result.content));
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setAnnotationStrokes([]);
+        }
+      })
+      .finally(() => {
+        if (!disposed) {
+          setAnnotationLoaded(true);
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [annotationPath, projectId]);
+
+  useEffect(() => {
+    if (!annotationLoaded || !projectId || !annotationPath) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const payload: AnnotationPayload = {
+        version: 1,
+        strokes: annotationStrokes,
+      };
+      void writeFile(projectId, annotationPath, JSON.stringify(payload, null, 2));
+    }, 180);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [annotationLoaded, annotationPath, annotationStrokes, projectId]);
+
+  useEffect(() => {
+    if (viewMode !== "pdf" || !hasPdf) {
+      setAnnotationEnabled(false);
+      drawingRef.current = false;
+      setAnnotationDraft(null);
+    }
+  }, [hasPdf, viewMode]);
+
+  const finishDrawing = useCallback(() => {
+    if (!drawingRef.current) {
+      return;
+    }
+    drawingRef.current = false;
+    setAnnotationDraft((previous) => {
+      if (!previous || previous.length < 2) {
+        return null;
+      }
+      const stroke: AnnotationStroke = {
+        id: `stroke-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        points: previous,
+      };
+      setAnnotationStrokes((items) => [...items, stroke]);
+      return null;
+    });
+  }, []);
+
   const handleOpenLink = async () => {
     if (!activeLink) {
       return;
@@ -184,7 +339,7 @@ export function LibraryDocumentViewer(props: {
           <FileText className="h-3.5 w-3.5 text-slate-500" />
           <span className="truncate text-sm font-medium text-slate-700">{filenameFromPath(selectedPath)}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto py-1">
           <button
             className={`rounded border px-2 py-1 text-[11px] ${
               viewMode === "bib"
@@ -210,6 +365,40 @@ export function LibraryDocumentViewer(props: {
           </button>
           {viewMode === "pdf" ? (
             <>
+              <button
+                className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
+                  annotationEnabled
+                    ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+                    : "border-slate-300 bg-white hover:bg-slate-100"
+                }`}
+                title={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
+                aria-label={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
+                onClick={() => setAnnotationEnabled((prev) => !prev)}
+                disabled={!hasPdf}
+              >
+                <Highlighter className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                title={t("preview.annotationUndo")}
+                aria-label={t("preview.annotationUndo")}
+                onClick={() => setAnnotationStrokes((items) => items.slice(0, -1))}
+                disabled={!hasPdf || annotationStrokes.length === 0}
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                title={t("preview.annotationClear")}
+                aria-label={t("preview.annotationClear")}
+                onClick={() => {
+                  setAnnotationStrokes([]);
+                  setAnnotationDraft(null);
+                }}
+                disabled={!hasPdf || annotationStrokes.length === 0}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
               <button
                 className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
                 onClick={() => void handleOpenLink()}
@@ -245,11 +434,71 @@ export function LibraryDocumentViewer(props: {
                 {t("library.viewer.error")} {loadError}
               </div>
             ) : hasPdf && pdfUrl ? (
-              <iframe
-                title={filenameFromPath(selectedPath)}
-                src={pdfUrl}
-                className="h-full w-full rounded border border-slate-200"
-              />
+              <div
+                ref={viewportRef}
+                className={`relative h-full overflow-hidden rounded border border-slate-200 bg-slate-50 ${
+                  annotationEnabled ? "cursor-crosshair" : "cursor-default"
+                }`}
+              >
+                <iframe
+                  title={filenameFromPath(selectedPath)}
+                  src={pdfUrl}
+                  className="h-full w-full"
+                  style={{ pointerEvents: annotationEnabled ? "none" : "auto" }}
+                />
+                <svg
+                  className={`absolute inset-0 z-10 h-full w-full ${annotationEnabled ? "pointer-events-auto" : "pointer-events-none"}`}
+                  viewBox="0 0 1000 1000"
+                  preserveAspectRatio="none"
+                  onMouseDown={(event) => {
+                    if (!annotationEnabled) {
+                      return;
+                    }
+                    const rect = viewportRef.current?.getBoundingClientRect();
+                    if (!rect) {
+                      return;
+                    }
+                    drawingRef.current = true;
+                    const first = clampPointToView(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
+                    setAnnotationDraft([first]);
+                  }}
+                  onMouseMove={(event) => {
+                    if (!annotationEnabled || !drawingRef.current) {
+                      return;
+                    }
+                    const rect = viewportRef.current?.getBoundingClientRect();
+                    if (!rect) {
+                      return;
+                    }
+                    const point = clampPointToView(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
+                    setAnnotationDraft((previous) => (previous ? [...previous, point] : [point]));
+                  }}
+                  onMouseUp={() => finishDrawing()}
+                  onMouseLeave={() => finishDrawing()}
+                >
+                  {annotationStrokes.map((stroke) => (
+                    <polyline
+                      key={stroke.id}
+                      points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
+                      fill="none"
+                      stroke="rgba(250, 204, 21, 0.58)"
+                      strokeWidth="16"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                  {annotationDraft && annotationDraft.length > 1 ? (
+                    <polyline
+                      points={annotationDraft.map((point) => `${point.x},${point.y}`).join(" ")}
+                      fill="none"
+                      stroke="rgba(250, 204, 21, 0.62)"
+                      strokeWidth="16"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : null}
+                </svg>
+              </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
                 <FileUp className="mr-2 h-3.5 w-3.5" />
@@ -321,16 +570,16 @@ export function LibraryDocumentViewer(props: {
                 </p>
               ) : null}
               {activeLink ? (
-                <p className="break-all text-slate-700">
+                <p className="break-words text-slate-700">
                   {t("library.citation.urls")}: {activeLink}
                 </p>
-              ) : hasLinks ? (
+              ) : (
                 <p className="text-slate-500">{t("library.citation.urls")}: -</p>
-              ) : null}
-              {linkError && activeLink ? (
-                <div className="space-y-1 rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+              )}
+              {linkError ? (
+                <div className="rounded border border-amber-300 bg-amber-50 p-2 text-amber-700">
                   <p>{t("library.viewer.linkFallback")}</p>
-                  <p className="break-all font-mono">{activeLink}</p>
+                  {activeLink ? <p className="mt-1 break-words font-mono">{activeLink}</p> : null}
                 </div>
               ) : null}
             </div>

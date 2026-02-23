@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { AlertTriangle, Download, FolderOpen, Highlighter, ListChecks, Minus, Play, Plus, Redo2, RotateCcw, Save, Trash2, Undo2 } from "lucide-react";
+import { AlertTriangle, Download, FolderOpen, ListChecks, Minus, Play, Plus, Redo2, RotateCcw, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   CloseTabsAction,
@@ -13,7 +13,7 @@ import type {
 import type { LogTab } from "../app-config";
 import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./AgentChatOverlay";
 import { ExplorerTree } from "./ExplorerTree";
-import { FilePreviewPane, type FilePreviewPaneHandle } from "./FilePreviewPane";
+import { FilePreviewPane } from "./FilePreviewPane";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
@@ -159,9 +159,6 @@ export function AppWorkspaceShell(props: {
   } = props;
 
   const [previewZoom, setPreviewZoom] = useState(1);
-  const [annotationEnabled, setAnnotationEnabled] = useState(false);
-  const [annotationCount, setAnnotationCount] = useState(0);
-  const previewPaneRef = useRef<FilePreviewPaneHandle | null>(null);
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
 
   useEffect(() => {
@@ -182,23 +179,6 @@ export function AppWorkspaceShell(props: {
         : "empty";
   const previewPdfUrl = selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
-  const previewAnnotationStorageKey = useMemo(() => {
-    if (previewMode !== "pdf" || !activeProjectId) {
-      return null;
-    }
-    if (selectedIsPdf && selectedFile) {
-      return `workspace:${selectedFile}`;
-    }
-    return `compiled:${activeProjectId}:${selectedFile ?? "__compiled__"}`;
-  }, [activeProjectId, previewMode, selectedFile, selectedIsPdf]);
-
-  useEffect(() => {
-    if (previewMode !== "pdf") {
-      setAnnotationEnabled(false);
-      setAnnotationCount(0);
-    }
-  }, [previewMode]);
-
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
       <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
@@ -247,37 +227,6 @@ export function AppWorkspaceShell(props: {
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
         <div className="flex items-center gap-1">
-          <button
-            className={`rounded border p-1.5 transition disabled:opacity-40 ${
-              annotationEnabled
-                ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-                : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-            }`}
-            title={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
-            aria-label={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
-            onClick={() => setAnnotationEnabled((prev) => !prev)}
-            disabled={!canZoomPreview}
-          >
-            <Highlighter className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-            title={t("preview.annotationUndo")}
-            aria-label={t("preview.annotationUndo")}
-            onClick={() => previewPaneRef.current?.undoAnnotation()}
-            disabled={!canZoomPreview || annotationCount <= 0}
-          >
-            <Undo2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-            title={t("preview.annotationClear")}
-            aria-label={t("preview.annotationClear")}
-            onClick={() => previewPaneRef.current?.clearAnnotations()}
-            disabled={!canZoomPreview || annotationCount <= 0}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
           <button
             className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
             title={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
@@ -341,7 +290,6 @@ export function AppWorkspaceShell(props: {
       )}
       <div className="h-[calc(100%-52px)]">
         <FilePreviewPane
-          ref={previewPaneRef}
           mode={previewMode}
           pdfUrl={previewPdfUrl ?? null}
           markdownContent={selectedIsMarkdown ? editorContent : ""}
@@ -349,10 +297,6 @@ export function AppWorkspaceShell(props: {
           emptyText={selectedIsMarkdown ? t("preview.markdownEmpty") : t("preview.empty")}
           pdfZoom={previewZoom}
           onPdfZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
-          projectId={activeProjectId}
-          annotationStorageKey={previewAnnotationStorageKey}
-          annotationEnabled={annotationEnabled}
-          onAnnotationCountChange={setAnnotationCount}
         />
       </div>
     </aside>
