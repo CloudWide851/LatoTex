@@ -47,7 +47,7 @@ export function GitHistoryTab(props: {
   } = props;
 
   return (
-    <div className="grid min-h-0 grid-cols-[minmax(260px,0.34fr)_minmax(0,1fr)] gap-3">
+    <div className="grid h-full min-h-0 grid-cols-[minmax(260px,0.34fr)_minmax(0,1fr)] gap-3">
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
         <Input
           value={query}

@@ -309,20 +309,20 @@ export function SettingsPanel(props: {
               <h3 className="text-sm font-semibold text-slate-800">
                 {t("settings.modelCatalogTitle")}
               </h3>
-              <Button size="sm" onClick={() => onOpenModelModal("create", null)}>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("settings.addModel")}
-              </Button>
-            </div>
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={onTestAllModels}
-                disabled={modelTestBusy || localSettings.modelCatalog.length === 0}
-              >
-                {modelTestBusy ? t("settings.testingAllModels") : t("settings.testAllModels")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={onTestAllModels}
+                  disabled={modelTestBusy || localSettings.modelCatalog.length === 0}
+                >
+                  {modelTestBusy ? t("settings.testingAllModels") : t("settings.testAllModels")}
+                </Button>
+                <Button size="sm" onClick={() => onOpenModelModal("create", null)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("settings.addModel")}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="max-h-[42vh] space-y-2 overflow-auto pr-1">

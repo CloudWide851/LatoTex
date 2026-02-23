@@ -98,7 +98,6 @@ export function AppContainerView(props: any) {
     setModelModalInitial,
     setModelModalMode,
     handleModelModalSubmit,
-    handleProtocolPing,
     handleGetModelApiKey,
     setDeleteIntent,
     confirmDelete,
@@ -244,7 +243,6 @@ export function AppContainerView(props: any) {
           setModelModalMode("create");
         }}
         onModelSubmit={handleModelModalSubmit}
-        onProtocolPing={handleProtocolPing}
         onGetModelApiKey={handleGetModelApiKey}
         onDeleteCancel={() => setDeleteIntent(null)}
         onDeleteConfirm={confirmDelete}

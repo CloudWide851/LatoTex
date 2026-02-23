@@ -1,10 +1,10 @@
-import { Beaker, Eye, EyeOff, Plus, X } from "lucide-react";
+import { Eye, EyeOff, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
-import type { ModelCatalogItem, ModelProtocol, ModelTestResult } from "../../shared/types/app";
+import type { ModelCatalogItem, ModelProtocol } from "../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
@@ -15,12 +15,6 @@ export function ModelModal(props: {
   protocols: ModelProtocol[];
   onClose: () => void;
   onGetModelApiKey: (modelId: string) => Promise<string>;
-  onTest: (input: {
-    protocolId: string;
-    baseUrl: string;
-    apiKey?: string;
-    requestName?: string;
-  }) => Promise<ModelTestResult>;
   onSubmit: (payload: {
     protocol: {
       id: string;
@@ -42,7 +36,6 @@ export function ModelModal(props: {
     protocols,
     onClose,
     onGetModelApiKey,
-    onTest,
     onSubmit,
     t,
   } = props;
@@ -59,10 +52,8 @@ export function ModelModal(props: {
   const [initialApiKey, setInitialApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testState, setTestState] = useState<"idle" | "ok" | "fail">("idle");
-  const [testMessage, setTestMessage] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
 
   const selectedProtocol = useMemo(
     () => protocols.find((item) => item.id === protocolId),
@@ -109,10 +100,8 @@ export function ModelModal(props: {
     setInitialApiKey("");
     setShowApiKey(false);
     setLoadingApiKey(false);
-    setTesting(false);
     setSaving(false);
-    setTestState("idle");
-    setTestMessage("");
+    setSaveMessage("");
   }, [initialModel?.displayName, initialModel?.protocolId, initialModel?.requestName, open, protocols]);
 
   useEffect(() => {
@@ -157,49 +146,18 @@ export function ModelModal(props: {
     modelDisplayName.trim().length > 0 &&
     modelRequestName.trim().length > 0;
 
-  const runTest = async () => {
-    if (!resolvedProtocol.baseUrl.trim() || !modelRequestName.trim() || !modelApiKey.trim()) {
-      setTestState("fail");
-      setTestMessage(t("settings.modal.apiKeyRequired"));
-      return { ok: false };
-    }
-    setTesting(true);
-    try {
-      const result = await onTest({
-        protocolId: resolvedProtocol.id,
-        baseUrl: resolvedProtocol.baseUrl,
-        apiKey: modelApiKey.trim(),
-        requestName: modelRequestName.trim(),
-      });
-      setTestState(result.ok ? "ok" : "fail");
-      setTestMessage(result.message || "");
-      return result;
-    } finally {
-      setTesting(false);
-    }
-  };
-
   const handleSave = async () => {
     if (!canSubmitBase) {
       return;
     }
-    if (apiKeyChanged) {
-      if (!modelApiKey.trim()) {
-        setTestState("fail");
-        setTestMessage(t("settings.modal.apiKeyRequired"));
-        return;
-      }
-      const result = await runTest();
-      if (!result.ok) {
-        return;
-      }
-    }
 
     setSaving(true);
+    setSaveMessage("");
     const requestName = modelRequestName.trim();
     const modelId = dialogMode === "edit" && initialModel?.id
       ? initialModel.id
       : `${resolvedProtocol.id}-${requestName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
+
     const response = await onSubmit({
       protocol: resolvedProtocol,
       model: {
@@ -211,10 +169,10 @@ export function ModelModal(props: {
       modelApiKey: modelApiKey.trim(),
       modelApiKeyChanged: apiKeyChanged,
     });
+
     setSaving(false);
     if (!response.ok) {
-      setTestState("fail");
-      setTestMessage(response.message || t("settings.modal.saveFailed"));
+      setSaveMessage(response.message || t("settings.modal.saveFailed"));
       return;
     }
     onClose();
@@ -261,8 +219,7 @@ export function ModelModal(props: {
                   value={protocolId}
                   onChange={(event) => {
                     setProtocolId(event.target.value);
-                    setTestState("idle");
-                    setTestMessage("");
+                    setSaveMessage("");
                   }}
                 >
                   {protocols.map((protocol) => (
@@ -278,8 +235,7 @@ export function ModelModal(props: {
                   value={existingProtocolBaseUrl}
                   onChange={(event) => {
                     setExistingProtocolBaseUrl(event.target.value);
-                    setTestState("idle");
-                    setTestMessage("");
+                    setSaveMessage("");
                   }}
                 />
               </label>
@@ -292,8 +248,7 @@ export function ModelModal(props: {
                   value={newProtocolId}
                   onChange={(event) => {
                     setNewProtocolId(event.target.value);
-                    setTestState("idle");
-                    setTestMessage("");
+                    setSaveMessage("");
                   }}
                 />
               </label>
@@ -303,8 +258,7 @@ export function ModelModal(props: {
                   value={newProtocolName}
                   onChange={(event) => {
                     setNewProtocolName(event.target.value);
-                    setTestState("idle");
-                    setTestMessage("");
+                    setSaveMessage("");
                   }}
                 />
               </label>
@@ -314,8 +268,7 @@ export function ModelModal(props: {
                   value={newProtocolBaseUrl}
                   onChange={(event) => {
                     setNewProtocolBaseUrl(event.target.value);
-                    setTestState("idle");
-                    setTestMessage("");
+                    setSaveMessage("");
                   }}
                 />
               </label>
@@ -325,11 +278,23 @@ export function ModelModal(props: {
           <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             <label className="grid gap-1">
               <span className="text-xs text-slate-500">{t("settings.modal.modelDisplayName")}</span>
-              <Input value={modelDisplayName} onChange={(e) => setModelDisplayName(e.target.value)} />
+              <Input
+                value={modelDisplayName}
+                onChange={(event) => {
+                  setModelDisplayName(event.target.value);
+                  setSaveMessage("");
+                }}
+              />
             </label>
             <label className="grid gap-1">
               <span className="text-xs text-slate-500">{t("settings.modal.modelRequestName")}</span>
-              <Input value={modelRequestName} onChange={(e) => setModelRequestName(e.target.value)} />
+              <Input
+                value={modelRequestName}
+                onChange={(event) => {
+                  setModelRequestName(event.target.value);
+                  setSaveMessage("");
+                }}
+              />
             </label>
             <label className="grid gap-1">
               <span className="inline-flex items-center gap-2 text-xs text-slate-500">
@@ -347,8 +312,7 @@ export function ModelModal(props: {
                   value={modelApiKey}
                   onChange={(event) => {
                     setModelApiKey(event.target.value);
-                    setTestState("idle");
-                    setTestMessage("");
+                    setSaveMessage("");
                   }}
                   placeholder={t("settings.modal.apiKeyPlaceholderUpdate")}
                   className="pr-10 [appearance:textfield] [&::-ms-clear]:hidden [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
@@ -380,25 +344,11 @@ export function ModelModal(props: {
 
         <div className="flex items-center justify-between border-t border-slate-200 px-4">
           <div className="truncate text-xs text-slate-500">
-            {testState === "ok"
-              ? (testMessage || t("settings.modal.testOk"))
-              : testState === "fail"
-                ? (testMessage || t("settings.modal.testFail"))
-                : t("settings.modal.testIdle")}
+            {saveMessage || t("settings.modal.saveNoTestHint")}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              className="rounded border border-slate-300 bg-white p-2 text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
-              onClick={() => {
-                void runTest();
-              }}
-              disabled={testing || loadingApiKey}
-              title={t("settings.testProtocol")}
-            >
-              {testing ? <SvgSpinner className="h-4 w-4 text-slate-500" /> : <Beaker className="h-4 w-4" />}
-            </button>
             <Button
-              disabled={!canSubmitBase || testing || saving || loadingApiKey}
+              disabled={!canSubmitBase || saving || loadingApiKey}
               onClick={() => {
                 void handleSave();
               }}

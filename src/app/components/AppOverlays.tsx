@@ -7,7 +7,6 @@ import { ModelModal } from "./ModelModal";
 import type {
   AppSettings,
   ModelCatalogItem,
-  ModelTestResult,
   SwarmEvent,
 } from "../../shared/types/app";
 import type { DeleteIntent, LogTab, OverlayType, ThemeTransition, Toast } from "../app-config";
@@ -66,12 +65,6 @@ export function AppOverlays(props: {
     modelApiKey?: string;
     modelApiKeyChanged: boolean;
   }) => Promise<{ ok: boolean; message?: string }>;
-  onProtocolPing: (input: {
-    protocolId: string;
-    baseUrl: string;
-    apiKey?: string;
-    requestName?: string;
-  }) => Promise<ModelTestResult>;
   onGetModelApiKey: (modelId: string) => Promise<string>;
   onDeleteCancel: () => void;
   onDeleteConfirm: () => void;
@@ -98,7 +91,6 @@ export function AppOverlays(props: {
     onLogsTabChange,
     onModelModalClose,
     onModelSubmit,
-    onProtocolPing,
     onGetModelApiKey,
     onDeleteCancel,
     onDeleteConfirm,
@@ -199,7 +191,6 @@ export function AppOverlays(props: {
           initialModel={modelModalInitial}
           protocols={settings.modelProtocols}
           onClose={onModelModalClose}
-          onTest={onProtocolPing}
           onGetModelApiKey={onGetModelApiKey}
           onSubmit={onModelSubmit}
           t={t}

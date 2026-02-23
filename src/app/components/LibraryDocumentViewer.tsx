@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, FileText, FileUp } from "lucide-react";
+import { Check, Copy, ExternalLink, FileText, FileUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   libraryCitationSummary,
@@ -160,9 +160,13 @@ export function LibraryDocumentViewer(props: {
     if (!activeLink || typeof navigator === "undefined" || !navigator.clipboard) {
       return;
     }
-    await navigator.clipboard.writeText(activeLink);
-    setCopyState(true);
-    window.setTimeout(() => setCopyState(false), 1400);
+    try {
+      await navigator.clipboard.writeText(activeLink);
+      setCopyState(true);
+      window.setTimeout(() => setCopyState(false), 1400);
+    } catch {
+      setLinkError(t("library.viewer.linkOpenFailed"));
+    }
   };
 
   if (!selectedPath) {
@@ -204,29 +208,33 @@ export function LibraryDocumentViewer(props: {
           >
             {t("library.viewer.showPdf")}
           </button>
+          {viewMode === "pdf" ? (
+            <>
+              <button
+                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                onClick={() => void handleOpenLink()}
+                disabled={!activeLink}
+                title={t("library.viewer.openLink")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>{t("library.viewer.openLink")}</span>
+              </button>
+              <button
+                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                onClick={() => void handleCopyLink()}
+                disabled={!activeLink}
+                title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
+              >
+                {copyState ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}</span>
+              </button>
+            </>
+          ) : null}
         </div>
       </section>
 
       {viewMode === "pdf" ? (
-        <section className="grid min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <div className="flex items-center justify-end gap-1 border-b border-slate-200 px-2">
-            <button
-              className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-              onClick={() => void handleOpenLink()}
-              disabled={!activeLink}
-              title={t("library.viewer.openLink")}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-              onClick={() => void handleCopyLink()}
-              disabled={!activeLink}
-              title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white">
           <div className="min-h-0 overflow-auto p-3">
             {loading ? (
               <div className="flex h-full items-center justify-center text-xs text-slate-500">

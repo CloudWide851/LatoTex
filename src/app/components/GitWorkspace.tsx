@@ -378,7 +378,7 @@ export function GitWorkspace(props: {
         </button>
       </div>
 
-      <div className="min-h-0">
+      <div className="h-full min-h-0">
         {activeTab === "commit" ? (
           <GitCommitTab
             branches={branches}
