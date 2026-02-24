@@ -97,7 +97,7 @@ fn normalize_agent_bindings(bindings: Vec<AgentModelBinding>) -> Vec<AgentModelB
         .collect()
 }
 
-pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
+pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let (active_project_id, ui_prefs_json): (Option<String>, Option<String>) = conn
         .query_row(
@@ -132,12 +132,16 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
         model_catalog.push(row.map_err(|e| e.to_string())?);
     }
 
+    let secure_context = secure::SecureStorageContext {
+        db_path: db_path.to_path_buf(),
+        runtime_root: runtime_root.to_path_buf(),
+    };
     let protocol_has_model_key = model_catalog.iter().fold(
         std::collections::HashMap::<String, bool>::new(),
         |mut acc, model| {
-            let has_key = secure::get_model_api_key(&model.id)
+            let has_key = secure::get_model_api_key(&secure_context, &model.id)
                 .ok()
-                .flatten()
+                .and_then(|value| value.api_key)
                 .map(|value| !value.trim().is_empty())
                 .unwrap_or(false);
             if has_key {
@@ -224,7 +228,11 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
     })
 }
 
-pub fn update_settings(db_path: &Path, input: SettingsUpdateInput) -> Result<AppSettings, String> {
+pub fn update_settings(
+    db_path: &Path,
+    runtime_root: &Path,
+    input: SettingsUpdateInput,
+) -> Result<AppSettings, String> {
     let mut conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -241,10 +249,10 @@ pub fn update_settings(db_path: &Path, input: SettingsUpdateInput) -> Result<App
     .map_err(|e| e.to_string())?;
 
     update_model_protocols(&tx, input.model_protocols)?;
-    update_model_catalog(&tx, input.model_catalog)?;
+    update_model_catalog(&tx, db_path, runtime_root, input.model_catalog)?;
     update_agent_bindings(&tx, input.agent_bindings)?;
     tx.commit().map_err(|e| e.to_string())?;
-    load_settings(db_path)
+    load_settings(db_path, runtime_root)
 }
 
 fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>) -> Result<(), String> {
@@ -288,7 +296,12 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
     Ok(())
 }
 
-fn update_model_catalog(conn: &Connection, models: Vec<ModelCatalogItemInput>) -> Result<(), String> {
+fn update_model_catalog(
+    conn: &Connection,
+    db_path: &Path,
+    runtime_root: &Path,
+    models: Vec<ModelCatalogItemInput>,
+) -> Result<(), String> {
     let incoming_ids: std::collections::HashSet<String> =
         models.iter().map(|item| item.id.clone()).collect();
     let mut existing_stmt = conn
@@ -300,7 +313,11 @@ fn update_model_catalog(conn: &Connection, models: Vec<ModelCatalogItemInput>) -
     for row in existing_rows {
         let existing_id = row.map_err(|e| e.to_string())?;
         if !incoming_ids.contains(&existing_id) {
-            secure::delete_model_api_key(&existing_id)?;
+            let secure_context = secure::SecureStorageContext {
+                db_path: db_path.to_path_buf(),
+                runtime_root: runtime_root.to_path_buf(),
+            };
+            secure::delete_model_api_key(&secure_context, &existing_id)?;
         }
     }
 
@@ -414,6 +431,7 @@ pub fn resolve_agent_model(
 
 pub fn resolve_model_test_connection(
     db_path: &Path,
+    runtime_root: &Path,
     model_id: &str,
 ) -> Result<(String, String, String, Option<String>), String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
@@ -438,7 +456,11 @@ pub fn resolve_model_test_connection(
         )
         .map_err(|_| format!("Protocol not found for model: {trimmed_model_id}"))?;
 
-    let api_key = secure::get_model_api_key(trimmed_model_id)?;
+    let secure_context = secure::SecureStorageContext {
+        db_path: db_path.to_path_buf(),
+        runtime_root: runtime_root.to_path_buf(),
+    };
+    let api_key = secure::get_model_api_key(&secure_context, trimmed_model_id)?.api_key;
     Ok((protocol_id, base_url, model_name, api_key))
 }
 

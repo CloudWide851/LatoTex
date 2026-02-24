@@ -76,6 +76,13 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             ui_prefs_json TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS secure_model_secrets (
+            model_id TEXT PRIMARY KEY,
+            nonce_b64 TEXT NOT NULL,
+            ciphertext_b64 TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
         CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_root_path ON projects(root_path);
         ",
     )

@@ -4,6 +4,11 @@ import { useCallback, useEffect } from "react";
 import { getModelApiKey, getSettings, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
+import {
+  resolveCredentialSaveErrorMessage,
+  resolveReadbackFailureMessage,
+  verifyModelApiKeyReadback,
+} from "./modelApiKeySave";
 import { getTabIdsByAction } from "./useEditorTabs";
 import { generateGitSummary } from "./useGitSummaryGenerator";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
@@ -437,33 +442,6 @@ export function useAppContainerWorkspaceActions(params: any) {
     return result.apiKey ?? "";
   }, []);
 
-  const verifyModelApiKeyReadback = useCallback(async (modelId: string, expectedApiKey: string) => {
-    const normalizedExpected = expectedApiKey.trim();
-    const expectCleared = normalizedExpected.length === 0;
-    const retryDelays = [0, 120, 280, 520];
-    let lastRead = "";
-
-    for (let index = 0; index < retryDelays.length; index += 1) {
-      const delay = retryDelays[index];
-      if (delay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-      const loaded = await getModelApiKey(modelId);
-      const normalizedRead = (loaded.apiKey ?? "").trim();
-      lastRead = normalizedRead;
-
-      if (expectCleared) {
-        if (normalizedRead.length === 0) {
-          return { ok: true, attempts: index + 1, keyLength: 0 };
-        }
-      } else if (normalizedRead.length > 0 && normalizedRead === normalizedExpected) {
-        return { ok: true, attempts: index + 1, keyLength: normalizedRead.length };
-      }
-    }
-
-    return { ok: false, attempts: retryDelays.length, keyLength: lastRead.length };
-  }, []);
-
   const handleGenerateGitSummary = useCallback(async (includedPaths: string[]) => {
     return generateGitSummary(activeProjectId, includedPaths);
   }, [activeProjectId]);
@@ -522,24 +500,26 @@ export function useAppContainerWorkspaceActions(params: any) {
           apiKey: normalizedKey,
         });
         if (!result.ok) {
+          const friendlyMessage = resolveCredentialSaveErrorMessage(result, t);
           await runtimeLogWrite(
             "WARN",
-            `model key save failed: ${model.id}, stage=${result.stage}, reason=${result.message}`,
+            `model key save failed: ${model.id}, stage=${result.stage}, backend=${result.storageBackend}, diagnostic=${result.diagnosticCode ?? "-"}, reason=${result.message}`,
           ).catch(() => undefined);
-          throw new Error(result.message || t("settings.modal.saveFailed"));
+          throw new Error(friendlyMessage);
         }
 
         const readback = await verifyModelApiKeyReadback(model.id, normalizedKey);
         if (!readback.ok) {
+          const friendlyMessage = resolveReadbackFailureMessage(readback, t);
           await runtimeLogWrite(
             "ERROR",
-            `model key frontend readback failed: ${model.id}, attempts=${readback.attempts}, expected_len=${normalizedKey.length}, actual_len=${readback.keyLength}`,
+            `model key frontend readback failed: ${model.id}, attempts=${readback.attempts}, expected_len=${normalizedKey.length}, actual_len=${readback.keyLength}, source=${readback.source}, diagnostic=${readback.diagnosticCode ?? "-"}`,
           ).catch(() => undefined);
-          throw new Error(t("settings.modal.saveFailed"));
+          throw new Error(friendlyMessage);
         }
         await runtimeLogWrite(
           "INFO",
-          `model key frontend readback ok: ${model.id}, attempts=${readback.attempts}, key_len=${readback.keyLength}`,
+          `model key frontend readback ok: ${model.id}, attempts=${readback.attempts}, key_len=${readback.keyLength}, source=${readback.source}, diagnostic=${readback.diagnosticCode ?? "-"}`,
         ).catch(() => undefined);
       }
       const refreshed = await getSettings();
@@ -560,7 +540,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       await runtimeLogWrite("ERROR", `model save failed: ${model.id}, reason=${message}`).catch(() => undefined);
       return { ok: false, message };
     }
-  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast, settings, t, verifyModelApiKeyReadback]);
+  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast, settings, t]);
 
   return {
     handleSaveActiveFile,

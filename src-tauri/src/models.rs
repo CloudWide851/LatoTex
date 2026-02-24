@@ -319,6 +319,8 @@ pub struct ModelApiKeyGetInput {
 pub struct ModelApiKeyValue {
     pub model_id: String,
     pub api_key: String,
+    pub source: String,
+    pub diagnostic_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -334,6 +336,8 @@ pub struct CredentialSaveResult {
     pub ok: bool,
     pub stage: String,
     pub message: String,
+    pub storage_backend: String,
+    pub diagnostic_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

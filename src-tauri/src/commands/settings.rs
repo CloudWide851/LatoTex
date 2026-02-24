@@ -20,7 +20,7 @@ pub use settings_keysave::model_api_key_save_verified;
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");
-    storage::load_settings(&state.db_path)
+    storage::load_settings(&state.db_path, &state.runtime_root)
 }
 
 #[tauri::command]
@@ -29,7 +29,7 @@ pub fn settings_update(
     input: SettingsUpdateInput,
 ) -> Result<AppSettings, String> {
     state.log("INFO", "settings_update");
-    storage::update_settings(&state.db_path, input)
+    storage::update_settings(&state.db_path, &state.runtime_root, input)
 }
 
 #[tauri::command]
@@ -91,7 +91,7 @@ pub fn model_test(
 ) -> Result<ModelTestResult, String> {
     state.log("INFO", &format!("model_test: {}", input.model_id));
     let (protocol_id, base_url, request_name, api_key) =
-        storage::resolve_model_test_connection(&state.db_path, &input.model_id)?;
+        storage::resolve_model_test_connection(&state.db_path, &state.runtime_root, &input.model_id)?;
 
     let client = Client::builder()
         .timeout(Duration::from_secs(18))
@@ -181,17 +181,35 @@ pub fn model_api_key_set(
         return Err("Model id is required".to_string());
     }
     let api_key = input.api_key.trim();
+    let secure_context = secure::SecureStorageContext {
+        db_path: state.db_path.clone(),
+        runtime_root: state.runtime_root.clone(),
+    };
     if api_key.is_empty() {
-        secure::delete_model_api_key(model_id)?;
-        state.log("INFO", &format!("model_api_key_set: cleared key for {model_id}"));
+        let outcome = secure::delete_model_api_key(&secure_context, model_id)?;
+        state.log(
+            "INFO",
+            &format!(
+                "model_api_key_set: cleared key for {model_id}, backend={}, diagnostic={}",
+                outcome.backend,
+                outcome.diagnostic_code.clone().unwrap_or_else(|| "-".to_string())
+            ),
+        );
         return Ok(Ack {
             ok: true,
             message: "cleared".to_string(),
         });
     }
 
-    secure::store_model_api_key(model_id, api_key)?;
-    state.log("INFO", &format!("model_api_key_set: updated key for {model_id}"));
+    let outcome = secure::store_model_api_key(&secure_context, model_id, api_key)?;
+    state.log(
+        "INFO",
+        &format!(
+            "model_api_key_set: updated key for {model_id}, backend={}, diagnostic={}",
+            outcome.backend,
+            outcome.diagnostic_code.clone().unwrap_or_else(|| "-".to_string())
+        ),
+    );
     Ok(Ack {
         ok: true,
         message: "stored".to_string(),
@@ -207,16 +225,27 @@ pub fn model_api_key_get(
     if model_id.is_empty() {
         return Err("Model id is required".to_string());
     }
-    let api_key = secure::get_model_api_key(model_id)?.unwrap_or_default();
+    let secure_context = secure::SecureStorageContext {
+        db_path: state.db_path.clone(),
+        runtime_root: state.runtime_root.clone(),
+    };
+    let resolved = secure::get_model_api_key(&secure_context, model_id)?;
+    let api_key = resolved.api_key.unwrap_or_default();
     let key_len = api_key.len();
     let has_key = key_len > 0;
     state.log(
         "INFO",
-        &format!("model_api_key_get: loaded key for {model_id}, has_key={has_key}, key_len={key_len}"),
+        &format!(
+            "model_api_key_get: loaded key for {model_id}, has_key={has_key}, key_len={key_len}, source={}, diagnostic={}",
+            resolved.source,
+            resolved.diagnostic_code.clone().unwrap_or_else(|| "-".to_string())
+        ),
     );
     Ok(ModelApiKeyValue {
         model_id: model_id.to_string(),
         api_key,
+        source: resolved.source,
+        diagnostic_code: resolved.diagnostic_code,
     })
 }
 

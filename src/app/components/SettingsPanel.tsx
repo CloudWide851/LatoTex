@@ -347,7 +347,7 @@ export function SettingsPanel(props: {
                         >
                           {modelTestActiveId === model.id && modelTestBusy
                             ? t("common.loading")
-                            : t("settings.testProtocol")}
+                            : t("settings.testModel")}
                         </Button>
                         <Button
                           variant="ghost"

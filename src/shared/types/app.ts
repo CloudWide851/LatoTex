@@ -119,12 +119,16 @@ export type ModelTestResult = {
 export type ModelApiKeyValue = {
   modelId: string;
   apiKey: string;
+  source: "none" | "keyring" | "fallback_db" | "hybrid" | string;
+  diagnosticCode?: string | null;
 };
 
 export type CredentialSaveResult = {
   ok: boolean;
-  stage: "write";
+  stage: "write" | string;
   message: string;
+  storageBackend: "none" | "keyring" | "fallback_db" | "hybrid" | string;
+  diagnosticCode?: string | null;
 };
 
 export type ModelDraftTestInput = {
