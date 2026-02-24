@@ -208,7 +208,12 @@ pub fn model_api_key_get(
         return Err("Model id is required".to_string());
     }
     let api_key = secure::get_model_api_key(model_id)?.unwrap_or_default();
-    state.log("INFO", &format!("model_api_key_get: loaded key for {model_id}"));
+    let key_len = api_key.len();
+    let has_key = key_len > 0;
+    state.log(
+        "INFO",
+        &format!("model_api_key_get: loaded key for {model_id}, has_key={has_key}, key_len={key_len}"),
+    );
     Ok(ModelApiKeyValue {
         model_id: model_id.to_string(),
         api_key,

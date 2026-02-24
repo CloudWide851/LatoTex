@@ -102,7 +102,7 @@ export function ModelModal(props: {
     setLoadingApiKey(false);
     setSaving(false);
     setSaveMessage("");
-  }, [initialModel?.displayName, initialModel?.protocolId, initialModel?.requestName, open, protocols]);
+  }, [dialogMode, initialModel?.id, open]);
 
   useEffect(() => {
     if (!open || dialogMode !== "edit" || !initialModel?.id) {

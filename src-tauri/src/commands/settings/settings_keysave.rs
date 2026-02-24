@@ -28,7 +28,7 @@ pub fn model_api_key_save_verified(
         }
         state.log(
             "INFO",
-            &format!("model_api_key_save_verified: cleared key for {model_id}"),
+            &format!("model_api_key_save_verified: cleared key for {model_id}, key_len=0"),
         );
         return Ok(CredentialSaveResult {
             ok: true,
@@ -51,7 +51,10 @@ pub fn model_api_key_save_verified(
 
     state.log(
         "INFO",
-        &format!("model_api_key_save_verified: saved key for {model_id}"),
+        &format!(
+            "model_api_key_save_verified: saved key for {model_id}, key_len={}",
+            api_key.len()
+        ),
     );
     Ok(CredentialSaveResult {
         ok: true,
