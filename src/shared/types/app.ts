@@ -123,7 +123,7 @@ export type ModelApiKeyValue = {
 
 export type CredentialSaveResult = {
   ok: boolean;
-  stage: "write" | "readback" | "probe";
+  stage: "write";
   message: string;
 };
 

@@ -126,7 +126,6 @@ export const zhCN: Record<MessageKey, string> = {
   "settings.modal.hideApiKey": "隐藏 API Key",
   "settings.modal.apiKeyChanged": "API Key 已修改",
   "settings.modal.apiKeyRequired": "API Key 不能为空，测试与保存需要有效密钥。",
-  "settings.modal.apiKeyVerifyFailed": "保存后 API Key 校验失败，请重试。",
   "settings.modal.saveFailed": "保存模型设置失败。",
   "settings.modal.testOk": "测试通过",
   "settings.modal.testFail": "测试失败",

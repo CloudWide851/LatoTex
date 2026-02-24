@@ -125,7 +125,6 @@ export const enUS = {
   "settings.modal.hideApiKey": "Hide API key",
   "settings.modal.apiKeyChanged": "API key modified",
   "settings.modal.apiKeyRequired": "API key is required for model test and save.",
-  "settings.modal.apiKeyVerifyFailed": "API key verification failed after save. Please retry.",
   "settings.modal.saveFailed": "Failed to save model settings.",
   "settings.modal.testOk": "Test passed",
   "settings.modal.testFail": "Test failed",

@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
-import { getModelApiKey, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel } from "../../shared/api/desktop";
+import { getModelApiKey, getSettings, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
 import { getTabIdsByAction } from "./useEditorTabs";
@@ -459,7 +459,6 @@ export function useAppContainerWorkspaceActions(params: any) {
     }
 
     const normalizedKey = modelApiKey?.trim() ?? "";
-    const willSetKey = modelApiKeyChanged && normalizedKey.length > 0;
     const nextProtocols = protocol.isNew
       ? [
           ...settings.modelProtocols,
@@ -467,7 +466,7 @@ export function useAppContainerWorkspaceActions(params: any) {
             id: protocol.id,
             displayName: protocol.displayName,
             baseUrl: protocol.baseUrl,
-            apiKeySet: willSetKey,
+            apiKeySet: false,
           },
         ]
       : settings.modelProtocols.map((item: any) =>
@@ -475,9 +474,6 @@ export function useAppContainerWorkspaceActions(params: any) {
             ? {
                 ...item,
                 baseUrl: protocol.baseUrl,
-                apiKeySet: modelApiKeyChanged
-                  ? (normalizedKey.length > 0 || item.apiKeySet)
-                  : item.apiKeySet,
               }
             : item,
         );
@@ -492,33 +488,22 @@ export function useAppContainerWorkspaceActions(params: any) {
 
     try {
       await runtimeLogWrite("INFO", `model save started: ${model.id}`).catch(() => undefined);
-      const persisted = await persistSettings(nextSettings);
+      await persistSettings(nextSettings);
       if (modelApiKeyChanged) {
         const result = await saveModelApiKeyVerified({
           modelId: model.id,
-          protocolId: model.protocolId,
-          baseUrl: protocol.baseUrl,
-          requestName: model.requestName,
           apiKey: normalizedKey,
-          requireProbe: false,
         });
         if (!result.ok) {
           await runtimeLogWrite(
             "WARN",
-            `model key save verify failed: ${model.id}, stage=${result.stage}, reason=${result.message}`,
+            `model key save failed: ${model.id}, stage=${result.stage}, reason=${result.message}`,
           ).catch(() => undefined);
-          throw new Error(result.message || t("settings.modal.apiKeyVerifyFailed"));
+          throw new Error(result.message || t("settings.modal.saveFailed"));
         }
       }
-      const patchedPersisted = willSetKey
-        ? {
-            ...persisted,
-            modelProtocols: persisted.modelProtocols.map((item: any) =>
-              item.id === model.protocolId ? { ...item, apiKeySet: true } : item,
-            ),
-          }
-        : persisted;
-      setSettings(patchedPersisted);
+      const refreshed = await getSettings();
+      setSettings(refreshed);
       setDraftModelApiKeys((current: Record<string, string>) => {
         if (!(model.id in current)) {
           return current;

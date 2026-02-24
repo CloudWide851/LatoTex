@@ -1,8 +1,6 @@
 use crate::models::{CredentialSaveResult, ModelApiKeySaveVerifiedInput};
 use crate::secure;
 use crate::state::AppState;
-use reqwest::blocking::Client;
-use std::time::Duration;
 use tauri::State;
 
 #[tauri::command]
@@ -14,14 +12,20 @@ pub fn model_api_key_save_verified(
     if model_id.is_empty() {
         return Err("Model id is required".to_string());
     }
-    let protocol_id = input.protocol_id.trim();
-    let base_url = input.base_url.trim();
-    let request_name = input.request_name.trim();
     let api_key = input.api_key.trim().to_string();
-    let require_probe = input.require_probe.unwrap_or(true);
 
     if api_key.is_empty() {
-        secure::delete_model_api_key(model_id)?;
+        if let Err(error) = secure::delete_model_api_key(model_id) {
+            state.log(
+                "ERROR",
+                &format!("model_api_key_save_verified: clear failed for {model_id}, reason={error}"),
+            );
+            return Ok(CredentialSaveResult {
+                ok: false,
+                stage: "write".to_string(),
+                message: error,
+            });
+        }
         state.log(
             "INFO",
             &format!("model_api_key_save_verified: cleared key for {model_id}"),
@@ -33,62 +37,25 @@ pub fn model_api_key_save_verified(
         });
     }
 
-    if protocol_id.is_empty() || base_url.is_empty() || request_name.is_empty() {
-        return Err("Protocol id, base URL and request name are required".to_string());
-    }
-
-    secure::store_model_api_key(model_id, &api_key)?;
-    secure::store_api_key(protocol_id, &api_key)?;
-
-    if !require_probe {
+    if let Err(error) = secure::store_model_api_key(model_id, &api_key) {
         state.log(
-            "INFO",
-            &format!("model_api_key_save_verified: saved key for {model_id} without probe"),
+            "ERROR",
+            &format!("model_api_key_save_verified: save failed for {model_id}, reason={error}"),
         );
         return Ok(CredentialSaveResult {
-            ok: true,
+            ok: false,
             stage: "write".to_string(),
-            message: "API key saved".to_string(),
+            message: error,
         });
     }
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(18))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let probe = super::call_model_generation_test(
-        &client,
-        protocol_id,
-        base_url,
-        request_name,
-        Some(api_key.as_str()),
+    state.log(
+        "INFO",
+        &format!("model_api_key_save_verified: saved key for {model_id}"),
     );
-    match probe {
-        Ok(status) => {
-            state.log(
-                "INFO",
-                &format!(
-                    "model_api_key_save_verified: probe success for {model_id}, status={status}"
-                ),
-            );
-            Ok(CredentialSaveResult {
-                ok: true,
-                stage: "probe".to_string(),
-                message: format!("API key saved and probe passed ({status})"),
-            })
-        }
-        Err(error) => {
-            state.log(
-                "WARN",
-                &format!(
-                    "model_api_key_save_verified: probe failed for {model_id}, reason={error}"
-                ),
-            );
-            Ok(CredentialSaveResult {
-                ok: false,
-                stage: "probe".to_string(),
-                message: error,
-            })
-        }
-    }
+    Ok(CredentialSaveResult {
+        ok: true,
+        stage: "write".to_string(),
+        message: "API key saved".to_string(),
+    })
 }

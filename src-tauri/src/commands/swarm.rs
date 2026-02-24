@@ -334,7 +334,6 @@ pub fn agent_run(
         input.model_override.as_deref(),
     )?;
     let api_key = secure::get_model_api_key(&resolved_model_id)?
-        .or(secure::get_api_key(&protocol_id)?)
         .ok_or_else(|| format!("API key is missing for model: {resolved_model_id}"))?;
     let full_prompt = if input.context_refs.is_empty() {
         input.prompt.clone()

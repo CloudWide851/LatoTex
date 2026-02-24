@@ -163,10 +163,9 @@ pub fn load_settings(db_path: &Path) -> Result<AppSettings, String> {
 
     for row in protocol_rows {
         let (id, display_name, base_url) = row.map_err(|e| e.to_string())?;
-        let protocol_key_exists = secure::has_api_key(&id).unwrap_or(false);
         let model_key_exists = protocol_has_model_key.get(&id).copied().unwrap_or(false);
         model_protocols.push(ModelProtocol {
-            api_key_set: protocol_key_exists || model_key_exists,
+            api_key_set: model_key_exists,
             id,
             display_name,
             base_url,
@@ -285,11 +284,6 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
         )
         .map_err(|e| e.to_string())?;
 
-        if let Some(api_key) = protocol.api_key {
-            if !api_key.trim().is_empty() {
-                secure::store_api_key(&protocol.id, api_key.trim())?;
-            }
-        }
     }
     Ok(())
 }
@@ -444,10 +438,7 @@ pub fn resolve_model_test_connection(
         )
         .map_err(|_| format!("Protocol not found for model: {trimmed_model_id}"))?;
 
-    let api_key = match secure::get_model_api_key(trimmed_model_id)? {
-        Some(value) => Some(value),
-        None => secure::get_api_key(&protocol_id)?,
-    };
+    let api_key = secure::get_model_api_key(trimmed_model_id)?;
     Ok((protocol_id, base_url, model_name, api_key))
 }
 

@@ -280,7 +280,6 @@ pub struct ModelProtocolInput {
     pub id: String,
     pub display_name: String,
     pub base_url: String,
-    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -326,11 +325,7 @@ pub struct ModelApiKeyValue {
 #[serde(rename_all = "camelCase")]
 pub struct ModelApiKeySaveVerifiedInput {
     pub model_id: String,
-    pub protocol_id: String,
-    pub base_url: String,
-    pub request_name: String,
     pub api_key: String,
-    pub require_probe: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

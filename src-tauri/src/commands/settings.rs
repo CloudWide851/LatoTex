@@ -54,10 +54,12 @@ pub fn protocol_test(
         });
     }
 
-    let api_key = match input.api_key.as_deref().map(str::trim) {
-        Some(value) if !value.is_empty() => Some(value.to_string()),
-        _ => secure::get_api_key(&input.protocol_id)?,
-    };
+    let api_key = input
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
 
     let client = Client::builder()
         .timeout(Duration::from_secs(12))
@@ -205,13 +207,7 @@ pub fn model_api_key_get(
     if model_id.is_empty() {
         return Err("Model id is required".to_string());
     }
-    let api_key = match secure::get_model_api_key(model_id)? {
-        Some(value) if !value.trim().is_empty() => value,
-        _ => storage::resolve_model_test_connection(&state.db_path, model_id)
-            .ok()
-            .and_then(|(_, _, _, fallback)| fallback)
-            .unwrap_or_default(),
-    };
+    let api_key = secure::get_model_api_key(model_id)?.unwrap_or_default();
     state.log("INFO", &format!("model_api_key_get: loaded key for {model_id}"));
     Ok(ModelApiKeyValue {
         model_id: model_id.to_string(),

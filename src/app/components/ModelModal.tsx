@@ -158,24 +158,29 @@ export function ModelModal(props: {
       ? initialModel.id
       : `${resolvedProtocol.id}-${requestName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
 
-    const response = await onSubmit({
-      protocol: resolvedProtocol,
-      model: {
-        id: modelId,
-        protocolId: resolvedProtocol.id,
-        displayName: modelDisplayName.trim(),
-        requestName,
-      },
-      modelApiKey: modelApiKey.trim(),
-      modelApiKeyChanged: apiKeyChanged,
-    });
+    try {
+      const response = await onSubmit({
+        protocol: resolvedProtocol,
+        model: {
+          id: modelId,
+          protocolId: resolvedProtocol.id,
+          displayName: modelDisplayName.trim(),
+          requestName,
+        },
+        modelApiKey: modelApiKey.trim(),
+        modelApiKeyChanged: apiKeyChanged,
+      });
 
-    setSaving(false);
-    if (!response.ok) {
-      setSaveMessage(response.message || t("settings.modal.saveFailed"));
-      return;
+      if (!response.ok) {
+        setSaveMessage(response.message || t("settings.modal.saveFailed"));
+        return;
+      }
+      onClose();
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaving(false);
     }
-    onClose();
   };
 
   return (
