@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { setModelApiKey, updateSettings } from "../../shared/api/desktop";
 import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
@@ -18,6 +18,23 @@ type SettingsPersistenceParams = {
   lastAutoSavedHashRef: React.MutableRefObject<string | null>;
 };
 
+function buildSettingsHash(
+  settings: AppSettings,
+  activeProjectId: string | null,
+  draftModelApiKeys: Record<string, string>,
+): string {
+  return JSON.stringify({
+    settings,
+    activeProjectId,
+    draftApiKeys: Object.keys(draftModelApiKeys)
+      .sort()
+      .reduce<Record<string, string>>((acc, key) => {
+        acc[key] = draftModelApiKeys[key];
+        return acc;
+      }, {}),
+  });
+}
+
 export function useSettingsPersistence(params: SettingsPersistenceParams) {
   const {
     activeProjectId,
@@ -34,10 +51,33 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
     lastAutoSavedHashRef,
   } = params;
 
-  const persistSettings = useCallback(
-    async (nextSettings: AppSettings) => {
+  const settingsRef = useRef<AppSettings | null>(settings);
+  const activeProjectIdRef = useRef<string | null>(activeProjectId);
+  const draftModelApiKeysRef = useRef<Record<string, string>>(draftModelApiKeys);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    activeProjectIdRef.current = activeProjectId;
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    draftModelApiKeysRef.current = draftModelApiKeys;
+  }, [draftModelApiKeys]);
+
+  const cancelPendingAutoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+  }, [autoSaveTimerRef]);
+
+  const persistSettingsInternal = useCallback(
+    async (nextSettings: AppSettings, draftApiKeys: Record<string, string>) => {
       const updated = await updateSettings({
-        activeProjectId: nextSettings.activeProjectId ?? activeProjectId,
+        activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
           id: protocol.id,
           displayName: protocol.displayName,
@@ -63,7 +103,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       });
 
       const validModelIds = new Set(nextSettings.modelCatalog.map((item) => item.id));
-      const keyEntries = Object.entries(draftModelApiKeys).filter(([modelId]) =>
+      const keyEntries = Object.entries(draftApiKeys).filter(([modelId]) =>
         validModelIds.has(modelId),
       );
       if (keyEntries.length > 0) {
@@ -73,7 +113,21 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       setDraftModelApiKeys({});
       return updated;
     },
-    [activeProjectId, draftModelApiKeys, locale, setDraftModelApiKeys, setSettings],
+    [locale, setDraftModelApiKeys, setSettings],
+  );
+
+  const persistSettings = useCallback(
+    async (nextSettings: AppSettings) => {
+      cancelPendingAutoSave();
+      const updated = await persistSettingsInternal(nextSettings, draftModelApiKeysRef.current);
+      lastAutoSavedHashRef.current = buildSettingsHash(
+        updated,
+        updated.activeProjectId ?? activeProjectIdRef.current,
+        {},
+      );
+      return updated;
+    },
+    [cancelPendingAutoSave, lastAutoSavedHashRef, persistSettingsInternal],
   );
 
   const savePanelLayout = useCallback(
@@ -146,16 +200,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
     if (!settings) {
       return;
     }
-    const hashPayload = JSON.stringify({
-      settings,
-      activeProjectId,
-      draftApiKeys: Object.keys(draftModelApiKeys)
-        .sort()
-        .reduce<Record<string, string>>((acc, key) => {
-          acc[key] = draftModelApiKeys[key];
-          return acc;
-        }, {}),
-    });
+    const hashPayload = buildSettingsHash(settings, activeProjectId, draftModelApiKeys);
     if (!autoSaveReadyRef.current) {
       autoSaveReadyRef.current = true;
       lastAutoSavedHashRef.current = hashPayload;
@@ -167,14 +212,25 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
+    const scheduledHash = hashPayload;
     autoSaveTimerRef.current = setTimeout(() => {
-      persistSettings(settings)
+      const liveSettings = settingsRef.current;
+      if (!liveSettings) {
+        return;
+      }
+      const liveActiveProjectId = activeProjectIdRef.current;
+      const liveDraftApiKeys = draftModelApiKeysRef.current;
+      const liveHash = buildSettingsHash(liveSettings, liveActiveProjectId, liveDraftApiKeys);
+      if (liveHash !== scheduledHash) {
+        return;
+      }
+      persistSettingsInternal(liveSettings, liveDraftApiKeys)
         .then((updated) => {
-          lastAutoSavedHashRef.current = JSON.stringify({
-            settings: updated,
-            activeProjectId: updated.activeProjectId ?? activeProjectId,
-            draftApiKeys: {},
-          });
+          lastAutoSavedHashRef.current = buildSettingsHash(
+            updated,
+            updated.activeProjectId ?? activeProjectIdRef.current,
+            {},
+          );
         })
         .catch((error) => {
           setToast({ type: "error", message: String(error) });
@@ -186,7 +242,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
     autoSaveTimerRef,
     draftModelApiKeys,
     lastAutoSavedHashRef,
-    persistSettings,
+    persistSettingsInternal,
     setToast,
     settings,
   ]);
@@ -194,5 +250,6 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
   return {
     persistSettings,
     savePanelLayout,
+    cancelPendingAutoSave,
   };
 }

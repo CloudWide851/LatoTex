@@ -85,16 +85,24 @@ fn model_keyring_clear(model_id: &str) -> Result<(), String> {
     entry.set_password("").map_err(|e| e.to_string())
 }
 
-fn load_master_key_from_file(runtime_root: &Path) -> Result<[u8; MASTER_KEY_LEN], String> {
-    let key_dir = runtime_root.join(MASTER_KEY_FILE_DIR);
-    fs::create_dir_all(&key_dir).map_err(|e| e.to_string())?;
-    let key_path = key_dir.join(MASTER_KEY_FILE_NAME);
+fn master_key_file_path(runtime_root: &Path) -> PathBuf {
+    runtime_root
+        .join(MASTER_KEY_FILE_DIR)
+        .join(MASTER_KEY_FILE_NAME)
+}
+
+fn ensure_file_master_key(runtime_root: &Path) -> Result<([u8; MASTER_KEY_LEN], bool), String> {
+    let key_path = master_key_file_path(runtime_root);
+    let parent = key_path
+        .parent()
+        .ok_or_else(|| "failed to resolve master key folder".to_string())?;
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     if key_path.exists() {
         let raw = fs::read(&key_path).map_err(|e| e.to_string())?;
         if raw.len() == MASTER_KEY_LEN {
             let mut key = [0_u8; MASTER_KEY_LEN];
             key.copy_from_slice(&raw);
-            return Ok(key);
+            return Ok((key, false));
         }
     }
 
@@ -103,43 +111,33 @@ fn load_master_key_from_file(runtime_root: &Path) -> Result<[u8; MASTER_KEY_LEN]
     rng.fill(&mut generated)
         .map_err(|_| "failed to generate master key".to_string())?;
     fs::write(&key_path, generated).map_err(|e| e.to_string())?;
-    Ok(generated)
+    Ok((generated, true))
 }
 
-fn load_or_create_master_key(runtime_root: &Path) -> Result<([u8; MASTER_KEY_LEN], bool), String> {
+fn read_keyring_master_key() -> Result<Option<[u8; MASTER_KEY_LEN]>, String> {
     let entry = Entry::new(SERVICE_NAME, MASTER_KEY_ACCOUNT).map_err(|e| e.to_string())?;
     match entry.get_password() {
         Ok(encoded) => {
             let decoded = BASE64
                 .decode(encoded.as_bytes())
                 .map_err(|e| format!("decode master key failed: {e}"))?;
-            if decoded.len() == MASTER_KEY_LEN {
-                let mut key = [0_u8; MASTER_KEY_LEN];
-                key.copy_from_slice(&decoded);
-                return Ok((key, true));
+            if decoded.len() != MASTER_KEY_LEN {
+                return Err("invalid keyring master key length".to_string());
             }
-            let fallback = load_master_key_from_file(runtime_root)?;
-            Ok((fallback, false))
+            let mut key = [0_u8; MASTER_KEY_LEN];
+            key.copy_from_slice(&decoded);
+            Ok(Some(key))
         }
-        Err(keyring::Error::NoEntry) => {
-            let rng = SystemRandom::new();
-            let mut generated = [0_u8; MASTER_KEY_LEN];
-            rng.fill(&mut generated)
-                .map_err(|_| "failed to generate master key".to_string())?;
-            let encoded = BASE64.encode(generated);
-            match entry.set_password(&encoded) {
-                Ok(_) => Ok((generated, true)),
-                Err(_) => {
-                    let fallback = load_master_key_from_file(runtime_root)?;
-                    Ok((fallback, false))
-                }
-            }
-        }
-        Err(_) => {
-            let fallback = load_master_key_from_file(runtime_root)?;
-            Ok((fallback, false))
-        }
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(error) => Err(error.to_string()),
     }
+}
+
+fn write_keyring_master_key(master_key: &[u8; MASTER_KEY_LEN]) -> Result<(), String> {
+    let entry = Entry::new(SERVICE_NAME, MASTER_KEY_ACCOUNT).map_err(|e| e.to_string())?;
+    entry
+        .set_password(&BASE64.encode(master_key))
+        .map_err(|e| e.to_string())
 }
 
 fn encrypt_secret(
@@ -150,7 +148,8 @@ fn encrypt_secret(
     let mut nonce = [0_u8; NONCE_LEN];
     rng.fill(&mut nonce)
         .map_err(|_| "failed to generate nonce".to_string())?;
-    let unbound = UnboundKey::new(&AES_256_GCM, master_key).map_err(|_| "invalid master key".to_string())?;
+    let unbound =
+        UnboundKey::new(&AES_256_GCM, master_key).map_err(|_| "invalid master key".to_string())?;
     let cipher = LessSafeKey::new(unbound);
     let nonce_value = Nonce::assume_unique_for_key(nonce);
     let mut encrypted = plain_text.as_bytes().to_vec();
@@ -176,11 +175,16 @@ fn decrypt_secret(
     }
     let mut nonce_bytes = [0_u8; NONCE_LEN];
     nonce_bytes.copy_from_slice(&nonce);
-    let unbound = UnboundKey::new(&AES_256_GCM, master_key).map_err(|_| "invalid master key".to_string())?;
+    let unbound =
+        UnboundKey::new(&AES_256_GCM, master_key).map_err(|_| "invalid master key".to_string())?;
     let cipher = LessSafeKey::new(unbound);
     let mut in_out = encrypted;
     let decrypted = cipher
-        .open_in_place(Nonce::assume_unique_for_key(nonce_bytes), Aad::empty(), &mut in_out)
+        .open_in_place(
+            Nonce::assume_unique_for_key(nonce_bytes),
+            Aad::empty(),
+            &mut in_out,
+        )
         .map_err(|_| "decrypt failed".to_string())?;
     let plain = String::from_utf8(decrypted.to_vec()).map_err(|e| e.to_string())?;
     let trimmed = plain.trim().to_string();
@@ -191,18 +195,12 @@ fn decrypt_secret(
     }
 }
 
-fn store_model_api_key_fallback(
-    context: &SecureStorageContext,
+fn upsert_model_secret(
+    conn: &Connection,
     model_id: &str,
-    api_key: &str,
-) -> Result<Option<String>, String> {
-    let conn = Connection::open(&context.db_path).map_err(|e| e.to_string())?;
-    ensure_secret_schema(&conn)?;
-    let (mut master_key, keyring_master_ok) = load_or_create_master_key(&context.runtime_root)?;
-    let (nonce_b64, ciphertext_b64) = encrypt_secret(api_key, &master_key)?;
-    for byte in &mut master_key {
-        *byte = 0;
-    }
+    nonce_b64: &str,
+    ciphertext_b64: &str,
+) -> Result<(), String> {
     conn.execute(
         "
         INSERT INTO secure_model_secrets (model_id, nonce_b64, ciphertext_b64, updated_at)
@@ -215,11 +213,29 @@ fn store_model_api_key_fallback(
         params![model_id, nonce_b64, ciphertext_b64, now_iso()],
     )
     .map_err(|e| e.to_string())?;
-    Ok(if keyring_master_ok {
-        None
-    } else {
-        Some("MASTER_KEY_FILE_FALLBACK".to_string())
-    })
+    Ok(())
+}
+
+fn store_model_api_key_fallback(
+    context: &SecureStorageContext,
+    model_id: &str,
+    api_key: &str,
+) -> Result<Option<String>, String> {
+    let conn = Connection::open(&context.db_path).map_err(|e| e.to_string())?;
+    ensure_secret_schema(&conn)?;
+
+    let (file_master_key, regenerated) = ensure_file_master_key(&context.runtime_root)?;
+    let (nonce_b64, ciphertext_b64) = encrypt_secret(api_key, &file_master_key)?;
+    upsert_model_secret(&conn, model_id, &nonce_b64, &ciphertext_b64)?;
+
+    let keyring_sync = write_keyring_master_key(&file_master_key);
+    if keyring_sync.is_err() {
+        return Ok(Some("MASTER_KEY_KEYRING_SYNC_FAILED".to_string()));
+    }
+    if regenerated {
+        return Ok(Some("MASTER_KEY_FILE_REGENERATED".to_string()));
+    }
+    Ok(None)
 }
 
 fn load_model_api_key_fallback(
@@ -240,23 +256,42 @@ fn load_model_api_key_fallback(
         return Ok((None, None));
     };
 
-    let (mut master_key, keyring_master_ok) = load_or_create_master_key(&context.runtime_root)?;
-    let plain = decrypt_secret(&nonce_b64, &ciphertext_b64, &master_key);
-    for byte in &mut master_key {
-        *byte = 0;
+    let (file_master_key, file_key_regenerated) = ensure_file_master_key(&context.runtime_root)?;
+    if let Ok(value) = decrypt_secret(&nonce_b64, &ciphertext_b64, &file_master_key) {
+        if value.trim().is_empty() {
+            return Ok((None, None));
+        }
+        let mut diagnostic = None;
+        if write_keyring_master_key(&file_master_key).is_err() {
+            diagnostic = Some("MASTER_KEY_KEYRING_SYNC_FAILED".to_string());
+        } else if file_key_regenerated {
+            diagnostic = Some("MASTER_KEY_FILE_REGENERATED".to_string());
+        }
+        return Ok((Some(value), diagnostic));
     }
-    match plain {
-        Ok(value) if !value.is_empty() => Ok((
-            Some(value),
-            if keyring_master_ok {
-                None
-            } else {
-                Some("MASTER_KEY_FILE_FALLBACK".to_string())
-            },
-        )),
-        Ok(_) => Ok((None, None)),
-        Err(_) => Ok((None, Some("FALLBACK_DB_DECRYPT_FAILED".to_string()))),
+
+    let keyring_master_key = match read_keyring_master_key() {
+        Ok(value) => value,
+        Err(_) => return Ok((None, Some("MASTER_KEY_KEYRING_READ_FAILED".to_string()))),
+    };
+    let Some(keyring_master_key) = keyring_master_key else {
+        return Ok((None, Some("FALLBACK_DB_DECRYPT_FAILED_FILE_KEY".to_string())));
+    };
+
+    let recovered = match decrypt_secret(&nonce_b64, &ciphertext_b64, &keyring_master_key) {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => return Ok((None, Some("FALLBACK_DB_DECRYPT_FAILED".to_string()))),
+    };
+
+    let (new_nonce_b64, new_ciphertext_b64) = encrypt_secret(&recovered, &file_master_key)?;
+    if upsert_model_secret(&conn, model_id, &new_nonce_b64, &new_ciphertext_b64).is_err() {
+        return Ok((
+            Some(recovered),
+            Some("MASTER_KEY_MISMATCH_RECOVER_WRITE_FAILED".to_string()),
+        ));
     }
+    let _ = write_keyring_master_key(&file_master_key);
+    Ok((Some(recovered), Some("MASTER_KEY_MISMATCH_RECOVERED".to_string())))
 }
 
 fn delete_model_api_key_fallback(context: &SecureStorageContext, model_id: &str) -> Result<(), String> {
@@ -298,8 +333,12 @@ pub fn store_model_api_key(
             diagnostic_code: Some("KEYRING_WRITE_FAILED_FALLBACK_DB".to_string()),
         });
     }
-    let keyring_error = keyring_status.err().unwrap_or_else(|| "unknown keyring error".to_string());
-    let fallback_error = fallback_status.err().unwrap_or_else(|| "unknown fallback error".to_string());
+    let keyring_error = keyring_status
+        .err()
+        .unwrap_or_else(|| "unknown keyring error".to_string());
+    let fallback_error = fallback_status
+        .err()
+        .unwrap_or_else(|| "unknown fallback error".to_string());
     Err(format!(
         "secure store failed (keyring={keyring_error}; fallback={fallback_error})"
     ))
@@ -324,7 +363,8 @@ pub fn get_model_api_key(
                 return Ok(SecureGetResult {
                     api_key: fallback,
                     source: "fallback_db".to_string(),
-                    diagnostic_code: Some("KEYRING_READ_FAILED_FALLBACK_DB".to_string()),
+                    diagnostic_code: fallback_diag
+                        .or(Some("KEYRING_READ_FAILED_FALLBACK_DB".to_string())),
                 });
             }
             return Ok(SecureGetResult {
@@ -377,8 +417,12 @@ pub fn delete_model_api_key(
             diagnostic_code: Some("KEYRING_CLEAR_FAILED_FALLBACK_DB".to_string()),
         });
     }
-    let keyring_error = keyring_status.err().unwrap_or_else(|| "unknown keyring error".to_string());
-    let fallback_error = fallback_status.err().unwrap_or_else(|| "unknown fallback error".to_string());
+    let keyring_error = keyring_status
+        .err()
+        .unwrap_or_else(|| "unknown keyring error".to_string());
+    let fallback_error = fallback_status
+        .err()
+        .unwrap_or_else(|| "unknown fallback error".to_string());
     Err(format!(
         "secure clear failed (keyring={keyring_error}; fallback={fallback_error})"
     ))

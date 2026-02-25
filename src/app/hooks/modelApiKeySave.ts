@@ -15,9 +15,15 @@ const SAVE_DIAGNOSTIC_MESSAGE_MAP: Record<string, string> = {
   SECURE_STORE_WRITE_FAILED: "settings.modal.saveFailedStorageUnavailable",
   SECURE_STORE_READ_FAILED: "settings.modal.saveFailedReadback",
   KEY_READ_EMPTY_AFTER_WRITE: "settings.modal.saveFailedReadbackEmpty",
+  KEY_READ_SOURCE_DRIFT_EMPTY: "settings.modal.saveFailedReadbackEmpty",
+  KEY_READ_NON_EMPTY_MISMATCH_AFTER_WRITE: "settings.modal.saveFailedReadback",
+  KEY_READBACK_RETRY_EXHAUSTED: "settings.modal.saveFailedReadbackRetryExhausted",
   KEY_CLEAR_READBACK_MISMATCH: "settings.modal.saveFailedReadback",
   SECURE_STORE_CLEAR_FAILED: "settings.modal.saveFailedStorageUnavailable",
   FALLBACK_DB_DECRYPT_FAILED: "settings.modal.saveFailedDecrypt",
+  FALLBACK_DB_DECRYPT_FAILED_FILE_KEY: "settings.modal.saveFailedDecrypt",
+  MASTER_KEY_KEYRING_READ_FAILED: "settings.modal.saveFailedMasterKeyUnavailable",
+  MASTER_KEY_MISMATCH_RECOVER_WRITE_FAILED: "settings.modal.saveFailedReadback",
 };
 
 const READBACK_DIAGNOSTIC_MESSAGE_MAP: Record<string, string> = {
@@ -25,6 +31,9 @@ const READBACK_DIAGNOSTIC_MESSAGE_MAP: Record<string, string> = {
   KEYRING_READ_FAILED_FALLBACK_DB: "settings.modal.saveFailedReadback",
   KEYRING_EMPTY_FALLBACK_DB: "settings.modal.saveFailedReadback",
   FALLBACK_DB_DECRYPT_FAILED: "settings.modal.saveFailedDecrypt",
+  FALLBACK_DB_DECRYPT_FAILED_FILE_KEY: "settings.modal.saveFailedDecrypt",
+  MASTER_KEY_KEYRING_READ_FAILED: "settings.modal.saveFailedMasterKeyUnavailable",
+  MASTER_KEY_MISMATCH_RECOVER_WRITE_FAILED: "settings.modal.saveFailedReadback",
 };
 
 export async function verifyModelApiKeyReadback(
@@ -104,4 +113,3 @@ export function resolveReadbackFailureMessage(
   }
   return t("settings.modal.saveFailedReadback");
 }
-

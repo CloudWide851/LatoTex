@@ -338,6 +338,8 @@ pub struct CredentialSaveResult {
     pub message: String,
     pub storage_backend: String,
     pub diagnostic_code: Option<String>,
+    pub readback_source: Option<String>,
+    pub readback_attempts: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]

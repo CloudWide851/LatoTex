@@ -129,6 +129,8 @@ export type CredentialSaveResult = {
   message: string;
   storageBackend: "none" | "keyring" | "fallback_db" | "hybrid" | string;
   diagnosticCode?: string | null;
+  readbackSource?: string | null;
+  readbackAttempts?: number | null;
 };
 
 export type ModelDraftTestInput = {

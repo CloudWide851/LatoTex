@@ -57,6 +57,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     setModelTestActiveId,
     setModelTestBusy,
     persistSettings,
+    cancelPendingAutoSave,
     setSettings,
     setDraftModelApiKeys,
   } = params;
@@ -462,6 +463,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     if (!settings) {
       return { ok: false, message: "Settings are not loaded yet." };
     }
+    cancelPendingAutoSave?.();
 
     const normalizedKey = modelApiKey?.trim() ?? "";
     const nextProtocols = protocol.isNew
@@ -503,7 +505,7 @@ export function useAppContainerWorkspaceActions(params: any) {
           const friendlyMessage = resolveCredentialSaveErrorMessage(result, t);
           await runtimeLogWrite(
             "WARN",
-            `model key save failed: ${model.id}, stage=${result.stage}, backend=${result.storageBackend}, diagnostic=${result.diagnosticCode ?? "-"}, reason=${result.message}`,
+            `model key save failed: ${model.id}, stage=${result.stage}, backend=${result.storageBackend}, diagnostic=${result.diagnosticCode ?? "-"}, readback_source=${result.readbackSource ?? "-"}, readback_attempts=${result.readbackAttempts ?? "-"}, reason=${result.message}`,
           ).catch(() => undefined);
           throw new Error(friendlyMessage);
         }
@@ -540,7 +542,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       await runtimeLogWrite("ERROR", `model save failed: ${model.id}, reason=${message}`).catch(() => undefined);
       return { ok: false, message };
     }
-  }, [persistSettings, setDraftModelApiKeys, setSettings, setToast, settings, t]);
+  }, [cancelPendingAutoSave, persistSettings, setDraftModelApiKeys, setSettings, setToast, settings, t]);
 
   return {
     handleSaveActiveFile,

@@ -132,7 +132,7 @@ export function AppContainer() {
     ],
   );
 
-  const { persistSettings, savePanelLayout } = useSettingsPersistence({
+  const { persistSettings, savePanelLayout, cancelPendingAutoSave } = useSettingsPersistence({
     activeProjectId: s.activeProjectId,
     locale,
     settings: s.settings,
@@ -379,6 +379,7 @@ export function AppContainer() {
     setModelTestActiveId: s.setModelTestActiveId,
     setModelTestBusy: s.setModelTestBusy,
     persistSettings,
+    cancelPendingAutoSave,
     setSettings: s.setSettings,
     setDraftModelApiKeys: s.setDraftModelApiKeys,
     setModelModalMode: s.setModelModalMode,
