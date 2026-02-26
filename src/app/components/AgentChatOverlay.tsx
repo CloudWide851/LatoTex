@@ -22,7 +22,7 @@ function messageLineCount(text: string): number {
 function MarkdownMessage(props: { content: string }) {
   const { content } = props;
   return (
-    <article className="markdown-preview text-xs leading-5 text-slate-700">
+    <article className="markdown-preview max-w-full overflow-x-auto break-words text-xs leading-5 text-slate-700">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </article>
   );
@@ -273,9 +273,9 @@ export function AgentChatOverlay(props: {
   return (
     <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
       <div
-        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-6px)] min-w-[340px] max-h-[calc(100%-12px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-[340px] max-h-[min(620px,calc(100%-72px))] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(280px, 70%, 760px)" : "clamp(160px, 32%, 300px)",
+          height: activityExpanded ? "clamp(280px, 62%, 620px)" : "clamp(160px, 30%, 280px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
@@ -325,7 +325,7 @@ export function AgentChatOverlay(props: {
           ) : null}
 
           {activityExpanded ? (
-            <div className="min-h-0 flex-1 space-y-1 overflow-auto border-b border-slate-200 px-3 py-2">
+            <div className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2">
               {messages.map((message) => {
                 const longMessage =
                   messageLineCount(message.text) > 12 || message.text.length > 720;
@@ -335,18 +335,14 @@ export function AgentChatOverlay(props: {
                   <div
                     key={message.id}
                     className={cn(
-                      "rounded-md border px-2 py-1 text-xs leading-5",
+                      "min-w-0 overflow-hidden rounded-md border px-2 py-1 text-xs leading-5",
                       message.role === "user"
                         ? "border-primary-200 bg-primary-50 text-primary-900"
                         : "border-slate-200 bg-slate-100 text-slate-700",
                     )}
                   >
                     <div className={cn(!expanded && longMessage ? "max-h-32 overflow-hidden" : "")}>
-                      {isMarkdown ? (
-                        <MarkdownMessage content={message.text} />
-                      ) : (
-                        <p className="whitespace-pre-wrap">{message.text}</p>
-                      )}
+                      {isMarkdown ? <MarkdownMessage content={message.text} /> : <p className="whitespace-pre-wrap break-words">{message.text}</p>}
                     </div>
                     {longMessage ? (
                       <button
@@ -371,7 +367,7 @@ export function AgentChatOverlay(props: {
                 return (
                   <div
                     key={card.cardKey}
-                    className={cn("rounded-md border px-2 py-1 text-xs", statusTone(card.status))}
+                    className={cn("min-w-0 overflow-hidden rounded-md border px-2 py-1 text-xs", statusTone(card.status))}
                   >
                     <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
                       <span className="truncate font-semibold">{card.title}</span>

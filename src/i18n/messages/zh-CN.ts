@@ -293,6 +293,7 @@ export const zhCN: Record<MessageKey, string> = {
   "agent.nonLatexInvalidChoice": "输入无效，请使用 yes、remember 或 no。",
   "agent.run.timeout": "Agent 运行超时。",
   "agent.run.failed": "Agent 运行失败。",
+  "agent.patch.noApplicableEdits": "未为目标文件生成可应用的 SEARCH/REPLACE 编辑块。",
   "analysis.promptPlaceholder": "描述要分析的数据目标与期望输出...",
   "analysis.run": "开始分析",
   "analysis.running": "分析中...",

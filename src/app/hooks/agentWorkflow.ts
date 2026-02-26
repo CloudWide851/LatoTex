@@ -9,11 +9,18 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { extractReferenceQueries, parseAgentPrompt } from "./agentCommands";
+import {
+  computeDiffStats,
+  isLatexPath,
+  normalizePath,
+  pickTargetPath,
+  resolveCandidateFromOutput,
+} from "./agentPatchEdits";
 
 const MAX_AGENT_MESSAGES = 200;
 const AGENT_WAIT_TIMEOUT_MS = 240_000;
 const AGENT_WAIT_INTERVAL_MS = 280;
-const LATEX_EXTENSIONS = [".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx", ".tikz", ".pgf"];
+const AGENT_TASK_FILE_CONTEXT_MAX_CHARS = 24_000;
 
 type AgentMessageSetter = Dispatch<SetStateAction<AgentChatMessage[]>>;
 
@@ -30,37 +37,6 @@ function nextAgentId(role: "user" | "agent", suffix = ""): string {
 
 function pushMessage(setter: AgentMessageSetter, message: AgentChatMessage) {
   setter((prev) => [...prev, message].slice(-MAX_AGENT_MESSAGES));
-}
-
-function normalizePath(value: string): string {
-  return value.replace(/\\/g, "/").replace(/^\.\/+/, "").trim();
-}
-
-function isLatexPath(path: string): boolean {
-  const normalized = normalizePath(path).toLowerCase();
-  return LATEX_EXTENSIONS.some((ext) => normalized.endsWith(ext));
-}
-
-function extractMentionedPath(prompt: string): string | null {
-  const match = prompt.match(/(^|[\s"'`])([A-Za-z0-9_.\-\/\\]+\.[A-Za-z0-9]{1,8})(?=$|[\s"'`。，,])/);
-  if (!match?.[2]) {
-    return null;
-  }
-  return normalizePath(match[2]);
-}
-
-function pickTargetPath(prompt: string, selectedFile: string | null): {
-  targetPath: string;
-  explicitPath: boolean;
-} {
-  const mentioned = extractMentionedPath(prompt);
-  if (mentioned) {
-    return { targetPath: mentioned, explicitPath: true };
-  }
-  if (selectedFile && isLatexPath(selectedFile)) {
-    return { targetPath: selectedFile, explicitPath: false };
-  }
-  return { targetPath: "main.tex", explicitPath: false };
 }
 
 function tryDecodeSerializedOutput(raw: string): string {
@@ -123,28 +99,6 @@ function cleanAgentOutput(raw: string): string {
     .trim();
 }
 
-function extractFencedLatex(raw: string): string | null {
-  const fenced = raw.match(/```(?:latex|tex)\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) {
-    const candidate = fenced[1].trim();
-    return candidate.length > 0 ? candidate : null;
-  }
-  const genericFenced = raw.match(/```[\w-]*\s*([\s\S]*?)```/i);
-  if (genericFenced?.[1]) {
-    const candidate = genericFenced[1].trim();
-    if (
-      candidate.includes("\\documentclass") ||
-      candidate.includes("\\begin{document}")
-    ) {
-      return candidate;
-    }
-  }
-  if (raw.includes("\\documentclass") && raw.includes("\\begin{document}")) {
-    return raw.trim();
-  }
-  return null;
-}
-
 function buildAnalysisPrompt(sourcePrompt: string, modelOutput: string, targetPath: string): string {
   return [
     "Analyze the generated LaTeX modifications and produce a data report.",
@@ -159,34 +113,38 @@ function buildAnalysisPrompt(sourcePrompt: string, modelOutput: string, targetPa
   ].join("\n");
 }
 
-function computeDiffStats(originalContent: string, candidateContent: string): {
-  insertions: number;
-  deletions: number;
-  changedLines: number[];
-} {
-  const original = originalContent.split(/\r?\n/);
-  const candidate = candidateContent.split(/\r?\n/);
-  const maxLen = Math.max(original.length, candidate.length);
-  const changedLines: number[] = [];
-  let insertions = 0;
-  let deletions = 0;
-  for (let index = 0; index < maxLen; index += 1) {
-    const before = original[index] ?? "";
-    const after = candidate[index] ?? "";
-    if (before === after) {
-      continue;
-    }
-    changedLines.push(index + 1);
-    if (!before && after) {
-      insertions += 1;
-    } else if (before && !after) {
-      deletions += 1;
-    } else {
-      insertions += 1;
-      deletions += 1;
-    }
-  }
-  return { insertions, deletions, changedLines: changedLines.slice(0, 120) };
+function buildTaskExecutionPrompt(params: {
+  userPrompt: string;
+  targetPath: string;
+  fileContent: string;
+}): string {
+  const { userPrompt, targetPath, fileContent } = params;
+  const normalized = fileContent.replace(/\r\n/g, "\n");
+  const truncated =
+    normalized.length > AGENT_TASK_FILE_CONTEXT_MAX_CHARS
+      ? `${normalized.slice(0, AGENT_TASK_FILE_CONTEXT_MAX_CHARS)}\n\n...[TRUNCATED FOR CONTEXT]...`
+      : normalized;
+  return [
+    "You are editing files in an IDE.",
+    "Return only IDE-style SEARCH/REPLACE edit blocks in ```edit fences.",
+    "Do not output full-file rewrites unless unavoidable.",
+    "For long files, generate minimal partial edits by exact matching.",
+    "Each edit block must be:",
+    "path: <relative path>",
+    "<<<<<<< SEARCH",
+    "<exact text to find>",
+    "=======",
+    "<replacement text>",
+    ">>>>>>> REPLACE",
+    "",
+    `Target path: ${targetPath}`,
+    "",
+    "User request:",
+    userPrompt,
+    "",
+    "Current file content:",
+    truncated,
+  ].join("\n");
 }
 
 async function loadOriginalContent(params: {
@@ -426,7 +384,9 @@ export async function runAgentWorkflow(params: {
         const reviewPrompt = [
           "You are a LaTeX fixer.",
           "Apply minimal changes so the document compiles.",
-          "Return ONLY the full fixed LaTeX document content.",
+          "Return IDE-style SEARCH/REPLACE edit blocks inside ```edit fences.",
+          "Each edit block must include path, SEARCH, REPLACE.",
+          "Only edit the requested target file.",
           "",
           `Compile diagnostics:\n${compileResult.diagnostics.join("\n")}`,
           extraInstruction,
@@ -441,10 +401,16 @@ export async function runAgentWorkflow(params: {
           contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
           setAgentRunId,
         });
-        const candidate = extractFencedLatex(cleanAgentOutput(response.output));
-        if (!candidate) {
+        const normalized = cleanAgentOutput(response.output);
+        const resolved = resolveCandidateFromOutput({
+          output: normalized,
+          targetPath: selectedFile,
+          baseContent: workingContent,
+        });
+        if (!resolved.candidate) {
           continue;
         }
+        const candidate = resolved.candidate;
         workingContent = candidate;
         compileResult = await runCompilePass({
           projectId: activeProjectId,
@@ -539,48 +505,61 @@ export async function runAgentWorkflow(params: {
       return;
     }
 
+    const originalContent = await loadOriginalContent({
+      activeProjectId,
+      targetPath,
+      selectedFile,
+      editorContent,
+    });
+    const taskPrompt = buildTaskExecutionPrompt({
+      userPrompt: prompt,
+      targetPath,
+      fileContent: originalContent,
+    });
+    const taskRefs = Array.from(
+      new Set([`file:${targetPath}`, ...(selectedFile ? [`file:${selectedFile}`] : [])]),
+    );
     const response = await runAgentThroughEvents({
       activeProjectId,
       role: "task",
-      prompt,
-      contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+      prompt: taskPrompt,
+      contextRefs: taskRefs,
       setAgentRunId,
     });
     await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);
     const normalizedOutput = cleanAgentOutput(response.output);
     pushAgentMessage(normalizedOutput, "markdown");
-
-    const candidate = extractFencedLatex(normalizedOutput);
-    if (candidate) {
-      const originalContent = await loadOriginalContent({
-        activeProjectId,
-        targetPath,
-        selectedFile,
-        editorContent,
-      });
-      if (candidate.trim() !== originalContent.trim()) {
-        const { insertions, deletions, changedLines } = computeDiffStats(
-          originalContent,
-          candidate,
-        );
-        if (selectedFile !== targetPath) {
-          setSelectedFile(targetPath);
-        }
-        setEditorContent(candidate);
-        setAgentProposal({
-          id: `proposal-${Date.now()}-task`,
-          targetPath,
-          originalContent,
-          candidateContent: candidate,
-          summary: t("agent.proposalReady"),
-          analysisPrompt: buildAnalysisPrompt(prompt, normalizedOutput, targetPath),
-          insertions,
-          deletions,
-          changedLines,
-          previewApplied: true,
-        });
-        pushAgentMessage(t("agent.proposalPreviewed"));
+    const resolved = resolveCandidateFromOutput({
+      output: normalizedOutput,
+      targetPath,
+      baseContent: originalContent,
+    });
+    if (!resolved.candidate) {
+      if (resolved.failedReason !== "none") {
+        pushAgentMessage(t("agent.patch.noApplicableEdits"));
       }
+    } else if (resolved.candidate.trim() !== originalContent.trim()) {
+      const { insertions, deletions, changedLines } = computeDiffStats(
+        originalContent,
+        resolved.candidate,
+      );
+      if (selectedFile !== targetPath) {
+        setSelectedFile(targetPath);
+      }
+      setEditorContent(resolved.candidate);
+      setAgentProposal({
+        id: `proposal-${Date.now()}-task`,
+        targetPath,
+        originalContent,
+        candidateContent: resolved.candidate,
+        summary: t("agent.proposalReady"),
+        analysisPrompt: buildAnalysisPrompt(prompt, normalizedOutput, targetPath),
+        insertions,
+        deletions,
+        changedLines,
+        previewApplied: true,
+      });
+      pushAgentMessage(t("agent.proposalPreviewed"));
     }
 
     setAgentPhase("done");

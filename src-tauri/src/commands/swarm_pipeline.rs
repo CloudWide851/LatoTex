@@ -421,7 +421,7 @@ fn run_agent_pipeline_async(
     )?;
 
     let task_prompt = format!(
-        "Execute the refined plan and return final actionable markdown.\n\nRefined Plan:\n{}\n\nUser request:\n{}",
+        "Execute the refined plan.\nReturn ONLY IDE-style SEARCH/REPLACE edits in ```edit fences.\nDo not return prose-only explanations.\nEach edit block must include:\n- path: <relative path>\n- <<<<<<< SEARCH\n- =======\n- >>>>>>> REPLACE\nPrefer minimal partial edits and avoid full-file output unless absolutely necessary.\n\nRefined Plan:\n{}\n\nUser request:\n{}",
         refined_plan, input.prompt
     );
     let mut final_output = run_stage_role(

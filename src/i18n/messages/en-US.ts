@@ -293,6 +293,7 @@ export const enUS = {
   "agent.nonLatexInvalidChoice": "Invalid choice. Use yes, remember, or no.",
   "agent.run.timeout": "Agent run timed out.",
   "agent.run.failed": "Agent run failed.",
+  "agent.patch.noApplicableEdits": "No applicable SEARCH/REPLACE edits were generated for the target file.",
   "analysis.promptPlaceholder": "Describe what to analyze and expected output...",
   "analysis.run": "Analyze",
   "analysis.running": "Analyzing...",
