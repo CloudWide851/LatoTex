@@ -35,18 +35,31 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let cursor = query.cursor.unwrap_or(0);
     let limit = query.limit.unwrap_or(200).min(1000) as i64;
-    let mut stmt = conn
-        .prepare(
+    let trimmed_run_id = query.run_id.as_deref().map(str::trim).unwrap_or("");
+    let use_run_filter = !trimmed_run_id.is_empty();
+    let (sql, params): (&str, Vec<rusqlite::types::Value>) = if use_run_filter {
+        (
+            "SELECT seq, id, run_id, project_id, role, kind, payload, created_at
+             FROM swarm_events
+             WHERE seq > ?1 AND run_id = ?2
+             ORDER BY seq ASC
+             LIMIT ?3",
+            vec![cursor.into(), trimmed_run_id.to_string().into(), limit.into()],
+        )
+    } else {
+        (
             "SELECT seq, id, run_id, project_id, role, kind, payload, created_at
              FROM swarm_events
              WHERE seq > ?1
              ORDER BY seq ASC
              LIMIT ?2",
+            vec![cursor.into(), limit.into()],
         )
-        .map_err(|e| e.to_string())?;
+    };
 
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(params![cursor, limit], |row| {
+        .query_map(rusqlite::params_from_iter(params.iter()), |row| {
             let payload_raw: String = row.get(6)?;
             let payload = serde_json::from_str::<Value>(&payload_raw).unwrap_or(Value::Null);
             Ok(SwarmEvent {

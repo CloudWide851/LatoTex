@@ -47,6 +47,7 @@ export type UseAppHandlersParams = {
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposal: AgentFileProposal | null;
   setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
+  setAgentRunId: (value: string | null) => void;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;
   setAgentPhase: (value: "idle" | "running" | "done" | "error") => void;

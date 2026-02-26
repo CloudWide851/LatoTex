@@ -1,5 +1,8 @@
+#[path = "swarm_pipeline.rs"]
+mod swarm_pipeline;
+
 use crate::models::{
-    AgentRunAccepted, AgentRunRequest, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
+    AgentRunAccepted, AgentRunRequest, AgentRunStartAccepted, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
 };
 use crate::secure;
 use crate::state::AppState;
@@ -254,7 +257,7 @@ fn call_gemini(
     Ok(content)
 }
 
-fn call_provider_with_retry(
+pub(crate) fn call_provider_with_retry(
     protocol_id: &str,
     base_url: &str,
     api_key: &str,
@@ -440,12 +443,20 @@ pub fn agent_run(
 }
 
 #[tauri::command]
+pub fn agent_run_start(
+    state: State<'_, AppState>,
+    input: AgentRunRequest,
+) -> Result<AgentRunStartAccepted, String> {
+    swarm_pipeline::agent_run_start(&state, input)
+}
+
+#[tauri::command]
 pub fn events_subscribe(state: State<'_, AppState>, query: EventQuery) -> Result<EventBatch, String> {
     state.log(
         "DEBUG",
         &format!(
-            "events_subscribe: cursor={:?}, limit={:?}",
-            query.cursor, query.limit
+            "events_subscribe: cursor={:?}, limit={:?}, run_id={:?}",
+            query.cursor, query.limit, query.run_id
         ),
     );
     storage::events_since(&state.db_path, query)

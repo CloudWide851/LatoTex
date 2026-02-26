@@ -27,7 +27,7 @@ use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test, model_test_draft, protocol_test, runtime_log_clear_current_session,
     runtime_log_info, runtime_log_read, runtime_log_write, settings_get, settings_update,
 };
-use commands::swarm::{agent_run, events_subscribe, latex_compile_record};
+use commands::swarm::{agent_run, agent_run_start, events_subscribe, latex_compile_record};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -116,6 +116,7 @@ pub fn run() {
             fs_operation,
             latex_compile_record,
             agent_run,
+            agent_run_start,
             events_subscribe,
             settings_get,
             settings_update,

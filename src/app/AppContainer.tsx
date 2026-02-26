@@ -216,6 +216,7 @@ export function AppContainer() {
     setAgentMessages: s.setAgentMessages,
     agentProposal: s.agentProposal,
     setAgentProposal: s.setAgentProposal,
+    setAgentRunId: s.setAgentRunId,
     setAgentPrompt: s.setAgentPrompt,
     setAgentCollapsed: s.setAgentCollapsed,
     setAgentPhase: s.setAgentPhase,
@@ -512,6 +513,7 @@ export function AppContainer() {
       agentPrompt={s.agentPrompt}
       agentMessages={s.agentMessages}
       agentProposal={s.agentProposal}
+      agentRunId={s.agentRunId}
       explorerGitDecorations={explorerGitDecorations}
       SHELL_MIN={SHELL_MIN}
       settingsPanel={panels.settingsPanel}

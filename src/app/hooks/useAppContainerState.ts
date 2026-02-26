@@ -51,6 +51,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [agentPrompt, setAgentPrompt] = useState("");
   const [agentMessages, setAgentMessages] = useState<AgentChatMessage[]>([]);
   const [agentProposal, setAgentProposal] = useState<AgentFileProposal | null>(null);
+  const [agentRunId, setAgentRunId] = useState<string | null>(null);
   const [agentCollapsed, setAgentCollapsed] = useState(false);
   const [agentPhase, setAgentPhase] = useState<"idle" | "running" | "done" | "error">("idle");
   const [agentStatusKey, setAgentStatusKey] = useState<AgentStatusKey>("agent.statusIdle");
@@ -180,6 +181,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setAgentMessages,
     agentProposal,
     setAgentProposal,
+    agentRunId,
+    setAgentRunId,
     agentCollapsed,
     setAgentCollapsed,
     agentPhase,

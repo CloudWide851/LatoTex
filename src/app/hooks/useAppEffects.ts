@@ -337,7 +337,7 @@ export function useAppEffects(params: {
           }
         })
         .catch(() => undefined);
-    }, 2400);
+    }, 650);
     return () => clearInterval(timer);
   }, [setCursor, setEvents]);
 

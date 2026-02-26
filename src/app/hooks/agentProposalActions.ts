@@ -14,6 +14,7 @@ export async function applyAgentProposal(params: {
   setTree: (value: any) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
+  setAgentRunId: (value: string | null) => void;
   setPage: (value: any) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
@@ -30,6 +31,7 @@ export async function applyAgentProposal(params: {
     setTree,
     setAgentMessages,
     setAgentProposal,
+    setAgentRunId,
     setPage,
     setToast,
     runAnalysisFromAgent,
@@ -56,6 +58,7 @@ export async function applyAgentProposal(params: {
       return [...prev, appliedMessage].slice(-MAX_AGENT_MESSAGES);
     });
     setAgentProposal(null);
+    setAgentRunId(null);
     if (withAnalysis && runAnalysisFromAgent) {
       setPage("analysis");
       await runAnalysisFromAgent(proposal.analysisPrompt);

@@ -79,6 +79,11 @@ export type EventBatch = {
   events: SwarmEvent[];
 };
 
+export type AgentRunStartAccepted = {
+  runId: string;
+  status: string;
+};
+
 export type AgentModelBinding = {
   role: string;
   modelId: string;

@@ -201,11 +201,19 @@ pub struct AgentRunAccepted {
     pub output: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunStartAccepted {
+    pub run_id: String,
+    pub status: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventQuery {
     pub cursor: Option<i64>,
     pub limit: Option<u32>,
+    pub run_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -12,6 +12,7 @@ export function useAgentWorkflowHandlers(params: {
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposal: AgentFileProposal | null;
   setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
+  setAgentRunId: (value: string | null) => void;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean) => void;
   setAgentPhase: (value: "idle" | "running" | "done" | "error") => void;
@@ -41,6 +42,7 @@ export function useAgentWorkflowHandlers(params: {
     setAgentMessages,
     agentProposal,
     setAgentProposal,
+    setAgentRunId,
     setAgentPrompt,
     setAgentCollapsed,
     setAgentPhase,
@@ -67,12 +69,14 @@ export function useAgentWorkflowHandlers(params: {
       t,
       setAgentMessages,
       setAgentProposal,
+      setAgentRunId,
       setAgentPrompt,
       setAgentCollapsed,
       setAgentPhase,
       setAgentStatusKey,
       setToast,
       setEditorContent,
+      setSelectedFile,
       runCompilePass: ({ projectId, mainPath, mainContent, options }) =>
         runCompilePass({ projectId, mainPath, mainContent, options }),
     });
@@ -88,14 +92,23 @@ export function useAgentWorkflowHandlers(params: {
     setAgentPhase,
     setAgentPrompt,
     setAgentProposal,
+    setAgentRunId,
     setAgentStatusKey,
+    setSelectedFile,
     setToast,
     t,
   ]);
 
   const handleRejectAgentProposal = useCallback(() => {
+    if (agentProposal) {
+      if (selectedFile !== agentProposal.targetPath) {
+        setSelectedFile(agentProposal.targetPath);
+      }
+      setEditorContent(agentProposal.originalContent);
+    }
     setAgentProposal(null);
-  }, [setAgentProposal]);
+    setAgentRunId(null);
+  }, [agentProposal, selectedFile, setAgentProposal, setAgentRunId, setEditorContent, setSelectedFile]);
 
   const handleAcceptAgentProposal = useCallback(async (withAnalysis: boolean) => {
     if (!activeProjectId || !agentProposal) {
@@ -112,6 +125,7 @@ export function useAgentWorkflowHandlers(params: {
       setTree,
       setAgentMessages,
       setAgentProposal,
+      setAgentRunId,
       setPage,
       setToast,
       runAnalysisFromAgent,
@@ -124,6 +138,7 @@ export function useAgentWorkflowHandlers(params: {
     selectedFile,
     setAgentMessages,
     setAgentProposal,
+    setAgentRunId,
     setBusy,
     setEditorContent,
     setPage,

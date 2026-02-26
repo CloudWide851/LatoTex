@@ -8,6 +8,7 @@ import type {
   FsAction,
   FsScope,
   ResourceNode,
+  SwarmEvent,
   WorkspacePage,
 } from "../../shared/types/app";
 import type { LogTab } from "../app-config";
@@ -56,6 +57,8 @@ export function AppWorkspaceShell(props: {
   agentPrompt: string;
   agentMessages: AgentChatMessage[];
   agentProposal: AgentFileProposal | null;
+  agentRunId: string | null;
+  events: SwarmEvent[];
   explorerGitDecorations: Record<
     string,
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
@@ -128,6 +131,8 @@ export function AppWorkspaceShell(props: {
     agentPrompt,
     agentMessages,
     agentProposal,
+    agentRunId,
+    events,
     explorerGitDecorations,
     shellMin,
     settingsPanel,
@@ -407,6 +412,8 @@ export function AppWorkspaceShell(props: {
             busy={busy}
             messages={agentMessages}
             proposal={agentProposal}
+            runId={agentRunId}
+            events={events}
             onPromptChange={onAgentPromptChange}
             onRun={onAgentRun}
             onToggle={onAgentToggle}
@@ -419,8 +426,6 @@ export function AppWorkspaceShell(props: {
             applyLabel={t("agent.proposalApply")}
             rejectLabel={t("agent.proposalReject")}
             autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
-            diffBeforeLabel={t("agent.proposalBefore")}
-            diffAfterLabel={t("agent.proposalAfter")}
             showMoreLabel={t("agent.showMore")}
             showLessLabel={t("agent.showLess")}
             commands={[

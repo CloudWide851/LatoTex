@@ -2,9 +2,10 @@ import { ChevronDown, ChevronUp, MessageSquareMore, Send, Sparkles, X } from "lu
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
 import { pickCommandSuggestions } from "../hooks/agentCommands";
-import type { AgentChatMessage, AgentFileProposal } from "../hooks/agentTypes";
+import type { AgentChatMessage, AgentEventCard, AgentFileProposal } from "../hooks/agentTypes";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -27,40 +28,117 @@ function MarkdownMessage(props: { content: string }) {
   );
 }
 
-function ProposalPanel(props: {
+function toCardKind(kind: string): string {
+  if (kind.startsWith("a2a.")) {
+    return "a2a";
+  }
+  if (kind.startsWith("mcp.")) {
+    return "mcp";
+  }
+  if (kind.startsWith("responses.")) {
+    return "responses";
+  }
+  if (kind.startsWith("agent.run")) {
+    return "run";
+  }
+  return "other";
+}
+
+function extractEventCards(events: SwarmEvent[], runId: string | null): AgentEventCard[] {
+  if (!runId) {
+    return [];
+  }
+  const filtered = events
+    .filter((event) => event.runId === runId)
+    .filter((event) => {
+      const kind = toCardKind(event.kind);
+      return kind === "a2a" || kind === "mcp" || kind === "responses" || kind === "run";
+    })
+    .sort((a, b) => a.seq - b.seq);
+  const byCard = new Map<string, AgentEventCard>();
+  for (const event of filtered) {
+    const payload = event.payload ?? {};
+    const cardKey =
+      typeof payload.cardKey === "string" && payload.cardKey.trim().length > 0
+        ? payload.cardKey
+        : event.id;
+    const append = payload.append === true;
+    const content =
+      typeof payload.content === "string"
+        ? payload.content
+        : typeof payload.output === "string"
+          ? payload.output
+          : "";
+    const existing = byCard.get(cardKey);
+    if (!existing) {
+      byCard.set(cardKey, {
+        id: event.id,
+        runId: event.runId,
+        kind: event.kind,
+        stage: typeof payload.stage === "string" ? payload.stage : "run",
+        source: typeof payload.source === "string" ? payload.source : event.role,
+        status: typeof payload.status === "string" ? payload.status : "running",
+        title: typeof payload.title === "string" ? payload.title : event.kind,
+        content,
+        cardKey,
+        createdAt: event.createdAt,
+      });
+      continue;
+    }
+    existing.kind = event.kind;
+    existing.status =
+      typeof payload.status === "string" && payload.status.trim().length > 0
+        ? payload.status
+        : existing.status;
+    existing.title =
+      typeof payload.title === "string" && payload.title.trim().length > 0
+        ? payload.title
+        : existing.title;
+    existing.stage =
+      typeof payload.stage === "string" && payload.stage.trim().length > 0
+        ? payload.stage
+        : existing.stage;
+    existing.source =
+      typeof payload.source === "string" && payload.source.trim().length > 0
+        ? payload.source
+        : existing.source;
+    existing.content = append ? `${existing.content}${content}` : content || existing.content;
+  }
+  return Array.from(byCard.values());
+}
+
+function statusTone(status: string): string {
+  if (status === "error" || status === "failed") {
+    return "border-rose-300 bg-rose-50 text-rose-700";
+  }
+  if (status === "success" || status === "completed") {
+    return "border-emerald-300 bg-emerald-50 text-emerald-700";
+  }
+  return "border-slate-300 bg-slate-50 text-slate-700";
+}
+
+function ProposalBar(props: {
   proposal: AgentFileProposal;
   busy: boolean;
   applyLabel: string;
   rejectLabel: string;
   autoAnalyzeLabel: string;
-  beforeLabel: string;
-  afterLabel: string;
   onAccept: (withAnalysis: boolean) => void;
   onReject: () => void;
 }) {
-  const {
-    proposal,
-    busy,
-    applyLabel,
-    rejectLabel,
-    autoAnalyzeLabel,
-    beforeLabel,
-    afterLabel,
-    onAccept,
-    onReject,
-  } = props;
+  const { proposal, busy, applyLabel, rejectLabel, autoAnalyzeLabel, onAccept, onReject } = props;
   const [withAnalysis, setWithAnalysis] = useState(false);
-
   useEffect(() => {
     setWithAnalysis(false);
   }, [proposal.id]);
-
   return (
-    <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="border-b border-amber-200 bg-amber-50 px-3 py-2">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-slate-700">{proposal.summary}</p>
-          <p className="truncate text-[11px] text-slate-500">{proposal.targetPath}</p>
+          <p className="truncate text-xs font-semibold text-amber-900">{proposal.targetPath}</p>
+          <p className="truncate text-[11px] text-amber-700">
+            +{proposal.insertions ?? 0} / -{proposal.deletions ?? 0}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -79,7 +157,7 @@ function ProposalPanel(props: {
           </button>
         </div>
       </div>
-      <label className="mb-2 flex items-center gap-2 text-[11px] text-slate-600">
+      <label className="mb-1 flex items-center gap-2 text-[11px] text-amber-900">
         <input
           type="checkbox"
           className="h-3.5 w-3.5"
@@ -89,20 +167,11 @@ function ProposalPanel(props: {
         />
         <span>{autoAnalyzeLabel}</span>
       </label>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="min-h-[120px] rounded border border-slate-200 bg-white p-2">
-          <p className="mb-1 text-[11px] font-semibold text-slate-500">{beforeLabel}</p>
-          <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
-            {proposal.originalContent}
-          </pre>
-        </div>
-        <div className="min-h-[120px] rounded border border-emerald-300 bg-white p-2">
-          <p className="mb-1 text-[11px] font-semibold text-emerald-700">{afterLabel}</p>
-          <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
-            {proposal.candidateContent}
-          </pre>
-        </div>
-      </div>
+      {proposal.changedLines && proposal.changedLines.length > 0 ? (
+        <p className="truncate text-[11px] text-amber-800">
+          {proposal.changedLines.slice(0, 16).join(", ")}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -117,6 +186,8 @@ export function AgentChatOverlay(props: {
   busy: boolean;
   messages: AgentChatMessage[];
   proposal: AgentFileProposal | null;
+  runId: string | null;
+  events: SwarmEvent[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
   onToggle: () => void;
@@ -129,8 +200,6 @@ export function AgentChatOverlay(props: {
   applyLabel: string;
   rejectLabel: string;
   autoAnalyzeLabel: string;
-  diffBeforeLabel: string;
-  diffAfterLabel: string;
   showMoreLabel: string;
   showLessLabel: string;
   commands: AgentCommandItem[];
@@ -145,6 +214,8 @@ export function AgentChatOverlay(props: {
     busy,
     messages,
     proposal,
+    runId,
+    events,
     onPromptChange,
     onRun,
     onToggle,
@@ -157,25 +228,29 @@ export function AgentChatOverlay(props: {
     applyLabel,
     rejectLabel,
     autoAnalyzeLabel,
-    diffBeforeLabel,
-    diffAfterLabel,
     showMoreLabel,
     showLessLabel,
     commands,
   } = props;
-  const [activityExpanded, setActivityExpanded] = useState(false);
+
+  const [activityExpanded, setActivityExpanded] = useState(true);
   const [commandIndex, setCommandIndex] = useState(0);
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
-  const canShowActivity = phase !== "idle" || messages.length > 0;
-  const recentMessages = useMemo(() => messages.slice(-8), [messages]);
+  const [expandedCardKeys, setExpandedCardKeys] = useState<Record<string, boolean>>({});
+  const canShowActivity = phase !== "idle" || messages.length > 0 || events.length > 0;
+  const eventCards = useMemo(() => extractEventCards(events, runId), [events, runId]);
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
   const commandSuggestions = useMemo(
-    () => suggestedTokens
-      .map((token) => commands.find((item) => item.token === token))
-      .filter((item): item is AgentCommandItem => Boolean(item)),
+    () =>
+      suggestedTokens
+        .map((token) => commands.find((item) => item.token === token))
+        .filter((item): item is AgentCommandItem => Boolean(item)),
     [commands, suggestedTokens],
   );
-  const activeCommandIndex = Math.min(Math.max(commandIndex, 0), Math.max(commandSuggestions.length - 1, 0));
+  const activeCommandIndex = Math.min(
+    Math.max(commandIndex, 0),
+    Math.max(commandSuggestions.length - 1, 0),
+  );
 
   if (collapsed) {
     return (
@@ -200,7 +275,7 @@ export function AgentChatOverlay(props: {
       <div
         className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-6px)] min-w-[340px] max-h-[calc(100%-12px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(260px, 64%, 680px)" : "clamp(156px, 32%, 280px)",
+          height: activityExpanded ? "clamp(280px, 70%, 760px)" : "clamp(160px, 32%, 300px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
@@ -212,7 +287,7 @@ export function AgentChatOverlay(props: {
             </span>
           </div>
           <div className="flex items-center gap-1">
-            {canShowActivity && (
+            {canShowActivity ? (
               <button
                 className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                 onClick={() => setActivityExpanded((prev) => !prev)}
@@ -225,7 +300,7 @@ export function AgentChatOverlay(props: {
                   <ChevronUp className="h-3.5 w-3.5" />
                 )}
               </button>
-            )}
+            ) : null}
             <button
               className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               onClick={onToggle}
@@ -238,22 +313,22 @@ export function AgentChatOverlay(props: {
 
         <div className="flex min-h-0 flex-1 flex-col">
           {proposal ? (
-            <ProposalPanel
+            <ProposalBar
               proposal={proposal}
               busy={busy}
               applyLabel={applyLabel}
               rejectLabel={rejectLabel}
               autoAnalyzeLabel={autoAnalyzeLabel}
-              beforeLabel={diffBeforeLabel}
-              afterLabel={diffAfterLabel}
               onAccept={onAcceptProposal}
               onReject={onRejectProposal}
             />
           ) : null}
-          {activityExpanded && (
+
+          {activityExpanded ? (
             <div className="min-h-0 flex-1 space-y-1 overflow-auto border-b border-slate-200 px-3 py-2">
-              {recentMessages.map((message) => {
-                const longMessage = messageLineCount(message.text) > 12 || message.text.length > 720;
+              {messages.map((message) => {
+                const longMessage =
+                  messageLineCount(message.text) > 12 || message.text.length > 720;
                 const expanded = expandedMessageIds[message.id] ?? false;
                 const isMarkdown = message.format === "markdown";
                 return (
@@ -267,7 +342,11 @@ export function AgentChatOverlay(props: {
                     )}
                   >
                     <div className={cn(!expanded && longMessage ? "max-h-32 overflow-hidden" : "")}>
-                      {isMarkdown ? <MarkdownMessage content={message.text} /> : <p className="whitespace-pre-wrap">{message.text}</p>}
+                      {isMarkdown ? (
+                        <MarkdownMessage content={message.text} />
+                      ) : (
+                        <p className="whitespace-pre-wrap">{message.text}</p>
+                      )}
                     </div>
                     {longMessage ? (
                       <button
@@ -285,8 +364,44 @@ export function AgentChatOverlay(props: {
                   </div>
                 );
               })}
+
+              {eventCards.map((card) => {
+                const expanded = expandedCardKeys[card.cardKey] ?? false;
+                const longCard = messageLineCount(card.content) > 10 || card.content.length > 680;
+                return (
+                  <div
+                    key={card.cardKey}
+                    className={cn("rounded-md border px-2 py-1 text-xs", statusTone(card.status))}
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+                      <span className="truncate font-semibold">{card.title}</span>
+                      <span className="shrink-0 uppercase">{card.stage}</span>
+                    </div>
+                    <div className={cn(!expanded && longCard ? "max-h-32 overflow-hidden" : "")}>
+                      {card.content.trim().length > 0 ? (
+                        <MarkdownMessage content={card.content} />
+                      ) : (
+                        <p className="text-[11px] opacity-70">{card.source}</p>
+                      )}
+                    </div>
+                    {longCard ? (
+                      <button
+                        className="mt-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+                        onClick={() =>
+                          setExpandedCardKeys((prev) => ({
+                            ...prev,
+                            [card.cardKey]: !expanded,
+                          }))
+                        }
+                      >
+                        {expanded ? showLessLabel : showMoreLabel}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
-          )}
+          ) : null}
 
           <div className="mt-auto p-3">
             <div className="relative">
@@ -301,7 +416,10 @@ export function AgentChatOverlay(props: {
                 placeholder={placeholder}
                 onChange={(event) => onPromptChange(event.target.value)}
                 onKeyDown={(event) => {
-                  if (commandSuggestions.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                  if (
+                    commandSuggestions.length > 0 &&
+                    (event.key === "ArrowDown" || event.key === "ArrowUp")
+                  ) {
                     event.preventDefault();
                     setCommandIndex((prev) => {
                       if (event.key === "ArrowDown") {
@@ -328,14 +446,16 @@ export function AgentChatOverlay(props: {
                   }
                 }}
               />
-              {commandSuggestions.length > 0 && (
+              {commandSuggestions.length > 0 ? (
                 <div className="absolute bottom-10 left-1 right-10 z-20 max-h-36 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft">
                   {commandSuggestions.map((item, index) => (
                     <button
                       key={item.token}
                       className={cn(
                         "flex w-full items-start justify-between gap-2 rounded px-2 py-1 text-left text-xs transition",
-                        index === activeCommandIndex ? "bg-primary-50 text-primary-700" : "hover:bg-slate-100",
+                        index === activeCommandIndex
+                          ? "bg-primary-50 text-primary-700"
+                          : "hover:bg-slate-100",
                       )}
                       onMouseDown={(event) => {
                         event.preventDefault();
@@ -348,7 +468,7 @@ export function AgentChatOverlay(props: {
                     </button>
                   ))}
                 </div>
-              )}
+              ) : null}
               <button
                 className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={onRun}

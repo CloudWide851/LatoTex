@@ -5,6 +5,7 @@ import type {
   AnalysisExportArtifactResponse,
   AnalysisListReportsResponse,
   AnalysisSaveReportResponse,
+  AgentRunStartAccepted,
   AgentModelBinding,
   AppSettings,
   BusyTexCacheInfo,
@@ -238,8 +239,28 @@ export function runAgent(input: {
   });
 }
 
-export function getEvents(cursor?: number, limit = 200): Promise<EventBatch> {
-  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit } });
+export function runAgentStart(input: {
+  projectId: string;
+  role: string;
+  prompt: string;
+  contextRefs: string[];
+  modelOverride?: string;
+  bypassCache?: boolean;
+}): Promise<AgentRunStartAccepted> {
+  return invoke<AgentRunStartAccepted>("agent_run_start", {
+    input: {
+      projectId: input.projectId,
+      role: input.role,
+      prompt: input.prompt,
+      contextRefs: input.contextRefs,
+      modelOverride: input.modelOverride,
+      bypassCache: input.bypassCache ?? false,
+    },
+  });
+}
+
+export function getEvents(cursor?: number, limit = 200, runId?: string): Promise<EventBatch> {
+  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId } });
 }
 
 export function recordCompile(input: {

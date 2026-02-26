@@ -15,4 +15,21 @@ export type AgentFileProposal = {
   candidateContent: string;
   summary: string;
   analysisPrompt: string;
+  insertions?: number;
+  deletions?: number;
+  changedLines?: number[];
+  previewApplied?: boolean;
+};
+
+export type AgentEventCard = {
+  id: string;
+  runId: string;
+  kind: string;
+  stage: string;
+  source: string;
+  status: string;
+  title: string;
+  content: string;
+  cardKey: string;
+  createdAt: string;
 };

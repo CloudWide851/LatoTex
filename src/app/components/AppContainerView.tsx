@@ -53,6 +53,7 @@ export function AppContainerView(props: any) {
     agentPrompt,
     agentMessages,
     agentProposal,
+    agentRunId,
     explorerGitDecorations,
     SHELL_MIN,
     settingsPanel,
@@ -182,6 +183,8 @@ export function AppContainerView(props: any) {
             agentPrompt={agentPrompt}
             agentMessages={agentMessages}
             agentProposal={agentProposal}
+            agentRunId={agentRunId}
+            events={events}
             explorerGitDecorations={explorerGitDecorations}
             shellMin={SHELL_MIN}
             settingsPanel={settingsPanel}
