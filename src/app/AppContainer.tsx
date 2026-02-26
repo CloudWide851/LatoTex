@@ -173,6 +173,14 @@ export function AppContainer() {
     s.setCompiledPdfBytes(null);
   }, [s.activeProjectId, s.setCompiledPdfBytes, s.setPdfUrl]);
 
+  const analysisWorkspace = useAnalysisWorkspace({
+    projectId: s.activeProjectId,
+    selectedFile: s.selectedFile,
+    editorContent: s.editorContent,
+    t,
+    setToast: s.setToast,
+  });
+
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,
@@ -206,6 +214,8 @@ export function AppContainer() {
     setPdfUrl: s.setPdfUrl,
     setCompiledPdfBytes: s.setCompiledPdfBytes,
     setAgentMessages: s.setAgentMessages,
+    agentProposal: s.agentProposal,
+    setAgentProposal: s.setAgentProposal,
     setAgentPrompt: s.setAgentPrompt,
     setAgentCollapsed: s.setAgentCollapsed,
     setAgentPhase: s.setAgentPhase,
@@ -231,6 +241,7 @@ export function AppContainer() {
     refreshGitWorkspace,
     setLocale,
     upsertProject,
+    runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
   });
 
   const getCachedTextContent = useCallback(
@@ -387,14 +398,6 @@ export function AppContainer() {
     setModelModalOpen: s.setModelModalOpen,
   });
 
-  const analysisWorkspace = useAnalysisWorkspace({
-    projectId: s.activeProjectId,
-    selectedFile: s.selectedFile,
-    editorContent: s.editorContent,
-    t,
-    setToast: s.setToast,
-  });
-
   const explorerGitDecorations = useMemo(() => {
     const map: Record<string, { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }> = {};
     for (const change of s.gitStatusState?.changes ?? []) {
@@ -508,6 +511,7 @@ export function AppContainer() {
       agentStatusKey={s.agentStatusKey}
       agentPrompt={s.agentPrompt}
       agentMessages={s.agentMessages}
+      agentProposal={s.agentProposal}
       explorerGitDecorations={explorerGitDecorations}
       SHELL_MIN={SHELL_MIN}
       settingsPanel={panels.settingsPanel}
@@ -525,6 +529,8 @@ export function AppContainer() {
       setAgentPrompt={s.setAgentPrompt}
       setAgentCollapsed={s.setAgentCollapsed}
       handleRunAgent={handlers.handleRunAgent}
+      handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
+      handleRejectAgentProposal={handlers.handleRejectAgentProposal}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
       handleCompile={handlers.handleCompile}
       handleExportCompiledPdf={handlers.handleExportCompiledPdf}

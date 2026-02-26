@@ -357,28 +357,39 @@ pub fn agent_run(
         &input.context_refs,
     );
 
-    if let Some(cached) = storage::load_agent_cache(&state.db_path, &cache_key)? {
+    if input.bypass_cache {
         storage::append_event(
             &state.db_path,
             &run_id,
             &input.project_id,
             &input.role,
-            "agent.cache.hit",
+            "agent.cache.bypass",
             json!({ "cacheKey": cache_key, "protocolId": protocol_id, "model": model_name }),
         )?;
-        storage::append_event(
-            &state.db_path,
-            &run_id,
-            &input.project_id,
-            &input.role,
-            "agent.run.completed",
-            json!({ "output": cached, "cached": true }),
-        )?;
-        return Ok(AgentRunAccepted {
-            run_id,
-            status: "completed".to_string(),
-            output: cached,
-        });
+    } else {
+        if let Some(cached) = storage::load_agent_cache(&state.db_path, &cache_key)? {
+            storage::append_event(
+                &state.db_path,
+                &run_id,
+                &input.project_id,
+                &input.role,
+                "agent.cache.hit",
+                json!({ "cacheKey": cache_key, "protocolId": protocol_id, "model": model_name }),
+            )?;
+            storage::append_event(
+                &state.db_path,
+                &run_id,
+                &input.project_id,
+                &input.role,
+                "agent.run.completed",
+                json!({ "output": cached, "cached": true }),
+            )?;
+            return Ok(AgentRunAccepted {
+                run_id,
+                status: "completed".to_string(),
+                output: cached,
+            });
+        }
     }
 
     storage::append_event(
@@ -392,22 +403,24 @@ pub fn agent_run(
 
     let output =
         call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)?;
-    storage::store_agent_cache(
-        &state.db_path,
-        &cache_key,
-        &protocol_id,
-        &model_name,
-        &output,
-        AGENT_CACHE_TTL_SECONDS,
-    )?;
-    storage::append_event(
-        &state.db_path,
-        &run_id,
-        &input.project_id,
-        &input.role,
-        "agent.cache.store",
-        json!({ "cacheKey": cache_key }),
-    )?;
+    if !input.bypass_cache {
+        storage::store_agent_cache(
+            &state.db_path,
+            &cache_key,
+            &protocol_id,
+            &model_name,
+            &output,
+            AGENT_CACHE_TTL_SECONDS,
+        )?;
+        storage::append_event(
+            &state.db_path,
+            &run_id,
+            &input.project_id,
+            &input.role,
+            "agent.cache.store",
+            json!({ "cacheKey": cache_key }),
+        )?;
+    }
     storage::append_event(
         &state.db_path,
         &run_id,

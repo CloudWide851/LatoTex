@@ -201,8 +201,9 @@ export function useAnalysisWorkspace(params: {
 
   const canRun = useMemo(() => Boolean(projectId && prompt.trim().length > 0), [projectId, prompt]);
 
-  const runAnalysis = useCallback(async () => {
-    if (!projectId || !prompt.trim()) {
+  const runAnalysisForPrompt = useCallback(async (inputPrompt: string) => {
+    const normalizedPrompt = inputPrompt.trim();
+    if (!projectId || !normalizedPrompt) {
       return;
     }
     setRunning(true);
@@ -213,7 +214,7 @@ export function useAnalysisWorkspace(params: {
         "title (string), steps (string[]), insights (string[]), summary (string), pythonScript (string).",
         "The pythonScript must set a variable analysis_result as dict with labels and values arrays.",
         "",
-        `User request: ${prompt.trim()}`,
+        `User request: ${normalizedPrompt}`,
         selectedFile ? `Current file: ${selectedFile}` : "",
         editorContent ? `Current content:\n${editorContent.slice(0, 6000)}` : "",
       ].join("\n");
@@ -280,7 +281,16 @@ export function useAnalysisWorkspace(params: {
     } finally {
       setRunning(false);
     }
-  }, [editorContent, projectId, prompt, refreshReports, selectedFile, setToast, t]);
+  }, [editorContent, projectId, refreshReports, selectedFile, setToast, t]);
+
+  const runAnalysis = useCallback(async () => {
+    await runAnalysisForPrompt(prompt);
+  }, [prompt, runAnalysisForPrompt]);
+
+  const runAnalysisWithPrompt = useCallback(async (inputPrompt: string) => {
+    setPrompt(inputPrompt);
+    await runAnalysisForPrompt(inputPrompt);
+  }, [runAnalysisForPrompt]);
 
   const exportArtifact = useCallback(async (relativePath: string) => {
     if (!projectId) {
@@ -312,6 +322,7 @@ export function useAnalysisWorkspace(params: {
     result,
     reports,
     runAnalysis,
+    runAnalysisWithPrompt,
     refreshReports,
     exportArtifact,
     revealArtifact,

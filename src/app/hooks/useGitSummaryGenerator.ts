@@ -54,6 +54,7 @@ export async function generateGitSummary(
     role: "git_summary",
     prompt,
     contextRefs: files,
+    bypassCache: true,
   });
 
   const output = result.output?.trim() ?? "";

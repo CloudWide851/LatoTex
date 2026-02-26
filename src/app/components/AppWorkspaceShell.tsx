@@ -11,7 +11,7 @@ import type {
   WorkspacePage,
 } from "../../shared/types/app";
 import type { LogTab } from "../app-config";
-import { AgentChatOverlay, type AgentMessage, type AgentPhase } from "./AgentChatOverlay";
+import { AgentChatOverlay, type AgentPhase } from "./AgentChatOverlay";
 import { ExplorerTree } from "./ExplorerTree";
 import { FilePreviewPane } from "./FilePreviewPane";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
@@ -19,6 +19,7 @@ import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
 import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
+import type { AgentChatMessage, AgentFileProposal } from "../hooks/agentTypes";
 
 type TranslationFn = (key: any) => string;
 
@@ -53,7 +54,8 @@ export function AppWorkspaceShell(props: {
   agentPhase: AgentPhase;
   agentStatusKey: AgentStatusKey;
   agentPrompt: string;
-  agentMessages: AgentMessage[];
+  agentMessages: AgentChatMessage[];
+  agentProposal: AgentFileProposal | null;
   explorerGitDecorations: Record<
     string,
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
@@ -74,6 +76,8 @@ export function AppWorkspaceShell(props: {
   onAgentPromptChange: (value: string) => void;
   onAgentToggle: () => void;
   onAgentRun: () => void;
+  onAgentAcceptProposal: (withAnalysis: boolean) => void;
+  onAgentRejectProposal: () => void;
   onOpenFolder: () => void;
   onSaveFile: () => void;
   onCompile: () => void;
@@ -123,6 +127,7 @@ export function AppWorkspaceShell(props: {
     agentStatusKey,
     agentPrompt,
     agentMessages,
+    agentProposal,
     explorerGitDecorations,
     shellMin,
     settingsPanel,
@@ -140,6 +145,8 @@ export function AppWorkspaceShell(props: {
     onAgentPromptChange,
     onAgentToggle,
     onAgentRun,
+    onAgentAcceptProposal,
+    onAgentRejectProposal,
     onOpenFolder,
     onSaveFile,
     onCompile,
@@ -399,13 +406,23 @@ export function AppWorkspaceShell(props: {
             prompt={agentPrompt}
             busy={busy}
             messages={agentMessages}
+            proposal={agentProposal}
             onPromptChange={onAgentPromptChange}
             onRun={onAgentRun}
             onToggle={onAgentToggle}
+            onAcceptProposal={onAgentAcceptProposal}
+            onRejectProposal={onAgentRejectProposal}
             runLabel={t("workspace.runTaskAgent")}
             placeholder={t("workspace.agentPlaceholder")}
             activityShowLabel={t("agent.activityShow")}
             activityHideLabel={t("agent.activityHide")}
+            applyLabel={t("agent.proposalApply")}
+            rejectLabel={t("agent.proposalReject")}
+            autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
+            diffBeforeLabel={t("agent.proposalBefore")}
+            diffAfterLabel={t("agent.proposalAfter")}
+            showMoreLabel={t("agent.showMore")}
+            showLessLabel={t("agent.showLess")}
             commands={[
               {
                 token: "/review",

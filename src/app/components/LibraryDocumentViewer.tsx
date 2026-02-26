@@ -1,4 +1,17 @@
-import { Check, Copy, ExternalLink, FileText, FileUp, Highlighter, Trash2, Undo2 } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileText,
+  FileUp,
+  Highlighter,
+  Minus,
+  Plus,
+  Type,
+  Undo2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
@@ -10,23 +23,16 @@ import {
 } from "../../shared/api/desktop";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
+import { PdfAnnotationLayer } from "./library/PdfAnnotationLayer";
+import {
+  parseAnnotationPayload,
+  toLibraryAnnotationPath,
+  type AnnotationPayload,
+  type AnnotationStroke,
+  type AnnotationTextBox,
+} from "./library/annotationModel";
 
 type TranslationFn = (key: any) => string;
-
-type AnnotationPoint = {
-  x: number;
-  y: number;
-};
-
-type AnnotationStroke = {
-  id: string;
-  points: AnnotationPoint[];
-};
-
-type AnnotationPayload = {
-  version: 1;
-  strokes: AnnotationStroke[];
-};
 
 function filenameFromPath(path: string | null): string {
   if (!path) {
@@ -36,53 +42,10 @@ function filenameFromPath(path: string | null): string {
   return parts[parts.length - 1] ?? path;
 }
 
-function toLibraryAnnotationPath(selectedPath: string): string {
-  const normalized = selectedPath.trim().toLowerCase();
-  const safe = normalized
-    .replace(/[^a-z0-9._-]+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 96) || "library";
-  let hash = 2166136261;
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  const digest = (hash >>> 0).toString(16).padStart(8, "0");
-  return `.latotex/papers/.annotations/${safe}-${digest}.json`;
-}
-
-function clampPointToView(x: number, y: number, width: number, height: number): AnnotationPoint {
-  if (width <= 0 || height <= 0) {
-    return { x: 0, y: 0 };
-  }
-  return {
-    x: Math.max(0, Math.min(1000, Number(((x / width) * 1000).toFixed(2)))),
-    y: Math.max(0, Math.min(1000, Number(((y / height) * 1000).toFixed(2)))),
-  };
-}
-
-function parseAnnotationPayload(content: string): AnnotationStroke[] {
-  try {
-    const parsed = JSON.parse(content) as Partial<AnnotationPayload>;
-    if (!Array.isArray(parsed?.strokes)) {
-      return [];
-    }
-    return parsed.strokes
-      .filter((item) => Array.isArray(item?.points) && item.points.length > 1)
-      .map((item, index) => ({
-        id: typeof item.id === "string" && item.id.length > 0 ? item.id : `stroke-${index}`,
-        points: item.points
-          .map((point) => ({
-            x: Number(point?.x ?? 0),
-            y: Number(point?.y ?? 0),
-          }))
-          .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
-      }))
-      .filter((item) => item.points.length > 1);
-  } catch {
-    return [];
-  }
+function buildPdfSrc(pdfUrl: string, page: number, zoom: number): string {
+  const normalizedPage = Math.max(1, Math.floor(page));
+  const normalizedZoom = Math.max(40, Math.min(300, Math.round(zoom * 100)));
+  return `${pdfUrl}#page=${normalizedPage}&zoom=${normalizedZoom}`;
 }
 
 export function LibraryDocumentViewer(props: {
@@ -101,11 +64,13 @@ export function LibraryDocumentViewer(props: {
   const [resolvedLink, setResolvedLink] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"bib" | "pdf">("bib");
   const [annotationEnabled, setAnnotationEnabled] = useState(false);
+  const [textBoxMode, setTextBoxMode] = useState(false);
   const [annotationStrokes, setAnnotationStrokes] = useState<AnnotationStroke[]>([]);
-  const [annotationDraft, setAnnotationDraft] = useState<AnnotationPoint[] | null>(null);
+  const [annotationTextBoxes, setAnnotationTextBoxes] = useState<AnnotationTextBox[]>([]);
   const [annotationLoaded, setAnnotationLoaded] = useState(false);
-
-  const drawingRef = useRef(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
+  const [pdfZoom, setPdfZoom] = useState(1);
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const hasPdf = Boolean(pdfUrl);
@@ -117,6 +82,14 @@ export function LibraryDocumentViewer(props: {
   const annotationPath = useMemo(
     () => (selectedPath ? toLibraryAnnotationPath(selectedPath) : null),
     [selectedPath],
+  );
+  const pageStrokeCount = useMemo(
+    () => annotationStrokes.filter((item) => item.page === currentPage).length,
+    [annotationStrokes, currentPage],
+  );
+  const pageTextBoxCount = useMemo(
+    () => annotationTextBoxes.filter((item) => item.page === currentPage).length,
+    [annotationTextBoxes, currentPage],
   );
 
   useEffect(() => {
@@ -138,8 +111,12 @@ export function LibraryDocumentViewer(props: {
       setResolvedLink(null);
       setViewMode("bib");
       setAnnotationEnabled(false);
+      setTextBoxMode(false);
       setAnnotationStrokes([]);
-      setAnnotationDraft(null);
+      setAnnotationTextBoxes([]);
+      setCurrentPage(1);
+      setPageInput("1");
+      setPdfZoom(1);
       setPdfUrl((prev) => {
         if (prev) {
           URL.revokeObjectURL(prev);
@@ -155,6 +132,10 @@ export function LibraryDocumentViewer(props: {
     setCopyState(false);
     setViewMode("bib");
     setAnnotationEnabled(false);
+    setTextBoxMode(false);
+    setCurrentPage(1);
+    setPageInput("1");
+    setPdfZoom(1);
 
     const load = async () => {
       const summary = await libraryCitationSummary(projectId, selectedPath);
@@ -228,22 +209,26 @@ export function LibraryDocumentViewer(props: {
     if (!projectId || !annotationPath) {
       setAnnotationLoaded(false);
       setAnnotationStrokes([]);
-      setAnnotationDraft(null);
+      setAnnotationTextBoxes([]);
       return;
     }
     setAnnotationLoaded(false);
     setAnnotationStrokes([]);
-    setAnnotationDraft(null);
+    setAnnotationTextBoxes([]);
 
     void readFile(projectId, annotationPath)
       .then((result) => {
-        if (!disposed) {
-          setAnnotationStrokes(parseAnnotationPayload(result.content));
+        if (disposed) {
+          return;
         }
+        const parsed = parseAnnotationPayload(result.content);
+        setAnnotationStrokes(parsed.strokes);
+        setAnnotationTextBoxes(parsed.textBoxes);
       })
       .catch(() => {
         if (!disposed) {
           setAnnotationStrokes([]);
+          setAnnotationTextBoxes([]);
         }
       })
       .finally(() => {
@@ -263,41 +248,23 @@ export function LibraryDocumentViewer(props: {
     }
     const timer = window.setTimeout(() => {
       const payload: AnnotationPayload = {
-        version: 1,
+        version: 2,
         strokes: annotationStrokes,
+        textBoxes: annotationTextBoxes,
       };
       void writeFile(projectId, annotationPath, JSON.stringify(payload, null, 2));
     }, 180);
     return () => {
       window.clearTimeout(timer);
     };
-  }, [annotationLoaded, annotationPath, annotationStrokes, projectId]);
+  }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
 
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
       setAnnotationEnabled(false);
-      drawingRef.current = false;
-      setAnnotationDraft(null);
+      setTextBoxMode(false);
     }
   }, [hasPdf, viewMode]);
-
-  const finishDrawing = useCallback(() => {
-    if (!drawingRef.current) {
-      return;
-    }
-    drawingRef.current = false;
-    setAnnotationDraft((previous) => {
-      if (!previous || previous.length < 2) {
-        return null;
-      }
-      const stroke: AnnotationStroke = {
-        id: `stroke-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-        points: previous,
-      };
-      setAnnotationStrokes((items) => [...items, stroke]);
-      return null;
-    });
-  }, []);
 
   const handleOpenLink = async () => {
     if (!activeLink) {
@@ -323,6 +290,12 @@ export function LibraryDocumentViewer(props: {
       setLinkError(t("library.viewer.linkOpenFailed"));
     }
   };
+
+  const jumpToPage = useCallback((next: number) => {
+    const normalized = Math.max(1, Math.floor(next));
+    setCurrentPage(normalized);
+    setPageInput(String(normalized));
+  }, []);
 
   if (!selectedPath) {
     return (
@@ -373,17 +346,45 @@ export function LibraryDocumentViewer(props: {
                 }`}
                 title={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
                 aria-label={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
-                onClick={() => setAnnotationEnabled((prev) => !prev)}
+                onClick={() => {
+                  setAnnotationEnabled((prev) => !prev);
+                  setTextBoxMode(false);
+                }}
                 disabled={!hasPdf}
               >
                 <Highlighter className="h-3.5 w-3.5" />
               </button>
               <button
+                className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
+                  textBoxMode
+                    ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+                    : "border-slate-300 bg-white hover:bg-slate-100"
+                }`}
+                title={t("library.viewer.textboxMode")}
+                aria-label={t("library.viewer.textboxMode")}
+                onClick={() => {
+                  setTextBoxMode((prev) => !prev);
+                  setAnnotationEnabled(false);
+                }}
+                disabled={!hasPdf}
+              >
+                <Type className="h-3.5 w-3.5" />
+              </button>
+              <button
                 className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
                 title={t("preview.annotationUndo")}
                 aria-label={t("preview.annotationUndo")}
-                onClick={() => setAnnotationStrokes((items) => items.slice(0, -1))}
-                disabled={!hasPdf || annotationStrokes.length === 0}
+                onClick={() =>
+                  setAnnotationStrokes((items) => {
+                    const pageItems = items.filter((item) => item.page === currentPage);
+                    if (pageItems.length === 0) {
+                      return items;
+                    }
+                    const lastId = pageItems[pageItems.length - 1].id;
+                    return items.filter((item) => item.id !== lastId);
+                  })
+                }
+                disabled={!hasPdf || pageStrokeCount === 0}
               >
                 <Undo2 className="h-3.5 w-3.5" />
               </button>
@@ -392,13 +393,60 @@ export function LibraryDocumentViewer(props: {
                 title={t("preview.annotationClear")}
                 aria-label={t("preview.annotationClear")}
                 onClick={() => {
-                  setAnnotationStrokes([]);
-                  setAnnotationDraft(null);
+                  setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
+                  setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
                 }}
-                disabled={!hasPdf || annotationStrokes.length === 0}
+                disabled={!hasPdf || (pageStrokeCount === 0 && pageTextBoxCount === 0)}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Check className="h-3.5 w-3.5" />
               </button>
+              <div className="ml-1 inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
+                <button
+                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
+                  onClick={() => jumpToPage(currentPage - 1)}
+                  title={t("library.viewer.prevPage")}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <input
+                  className="w-10 rounded border border-slate-300 px-1 py-0.5 text-center text-[11px] text-slate-700"
+                  value={pageInput}
+                  onChange={(event) => setPageInput(event.target.value)}
+                  onBlur={() => {
+                    const parsed = Number(pageInput);
+                    if (Number.isFinite(parsed)) {
+                      jumpToPage(parsed);
+                    } else {
+                      setPageInput(String(currentPage));
+                    }
+                  }}
+                  title={t("library.viewer.pageInput")}
+                />
+                <button
+                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
+                  onClick={() => jumpToPage(currentPage + 1)}
+                  title={t("library.viewer.nextPage")}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
+                <button
+                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
+                  onClick={() => setPdfZoom((prev) => Math.max(0.6, Number((prev - 0.1).toFixed(2))))}
+                  title={t("preview.zoomOut")}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="text-[11px] text-slate-600">{Math.round(pdfZoom * 100)}%</span>
+                <button
+                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
+                  onClick={() => setPdfZoom((prev) => Math.min(2.6, Number((prev + 0.1).toFixed(2))))}
+                  title={t("preview.zoomIn")}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <button
                 className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
                 onClick={() => void handleOpenLink()}
@@ -437,67 +485,26 @@ export function LibraryDocumentViewer(props: {
               <div
                 ref={viewportRef}
                 className={`relative h-full overflow-hidden rounded border border-slate-200 bg-slate-50 ${
-                  annotationEnabled ? "cursor-crosshair" : "cursor-default"
+                  annotationEnabled || textBoxMode ? "cursor-crosshair" : "cursor-default"
                 }`}
               >
                 <iframe
                   title={filenameFromPath(selectedPath)}
-                  src={pdfUrl}
+                  src={buildPdfSrc(pdfUrl, currentPage, pdfZoom)}
                   className="h-full w-full"
-                  style={{ pointerEvents: annotationEnabled ? "none" : "auto" }}
+                  style={{ pointerEvents: annotationEnabled || textBoxMode ? "none" : "auto" }}
                 />
-                <svg
-                  className={`absolute inset-0 z-10 h-full w-full ${annotationEnabled ? "pointer-events-auto" : "pointer-events-none"}`}
-                  viewBox="0 0 1000 1000"
-                  preserveAspectRatio="none"
-                  onMouseDown={(event) => {
-                    if (!annotationEnabled) {
-                      return;
-                    }
-                    const rect = viewportRef.current?.getBoundingClientRect();
-                    if (!rect) {
-                      return;
-                    }
-                    drawingRef.current = true;
-                    const first = clampPointToView(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
-                    setAnnotationDraft([first]);
-                  }}
-                  onMouseMove={(event) => {
-                    if (!annotationEnabled || !drawingRef.current) {
-                      return;
-                    }
-                    const rect = viewportRef.current?.getBoundingClientRect();
-                    if (!rect) {
-                      return;
-                    }
-                    const point = clampPointToView(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
-                    setAnnotationDraft((previous) => (previous ? [...previous, point] : [point]));
-                  }}
-                  onMouseUp={() => finishDrawing()}
-                  onMouseLeave={() => finishDrawing()}
-                >
-                  {annotationStrokes.map((stroke) => (
-                    <polyline
-                      key={stroke.id}
-                      points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
-                      fill="none"
-                      stroke="rgba(250, 204, 21, 0.58)"
-                      strokeWidth="16"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ))}
-                  {annotationDraft && annotationDraft.length > 1 ? (
-                    <polyline
-                      points={annotationDraft.map((point) => `${point.x},${point.y}`).join(" ")}
-                      fill="none"
-                      stroke="rgba(250, 204, 21, 0.62)"
-                      strokeWidth="16"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ) : null}
-                </svg>
+                <PdfAnnotationLayer
+                  page={currentPage}
+                  viewportRef={viewportRef}
+                  drawEnabled={annotationEnabled}
+                  textBoxMode={textBoxMode}
+                  strokes={annotationStrokes}
+                  textBoxes={annotationTextBoxes}
+                  onStrokesChange={setAnnotationStrokes}
+                  onTextBoxesChange={setAnnotationTextBoxes}
+                  t={t}
+                />
               </div>
             ) : (
               <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">

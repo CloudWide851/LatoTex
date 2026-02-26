@@ -224,8 +224,18 @@ export function runAgent(input: {
   prompt: string;
   contextRefs: string[];
   modelOverride?: string;
+  bypassCache?: boolean;
 }) {
-  return invoke<{ runId: string; status: string; output: string }>("agent_run", { input });
+  return invoke<{ runId: string; status: string; output: string }>("agent_run", {
+    input: {
+      projectId: input.projectId,
+      role: input.role,
+      prompt: input.prompt,
+      contextRefs: input.contextRefs,
+      modelOverride: input.modelOverride,
+      bypassCache: input.bypassCache ?? false,
+    },
+  });
 }
 
 export function getEvents(cursor?: number, limit = 200): Promise<EventBatch> {

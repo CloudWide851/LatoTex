@@ -8,11 +8,10 @@ import type {
   ResourceNode,
 } from "../../shared/types/app";
 import type { AgentStatusKey, ThemeMode } from "../app-config";
+import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 
 export type TranslationFn = (key: any) => string;
 export type DeleteIntent = { scope: FsScope; path: string } | null;
-export type AgentChatMessage = { id: string; role: "user" | "agent"; text: string };
-
 export type UseAppHandlersParams = {
   isTauriRuntime: boolean;
   t: TranslationFn;
@@ -46,6 +45,8 @@ export type UseAppHandlersParams = {
   setPdfUrl: (value: string | null) => void;
   setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
+  agentProposal: AgentFileProposal | null;
+  setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;
   setAgentPhase: (value: "idle" | "running" | "done" | "error") => void;
@@ -71,4 +72,5 @@ export type UseAppHandlersParams = {
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   setLocale: (next: Locale) => void;
   upsertProject: (projects: any[], snapshot: any) => any[];
+  runAnalysisFromAgent?: (prompt: string) => Promise<void>;
 };

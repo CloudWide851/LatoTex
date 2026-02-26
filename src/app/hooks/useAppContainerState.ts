@@ -30,6 +30,7 @@ import {
   type ThemeTransition,
   type Toast,
 } from "../app-config";
+import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 
 export function useAppContainerState(t: (...args: any[]) => string) {
   const [status, setStatus] = useState<"ready" | "offline">("ready");
@@ -48,9 +49,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [previewTabId, setPreviewTabId] = useState<string | null>(null);
   const [dirtyByPath, setDirtyByPath] = useState<Record<string, boolean>>({});
   const [agentPrompt, setAgentPrompt] = useState("");
-  const [agentMessages, setAgentMessages] = useState<
-    { id: string; role: "user" | "agent"; text: string }[]
-  >([]);
+  const [agentMessages, setAgentMessages] = useState<AgentChatMessage[]>([]);
+  const [agentProposal, setAgentProposal] = useState<AgentFileProposal | null>(null);
   const [agentCollapsed, setAgentCollapsed] = useState(false);
   const [agentPhase, setAgentPhase] = useState<"idle" | "running" | "done" | "error">("idle");
   const [agentStatusKey, setAgentStatusKey] = useState<AgentStatusKey>("agent.statusIdle");
@@ -178,6 +178,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setAgentPrompt,
     agentMessages,
     setAgentMessages,
+    agentProposal,
+    setAgentProposal,
     agentCollapsed,
     setAgentCollapsed,
     agentPhase,

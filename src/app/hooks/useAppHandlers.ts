@@ -14,23 +14,15 @@ import {
   writeFile,
 } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
-import type {
-  AppSettings,
-  FsAction,
-  FsScope,
-  ProjectSearchHit,
-} from "../../shared/types/app";
-import {
-  normalizeAgentBindings,
-  type ThemeMode,
-} from "../app-config";
-import { runAgentWorkflow } from "./agentWorkflow";
+import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
+import { normalizeAgentBindings, type ThemeMode } from "../app-config";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
 import {
   handleBusyTexCachePolicyChangeAction,
   handleProtocolPingAction,
   handleThemeModeChangeAction,
 } from "./settingsUiActions";
+import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 
@@ -68,6 +60,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setPdfUrl,
     setCompiledPdfBytes,
     setAgentMessages,
+    agentProposal,
+    setAgentProposal,
     setAgentPrompt,
     setAgentCollapsed,
     setAgentPhase,
@@ -93,6 +87,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     refreshGitWorkspace,
     setLocale,
     upsertProject,
+    runAnalysisFromAgent,
   } = params;
 
   const {
@@ -241,6 +236,15 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     t,
   ]);
 
+  const runCompilePassForAgent = useCallback(async (params: {
+    projectId: string;
+    mainPath: string;
+    mainContent: string;
+    options: { updatePreview: boolean; emitToast: boolean };
+  }) => {
+    return runCompilePass(params.projectId, params.mainPath, params.mainContent, params.options);
+  }, [runCompilePass]);
+
   const handleCompile = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
       return;
@@ -315,41 +319,32 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     editorRef.current?.trigger("latotex", "redo", null);
   }, [editorRef]);
 
-  const handleRunAgent = useCallback(async () => {
-    if (!activeProjectId || !agentPrompt.trim()) {
-      return;
-    }
-    await runAgentWorkflow({
-      activeProjectId,
-      agentPrompt,
-      editorContent,
-      selectedFile,
-      t,
-      setAgentMessages,
-      setAgentPrompt,
-      setAgentCollapsed,
-      setAgentPhase,
-      setAgentStatusKey,
-      setToast,
-      setEditorContent,
-      runCompilePass: ({ projectId, mainPath, mainContent, options }) =>
-        runCompilePass(projectId, mainPath, mainContent, options),
-    });
-  }, [
+  const {
+    handleRunAgent,
+    handleAcceptAgentProposal,
+    handleRejectAgentProposal,
+  } = useAgentWorkflowHandlers({
     activeProjectId,
     agentPrompt,
     editorContent,
-    runCompilePass,
     selectedFile,
-    setAgentCollapsed,
-    setEditorContent,
+    t,
     setAgentMessages,
-    setAgentPhase,
+    agentProposal,
+    setAgentProposal,
     setAgentPrompt,
+    setAgentCollapsed,
+    setAgentPhase,
     setAgentStatusKey,
     setToast,
-    t,
-  ]);
+    setEditorContent,
+    runCompilePass: runCompilePassForAgent,
+    setBusy,
+    setSelectedFile,
+    setTree,
+    setPage,
+    runAnalysisFromAgent,
+  });
 
   const handleSaveSettings = useCallback(async () => {
     if (!settings) {
@@ -572,6 +567,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleEditorUndo,
     handleEditorRedo,
     handleRunAgent,
+    handleAcceptAgentProposal,
+    handleRejectAgentProposal,
     handleSaveSettings,
     handleLocaleChange,
     handleThemeModeChange,

@@ -189,6 +189,8 @@ pub struct AgentRunRequest {
     pub prompt: String,
     pub context_refs: Vec<String>,
     pub model_override: Option<String>,
+    #[serde(default)]
+    pub bypass_cache: bool,
 }
 
 #[derive(Debug, Serialize)]

@@ -52,6 +52,7 @@ export function AppContainerView(props: any) {
     agentStatusKey,
     agentPrompt,
     agentMessages,
+    agentProposal,
     explorerGitDecorations,
     SHELL_MIN,
     settingsPanel,
@@ -69,6 +70,8 @@ export function AppContainerView(props: any) {
     setAgentPrompt,
     setAgentCollapsed,
     handleRunAgent,
+    handleAcceptAgentProposal,
+    handleRejectAgentProposal,
     handleSaveActiveFile,
     handleCompile,
     handleExportCompiledPdf,
@@ -178,6 +181,7 @@ export function AppContainerView(props: any) {
             agentStatusKey={agentStatusKey}
             agentPrompt={agentPrompt}
             agentMessages={agentMessages}
+            agentProposal={agentProposal}
             explorerGitDecorations={explorerGitDecorations}
             shellMin={SHELL_MIN}
             settingsPanel={settingsPanel}
@@ -197,6 +201,10 @@ export function AppContainerView(props: any) {
             onAgentPromptChange={setAgentPrompt}
             onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
             onAgentRun={handleRunAgent}
+            onAgentAcceptProposal={(withAnalysis) => {
+              void handleAcceptAgentProposal(withAnalysis);
+            }}
+            onAgentRejectProposal={handleRejectAgentProposal}
             onOpenFolder={handleInitProjectFromFolderWithGuard}
             onSaveFile={handleSaveActiveFile}
             onCompile={handleCompile}

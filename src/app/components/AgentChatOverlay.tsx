@@ -1,21 +1,111 @@
 import { ChevronDown, ChevronUp, MessageSquareMore, Send, Sparkles, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "../../lib/utils";
 import { pickCommandSuggestions } from "../hooks/agentCommands";
+import type { AgentChatMessage, AgentFileProposal } from "../hooks/agentTypes";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
-
-export type AgentMessage = {
-  id: string;
-  role: "user" | "agent";
-  text: string;
-};
 
 export type AgentCommandItem = {
   token: "/review" | "/check-ref";
   label: string;
   description: string;
 };
+
+function messageLineCount(text: string): number {
+  return text.split(/\r?\n/).length;
+}
+
+function MarkdownMessage(props: { content: string }) {
+  const { content } = props;
+  return (
+    <article className="markdown-preview text-xs leading-5 text-slate-700">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </article>
+  );
+}
+
+function ProposalPanel(props: {
+  proposal: AgentFileProposal;
+  busy: boolean;
+  applyLabel: string;
+  rejectLabel: string;
+  autoAnalyzeLabel: string;
+  beforeLabel: string;
+  afterLabel: string;
+  onAccept: (withAnalysis: boolean) => void;
+  onReject: () => void;
+}) {
+  const {
+    proposal,
+    busy,
+    applyLabel,
+    rejectLabel,
+    autoAnalyzeLabel,
+    beforeLabel,
+    afterLabel,
+    onAccept,
+    onReject,
+  } = props;
+  const [withAnalysis, setWithAnalysis] = useState(false);
+
+  useEffect(() => {
+    setWithAnalysis(false);
+  }, [proposal.id]);
+
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-slate-700">{proposal.summary}</p>
+          <p className="truncate text-[11px] text-slate-500">{proposal.targetPath}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+            onClick={onReject}
+            disabled={busy}
+          >
+            {rejectLabel}
+          </button>
+          <button
+            className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-[11px] text-white hover:bg-primary-700 disabled:opacity-40"
+            onClick={() => onAccept(withAnalysis)}
+            disabled={busy}
+          >
+            {applyLabel}
+          </button>
+        </div>
+      </div>
+      <label className="mb-2 flex items-center gap-2 text-[11px] text-slate-600">
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5"
+          checked={withAnalysis}
+          onChange={(event) => setWithAnalysis(event.target.checked)}
+          disabled={busy}
+        />
+        <span>{autoAnalyzeLabel}</span>
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="min-h-[120px] rounded border border-slate-200 bg-white p-2">
+          <p className="mb-1 text-[11px] font-semibold text-slate-500">{beforeLabel}</p>
+          <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
+            {proposal.originalContent}
+          </pre>
+        </div>
+        <div className="min-h-[120px] rounded border border-emerald-300 bg-white p-2">
+          <p className="mb-1 text-[11px] font-semibold text-emerald-700">{afterLabel}</p>
+          <pre className="max-h-[220px] overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
+            {proposal.candidateContent}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function AgentChatOverlay(props: {
   collapsed: boolean;
@@ -25,14 +115,24 @@ export function AgentChatOverlay(props: {
   collapseLabel: string;
   prompt: string;
   busy: boolean;
-  messages: AgentMessage[];
+  messages: AgentChatMessage[];
+  proposal: AgentFileProposal | null;
   onPromptChange: (value: string) => void;
   onRun: () => void;
   onToggle: () => void;
+  onAcceptProposal: (withAnalysis: boolean) => void;
+  onRejectProposal: () => void;
   runLabel: string;
   placeholder: string;
   activityShowLabel: string;
   activityHideLabel: string;
+  applyLabel: string;
+  rejectLabel: string;
+  autoAnalyzeLabel: string;
+  diffBeforeLabel: string;
+  diffAfterLabel: string;
+  showMoreLabel: string;
+  showLessLabel: string;
   commands: AgentCommandItem[];
 }) {
   const {
@@ -44,17 +144,28 @@ export function AgentChatOverlay(props: {
     prompt,
     busy,
     messages,
+    proposal,
     onPromptChange,
     onRun,
     onToggle,
+    onAcceptProposal,
+    onRejectProposal,
     runLabel,
     placeholder,
     activityShowLabel,
     activityHideLabel,
+    applyLabel,
+    rejectLabel,
+    autoAnalyzeLabel,
+    diffBeforeLabel,
+    diffAfterLabel,
+    showMoreLabel,
+    showLessLabel,
     commands,
   } = props;
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [commandIndex, setCommandIndex] = useState(0);
+  const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const canShowActivity = phase !== "idle" || messages.length > 0;
   const recentMessages = useMemo(() => messages.slice(-8), [messages]);
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
@@ -87,9 +198,9 @@ export function AgentChatOverlay(props: {
   return (
     <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
       <div
-        className="pointer-events-auto grid w-[min(78%,920px)] max-w-[calc(100%-6px)] min-w-[320px] max-h-[calc(100%-12px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-6px)] min-w-[340px] max-h-[calc(100%-12px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(220px, 46%, 420px)" : "clamp(136px, 29%, 236px)",
+          height: activityExpanded ? "clamp(260px, 64%, 680px)" : "clamp(156px, 32%, 280px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
@@ -126,21 +237,54 @@ export function AgentChatOverlay(props: {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
+          {proposal ? (
+            <ProposalPanel
+              proposal={proposal}
+              busy={busy}
+              applyLabel={applyLabel}
+              rejectLabel={rejectLabel}
+              autoAnalyzeLabel={autoAnalyzeLabel}
+              beforeLabel={diffBeforeLabel}
+              afterLabel={diffAfterLabel}
+              onAccept={onAcceptProposal}
+              onReject={onRejectProposal}
+            />
+          ) : null}
           {activityExpanded && (
             <div className="min-h-0 flex-1 space-y-1 overflow-auto border-b border-slate-200 px-3 py-2">
-              {recentMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "rounded-md px-2 py-1 text-xs leading-5",
-                    message.role === "user"
-                      ? "bg-primary-50 text-primary-900"
-                      : "bg-slate-100 text-slate-700",
-                  )}
-                >
-                  {message.text}
-                </div>
-              ))}
+              {recentMessages.map((message) => {
+                const longMessage = messageLineCount(message.text) > 12 || message.text.length > 720;
+                const expanded = expandedMessageIds[message.id] ?? false;
+                const isMarkdown = message.format === "markdown";
+                return (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      "rounded-md border px-2 py-1 text-xs leading-5",
+                      message.role === "user"
+                        ? "border-primary-200 bg-primary-50 text-primary-900"
+                        : "border-slate-200 bg-slate-100 text-slate-700",
+                    )}
+                  >
+                    <div className={cn(!expanded && longMessage ? "max-h-32 overflow-hidden" : "")}>
+                      {isMarkdown ? <MarkdownMessage content={message.text} /> : <p className="whitespace-pre-wrap">{message.text}</p>}
+                    </div>
+                    {longMessage ? (
+                      <button
+                        className="mt-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
+                        onClick={() =>
+                          setExpandedMessageIds((prev) => ({
+                            ...prev,
+                            [message.id]: !expanded,
+                          }))
+                        }
+                      >
+                        {expanded ? showLessLabel : showMoreLabel}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
 
