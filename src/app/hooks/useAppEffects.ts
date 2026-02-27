@@ -12,6 +12,7 @@ import {
   readFileBinary,
   runtimeLogInfo,
   runtimeLogWrite,
+  windowSyncIcon,
 } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type {
@@ -152,6 +153,9 @@ export function useAppEffects(params: {
       } catch {
         setStatus("offline");
       }
+      if (isTauriRuntime) {
+        await windowSyncIcon().catch(() => undefined);
+      }
 
       const [projectList, appSettings, info] = await Promise.all([
         listProjects(),
@@ -221,7 +225,7 @@ export function useAppEffects(params: {
     init().catch(() => {
       setToast({ type: "error", message: tRef.current("toast.initFailed") });
     });
-  }, [setActiveProjectId, setLocale, setProjects, setRuntimeInfo, setSettings, setStatus, setToast]);
+  }, [isTauriRuntime, setActiveProjectId, setLocale, setProjects, setRuntimeInfo, setSettings, setStatus, setToast]);
 
   useEffect(() => {
     if (!activeProjectId) {

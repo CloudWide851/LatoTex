@@ -11,6 +11,8 @@ export async function applyAgentProposal(params: {
   setBusy: (value: boolean) => void;
   setEditorContent: (value: string) => void;
   setSelectedFile: (value: string | null) => void;
+  markPathSaved: (path: string, content: string) => void;
+  refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   setTree: (value: any) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   setAgentProposal: (value: AgentFileProposal | null) => void;
@@ -28,6 +30,8 @@ export async function applyAgentProposal(params: {
     setBusy,
     setEditorContent,
     setSelectedFile,
+    markPathSaved,
+    refreshGitWorkspace,
     setTree,
     setAgentMessages,
     setAgentProposal,
@@ -41,6 +45,7 @@ export async function applyAgentProposal(params: {
   setBusy(true);
   try {
     await writeFile(activeProjectId, proposal.targetPath, proposal.candidateContent);
+    markPathSaved(proposal.targetPath, proposal.candidateContent);
     if (selectedFile === proposal.targetPath) {
       setEditorContent(proposal.candidateContent);
     } else {
@@ -59,6 +64,7 @@ export async function applyAgentProposal(params: {
     });
     setAgentProposal(null);
     setAgentRunId(null);
+    await refreshGitWorkspace(activeProjectId).catch(() => undefined);
     if (withAnalysis && runAnalysisFromAgent) {
       setPage("analysis");
       await runAnalysisFromAgent(proposal.analysisPrompt);

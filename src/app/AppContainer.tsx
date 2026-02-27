@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
@@ -236,6 +236,7 @@ export function AppContainer() {
     setGitDownloadState: s.setGitDownloadState,
     setGitInstallerLaunched: s.setGitInstallerLaunched,
     setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
+    markPathSaved: unsaved.markPathSaved,
     editorRef: s.editorRef,
     loadProjectData,
     persistSettings,
@@ -249,6 +250,22 @@ export function AppContainer() {
     () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
     [s.agentProposalsByPath, s.selectedFile],
   );
+  const agentProposalDecorationIdsRef = useRef<string[]>([]);
+
+  const clearAgentProposalDecorations = useCallback(() => {
+    const editor = s.editorRef.current;
+    if (!editor) {
+      agentProposalDecorationIdsRef.current = [];
+      return;
+    }
+    if (agentProposalDecorationIdsRef.current.length === 0) {
+      return;
+    }
+    agentProposalDecorationIdsRef.current = editor.deltaDecorations(
+      agentProposalDecorationIdsRef.current,
+      [],
+    );
+  }, [s.editorRef]);
 
   const getCachedTextContent = useCallback(
     (relativePath: string) => {
@@ -352,6 +369,65 @@ export function AppContainer() {
     s.setDirtyByPath,
     s.workingContentByPathRef,
   ]);
+
+  useEffect(() => {
+    const editor = s.editorRef.current;
+    if (!editor || !s.selectedFile || !activeAgentProposal?.previewApplied) {
+      clearAgentProposalDecorations();
+      return;
+    }
+    if (activeAgentProposal.targetPath !== s.selectedFile) {
+      clearAgentProposalDecorations();
+      return;
+    }
+    const model = editor.getModel?.();
+    if (!model) {
+      clearAgentProposalDecorations();
+      return;
+    }
+    const modelLineCount = Math.max(1, Number(model.getLineCount?.() ?? 1));
+    const blocks = activeAgentProposal.diffBlocks ?? [];
+    if (blocks.length === 0) {
+      clearAgentProposalDecorations();
+      return;
+    }
+    const decorations = blocks.map((block) => {
+      const start = Math.max(1, Math.min(modelLineCount, block.lineStart));
+      const end = Math.max(start, Math.min(modelLineCount, block.lineEnd));
+      const className =
+        block.kind === "add"
+          ? "agent-proposal-line-add"
+          : block.kind === "delete"
+            ? "agent-proposal-line-delete"
+            : "agent-proposal-line-modify";
+      const linesDecorationsClassName =
+        block.kind === "add"
+          ? "agent-proposal-gutter-add"
+          : block.kind === "delete"
+            ? "agent-proposal-gutter-delete"
+            : "agent-proposal-gutter-modify";
+      return {
+        range: {
+          startLineNumber: start,
+          startColumn: 1,
+          endLineNumber: end,
+          endColumn: 1,
+        },
+        options: {
+          isWholeLine: true,
+          className,
+          linesDecorationsClassName,
+        },
+      };
+    });
+    agentProposalDecorationIdsRef.current = editor.deltaDecorations(
+      agentProposalDecorationIdsRef.current,
+      decorations,
+    );
+    return () => {
+      clearAgentProposalDecorations();
+    };
+  }, [activeAgentProposal, clearAgentProposalDecorations, s.editorRef, s.selectedFile]);
 
   const workspaceActions = useAppContainerWorkspaceActions({
     selectedFile: s.selectedFile,

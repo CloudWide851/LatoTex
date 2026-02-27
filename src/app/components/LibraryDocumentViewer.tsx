@@ -31,22 +31,9 @@ import {
   type AnnotationStroke,
   type AnnotationTextBox,
 } from "./library/annotationModel";
+import { buildPdfSrc, filenameFromPath } from "./library/viewerUtils";
 
 type TranslationFn = (key: any) => string;
-
-function filenameFromPath(path: string | null): string {
-  if (!path) {
-    return "";
-  }
-  const parts = path.split("/");
-  return parts[parts.length - 1] ?? path;
-}
-
-function buildPdfSrc(pdfUrl: string, page: number, zoom: number, qualityScale = 1): string {
-  const normalizedPage = Math.max(1, Math.floor(page));
-  const normalizedZoom = Math.max(40, Math.min(400, Math.round(zoom * qualityScale * 100)));
-  return `${pdfUrl}#page=${normalizedPage}&zoom=${normalizedZoom}`;
-}
 
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
@@ -71,7 +58,7 @@ export function LibraryDocumentViewer(props: {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [pdfZoom, setPdfZoom] = useState(1);
-  const pdfRenderQualityScale = 1.45;
+  const pdfRenderQualityScale = 1.3;
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const hasPdf = Boolean(pdfUrl);

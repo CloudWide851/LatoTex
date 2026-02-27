@@ -30,7 +30,9 @@
       "allowDowngrades": false,
       "nsis": {
         "installMode": "currentUser",
-        "startMenuFolder": "LatoTex"
+        "startMenuFolder": "LatoTex",
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "installer-hooks.nsh"
       }
     },
     "icon": [

@@ -224,13 +224,19 @@ export function useAppPanelNodes(params: any) {
       onRefresh={() =>
         refreshGitWorkspace().catch((error: unknown) => setToast({ type: "error", message: String(error) }))
       }
-      onFetch={() => handleGitAction(async () => gitFetch(activeProjectId))}
-      onPull={() => handleGitAction(async () => gitPull(activeProjectId))}
-      onPush={() => handleGitAction(async () => gitPush(activeProjectId))}
-      onCheckout={(branch, create) => handleGitAction(async () => gitCheckout(activeProjectId, branch, create))}
-      onStage={(paths) => handleGitAction(async () => gitStage(activeProjectId, paths))}
-      onUnstage={(paths) => handleGitAction(async () => gitUnstage(activeProjectId, paths))}
-      onCommit={(message) => handleGitAction(async () => gitCommit(activeProjectId, message))}
+      onFetch={() => handleGitAction(async () => gitFetch(activeProjectId), "git.fetch")}
+      onPull={() => handleGitAction(async () => gitPull(activeProjectId), "git.pull")}
+      onPush={() => handleGitAction(async () => gitPush(activeProjectId), "git.push")}
+      onCheckout={(branch, create) =>
+        handleGitAction(async () => gitCheckout(activeProjectId, branch, create), "git.checkout")
+      }
+      onStage={(paths) => handleGitAction(async () => gitStage(activeProjectId, paths), "git.stage")}
+      onUnstage={(paths) =>
+        handleGitAction(async () => gitUnstage(activeProjectId, paths), "git.unstage")
+      }
+      onCommit={(message) =>
+        handleGitAction(async () => gitCommit(activeProjectId, message), "git.commit")
+      }
       onGenerateSummary={async (includedPaths) => {
         try {
           return await handleGenerateGitSummary(includedPaths);

@@ -68,6 +68,7 @@ export type UseAppHandlersParams = {
   setGitDownloadState: (value: GitDownloadStatus | null) => void;
   setGitInstallerLaunched: (value: boolean) => void;
   setSuppressAutoGitInstall: (value: boolean) => void;
+  markPathSaved: (path: string, content: string) => void;
   editorRef: React.MutableRefObject<any>;
   loadProjectData: (projectId: string) => Promise<void>;
   persistSettings: (settings: AppSettings) => Promise<AppSettings>;

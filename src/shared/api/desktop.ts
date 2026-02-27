@@ -51,6 +51,10 @@ export function getHealthCheck(): Promise<HealthCheckResponse> {
   return invoke<HealthCheckResponse>("health_check");
 }
 
+export function windowSyncIcon(): Promise<Ack> {
+  return invoke<Ack>("window_sync_icon");
+}
+
 export function listProjects(): Promise<ProjectSummary[]> {
   return invoke<ProjectSummary[]>("project_list");
 }

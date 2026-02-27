@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
-import { getModelApiKey, getSettings, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel } from "../../shared/api/desktop";
+import { getModelApiKey, getSettings, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel, windowSyncIcon } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
 import {
@@ -114,6 +114,7 @@ export function useAppContainerWorkspaceActions(params: any) {
         decorations: false,
       });
       created.once("tauri://created", () => {
+        void windowSyncIcon().catch(() => undefined);
         void runtimeLogWrite("INFO", `new window created: ${label}`).catch(() => undefined);
       });
       created.once("tauri://error", (error: unknown) => {

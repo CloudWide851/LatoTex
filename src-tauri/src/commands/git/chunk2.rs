@@ -259,14 +259,18 @@ pub fn git_stage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack
         ],
     )?;
     let stageable = collect_stageable_paths(&raw_status);
-    let target_paths = if input.paths.is_empty() {
+    let mut explicit_paths = Vec::<String>::new();
+    for path in input.paths {
+        let normalized = normalize_status_path(&path);
+        if normalized.is_empty() || explicit_paths.contains(&normalized) {
+            continue;
+        }
+        explicit_paths.push(normalized);
+    }
+    let target_paths = if explicit_paths.is_empty() {
         stageable.into_iter().collect::<Vec<_>>()
     } else {
-        input
-            .paths
-            .into_iter()
-            .filter(|path| stageable.contains(path))
-            .collect::<Vec<_>>()
+        explicit_paths
     };
 
     if target_paths.is_empty() {

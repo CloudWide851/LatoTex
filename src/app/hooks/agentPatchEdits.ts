@@ -1,3 +1,5 @@
+import type { AgentDiffBlock } from "./agentTypes";
+
 const LATEX_EXTENSIONS = [".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx", ".tikz", ".pgf"];
 
 export type SearchReplaceEdit = {
@@ -200,32 +202,157 @@ export function resolveCandidateFromOutput(params: {
   return { candidate: fallback, appliedEdits: 0, failedReason: "none" };
 }
 
+type DiffOp =
+  | { type: "equal"; oldLine: number; newLine: number }
+  | { type: "add"; newLine: number }
+  | { type: "remove"; oldLine: number };
+
+function computeDiffOps(original: string[], candidate: string[]): DiffOp[] {
+  const n = original.length;
+  const m = candidate.length;
+  const max = n + m;
+  const offset = max;
+  const trace: number[][] = [];
+  let v = new Array(2 * max + 1).fill(-1);
+  v[offset + 1] = 0;
+
+  for (let d = 0; d <= max; d += 1) {
+    const next = v.slice();
+    for (let k = -d; k <= d; k += 2) {
+      const kIndex = offset + k;
+      const goDown = k === -d || (k !== d && v[kIndex - 1] < v[kIndex + 1]);
+      let x = goDown ? v[kIndex + 1] : v[kIndex - 1] + 1;
+      let y = x - k;
+      while (x < n && y < m && original[x] === candidate[y]) {
+        x += 1;
+        y += 1;
+      }
+      next[kIndex] = x;
+      if (x >= n && y >= m) {
+        trace.push(next);
+        return backtrackDiff(trace, original, candidate, offset);
+      }
+    }
+    trace.push(next);
+    v = next;
+  }
+  return [];
+}
+
+function backtrackDiff(trace: number[][], original: string[], candidate: string[], offset: number): DiffOp[] {
+  let x = original.length;
+  let y = candidate.length;
+  const result: DiffOp[] = [];
+
+  for (let d = trace.length - 1; d >= 0; d -= 1) {
+    const k = x - y;
+    const v = trace[d];
+    const goDown = d > 0 && (k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1]));
+    const prevK = d === 0 ? 0 : goDown ? k + 1 : k - 1;
+    const prevX = d === 0 ? 0 : trace[d - 1][offset + prevK];
+    const prevY = prevX - prevK;
+
+    while (x > prevX && y > prevY) {
+      result.push({ type: "equal", oldLine: x, newLine: y });
+      x -= 1;
+      y -= 1;
+    }
+    if (d === 0) {
+      break;
+    }
+    if (x === prevX) {
+      result.push({ type: "add", newLine: y });
+      y -= 1;
+    } else {
+      result.push({ type: "remove", oldLine: x });
+      x -= 1;
+    }
+  }
+
+  return result.reverse();
+}
+
+function collectChangedLines(blocks: AgentDiffBlock[], candidateLineCount: number): number[] {
+  const values = new Set<number>();
+  for (const block of blocks) {
+    if (block.kind === "delete") {
+      values.add(Math.max(1, Math.min(candidateLineCount || 1, block.lineStart)));
+      continue;
+    }
+    for (let line = block.lineStart; line <= block.lineEnd; line += 1) {
+      values.add(line);
+      if (values.size >= 240) {
+        break;
+      }
+    }
+    if (values.size >= 240) {
+      break;
+    }
+  }
+  return Array.from(values).sort((a, b) => a - b).slice(0, 120);
+}
+
+function buildDiffBlocks(ops: DiffOp[], candidateLineCount: number): AgentDiffBlock[] {
+  const blocks: AgentDiffBlock[] = [];
+  let index = 0;
+  while (index < ops.length) {
+    if (ops[index].type === "equal") {
+      index += 1;
+      continue;
+    }
+    const start = index;
+    while (index < ops.length && ops[index].type !== "equal") {
+      index += 1;
+    }
+    const segment = ops.slice(start, index);
+    const insertions = segment.filter((item) => item.type === "add").length;
+    const deletions = segment.filter((item) => item.type === "remove").length;
+    const addedLines = segment
+      .filter((item): item is Extract<DiffOp, { type: "add" }> => item.type === "add")
+      .map((item) => item.newLine);
+
+    if (insertions > 0) {
+      blocks.push({
+        kind: deletions > 0 ? "modify" : "add",
+        lineStart: Math.min(...addedLines),
+        lineEnd: Math.max(...addedLines),
+        insertions,
+        deletions,
+      });
+      continue;
+    }
+
+    const previousEqual = [...ops.slice(0, start)].reverse().find((item) => item.type === "equal") as
+      | Extract<DiffOp, { type: "equal" }>
+      | undefined;
+    const nextEqual = ops.slice(index).find((item) => item.type === "equal") as
+      | Extract<DiffOp, { type: "equal" }>
+      | undefined;
+    const anchor = nextEqual?.newLine ?? previousEqual?.newLine ?? 1;
+    const clampedAnchor = Math.max(1, Math.min(candidateLineCount || 1, anchor));
+    blocks.push({
+      kind: "delete",
+      lineStart: clampedAnchor,
+      lineEnd: clampedAnchor,
+      insertions: 0,
+      deletions,
+    });
+  }
+  return blocks;
+}
+
 export function computeDiffStats(originalContent: string, candidateContent: string): {
   insertions: number;
   deletions: number;
   changedLines: number[];
+  diffBlocks: AgentDiffBlock[];
 } {
-  const original = originalContent.split(/\r?\n/);
-  const candidate = candidateContent.split(/\r?\n/);
-  const maxLen = Math.max(original.length, candidate.length);
-  const changedLines: number[] = [];
-  let insertions = 0;
-  let deletions = 0;
-  for (let index = 0; index < maxLen; index += 1) {
-    const before = original[index] ?? "";
-    const after = candidate[index] ?? "";
-    if (before === after) {
-      continue;
-    }
-    changedLines.push(index + 1);
-    if (!before && after) {
-      insertions += 1;
-    } else if (before && !after) {
-      deletions += 1;
-    } else {
-      insertions += 1;
-      deletions += 1;
-    }
-  }
-  return { insertions, deletions, changedLines: changedLines.slice(0, 120) };
+  const original = originalContent.replace(/\r\n/g, "\n").split("\n");
+  const candidate = candidateContent.replace(/\r\n/g, "\n").split("\n");
+  const ops = computeDiffOps(original, candidate);
+  const insertions = ops.filter((item) => item.type === "add").length;
+  const deletions = ops.filter((item) => item.type === "remove").length;
+  const diffBlocks = buildDiffBlocks(ops, candidate.length);
+  const changedLines = collectChangedLines(diffBlocks, candidate.length);
+  return { insertions, deletions, changedLines, diffBlocks };
 }

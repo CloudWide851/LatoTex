@@ -15,7 +15,7 @@ use commands::git::{
     git_diff_file, git_download_installer_start, git_download_status, git_fetch, git_init_repo,
     git_log, git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
 };
-use commands::health::health_check;
+use commands::health::{health_check, window_sync_icon};
 use commands::projects::{
     file_read, file_read_binary, file_write, fs_operation, library_import_link, library_import_pdf,
     open_external_link,
@@ -88,6 +88,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             health_check,
+            window_sync_icon,
             project_list,
             project_create,
             project_init_from_folder,

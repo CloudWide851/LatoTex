@@ -155,7 +155,7 @@ export function DiagnosticsSettingsSection(props: {
 
       <div
         ref={consoleRef}
-        className="min-h-[360px] flex-1 overflow-auto rounded-md border border-slate-300 bg-slate-950 p-3 font-mono text-[11px] leading-5"
+        className="hide-scrollbar h-[min(34vh,320px)] min-h-[220px] flex-1 overflow-auto rounded-md border border-slate-300 bg-slate-950 p-3 font-mono text-[11px] leading-5"
         onScroll={(event) => {
           const node = event.currentTarget;
           const distance = node.scrollHeight - node.scrollTop - node.clientHeight;

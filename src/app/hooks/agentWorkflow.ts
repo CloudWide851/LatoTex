@@ -431,7 +431,7 @@ export async function runAgentWorkflow(params: {
           selectedFile,
           editorContent,
         });
-        const { insertions, deletions, changedLines } = computeDiffStats(
+        const { insertions, deletions, changedLines, diffBlocks } = computeDiffStats(
           originalContent,
           fixedContent,
         );
@@ -449,6 +449,7 @@ export async function runAgentWorkflow(params: {
           insertions,
           deletions,
           changedLines,
+          diffBlocks,
           previewApplied: true,
         });
         pushAgentMessage(t("agent.proposalPreviewed"));
@@ -539,7 +540,7 @@ export async function runAgentWorkflow(params: {
         pushAgentMessage(t("agent.patch.noApplicableEdits"));
       }
     } else if (resolved.candidate.trim() !== originalContent.trim()) {
-      const { insertions, deletions, changedLines } = computeDiffStats(
+      const { insertions, deletions, changedLines, diffBlocks } = computeDiffStats(
         originalContent,
         resolved.candidate,
       );
@@ -557,6 +558,7 @@ export async function runAgentWorkflow(params: {
         insertions,
         deletions,
         changedLines,
+        diffBlocks,
         previewApplied: true,
       });
       pushAgentMessage(t("agent.proposalPreviewed"));

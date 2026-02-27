@@ -22,6 +22,8 @@ export function useAgentWorkflowHandlers(params: {
   ) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   setEditorContent: (value: string) => void;
+  markPathSaved: (path: string, content: string) => void;
+  refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   runCompilePass: (params: {
     projectId: string;
     mainPath: string;
@@ -50,6 +52,8 @@ export function useAgentWorkflowHandlers(params: {
     setAgentStatusKey,
     setToast,
     setEditorContent,
+    markPathSaved,
+    refreshGitWorkspace,
     runCompilePass,
     setBusy,
     setSelectedFile,
@@ -159,6 +163,8 @@ export function useAgentWorkflowHandlers(params: {
       setBusy,
       setEditorContent,
       setSelectedFile,
+      markPathSaved,
+      refreshGitWorkspace,
       setTree,
       setAgentMessages,
       setAgentProposal: setScopedAgentProposal,
@@ -171,6 +177,8 @@ export function useAgentWorkflowHandlers(params: {
   }, [
     activeProjectId,
     currentProposal,
+    markPathSaved,
+    refreshGitWorkspace,
     runAnalysisFromAgent,
     selectedFile,
     setAgentMessages,

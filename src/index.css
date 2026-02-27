@@ -257,6 +257,40 @@ body::before {
   background-color: #1f2937 !important;
 }
 
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.agent-proposal-line-add {
+  background: rgba(16, 185, 129, 0.14);
+}
+
+.agent-proposal-line-modify {
+  background: rgba(14, 165, 233, 0.13);
+}
+
+.agent-proposal-line-delete {
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.agent-proposal-gutter-add {
+  border-left: 3px solid rgba(16, 185, 129, 0.8);
+}
+
+.agent-proposal-gutter-modify {
+  border-left: 3px solid rgba(14, 165, 233, 0.8);
+}
+
+.agent-proposal-gutter-delete {
+  border-left: 3px solid rgba(244, 63, 94, 0.8);
+}
+
 .markdown-preview > :first-child {
   margin-top: 0;
 }

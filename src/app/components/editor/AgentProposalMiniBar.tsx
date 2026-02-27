@@ -12,7 +12,7 @@ export function AgentProposalMiniBar(props: {
 }) {
   const { proposal, busy, onAccept, onReject, t } = props;
   return (
-    <div className="pointer-events-auto absolute right-3 top-2 z-30 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50/95 px-1.5 py-1 shadow-soft">
+    <div className="pointer-events-auto absolute right-3 top-2 z-40 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50/95 px-1.5 py-1 shadow-soft">
       <span className="text-[10px] font-semibold text-amber-900">
         {t("agent.proposalMini.delta")
           .replace("{plus}", String(proposal.insertions ?? 0))
@@ -39,4 +39,3 @@ export function AgentProposalMiniBar(props: {
     </div>
   );
 }
-

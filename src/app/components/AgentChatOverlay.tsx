@@ -274,7 +274,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "absolute bottom-3 left-1/2 z-20 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-3 left-1/2 z-10 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -289,11 +289,11 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-center">
       <div
-        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-[340px] max-h-[min(620px,calc(100%-72px))] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-0 max-h-[calc(100%-16px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(280px, 62%, 620px)" : "clamp(160px, 30%, 280px)",
+          height: activityExpanded ? "clamp(220px, 45%, 460px)" : "clamp(140px, 24%, 220px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">

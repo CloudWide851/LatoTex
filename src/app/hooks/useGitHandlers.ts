@@ -7,6 +7,7 @@ import {
   gitDownloadInstallerStart,
   gitRunInstaller,
   rescanLibrary,
+  runtimeLogWrite,
 } from "../../shared/api/desktop";
 import type { GitDownloadStatus } from "../../shared/types/app";
 
@@ -43,13 +44,19 @@ export function useGitHandlers(params: {
     refreshGitWorkspace,
   } = params;
 
-  const handleGitAction = useCallback(async (action: () => Promise<unknown>) => {
+  const handleGitAction = useCallback(async (
+    action: () => Promise<unknown>,
+    actionLabel = "git.action",
+  ) => {
     setBusy(true);
     try {
       await action();
+      await runtimeLogWrite("INFO", `${actionLabel}: success`).catch(() => undefined);
       await refreshGitWorkspace();
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      await runtimeLogWrite("ERROR", `${actionLabel}: failed: ${message}`).catch(() => undefined);
+      setToast({ type: "error", message });
     } finally {
       setBusy(false);
     }

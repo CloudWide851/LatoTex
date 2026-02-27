@@ -18,7 +18,18 @@ export type AgentFileProposal = {
   insertions?: number;
   deletions?: number;
   changedLines?: number[];
+  diffBlocks?: AgentDiffBlock[];
   previewApplied?: boolean;
+};
+
+export type AgentDiffBlockKind = "add" | "delete" | "modify";
+
+export type AgentDiffBlock = {
+  kind: AgentDiffBlockKind;
+  lineStart: number;
+  lineEnd: number;
+  insertions: number;
+  deletions: number;
 };
 
 export type AgentEventCard = {

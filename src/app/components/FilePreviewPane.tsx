@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
@@ -56,11 +56,33 @@ export function FilePreviewPane(props: {
   } = props;
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const lensRafRef = useRef<number | null>(null);
+  const pendingLensPointRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [lensActive, setLensActive] = useState(false);
   const [lensPoint, setLensPoint] = useState({ x: 0, y: 0 });
   const lensSize = 220;
-  const lensScale = 1.85;
-  const renderQualityScale = 1.45;
+  const lensScale = 1.7;
+  const renderQualityScale = 1.35;
+
+  useEffect(() => {
+    return () => {
+      if (lensRafRef.current !== null) {
+        window.cancelAnimationFrame(lensRafRef.current);
+        lensRafRef.current = null;
+      }
+    };
+  }, []);
+
+  const updateLensPoint = (x: number, y: number) => {
+    pendingLensPointRef.current = { x, y };
+    if (lensRafRef.current !== null) {
+      return;
+    }
+    lensRafRef.current = window.requestAnimationFrame(() => {
+      lensRafRef.current = null;
+      setLensPoint(pendingLensPointRef.current);
+    });
+  };
 
   const sanitizedMarkdown = useMemo(
     () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
@@ -90,10 +112,10 @@ export function FilePreviewPane(props: {
           if (!rect || !lensActive) {
             return;
           }
-          setLensPoint({
-            x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-            y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-          });
+          updateLensPoint(
+            Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+            Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+          );
         }}
         onMouseLeave={() => {
           setLensActive(false);
@@ -103,10 +125,10 @@ export function FilePreviewPane(props: {
           if (!rect) {
             return;
           }
-          setLensPoint({
-            x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-            y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-          });
+          updateLensPoint(
+            Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+            Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+          );
           setLensActive((previous) => !previous);
         }}
       >
