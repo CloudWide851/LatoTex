@@ -19,12 +19,30 @@ function messageLineCount(text: string): number {
   return text.split(/\r?\n/).length;
 }
 
+function looksLikePatchText(text: string): boolean {
+  const normalized = text.replace(/\r\n/g, "\n");
+  return (
+    normalized.includes("<<<<<<< SEARCH") ||
+    normalized.includes(">>>>>>> REPLACE") ||
+    normalized.includes("path:") && normalized.includes("=======")
+  );
+}
+
 function MarkdownMessage(props: { content: string }) {
   const { content } = props;
   return (
     <article className="markdown-preview max-w-full overflow-x-auto break-words text-xs leading-5 text-slate-700">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </article>
+  );
+}
+
+function PatchTextMessage(props: { content: string }) {
+  const { content } = props;
+  return (
+    <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded border border-slate-200 bg-white/70 p-2 text-[11px] leading-5 text-slate-700">
+      {content}
+    </pre>
   );
 }
 
@@ -312,18 +330,6 @@ export function AgentChatOverlay(props: {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {proposal ? (
-            <ProposalBar
-              proposal={proposal}
-              busy={busy}
-              applyLabel={applyLabel}
-              rejectLabel={rejectLabel}
-              autoAnalyzeLabel={autoAnalyzeLabel}
-              onAccept={onAcceptProposal}
-              onReject={onRejectProposal}
-            />
-          ) : null}
-
           {activityExpanded ? (
             <div className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2">
               {messages.map((message) => {
@@ -331,6 +337,7 @@ export function AgentChatOverlay(props: {
                   messageLineCount(message.text) > 12 || message.text.length > 720;
                 const expanded = expandedMessageIds[message.id] ?? false;
                 const isMarkdown = message.format === "markdown";
+                const patchLike = looksLikePatchText(message.text);
                 return (
                   <div
                     key={message.id}
@@ -342,7 +349,13 @@ export function AgentChatOverlay(props: {
                     )}
                   >
                     <div className={cn(!expanded && longMessage ? "max-h-32 overflow-hidden" : "")}>
-                      {isMarkdown ? <MarkdownMessage content={message.text} /> : <p className="whitespace-pre-wrap break-words">{message.text}</p>}
+                      {patchLike ? (
+                        <PatchTextMessage content={message.text} />
+                      ) : isMarkdown ? (
+                        <MarkdownMessage content={message.text} />
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words">{message.text}</p>
+                      )}
                     </div>
                     {longMessage ? (
                       <button
@@ -364,6 +377,7 @@ export function AgentChatOverlay(props: {
               {eventCards.map((card) => {
                 const expanded = expandedCardKeys[card.cardKey] ?? false;
                 const longCard = messageLineCount(card.content) > 10 || card.content.length > 680;
+                const patchLike = looksLikePatchText(card.content);
                 return (
                   <div
                     key={card.cardKey}
@@ -371,11 +385,15 @@ export function AgentChatOverlay(props: {
                   >
                     <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
                       <span className="truncate font-semibold">{card.title}</span>
-                      <span className="shrink-0 uppercase">{card.stage}</span>
+                      <span className="max-w-[45%] shrink-0 truncate text-right uppercase">{card.stage}</span>
                     </div>
                     <div className={cn(!expanded && longCard ? "max-h-32 overflow-hidden" : "")}>
                       {card.content.trim().length > 0 ? (
-                        <MarkdownMessage content={card.content} />
+                        patchLike ? (
+                          <PatchTextMessage content={card.content} />
+                        ) : (
+                          <MarkdownMessage content={card.content} />
+                        )
                       ) : (
                         <p className="text-[11px] opacity-70">{card.source}</p>
                       )}

@@ -13,7 +13,7 @@ export async function applyAgentProposal(params: {
   setSelectedFile: (value: string | null) => void;
   setTree: (value: any) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
-  setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
+  setAgentProposal: (value: AgentFileProposal | null) => void;
   setAgentRunId: (value: string | null) => void;
   setPage: (value: any) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;

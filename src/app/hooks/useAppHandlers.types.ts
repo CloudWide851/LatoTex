@@ -9,6 +9,7 @@ import type {
 } from "../../shared/types/app";
 import type { AgentStatusKey, ThemeMode } from "../app-config";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
+import type { AgentProposalMap } from "./useAppContainerState";
 
 export type TranslationFn = (key: any) => string;
 export type DeleteIntent = { scope: FsScope; path: string } | null;
@@ -45,8 +46,8 @@ export type UseAppHandlersParams = {
   setPdfUrl: (value: string | null) => void;
   setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
-  agentProposal: AgentFileProposal | null;
-  setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
+  agentProposalsByPath: AgentProposalMap;
+  setAgentProposalsByPath: React.Dispatch<React.SetStateAction<AgentProposalMap>>;
   setAgentRunId: (value: string | null) => void;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;

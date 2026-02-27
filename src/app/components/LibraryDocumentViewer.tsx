@@ -42,9 +42,9 @@ function filenameFromPath(path: string | null): string {
   return parts[parts.length - 1] ?? path;
 }
 
-function buildPdfSrc(pdfUrl: string, page: number, zoom: number): string {
+function buildPdfSrc(pdfUrl: string, page: number, zoom: number, qualityScale = 1): string {
   const normalizedPage = Math.max(1, Math.floor(page));
-  const normalizedZoom = Math.max(40, Math.min(300, Math.round(zoom * 100)));
+  const normalizedZoom = Math.max(40, Math.min(400, Math.round(zoom * qualityScale * 100)));
   return `${pdfUrl}#page=${normalizedPage}&zoom=${normalizedZoom}`;
 }
 
@@ -71,6 +71,7 @@ export function LibraryDocumentViewer(props: {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [pdfZoom, setPdfZoom] = useState(1);
+  const pdfRenderQualityScale = 1.45;
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const hasPdf = Boolean(pdfUrl);
@@ -490,9 +491,16 @@ export function LibraryDocumentViewer(props: {
               >
                 <iframe
                   title={filenameFromPath(selectedPath)}
-                  src={buildPdfSrc(pdfUrl, currentPage, pdfZoom)}
+                  src={buildPdfSrc(pdfUrl, currentPage, pdfZoom, pdfRenderQualityScale)}
                   className="h-full w-full"
-                  style={{ pointerEvents: annotationEnabled || textBoxMode ? "none" : "auto" }}
+                  style={{
+                    pointerEvents: annotationEnabled || textBoxMode ? "none" : "auto",
+                    width: `${pdfRenderQualityScale * 100}%`,
+                    height: `${pdfRenderQualityScale * 100}%`,
+                    transformOrigin: "top left",
+                    transform: `scale(${1 / pdfRenderQualityScale})`,
+                    willChange: "transform",
+                  }}
                 />
                 <PdfAnnotationLayer
                   page={currentPage}

@@ -60,6 +60,7 @@ export function FilePreviewPane(props: {
   const [lensPoint, setLensPoint] = useState({ x: 0, y: 0 });
   const lensSize = 220;
   const lensScale = 1.85;
+  const renderQualityScale = 1.45;
 
   const sanitizedMarkdown = useMemo(
     () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
@@ -67,7 +68,7 @@ export function FilePreviewPane(props: {
   );
 
   if (mode === "pdf" && pdfUrl) {
-    const zoomPercent = Math.round(pdfZoom * 100);
+    const zoomPercent = Math.round(pdfZoom * renderQualityScale * 100);
     const pdfSrc = `${pdfUrl}#view=FitH&zoom=${zoomPercent}`;
     return (
       <div
@@ -116,6 +117,11 @@ export function FilePreviewPane(props: {
           style={{
             minHeight: "100%",
             pointerEvents: "none",
+            width: `${renderQualityScale * 100}%`,
+            height: `${renderQualityScale * 100}%`,
+            transformOrigin: "top left",
+            transform: `scale(${1 / renderQualityScale})`,
+            willChange: "transform",
           }}
         />
         {lensActive && (
@@ -130,14 +136,14 @@ export function FilePreviewPane(props: {
           >
             <iframe
               title={`${title}-lens`}
-              src={pdfSrc}
+              src={`${pdfUrl}#view=FitH&zoom=${Math.round(pdfZoom * renderQualityScale * lensScale * 100)}`}
               className="border-0"
               style={{
-                width: `${viewportRef.current?.clientWidth ?? 0}px`,
-                height: `${viewportRef.current?.clientHeight ?? 0}px`,
+                width: `${(viewportRef.current?.clientWidth ?? 0) * lensScale * renderQualityScale}px`,
+                height: `${(viewportRef.current?.clientHeight ?? 0) * lensScale * renderQualityScale}px`,
                 pointerEvents: "none",
-                transformOrigin: "top left",
-                transform: `translate(${lensSize / 2 - lensScale * lensPoint.x}px, ${lensSize / 2 - lensScale * lensPoint.y}px) scale(${lensScale})`,
+                transform: `translate(${lensSize / 2 - lensScale * renderQualityScale * lensPoint.x}px, ${lensSize / 2 - lensScale * renderQualityScale * lensPoint.y}px)`,
+                willChange: "transform",
               }}
             />
             <span

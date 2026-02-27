@@ -32,6 +32,8 @@ import {
 } from "../app-config";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 
+export type AgentProposalMap = Record<string, AgentFileProposal>;
+
 export function useAppContainerState(t: (...args: any[]) => string) {
   const [status, setStatus] = useState<"ready" | "offline">("ready");
   const [toast, setToast] = useState<Toast>(null);
@@ -50,7 +52,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [dirtyByPath, setDirtyByPath] = useState<Record<string, boolean>>({});
   const [agentPrompt, setAgentPrompt] = useState("");
   const [agentMessages, setAgentMessages] = useState<AgentChatMessage[]>([]);
-  const [agentProposal, setAgentProposal] = useState<AgentFileProposal | null>(null);
+  const [agentProposalsByPath, setAgentProposalsByPath] = useState<AgentProposalMap>({});
   const [agentRunId, setAgentRunId] = useState<string | null>(null);
   const [agentCollapsed, setAgentCollapsed] = useState(false);
   const [agentPhase, setAgentPhase] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -179,8 +181,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setAgentPrompt,
     agentMessages,
     setAgentMessages,
-    agentProposal,
-    setAgentProposal,
+    agentProposalsByPath,
+    setAgentProposalsByPath,
     agentRunId,
     setAgentRunId,
     agentCollapsed,

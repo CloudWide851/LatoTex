@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { applyAgentProposal } from "./agentProposalActions";
 import { runAgentWorkflow } from "./agentWorkflow";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
+import type { AgentProposalMap } from "./useAppContainerState";
 
 export function useAgentWorkflowHandlers(params: {
   activeProjectId: string | null;
@@ -10,8 +11,8 @@ export function useAgentWorkflowHandlers(params: {
   selectedFile: string | null;
   t: (key: any) => string;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
-  agentProposal: AgentFileProposal | null;
-  setAgentProposal: React.Dispatch<React.SetStateAction<AgentFileProposal | null>>;
+  agentProposalsByPath: AgentProposalMap;
+  setAgentProposalsByPath: React.Dispatch<React.SetStateAction<AgentProposalMap>>;
   setAgentRunId: (value: string | null) => void;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean) => void;
@@ -40,8 +41,8 @@ export function useAgentWorkflowHandlers(params: {
     selectedFile,
     t,
     setAgentMessages,
-    agentProposal,
-    setAgentProposal,
+    agentProposalsByPath,
+    setAgentProposalsByPath,
     setAgentRunId,
     setAgentPrompt,
     setAgentCollapsed,
@@ -57,6 +58,35 @@ export function useAgentWorkflowHandlers(params: {
     runAnalysisFromAgent,
   } = params;
 
+  const currentProposal: AgentFileProposal | null = selectedFile
+    ? agentProposalsByPath[selectedFile] ?? null
+    : null;
+
+  const setScopedAgentProposal = useCallback(
+    (value: AgentFileProposal | null) => {
+      if (value) {
+        setAgentProposalsByPath((prev) => ({
+          ...prev,
+          [value.targetPath]: value,
+        }));
+        return;
+      }
+      const pathToClear = currentProposal?.targetPath ?? selectedFile;
+      if (!pathToClear) {
+        return;
+      }
+      setAgentProposalsByPath((prev) => {
+        if (!prev[pathToClear]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[pathToClear];
+        return next;
+      });
+    },
+    [currentProposal?.targetPath, selectedFile, setAgentProposalsByPath],
+  );
+
   const handleRunAgent = useCallback(async () => {
     if (!activeProjectId || !agentPrompt.trim()) {
       return;
@@ -68,7 +98,7 @@ export function useAgentWorkflowHandlers(params: {
       selectedFile,
       t,
       setAgentMessages,
-      setAgentProposal,
+      setAgentProposal: setScopedAgentProposal,
       setAgentRunId,
       setAgentPrompt,
       setAgentCollapsed,
@@ -91,7 +121,7 @@ export function useAgentWorkflowHandlers(params: {
     setAgentMessages,
     setAgentPhase,
     setAgentPrompt,
-    setAgentProposal,
+    setScopedAgentProposal,
     setAgentRunId,
     setAgentStatusKey,
     setSelectedFile,
@@ -100,31 +130,38 @@ export function useAgentWorkflowHandlers(params: {
   ]);
 
   const handleRejectAgentProposal = useCallback(() => {
-    if (agentProposal) {
-      if (selectedFile !== agentProposal.targetPath) {
-        setSelectedFile(agentProposal.targetPath);
+    if (currentProposal) {
+      if (selectedFile !== currentProposal.targetPath) {
+        setSelectedFile(currentProposal.targetPath);
       }
-      setEditorContent(agentProposal.originalContent);
+      setEditorContent(currentProposal.originalContent);
     }
-    setAgentProposal(null);
+    setScopedAgentProposal(null);
     setAgentRunId(null);
-  }, [agentProposal, selectedFile, setAgentProposal, setAgentRunId, setEditorContent, setSelectedFile]);
+  }, [
+    currentProposal,
+    selectedFile,
+    setScopedAgentProposal,
+    setAgentRunId,
+    setEditorContent,
+    setSelectedFile,
+  ]);
 
   const handleAcceptAgentProposal = useCallback(async (withAnalysis: boolean) => {
-    if (!activeProjectId || !agentProposal) {
+    if (!activeProjectId || !currentProposal) {
       return;
     }
     await applyAgentProposal({
       activeProjectId,
       selectedFile,
-      proposal: agentProposal,
+      proposal: currentProposal,
       withAnalysis,
       setBusy,
       setEditorContent,
       setSelectedFile,
       setTree,
       setAgentMessages,
-      setAgentProposal,
+      setAgentProposal: setScopedAgentProposal,
       setAgentRunId,
       setPage,
       setToast,
@@ -133,11 +170,11 @@ export function useAgentWorkflowHandlers(params: {
     });
   }, [
     activeProjectId,
-    agentProposal,
+    currentProposal,
     runAnalysisFromAgent,
     selectedFile,
     setAgentMessages,
-    setAgentProposal,
+    setScopedAgentProposal,
     setAgentRunId,
     setBusy,
     setEditorContent,

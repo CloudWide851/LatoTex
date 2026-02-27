@@ -2,7 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
-import logoMark from "../../logo.svg";
+import logoMark from "../assets/branding/logo.svg";
 import {
   getLibraryTree,
   gitBranches,
@@ -214,8 +214,8 @@ export function AppContainer() {
     setPdfUrl: s.setPdfUrl,
     setCompiledPdfBytes: s.setCompiledPdfBytes,
     setAgentMessages: s.setAgentMessages,
-    agentProposal: s.agentProposal,
-    setAgentProposal: s.setAgentProposal,
+    agentProposalsByPath: s.agentProposalsByPath,
+    setAgentProposalsByPath: s.setAgentProposalsByPath,
     setAgentRunId: s.setAgentRunId,
     setAgentPrompt: s.setAgentPrompt,
     setAgentCollapsed: s.setAgentCollapsed,
@@ -244,6 +244,11 @@ export function AppContainer() {
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
   });
+
+  const activeAgentProposal = useMemo(
+    () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
+    [s.agentProposalsByPath, s.selectedFile],
+  );
 
   const getCachedTextContent = useCallback(
     (relativePath: string) => {
@@ -512,7 +517,7 @@ export function AppContainer() {
       agentStatusKey={s.agentStatusKey}
       agentPrompt={s.agentPrompt}
       agentMessages={s.agentMessages}
-      agentProposal={s.agentProposal}
+      agentProposal={activeAgentProposal}
       agentRunId={s.agentRunId}
       explorerGitDecorations={explorerGitDecorations}
       SHELL_MIN={SHELL_MIN}

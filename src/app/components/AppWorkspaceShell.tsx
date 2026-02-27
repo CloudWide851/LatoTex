@@ -20,6 +20,7 @@ import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
 import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
+import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import type { AgentChatMessage, AgentFileProposal } from "../hooks/agentTypes";
 
 type TranslationFn = (key: any) => string;
@@ -387,6 +388,15 @@ export function AppWorkspaceShell(props: {
         />
 
         <div className="relative min-h-0">
+          {agentProposal ? (
+            <AgentProposalMiniBar
+              proposal={agentProposal}
+              busy={busy}
+              onAccept={() => onAgentAcceptProposal(false)}
+              onReject={onAgentRejectProposal}
+              t={t}
+            />
+          ) : null}
           <MonacoEditor
             language="latex"
             value={editorContent}

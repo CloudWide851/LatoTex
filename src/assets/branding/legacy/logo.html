@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LT 极简花体标志 - 金属感渐变版</title>
+    <!-- 引入标准花体 Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f7f9;
+        }
+        .logo-container {
+            width: 350px;
+            height: 350px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<div class="logo-container">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <!-- 优化后的条纹线性渐变：高光区域（白色）更窄，更具金属感 -->
+            <linearGradient id="stripe-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#1e4db7"/>   <!-- 深蓝基色 -->
+                <stop offset="42%" style="stop-color:#1e4db7"/>  <!-- 保持深蓝直至接近中心 -->
+                <stop offset="50%" style="stop-color:#ffffff"/>  <!-- 极窄的白色高光条纹 -->
+                <stop offset="58%" style="stop-color:#1e4db7"/>  <!-- 迅速回到深蓝 -->
+                <stop offset="100%" style="stop-color:#1e4db7"/>
+            </linearGradient>
+
+            <!-- 柔和深度滤镜 -->
+            <filter id="soft-depth" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                <feComponentTransfer in="blur" result="faded-blur">
+                    <feFuncA type="linear" slope="0.3"/>
+                </feComponentTransfer>
+                <feComposite in="SourceGraphic" in2="faded-blur" operator="over"/>
+            </filter>
+        </defs>
+
+        <!-- 外围圆环：现在也应用了渐变，宽度保持加粗 -->
+        <circle 
+            cx="100" 
+            cy="100" 
+            r="85" 
+            fill="none" 
+            stroke="url(#stripe-grad)" 
+            stroke-width="6"
+        />
+
+        <!-- 字母组合区域 -->
+        <!-- 保持视觉重心校准 translate(-18, 20) -->
+        <g filter="url(#soft-depth)" transform="translate(-18, 20)">
+            <!-- 字母 L -->
+            <text 
+                x="85" 
+                y="105" 
+                font-family="'Great Vibes', cursive" 
+                font-size="115" 
+                fill="url(#stripe-grad)"
+                text-anchor="middle"
+                style="user-select: none;"
+            >L</text>
+
+            <!-- 字母 T -->
+            <text 
+                x="125" 
+                y="120" 
+                font-family="'Great Vibes', cursive" 
+                font-size="80" 
+                fill="url(#stripe-grad)"
+                text-anchor="middle"
+                style="user-select: none;"
+            >T</text>
+        </g>
+    </svg>
+</div>
+
+</body>
+</html>
