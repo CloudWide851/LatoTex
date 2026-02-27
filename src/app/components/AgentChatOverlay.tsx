@@ -274,7 +274,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "absolute bottom-3 left-1/2 z-10 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-10 left-1/2 z-30 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -289,11 +289,11 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-3 bottom-10 z-30 flex justify-center">
       <div
         className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-0 max-h-[calc(100%-16px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(220px, 45%, 460px)" : "clamp(140px, 24%, 220px)",
+          height: activityExpanded ? "clamp(210px, 40%, 380px)" : "clamp(132px, 24%, 210px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
@@ -338,6 +338,11 @@ export function AgentChatOverlay(props: {
                 const expanded = expandedMessageIds[message.id] ?? false;
                 const isMarkdown = message.format === "markdown";
                 const patchLike = looksLikePatchText(message.text);
+                const bodyClass = !expanded && longMessage
+                  ? "max-h-32 overflow-hidden"
+                  : expanded && longMessage
+                    ? "max-h-56 overflow-y-auto"
+                    : "";
                 return (
                   <div
                     key={message.id}
@@ -348,7 +353,7 @@ export function AgentChatOverlay(props: {
                         : "border-slate-200 bg-slate-100 text-slate-700",
                     )}
                   >
-                    <div className={cn(!expanded && longMessage ? "max-h-32 overflow-hidden" : "")}>
+                    <div className={cn(bodyClass)}>
                       {patchLike ? (
                         <PatchTextMessage content={message.text} />
                       ) : isMarkdown ? (
@@ -378,6 +383,11 @@ export function AgentChatOverlay(props: {
                 const expanded = expandedCardKeys[card.cardKey] ?? false;
                 const longCard = messageLineCount(card.content) > 10 || card.content.length > 680;
                 const patchLike = looksLikePatchText(card.content);
+                const bodyClass = !expanded && longCard
+                  ? "max-h-32 overflow-hidden"
+                  : expanded && longCard
+                    ? "max-h-56 overflow-y-auto"
+                    : "";
                 return (
                   <div
                     key={card.cardKey}
@@ -387,7 +397,7 @@ export function AgentChatOverlay(props: {
                       <span className="truncate font-semibold">{card.title}</span>
                       <span className="max-w-[45%] shrink-0 truncate text-right uppercase">{card.stage}</span>
                     </div>
-                    <div className={cn(!expanded && longCard ? "max-h-32 overflow-hidden" : "")}>
+                    <div className={cn(bodyClass)}>
                       {card.content.trim().length > 0 ? (
                         patchLike ? (
                           <PatchTextMessage content={card.content} />

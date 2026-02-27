@@ -185,17 +185,14 @@ export function GitWorkspace(props: {
   }, [onLoadCommitFiles, selectedHistoryHash, t]);
 
   const syncIncludedSelection = async () => {
-    const allPaths = changedFiles.map((item) => item.path);
     if (includedPaths.length === 0) {
       if (excludedExistingPaths.length > 0) {
         await Promise.resolve(onUnstage(excludedExistingPaths));
       }
       return;
     }
-    if (includedPaths.length === allPaths.length) {
-      await Promise.resolve(onStage([]));
-    } else {
-      await Promise.resolve(onStage(includedPaths));
+    if (includedUnstagedPaths.length > 0) {
+      await Promise.resolve(onStage(includedUnstagedPaths));
     }
     if (excludedExistingPaths.length > 0) {
       await Promise.resolve(onUnstage(excludedExistingPaths));
@@ -416,11 +413,7 @@ export function GitWorkspace(props: {
                 return;
               }
               try {
-                if (paths.length === unstagedFiles.length) {
-                  await Promise.resolve(onStage([]));
-                } else {
-                  await Promise.resolve(onStage(paths));
-                }
+                await Promise.resolve(onStage(paths));
               } catch (error) {
                 setActionError(error instanceof Error ? error.message : String(error));
               }

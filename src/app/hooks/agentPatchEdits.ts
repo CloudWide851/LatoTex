@@ -207,7 +207,7 @@ type DiffOp =
   | { type: "add"; newLine: number }
   | { type: "remove"; oldLine: number };
 
-function computeDiffOps(original: string[], candidate: string[]): DiffOp[] {
+function computeDiffOpsMyers(original: string[], candidate: string[]): DiffOp[] {
   const n = original.length;
   const m = candidate.length;
   const max = n + m;
@@ -230,7 +230,7 @@ function computeDiffOps(original: string[], candidate: string[]): DiffOp[] {
       next[kIndex] = x;
       if (x >= n && y >= m) {
         trace.push(next);
-        return backtrackDiff(trace, original, candidate, offset);
+        return backtrackMyers(trace, original, candidate, offset);
       }
     }
     trace.push(next);
@@ -239,7 +239,7 @@ function computeDiffOps(original: string[], candidate: string[]): DiffOp[] {
   return [];
 }
 
-function backtrackDiff(trace: number[][], original: string[], candidate: string[], offset: number): DiffOp[] {
+function backtrackMyers(trace: number[][], original: string[], candidate: string[], offset: number): DiffOp[] {
   let x = original.length;
   let y = candidate.length;
   const result: DiffOp[] = [];
@@ -270,6 +270,67 @@ function backtrackDiff(trace: number[][], original: string[], candidate: string[
   }
 
   return result.reverse();
+}
+
+function computeDiffOpsLcs(original: string[], candidate: string[]): DiffOp[] {
+  const n = original.length;
+  const m = candidate.length;
+  if (n === 0 && m === 0) {
+    return [];
+  }
+  if (n === 0) {
+    return candidate.map((_, index) => ({ type: "add", newLine: index + 1 }));
+  }
+  if (m === 0) {
+    return original.map((_, index) => ({ type: "remove", oldLine: index + 1 }));
+  }
+
+  const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
+  for (let i = n - 1; i >= 0; i -= 1) {
+    for (let j = m - 1; j >= 0; j -= 1) {
+      if (original[i] === candidate[j]) {
+        lcs[i][j] = lcs[i + 1][j + 1] + 1;
+      } else {
+        lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      }
+    }
+  }
+
+  const ops: DiffOp[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (original[i] === candidate[j]) {
+      ops.push({ type: "equal", oldLine: i + 1, newLine: j + 1 });
+      i += 1;
+      j += 1;
+      continue;
+    }
+    if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      ops.push({ type: "remove", oldLine: i + 1 });
+      i += 1;
+      continue;
+    }
+    ops.push({ type: "add", newLine: j + 1 });
+    j += 1;
+  }
+  while (i < n) {
+    ops.push({ type: "remove", oldLine: i + 1 });
+    i += 1;
+  }
+  while (j < m) {
+    ops.push({ type: "add", newLine: j + 1 });
+    j += 1;
+  }
+  return ops;
+}
+
+function computeDiffOps(original: string[], candidate: string[]): DiffOp[] {
+  const complexity = original.length * candidate.length;
+  if (complexity <= 4_000_000) {
+    return computeDiffOpsLcs(original, candidate);
+  }
+  return computeDiffOpsMyers(original, candidate);
 }
 
 function collectChangedLines(blocks: AgentDiffBlock[], candidateLineCount: number): number[] {

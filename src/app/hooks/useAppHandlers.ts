@@ -195,6 +195,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setBusy(true);
     try {
       await writeFile(activeProjectId, selectedFile, editorContent);
+      await refreshGitWorkspace(activeProjectId).catch(() => undefined);
       await runtimeLogWrite("INFO", `${t("log.fileSaved")}: ${selectedFile}`);
       setToast({ type: "info", message: t("toast.fileSaved") });
       return true;
@@ -204,7 +205,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     } finally {
       setBusy(false);
     }
-  }, [activeProjectId, editorContent, selectedFile, setBusy, setToast, t]);
+  }, [activeProjectId, editorContent, refreshGitWorkspace, selectedFile, setBusy, setToast, t]);
 
   const runCompilePass = useCallback(async (
     projectId: string,
@@ -505,6 +506,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       if (scope === "workspace") {
         const snapshot = await openProject(activeProjectId);
         setTree(snapshot.tree);
+        await refreshGitWorkspace(activeProjectId).catch(() => undefined);
       } else {
         const nextTree = await getLibraryTree(activeProjectId);
         setLibraryTree(nextTree);
@@ -515,7 +517,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     } finally {
       setBusy(false);
     }
-  }, [activeProjectId, setBusy, setLibraryTree, setToast, setTree, t]);
+  }, [activeProjectId, refreshGitWorkspace, setBusy, setLibraryTree, setToast, setTree, t]);
 
   const requestFsAction = useCallback(async (
     scope: FsScope,

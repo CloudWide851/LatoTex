@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
@@ -56,13 +56,14 @@ export function FilePreviewPane(props: {
   } = props;
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const lensViewportRef = useRef<HTMLDivElement | null>(null);
+  const lensFrameRef = useRef<HTMLIFrameElement | null>(null);
   const lensRafRef = useRef<number | null>(null);
   const pendingLensPointRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [lensActive, setLensActive] = useState(false);
-  const [lensPoint, setLensPoint] = useState({ x: 0, y: 0 });
   const lensSize = 220;
-  const lensScale = 1.7;
-  const renderQualityScale = 1.35;
+  const lensScale = 1.55;
+  const renderQualityScale = 1.2;
 
   useEffect(() => {
     return () => {
@@ -73,16 +74,51 @@ export function FilePreviewPane(props: {
     };
   }, []);
 
-  const updateLensPoint = (x: number, y: number) => {
+  const applyLensPoint = useCallback((x: number, y: number) => {
+    const viewport = viewportRef.current;
+    const lensViewport = lensViewportRef.current;
+    const lensFrame = lensFrameRef.current;
+    if (!viewport || !lensViewport || !lensFrame) {
+      return;
+    }
+    const width = viewport.clientWidth;
+    const height = viewport.clientHeight;
+    const clampedX = Math.max(0, Math.min(width, x));
+    const clampedY = Math.max(0, Math.min(height, y));
+    const left = Math.max(lensSize / 2, clampedX) - lensSize / 2;
+    const top = Math.max(lensSize / 2, clampedY) - lensSize / 2;
+
+    lensViewport.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+    lensFrame.style.width = `${width * lensScale * renderQualityScale}px`;
+    lensFrame.style.height = `${height * lensScale * renderQualityScale}px`;
+    lensFrame.style.transform = `translate3d(${lensSize / 2 - lensScale * renderQualityScale * clampedX}px, ${lensSize / 2 - lensScale * renderQualityScale * clampedY}px, 0)`;
+  }, [lensScale, lensSize, renderQualityScale]);
+
+  const updateLensPoint = useCallback((x: number, y: number) => {
     pendingLensPointRef.current = { x, y };
     if (lensRafRef.current !== null) {
       return;
     }
     lensRafRef.current = window.requestAnimationFrame(() => {
       lensRafRef.current = null;
-      setLensPoint(pendingLensPointRef.current);
+      applyLensPoint(pendingLensPointRef.current.x, pendingLensPointRef.current.y);
     });
-  };
+  }, [applyLensPoint]);
+
+  useEffect(() => {
+    if (!lensActive) {
+      return;
+    }
+    applyLensPoint(pendingLensPointRef.current.x, pendingLensPointRef.current.y);
+    if (!viewportRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      applyLensPoint(pendingLensPointRef.current.x, pendingLensPointRef.current.y);
+    });
+    observer.observe(viewportRef.current);
+    return () => observer.disconnect();
+  }, [applyLensPoint, lensActive]);
 
   const sanitizedMarkdown = useMemo(
     () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
@@ -148,23 +184,27 @@ export function FilePreviewPane(props: {
         />
         {lensActive && (
           <div
-            className="pointer-events-none absolute z-20 overflow-hidden rounded-full border border-slate-200/80 bg-white/20 shadow-[0_18px_36px_rgba(15,23,42,0.28)] backdrop-blur-[1px] transition-[left,top] duration-75 ease-out"
+            ref={lensViewportRef}
+            className="pointer-events-none absolute z-20 overflow-hidden rounded-full border border-slate-200/80 bg-white/20 shadow-[0_18px_36px_rgba(15,23,42,0.28)] backdrop-blur-[1px] transition-transform duration-75 ease-out"
             style={{
               width: `${lensSize}px`,
               height: `${lensSize}px`,
-              left: `${Math.max(lensSize / 2, lensPoint.x) - lensSize / 2}px`,
-              top: `${Math.max(lensSize / 2, lensPoint.y) - lensSize / 2}px`,
+              left: "0px",
+              top: "0px",
+              transform: "translate3d(-9999px, -9999px, 0)",
+              willChange: "transform",
             }}
           >
             <iframe
+              ref={lensFrameRef}
               title={`${title}-lens`}
               src={`${pdfUrl}#view=FitH&zoom=${Math.round(pdfZoom * renderQualityScale * lensScale * 100)}`}
               className="border-0"
               style={{
-                width: `${(viewportRef.current?.clientWidth ?? 0) * lensScale * renderQualityScale}px`,
-                height: `${(viewportRef.current?.clientHeight ?? 0) * lensScale * renderQualityScale}px`,
+                width: "0px",
+                height: "0px",
                 pointerEvents: "none",
-                transform: `translate(${lensSize / 2 - lensScale * renderQualityScale * lensPoint.x}px, ${lensSize / 2 - lensScale * renderQualityScale * lensPoint.y}px)`,
+                transform: "translate3d(0, 0, 0)",
                 willChange: "transform",
               }}
             />
