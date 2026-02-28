@@ -215,9 +215,16 @@ pub fn reference_check(
     state: State<'_, AppState>,
     input: ReferenceCheckInput,
 ) -> Result<ReferenceCheckResponse, String> {
-    let limit = input.limit.unwrap_or(5).clamp(1, 8) as usize;
-    let queries: Vec<String> = input
-        .queries
+    state.log("INFO", &format!("reference_check: {} queries", input.queries.len()));
+    run_reference_check_queries(input.queries, input.limit.unwrap_or(5))
+}
+
+pub(crate) fn run_reference_check_queries(
+    queries: Vec<String>,
+    limit: u32,
+) -> Result<ReferenceCheckResponse, String> {
+    let limit = limit.clamp(1, 8) as usize;
+    let queries: Vec<String> = queries
         .into_iter()
         .map(|query| query.trim().to_string())
         .filter(|query| !query.is_empty())
@@ -226,7 +233,6 @@ pub fn reference_check(
     if queries.is_empty() {
         return Err("No reference query provided".to_string());
     }
-    state.log("INFO", &format!("reference_check: {} queries", queries.len()));
 
     let client = Client::builder()
         .timeout(Duration::from_secs(12))

@@ -4,8 +4,12 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { Document, Page } from "react-pdf";
+import { ensureReactPdfWorker } from "./pdf/reactPdfSetup";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/github.css";
+
+ensureReactPdfWorker();
 
 function sanitizePreviewText(input: string): string {
   return input
@@ -36,6 +40,18 @@ function normalizeHtmlToMarkdown(input: string): string {
     .replace(/<[^>]+>/g, "");
 }
 
+type LensPendingPoint = {
+  visible: boolean;
+  viewportX: number;
+  viewportY: number;
+  pageX: number;
+  pageY: number;
+  pageNumber: number;
+};
+
+const LENS_SCALE = 1.6;
+const LENS_SIZE = 220;
+
 export function FilePreviewPane(props: {
   mode: "pdf" | "markdown" | "empty";
   pdfUrl: string | null;
@@ -57,13 +73,25 @@ export function FilePreviewPane(props: {
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const lensViewportRef = useRef<HTMLDivElement | null>(null);
-  const lensFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const lensContentRef = useRef<HTMLDivElement | null>(null);
   const lensRafRef = useRef<number | null>(null);
-  const pendingLensPointRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pendingLensPointRef = useRef<LensPendingPoint>({
+    visible: false,
+    viewportX: 0,
+    viewportY: 0,
+    pageX: 0,
+    pageY: 0,
+    pageNumber: 1,
+  });
+  const lensVisibleRef = useRef(false);
+  const lensPageRef = useRef(1);
+
   const [lensActive, setLensActive] = useState(false);
-  const lensSize = 220;
-  const lensScale = 1.55;
-  const renderQualityScale = 1.2;
+  const [lensVisible, setLensVisible] = useState(false);
+  const [lensPage, setLensPage] = useState(1);
+  const [viewportWidth, setViewportWidth] = useState(900);
+  const [pageCount, setPageCount] = useState(1);
+  const [pdfLoadFailed, setPdfLoadFailed] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -74,51 +102,82 @@ export function FilePreviewPane(props: {
     };
   }, []);
 
-  const applyLensPoint = useCallback((x: number, y: number) => {
-    const viewport = viewportRef.current;
+  useEffect(() => {
+    if (!viewportRef.current) {
+      return;
+    }
+    const root = viewportRef.current;
+    const update = () => setViewportWidth(root.clientWidth || 900);
+    update();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(update);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [mode, pdfUrl]);
+
+  const basePageWidth = useMemo(
+    () => Math.max(320, Math.floor(Math.max(340, viewportWidth) - 24)),
+    [viewportWidth],
+  );
+  const pageWidth = useMemo(
+    () => Math.max(240, Math.floor(basePageWidth * pdfZoom)),
+    [basePageWidth, pdfZoom],
+  );
+
+  const applyLensPoint = useCallback(() => {
     const lensViewport = lensViewportRef.current;
-    const lensFrame = lensFrameRef.current;
-    if (!viewport || !lensViewport || !lensFrame) {
+    const lensContent = lensContentRef.current;
+    const pending = pendingLensPointRef.current;
+    if (!lensViewport || !lensContent) {
       return;
     }
-    const width = viewport.clientWidth;
-    const height = viewport.clientHeight;
-    const clampedX = Math.max(0, Math.min(width, x));
-    const clampedY = Math.max(0, Math.min(height, y));
-    const left = Math.max(lensSize / 2, clampedX) - lensSize / 2;
-    const top = Math.max(lensSize / 2, clampedY) - lensSize / 2;
 
-    lensViewport.style.transform = `translate3d(${left}px, ${top}px, 0)`;
-    lensFrame.style.width = `${width * lensScale * renderQualityScale}px`;
-    lensFrame.style.height = `${height * lensScale * renderQualityScale}px`;
-    lensFrame.style.transform = `translate3d(${lensSize / 2 - lensScale * renderQualityScale * clampedX}px, ${lensSize / 2 - lensScale * renderQualityScale * clampedY}px, 0)`;
-  }, [lensScale, lensSize, renderQualityScale]);
-
-  const updateLensPoint = useCallback((x: number, y: number) => {
-    pendingLensPointRef.current = { x, y };
-    if (lensRafRef.current !== null) {
-      return;
+    if (pending.visible) {
+      const left = pending.viewportX - LENS_SIZE / 2;
+      const top = pending.viewportY - LENS_SIZE / 2;
+      lensViewport.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+      const tx = LENS_SIZE / 2 - pending.pageX * LENS_SCALE;
+      const ty = LENS_SIZE / 2 - pending.pageY * LENS_SCALE;
+      lensContent.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+    } else {
+      lensViewport.style.transform = "translate3d(-9999px, -9999px, 0)";
     }
-    lensRafRef.current = window.requestAnimationFrame(() => {
-      lensRafRef.current = null;
-      applyLensPoint(pendingLensPointRef.current.x, pendingLensPointRef.current.y);
-    });
-  }, [applyLensPoint]);
+
+    if (pending.pageNumber !== lensPageRef.current) {
+      lensPageRef.current = pending.pageNumber;
+      setLensPage(pending.pageNumber);
+    }
+    if (pending.visible !== lensVisibleRef.current) {
+      lensVisibleRef.current = pending.visible;
+      setLensVisible(pending.visible);
+    }
+  }, []);
+
+  const queueLensPoint = useCallback(
+    (next: LensPendingPoint) => {
+      pendingLensPointRef.current = next;
+      if (lensRafRef.current !== null) {
+        return;
+      }
+      lensRafRef.current = window.requestAnimationFrame(() => {
+        lensRafRef.current = null;
+        applyLensPoint();
+      });
+    },
+    [applyLensPoint],
+  );
 
   useEffect(() => {
-    if (!lensActive) {
+    if (lensActive) {
       return;
     }
-    applyLensPoint(pendingLensPointRef.current.x, pendingLensPointRef.current.y);
-    if (!viewportRef.current || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      applyLensPoint(pendingLensPointRef.current.x, pendingLensPointRef.current.y);
+    queueLensPoint({
+      ...pendingLensPointRef.current,
+      visible: false,
     });
-    observer.observe(viewportRef.current);
-    return () => observer.disconnect();
-  }, [applyLensPoint, lensActive]);
+  }, [lensActive, queueLensPoint]);
 
   const sanitizedMarkdown = useMemo(
     () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
@@ -126,12 +185,12 @@ export function FilePreviewPane(props: {
   );
 
   if (mode === "pdf" && pdfUrl) {
-    const zoomPercent = Math.round(pdfZoom * renderQualityScale * 100);
-    const pdfSrc = `${pdfUrl}#view=FitH&zoom=${zoomPercent}`;
+    const pages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1);
+    const lensPageWidth = Math.max(280, Math.floor(pageWidth * LENS_SCALE));
     return (
       <div
         ref={viewportRef}
-        className={`relative h-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 ${
+        className={`relative h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 ${
           lensActive ? "cursor-zoom-out" : "cursor-zoom-in"
         }`}
         onWheel={(event) => {
@@ -143,71 +202,134 @@ export function FilePreviewPane(props: {
           const nextZoom = Math.max(0.5, Math.min(3, Number((pdfZoom + step).toFixed(2))));
           onPdfZoomChange(nextZoom);
         }}
-        onMouseMove={(event) => {
-          const rect = viewportRef.current?.getBoundingClientRect();
-          if (!rect || !lensActive) {
-            return;
-          }
-          updateLensPoint(
-            Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-            Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-          );
-        }}
-        onMouseLeave={() => {
-          setLensActive(false);
-        }}
-        onClick={(event) => {
-          const rect = viewportRef.current?.getBoundingClientRect();
-          if (!rect) {
-            return;
-          }
-          updateLensPoint(
-            Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-            Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-          );
-          setLensActive((previous) => !previous);
-        }}
       >
-        <iframe
-          title={title}
-          src={pdfSrc}
-          className="h-full w-full rounded-lg border-0"
-          style={{
-            minHeight: "100%",
-            pointerEvents: "none",
-            width: `${renderQualityScale * 100}%`,
-            height: `${renderQualityScale * 100}%`,
-            transformOrigin: "top left",
-            transform: `scale(${1 / renderQualityScale})`,
-            willChange: "transform",
-          }}
-        />
+        {pdfLoadFailed ? (
+          <div className="flex h-full items-center justify-center px-3 text-xs text-slate-500">
+            {emptyText}
+          </div>
+        ) : (
+          <Document
+            file={pdfUrl}
+            loading={
+              <div className="py-6 text-center text-xs text-slate-500">{emptyText}</div>
+            }
+            onLoadSuccess={({ numPages }) => {
+              setPdfLoadFailed(false);
+              setPageCount(Math.max(1, numPages || 1));
+              if (lensPageRef.current > Math.max(1, numPages || 1)) {
+                lensPageRef.current = 1;
+                setLensPage(1);
+              }
+            }}
+            onLoadError={() => {
+              setPdfLoadFailed(true);
+              setPageCount(1);
+            }}
+            className="space-y-3 p-3"
+          >
+            {pages.map((pageNumber) => (
+              <div
+                key={pageNumber}
+                className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
+                style={{ width: `${pageWidth}px` }}
+              >
+                <Page
+                  pageNumber={pageNumber}
+                  width={pageWidth}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  loading={null}
+                />
+                <div
+                  className="absolute inset-0 z-10"
+                  onClick={(event) => {
+                    const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                    const viewportRect = viewportRef.current?.getBoundingClientRect();
+                    if (!viewportRect) {
+                      return;
+                    }
+                    const pageX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+                    const pageY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+                    const viewportX = event.clientX - viewportRect.left + (viewportRef.current?.scrollLeft || 0);
+                    const viewportY = event.clientY - viewportRect.top + (viewportRef.current?.scrollTop || 0);
+                    setLensActive((previous) => !previous);
+                    queueLensPoint({
+                      visible: !lensActive,
+                      pageNumber,
+                      pageX,
+                      pageY,
+                      viewportX,
+                      viewportY,
+                    });
+                  }}
+                  onMouseMove={(event) => {
+                    if (!lensActive) {
+                      return;
+                    }
+                    const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                    const viewportRect = viewportRef.current?.getBoundingClientRect();
+                    if (!viewportRect) {
+                      return;
+                    }
+                    const pageX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+                    const pageY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+                    const viewportX = event.clientX - viewportRect.left + (viewportRef.current?.scrollLeft || 0);
+                    const viewportY = event.clientY - viewportRect.top + (viewportRef.current?.scrollTop || 0);
+                    queueLensPoint({
+                      visible: true,
+                      pageNumber,
+                      pageX,
+                      pageY,
+                      viewportX,
+                      viewportY,
+                    });
+                  }}
+                  onMouseLeave={() => {
+                    queueLensPoint({
+                      ...pendingLensPointRef.current,
+                      visible: false,
+                    });
+                  }}
+                />
+              </div>
+            ))}
+          </Document>
+        )}
+
         {lensActive && (
           <div
             ref={lensViewportRef}
-            className="pointer-events-none absolute z-20 overflow-hidden rounded-full border border-slate-200/80 bg-white/20 shadow-[0_18px_36px_rgba(15,23,42,0.28)] backdrop-blur-[1px] transition-transform duration-75 ease-out"
+            className={`pointer-events-none absolute z-20 overflow-hidden rounded-full border border-slate-200/80 bg-white/20 shadow-[0_18px_36px_rgba(15,23,42,0.28)] backdrop-blur-[1px] transition-opacity duration-75 ${
+              lensVisible ? "opacity-100" : "opacity-0"
+            }`}
             style={{
-              width: `${lensSize}px`,
-              height: `${lensSize}px`,
+              width: `${LENS_SIZE}px`,
+              height: `${LENS_SIZE}px`,
               left: "0px",
               top: "0px",
               transform: "translate3d(-9999px, -9999px, 0)",
               willChange: "transform",
             }}
           >
-            <iframe
-              ref={lensFrameRef}
-              title={`${title}-lens`}
-              src={`${pdfUrl}#view=FitH&zoom=${Math.round(pdfZoom * renderQualityScale * lensScale * 100)}`}
-              className="border-0"
+            <div
+              ref={lensContentRef}
+              className="absolute left-0 top-0"
               style={{
-                width: "0px",
-                height: "0px",
-                pointerEvents: "none",
-                transform: "translate3d(0, 0, 0)",
+                width: `${lensPageWidth}px`,
                 willChange: "transform",
+                transform: "translate3d(0, 0, 0)",
               }}
-            />
+            >
+              <Document file={pdfUrl} loading={null} error={null}>
+                <Page
+                  pageNumber={Math.max(1, Math.min(pageCount, lensPage))}
+                  width={lensPageWidth}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  loading={null}
+                />
+              </Document>
+            </div>
             <span
               className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-slate-300/70"
               aria-hidden

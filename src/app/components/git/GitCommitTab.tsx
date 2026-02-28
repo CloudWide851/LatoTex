@@ -76,7 +76,7 @@ export function GitCommitTab(props: {
   } = props;
 
   return (
-    <div className="grid min-h-0 grid-cols-[minmax(300px,0.42fr)_minmax(0,1fr)] gap-3">
+    <div className="grid h-full min-h-0 grid-cols-[minmax(300px,0.42fr)_minmax(0,1fr)] gap-3">
       <div className="grid min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] gap-2">
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
           <Select

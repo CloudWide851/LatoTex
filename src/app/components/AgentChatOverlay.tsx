@@ -304,7 +304,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "absolute bottom-10 left-1/2 z-30 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-4 left-1/2 z-30 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",

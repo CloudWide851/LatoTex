@@ -2,6 +2,8 @@
 mod swarm_pipeline;
 #[path = "swarm_events.rs"]
 mod swarm_events;
+#[path = "swarm_tool_search.rs"]
+mod swarm_tool_search;
 
 use crate::models::{
     Ack, AgentRunAccepted, AgentRunCancelInput, AgentRunRequest, AgentRunStartAccepted,

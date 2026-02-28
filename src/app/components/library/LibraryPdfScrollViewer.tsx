@@ -1,7 +1,17 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Document, Page } from "react-pdf";
+import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
 import type { AnnotationStroke, AnnotationTextBox } from "./annotationModel";
 import { PdfAnnotationLayer } from "./PdfAnnotationLayer";
-import { buildPdfSrc } from "./viewerUtils";
+
+ensureReactPdfWorker();
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
@@ -46,35 +56,33 @@ export const LibraryPdfScrollViewer = forwardRef<
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const pendingScrollPageRef = useRef<number | null>(null);
   const [viewportWidth, setViewportWidth] = useState(920);
+  const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const lastVisiblePageRef = useRef<number>(1);
 
   const pages = useMemo(
-    () => Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1),
-    [pageCount],
+    () => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1),
+    [documentPages],
   );
 
   const frameWidth = useMemo(() => {
     const base = Math.max(360, Math.floor((viewportWidth - 42) * 0.92));
     return Math.floor(base * zoom);
   }, [viewportWidth, zoom]);
-  const frameHeight = Math.max(520, Math.floor(frameWidth * 1.4142));
-  const renderQualityScale = 1.22;
 
   useImperativeHandle(ref, () => ({
     scrollToPage: (page: number) => {
-      const normalized = Math.max(1, Math.min(pageCount || 1, Math.floor(page)));
+      const normalized = Math.max(1, Math.min(documentPages || 1, Math.floor(page)));
       const target = pageRefs.current[normalized];
       if (!target) {
+        pendingScrollPageRef.current = normalized;
         return;
       }
+      pendingScrollPageRef.current = null;
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     },
-  }), [pageCount]);
-
-  useEffect(() => {
-    onPageCountChange(Math.max(1, pageCount));
-  }, [onPageCountChange, pageCount]);
+  }), [documentPages]);
 
   useEffect(() => {
     if (!scrollRef.current || pages.length === 0) {
@@ -136,44 +144,72 @@ export const LibraryPdfScrollViewer = forwardRef<
 
   return (
     <div ref={scrollRef} className="h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3">
-      <div className="space-y-3">
-        {pages.map((page) => (
-          <div
-            key={page}
-            ref={(el) => {
-              pageRefs.current[page] = el;
-            }}
-            data-page={page}
-            className="relative mx-auto rounded bg-white shadow-sm"
-            style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }}
-          >
-            <iframe
-              title={`${t("library.viewer.showPdf")} ${page}`}
-              src={buildPdfSrc(pdfUrl, page, zoom, renderQualityScale)}
-              className="h-full w-full border-0"
-              style={{
-                pointerEvents: "none",
-                width: `${renderQualityScale * 100}%`,
-                height: `${renderQualityScale * 100}%`,
-                transformOrigin: "top left",
-                transform: `scale(${1 / renderQualityScale})`,
-                willChange: "transform",
-              }}
-            />
-            <PdfAnnotationLayer
-              page={page}
-              mode={mode}
-              highlightColor={highlightColor}
-              textColor={textColor}
-              strokes={strokes}
-              textBoxes={textBoxes}
-              onStrokesChange={onStrokesChange}
-              onTextBoxesChange={onTextBoxesChange}
-              t={t}
-            />
+      <Document
+        file={pdfUrl}
+        loading={
+          <div className="py-6 text-center text-xs text-slate-500">
+            {t("library.viewer.loading")}
           </div>
-        ))}
-      </div>
+        }
+        onLoadSuccess={({ numPages }) => {
+          const next = Math.max(1, numPages || 1);
+          setDocumentPages(next);
+          onPageCountChange(next);
+          const pending = pendingScrollPageRef.current;
+          if (pending !== null) {
+            window.setTimeout(() => {
+              const target = pageRefs.current[Math.max(1, Math.min(next, pending))];
+              if (target) {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+              pendingScrollPageRef.current = null;
+            }, 20);
+          }
+          if (lastVisiblePageRef.current > next) {
+            lastVisiblePageRef.current = 1;
+            onVisiblePageChange(1);
+          }
+        }}
+        onLoadError={() => {
+          setDocumentPages(1);
+          onPageCountChange(1);
+          lastVisiblePageRef.current = 1;
+          onVisiblePageChange(1);
+        }}
+      >
+        <div className="space-y-3">
+          {pages.map((page) => (
+            <div
+              key={page}
+              ref={(el) => {
+                pageRefs.current[page] = el;
+              }}
+              data-page={page}
+              className="relative mx-auto overflow-hidden rounded bg-white shadow-sm"
+              style={{ width: `${frameWidth}px` }}
+            >
+              <Page
+                pageNumber={page}
+                width={frameWidth}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+                loading={null}
+              />
+              <PdfAnnotationLayer
+                page={page}
+                mode={mode}
+                highlightColor={highlightColor}
+                textColor={textColor}
+                strokes={strokes}
+                textBoxes={textBoxes}
+                onStrokesChange={onStrokesChange}
+                onTextBoxesChange={onTextBoxesChange}
+                t={t}
+              />
+            </div>
+          ))}
+        </div>
+      </Document>
     </div>
   );
 });

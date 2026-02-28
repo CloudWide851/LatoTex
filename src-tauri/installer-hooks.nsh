@@ -12,9 +12,10 @@
     !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
   !endif
 
-  IfFileExists "$DESKTOP\${PRODUCTNAME}.lnk" 0 +3
-    CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$0" "" "$0" 0
-    !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
+  ; Always recreate desktop shortcut to force icon metadata refresh on upgrades.
+  Delete "$DESKTOP\${PRODUCTNAME}.lnk"
+  CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$0" "" "$0" 0
+  !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
 
   ; Refresh pinned taskbar shortcut icon (if user pinned app previously).
   IfFileExists "$APPDATA\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\${PRODUCTNAME}.lnk" 0 +3

@@ -23,7 +23,7 @@ import {
   type AnnotationStroke,
   type AnnotationTextBox,
 } from "./library/annotationModel";
-import { estimatePdfPageCountFromBytes, filenameFromPath } from "./library/viewerUtils";
+import { filenameFromPath } from "./library/viewerUtils";
 
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
@@ -151,7 +151,6 @@ export function LibraryDocumentViewer(props: {
           return;
         }
         const bytes = Uint8Array.from(binary.bytes);
-        setPageCount(estimatePdfPageCountFromBytes(bytes));
         const nextUrl = URL.createObjectURL(
           new Blob([bytes], { type: "application/pdf" }),
         );

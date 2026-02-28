@@ -70,6 +70,24 @@ fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     Ok(())
 }
 
+fn call_model_output(
+    db_path: &Path,
+    runtime_root: &Path,
+    role_for_model: &str,
+    model_override: Option<&str>,
+    prompt: &str,
+    context_refs: &[String],
+) -> Result<String, String> {
+    let (protocol_id, base_url, model_name, api_key) =
+        resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
+    let full_prompt = if context_refs.is_empty() {
+        prompt.to_string()
+    } else {
+        format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
+    };
+    super::call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)
+}
+
 fn run_stage_role(
     db_path: &Path,
     runtime_root: &Path,
@@ -108,15 +126,14 @@ fn run_stage_role(
         "running",
         "",
     )?;
-    let (protocol_id, base_url, model_name, api_key) =
-        resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
-    let full_prompt = if context_refs.is_empty() {
-        prompt.to_string()
-    } else {
-        format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
-    };
-    let output =
-        super::call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)?;
+    let output = call_model_output(
+        db_path,
+        runtime_root,
+        role_for_model,
+        model_override,
+        prompt,
+        context_refs,
+    )?;
     ensure_not_cancelled(cancel_flag)?;
     emit_tool_event(
         db_path,
@@ -159,6 +176,23 @@ fn run_agent_pipeline_async(
     cancel_flag: Arc<AtomicBool>,
     input: AgentRunRequest,
 ) -> Result<String, String> {
+    if input.role == "web_search" {
+        return super::swarm_tool_search::run_stage_tool_search(
+            &db_path,
+            &runtime_root,
+            &run_id,
+            &input.project_id,
+            "web_search",
+            "web_search",
+            "explorer",
+            "Tool Search",
+            &input.prompt,
+            &input.context_refs,
+            &cancel_flag,
+            input.model_override.as_deref(),
+        );
+    }
+
     if input.role != "task" {
         return run_stage_role(
             &db_path,
@@ -242,7 +276,7 @@ fn run_agent_pipeline_async(
     let context_b = input.context_refs.clone();
     let cancel_b = cancel_flag.clone();
     let handle_b = thread::spawn(move || {
-        run_stage_role(
+        super::swarm_tool_search::run_stage_tool_search(
             &db_b,
             &runtime_b,
             &run_b,
@@ -255,7 +289,6 @@ fn run_agent_pipeline_async(
             &context_b,
             &cancel_b,
             None,
-            "structured_web_search",
         )
     });
 

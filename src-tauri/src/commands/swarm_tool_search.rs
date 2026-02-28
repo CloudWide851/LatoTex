@@ -1,0 +1,262 @@
+use crate::commands::analysis::run_reference_check_queries;
+use crate::secure;
+use crate::storage;
+use serde_json::json;
+use std::collections::BTreeSet;
+use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use super::call_provider_with_retry;
+use super::swarm_events::{append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, envelope};
+
+fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
+    if cancel_flag.load(Ordering::Relaxed) {
+        return Err("agent.run.cancelled".to_string());
+    }
+    Ok(())
+}
+
+fn resolve_connection_for_role(
+    db_path: &Path,
+    runtime_root: &Path,
+    role: &str,
+    model_override: Option<&str>,
+) -> Result<(String, String, String, String), String> {
+    let (protocol_id, base_url, model_name, resolved_model_id) =
+        storage::resolve_agent_model(db_path, role, model_override)?;
+    let secure_context = secure::SecureStorageContext {
+        db_path: db_path.to_path_buf(),
+        runtime_root: runtime_root.to_path_buf(),
+    };
+    let api_key = secure::get_model_api_key(&secure_context, &resolved_model_id)?
+        .api_key
+        .ok_or_else(|| format!("API key is missing for model: {resolved_model_id}"))?;
+    Ok((protocol_id, base_url, model_name, api_key))
+}
+
+fn call_model_output(
+    db_path: &Path,
+    runtime_root: &Path,
+    role_for_model: &str,
+    model_override: Option<&str>,
+    prompt: &str,
+    context_refs: &[String],
+) -> Result<String, String> {
+    let (protocol_id, base_url, model_name, api_key) =
+        resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
+    let full_prompt = if context_refs.is_empty() {
+        prompt.to_string()
+    } else {
+        format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
+    };
+    call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)
+}
+
+fn normalize_query(candidate: &str) -> Option<String> {
+    let trimmed = candidate
+        .trim()
+        .trim_matches(|ch: char| ch == '-' || ch == '*' || ch == '"' || ch == '\'');
+    if trimmed.len() < 3 || trimmed.len() > 180 {
+        return None;
+    }
+    if trimmed.starts_with('{') || trimmed.starts_with('[') {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn extract_tool_search_queries(prompt: &str) -> Vec<String> {
+    let mut values = BTreeSet::new();
+    for line in prompt.lines() {
+        let trimmed = line.trim();
+        if let Some(stripped) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .or_else(|| trimmed.strip_prefix("• "))
+        {
+            if let Some(value) = normalize_query(stripped) {
+                values.insert(value);
+            }
+            continue;
+        }
+        for segment in trimmed.split(&[',', ';'][..]) {
+            if let Some(value) = normalize_query(segment) {
+                values.insert(value);
+            }
+        }
+    }
+    values.into_iter().take(10).collect()
+}
+
+fn truncate_text(value: &str, max_chars: usize) -> String {
+    let mut output = String::new();
+    for ch in value.chars().take(max_chars) {
+        output.push(ch);
+    }
+    output
+}
+
+fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
+    let queries = extract_tool_search_queries(raw_prompt);
+    if queries.is_empty() {
+        return (
+            Vec::new(),
+            "tool_search produced no valid query terms.".to_string(),
+            0,
+        );
+    }
+    let result = run_reference_check_queries(queries.clone(), 4);
+    match result {
+        Ok(response) => {
+            let mut lines = Vec::new();
+            let mut evidence_count = 0_usize;
+            for item in response.items.iter().take(6) {
+                if !item.ok {
+                    lines.push(format!("- {} => {}", item.query, item.message));
+                    continue;
+                }
+                lines.push(format!("- {} => {}", item.query, item.message));
+                for evidence in item.results.iter().take(3) {
+                    evidence_count += 1;
+                    let title = truncate_text(&evidence.title, 120);
+                    let url = truncate_text(&evidence.url, 180);
+                    lines.push(format!("  - {} ({})", title, url));
+                }
+            }
+            (queries, lines.join("\n"), evidence_count)
+        }
+        Err(error) => (
+            queries,
+            format!("tool_search error: {}", truncate_text(&error, 220)),
+            0,
+        ),
+    }
+}
+
+pub(super) fn run_stage_tool_search(
+    db_path: &Path,
+    runtime_root: &Path,
+    run_id: &str,
+    project_id: &str,
+    stage: &str,
+    role_for_model: &str,
+    source: &str,
+    title: &str,
+    prompt: &str,
+    context_refs: &[String],
+    cancel_flag: &Arc<AtomicBool>,
+    model_override: Option<&str>,
+) -> Result<String, String> {
+    ensure_not_cancelled(cancel_flag)?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        role_for_model,
+        source,
+        stage,
+        "running",
+        title,
+        "",
+    )?;
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        role_for_model,
+        source,
+        stage,
+        "tool_search",
+        "running",
+        "",
+    )?;
+    let (queries, compact_context, evidence_count) = build_tool_search_context(prompt);
+    ensure_not_cancelled(cancel_flag)?;
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        role_for_model,
+        source,
+        stage,
+        "tool_search",
+        "success",
+        &format!(
+            "queries={}, evidence={}, token_mode=compact",
+            queries.len(),
+            evidence_count
+        ),
+    )?;
+
+    let estimated_saved = ((queries.len().saturating_mul(850)) as i64
+        - (compact_context.len() as i64 / 4))
+        .max(0);
+    let mut stats_payload = envelope(
+        run_id,
+        source,
+        stage,
+        "success",
+        "Tool Search Stats",
+        "",
+        &format!("{run_id}:{stage}:tool:tool_search:stats"),
+    );
+    if let Some(object) = stats_payload.as_object_mut() {
+        object.insert("toolName".to_string(), json!("tool_search"));
+        object.insert("toolTokensSavedEstimate".to_string(), json!(estimated_saved));
+        object.insert("toolRound".to_string(), json!(1));
+    }
+    append_protocol_event(
+        db_path,
+        run_id,
+        project_id,
+        role_for_model,
+        "mcp.tool.search.stats",
+        stats_payload,
+    )?;
+
+    let final_prompt = [
+        "You are using internal programmatic tools in a provider-agnostic runtime.",
+        "Tool protocol: ison-tool-call.v1",
+        "A tool named `tool_search` has already been executed by the runtime.",
+        "Do not ask to call tools again. Produce the final answer from compact evidence below.",
+        "",
+        "[tool_search.compact.v1]",
+        compact_context.as_str(),
+        "",
+        "[user_request]",
+        prompt,
+    ]
+    .join("\n");
+
+    let output = call_model_output(
+        db_path,
+        runtime_root,
+        role_for_model,
+        model_override,
+        &final_prompt,
+        context_refs,
+    )?;
+    ensure_not_cancelled(cancel_flag)?;
+    emit_response_event(
+        db_path,
+        run_id,
+        project_id,
+        role_for_model,
+        source,
+        stage,
+        &output,
+    )?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        role_for_model,
+        source,
+        stage,
+        "success",
+        title,
+        "",
+    )?;
+    Ok(output)
+}

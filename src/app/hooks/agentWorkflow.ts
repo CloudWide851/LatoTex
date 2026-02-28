@@ -1,7 +1,6 @@
 import {
   getEvents,
   readFile,
-  referenceCheck,
   runAgentStart,
   runtimeLogWrite,
   writeFile,
@@ -480,13 +479,15 @@ export async function runAgentWorkflow(params: {
         setAgentStatusKey("agent.statusDone");
         return;
       }
-      const references = await referenceCheck(queries, 5);
+      const queryLines = queries.map((item) => `- ${item}`).join("\n");
       const analysisPrompt = [
-        "You are a citation verifier.",
-        "Assess if each reference appears real and correctly linked to source evidence.",
-        "Return concise sections: PASS, WARNING, ACTION.",
+        "You are a citation verifier with an internal programmatic tool runtime.",
+        "The runtime will execute tool_search in a provider-agnostic way.",
+        "Assess if each reference appears real and linked to evidence.",
+        "Return concise sections: PASS, WARNING, ACTION, SOURCES.",
         "",
-        JSON.stringify(references, null, 2),
+        "Reference queries:",
+        queryLines,
       ].join("\n");
       const response = await runAgentThroughEvents({
         activeProjectId,
