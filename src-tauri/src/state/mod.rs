@@ -37,6 +37,7 @@ pub struct AppState {
     pub app_version: String,
     pub git_download_tasks: Arc<Mutex<HashMap<String, GitDownloadTask>>>,
     pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
+    pub agent_cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -95,6 +96,7 @@ impl AppState {
             app_version,
             git_download_tasks: Arc::new(Mutex::new(HashMap::new())),
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
+            agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };
         state.log("INFO", "application startup completed");
         Ok(state)

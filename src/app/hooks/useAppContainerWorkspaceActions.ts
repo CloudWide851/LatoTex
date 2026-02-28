@@ -462,7 +462,7 @@ export function useAppContainerWorkspaceActions(params: any) {
   }): Promise<{ ok: boolean; message?: string }> => {
     const { protocol, model, modelApiKey, modelApiKeyChanged } = payload;
     if (!settings) {
-      return { ok: false, message: "Settings are not loaded yet." };
+      return { ok: false, message: t("toast.settingsNotLoaded") };
     }
     cancelPendingAutoSave?.();
 

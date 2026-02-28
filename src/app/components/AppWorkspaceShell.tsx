@@ -12,7 +12,7 @@ import type {
   WorkspacePage,
 } from "../../shared/types/app";
 import type { LogTab } from "../app-config";
-import { AgentChatOverlay, type AgentPhase } from "./AgentChatOverlay";
+import { AgentChatOverlay, type AgentCommandItem, type AgentPhase } from "./AgentChatOverlay";
 import { ExplorerTree } from "./ExplorerTree";
 import { FilePreviewPane } from "./FilePreviewPane";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
@@ -21,7 +21,7 @@ import { PageRail } from "./PageRail";
 import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
-import type { AgentChatMessage, AgentFileProposal } from "../hooks/agentTypes";
+import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
 
 type TranslationFn = (key: any) => string;
 
@@ -59,6 +59,10 @@ export function AppWorkspaceShell(props: {
   agentMessages: AgentChatMessage[];
   agentProposal: AgentFileProposal | null;
   agentRunId: string | null;
+  agentSessions: AgentSessionSummary[];
+  agentSessionPickerOpen: boolean;
+  agentSessionPickerIndex: number;
+  agentRollbackVisible: boolean;
   events: SwarmEvent[];
   explorerGitDecorations: Record<
     string,
@@ -80,6 +84,10 @@ export function AppWorkspaceShell(props: {
   onAgentPromptChange: (value: string) => void;
   onAgentToggle: () => void;
   onAgentRun: () => void;
+  onAgentSessionPickerOpenChange: (value: boolean) => void;
+  onAgentSessionPickerIndexChange: (value: number) => void;
+  onAgentSessionConfirm: () => void;
+  onAgentRollback: () => void;
   onAgentAcceptProposal: (withAnalysis: boolean) => void;
   onAgentRejectProposal: () => void;
   onOpenFolder: () => void;
@@ -133,6 +141,10 @@ export function AppWorkspaceShell(props: {
     agentMessages,
     agentProposal,
     agentRunId,
+    agentSessions,
+    agentSessionPickerOpen,
+    agentSessionPickerIndex,
+    agentRollbackVisible,
     events,
     explorerGitDecorations,
     shellMin,
@@ -151,6 +163,10 @@ export function AppWorkspaceShell(props: {
     onAgentPromptChange,
     onAgentToggle,
     onAgentRun,
+    onAgentSessionPickerOpenChange,
+    onAgentSessionPickerIndexChange,
+    onAgentSessionConfirm,
+    onAgentRollback,
     onAgentAcceptProposal,
     onAgentRejectProposal,
     onOpenFolder,
@@ -192,6 +208,13 @@ export function AppWorkspaceShell(props: {
         : "empty";
   const previewPdfUrl = selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
+  const agentCommandItems: AgentCommandItem[] = [
+    { token: "/review", label: t("agent.command.review.label"), description: t("agent.command.review.description") },
+    { token: "/check-ref", label: t("agent.command.checkRef.label"), description: t("agent.command.checkRef.description") },
+    { token: "/new", label: t("agent.command.new.label"), description: t("agent.command.new.description") },
+    { token: "/memory", label: t("agent.command.memory.label"), description: t("agent.command.memory.description") },
+    { token: "/resume", label: t("agent.command.resume.label"), description: t("agent.command.resume.description") },
+  ];
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
       <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
@@ -423,13 +446,21 @@ export function AppWorkspaceShell(props: {
             messages={agentMessages}
             proposal={agentProposal}
             runId={agentRunId}
+            sessions={agentSessions}
+            sessionPickerOpen={agentSessionPickerOpen}
+            sessionPickerIndex={agentSessionPickerIndex}
+            rollbackVisible={agentRollbackVisible}
             events={events}
             onPromptChange={onAgentPromptChange}
             onRun={onAgentRun}
+            onSessionPickerOpenChange={onAgentSessionPickerOpenChange}
+            onSessionPickerIndexChange={onAgentSessionPickerIndexChange}
+            onSessionConfirm={onAgentSessionConfirm}
+            onRollback={onAgentRollback}
             onToggle={onAgentToggle}
             onAcceptProposal={onAgentAcceptProposal}
             onRejectProposal={onAgentRejectProposal}
-            runLabel={t("workspace.runTaskAgent")}
+            runLabel={agentPhase === "running" ? t("agent.run.cancel") : t("workspace.runTaskAgent")}
             placeholder={t("workspace.agentPlaceholder")}
             activityShowLabel={t("agent.activityShow")}
             activityHideLabel={t("agent.activityHide")}
@@ -438,18 +469,11 @@ export function AppWorkspaceShell(props: {
             autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
             showMoreLabel={t("agent.showMore")}
             showLessLabel={t("agent.showLess")}
-            commands={[
-              {
-                token: "/review",
-                label: t("agent.command.review.label"),
-                description: t("agent.command.review.description"),
-              },
-              {
-                token: "/check-ref",
-                label: t("agent.command.checkRef.label"),
-                description: t("agent.command.checkRef.description"),
-              },
-            ]}
+            commands={agentCommandItems}
+            resumeTitle={t("agent.resume.title")}
+            resumeHint={t("agent.resume.hint")}
+            resumeEmptyLabel={t("agent.resume.empty")}
+            rollbackLabel={t("agent.rollback.restore")}
           />
         </div>
       </div>

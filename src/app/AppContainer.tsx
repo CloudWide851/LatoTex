@@ -11,6 +11,8 @@ import {
   gitStatus,
   openProject,
   projectIntegrityStatus,
+  runAgentCancel,
+  setTrayLabels,
 } from "../shared/api/desktop";
 import type { ResourceNode } from "../shared/types/app";
 import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
@@ -24,6 +26,17 @@ import { useAppContainerState } from "./hooks/useAppContainerState";
 import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { useSettingsPersistence } from "./hooks/useSettingsPersistence";
 import { useAppPanelNodes } from "./hooks/useAppPanelNodes";
+import { parseAgentPrompt } from "./hooks/agentCommands";
+import {
+  appendDailyMemoryPrompt,
+  createNewFileSession,
+  ensureCurrentFileSession,
+  ensureProjectMemoryDocument,
+  loadSessionMessages,
+  resumeFileSession,
+  saveSessionMessages,
+} from "./hooks/agentMemoryStore";
+import type { AgentRunRollback, AgentSessionSummary } from "./hooks/agentTypes";
 
 type IntegrityIssue = {
   projectId: string;
@@ -35,6 +48,13 @@ export function AppContainer() {
   const isTauriRuntime = isTauri();
   const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
   const s = useAppContainerState(t);
+  const [agentSessions, setAgentSessions] = useState<AgentSessionSummary[]>([]);
+  const [agentCurrentSessionId, setAgentCurrentSessionId] = useState<string | null>(null);
+  const [agentSessionPickerOpen, setAgentSessionPickerOpen] = useState(false);
+  const [agentSessionPickerIndex, setAgentSessionPickerIndex] = useState(0);
+  const [agentRollback, setAgentRollback] = useState<AgentRunRollback | null>(null);
+  const [agentRollbackVisible, setAgentRollbackVisible] = useState(false);
+  const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
@@ -162,6 +182,101 @@ export function AppContainer() {
       }
     };
   }, [s.selectedFilePdfUrl]);
+
+  useEffect(() => {
+    if (!isTauriRuntime) {
+      return;
+    }
+    setTrayLabels(t("tray.showMain"), t("tray.exit"), t("tray.tooltip")).catch(() => undefined);
+  }, [isTauriRuntime, locale, t]);
+
+  useEffect(() => {
+    let disposed = false;
+    const projectId = s.activeProjectId;
+    const filePath = s.selectedFile;
+    if (!projectId || !filePath) {
+      setAgentSessions([]);
+      setAgentCurrentSessionId(null);
+      setAgentSessionPickerOpen(false);
+      setAgentRollbackVisible(false);
+      return () => {
+        disposed = true;
+      };
+    }
+    void (async () => {
+      try {
+        const prepared = await ensureCurrentFileSession(projectId, filePath);
+        if (disposed) {
+          return;
+        }
+        setAgentSessions(prepared.sessions);
+        setAgentCurrentSessionId(prepared.currentSessionId);
+        const messages = await loadSessionMessages(projectId, filePath, prepared.currentSessionId);
+        if (disposed) {
+          return;
+        }
+        s.setAgentMessages(messages);
+        setAgentSessionPickerIndex(0);
+        setAgentRollbackVisible(false);
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+        s.setToast({ type: "error", message: String(error) });
+      }
+    })();
+    return () => {
+      disposed = true;
+    };
+  }, [s.activeProjectId, s.selectedFile, s.setAgentMessages, s.setToast]);
+
+  useEffect(() => {
+    const projectId = s.activeProjectId;
+    const filePath = s.selectedFile;
+    const sessionId = agentCurrentSessionId;
+    if (!projectId || !filePath || !sessionId) {
+      return;
+    }
+    if (sessionSaveTimerRef.current) {
+      clearTimeout(sessionSaveTimerRef.current);
+      sessionSaveTimerRef.current = null;
+    }
+    sessionSaveTimerRef.current = setTimeout(() => {
+      void saveSessionMessages(projectId, filePath, sessionId, s.agentMessages)
+        .then((nextSessions) => {
+          if (nextSessions) {
+            setAgentSessions(nextSessions);
+          }
+        })
+        .catch(() => undefined);
+    }, 320);
+    return () => {
+      if (sessionSaveTimerRef.current) {
+        clearTimeout(sessionSaveTimerRef.current);
+        sessionSaveTimerRef.current = null;
+      }
+    };
+  }, [agentCurrentSessionId, s.activeProjectId, s.agentMessages, s.selectedFile]);
+
+  const handleResumeSession = useCallback(async (index: number) => {
+    const projectId = s.activeProjectId;
+    const filePath = s.selectedFile;
+    if (!projectId || !filePath || agentSessions.length === 0) {
+      return;
+    }
+    const target = agentSessions[Math.max(0, Math.min(index, agentSessions.length - 1))];
+    try {
+      const resumed = await resumeFileSession(projectId, filePath, target.id);
+      setAgentSessions(resumed.sessions);
+      setAgentCurrentSessionId(resumed.currentSessionId);
+      const messages = await loadSessionMessages(projectId, filePath, resumed.currentSessionId);
+      s.setAgentMessages(messages);
+      setAgentSessionPickerOpen(false);
+      s.setAgentPrompt("");
+    } catch {
+      s.setToast({ type: "error", message: t("agent.command.resume.notFound") });
+    }
+  }, [agentSessions, s.activeProjectId, s.selectedFile, s.setAgentMessages, s.setAgentPrompt, s.setToast, t]);
 
   useEffect(() => {
     s.setPdfUrl((prev) => {
@@ -480,6 +595,115 @@ export function AppContainer() {
     setModelModalOpen: s.setModelModalOpen,
   });
 
+  const handleAgentRollback = useCallback(() => {
+    if (!agentRollback) {
+      return;
+    }
+    s.setAgentMessages(agentRollback.messages);
+    s.setAgentPrompt(agentRollback.prompt);
+    if (agentRollback.sessionId) {
+      setAgentCurrentSessionId(agentRollback.sessionId);
+    }
+    s.setAgentRunId(null);
+    s.setAgentPhase("done");
+    s.setAgentStatusKey("agent.statusDone");
+    setAgentRollbackVisible(false);
+    s.setToast({ type: "info", message: t("agent.rollback.restored") });
+  }, [agentRollback, s.setAgentMessages, s.setAgentPhase, s.setAgentPrompt, s.setAgentRunId, s.setAgentStatusKey, s.setToast, t]);
+
+  const handleAgentRun = useCallback(async () => {
+    const projectId = s.activeProjectId;
+    if (!projectId) {
+      return;
+    }
+    if (s.agentPhase === "running" && s.agentRunId) {
+      try {
+        await runAgentCancel(s.agentRunId);
+        setAgentRollbackVisible(true);
+      } catch (error) {
+        s.setToast({ type: "error", message: String(error) });
+      }
+      return;
+    }
+    const rawPrompt = s.agentPrompt.trim();
+    if (!rawPrompt) {
+      return;
+    }
+    const parsed = parseAgentPrompt(rawPrompt);
+    if (parsed.kind === "command" && parsed.command === "new") {
+      if (!s.selectedFile) {
+        s.setToast({ type: "error", message: t("agent.command.requiresFile") });
+        return;
+      }
+      const next = await createNewFileSession(projectId, s.selectedFile);
+      setAgentSessions(next.sessions);
+      setAgentCurrentSessionId(next.currentSessionId);
+      s.setAgentMessages([]);
+      s.setAgentPrompt("");
+      setAgentSessionPickerOpen(false);
+      setAgentRollbackVisible(false);
+      s.setToast({ type: "info", message: t("agent.command.new.done") });
+      return;
+    }
+    if (parsed.kind === "command" && parsed.command === "memory") {
+      const memoryPath = await ensureProjectMemoryDocument(projectId);
+      s.setPage("latex");
+      s.setSelectedFile(memoryPath);
+      s.setAgentPrompt("");
+      s.setToast({ type: "info", message: t("agent.command.memory.opened") });
+      return;
+    }
+    if (parsed.kind === "command" && parsed.command === "resume") {
+      if (agentSessions.length === 0) {
+        s.setToast({ type: "info", message: t("agent.command.resume.empty") });
+        s.setAgentPrompt("");
+        return;
+      }
+      const requested = parsed.args.trim();
+      if (requested) {
+        const directIndex = agentSessions.findIndex((item) => item.id === requested);
+        if (directIndex >= 0) {
+          await handleResumeSession(directIndex);
+          return;
+        }
+      }
+      setAgentSessionPickerOpen(true);
+      setAgentSessionPickerIndex(0);
+      s.setAgentPrompt("");
+      s.setToast({ type: "info", message: t("agent.command.resume.opened") });
+      return;
+    }
+    await appendDailyMemoryPrompt(projectId, s.selectedFile ?? "main.tex", rawPrompt).catch(() => undefined);
+    setAgentRollback({
+      sessionId: agentCurrentSessionId,
+      prompt: s.agentPrompt,
+      messages: s.agentMessages,
+    });
+    setAgentRollbackVisible(false);
+    await handlers.handleRunAgent();
+  }, [
+    agentCurrentSessionId,
+    agentSessions.length,
+    handlers,
+    s.activeProjectId,
+    s.agentMessages,
+    s.agentPhase,
+    s.agentPrompt,
+    s.agentRunId,
+    s.selectedFile,
+    s.setAgentMessages,
+    s.setAgentPrompt,
+    s.setPage,
+    s.setSelectedFile,
+    s.setToast,
+    t,
+    handleResumeSession,
+  ]);
+
+  const handleAgentSessionConfirm = useCallback(() => {
+    void handleResumeSession(agentSessionPickerIndex);
+  }, [agentSessionPickerIndex, handleResumeSession]);
+
   const explorerGitDecorations = useMemo(() => {
     const map: Record<string, { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }> = {};
     for (const change of s.gitStatusState?.changes ?? []) {
@@ -595,6 +819,10 @@ export function AppContainer() {
       agentMessages={s.agentMessages}
       agentProposal={activeAgentProposal}
       agentRunId={s.agentRunId}
+      agentSessions={agentSessions}
+      agentSessionPickerOpen={agentSessionPickerOpen}
+      agentSessionPickerIndex={agentSessionPickerIndex}
+      agentRollbackVisible={agentRollbackVisible}
       explorerGitDecorations={explorerGitDecorations}
       SHELL_MIN={SHELL_MIN}
       settingsPanel={panels.settingsPanel}
@@ -611,7 +839,11 @@ export function AppContainer() {
       editorRef={s.editorRef}
       setAgentPrompt={s.setAgentPrompt}
       setAgentCollapsed={s.setAgentCollapsed}
-      handleRunAgent={handlers.handleRunAgent}
+      handleRunAgent={handleAgentRun}
+      setAgentSessionPickerOpen={setAgentSessionPickerOpen}
+      setAgentSessionPickerIndex={setAgentSessionPickerIndex}
+      handleAgentSessionConfirm={handleAgentSessionConfirm}
+      handleAgentRollback={handleAgentRollback}
       handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}

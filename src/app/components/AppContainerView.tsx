@@ -54,6 +54,10 @@ export function AppContainerView(props: any) {
     agentMessages,
     agentProposal,
     agentRunId,
+    agentSessions,
+    agentSessionPickerOpen,
+    agentSessionPickerIndex,
+    agentRollbackVisible,
     explorerGitDecorations,
     SHELL_MIN,
     settingsPanel,
@@ -71,6 +75,10 @@ export function AppContainerView(props: any) {
     setAgentPrompt,
     setAgentCollapsed,
     handleRunAgent,
+    setAgentSessionPickerOpen,
+    setAgentSessionPickerIndex,
+    handleAgentSessionConfirm,
+    handleAgentRollback,
     handleAcceptAgentProposal,
     handleRejectAgentProposal,
     handleSaveActiveFile,
@@ -184,6 +192,10 @@ export function AppContainerView(props: any) {
             agentMessages={agentMessages}
             agentProposal={agentProposal}
             agentRunId={agentRunId}
+            agentSessions={agentSessions}
+            agentSessionPickerOpen={agentSessionPickerOpen}
+            agentSessionPickerIndex={agentSessionPickerIndex}
+            agentRollbackVisible={agentRollbackVisible}
             events={events}
             explorerGitDecorations={explorerGitDecorations}
             shellMin={SHELL_MIN}
@@ -204,6 +216,10 @@ export function AppContainerView(props: any) {
             onAgentPromptChange={setAgentPrompt}
             onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
             onAgentRun={handleRunAgent}
+            onAgentSessionPickerOpenChange={setAgentSessionPickerOpen}
+            onAgentSessionPickerIndexChange={setAgentSessionPickerIndex}
+            onAgentSessionConfirm={handleAgentSessionConfirm}
+            onAgentRollback={handleAgentRollback}
             onAgentAcceptProposal={(withAnalysis) => {
               void handleAcceptAgentProposal(withAnalysis);
             }}

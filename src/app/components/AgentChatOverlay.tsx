@@ -1,16 +1,22 @@
-import { ChevronDown, ChevronUp, MessageSquareMore, Send, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronUp, CornerDownLeft, MessageSquareMore, Send, Sparkles, Square, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
+import { AgentSessionPicker } from "./agent/AgentSessionPicker";
 import { pickCommandSuggestions } from "../hooks/agentCommands";
-import type { AgentChatMessage, AgentEventCard, AgentFileProposal } from "../hooks/agentTypes";
+import type {
+  AgentChatMessage,
+  AgentEventCard,
+  AgentFileProposal,
+  AgentSessionSummary,
+} from "../hooks/agentTypes";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
 export type AgentCommandItem = {
-  token: "/review" | "/check-ref";
+  token: "/review" | "/check-ref" | "/new" | "/memory" | "/resume";
   label: string;
   description: string;
 };
@@ -205,9 +211,17 @@ export function AgentChatOverlay(props: {
   messages: AgentChatMessage[];
   proposal: AgentFileProposal | null;
   runId: string | null;
+  sessions: AgentSessionSummary[];
+  sessionPickerOpen: boolean;
+  sessionPickerIndex: number;
+  rollbackVisible: boolean;
   events: SwarmEvent[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
+  onSessionPickerOpenChange: (value: boolean) => void;
+  onSessionPickerIndexChange: (value: number) => void;
+  onSessionConfirm: () => void;
+  onRollback: () => void;
   onToggle: () => void;
   onAcceptProposal: (withAnalysis: boolean) => void;
   onRejectProposal: () => void;
@@ -221,6 +235,10 @@ export function AgentChatOverlay(props: {
   showMoreLabel: string;
   showLessLabel: string;
   commands: AgentCommandItem[];
+  resumeTitle: string;
+  resumeHint: string;
+  resumeEmptyLabel: string;
+  rollbackLabel: string;
 }) {
   const {
     collapsed,
@@ -233,9 +251,17 @@ export function AgentChatOverlay(props: {
     messages,
     proposal,
     runId,
+    sessions,
+    sessionPickerOpen,
+    sessionPickerIndex,
+    rollbackVisible,
     events,
     onPromptChange,
     onRun,
+    onSessionPickerOpenChange,
+    onSessionPickerIndexChange,
+    onSessionConfirm,
+    onRollback,
     onToggle,
     onAcceptProposal,
     onRejectProposal,
@@ -249,6 +275,10 @@ export function AgentChatOverlay(props: {
     showMoreLabel,
     showLessLabel,
     commands,
+    resumeTitle,
+    resumeHint,
+    resumeEmptyLabel,
+    rollbackLabel,
   } = props;
 
   const [activityExpanded, setActivityExpanded] = useState(true);
@@ -289,11 +319,11 @@ export function AgentChatOverlay(props: {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-10 z-30 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
       <div
-        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-0 max-h-[calc(100%-16px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-0 max-h-[calc(100%-10px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(210px, 40%, 380px)" : "clamp(132px, 24%, 210px)",
+          height: activityExpanded ? "clamp(210px, 40%, 390px)" : "clamp(132px, 24%, 214px)",
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
@@ -429,6 +459,16 @@ export function AgentChatOverlay(props: {
 
           <div className="mt-auto p-3">
             <div className="relative">
+              <AgentSessionPicker
+                open={sessionPickerOpen}
+                sessions={sessions}
+                sessionPickerIndex={sessionPickerIndex}
+                resumeTitle={resumeTitle}
+                resumeHint={resumeHint}
+                resumeEmptyLabel={resumeEmptyLabel}
+                onSessionPickerIndexChange={onSessionPickerIndexChange}
+                onSessionConfirm={onSessionConfirm}
+              />
               <textarea
                 className={cn(
                   "w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
@@ -440,6 +480,28 @@ export function AgentChatOverlay(props: {
                 placeholder={placeholder}
                 onChange={(event) => onPromptChange(event.target.value)}
                 onKeyDown={(event) => {
+                  if (sessionPickerOpen) {
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      if (sessions.length === 0) {
+                        return;
+                      }
+                      const delta = event.key === "ArrowDown" ? 1 : -1;
+                      const nextIndex = Math.max(0, Math.min(sessions.length - 1, sessionPickerIndex + delta));
+                      onSessionPickerIndexChange(nextIndex);
+                      return;
+                    }
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      onSessionConfirm();
+                      return;
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onSessionPickerOpenChange(false);
+                      return;
+                    }
+                  }
                   if (
                     commandSuggestions.length > 0 &&
                     (event.key === "ArrowDown" || event.key === "ArrowUp")
@@ -493,13 +555,23 @@ export function AgentChatOverlay(props: {
                   ))}
                 </div>
               ) : null}
+              {rollbackVisible ? (
+                <button
+                  className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                  title={rollbackLabel}
+                  aria-label={rollbackLabel}
+                  onClick={onRollback}
+                >
+                  <CornerDownLeft className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
               <button
                 className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={onRun}
-                disabled={busy || !prompt.trim()}
+                disabled={busy || (phase !== "running" && !prompt.trim())}
                 title={runLabel}
               >
-                <Send className="h-3.5 w-3.5" />
+                {phase === "running" ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
               </button>
             </div>
           </div>

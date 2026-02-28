@@ -44,3 +44,18 @@ export type AgentEventCard = {
   cardKey: string;
   createdAt: string;
 };
+
+export type AgentSessionSummary = {
+  id: string;
+  filePath: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+};
+
+export type AgentRunRollback = {
+  sessionId: string | null;
+  prompt: string;
+  messages: AgentChatMessage[];
+};

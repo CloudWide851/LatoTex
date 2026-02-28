@@ -4,9 +4,13 @@ use crate::state::AppState;
 use crate::storage;
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use uuid::Uuid;
+use super::swarm_events::{
+    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, envelope,
+};
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
 
@@ -41,162 +45,6 @@ fn acquire_agent_slot_from(
     Ok(AgentRunSlotGuard { slots })
 }
 
-fn envelope(
-    run_id: &str,
-    source: &str,
-    stage: &str,
-    status: &str,
-    title: &str,
-    content: &str,
-    card_key: &str,
-) -> serde_json::Value {
-    json!({
-        "protocol": "ison",
-        "schema": "ison-agent-envelope.v1",
-        "a2ui": {
-            "version": "google-a2ui",
-            "layout": "timeline-card",
-            "collapsible": true
-        },
-        "runId": run_id,
-        "source": source,
-        "stage": stage,
-        "status": status,
-        "title": title,
-        "content": content,
-        "cardKey": card_key
-    })
-}
-
-fn append_protocol_event(
-    db_path: &Path,
-    run_id: &str,
-    project_id: &str,
-    role: &str,
-    kind: &str,
-    payload: serde_json::Value,
-) -> Result<(), String> {
-    storage::append_event(db_path, run_id, project_id, role, kind, payload)?;
-    Ok(())
-}
-
-fn emit_stage_event(
-    db_path: &Path,
-    run_id: &str,
-    project_id: &str,
-    role: &str,
-    source: &str,
-    stage: &str,
-    status: &str,
-    title: &str,
-    content: &str,
-) -> Result<(), String> {
-    let kind = match status {
-        "running" => "a2a.task.started",
-        "success" => "a2a.task.completed",
-        _ => "a2a.task.failed",
-    };
-    append_protocol_event(
-        db_path,
-        run_id,
-        project_id,
-        role,
-        kind,
-        envelope(
-            run_id,
-            source,
-            stage,
-            status,
-            title,
-            content,
-            &format!("{run_id}:{stage}:{source}"),
-        ),
-    )
-}
-
-fn emit_tool_event(
-    db_path: &Path,
-    run_id: &str,
-    project_id: &str,
-    role: &str,
-    source: &str,
-    stage: &str,
-    tool_name: &str,
-    status: &str,
-    content: &str,
-) -> Result<(), String> {
-    let kind = match status {
-        "running" => "mcp.tool.call.started",
-        "success" => "mcp.tool.call.completed",
-        _ => "mcp.tool.call.failed",
-    };
-    let mut payload = envelope(
-        run_id,
-        source,
-        stage,
-        status,
-        &format!("{stage} · {tool_name}"),
-        content,
-        &format!("{run_id}:{stage}:tool:{tool_name}"),
-    );
-    if let Some(object) = payload.as_object_mut() {
-        object.insert("toolName".to_string(), json!(tool_name));
-    }
-    append_protocol_event(db_path, run_id, project_id, role, kind, payload)
-}
-
-fn emit_response_event(
-    db_path: &Path,
-    run_id: &str,
-    project_id: &str,
-    role: &str,
-    source: &str,
-    stage: &str,
-    output: &str,
-) -> Result<(), String> {
-    let card_key = format!("{run_id}:{stage}:response");
-    for chunk in output.as_bytes().chunks(520) {
-        let text = String::from_utf8_lossy(chunk).to_string();
-        let mut payload = envelope(
-            run_id,
-            source,
-            stage,
-            "running",
-            &format!("{stage} · output"),
-            &text,
-            &card_key,
-        );
-        if let Some(object) = payload.as_object_mut() {
-            object.insert("append".to_string(), json!(true));
-        }
-        append_protocol_event(
-            db_path,
-            run_id,
-            project_id,
-            role,
-            "responses.output_text.delta",
-            payload,
-        )?;
-    }
-    append_protocol_event(
-        db_path,
-        run_id,
-        project_id,
-        role,
-        "responses.output_text.completed",
-        envelope(
-            run_id,
-            source,
-            stage,
-            "success",
-            &format!("{stage} · output"),
-            output,
-            &card_key,
-        ),
-    )?;
-    Ok(())
-}
-
 fn resolve_connection_for_role(
     db_path: &Path,
     runtime_root: &Path,
@@ -215,6 +63,13 @@ fn resolve_connection_for_role(
     Ok((protocol_id, base_url, model_name, api_key))
 }
 
+fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
+    if cancel_flag.load(Ordering::Relaxed) {
+        return Err("agent.run.cancelled".to_string());
+    }
+    Ok(())
+}
+
 fn run_stage_role(
     db_path: &Path,
     runtime_root: &Path,
@@ -226,9 +81,11 @@ fn run_stage_role(
     title: &str,
     prompt: &str,
     context_refs: &[String],
+    cancel_flag: &Arc<AtomicBool>,
     model_override: Option<&str>,
     tool_name: &str,
 ) -> Result<String, String> {
+    ensure_not_cancelled(cancel_flag)?;
     emit_stage_event(
         db_path,
         run_id,
@@ -260,6 +117,7 @@ fn run_stage_role(
     };
     let output =
         super::call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)?;
+    ensure_not_cancelled(cancel_flag)?;
     emit_tool_event(
         db_path,
         run_id,
@@ -298,6 +156,7 @@ fn run_agent_pipeline_async(
     db_path: PathBuf,
     runtime_root: PathBuf,
     run_id: String,
+    cancel_flag: Arc<AtomicBool>,
     input: AgentRunRequest,
 ) -> Result<String, String> {
     if input.role != "task" {
@@ -312,6 +171,7 @@ fn run_agent_pipeline_async(
             "Task",
             &input.prompt,
             &input.context_refs,
+            &cancel_flag,
             input.model_override.as_deref(),
             "provider_generate",
         );
@@ -337,6 +197,7 @@ fn run_agent_pipeline_async(
         "Plan",
         &plan_prompt,
         &input.context_refs,
+        &cancel_flag,
         None,
         "planner_reason",
     )?;
@@ -355,6 +216,7 @@ fn run_agent_pipeline_async(
     let run_a = run_id.clone();
     let project_a = input.project_id.clone();
     let context_a = input.context_refs.clone();
+    let cancel_a = cancel_flag.clone();
     let handle_a = thread::spawn(move || {
         run_stage_role(
             &db_a,
@@ -367,6 +229,7 @@ fn run_agent_pipeline_async(
             "Explore · LaTeX",
             &explore_prompt_a,
             &context_a,
+            &cancel_a,
             None,
             "latex_file_scan",
         )
@@ -377,6 +240,7 @@ fn run_agent_pipeline_async(
     let run_b = run_id.clone();
     let project_b = input.project_id.clone();
     let context_b = input.context_refs.clone();
+    let cancel_b = cancel_flag.clone();
     let handle_b = thread::spawn(move || {
         run_stage_role(
             &db_b,
@@ -389,6 +253,7 @@ fn run_agent_pipeline_async(
             "Explore · Web",
             &explore_prompt_b,
             &context_b,
+            &cancel_b,
             None,
             "structured_web_search",
         )
@@ -416,6 +281,7 @@ fn run_agent_pipeline_async(
         "Plan Refine",
         &refine_prompt,
         &input.context_refs,
+        &cancel_flag,
         None,
         "planner_refine",
     )?;
@@ -435,6 +301,7 @@ fn run_agent_pipeline_async(
         "Task",
         &task_prompt,
         &input.context_refs,
+        &cancel_flag,
         input.model_override.as_deref(),
         "provider_generate",
     )?;
@@ -455,6 +322,7 @@ fn run_agent_pipeline_async(
             "Review",
             &review_prompt,
             &input.context_refs,
+            &cancel_flag,
             None,
             "quality_review",
         )?;
@@ -497,6 +365,14 @@ pub fn agent_run_start(
     let runtime_root = state.runtime_root.clone();
     let run_id_for_worker = run_id.clone();
     let slots = state.agent_slots.clone();
+    let cancel_flags = state.agent_cancel_flags.clone();
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    {
+        let mut flags = cancel_flags
+            .lock()
+            .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+        flags.insert(run_id.clone(), cancel_flag.clone());
+    }
     let worker_project_id = input.project_id.clone();
     let worker_role = input.role.clone();
     thread::spawn(move || {
@@ -521,6 +397,9 @@ pub fn agent_run_start(
                     &format!("{run_id_for_worker}:run:failed"),
                 ),
             );
+            if let Ok(mut flags) = cancel_flags.lock() {
+                flags.remove(&run_id_for_worker);
+            }
             return;
         }
         let _slot_guard = slot_guard.unwrap();
@@ -528,6 +407,7 @@ pub fn agent_run_start(
             db_path.clone(),
             runtime_root.clone(),
             run_id_for_worker.clone(),
+            cancel_flag,
             input,
         );
         match run_output {
@@ -554,6 +434,28 @@ pub fn agent_run_start(
                 );
             }
             Err(error) => {
+                if error == "agent.run.cancelled" {
+                    let _ = append_protocol_event(
+                        &db_path,
+                        &run_id_for_worker,
+                        &worker_project_id,
+                        &worker_role,
+                        "agent.run.cancelled",
+                        envelope(
+                            &run_id_for_worker,
+                            "system",
+                            "run",
+                            "cancelled",
+                            "Run Cancelled",
+                            "",
+                            &format!("{run_id_for_worker}:run:cancelled"),
+                        ),
+                    );
+                    if let Ok(mut flags) = cancel_flags.lock() {
+                        flags.remove(&run_id_for_worker);
+                    }
+                    return;
+                }
                 let _ = append_protocol_event(
                     &db_path,
                     &run_id_for_worker,
@@ -571,6 +473,9 @@ pub fn agent_run_start(
                     ),
                 );
             }
+        }
+        if let Ok(mut flags) = cancel_flags.lock() {
+            flags.remove(&run_id_for_worker);
         }
     });
 

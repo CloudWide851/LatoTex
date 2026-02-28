@@ -9,6 +9,7 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { extractReferenceQueries, parseAgentPrompt } from "./agentCommands";
+import { buildAgentMemoryContext } from "./agentMemoryStore";
 import {
   computeDiffStats,
   isLatexPath,
@@ -194,6 +195,9 @@ async function waitForAgentRunOutput(runId: string): Promise<string> {
             : "agent.run.failed";
         throw new Error(message);
       }
+      if (kind === "agent.run.cancelled") {
+        throw new Error("agent.run.cancelled");
+      }
     }
     await delay(AGENT_WAIT_INTERVAL_MS);
   }
@@ -333,6 +337,11 @@ export async function runAgentWorkflow(params: {
   const prompt = agentPrompt.trim();
   const parsed = parseAgentPrompt(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
+  const memoryContext = await buildAgentMemoryContext(activeProjectId, targetPath).catch(() => "");
+  const withMemoryContext = (basePrompt: string) =>
+    memoryContext.trim().length === 0
+      ? basePrompt
+      : `${basePrompt}\n\n[Memory Context]\n${memoryContext}`;
 
   setAgentProposal(null);
   setAgentRunId(null);
@@ -397,7 +406,7 @@ export async function runAgentWorkflow(params: {
         const response = await runAgentThroughEvents({
           activeProjectId,
           role: "review",
-          prompt: reviewPrompt,
+          prompt: withMemoryContext(reviewPrompt),
           contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
           setAgentRunId,
         });
@@ -483,7 +492,7 @@ export async function runAgentWorkflow(params: {
       const response = await runAgentThroughEvents({
         activeProjectId,
         role: "web_search",
-        prompt: analysisPrompt,
+        prompt: withMemoryContext(analysisPrompt),
         contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
         setAgentRunId,
       });
@@ -523,7 +532,7 @@ export async function runAgentWorkflow(params: {
     const response = await runAgentThroughEvents({
       activeProjectId,
       role: "task",
-      prompt: taskPrompt,
+      prompt: withMemoryContext(taskPrompt),
       contextRefs: taskRefs,
       setAgentRunId,
     });
@@ -568,6 +577,12 @@ export async function runAgentWorkflow(params: {
     setAgentStatusKey("agent.statusDone");
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : String(error);
+    if (rawMessage === "agent.run.cancelled") {
+      setAgentPhase("done");
+      setAgentStatusKey("agent.statusDone");
+      setToast({ type: "info", message: t("agent.run.cancelled") });
+      return;
+    }
     const toastMessage = rawMessage === "agent.run.timeout"
       ? t("agent.run.timeout")
       : rawMessage === "agent.run.failed"

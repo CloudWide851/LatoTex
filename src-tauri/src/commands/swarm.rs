@@ -1,8 +1,11 @@
 #[path = "swarm_pipeline.rs"]
 mod swarm_pipeline;
+#[path = "swarm_events.rs"]
+mod swarm_events;
 
 use crate::models::{
-    AgentRunAccepted, AgentRunRequest, AgentRunStartAccepted, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
+    Ack, AgentRunAccepted, AgentRunCancelInput, AgentRunRequest, AgentRunStartAccepted,
+    CompileRecord, CompileRecordInput, EventBatch, EventQuery,
 };
 use crate::secure;
 use crate::state::AppState;
@@ -11,6 +14,7 @@ use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use serde_json::json;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::thread;
@@ -448,6 +452,26 @@ pub fn agent_run_start(
     input: AgentRunRequest,
 ) -> Result<AgentRunStartAccepted, String> {
     swarm_pipeline::agent_run_start(&state, input)
+}
+
+#[tauri::command]
+pub fn agent_run_cancel(
+    state: State<'_, AppState>,
+    input: AgentRunCancelInput,
+) -> Result<Ack, String> {
+    let flags = state
+        .agent_cancel_flags
+        .lock()
+        .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+    let flag = flags
+        .get(&input.run_id)
+        .ok_or_else(|| "agent run not found".to_string())?;
+    flag.store(true, Ordering::Relaxed);
+    state.log("INFO", &format!("agent_run_cancel requested: {}", input.run_id));
+    Ok(Ack {
+        ok: true,
+        message: "cancelling".to_string(),
+    })
 }
 
 #[tauri::command]

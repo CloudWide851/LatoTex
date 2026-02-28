@@ -193,6 +193,12 @@ pub struct AgentRunRequest {
     pub bypass_cache: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunCancelInput {
+    pub run_id: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRunAccepted {
@@ -234,6 +240,14 @@ pub struct SwarmEvent {
 pub struct EventBatch {
     pub next_cursor: i64,
     pub events: Vec<SwarmEvent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrayLabelsInput {
+    pub show_label: String,
+    pub exit_label: String,
+    pub tooltip: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

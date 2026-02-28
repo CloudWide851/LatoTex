@@ -2,6 +2,7 @@ mod commands;
 mod logging;
 mod models;
 mod secure;
+mod single_instance;
 mod state;
 mod storage;
 
@@ -15,7 +16,7 @@ use commands::git::{
     git_diff_file, git_download_installer_start, git_download_status, git_fetch, git_init_repo,
     git_log, git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
 };
-use commands::health::{health_check, window_sync_icon};
+use commands::health::{health_check, tray_set_labels, window_sync_icon};
 use commands::projects::{
     file_read, file_read_binary, file_write, fs_operation, library_import_link, library_import_pdf,
     open_external_link,
@@ -27,7 +28,7 @@ use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test, model_test_draft, protocol_test, runtime_log_clear_current_session,
     runtime_log_info, runtime_log_read, runtime_log_write, settings_get, settings_update,
 };
-use commands::swarm::{agent_run, agent_run_start, events_subscribe, latex_compile_record};
+use commands::swarm::{agent_run, agent_run_cancel, agent_run_start, events_subscribe, latex_compile_record};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -48,6 +49,9 @@ fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if !single_instance::acquire_or_focus_existing() {
+        return;
+    }
     tauri::Builder::default()
         .setup(|app| {
             let app_state = state::AppState::bootstrap(app.handle())
@@ -89,6 +93,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             health_check,
             window_sync_icon,
+            tray_set_labels,
             project_list,
             project_create,
             project_init_from_folder,
@@ -118,6 +123,7 @@ pub fn run() {
             latex_compile_record,
             agent_run,
             agent_run_start,
+            agent_run_cancel,
             events_subscribe,
             settings_get,
             settings_update,

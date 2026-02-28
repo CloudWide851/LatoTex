@@ -1,4 +1,4 @@
-export type AgentSlashCommand = "review" | "check-ref";
+export type AgentSlashCommand = "review" | "check-ref" | "new" | "memory" | "resume";
 
 export type ParsedAgentPrompt =
   | {
@@ -15,6 +15,9 @@ export type ParsedAgentPrompt =
 export const AGENT_COMMAND_TOKENS: ReadonlyArray<`/${AgentSlashCommand}`> = [
   "/review",
   "/check-ref",
+  "/new",
+  "/memory",
+  "/resume",
 ] as const;
 
 export function parseAgentPrompt(rawPrompt: string): ParsedAgentPrompt {
@@ -29,6 +32,15 @@ export function parseAgentPrompt(rawPrompt: string): ParsedAgentPrompt {
   }
   if (head === "/check-ref") {
     return { kind: "command", command: "check-ref", args, raw };
+  }
+  if (head === "/new") {
+    return { kind: "command", command: "new", args, raw };
+  }
+  if (head === "/memory") {
+    return { kind: "command", command: "memory", args, raw };
+  }
+  if (head === "/resume") {
+    return { kind: "command", command: "resume", args, raw };
   }
   return { kind: "plain", raw };
 }
