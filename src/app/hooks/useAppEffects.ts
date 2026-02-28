@@ -331,18 +331,49 @@ export function useAppEffects(params: {
   }, [settingsTheme]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      getEvents(cursorRef.current, 120)
-        .then((batch) => {
-          if (batch.events.length > 0) {
-            setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
-            cursorRef.current = batch.nextCursor;
-            setCursor(batch.nextCursor);
-          }
-        })
-        .catch(() => undefined);
-    }, 650);
-    return () => clearInterval(timer);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
+
+    const schedule = (delay: number) => {
+      if (cancelled) {
+        return;
+      }
+      timer = setTimeout(() => {
+        void poll();
+      }, delay);
+    };
+
+    const poll = async () => {
+      if (cancelled || inFlight) {
+        schedule(1100);
+        return;
+      }
+      inFlight = true;
+      try {
+        const batch = await getEvents(cursorRef.current, 120);
+        if (batch.events.length > 0) {
+          setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
+          cursorRef.current = batch.nextCursor;
+          setCursor(batch.nextCursor);
+          schedule(550);
+        } else {
+          schedule(1400);
+        }
+      } catch {
+        schedule(1800);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    schedule(320);
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, [setCursor, setEvents]);
 
   useEffect(() => {

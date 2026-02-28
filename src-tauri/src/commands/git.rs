@@ -35,6 +35,6 @@ fn hide_console_window(command: &mut Command) -> &mut Command {
     command
 }
 
-include!("git/chunk1.rs");
-include!("git/chunk2.rs");
-include!("git/chunk3.rs");
+include!("git/git_core_download.rs");
+include!("git/git_repo_status_diff.rs");
+include!("git/git_remote_sync.rs");

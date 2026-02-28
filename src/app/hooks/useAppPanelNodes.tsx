@@ -78,7 +78,7 @@ export function useAppPanelNodes(params: any) {
       setRuntimeLogLoading(true);
     }
     try {
-      const response = await runtimeLogRead({ limit: 1600 });
+      const response = await runtimeLogRead({ limit: 600 });
       setRuntimeLogs((prev: any[]) => {
         if (prev.length === response.entries.length && prev.length > 0) {
           const prevLast = prev[prev.length - 1];

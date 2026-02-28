@@ -51,6 +51,7 @@ type LensPendingPoint = {
 
 const LENS_SCALE = 1.6;
 const LENS_SIZE = 220;
+const PDF_VIRTUAL_PADDING_PAGES = 2;
 
 export function FilePreviewPane(props: {
   mode: "pdf" | "markdown" | "empty";
@@ -75,6 +76,7 @@ export function FilePreviewPane(props: {
   const lensViewportRef = useRef<HTMLDivElement | null>(null);
   const lensContentRef = useRef<HTMLDivElement | null>(null);
   const lensRafRef = useRef<number | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
   const pendingLensPointRef = useRef<LensPendingPoint>({
     visible: false,
     viewportX: 0,
@@ -91,6 +93,7 @@ export function FilePreviewPane(props: {
   const [lensPage, setLensPage] = useState(1);
   const [viewportWidth, setViewportWidth] = useState(900);
   const [pageCount, setPageCount] = useState(1);
+  const [visiblePage, setVisiblePage] = useState(1);
   const [pdfLoadFailed, setPdfLoadFailed] = useState(false);
 
   useEffect(() => {
@@ -98,6 +101,10 @@ export function FilePreviewPane(props: {
       if (lensRafRef.current !== null) {
         window.cancelAnimationFrame(lensRafRef.current);
         lensRafRef.current = null;
+      }
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
       }
     };
   }, []);
@@ -125,6 +132,7 @@ export function FilePreviewPane(props: {
     () => Math.max(240, Math.floor(basePageWidth * pdfZoom)),
     [basePageWidth, pdfZoom],
   );
+  const estimatedPageHeight = useMemo(() => Math.max(340, Math.floor(pageWidth * 1.42) + 16), [pageWidth]);
 
   const applyLensPoint = useCallback(() => {
     const lensViewport = lensViewportRef.current;
@@ -184,9 +192,47 @@ export function FilePreviewPane(props: {
     [markdownContent],
   );
 
+  useEffect(() => {
+    if (mode !== "pdf" || !pdfUrl) {
+      return;
+    }
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const updateVisiblePage = () => {
+      const next = Math.max(
+        1,
+        Math.min(pageCount, Math.floor(viewport.scrollTop / Math.max(1, estimatedPageHeight)) + 1),
+      );
+      setVisiblePage((prev) => (prev === next ? prev : next));
+    };
+    updateVisiblePage();
+    const onScroll = () => {
+      if (scrollRafRef.current !== null) {
+        return;
+      }
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        updateVisiblePage();
+      });
+    };
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      viewport.removeEventListener("scroll", onScroll);
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [estimatedPageHeight, mode, pageCount, pdfUrl]);
+
   if (mode === "pdf" && pdfUrl) {
     const pages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1);
+    const virtualStart = Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES);
+    const virtualEnd = Math.min(pageCount, visiblePage + PDF_VIRTUAL_PADDING_PAGES);
     const lensPageWidth = Math.max(280, Math.floor(pageWidth * LENS_SCALE));
+
     return (
       <div
         ref={viewportRef}
@@ -214,9 +260,11 @@ export function FilePreviewPane(props: {
               <div className="py-6 text-center text-xs text-slate-500">{emptyText}</div>
             }
             onLoadSuccess={({ numPages }) => {
+              const nextCount = Math.max(1, numPages || 1);
               setPdfLoadFailed(false);
-              setPageCount(Math.max(1, numPages || 1));
-              if (lensPageRef.current > Math.max(1, numPages || 1)) {
+              setPageCount(nextCount);
+              setVisiblePage((prev) => Math.max(1, Math.min(nextCount, prev)));
+              if (lensPageRef.current > nextCount) {
                 lensPageRef.current = 1;
                 setLensPage(1);
               }
@@ -233,64 +281,70 @@ export function FilePreviewPane(props: {
                 className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
                 style={{ width: `${pageWidth}px` }}
               >
-                <Page
-                  pageNumber={pageNumber}
-                  width={pageWidth}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                  loading={null}
-                />
-                <div
-                  className="absolute inset-0 z-10"
-                  onClick={(event) => {
-                    const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
-                    const viewportRect = viewportRef.current?.getBoundingClientRect();
-                    if (!viewportRect) {
-                      return;
-                    }
-                    const pageX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-                    const pageY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
-                    const viewportX = event.clientX - viewportRect.left + (viewportRef.current?.scrollLeft || 0);
-                    const viewportY = event.clientY - viewportRect.top + (viewportRef.current?.scrollTop || 0);
-                    setLensActive((previous) => !previous);
-                    queueLensPoint({
-                      visible: !lensActive,
-                      pageNumber,
-                      pageX,
-                      pageY,
-                      viewportX,
-                      viewportY,
-                    });
-                  }}
-                  onMouseMove={(event) => {
-                    if (!lensActive) {
-                      return;
-                    }
-                    const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
-                    const viewportRect = viewportRef.current?.getBoundingClientRect();
-                    if (!viewportRect) {
-                      return;
-                    }
-                    const pageX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-                    const pageY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
-                    const viewportX = event.clientX - viewportRect.left + (viewportRef.current?.scrollLeft || 0);
-                    const viewportY = event.clientY - viewportRect.top + (viewportRef.current?.scrollTop || 0);
-                    queueLensPoint({
-                      visible: true,
-                      pageNumber,
-                      pageX,
-                      pageY,
-                      viewportX,
-                      viewportY,
-                    });
-                  }}
-                  onMouseLeave={() => {
-                    queueLensPoint({
-                      ...pendingLensPointRef.current,
-                      visible: false,
-                    });
-                  }}
-                />
+                {pageNumber >= virtualStart && pageNumber <= virtualEnd ? (
+                  <>
+                    <Page
+                      pageNumber={pageNumber}
+                      width={pageWidth}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      loading={null}
+                    />
+                    <div
+                      className="absolute inset-0 z-10"
+                      onClick={(event) => {
+                        const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                        const viewportRect = viewportRef.current?.getBoundingClientRect();
+                        if (!viewportRect) {
+                          return;
+                        }
+                        const pageX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+                        const pageY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+                        const viewportX = event.clientX - viewportRect.left + (viewportRef.current?.scrollLeft || 0);
+                        const viewportY = event.clientY - viewportRect.top + (viewportRef.current?.scrollTop || 0);
+                        setLensActive((previous) => !previous);
+                        queueLensPoint({
+                          visible: !lensActive,
+                          pageNumber,
+                          pageX,
+                          pageY,
+                          viewportX,
+                          viewportY,
+                        });
+                      }}
+                      onMouseMove={(event) => {
+                        if (!lensActive) {
+                          return;
+                        }
+                        const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                        const viewportRect = viewportRef.current?.getBoundingClientRect();
+                        if (!viewportRect) {
+                          return;
+                        }
+                        const pageX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
+                        const pageY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+                        const viewportX = event.clientX - viewportRect.left + (viewportRef.current?.scrollLeft || 0);
+                        const viewportY = event.clientY - viewportRect.top + (viewportRef.current?.scrollTop || 0);
+                        queueLensPoint({
+                          visible: true,
+                          pageNumber,
+                          pageX,
+                          pageY,
+                          viewportX,
+                          viewportY,
+                        });
+                      }}
+                      onMouseLeave={() => {
+                        queueLensPoint({
+                          ...pendingLensPointRef.current,
+                          visible: false,
+                        });
+                      }}
+                    />
+                  </>
+                ) : (
+                  <div style={{ height: `${estimatedPageHeight}px` }} />
+                )}
               </div>
             ))}
           </Document>

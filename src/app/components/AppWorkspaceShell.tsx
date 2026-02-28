@@ -499,7 +499,7 @@ export function AppWorkspaceShell(props: {
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
               <Panel id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
-                <section key={page} className="h-full min-h-0 motion-page-in">
+                <section className="h-full min-h-0 motion-page-in">
                   {renderMainPanel()}
                 </section>
               </Panel>
@@ -520,7 +520,7 @@ export function AppWorkspaceShell(props: {
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
               <Panel id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
-                <section key={page} className="h-full min-h-0 motion-page-in">
+                <section className="h-full min-h-0 motion-page-in">
                   {renderMainPanel()}
                 </section>
               </Panel>
@@ -574,7 +574,7 @@ export function AppWorkspaceShell(props: {
               </Panel>
             </PanelGroup>
           ) : (
-            <section key={page} className="h-full min-h-0 motion-page-in">
+            <section className="h-full min-h-0 motion-page-in">
               {renderMainPanel()}
             </section>
           )}

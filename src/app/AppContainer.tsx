@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
@@ -11,10 +11,8 @@ import {
   gitStatus,
   openProject,
   projectIntegrityStatus,
-  runAgentCancel,
   setTrayLabels,
 } from "../shared/api/desktop";
-import type { ResourceNode } from "../shared/types/app";
 import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
 import { buildEditorTab } from "./hooks/useEditorTabs";
@@ -26,17 +24,9 @@ import { useAppContainerState } from "./hooks/useAppContainerState";
 import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { useSettingsPersistence } from "./hooks/useSettingsPersistence";
 import { useAppPanelNodes } from "./hooks/useAppPanelNodes";
-import { parseAgentPrompt } from "./hooks/agentCommands";
-import {
-  appendDailyMemoryPrompt,
-  createNewFileSession,
-  ensureCurrentFileSession,
-  ensureProjectMemoryDocument,
-  loadSessionMessages,
-  resumeFileSession,
-  saveSessionMessages,
-} from "./hooks/agentMemoryStore";
-import type { AgentRunRollback, AgentSessionSummary } from "./hooks/agentTypes";
+import { useAgentSessionController } from "./hooks/useAgentSessionController";
+import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
+import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
 
 type IntegrityIssue = {
   projectId: string;
@@ -48,13 +38,6 @@ export function AppContainer() {
   const isTauriRuntime = isTauri();
   const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
   const s = useAppContainerState(t);
-  const [agentSessions, setAgentSessions] = useState<AgentSessionSummary[]>([]);
-  const [agentCurrentSessionId, setAgentCurrentSessionId] = useState<string | null>(null);
-  const [agentSessionPickerOpen, setAgentSessionPickerOpen] = useState(false);
-  const [agentSessionPickerIndex, setAgentSessionPickerIndex] = useState(0);
-  const [agentRollback, setAgentRollback] = useState<AgentRunRollback | null>(null);
-  const [agentRollbackVisible, setAgentRollbackVisible] = useState(false);
-  const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
@@ -191,94 +174,6 @@ export function AppContainer() {
   }, [isTauriRuntime, locale, t]);
 
   useEffect(() => {
-    let disposed = false;
-    const projectId = s.activeProjectId;
-    const filePath = s.selectedFile;
-    if (!projectId || !filePath) {
-      setAgentSessions([]);
-      setAgentCurrentSessionId(null);
-      setAgentSessionPickerOpen(false);
-      setAgentRollbackVisible(false);
-      return () => {
-        disposed = true;
-      };
-    }
-    void (async () => {
-      try {
-        const prepared = await ensureCurrentFileSession(projectId, filePath);
-        if (disposed) {
-          return;
-        }
-        setAgentSessions(prepared.sessions);
-        setAgentCurrentSessionId(prepared.currentSessionId);
-        const messages = await loadSessionMessages(projectId, filePath, prepared.currentSessionId);
-        if (disposed) {
-          return;
-        }
-        s.setAgentMessages(messages);
-        setAgentSessionPickerIndex(0);
-        setAgentRollbackVisible(false);
-      } catch (error) {
-        if (disposed) {
-          return;
-        }
-        s.setToast({ type: "error", message: String(error) });
-      }
-    })();
-    return () => {
-      disposed = true;
-    };
-  }, [s.activeProjectId, s.selectedFile, s.setAgentMessages, s.setToast]);
-
-  useEffect(() => {
-    const projectId = s.activeProjectId;
-    const filePath = s.selectedFile;
-    const sessionId = agentCurrentSessionId;
-    if (!projectId || !filePath || !sessionId) {
-      return;
-    }
-    if (sessionSaveTimerRef.current) {
-      clearTimeout(sessionSaveTimerRef.current);
-      sessionSaveTimerRef.current = null;
-    }
-    sessionSaveTimerRef.current = setTimeout(() => {
-      void saveSessionMessages(projectId, filePath, sessionId, s.agentMessages)
-        .then((nextSessions) => {
-          if (nextSessions) {
-            setAgentSessions(nextSessions);
-          }
-        })
-        .catch(() => undefined);
-    }, 320);
-    return () => {
-      if (sessionSaveTimerRef.current) {
-        clearTimeout(sessionSaveTimerRef.current);
-        sessionSaveTimerRef.current = null;
-      }
-    };
-  }, [agentCurrentSessionId, s.activeProjectId, s.agentMessages, s.selectedFile]);
-
-  const handleResumeSession = useCallback(async (index: number) => {
-    const projectId = s.activeProjectId;
-    const filePath = s.selectedFile;
-    if (!projectId || !filePath || agentSessions.length === 0) {
-      return;
-    }
-    const target = agentSessions[Math.max(0, Math.min(index, agentSessions.length - 1))];
-    try {
-      const resumed = await resumeFileSession(projectId, filePath, target.id);
-      setAgentSessions(resumed.sessions);
-      setAgentCurrentSessionId(resumed.currentSessionId);
-      const messages = await loadSessionMessages(projectId, filePath, resumed.currentSessionId);
-      s.setAgentMessages(messages);
-      setAgentSessionPickerOpen(false);
-      s.setAgentPrompt("");
-    } catch {
-      s.setToast({ type: "error", message: t("agent.command.resume.notFound") });
-    }
-  }, [agentSessions, s.activeProjectId, s.selectedFile, s.setAgentMessages, s.setAgentPrompt, s.setToast, t]);
-
-  useEffect(() => {
     s.setPdfUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -365,22 +260,12 @@ export function AppContainer() {
     () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
     [s.agentProposalsByPath, s.selectedFile],
   );
-  const agentProposalDecorationIdsRef = useRef<string[]>([]);
 
-  const clearAgentProposalDecorations = useCallback(() => {
-    const editor = s.editorRef.current;
-    if (!editor) {
-      agentProposalDecorationIdsRef.current = [];
-      return;
-    }
-    if (agentProposalDecorationIdsRef.current.length === 0) {
-      return;
-    }
-    agentProposalDecorationIdsRef.current = editor.deltaDecorations(
-      agentProposalDecorationIdsRef.current,
-      [],
-    );
-  }, [s.editorRef]);
+  useAgentProposalDecorations({
+    editorRef: s.editorRef,
+    selectedFile: s.selectedFile,
+    activeProposal: activeAgentProposal,
+  });
 
   const getCachedTextContent = useCallback(
     (relativePath: string) => {
@@ -485,65 +370,6 @@ export function AppContainer() {
     s.workingContentByPathRef,
   ]);
 
-  useEffect(() => {
-    const editor = s.editorRef.current;
-    if (!editor || !s.selectedFile || !activeAgentProposal?.previewApplied) {
-      clearAgentProposalDecorations();
-      return;
-    }
-    if (activeAgentProposal.targetPath !== s.selectedFile) {
-      clearAgentProposalDecorations();
-      return;
-    }
-    const model = editor.getModel?.();
-    if (!model) {
-      clearAgentProposalDecorations();
-      return;
-    }
-    const modelLineCount = Math.max(1, Number(model.getLineCount?.() ?? 1));
-    const blocks = activeAgentProposal.diffBlocks ?? [];
-    if (blocks.length === 0) {
-      clearAgentProposalDecorations();
-      return;
-    }
-    const decorations = blocks.map((block) => {
-      const start = Math.max(1, Math.min(modelLineCount, block.lineStart));
-      const end = Math.max(start, Math.min(modelLineCount, block.lineEnd));
-      const className =
-        block.kind === "add"
-          ? "agent-proposal-line-add"
-          : block.kind === "delete"
-            ? "agent-proposal-line-delete"
-            : "agent-proposal-line-modify";
-      const linesDecorationsClassName =
-        block.kind === "add"
-          ? "agent-proposal-gutter-add"
-          : block.kind === "delete"
-            ? "agent-proposal-gutter-delete"
-            : "agent-proposal-gutter-modify";
-      return {
-        range: {
-          startLineNumber: start,
-          startColumn: 1,
-          endLineNumber: end,
-          endColumn: 1,
-        },
-        options: {
-          isWholeLine: true,
-          className,
-          linesDecorationsClassName,
-        },
-      };
-    });
-    agentProposalDecorationIdsRef.current = editor.deltaDecorations(
-      agentProposalDecorationIdsRef.current,
-      decorations,
-    );
-    return () => {
-      clearAgentProposalDecorations();
-    };
-  }, [activeAgentProposal, clearAgentProposalDecorations, s.editorRef, s.selectedFile]);
-
   const workspaceActions = useAppContainerWorkspaceActions({
     selectedFile: s.selectedFile,
     editorContent: s.editorContent,
@@ -595,133 +421,26 @@ export function AppContainer() {
     setModelModalOpen: s.setModelModalOpen,
   });
 
-  const handleAgentRollback = useCallback(() => {
-    if (!agentRollback) {
-      return;
-    }
-    s.setAgentMessages(agentRollback.messages);
-    s.setAgentPrompt(agentRollback.prompt);
-    if (agentRollback.sessionId) {
-      setAgentCurrentSessionId(agentRollback.sessionId);
-    }
-    s.setAgentRunId(null);
-    s.setAgentPhase("done");
-    s.setAgentStatusKey("agent.statusDone");
-    setAgentRollbackVisible(false);
-    s.setToast({ type: "info", message: t("agent.rollback.restored") });
-  }, [agentRollback, s.setAgentMessages, s.setAgentPhase, s.setAgentPrompt, s.setAgentRunId, s.setAgentStatusKey, s.setToast, t]);
-
-  const handleAgentRun = useCallback(async () => {
-    const projectId = s.activeProjectId;
-    if (!projectId) {
-      return;
-    }
-    if (s.agentPhase === "running" && s.agentRunId) {
-      try {
-        await runAgentCancel(s.agentRunId);
-        setAgentRollbackVisible(true);
-      } catch (error) {
-        s.setToast({ type: "error", message: String(error) });
-      }
-      return;
-    }
-    const rawPrompt = s.agentPrompt.trim();
-    if (!rawPrompt) {
-      return;
-    }
-    const parsed = parseAgentPrompt(rawPrompt);
-    if (parsed.kind === "command" && parsed.command === "new") {
-      if (!s.selectedFile) {
-        s.setToast({ type: "error", message: t("agent.command.requiresFile") });
-        return;
-      }
-      const next = await createNewFileSession(projectId, s.selectedFile);
-      setAgentSessions(next.sessions);
-      setAgentCurrentSessionId(next.currentSessionId);
-      s.setAgentMessages([]);
-      s.setAgentPrompt("");
-      setAgentSessionPickerOpen(false);
-      setAgentRollbackVisible(false);
-      s.setToast({ type: "info", message: t("agent.command.new.done") });
-      return;
-    }
-    if (parsed.kind === "command" && parsed.command === "memory") {
-      const memoryPath = await ensureProjectMemoryDocument(projectId);
-      s.setPage("latex");
-      s.setSelectedFile(memoryPath);
-      s.setAgentPrompt("");
-      s.setToast({ type: "info", message: t("agent.command.memory.opened") });
-      return;
-    }
-    if (parsed.kind === "command" && parsed.command === "resume") {
-      if (agentSessions.length === 0) {
-        s.setToast({ type: "info", message: t("agent.command.resume.empty") });
-        s.setAgentPrompt("");
-        return;
-      }
-      const requested = parsed.args.trim();
-      if (requested) {
-        const directIndex = agentSessions.findIndex((item) => item.id === requested);
-        if (directIndex >= 0) {
-          await handleResumeSession(directIndex);
-          return;
-        }
-      }
-      setAgentSessionPickerOpen(true);
-      setAgentSessionPickerIndex(0);
-      s.setAgentPrompt("");
-      s.setToast({ type: "info", message: t("agent.command.resume.opened") });
-      return;
-    }
-    await appendDailyMemoryPrompt(projectId, s.selectedFile ?? "main.tex", rawPrompt).catch(() => undefined);
-    setAgentRollback({
-      sessionId: agentCurrentSessionId,
-      prompt: s.agentPrompt,
-      messages: s.agentMessages,
-    });
-    setAgentRollbackVisible(false);
-    await handlers.handleRunAgent();
-  }, [
-    agentCurrentSessionId,
-    agentSessions.length,
-    handlers,
-    s.activeProjectId,
-    s.agentMessages,
-    s.agentPhase,
-    s.agentPrompt,
-    s.agentRunId,
-    s.selectedFile,
-    s.setAgentMessages,
-    s.setAgentPrompt,
-    s.setPage,
-    s.setSelectedFile,
-    s.setToast,
+  const agentSession = useAgentSessionController({
+    activeProjectId: s.activeProjectId,
+    selectedFile: s.selectedFile,
+    agentPrompt: s.agentPrompt,
+    agentPhase: s.agentPhase,
+    agentRunId: s.agentRunId,
+    agentMessages: s.agentMessages,
+    setAgentMessages: s.setAgentMessages,
+    setAgentPrompt: s.setAgentPrompt,
+    setAgentRunId: s.setAgentRunId,
+    setAgentPhase: s.setAgentPhase,
+    setAgentStatusKey: s.setAgentStatusKey,
+    setPage: s.setPage,
+    setSelectedFile: s.setSelectedFile,
+    setToast: s.setToast,
+    runTaskAgent: handlers.handleRunAgent,
     t,
-    handleResumeSession,
-  ]);
+  });
 
-  const handleAgentSessionConfirm = useCallback(() => {
-    void handleResumeSession(agentSessionPickerIndex);
-  }, [agentSessionPickerIndex, handleResumeSession]);
-
-  const explorerGitDecorations = useMemo(() => {
-    const map: Record<string, { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }> = {};
-    for (const change of s.gitStatusState?.changes ?? []) {
-      const index = (change.indexStatus ?? " ").trim();
-      const worktree = (change.worktreeStatus ?? " ").trim();
-      const ignored = Boolean(change.ignored);
-      const untracked = index === "?" || worktree === "?";
-      const staged = !ignored && index.length > 0 && index !== "?";
-      const unstaged = !ignored && worktree.length > 0 && worktree !== "?";
-      const code = ignored
-        ? "!!"
-        : untracked
-          ? "U"
-          : index || worktree || "M";
-      map[change.path] = { code, ignored, staged, unstaged, untracked };
-    }
-    return map;
-  }, [s.gitStatusState?.changes]);
+  const explorerGitDecorations = useExplorerGitDecorations(s.gitStatusState?.changes);
 
   const panels = useAppPanelNodes({
     settings: s.settings,
@@ -819,10 +538,10 @@ export function AppContainer() {
       agentMessages={s.agentMessages}
       agentProposal={activeAgentProposal}
       agentRunId={s.agentRunId}
-      agentSessions={agentSessions}
-      agentSessionPickerOpen={agentSessionPickerOpen}
-      agentSessionPickerIndex={agentSessionPickerIndex}
-      agentRollbackVisible={agentRollbackVisible}
+      agentSessions={agentSession.agentSessions}
+      agentSessionPickerOpen={agentSession.agentSessionPickerOpen}
+      agentSessionPickerIndex={agentSession.agentSessionPickerIndex}
+      agentRollbackVisible={agentSession.agentRollbackVisible}
       explorerGitDecorations={explorerGitDecorations}
       SHELL_MIN={SHELL_MIN}
       settingsPanel={panels.settingsPanel}
@@ -839,11 +558,11 @@ export function AppContainer() {
       editorRef={s.editorRef}
       setAgentPrompt={s.setAgentPrompt}
       setAgentCollapsed={s.setAgentCollapsed}
-      handleRunAgent={handleAgentRun}
-      setAgentSessionPickerOpen={setAgentSessionPickerOpen}
-      setAgentSessionPickerIndex={setAgentSessionPickerIndex}
-      handleAgentSessionConfirm={handleAgentSessionConfirm}
-      handleAgentRollback={handleAgentRollback}
+      handleRunAgent={agentSession.handleAgentRun}
+      setAgentSessionPickerOpen={agentSession.setAgentSessionPickerOpen}
+      setAgentSessionPickerIndex={agentSession.setAgentSessionPickerIndex}
+      handleAgentSessionConfirm={agentSession.handleAgentSessionConfirm}
+      handleAgentRollback={agentSession.handleAgentRollback}
       handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
