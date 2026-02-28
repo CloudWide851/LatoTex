@@ -63,6 +63,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [lastCompileFailed, setLastCompileFailed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [compiledPdfBytes, setCompiledPdfBytes] = useState<Uint8Array | null>(null);
+  const [preferCompiledPreview, setPreferCompiledPreview] = useState(false);
   const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
@@ -203,6 +204,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setPdfUrl,
     compiledPdfBytes,
     setCompiledPdfBytes,
+    preferCompiledPreview,
+    setPreferCompiledPreview,
     selectedFilePdfUrl,
     setSelectedFilePdfUrl,
     settings,

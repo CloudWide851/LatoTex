@@ -2,7 +2,7 @@ use crate::commands::analysis::run_reference_check_queries;
 use crate::secure;
 use crate::storage;
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -89,6 +89,43 @@ fn extract_tool_search_queries(prompt: &str) -> Vec<String> {
     values.into_iter().take(10).collect()
 }
 
+fn extract_explicit_tool_search_queries(prompt: &str) -> Vec<String> {
+    let marker = "[tool_search.queries.v1]";
+    let Some(start) = prompt.find(marker) else {
+        return Vec::new();
+    };
+    let tail = &prompt[start + marker.len()..];
+    let mut result = Vec::new();
+    let mut seen = HashSet::<String>::new();
+    for line in tail.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            if !result.is_empty() {
+                break;
+            }
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            break;
+        }
+        let stripped = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+            .or_else(|| trimmed.strip_prefix("• "))
+            .unwrap_or(trimmed);
+        let Some(value) = normalize_query(stripped) else {
+            continue;
+        };
+        if seen.insert(value.clone()) {
+            result.push(value);
+        }
+        if result.len() >= 10 {
+            break;
+        }
+    }
+    result
+}
+
 fn truncate_text(value: &str, max_chars: usize) -> String {
     let mut output = String::new();
     for ch in value.chars().take(max_chars) {
@@ -98,7 +135,17 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
 }
 
 fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
-    let queries = extract_tool_search_queries(raw_prompt);
+    let explicit_queries = extract_explicit_tool_search_queries(raw_prompt);
+    let query_source = if explicit_queries.is_empty() {
+        "heuristic"
+    } else {
+        "explicit"
+    };
+    let queries = if explicit_queries.is_empty() {
+        extract_tool_search_queries(raw_prompt)
+    } else {
+        explicit_queries
+    };
     if queries.is_empty() {
         return (
             Vec::new(),
@@ -124,7 +171,9 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
                     lines.push(format!("  - {} ({})", title, url));
                 }
             }
-            (queries, lines.join("\n"), evidence_count)
+            let mut with_meta = vec![format!("query_source={query_source}")];
+            with_meta.extend(lines);
+            (queries, with_meta.join("\n"), evidence_count)
         }
         Err(error) => (
             queries,
@@ -199,7 +248,7 @@ pub(super) fn run_stage_tool_search(
         "success",
         "Tool Search Stats",
         "",
-        &format!("{run_id}:{stage}:tool:tool_search:stats"),
+        &format!("{run_id}:{stage}:{source}:{role_for_model}:tool:tool_search:stats"),
     );
     if let Some(object) = stats_payload.as_object_mut() {
         object.insert("toolName".to_string(), json!("tool_search"));

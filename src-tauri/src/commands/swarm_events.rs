@@ -70,7 +70,7 @@ pub(super) fn emit_stage_event(
             status,
             title,
             content,
-            &format!("{run_id}:{stage}:{source}"),
+            &format!("{run_id}:{stage}:{source}:{role}"),
         ),
     )
 }
@@ -98,7 +98,7 @@ pub(super) fn emit_tool_event(
         status,
         &format!("{stage} · {tool_name}"),
         content,
-        &format!("{run_id}:{stage}:tool:{tool_name}"),
+        &format!("{run_id}:{stage}:{source}:{role}:tool:{tool_name}"),
     );
     if let Some(object) = payload.as_object_mut() {
         object.insert("toolName".to_string(), json!(tool_name));
@@ -115,7 +115,7 @@ pub(super) fn emit_response_event(
     stage: &str,
     output: &str,
 ) -> Result<(), String> {
-    let card_key = format!("{run_id}:{stage}:response");
+    let card_key = format!("{run_id}:{stage}:{source}:{role}:response");
     for chunk in output.as_bytes().chunks(520) {
         let text = String::from_utf8_lossy(chunk).to_string();
         let mut payload = envelope(

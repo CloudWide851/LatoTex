@@ -73,6 +73,7 @@ export async function runCompilePass(params: {
   setCompileDiagnostics: (value: string[]) => void;
   setPdfUrl: (value: string | null) => void;
   setCompiledPdfBytes: (value: Uint8Array | null) => void;
+  setPreferCompiledPreview: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
 }) {
   const {
@@ -88,6 +89,7 @@ export async function runCompilePass(params: {
     setCompileDiagnostics,
     setPdfUrl,
     setCompiledPdfBytes,
+    setPreferCompiledPreview,
     setToast,
   } = params;
 
@@ -114,6 +116,7 @@ export async function runCompilePass(params: {
     const url = URL.createObjectURL(new Blob([normalizedBytes], { type: "application/pdf" }));
     setPdfUrl(url);
     setCompiledPdfBytes(normalizedBytes);
+    setPreferCompiledPreview(true);
   }
   if (emitToast) {
     setToast({

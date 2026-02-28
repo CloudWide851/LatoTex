@@ -27,6 +27,7 @@ import { useAppPanelNodes } from "./hooks/useAppPanelNodes";
 import { useAgentSessionController } from "./hooks/useAgentSessionController";
 import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
 import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
+import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 
 type IntegrityIssue = {
   projectId: string;
@@ -150,21 +151,17 @@ export function AppContainer() {
     lastAutoSavedHashRef: s.lastAutoSavedHashRef,
   });
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (s.pdfUrl) {
         URL.revokeObjectURL(s.pdfUrl);
       }
-    };
-  }, [s.pdfUrl]);
-
-  useEffect(() => {
-    return () => {
       if (s.selectedFilePdfUrl) {
         URL.revokeObjectURL(s.selectedFilePdfUrl);
       }
-    };
-  }, [s.selectedFilePdfUrl]);
+    },
+    [s.pdfUrl, s.selectedFilePdfUrl],
+  );
 
   useEffect(() => {
     if (!isTauriRuntime) {
@@ -181,7 +178,8 @@ export function AppContainer() {
       return null;
     });
     s.setCompiledPdfBytes(null);
-  }, [s.activeProjectId, s.setCompiledPdfBytes, s.setPdfUrl]);
+    s.setPreferCompiledPreview(false);
+  }, [s.activeProjectId, s.setCompiledPdfBytes, s.setPdfUrl, s.setPreferCompiledPreview]);
 
   const analysisWorkspace = useAnalysisWorkspace({
     projectId: s.activeProjectId,
@@ -223,6 +221,7 @@ export function AppContainer() {
     setLastCompileFailed: s.setLastCompileFailed,
     setPdfUrl: s.setPdfUrl,
     setCompiledPdfBytes: s.setCompiledPdfBytes,
+    setPreferCompiledPreview: s.setPreferCompiledPreview,
     setAgentMessages: s.setAgentMessages,
     agentProposalsByPath: s.agentProposalsByPath,
     setAgentProposalsByPath: s.setAgentProposalsByPath,
@@ -267,26 +266,11 @@ export function AppContainer() {
     activeProposal: activeAgentProposal,
   });
 
-  const getCachedTextContent = useCallback(
-    (relativePath: string) => {
-      if (isPdfPath(relativePath)) {
-        return null;
-      }
-      const cached = s.workingContentByPathRef.current[relativePath];
-      return typeof cached === "string" ? cached : null;
-    },
-    [s.workingContentByPathRef],
-  );
-
-  const handleTextFileLoaded = useCallback(
-    (relativePath: string, content: string) => {
-      s.savedContentByPathRef.current[relativePath] = content;
-      if (!s.dirtyByPathRef.current[relativePath]) {
-        s.workingContentByPathRef.current[relativePath] = content;
-      }
-    },
-    [s.dirtyByPathRef, s.savedContentByPathRef, s.workingContentByPathRef],
-  );
+  const { getCachedTextContent, handleTextFileLoaded } = useTextContentCacheBridge({
+    workingContentByPathRef: s.workingContentByPathRef,
+    savedContentByPathRef: s.savedContentByPathRef,
+    dirtyByPathRef: s.dirtyByPathRef,
+  });
 
   useAppEffects({
     t,
@@ -388,6 +372,7 @@ export function AppContainer() {
     isTauriRuntime,
     collectDirtyPaths: unsaved.collectDirtyPaths,
     setEditorTabs: s.setEditorTabs,
+    setPreferCompiledPreview: s.setPreferCompiledPreview,
     previewTabIdRef: s.previewTabIdRef,
     setPreviewTabId: s.setPreviewTabId,
     closeTabsNow: unsaved.closeTabsNow,
@@ -528,6 +513,7 @@ export function AppContainer() {
       activeTabId={s.activeTabId}
       dirtyByPath={s.dirtyByPath}
       pdfUrl={s.pdfUrl}
+      preferCompiledPreview={s.preferCompiledPreview}
       selectedFilePdfUrl={s.selectedFilePdfUrl}
       compileErrorLine={panels.compileErrorLine}
       compileDiagnostics={s.compileDiagnostics}

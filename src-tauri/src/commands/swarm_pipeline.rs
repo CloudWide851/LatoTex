@@ -169,6 +169,62 @@ fn run_stage_role(
     Ok(output)
 }
 
+fn normalize_tool_query(value: &str) -> Option<String> {
+    let trimmed = value.trim().trim_matches(|ch: char| ch == '-' || ch == '*' || ch == '"' || ch == '\'');
+    if trimmed.len() < 3 || trimmed.len() > 160 {
+        return None;
+    }
+    if trimmed.starts_with('[') || trimmed.starts_with('{') {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn derive_tool_search_queries(prompt: &str) -> Vec<String> {
+    let mut out = Vec::<String>::new();
+    for line in prompt.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(value) = normalize_tool_query(
+            trimmed
+                .strip_prefix("- ")
+                .or_else(|| trimmed.strip_prefix("* "))
+                .unwrap_or(trimmed),
+        ) {
+            if !out.iter().any(|existing| existing == &value) {
+                out.push(value);
+            }
+        }
+        if out.len() >= 6 {
+            break;
+        }
+    }
+    if out.is_empty() {
+        let fallback = prompt.lines().next().unwrap_or(prompt);
+        if let Some(value) = normalize_tool_query(fallback) {
+            out.push(value);
+        }
+    }
+    out
+}
+
+fn with_tool_search_queries(prompt: &str, queries: &[String]) -> String {
+    let mut lines = Vec::new();
+    lines.push(prompt.to_string());
+    lines.push(String::new());
+    lines.push("[tool_search.queries.v1]".to_string());
+    if queries.is_empty() {
+        lines.push("- latex coding best practices".to_string());
+    } else {
+        for query in queries.iter().take(6) {
+            lines.push(format!("- {query}"));
+        }
+    }
+    lines.join("\n")
+}
+
 fn run_agent_pipeline_async(
     db_path: PathBuf,
     runtime_root: PathBuf,
@@ -211,6 +267,7 @@ fn run_agent_pipeline_async(
         );
     }
 
+    let request_queries = derive_tool_search_queries(&input.prompt);
     let plan_prompt = [
         "You are a planning agent.",
         "Generate concise execution steps for the user request.",
@@ -220,7 +277,7 @@ fn run_agent_pipeline_async(
         input.prompt.as_str(),
     ]
     .join("\n");
-    let plan_output = run_stage_role(
+    let plan_output = super::swarm_tool_search::run_stage_tool_search(
         &db_path,
         &runtime_root,
         &run_id,
@@ -229,11 +286,10 @@ fn run_agent_pipeline_async(
         "plan",
         "planner",
         "Plan",
-        &plan_prompt,
+        &with_tool_search_queries(&plan_prompt, &request_queries),
         &input.context_refs,
         &cancel_flag,
         None,
-        "planner_reason",
     )?;
 
     let explore_prompt_a = format!(
@@ -251,8 +307,9 @@ fn run_agent_pipeline_async(
     let project_a = input.project_id.clone();
     let context_a = input.context_refs.clone();
     let cancel_a = cancel_flag.clone();
+    let queries_a = request_queries.clone();
     let handle_a = thread::spawn(move || {
-        run_stage_role(
+        super::swarm_tool_search::run_stage_tool_search(
             &db_a,
             &runtime_a,
             &run_a,
@@ -261,11 +318,10 @@ fn run_agent_pipeline_async(
             "explore",
             "explorer",
             "Explore · LaTeX",
-            &explore_prompt_a,
+            &with_tool_search_queries(&explore_prompt_a, &queries_a),
             &context_a,
             &cancel_a,
             None,
-            "latex_file_scan",
         )
     });
 
@@ -275,6 +331,7 @@ fn run_agent_pipeline_async(
     let project_b = input.project_id.clone();
     let context_b = input.context_refs.clone();
     let cancel_b = cancel_flag.clone();
+    let queries_b = request_queries.clone();
     let handle_b = thread::spawn(move || {
         super::swarm_tool_search::run_stage_tool_search(
             &db_b,
@@ -285,7 +342,7 @@ fn run_agent_pipeline_async(
             "web_search",
             "explorer",
             "Explore · Web",
-            &explore_prompt_b,
+            &with_tool_search_queries(&explore_prompt_b, &queries_b),
             &context_b,
             &cancel_b,
             None,
@@ -303,7 +360,7 @@ fn run_agent_pipeline_async(
         "Refine the execution plan using exploration results.\n\nOriginal Plan:\n{}\n\nExplore A:\n{}\n\nExplore B:\n{}",
         plan_output, explore_a, explore_b
     );
-    let refined_plan = run_stage_role(
+    let refined_plan = super::swarm_tool_search::run_stage_tool_search(
         &db_path,
         &runtime_root,
         &run_id,
@@ -312,18 +369,18 @@ fn run_agent_pipeline_async(
         "plan",
         "planner",
         "Plan Refine",
-        &refine_prompt,
+        &with_tool_search_queries(&refine_prompt, &request_queries),
         &input.context_refs,
         &cancel_flag,
         None,
-        "planner_refine",
     )?;
 
-    let task_prompt = format!(
+    let task_prompt_base = format!(
         "Execute the refined plan.\nReturn ONLY IDE-style SEARCH/REPLACE edits in ```edit fences.\nDo not return prose-only explanations.\nEach edit block must include:\n- path: <relative path>\n- <<<<<<< SEARCH\n- =======\n- >>>>>>> REPLACE\nPrefer minimal partial edits and avoid full-file output unless absolutely necessary.\n\nRefined Plan:\n{}\n\nUser request:\n{}",
         refined_plan, input.prompt
     );
-    let mut final_output = run_stage_role(
+    let task_prompt = with_tool_search_queries(&task_prompt_base, &request_queries);
+    let mut final_output = super::swarm_tool_search::run_stage_tool_search(
         &db_path,
         &runtime_root,
         &run_id,
@@ -336,7 +393,6 @@ fn run_agent_pipeline_async(
         &input.context_refs,
         &cancel_flag,
         input.model_override.as_deref(),
-        "provider_generate",
     )?;
 
     if final_output.trim().is_empty() {
@@ -344,7 +400,7 @@ fn run_agent_pipeline_async(
             "Task output was empty. Produce a usable final result.\n\nUser request:\n{}",
             input.prompt
         );
-        final_output = run_stage_role(
+        final_output = super::swarm_tool_search::run_stage_tool_search(
             &db_path,
             &runtime_root,
             &run_id,
@@ -353,11 +409,10 @@ fn run_agent_pipeline_async(
             "review",
             "reviewer",
             "Review",
-            &review_prompt,
+            &with_tool_search_queries(&review_prompt, &request_queries),
             &input.context_refs,
             &cancel_flag,
             None,
-            "quality_review",
         )?;
     }
 

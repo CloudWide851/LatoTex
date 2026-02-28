@@ -49,6 +49,7 @@ export function AppWorkspaceShell(props: {
   activeTabId: string | null;
   dirtyByPath: Record<string, boolean>;
   compiledPdfUrl: string | null;
+  preferCompiledPreview: boolean;
   selectedFilePdfUrl: string | null;
   compileErrorLine: string | null;
   compileDiagnostics: string[];
@@ -131,6 +132,7 @@ export function AppWorkspaceShell(props: {
     activeTabId,
     dirtyByPath,
     compiledPdfUrl,
+    preferCompiledPreview,
     selectedFilePdfUrl,
     compileErrorLine,
     compileDiagnostics,
@@ -201,12 +203,16 @@ export function AppWorkspaceShell(props: {
     ? selectedFilePdfUrl
       ? "pdf"
       : "empty"
+    : preferCompiledPreview && compiledPdfUrl
+      ? "pdf"
     : selectedIsMarkdown
       ? "markdown"
       : compiledPdfUrl
         ? "pdf"
         : "empty";
-  const previewPdfUrl = selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl;
+  const previewPdfUrl = previewMode === "pdf"
+    ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl)
+    : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
   const agentCommandItems: AgentCommandItem[] = [
     { token: "/review", label: t("agent.command.review.label"), description: t("agent.command.review.description") },

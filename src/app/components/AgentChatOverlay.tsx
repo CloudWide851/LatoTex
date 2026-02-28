@@ -286,6 +286,7 @@ export function AgentChatOverlay(props: {
   const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
   const [expandedCardKeys, setExpandedCardKeys] = useState<Record<string, boolean>>({});
   const canShowActivity = phase !== "idle" || messages.length > 0 || events.length > 0;
+  const showActivityPanel = activityExpanded && canShowActivity;
   const eventCards = useMemo(() => extractEventCards(events, runId), [events, runId]);
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
   const commandSuggestions = useMemo(
@@ -318,7 +319,9 @@ export function AgentChatOverlay(props: {
     );
   }
 
-  const targetHeight = activityExpanded ? "clamp(220px, 52%, 420px)" : "clamp(132px, 24%, 214px)";
+  const targetHeight = showActivityPanel
+    ? "clamp(220px, 52%, 420px)"
+    : "clamp(176px, 30%, 248px)";
 
   return (
     <div className="pointer-events-none absolute inset-x-3 bottom-3 top-3 z-20 flex items-end justify-center">
@@ -362,7 +365,7 @@ export function AgentChatOverlay(props: {
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
-          {activityExpanded ? (
+          {showActivityPanel ? (
             <div className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2">
               {messages.map((message) => {
                 const longMessage =
@@ -474,7 +477,7 @@ export function AgentChatOverlay(props: {
               <textarea
                 className={cn(
                   "w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
-                  activityExpanded
+                  showActivityPanel
                     ? "h-[clamp(84px,16vh,132px)]"
                     : "h-[clamp(78px,15vh,112px)]",
                 )}

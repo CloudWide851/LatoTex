@@ -97,6 +97,13 @@ export function FilePreviewPane(props: {
   const [pdfLoadFailed, setPdfLoadFailed] = useState(false);
 
   useEffect(() => {
+    if (mode !== "pdf" || !pdfUrl) {
+      return;
+    }
+    setPdfLoadFailed(false);
+  }, [mode, pdfUrl]);
+
+  useEffect(() => {
     return () => {
       if (lensRafRef.current !== null) {
         window.cancelAnimationFrame(lensRafRef.current);
@@ -255,6 +262,7 @@ export function FilePreviewPane(props: {
           </div>
         ) : (
           <Document
+            key={pdfUrl}
             file={pdfUrl}
             loading={
               <div className="py-6 text-center text-xs text-slate-500">{emptyText}</div>
@@ -374,7 +382,7 @@ export function FilePreviewPane(props: {
                 transform: "translate3d(0, 0, 0)",
               }}
             >
-              <Document file={pdfUrl} loading={null} error={null}>
+              <Document key={`lens-${pdfUrl}`} file={pdfUrl} loading={null} error={null}>
                 <Page
                   pageNumber={Math.max(1, Math.min(pageCount, lensPage))}
                   width={lensPageWidth}

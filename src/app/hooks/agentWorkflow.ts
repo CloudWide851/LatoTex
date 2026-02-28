@@ -9,6 +9,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { extractReferenceQueries, parseAgentPrompt } from "./agentCommands";
 import { buildAgentMemoryContext } from "./agentMemoryStore";
+import { buildToolSearchQueryBlock } from "./agentToolSearch";
 import {
   computeDiffStats,
   isLatexPath,
@@ -480,6 +481,7 @@ export async function runAgentWorkflow(params: {
         return;
       }
       const queryLines = queries.map((item) => `- ${item}`).join("\n");
+      const queryBlock = buildToolSearchQueryBlock(queries);
       const analysisPrompt = [
         "You are a citation verifier with an internal programmatic tool runtime.",
         "The runtime will execute tool_search in a provider-agnostic way.",
@@ -488,6 +490,8 @@ export async function runAgentWorkflow(params: {
         "",
         "Reference queries:",
         queryLines,
+        "",
+        queryBlock,
       ].join("\n");
       const response = await runAgentThroughEvents({
         activeProjectId,

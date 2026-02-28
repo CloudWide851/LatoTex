@@ -45,6 +45,7 @@ export type UseAppHandlersParams = {
   setLastCompileFailed: (value: boolean) => void;
   setPdfUrl: (value: string | null) => void;
   setCompiledPdfBytes: (value: Uint8Array | null) => void;
+  setPreferCompiledPreview: (value: boolean) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposalsByPath: AgentProposalMap;
   setAgentProposalsByPath: React.Dispatch<React.SetStateAction<AgentProposalMap>>;

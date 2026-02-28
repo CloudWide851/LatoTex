@@ -3,17 +3,17 @@
   StrCpy $0 "$INSTDIR\${MAINBINARYNAME}.exe"
   !if "${STARTMENUFOLDER}" != ""
     CreateDirectory "$SMPROGRAMS\$AppStartMenuFolder"
-    Delete "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
+    Delete "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}*.lnk"
     CreateShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$0" "" "$0" 0
     !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
   !else
-    Delete "$SMPROGRAMS\${PRODUCTNAME}.lnk"
+    Delete "$SMPROGRAMS\${PRODUCTNAME}*.lnk"
     CreateShortcut "$SMPROGRAMS\${PRODUCTNAME}.lnk" "$0" "" "$0" 0
     !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
   !endif
 
   ; Always recreate desktop shortcut to force icon metadata refresh on upgrades.
-  Delete "$DESKTOP\${PRODUCTNAME}.lnk"
+  Delete "$DESKTOP\${PRODUCTNAME}*.lnk"
   CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$0" "" "$0" 0
   !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
 

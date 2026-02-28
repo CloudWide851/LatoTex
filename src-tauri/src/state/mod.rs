@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Condvar, Mutex};
 use tauri::{AppHandle, Manager};
+#[cfg(target_os = "windows")]
+mod windows_shortcuts;
 
 #[derive(Clone)]
 pub struct GitDownloadTask {
@@ -80,6 +82,8 @@ impl AppState {
         let install_mode =
             detect_install_mode_and_persist(&runtime_root, &app_data_dir, &app_version)?;
         let _ = persist_runtime_root_pointer(&app_data_dir, &runtime_root);
+        #[cfg(target_os = "windows")]
+        let _ = windows_shortcuts::sync_shortcuts("LatoTex");
         #[cfg(target_os = "windows")]
         let _ = dedupe_desktop_shortcuts("LatoTex");
 

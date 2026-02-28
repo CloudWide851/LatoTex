@@ -32,6 +32,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     isTauriRuntime,
     collectDirtyPaths,
     setEditorTabs,
+    setPreferCompiledPreview,
     previewTabIdRef,
     setPreviewTabId,
     closeTabsNow,
@@ -180,8 +181,9 @@ export function useAppContainerWorkspaceActions(params: any) {
       prev.map((tab) => (tab.id === tabId ? { ...tab, lastAccessed: Date.now() } : tab)),
     );
     setActiveTabId(tabId);
+    setPreferCompiledPreview(false);
     setSelectedFile(target.path);
-  }, [editorTabsRef, setActiveTabId, setEditorTabs, setSelectedFile]);
+  }, [editorTabsRef, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setSelectedFile]);
 
   const handleTabSelect = useCallback((tabId: string) => {
     activateTabById(tabId);
@@ -224,6 +226,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       const newTab = buildEditorTab(path, mode === "pinned", mode === "preview");
       setEditorTabs([...nextTabs, newTab]);
       setActiveTabId(newTab.id);
+      setPreferCompiledPreview(false);
       setSelectedFile(path);
       setPreviewTabId(mode === "preview" ? newTab.id : previewTabIdRef.current);
     };
@@ -239,7 +242,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       }
     }
     openTab();
-  }, [activateTabById, buildEditorTab, editorTabsRef, fileSet, previewTabIdRef, requestUnsavedGuard, setActiveTabId, setEditorTabs, setPreviewTabId, setSelectedFile]);
+  }, [activateTabById, buildEditorTab, editorTabsRef, fileSet, previewTabIdRef, requestUnsavedGuard, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setPreviewTabId, setSelectedFile]);
 
   const handleTabPin = useCallback((tabId: string) => {
     setEditorTabs((prev: any[]) =>

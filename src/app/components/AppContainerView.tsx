@@ -44,6 +44,7 @@ export function AppContainerView(props: any) {
     activeTabId,
     dirtyByPath,
     pdfUrl,
+    preferCompiledPreview,
     selectedFilePdfUrl,
     compileErrorLine,
     compileDiagnostics,
@@ -182,6 +183,7 @@ export function AppContainerView(props: any) {
             activeTabId={activeTabId}
             dirtyByPath={dirtyByPath}
             compiledPdfUrl={pdfUrl}
+            preferCompiledPreview={preferCompiledPreview}
             selectedFilePdfUrl={selectedFilePdfUrl}
             compileErrorLine={compileErrorLine}
             compileDiagnostics={compileDiagnostics}

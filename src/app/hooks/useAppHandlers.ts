@@ -17,15 +17,10 @@ import { isPdfPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
-import {
-  handleBusyTexCachePolicyChangeAction,
-  handleProtocolPingAction,
-  handleThemeModeChangeAction,
-} from "./settingsUiActions";
+import { handleBusyTexCachePolicyChangeAction, handleProtocolPingAction, handleThemeModeChangeAction } from "./settingsUiActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
-
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -59,6 +54,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setLastCompileFailed,
     setPdfUrl,
     setCompiledPdfBytes,
+    setPreferCompiledPreview,
     setAgentMessages,
     agentProposalsByPath,
     setAgentProposalsByPath,
@@ -91,7 +87,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     upsertProject,
     runAnalysisFromAgent,
   } = params;
-
   const {
     handleGitAction,
     handleGitInstallerDownloadStart,
@@ -226,6 +221,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setCompileDiagnostics,
       setPdfUrl,
       setCompiledPdfBytes,
+      setPreferCompiledPreview,
       setToast,
     });
   }, [
@@ -234,6 +230,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setCompileDiagnostics,
     setCompiledPdfBytes,
     setLastCompileFailed,
+    setPreferCompiledPreview,
     setPdfUrl,
     setToast,
     t,
