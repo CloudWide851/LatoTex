@@ -1,17 +1,4 @@
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  ExternalLink,
-  FileText,
-  FileUp,
-  Highlighter,
-  Minus,
-  Plus,
-  Type,
-  Undo2,
-} from "lucide-react";
+import { FileText, FileUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
@@ -23,7 +10,12 @@ import {
 } from "../../shared/api/desktop";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
-import { PdfAnnotationLayer } from "./library/PdfAnnotationLayer";
+import { LibraryAnnotationToolbar } from "./library/LibraryAnnotationToolbar";
+import {
+  LibraryPdfScrollViewer,
+  type LibraryPdfScrollViewerHandle,
+} from "./library/LibraryPdfScrollViewer";
+import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./library/annotationPalette";
 import {
   parseAnnotationPayload,
   toLibraryAnnotationPath,
@@ -31,9 +23,10 @@ import {
   type AnnotationStroke,
   type AnnotationTextBox,
 } from "./library/annotationModel";
-import { buildPdfSrc, filenameFromPath } from "./library/viewerUtils";
+import { estimatePdfPageCountFromBytes, filenameFromPath } from "./library/viewerUtils";
 
 type TranslationFn = (key: any) => string;
+type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
@@ -50,16 +43,17 @@ export function LibraryDocumentViewer(props: {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [resolvedLink, setResolvedLink] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"bib" | "pdf">("bib");
-  const [annotationEnabled, setAnnotationEnabled] = useState(false);
-  const [textBoxMode, setTextBoxMode] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState<ToolMode>("select");
+  const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0]);
+  const [textColor, setTextColor] = useState<string>(TEXT_COLORS[0]);
   const [annotationStrokes, setAnnotationStrokes] = useState<AnnotationStroke[]>([]);
   const [annotationTextBoxes, setAnnotationTextBoxes] = useState<AnnotationTextBox[]>([]);
   const [annotationLoaded, setAnnotationLoaded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [pdfZoom, setPdfZoom] = useState(1);
-  const pdfRenderQualityScale = 1.3;
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
 
   const hasPdf = Boolean(pdfUrl);
   const hasBib = bibPreview.trim().length > 0;
@@ -98,11 +92,11 @@ export function LibraryDocumentViewer(props: {
       setBibPreview("");
       setResolvedLink(null);
       setViewMode("bib");
-      setAnnotationEnabled(false);
-      setTextBoxMode(false);
+      setAnnotationMode("select");
       setAnnotationStrokes([]);
       setAnnotationTextBoxes([]);
       setCurrentPage(1);
+      setPageCount(1);
       setPageInput("1");
       setPdfZoom(1);
       setPdfUrl((prev) => {
@@ -119,9 +113,9 @@ export function LibraryDocumentViewer(props: {
     setLinkError(null);
     setCopyState(false);
     setViewMode("bib");
-    setAnnotationEnabled(false);
-    setTextBoxMode(false);
+    setAnnotationMode("select");
     setCurrentPage(1);
+    setPageCount(1);
     setPageInput("1");
     setPdfZoom(1);
 
@@ -156,8 +150,10 @@ export function LibraryDocumentViewer(props: {
         if (cancelled) {
           return;
         }
+        const bytes = Uint8Array.from(binary.bytes);
+        setPageCount(estimatePdfPageCountFromBytes(bytes));
         const nextUrl = URL.createObjectURL(
-          new Blob([Uint8Array.from(binary.bytes)], { type: "application/pdf" }),
+          new Blob([bytes], { type: "application/pdf" }),
         );
         setPdfUrl((prev) => {
           if (prev) {
@@ -166,6 +162,7 @@ export function LibraryDocumentViewer(props: {
           return nextUrl;
         });
       } else {
+        setPageCount(1);
         setPdfUrl((prev) => {
           if (prev) {
             URL.revokeObjectURL(prev);
@@ -236,7 +233,7 @@ export function LibraryDocumentViewer(props: {
     }
     const timer = window.setTimeout(() => {
       const payload: AnnotationPayload = {
-        version: 2,
+        version: 3,
         strokes: annotationStrokes,
         textBoxes: annotationTextBoxes,
       };
@@ -249,10 +246,25 @@ export function LibraryDocumentViewer(props: {
 
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
-      setAnnotationEnabled(false);
-      setTextBoxMode(false);
+      setAnnotationMode("select");
     }
   }, [hasPdf, viewMode]);
+
+  useEffect(() => {
+    if (currentPage <= pageCount) {
+      return;
+    }
+    const next = Math.max(1, pageCount);
+    setCurrentPage(next);
+    setPageInput(String(next));
+  }, [currentPage, pageCount]);
+
+  const jumpToPage = useCallback((next: number) => {
+    const normalized = Math.max(1, Math.min(pageCount || 1, Math.floor(next)));
+    setCurrentPage(normalized);
+    setPageInput(String(normalized));
+    viewerRef.current?.scrollToPage(normalized);
+  }, [pageCount]);
 
   const handleOpenLink = async () => {
     if (!activeLink) {
@@ -278,12 +290,6 @@ export function LibraryDocumentViewer(props: {
       setLinkError(t("library.viewer.linkOpenFailed"));
     }
   };
-
-  const jumpToPage = useCallback((next: number) => {
-    const normalized = Math.max(1, Math.floor(next));
-    setCurrentPage(normalized);
-    setPageInput(String(normalized));
-  }, []);
 
   if (!selectedPath) {
     return (
@@ -324,190 +330,95 @@ export function LibraryDocumentViewer(props: {
           >
             {t("library.viewer.showPdf")}
           </button>
+
           {viewMode === "pdf" ? (
-            <>
-              <button
-                className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
-                  annotationEnabled
-                    ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-                    : "border-slate-300 bg-white hover:bg-slate-100"
-                }`}
-                title={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
-                aria-label={annotationEnabled ? t("preview.annotationDisable") : t("preview.annotationEnable")}
-                onClick={() => {
-                  setAnnotationEnabled((prev) => !prev);
-                  setTextBoxMode(false);
-                }}
-                disabled={!hasPdf}
-              >
-                <Highlighter className="h-3.5 w-3.5" />
-              </button>
-              <button
-                className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
-                  textBoxMode
-                    ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-                    : "border-slate-300 bg-white hover:bg-slate-100"
-                }`}
-                title={t("library.viewer.textboxMode")}
-                aria-label={t("library.viewer.textboxMode")}
-                onClick={() => {
-                  setTextBoxMode((prev) => !prev);
-                  setAnnotationEnabled(false);
-                }}
-                disabled={!hasPdf}
-              >
-                <Type className="h-3.5 w-3.5" />
-              </button>
-              <button
-                className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-                title={t("preview.annotationUndo")}
-                aria-label={t("preview.annotationUndo")}
-                onClick={() =>
-                  setAnnotationStrokes((items) => {
-                    const pageItems = items.filter((item) => item.page === currentPage);
-                    if (pageItems.length === 0) {
-                      return items;
-                    }
-                    const lastId = pageItems[pageItems.length - 1].id;
-                    return items.filter((item) => item.id !== lastId);
-                  })
+            <LibraryAnnotationToolbar
+              t={t}
+              hasPdf={hasPdf}
+              mode={annotationMode}
+              onModeChange={setAnnotationMode}
+              highlightColor={highlightColor}
+              onHighlightColorChange={setHighlightColor}
+              textColor={textColor}
+              onTextColorChange={setTextColor}
+              canUndo={pageStrokeCount > 0}
+              canClear={pageStrokeCount > 0 || pageTextBoxCount > 0}
+              onUndo={() =>
+                setAnnotationStrokes((items) => {
+                  const pageItems = items.filter((item) => item.page === currentPage);
+                  if (pageItems.length === 0) {
+                    return items;
+                  }
+                  const lastId = pageItems[pageItems.length - 1].id;
+                  return items.filter((item) => item.id !== lastId);
+                })
+              }
+              onClear={() => {
+                setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
+                setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
+              }}
+              pageInput={pageInput}
+              onPageInputChange={setPageInput}
+              onPageCommit={() => {
+                const parsed = Number(pageInput);
+                if (Number.isFinite(parsed)) {
+                  jumpToPage(parsed);
+                } else {
+                  setPageInput(String(currentPage));
                 }
-                disabled={!hasPdf || pageStrokeCount === 0}
-              >
-                <Undo2 className="h-3.5 w-3.5" />
-              </button>
-              <button
-                className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-                title={t("preview.annotationClear")}
-                aria-label={t("preview.annotationClear")}
-                onClick={() => {
-                  setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
-                  setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
-                }}
-                disabled={!hasPdf || (pageStrokeCount === 0 && pageTextBoxCount === 0)}
-              >
-                <Check className="h-3.5 w-3.5" />
-              </button>
-              <div className="ml-1 inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
-                <button
-                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
-                  onClick={() => jumpToPage(currentPage - 1)}
-                  title={t("library.viewer.prevPage")}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-                <input
-                  className="w-10 rounded border border-slate-300 px-1 py-0.5 text-center text-[11px] text-slate-700"
-                  value={pageInput}
-                  onChange={(event) => setPageInput(event.target.value)}
-                  onBlur={() => {
-                    const parsed = Number(pageInput);
-                    if (Number.isFinite(parsed)) {
-                      jumpToPage(parsed);
-                    } else {
-                      setPageInput(String(currentPage));
-                    }
-                  }}
-                  title={t("library.viewer.pageInput")}
-                />
-                <button
-                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
-                  onClick={() => jumpToPage(currentPage + 1)}
-                  title={t("library.viewer.nextPage")}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
-                <button
-                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
-                  onClick={() => setPdfZoom((prev) => Math.max(0.6, Number((prev - 0.1).toFixed(2))))}
-                  title={t("preview.zoomOut")}
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </button>
-                <span className="text-[11px] text-slate-600">{Math.round(pdfZoom * 100)}%</span>
-                <button
-                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
-                  onClick={() => setPdfZoom((prev) => Math.min(2.6, Number((prev + 0.1).toFixed(2))))}
-                  title={t("preview.zoomIn")}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <button
-                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-                onClick={() => void handleOpenLink()}
-                disabled={!activeLink}
-                title={t("library.viewer.openLink")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>{t("library.viewer.openLink")}</span>
-              </button>
-              <button
-                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-                onClick={() => void handleCopyLink()}
-                disabled={!activeLink}
-                title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
-              >
-                {copyState ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}</span>
-              </button>
-            </>
+              }}
+              onPrevPage={() => jumpToPage(currentPage - 1)}
+              onNextPage={() => jumpToPage(currentPage + 1)}
+              pdfZoom={pdfZoom}
+              onZoomOut={() => setPdfZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}
+              onZoomIn={() => setPdfZoom((prev) => Math.min(2.4, Number((prev + 0.1).toFixed(2))))}
+              activeLink={activeLink}
+              copyState={copyState}
+              onOpenLink={() => void handleOpenLink()}
+              onCopyLink={() => void handleCopyLink()}
+            />
           ) : null}
         </div>
       </section>
 
       {viewMode === "pdf" ? (
-        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <div className="min-h-0 overflow-auto p-3">
-            {loading ? (
-              <div className="flex h-full items-center justify-center text-xs text-slate-500">
-                {t("library.viewer.loading")}
-              </div>
-            ) : loadError ? (
-              <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {t("library.viewer.error")} {loadError}
-              </div>
-            ) : hasPdf && pdfUrl ? (
-              <div
-                ref={viewportRef}
-                className={`relative h-full overflow-hidden rounded border border-slate-200 bg-slate-50 ${
-                  annotationEnabled || textBoxMode ? "cursor-crosshair" : "cursor-default"
-                }`}
-              >
-                <iframe
-                  title={filenameFromPath(selectedPath)}
-                  src={buildPdfSrc(pdfUrl, currentPage, pdfZoom, pdfRenderQualityScale)}
-                  className="h-full w-full"
-                  style={{
-                    pointerEvents: annotationEnabled || textBoxMode ? "none" : "auto",
-                    width: `${pdfRenderQualityScale * 100}%`,
-                    height: `${pdfRenderQualityScale * 100}%`,
-                    transformOrigin: "top left",
-                    transform: `scale(${1 / pdfRenderQualityScale})`,
-                    willChange: "transform",
-                  }}
-                />
-                <PdfAnnotationLayer
-                  page={currentPage}
-                  viewportRef={viewportRef}
-                  drawEnabled={annotationEnabled}
-                  textBoxMode={textBoxMode}
-                  strokes={annotationStrokes}
-                  textBoxes={annotationTextBoxes}
-                  onStrokesChange={setAnnotationStrokes}
-                  onTextBoxesChange={setAnnotationTextBoxes}
-                  t={t}
-                />
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-                <FileUp className="mr-2 h-3.5 w-3.5" />
-                {t("library.viewer.noPdf")}
-              </div>
-            )}
-          </div>
+        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white p-3">
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-xs text-slate-500">
+              {t("library.viewer.loading")}
+            </div>
+          ) : loadError ? (
+            <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {t("library.viewer.error")} {loadError}
+            </div>
+          ) : hasPdf && pdfUrl ? (
+            <div className="h-full min-h-0">
+              <LibraryPdfScrollViewer
+                ref={viewerRef}
+                pdfUrl={pdfUrl}
+                pageCount={pageCount}
+                zoom={pdfZoom}
+                mode={annotationMode}
+                highlightColor={highlightColor}
+                textColor={textColor}
+                strokes={annotationStrokes}
+                textBoxes={annotationTextBoxes}
+                onStrokesChange={setAnnotationStrokes}
+                onTextBoxesChange={setAnnotationTextBoxes}
+                onVisiblePageChange={(page) => {
+                  setCurrentPage(page);
+                  setPageInput(String(page));
+                }}
+                onPageCountChange={setPageCount}
+                t={t}
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+              <FileUp className="mr-2 h-3.5 w-3.5" />
+              {t("library.viewer.noPdf")}
+            </div>
+          )}
         </section>
       ) : (
         <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(210px,0.95fr)] gap-2">

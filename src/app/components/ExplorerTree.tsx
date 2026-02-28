@@ -57,6 +57,8 @@ export function ExplorerTree(props: {
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const submitLockRef = useRef(false);
+  const skipCreateBlurSubmitRef = useRef(false);
 
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
@@ -109,33 +111,45 @@ export function ExplorerTree(props: {
   };
 
   const submitEditing = async () => {
+    if (submitLockRef.current) {
+      return;
+    }
+    submitLockRef.current = true;
     if (!onAction) {
       setEditing(null);
+      submitLockRef.current = false;
       return;
     }
-    if (!editing) {
+    const editingSnapshot = editing;
+    if (!editingSnapshot) {
+      submitLockRef.current = false;
       return;
     }
-    const nextName = editing.value.trim();
+    const nextName = editingSnapshot.value.trim();
     if (!nextName) {
       setEditing(null);
+      submitLockRef.current = false;
       return;
     }
 
-    if (editing.mode === "rename") {
-      const targetPath = joinPath(dirnameOf(editing.path), nextName);
-      await onAction("rename", editing.path, targetPath);
+    try {
+      if (editingSnapshot.mode === "rename") {
+        const targetPath = joinPath(dirnameOf(editingSnapshot.path), nextName);
+        await onAction("rename", editingSnapshot.path, targetPath);
+        setEditing(null);
+        return;
+      }
+
+      const path = joinPath(editingSnapshot.parentPath, nextName);
+      if (editingSnapshot.mode === "create_file") {
+        await onAction("create_file", path, undefined, "");
+      } else {
+        await onAction("create_folder", path);
+      }
       setEditing(null);
-      return;
+    } finally {
+      submitLockRef.current = false;
     }
-
-    const path = joinPath(editing.parentPath, nextName);
-    if (editing.mode === "create_file") {
-      await onAction("create_file", path, undefined, "");
-    } else {
-      await onAction("create_folder", path);
-    }
-    setEditing(null);
   };
 
   const renderMenu = () => {
@@ -314,13 +328,21 @@ export function ExplorerTree(props: {
           }
           onKeyDown={async (event) => {
             if (event.key === "Enter") {
+              event.preventDefault();
               await submitEditing();
             }
             if (event.key === "Escape") {
+              skipCreateBlurSubmitRef.current = true;
               setEditing(null);
             }
           }}
-          onBlur={() => setEditing(null)}
+          onBlur={() => {
+            if (skipCreateBlurSubmitRef.current) {
+              skipCreateBlurSubmitRef.current = false;
+              return;
+            }
+            void submitEditing();
+          }}
         />
       </div>
     );
@@ -338,6 +360,7 @@ export function ExplorerTree(props: {
     return (
       <Fragment key={node.relativePath}>
         <div
+          data-explorer-node="true"
           className={cn(
             "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
             selectedPath === node.relativePath
@@ -474,17 +497,20 @@ export function ExplorerTree(props: {
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY, path: "", kind: "blank" });
       }}
-      onDoubleClick={(event) => {
-        if (mode !== "workspace") {
-          return;
-        }
-        if (event.target !== event.currentTarget) {
-          return;
-        }
-        triggerCreate("", "create_file");
-      }}
     >
-      <div className="min-h-0 flex-1 space-y-1 overflow-auto pr-1">
+      <div
+        className="min-h-0 flex-1 space-y-1 overflow-auto pr-1"
+        onDoubleClick={(event) => {
+          if (mode !== "workspace" || editing) {
+            return;
+          }
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("[data-explorer-node='true']")) {
+            return;
+          }
+          triggerCreate("", "create_file");
+        }}
+      >
         {tree.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
             <div className="flex items-center gap-2">

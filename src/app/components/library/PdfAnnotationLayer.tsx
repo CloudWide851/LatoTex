@@ -1,14 +1,16 @@
-import { Check, Edit3, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   clampDimension,
   clampNormalized,
+  createDefaultStrokeStyle,
   createDefaultTextStyle,
   type AnnotationPoint,
   type AnnotationStroke,
   type AnnotationTextBox,
 } from "./annotationModel";
+import { hexToRgba } from "./annotationPalette";
 
+type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type DragMode = "move" | "resize";
 
 type DragState = {
@@ -44,11 +46,29 @@ function nextTextBoxZ(textBoxes: AnnotationTextBox[]): number {
   return Math.max(...textBoxes.map((item) => item.z || 1)) + 1;
 }
 
+function distanceToStroke(point: AnnotationPoint, stroke: AnnotationStroke): number {
+  let min = Number.POSITIVE_INFINITY;
+  for (const p of stroke.points) {
+    const dx = point.x - p.x;
+    const dy = point.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < min) {
+      min = dist;
+    }
+  }
+  return min;
+}
+
+function bringBoxToFront(textBoxes: AnnotationTextBox[], boxId: string): AnnotationTextBox[] {
+  const nextZ = nextTextBoxZ(textBoxes);
+  return textBoxes.map((item) => (item.id === boxId ? { ...item, z: nextZ } : item));
+}
+
 export function PdfAnnotationLayer(props: {
   page: number;
-  viewportRef: React.RefObject<HTMLDivElement | null>;
-  drawEnabled: boolean;
-  textBoxMode: boolean;
+  mode: ToolMode;
+  highlightColor: string;
+  textColor: string;
   strokes: AnnotationStroke[];
   textBoxes: AnnotationTextBox[];
   onStrokesChange: (next: AnnotationStroke[]) => void;
@@ -57,9 +77,9 @@ export function PdfAnnotationLayer(props: {
 }) {
   const {
     page,
-    viewportRef,
-    drawEnabled,
-    textBoxMode,
+    mode,
+    highlightColor,
+    textColor,
     strokes,
     textBoxes,
     onStrokesChange,
@@ -68,10 +88,10 @@ export function PdfAnnotationLayer(props: {
   } = props;
   const drawingRef = useRef(false);
   const dragStateRef = useRef<DragState | null>(null);
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const [draftStroke, setDraftStroke] = useState<AnnotationPoint[] | null>(null);
   const [editingTextBoxId, setEditingTextBoxId] = useState<string | null>(null);
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
-  const interactiveCanvas = drawEnabled || textBoxMode;
 
   const pageStrokes = useMemo(
     () => strokes.filter((item) => item.page === page),
@@ -86,16 +106,32 @@ export function PdfAnnotationLayer(props: {
   );
 
   useEffect(() => {
-    if (!drawEnabled && !textBoxMode) {
-      drawingRef.current = false;
-      setDraftStroke(null);
+    if (selectedTextBoxId && !textBoxes.some((item) => item.id === selectedTextBoxId)) {
+      setSelectedTextBoxId(null);
     }
-  }, [drawEnabled, textBoxMode]);
+    if (editingTextBoxId && !textBoxes.some((item) => item.id === editingTextBoxId)) {
+      setEditingTextBoxId(null);
+    }
+  }, [editingTextBoxId, selectedTextBoxId, textBoxes]);
+
+  useEffect(() => {
+    if (!selectedTextBoxId) {
+      return;
+    }
+    onTextBoxesChange(
+      textBoxes.map((item) =>
+        item.id === selectedTextBoxId
+          ? { ...item, style: { ...item.style, textColor } }
+          : item,
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textColor]);
 
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
       const drag = dragStateRef.current;
-      const rect = viewportRef.current?.getBoundingClientRect();
+      const rect = layerRef.current?.getBoundingClientRect();
       if (!drag || !rect) {
         return;
       }
@@ -131,7 +167,27 @@ export function PdfAnnotationLayer(props: {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [onTextBoxesChange, textBoxes, viewportRef]);
+  }, [onTextBoxesChange, textBoxes]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!selectedTextBoxId || editingTextBoxId) {
+        return;
+      }
+      if (event.key !== "Delete" && event.key !== "Backspace") {
+        return;
+      }
+      const activeTag = (document.activeElement as HTMLElement | null)?.tagName.toLowerCase();
+      if (activeTag === "input" || activeTag === "textarea") {
+        return;
+      }
+      event.preventDefault();
+      onTextBoxesChange(textBoxes.filter((item) => item.id !== selectedTextBoxId));
+      setSelectedTextBoxId(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editingTextBoxId, onTextBoxesChange, selectedTextBoxId, textBoxes]);
 
   const finishDrawing = () => {
     if (!drawingRef.current) {
@@ -146,6 +202,7 @@ export function PdfAnnotationLayer(props: {
         id: `stroke-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         page,
         points: previous.map(clampPoint),
+        style: createDefaultStrokeStyle(highlightColor),
       };
       onStrokesChange([...strokes, stroke]);
       return null;
@@ -155,19 +212,44 @@ export function PdfAnnotationLayer(props: {
   return (
     <>
       <svg
-        className={`absolute inset-0 z-10 h-full w-full ${interactiveCanvas ? "pointer-events-auto" : "pointer-events-none"}`}
+        className="pointer-events-none absolute inset-0 z-10 h-full w-full"
         viewBox="0 0 1000 1000"
         preserveAspectRatio="none"
+      >
+        {pageStrokes.map((stroke) => (
+          <polyline
+            key={stroke.id}
+            points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
+            fill="none"
+            stroke={hexToRgba(stroke.style?.color ?? "#facc15", stroke.style?.opacity ?? 0.65)}
+            strokeWidth={stroke.style?.width ?? 16}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+        {draftStroke && draftStroke.length > 1 ? (
+          <polyline
+            points={draftStroke.map((point) => `${point.x},${point.y}`).join(" ")}
+            fill="none"
+            stroke={hexToRgba(highlightColor, 0.72)}
+            strokeWidth="16"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : null}
+      </svg>
+
+      <div
+        ref={layerRef}
+        className="absolute inset-0 z-20"
         onMouseDown={(event) => {
-          if (!interactiveCanvas) {
-            return;
-          }
-          const rect = viewportRef.current?.getBoundingClientRect();
+          const rect = layerRef.current?.getBoundingClientRect();
           if (!rect) {
             return;
           }
           const point = toNormalizedPoint(event, rect);
-          if (textBoxMode) {
+
+          if (mode === "textbox") {
             const id = `textbox-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
             const nextBox: AnnotationTextBox = {
               id,
@@ -178,26 +260,40 @@ export function PdfAnnotationLayer(props: {
               h: 160,
               z: nextTextBoxZ(textBoxes),
               content: "",
-              style: createDefaultTextStyle(),
+              style: createDefaultTextStyle(textColor),
             };
             onTextBoxesChange([...textBoxes, nextBox]);
             setSelectedTextBoxId(id);
             setEditingTextBoxId(id);
             return;
           }
-          if (!drawEnabled) {
-            setSelectedTextBoxId(null);
-            setEditingTextBoxId(null);
+
+          if (mode === "eraser") {
+            const candidates = pageStrokes.map((stroke) => ({
+              id: stroke.id,
+              dist: distanceToStroke(point, stroke),
+            }));
+            const nearest = candidates.sort((a, b) => a.dist - b.dist)[0];
+            if (nearest && nearest.dist <= 26) {
+              onStrokesChange(strokes.filter((item) => item.id !== nearest.id));
+            }
             return;
           }
-          drawingRef.current = true;
-          setDraftStroke([point]);
+
+          if (mode === "highlight") {
+            drawingRef.current = true;
+            setDraftStroke([point]);
+            return;
+          }
+
+          setSelectedTextBoxId(null);
+          setEditingTextBoxId(null);
         }}
         onMouseMove={(event) => {
-          if (!interactiveCanvas || !drawEnabled || !drawingRef.current) {
+          if (mode !== "highlight" || !drawingRef.current) {
             return;
           }
-          const rect = viewportRef.current?.getBoundingClientRect();
+          const rect = layerRef.current?.getBoundingClientRect();
           if (!rect) {
             return;
           }
@@ -207,37 +303,13 @@ export function PdfAnnotationLayer(props: {
         onMouseUp={finishDrawing}
         onMouseLeave={finishDrawing}
       >
-        {pageStrokes.map((stroke) => (
-          <polyline
-            key={stroke.id}
-            points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
-            fill="none"
-            stroke="rgba(250, 204, 21, 0.6)"
-            strokeWidth="15"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ))}
-        {draftStroke && draftStroke.length > 1 ? (
-          <polyline
-            points={draftStroke.map((point) => `${point.x},${point.y}`).join(" ")}
-            fill="none"
-            stroke="rgba(250, 204, 21, 0.72)"
-            strokeWidth="15"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ) : null}
-      </svg>
-
-      <div className="pointer-events-none absolute inset-0 z-20">
         {pageTextBoxes.map((box) => {
           const selected = box.id === selectedTextBoxId;
           const editing = box.id === editingTextBoxId;
           return (
             <div
               key={box.id}
-              className={`pointer-events-auto absolute rounded border shadow-sm ${selected ? "ring-2 ring-primary-300" : ""}`}
+              className={`absolute rounded border shadow-sm ${selected ? "ring-2 ring-primary-300" : ""}`}
               style={{
                 left: `${(box.x / 1000) * 100}%`,
                 top: `${(box.y / 1000) * 100}%`,
@@ -250,19 +322,10 @@ export function PdfAnnotationLayer(props: {
               onMouseDown={(event) => {
                 event.stopPropagation();
                 setSelectedTextBoxId(box.id);
-                onTextBoxesChange(
-                  textBoxes.map((item) =>
-                    item.id === box.id ? { ...item, z: nextTextBoxZ(textBoxes) } : item,
-                  ),
-                );
-              }}
-            >
-              <div
-                className="flex items-center justify-end gap-1 border-b border-slate-200 bg-white/90 px-1 py-0.5"
-                onMouseDown={(event) => {
-                  event.stopPropagation();
-                  const rect = viewportRef.current?.getBoundingClientRect();
-                  if (!rect) {
+                onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
+                if (!editing) {
+                  const rect = layerRef.current?.getBoundingClientRect();
+                  if (!rect || mode !== "select") {
                     return;
                   }
                   dragStateRef.current = {
@@ -271,90 +334,71 @@ export function PdfAnnotationLayer(props: {
                     start: toNormalizedPoint(event, rect),
                     initial: box,
                   };
-                }}
-              >
-                {editing ? (
-                  <button
-                    className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
+                }
+              }}
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                setSelectedTextBoxId(box.id);
+                setEditingTextBoxId(box.id);
+              }}
+            >
+              {editing ? (
+                <textarea
+                  autoFocus
+                  className="h-full w-full resize-none rounded border-none bg-white/95 p-1.5 text-xs leading-5 outline-none"
+                  style={{
+                    color: box.style.textColor,
+                    fontSize: `${box.style.fontSize}px`,
+                  }}
+                  value={box.content}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) =>
+                    onTextBoxesChange(
+                      textBoxes.map((item) =>
+                        item.id === box.id ? { ...item, content: event.target.value } : item,
+                      ),
+                    )
+                  }
+                  onBlur={() => setEditingTextBoxId(null)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
                       setEditingTextBoxId(null);
-                    }}
-                    title={t("library.viewer.textboxSave")}
-                  >
-                    <Check className="h-3 w-3" />
-                  </button>
-                ) : (
-                  <button
-                    className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setEditingTextBoxId(box.id);
-                    }}
-                    title={t("library.viewer.textboxEdit")}
-                  >
-                    <Edit3 className="h-3 w-3" />
-                  </button>
-                )}
-                <button
-                  className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onTextBoxesChange(textBoxes.filter((item) => item.id !== box.id));
-                    if (editingTextBoxId === box.id) {
-                      setEditingTextBoxId(null);
-                    }
-                    if (selectedTextBoxId === box.id) {
-                      setSelectedTextBoxId(null);
                     }
                   }}
-                  title={t("library.viewer.textboxDelete")}
+                />
+              ) : (
+                <div
+                  className="h-full overflow-auto whitespace-pre-wrap break-words p-1.5 text-xs leading-5"
+                  style={{
+                    color: box.style.textColor,
+                    fontSize: `${box.style.fontSize}px`,
+                  }}
                 >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-              <div className="h-[calc(100%-26px)] p-1.5">
-                {editing ? (
-                  <textarea
-                    className="h-full w-full resize-none rounded border border-slate-300 bg-white/95 p-1 text-xs leading-5 text-slate-700 outline-none"
-                    value={box.content}
-                    onChange={(event) =>
-                      onTextBoxesChange(
-                        textBoxes.map((item) =>
-                          item.id === box.id ? { ...item, content: event.target.value } : item,
-                        ),
-                      )
+                  {box.content.trim().length > 0
+                    ? box.content
+                    : t("library.viewer.textboxPlaceholder")}
+                </div>
+              )}
+              {selected && mode === "select" && !editing ? (
+                <button
+                  className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 cursor-se-resize rounded-sm border border-slate-300 bg-white/90"
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                    const rect = layerRef.current?.getBoundingClientRect();
+                    if (!rect) {
+                      return;
                     }
-                  />
-                ) : (
-                  <div
-                    className="h-full overflow-auto whitespace-pre-wrap break-words rounded bg-white/50 p-1 text-xs leading-5"
-                    style={{
-                      color: box.style.textColor,
-                      fontSize: `${box.style.fontSize}px`,
-                    }}
-                  >
-                    {box.content}
-                  </div>
-                )}
-              </div>
-              <button
-                className="absolute bottom-0.5 right-0.5 h-3 w-3 cursor-se-resize rounded-sm border border-slate-300 bg-white/90"
-                onMouseDown={(event) => {
-                  event.stopPropagation();
-                  const rect = viewportRef.current?.getBoundingClientRect();
-                  if (!rect) {
-                    return;
-                  }
-                  dragStateRef.current = {
-                    mode: "resize",
-                    boxId: box.id,
-                    start: toNormalizedPoint(event, rect),
-                    initial: box,
-                  };
-                }}
-                title={t("library.viewer.textboxResize")}
-              />
+                    dragStateRef.current = {
+                      mode: "resize",
+                      boxId: box.id,
+                      start: toNormalizedPoint(event, rect),
+                      initial: box,
+                    };
+                  }}
+                  title={t("library.viewer.textboxResize")}
+                />
+              ) : null}
             </div>
           );
         })}

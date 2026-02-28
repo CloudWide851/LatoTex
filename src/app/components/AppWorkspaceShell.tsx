@@ -410,7 +410,7 @@ export function AppWorkspaceShell(props: {
           t={t}
         />
 
-        <div className="relative min-h-0">
+        <div className="relative h-full min-h-0">
           {agentProposal ? (
             <AgentProposalMiniBar
               proposal={agentProposal}

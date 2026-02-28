@@ -352,7 +352,6 @@ export async function runAgentWorkflow(params: {
     format: "plain",
   });
   setAgentPrompt("");
-  setAgentCollapsed(false);
   setAgentPhase("running");
   setAgentStatusKey("agent.statusRunning");
 

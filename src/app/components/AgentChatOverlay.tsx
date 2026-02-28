@@ -318,12 +318,14 @@ export function AgentChatOverlay(props: {
     );
   }
 
+  const targetHeight = activityExpanded ? "clamp(220px, 52%, 420px)" : "clamp(132px, 24%, 214px)";
+
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-3 bottom-3 top-3 z-20 flex items-end justify-center">
       <div
-        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-0 max-h-[calc(100%-10px)] grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
+        className="pointer-events-auto grid w-[min(82%,980px)] max-w-[calc(100%-8px)] min-w-0 max-h-full grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          height: activityExpanded ? "clamp(210px, 40%, 390px)" : "clamp(132px, 24%, 214px)",
+          height: `min(${targetHeight}, calc(100% - 4px))`,
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">

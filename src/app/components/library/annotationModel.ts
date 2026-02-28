@@ -3,10 +3,17 @@ export type AnnotationPoint = {
   y: number;
 };
 
+export type AnnotationStrokeStyle = {
+  color: string;
+  width: number;
+  opacity: number;
+};
+
 export type AnnotationStroke = {
   id: string;
   page: number;
   points: AnnotationPoint[];
+  style: AnnotationStrokeStyle;
 };
 
 export type AnnotationTextStyle = {
@@ -29,9 +36,15 @@ export type AnnotationTextBox = {
 };
 
 export type AnnotationPayload = {
-  version: 2;
+  version: 3;
   strokes: AnnotationStroke[];
   textBoxes: AnnotationTextBox[];
+};
+
+const DEFAULT_STROKE_STYLE: AnnotationStrokeStyle = {
+  color: "#facc15",
+  width: 16,
+  opacity: 0.65,
 };
 
 const DEFAULT_TEXT_STYLE: AnnotationTextStyle = {
@@ -41,8 +54,22 @@ const DEFAULT_TEXT_STYLE: AnnotationTextStyle = {
   borderColor: "#93c5fd",
 };
 
-export function createDefaultTextStyle(): AnnotationTextStyle {
-  return { ...DEFAULT_TEXT_STYLE };
+export function createDefaultStrokeStyle(color?: string): AnnotationStrokeStyle {
+  return {
+    color: typeof color === "string" && color.trim().length > 0 ? color : DEFAULT_STROKE_STYLE.color,
+    width: DEFAULT_STROKE_STYLE.width,
+    opacity: DEFAULT_STROKE_STYLE.opacity,
+  };
+}
+
+export function createDefaultTextStyle(textColor?: string): AnnotationTextStyle {
+  return {
+    ...DEFAULT_TEXT_STYLE,
+    textColor:
+      typeof textColor === "string" && textColor.trim().length > 0
+        ? textColor
+        : DEFAULT_TEXT_STYLE.textColor,
+  };
 }
 
 export function clampNormalized(value: number): number {
@@ -78,6 +105,22 @@ function normalizePoint(input: any): AnnotationPoint | null {
   return { x: clampNormalized(x), y: clampNormalized(y) };
 }
 
+function normalizeStrokeStyle(input: any): AnnotationStrokeStyle {
+  const color =
+    typeof input?.color === "string" && input.color.trim().length > 0
+      ? input.color
+      : DEFAULT_STROKE_STYLE.color;
+  const width = Number(input?.width ?? DEFAULT_STROKE_STYLE.width);
+  const opacity = Number(input?.opacity ?? DEFAULT_STROKE_STYLE.opacity);
+  return {
+    color,
+    width: Number.isFinite(width) ? Math.max(6, Math.min(42, width)) : DEFAULT_STROKE_STYLE.width,
+    opacity: Number.isFinite(opacity)
+      ? Math.max(0.2, Math.min(1, opacity))
+      : DEFAULT_STROKE_STYLE.opacity,
+  };
+}
+
 export function parseAnnotationPayload(content: string): AnnotationPayload {
   try {
     const parsed = JSON.parse(content) as any;
@@ -95,6 +138,7 @@ export function parseAnnotationPayload(content: string): AnnotationPayload {
           id: typeof item?.id === "string" && item.id ? item.id : `stroke-${index}`,
           page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
           points,
+          style: normalizeStrokeStyle(item?.style),
         } as AnnotationStroke;
       })
       .filter((item: AnnotationStroke | null): item is AnnotationStroke => Boolean(item));
@@ -123,13 +167,13 @@ export function parseAnnotationPayload(content: string): AnnotationPayload {
       });
 
     return {
-      version: 2,
+      version: 3,
       strokes,
       textBoxes,
     };
   } catch {
     return {
-      version: 2,
+      version: 3,
       strokes: [],
       textBoxes: [],
     };
