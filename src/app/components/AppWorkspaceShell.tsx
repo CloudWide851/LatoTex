@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { AlertTriangle, Download, FolderOpen, ListChecks, Minus, Play, Plus, Redo2, RotateCcw, Save, Undo2 } from "lucide-react";
+import { FolderOpen, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type {
   CloseTabsAction,
@@ -14,13 +14,13 @@ import type {
 import type { LogTab } from "../app-config";
 import { AgentChatOverlay, type AgentCommandItem, type AgentPhase } from "./AgentChatOverlay";
 import { ExplorerTree } from "./ExplorerTree";
-import { FilePreviewPane } from "./FilePreviewPane";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
-import { isMarkdownPath, isPdfPath } from "../../shared/utils/fileKind";
+import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isTabularPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
+import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
 
 type TranslationFn = (key: any) => string;
@@ -199,10 +199,15 @@ export function AppWorkspaceShell(props: {
   const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
   const selectedIsPdf = isPdfPath(selectedFile);
   const selectedIsMarkdown = isMarkdownPath(selectedFile);
+  const selectedIsCsv = isCsvPath(selectedFile);
+  const selectedIsExcel = isExcelPath(selectedFile);
+  const selectedIsTabular = isTabularPath(selectedFile);
   const previewMode: "pdf" | "markdown" | "empty" = selectedIsPdf
     ? selectedFilePdfUrl
       ? "pdf"
       : "empty"
+    : selectedIsTabular
+      ? "empty"
     : preferCompiledPreview && compiledPdfUrl
       ? "pdf"
     : selectedIsMarkdown
@@ -265,83 +270,28 @@ export function AppWorkspaceShell(props: {
   );
 
   const renderPdfPreviewPanel = () => (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
-        <div className="flex items-center gap-1">
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-            title={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
-            aria-label={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
-            onClick={onExportPdf}
-            disabled={!compiledPdfUrl}
-          >
-            <Download className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-            title={t("preview.diagnostics")}
-            onClick={() => onOpenLogs("status")}
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-            title={t("preview.events")}
-            onClick={() => onOpenLogs("events")}
-          >
-            <ListChecks className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-            title={t("preview.zoomOut")}
-            aria-label={t("preview.zoomOut")}
-            onClick={() => setPreviewZoom((prev) => clampPreviewZoom(prev - 0.1))}
-            disabled={!canZoomPreview || previewZoom <= 0.5}
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-            title={t("preview.zoomIn")}
-            aria-label={t("preview.zoomIn")}
-            onClick={() => setPreviewZoom((prev) => clampPreviewZoom(prev + 0.1))}
-            disabled={!canZoomPreview || previewZoom >= 3}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
-            title={t("preview.zoomReset")}
-            aria-label={t("preview.zoomReset")}
-            onClick={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
-            disabled={!canZoomPreview}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-      {compileErrorLine && (
-        <button
-          className="mb-2 w-full truncate rounded border border-rose-300 bg-rose-50 px-2 py-1 text-left text-xs text-rose-700"
-          onClick={() => onOpenLogs("status")}
-          title={compileErrorLine}
-        >
-          {compileErrorLine}
-        </button>
-      )}
-      <div className="h-[calc(100%-52px)]">
-        <FilePreviewPane
-          mode={previewMode}
-          pdfUrl={previewPdfUrl ?? null}
-          markdownContent={selectedIsMarkdown ? editorContent : ""}
-          title={t("preview.title")}
-          emptyText={selectedIsMarkdown ? t("preview.markdownEmpty") : t("preview.empty")}
-          pdfZoom={previewZoom}
-          onPdfZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
-        />
-      </div>
-    </aside>
+    <WorkspacePreviewPanel
+      activeProjectId={activeProjectId}
+      selectedFile={selectedFile}
+      selectedIsCsv={selectedIsCsv}
+      selectedIsMarkdown={selectedIsMarkdown}
+      selectedIsTabular={selectedIsTabular}
+      editorContent={editorContent}
+      compiledPdfUrl={compiledPdfUrl}
+      previewMode={previewMode}
+      previewPdfUrl={previewPdfUrl ?? null}
+      canZoomPreview={canZoomPreview}
+      previewZoom={previewZoom}
+      compileErrorLine={compileErrorLine}
+      onEditorChange={onEditorChange}
+      onOpenLogs={onOpenLogs}
+      onExportPdf={onExportPdf}
+      onZoomIn={() => setPreviewZoom((prev) => clampPreviewZoom(prev + 0.1))}
+      onZoomOut={() => setPreviewZoom((prev) => clampPreviewZoom(prev - 0.1))}
+      onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
+      onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
+      t={t}
+    />
   );
 
   const renderMainPanel = () => {
@@ -426,21 +376,27 @@ export function AppWorkspaceShell(props: {
               t={t}
             />
           ) : null}
-          <MonacoEditor
-            language="latex"
-            value={editorContent}
-            onChange={(value) => onEditorChange(value ?? "")}
-            onMount={onEditorMount}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 14,
-              smoothScrolling: true,
-              automaticLayout: true,
-              wordWrap: "on",
-              wordWrapColumn: 0,
-              wrappingIndent: "same",
-            }}
-          />
+          {selectedIsExcel ? (
+            <div className="flex h-full items-center justify-center rounded-md bg-slate-50 text-xs text-slate-500">
+              {t("editor.excelPreviewOnly")}
+            </div>
+          ) : (
+            <MonacoEditor
+              language="latex"
+              value={editorContent}
+              onChange={(value) => onEditorChange(value ?? "")}
+              onMount={onEditorMount}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                smoothScrolling: true,
+                automaticLayout: true,
+                wordWrap: "on",
+                wordWrapColumn: 0,
+                wrappingIndent: "same",
+              }}
+            />
+          )}
           <AgentChatOverlay
             collapsed={agentCollapsed}
             phase={agentPhase}

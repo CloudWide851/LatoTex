@@ -1,4 +1,6 @@
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
+const CSV_EXTENSIONS = new Set(["csv", "tsv"]);
+const EXCEL_EXTENSIONS = new Set(["xlsx", "xlsm", "xls"]);
 
 function normalizePath(input: string | null | undefined): string {
   return (input ?? "").trim().toLowerCase();
@@ -21,3 +23,14 @@ export function isMarkdownPath(path: string | null | undefined): boolean {
   return MARKDOWN_EXTENSIONS.has(extensionOf(path ?? ""));
 }
 
+export function isCsvPath(path: string | null | undefined): boolean {
+  return CSV_EXTENSIONS.has(extensionOf(path ?? ""));
+}
+
+export function isExcelPath(path: string | null | undefined): boolean {
+  return EXCEL_EXTENSIONS.has(extensionOf(path ?? ""));
+}
+
+export function isTabularPath(path: string | null | undefined): boolean {
+  return isCsvPath(path) || isExcelPath(path);
+}

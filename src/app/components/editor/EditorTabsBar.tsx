@@ -1,4 +1,4 @@
-import { ChevronDown, Circle, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Circle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "../../../lib/utils";
 import type { CloseTabsAction, EditorTab } from "../../../shared/types/app";
@@ -28,6 +28,8 @@ export function EditorTabsBar(props: {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [hasOverflow, setHasOverflow] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState>(null);
 
   useEffect(() => {
@@ -36,17 +38,33 @@ export function EditorTabsBar(props: {
       return;
     }
     const refreshOverflow = () => {
-      setHasOverflow(element.scrollWidth > element.clientWidth + 4);
+      const overflow = element.scrollWidth > element.clientWidth + 4;
+      setHasOverflow(overflow);
+      setCanScrollLeft(element.scrollLeft > 2);
+      setCanScrollRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 2);
     };
     refreshOverflow();
     const observer = new ResizeObserver(refreshOverflow);
     observer.observe(element);
+    element.addEventListener("scroll", refreshOverflow, { passive: true });
     const timer = window.setInterval(refreshOverflow, 360);
     return () => {
       observer.disconnect();
+      element.removeEventListener("scroll", refreshOverflow);
       window.clearInterval(timer);
     };
   }, [tabs.length]);
+
+  useEffect(() => {
+    if (!activeTabId || !rootRef.current) {
+      return;
+    }
+    const target = rootRef.current.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`);
+    if (!target) {
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [activeTabId, tabs]);
 
   useEffect(() => {
     const closeAll = (event: MouseEvent) => {
@@ -84,6 +102,7 @@ export function EditorTabsBar(props: {
             return (
               <div
                 key={tab.id}
+                data-tab-id={tab.id}
                 className={cn(
                   "group inline-flex h-7 max-w-[240px] items-center gap-1 rounded-md border px-2 text-xs transition",
                   active
@@ -133,42 +152,74 @@ export function EditorTabsBar(props: {
       </div>
 
       {hasOverflow && (
-        <div className="relative shrink-0">
+        <div className="flex shrink-0 items-center gap-1">
           <button
-            className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
-            onClick={(event) => {
-              event.stopPropagation();
-              setOverflowOpen((prev) => !prev);
+            className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            onClick={() => {
+              const node = viewportRef.current;
+              if (!node) {
+                return;
+              }
+              node.scrollBy({ left: -Math.max(120, Math.floor(node.clientWidth * 0.6)), behavior: "smooth" });
             }}
-            title={t("editor.tab.more")}
-            aria-label={t("editor.tab.more")}
+            disabled={!canScrollLeft}
+            title={t("editor.tab.scrollLeft")}
+            aria-label={t("editor.tab.scrollLeft")}
           >
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-          {overflowOpen && (
-            <div className="absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
-              {sortedOverflowTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
-                    tab.id === activeTabId
-                      ? "bg-primary-50 text-primary-900"
-                      : "text-slate-700 hover:bg-slate-100",
-                  )}
-                  onClick={() => {
-                    setOverflowOpen(false);
-                    onSelect(tab.id);
-                  }}
-                >
-                  <span className="truncate">{tab.title}</span>
-                  {dirtyByPath[tab.path] && (
-                    <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+          <button
+            className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            onClick={() => {
+              const node = viewportRef.current;
+              if (!node) {
+                return;
+              }
+              node.scrollBy({ left: Math.max(120, Math.floor(node.clientWidth * 0.6)), behavior: "smooth" });
+            }}
+            disabled={!canScrollRight}
+            title={t("editor.tab.scrollRight")}
+            aria-label={t("editor.tab.scrollRight")}
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <div className="relative shrink-0">
+            <button
+              className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
+              onClick={(event) => {
+                event.stopPropagation();
+                setOverflowOpen((prev) => !prev);
+              }}
+              title={t("editor.tab.more")}
+              aria-label={t("editor.tab.more")}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {overflowOpen && (
+              <div className="absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
+                {sortedOverflowTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
+                      tab.id === activeTabId
+                        ? "bg-primary-50 text-primary-900"
+                        : "text-slate-700 hover:bg-slate-100",
+                    )}
+                    onClick={() => {
+                      setOverflowOpen(false);
+                      onSelect(tab.id);
+                    }}
+                  >
+                    <span className="truncate">{tab.title}</span>
+                    {dirtyByPath[tab.path] && (
+                      <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -138,6 +138,32 @@ pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, 
     })
 }
 
+pub fn write_project_file_binary(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+    bytes: &[u8],
+) -> Result<Ack, String> {
+    let root = load_project_root(db_path, project_id)?;
+    let target = safe_join(&root, relative_path)?;
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(target, bytes).map_err(|e| e.to_string())?;
+
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE projects SET updated_at = ?1 WHERE id = ?2",
+        params![now_iso(), project_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(Ack {
+        ok: true,
+        message: "Binary file saved".to_string(),
+    })
+}
+
 const SEARCH_MAX_FILE_SIZE_BYTES: u64 = 1_048_576;
 
 fn truncate_chars(input: &str, max_chars: usize) -> String {

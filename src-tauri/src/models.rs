@@ -104,6 +104,14 @@ pub struct FileWriteInput {
     pub content: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileWriteBinaryInput {
+    pub project_id: String,
+    pub relative_path: String,
+    pub bytes: Vec<u8>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Ack {

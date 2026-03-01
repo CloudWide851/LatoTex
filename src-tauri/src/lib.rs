@@ -18,7 +18,7 @@ use commands::git::{
 };
 use commands::health::{health_check, tray_set_labels, window_sync_icon};
 use commands::projects::{
-    file_read, file_read_binary, file_write, fs_operation, library_import_link, library_import_pdf,
+    file_read, file_read_binary, file_write, file_write_binary, fs_operation, library_import_link, library_import_pdf,
     open_external_link,
     library_citation_summary, library_rescan, library_resolve_pdf_preview, library_tree, project_create,
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list, project_open, project_search_content,
@@ -112,6 +112,7 @@ pub fn run() {
             file_read,
             file_read_binary,
             file_write,
+            file_write_binary,
             workspace_export_pdf,
             library_tree,
             library_rescan,

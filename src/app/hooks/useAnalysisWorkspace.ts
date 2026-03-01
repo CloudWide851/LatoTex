@@ -4,6 +4,7 @@ import {
   analysisListReports,
   analysisSaveReport,
   runAgent,
+  runtimeLogWrite,
   workspaceRevealInSystem,
 } from "../../shared/api/desktop";
 import type { AnalysisReportItem } from "../../shared/types/app";
@@ -18,6 +19,16 @@ type AgentPlan = {
   summary: string;
   pythonScript: string;
 };
+
+function fallbackPlan(t: TranslationFn): AgentPlan {
+  return {
+    title: t("analysis.defaultTitle"),
+    steps: [t("analysis.defaultStep")],
+    insights: [],
+    summary: t("analysis.defaultSummary"),
+    pythonScript: "",
+  };
+}
 
 export type AnalysisResultView = {
   runId: string;
@@ -181,6 +192,7 @@ export function useAnalysisWorkspace(params: {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<AnalysisResultView | null>(null);
   const [reports, setReports] = useState<AnalysisReportItem[]>([]);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const refreshReports = useCallback(async () => {
     if (!projectId) {
@@ -203,9 +215,15 @@ export function useAnalysisWorkspace(params: {
 
   const runAnalysisForPrompt = useCallback(async (inputPrompt: string) => {
     const normalizedPrompt = inputPrompt.trim();
-    if (!projectId || !normalizedPrompt) {
+    if (!projectId) {
+      setAnalysisError(t("analysis.error.noProject"));
       return;
     }
+    if (!normalizedPrompt) {
+      setAnalysisError(t("analysis.error.emptyPrompt"));
+      return;
+    }
+    setAnalysisError(null);
     setRunning(true);
     try {
       const planningPrompt = [
@@ -218,18 +236,28 @@ export function useAnalysisWorkspace(params: {
         selectedFile ? `Current file: ${selectedFile}` : "",
         editorContent ? `Current content:\n${editorContent.slice(0, 6000)}` : "",
       ].join("\n");
-
-      const planned = await runAgent({
-        projectId,
-        role: "task",
-        prompt: planningPrompt,
-        contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
-      });
-      const plan = parseAgentPlan(planned.output);
+      let plan: AgentPlan;
+      try {
+        const planned = await runAgent({
+          projectId,
+          role: "task",
+          prompt: planningPrompt,
+          contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+        });
+        plan = parseAgentPlan(planned.output);
+      } catch (error) {
+        await runtimeLogWrite("WARN", `analysis planner fallback: ${String(error)}`).catch(() => undefined);
+        plan = fallbackPlan(t);
+      }
       const script = plan.pythonScript || DEFAULT_PYTHON_SCRIPT;
       const runner = getPyodideRunner();
-      const raw = await runner.runScript(script, 60_000);
-      const rawObj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+      let rawObj: Record<string, unknown> = {};
+      try {
+        const raw = await runner.runScript(script, 60_000);
+        rawObj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+      } catch (error) {
+        await runtimeLogWrite("WARN", `analysis pyodide fallback: ${String(error)}`).catch(() => undefined);
+      }
       const labels = normalizeStringArray(rawObj.labels);
       const values = normalizeNumberArray(rawObj.values);
       const insights = [
@@ -277,7 +305,9 @@ export function useAnalysisWorkspace(params: {
       await refreshReports();
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      const message = `${t("analysis.error.failed")}: ${String(error)}`;
+      setAnalysisError(message);
+      setToast({ type: "error", message });
     } finally {
       setRunning(false);
     }
@@ -320,6 +350,7 @@ export function useAnalysisWorkspace(params: {
     running,
     canRun,
     result,
+    analysisError,
     reports,
     runAnalysis,
     runAnalysisWithPrompt,

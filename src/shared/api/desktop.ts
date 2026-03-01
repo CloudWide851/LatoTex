@@ -171,6 +171,20 @@ export function writeFile(projectId: string, relativePath: string, content: stri
   return invoke("file_write", { input: { projectId, relativePath, content } });
 }
 
+export function writeFileBinary(
+  projectId: string,
+  relativePath: string,
+  bytes: Uint8Array | number[],
+): Promise<Ack> {
+  return invoke<Ack>("file_write_binary", {
+    input: {
+      projectId,
+      relativePath,
+      bytes: Array.from(bytes),
+    },
+  });
+}
+
 export function workspaceExportPdf(
   projectId: string,
   defaultFileName: string,

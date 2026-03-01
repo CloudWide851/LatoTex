@@ -136,7 +136,12 @@ export function SettingsPanel(props: {
         </div>
       </aside>
 
-      <section className="min-h-0 overflow-auto p-3">
+      <section
+        className={cn(
+          "min-h-0 p-3",
+          settingsSection === "diagnostics" ? "overflow-hidden" : "overflow-auto",
+        )}
+      >
         <div className="mb-3 border-b border-slate-200 pb-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
@@ -440,6 +445,7 @@ export function SettingsPanel(props: {
             runtimeLogs={runtimeLogs}
             runtimeLogLoading={runtimeLogLoading}
             sessionLogName={sessionLogName}
+            locale={locale}
             onReloadLogs={onReloadLogs}
             onClearCurrentLog={onClearCurrentLog}
             t={t}

@@ -11,6 +11,7 @@ export function AnalysisWorkspace(props: {
   canRun: boolean;
   running: boolean;
   result: AnalysisResultView | null;
+  errorMessage: string | null;
   reports: AnalysisReportItem[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
@@ -25,6 +26,7 @@ export function AnalysisWorkspace(props: {
     canRun,
     running,
     result,
+    errorMessage,
     reports,
     onPromptChange,
     onRun,
@@ -69,6 +71,11 @@ export function AnalysisWorkspace(props: {
 
   return (
     <div className="relative h-full min-h-0 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
+      {errorMessage ? (
+        <div className="mb-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {errorMessage}
+        </div>
+      ) : null}
       {!result ? (
         <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 pb-28 text-sm text-slate-500">
           {t("analysis.blankHint")}

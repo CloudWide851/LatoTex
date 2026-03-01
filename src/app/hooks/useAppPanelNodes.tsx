@@ -129,6 +129,7 @@ export function useAppPanelNodes(params: any) {
       canRun={analysisWorkspace.canRun}
       running={analysisWorkspace.running}
       result={analysisWorkspace.result}
+      errorMessage={analysisWorkspace.analysisError}
       reports={analysisWorkspace.reports}
       onPromptChange={analysisWorkspace.setPrompt}
       onRun={() => {

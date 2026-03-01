@@ -14,7 +14,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       <select
         ref={ref}
         className={cn(
-          "w-full appearance-none rounded-xl border px-3 pr-9 font-medium outline-none transition",
+          "w-full appearance-none rounded-xl border px-3 pr-9 font-medium leading-none outline-none transition",
           uiSize === "sm" ? "h-8 text-xs" : "h-10 text-sm",
           tone === "dark"
             ? "border-slate-600 bg-slate-900/95 text-slate-100 shadow-[0_10px_22px_rgba(2,6,23,0.32)] hover:border-slate-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/30"
@@ -28,7 +28,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       </select>
       <ChevronDown
         className={cn(
-          "pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2",
+          "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2",
+          uiSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
           tone === "dark" ? "text-zinc-400" : "text-slate-500"
         )}
       />

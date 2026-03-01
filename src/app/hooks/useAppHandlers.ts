@@ -13,7 +13,7 @@ import {
   workspaceRevealInSystem,
   writeFile,
 } from "../../shared/api/desktop";
-import { isPdfPath } from "../../shared/utils/fileKind";
+import { isExcelPath, isPdfPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
@@ -185,6 +185,10 @@ export function useAppHandlers(params: UseAppHandlersParams) {
 
   const handleSaveFile = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
+      return false;
+    }
+    if (isExcelPath(selectedFile)) {
+      setToast({ type: "info", message: t("table.excel.usePreviewSave") });
       return false;
     }
     setBusy(true);

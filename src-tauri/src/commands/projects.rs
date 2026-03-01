@@ -1,5 +1,6 @@
 use crate::models::{
-    Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteInput,
+    Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteBinaryInput,
+    FileWriteInput,
     FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
     LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
     OpenExternalLinkInput, ProjectPathActionInput,
@@ -121,6 +122,28 @@ pub fn file_write(state: State<'_, AppState>, input: FileWriteInput) -> Result<A
         &format!("file_write: {} ({})", input.relative_path, input.project_id),
     );
     storage::write_project_file(&state.db_path, input)
+}
+
+#[tauri::command]
+pub fn file_write_binary(
+    state: State<'_, AppState>,
+    input: FileWriteBinaryInput,
+) -> Result<Ack, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "file_write_binary: {} ({}), bytes={}",
+            input.relative_path,
+            input.project_id,
+            input.bytes.len()
+        ),
+    );
+    storage::write_project_file_binary(
+        &state.db_path,
+        &input.project_id,
+        &input.relative_path,
+        &input.bytes,
+    )
 }
 
 fn ensure_within_project_root(root: &PathBuf, candidate: &PathBuf) -> Result<(), String> {

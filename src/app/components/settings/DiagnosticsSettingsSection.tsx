@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Locale } from "../../../i18n";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
@@ -32,16 +33,49 @@ function renderConsoleLine(entry: RuntimeLogEntry): string {
   return `[${timestamp}] [${level}] ${message}`;
 }
 
+function normalizeLogDateInput(value: string): string {
+  const text = value.trim();
+  if (!text) {
+    return "";
+  }
+  const normalized = text
+    .replace(/[./]/g, "-")
+    .replace("T", " ")
+    .replace(/\s+/g, " ");
+  const match = normalized.match(
+    /^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/,
+  );
+  if (!match) {
+    return "";
+  }
+  const [, yy, mm, dd, hh = "0", mi = "0", ss = "0"] = match;
+  const clamp = (input: string, min: number, max: number) => {
+    const n = Number(input);
+    if (!Number.isFinite(n)) {
+      return min;
+    }
+    return Math.min(max, Math.max(min, Math.floor(n)));
+  };
+  const year = clamp(yy, 1970, 9999);
+  const month = clamp(mm, 1, 12);
+  const day = clamp(dd, 1, 31);
+  const hour = clamp(hh, 0, 23);
+  const minute = clamp(mi, 0, 59);
+  const second = clamp(ss, 0, 59);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
+}
+
 export function DiagnosticsSettingsSection(props: {
   runtimeInfo: RuntimeLogInfo | null;
   runtimeLogs: RuntimeLogEntry[];
   runtimeLogLoading: boolean;
   sessionLogName: string;
+  locale: Locale;
   onReloadLogs: (options?: { silent?: boolean }) => Promise<void>;
   onClearCurrentLog: () => Promise<void>;
   t: TranslationFn;
 }) {
-  const { runtimeInfo, runtimeLogs, runtimeLogLoading, sessionLogName, onReloadLogs, onClearCurrentLog, t } = props;
+  const { runtimeInfo, runtimeLogs, runtimeLogLoading, sessionLogName, locale, onReloadLogs, onClearCurrentLog, t } = props;
   const [logLevelFilter, setLogLevelFilter] = useState("ALL");
   const [logKeyword, setLogKeyword] = useState("");
   const [logFrom, setLogFrom] = useState("");
@@ -72,8 +106,8 @@ export function DiagnosticsSettingsSection(props: {
   }, [runtimeLogs.length]);
 
   const filteredRuntimeLogs = useMemo(() => {
-    const from = logFrom.trim() ? logFrom.replace("T", " ") : "";
-    const to = logTo.trim() ? logTo.replace("T", " ") : "";
+    const from = normalizeLogDateInput(logFrom);
+    const to = normalizeLogDateInput(logTo);
     const keyword = logKeyword.trim().toLowerCase();
     return runtimeLogs.filter((entry) => {
       const level = entry.level.toUpperCase();
@@ -95,6 +129,7 @@ export function DiagnosticsSettingsSection(props: {
       return true;
     });
   }, [logFrom, logKeyword, logLevelFilter, logTo, runtimeLogs]);
+  const datePlaceholder = locale === "zh-CN" ? "YYYY/MM/DD HH:mm:ss" : "YYYY-MM-DD HH:mm:ss";
 
   return (
     <div className="grid h-full min-h-0 gap-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -139,16 +174,18 @@ export function DiagnosticsSettingsSection(props: {
         />
         <Input
           className="h-8 text-xs"
-          type="datetime-local"
+          type="text"
           value={logFrom}
           onChange={(event) => setLogFrom(event.target.value)}
+          placeholder={datePlaceholder}
           title={t("settings.logFilterFrom")}
         />
         <Input
           className="h-8 text-xs"
-          type="datetime-local"
+          type="text"
           value={logTo}
           onChange={(event) => setLogTo(event.target.value)}
+          placeholder={datePlaceholder}
           title={t("settings.logFilterTo")}
         />
       </div>

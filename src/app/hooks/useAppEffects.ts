@@ -14,7 +14,7 @@ import {
   runtimeLogWrite,
   windowSyncIcon,
 } from "../../shared/api/desktop";
-import { isPdfPath } from "../../shared/utils/fileKind";
+import { isExcelPath, isPdfPath } from "../../shared/utils/fileKind";
 import type {
   AppSettings,
   SwarmEvent,
@@ -265,6 +265,13 @@ export function useAppEffects(params: {
             setToast({ type: "error", message: String(error) });
           }
         });
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (isExcelPath(selectedFile)) {
+      setSelectedFilePdfUrl(null);
+      setEditorContent("");
       return () => {
         cancelled = true;
       };
