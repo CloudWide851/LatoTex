@@ -39,6 +39,16 @@ const SETTINGS_SECTIONS: Array<{
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];
 const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
+const AGENT_ROLE_LABEL_KEY: Record<string, string> = {
+  plan: "settings.agentRole.plan",
+  task: "settings.agentRole.task",
+  completion: "settings.agentRole.completion",
+  explore: "settings.agentRole.explore",
+  web_search: "settings.agentRole.webSearch",
+  review: "settings.agentRole.review",
+  ephemeral: "settings.agentRole.ephemeral",
+  git_summary: "settings.agentRole.gitSummary",
+};
 
 export function SettingsPanel(props: {
   settings: AppSettings | null;
@@ -408,7 +418,7 @@ export function SettingsPanel(props: {
                 key={`${binding.role}-${index}`}
               >
                 <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {binding.role}
+                  {t((AGENT_ROLE_LABEL_KEY[binding.role] ?? binding.role) as any)}
                 </span>
                 <Select
                   value={binding.modelId}

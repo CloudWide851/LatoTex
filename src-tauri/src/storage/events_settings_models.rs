@@ -86,9 +86,10 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
     Ok(EventBatch { next_cursor, events })
 }
 
-const FIXED_AGENT_ROLES: [&str; 7] = [
+const FIXED_AGENT_ROLES: [&str; 8] = [
     "plan",
     "task",
+    "completion",
     "explore",
     "web_search",
     "review",

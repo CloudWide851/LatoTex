@@ -19,7 +19,7 @@ import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isTabularPath } from
 import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
-import { ensureLatexCompletionProvider } from "./editor/latexCompletion";
+import { configureLatexCompletionRuntime, ensureLatexCompletionProvider } from "./editor/latexCompletion";
 import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
@@ -105,6 +105,7 @@ export function AppWorkspaceShell(props: {
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
   previewDefaultZoom: number;
+  completionModelId: string | null;
   onFsAction: (
     scope: FsScope,
     action: FsAction,
@@ -186,30 +187,24 @@ export function AppWorkspaceShell(props: {
     onWorkspaceOpenTerminal,
     onSavePanelLayout,
     previewDefaultZoom,
+    completionModelId,
     onFsAction,
     t,
   } = props;
   const [previewZoom, setPreviewZoom] = useState(1);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
-  const [editorPanelWidth, setEditorPanelWidth] = useState(0);
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
   useEffect(() => {
     setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
   }, [previewDefaultZoom]);
   useEffect(() => {
-    const node = editorPanelRef.current;
-    if (!node || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const update = () => {
-      setEditorPanelWidth(Math.max(0, Math.floor(node.getBoundingClientRect().width)));
-    };
-    update();
-    const observer = new ResizeObserver(() => update());
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+    configureLatexCompletionRuntime(() => ({
+      projectId: activeProjectId,
+      selectedFile,
+      completionModelId,
+    }));
+  }, [activeProjectId, completionModelId, selectedFile]);
   useEffect(() => {
     if (!compileErrorLine) {
       setCompileAssistDismissedFor("");
@@ -424,7 +419,6 @@ export function AppWorkspaceShell(props: {
             />
           )}
           <AgentChatOverlay
-            containerWidth={editorPanelWidth}
             collapsed={agentCollapsed}
             phase={agentPhase}
             statusLine={t(agentStatusKey)}

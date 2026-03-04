@@ -23,11 +23,12 @@ export function isLatexPath(path: string): boolean {
   return LATEX_EXTENSIONS.some((ext) => normalized.endsWith(ext));
 }
 
-function extractMentionedPath(prompt: string): string | null {
+function extractMentionedPaths(prompt: string): string[] {
   const matches = prompt.match(/[A-Za-z0-9_.\-\/\\]+\.[A-Za-z0-9]{1,8}/g);
   if (!matches || matches.length === 0) {
-    return null;
+    return [];
   }
+  const out = new Set<string>();
   for (const item of matches) {
     const normalized = normalizePath(item);
     if (!normalized) {
@@ -37,21 +38,28 @@ function extractMentionedPath(prompt: string): string | null {
     if (lower.startsWith("http://") || lower.startsWith("https://")) {
       continue;
     }
-    return normalized;
+    out.add(normalized);
   }
-  return null;
+  return Array.from(out);
 }
 
 export function pickTargetPath(prompt: string, selectedFile: string | null): {
   targetPath: string;
   explicitPath: boolean;
 } {
-  const mentioned = extractMentionedPath(prompt);
-  if (mentioned) {
-    return { targetPath: mentioned, explicitPath: true };
+  const mentionedPaths = extractMentionedPaths(prompt);
+  const latexMention = mentionedPaths.find((item) => isLatexPath(item));
+  if (latexMention) {
+    return { targetPath: latexMention, explicitPath: true };
+  }
+  if (mentionedPaths.length > 0 && selectedFile == null) {
+    return { targetPath: mentionedPaths[0], explicitPath: true };
   }
   if (selectedFile && isLatexPath(selectedFile)) {
     return { targetPath: selectedFile, explicitPath: false };
+  }
+  if (mentionedPaths.length > 0) {
+    return { targetPath: mentionedPaths[0], explicitPath: true };
   }
   return { targetPath: "main.tex", explicitPath: false };
 }

@@ -41,6 +41,7 @@ export type AgentStatusKey =
 export const FIXED_AGENT_ROLES = [
   "plan",
   "task",
+  "completion",
   "explore",
   "web_search",
   "review",

@@ -27,10 +27,8 @@ import { useAgentSessionController } from "./hooks/useAgentSessionController";
 import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
 import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
 import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
-import {
-  useCompiledPreviewResetOnProjectChange,
-  useTrayLabelSync,
-} from "./hooks/useAppContainerRuntimeEffects";
+import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
+import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 
 type IntegrityIssue = {
   projectId: string;
@@ -468,6 +466,10 @@ export function AppContainer() {
     compileDiagnostics: s.compileDiagnostics,
     lastCompileFailed: s.lastCompileFailed,
   });
+  const handleLibraryAnalyzePaper = useLibraryAnalysisNavigator({
+    setPage: s.setPage,
+    runPaperAnalysisFromLibrary: analysisWorkspace.runPaperAnalysisFromLibrary,
+  });
 
   return (
     <AppContainerView
@@ -557,10 +559,7 @@ export function AppContainer() {
       handleLibraryRescan={handlers.handleLibraryRescan}
       handleLibraryImportPdf={handlers.handleLibraryImportPdf}
       handleLibraryImportLink={handlers.handleLibraryImportLink}
-      handleLibraryAnalyzePaper={(path: string) => {
-        s.setPage("analysis");
-        void analysisWorkspace.runPaperAnalysisFromLibrary(path);
-      }}
+      handleLibraryAnalyzePaper={handleLibraryAnalyzePaper}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
       savePanelLayout={savePanelLayout}

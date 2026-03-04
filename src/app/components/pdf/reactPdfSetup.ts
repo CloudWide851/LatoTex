@@ -1,4 +1,5 @@
 import { pdfjs } from "react-pdf";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 let configured = false;
 
@@ -6,9 +7,8 @@ export function ensureReactPdfWorker(): void {
   if (configured) {
     return;
   }
-  const workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-  if (pdfjs.GlobalWorkerOptions.workerSrc !== workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  if (pdfjs.GlobalWorkerOptions.workerSrc !== pdfWorkerUrl) {
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
   }
   configured = true;
 }

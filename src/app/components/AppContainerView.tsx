@@ -126,6 +126,9 @@ export function AppContainerView(props: any) {
     handleUnsavedDialogDiscardAndContinue,
     handleUnsavedDialogCancel,
   } = props;
+  const completionModelId =
+    settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "completion")
+      ?.modelId ?? null;
 
   return (
     <div
@@ -175,6 +178,7 @@ export function AppContainerView(props: any) {
             analysisLayout={analysisLayout}
             libraryLayout={libraryLayout}
             previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
+            completionModelId={completionModelId}
             tree={tree}
             libraryTree={libraryTree}
             selectedFile={selectedFile}

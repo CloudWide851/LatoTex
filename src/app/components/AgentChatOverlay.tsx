@@ -201,7 +201,6 @@ function ProposalBar(props: {
 }
 
 export function AgentChatOverlay(props: {
-  containerWidth?: number;
   collapsed: boolean;
   phase: AgentPhase;
   statusLine: string;
@@ -242,7 +241,6 @@ export function AgentChatOverlay(props: {
   rollbackLabel: string;
 }) {
   const {
-    containerWidth,
     collapsed,
     phase,
     statusLine,
@@ -330,8 +328,6 @@ export function AgentChatOverlay(props: {
       <div
         className="pointer-events-auto grid w-full max-w-full min-w-0 max-h-full grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
         style={{
-          width: containerWidth && containerWidth > 0 ? `${Math.max(0, containerWidth - 8)}px` : undefined,
-          maxWidth: containerWidth && containerWidth > 0 ? `${Math.max(0, containerWidth - 8)}px` : undefined,
           height: `min(${targetHeight}, calc(100% - 4px))`,
         }}
       >
