@@ -54,6 +54,10 @@ export function useAnalysisWorkspace(params: {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
+  const csvCandidateFiles = useMemo(
+    () => candidateFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
+    [candidateFiles],
+  );
   const activeTask = useMemo(
     () => tasks.find((item) => item.id === activeTaskId) ?? null,
     [activeTaskId, tasks],
@@ -87,7 +91,7 @@ export function useAnalysisWorkspace(params: {
         setTasks(state.tasks);
         setActiveTaskId(state.activeTaskId);
         if (candidateFiles.length > 0) {
-          setSelectedInputFiles(candidateFiles.slice(0, Math.min(8, candidateFiles.length)));
+          setSelectedInputFiles(csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles);
         }
         loadedRef.current = true;
       })
@@ -103,7 +107,7 @@ export function useAnalysisWorkspace(params: {
     return () => {
       cancelled = true;
     };
-  }, [candidateFiles, projectId, setToast, t]);
+  }, [candidateFiles, csvCandidateFiles, projectId, setToast, t]);
 
   useEffect(() => {
     if (!projectId || !loadedRef.current) {
@@ -264,13 +268,68 @@ export function useAnalysisWorkspace(params: {
           },
         ];
       } else {
-        const chosenFiles = selectedInputFiles.length > 0 ? selectedInputFiles : candidateFiles.slice(0, 8);
+        const defaultInputFiles = csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles;
+        const chosenFiles = selectedInputFiles.length > 0 ? selectedInputFiles : defaultInputFiles;
         if (chosenFiles.length === 0) {
           throw new Error(t("analysis.error.noInputFiles"));
         }
         steps.push(t("analysis.step.loadData"));
         snapshots = await loadDataSnapshots(projectId, chosenFiles);
-        sourceBlock = summarizeSnapshotsForPrompt(snapshots);
+        const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
+
+        steps.push(t("analysis.step.profileEachFile"));
+        const perFileProfiles: string[] = [];
+        const profileTargets = snapshots.slice(0, Math.min(12, snapshots.length));
+        for (const snapshot of profileTargets) {
+          const profilePrompt = [
+            `Output language must be ${outputLanguageLabel}.`,
+            "Profile this file and return compact markdown with fields:",
+            "overview, data quality, anomalies, and actionable next checks.",
+            `File: ${snapshot.path}`,
+            `Summary: ${snapshot.summary}`,
+            "Excerpt:",
+            snapshot.excerpt.slice(0, 2400),
+          ].join("\n\n");
+          try {
+            const profileResult = await runRolePrompt("explore", profilePrompt, contextRefs);
+            perFileProfiles.push(`[${snapshot.path}]\n${profileResult.output}`);
+          } catch {
+            perFileProfiles.push(`[${snapshot.path}]\nprofile_failed`);
+          }
+        }
+
+        steps.push(t("analysis.step.crossFile"));
+        const crossFilePrompt = [
+          `Output language must be ${outputLanguageLabel}.`,
+          "You are performing cross-file analysis.",
+          "Find relationships, inconsistencies, and linked hypotheses across files.",
+          `Total selected files: ${chosenFiles.length}.`,
+          "Per-file profiles:",
+          perFileProfiles.join("\n\n"),
+        ].join("\n\n");
+        const crossFileResult = await runRolePrompt("explore", crossFilePrompt, contextRefs);
+
+        steps.push(t("analysis.step.deepDive"));
+        const deepDivePrompt = [
+          `Output language must be ${outputLanguageLabel}.`,
+          "Deep dive into the most important findings and likely root causes.",
+          "Return compact markdown with: key finding, evidence, confidence, and verification plan.",
+          "User request:",
+          normalizedPrompt,
+          "Cross-file synthesis:",
+          crossFileResult.output,
+        ].join("\n\n");
+        const deepDiveResult = await runRolePrompt("explore", deepDivePrompt, contextRefs);
+
+        sourceBlock = [
+          snapshotSummary,
+          "Per-file profile summary:",
+          perFileProfiles.join("\n\n"),
+          "Cross-file synthesis:",
+          crossFileResult.output,
+          "Deep-dive findings:",
+          deepDiveResult.output,
+        ].join("\n\n");
       }
 
       if (selectedFile && editorContent.trim()) {
@@ -353,7 +412,9 @@ export function useAnalysisWorkspace(params: {
         sourcePath: task.sourcePath,
         inputFiles: task.sourceType === "paper"
           ? [task.sourcePath ?? ""]
-          : (selectedInputFiles.length > 0 ? selectedInputFiles : candidateFiles.slice(0, 8)),
+          : (selectedInputFiles.length > 0
+            ? selectedInputFiles
+            : (csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles)),
         outputLanguage,
         agentRunId: finalResult.runId,
         createdAt: nowIso(),
@@ -382,6 +443,7 @@ export function useAnalysisWorkspace(params: {
   }, [
     activeTaskId,
     candidateFiles,
+    csvCandidateFiles,
     editorContent,
     locale,
     projectId,

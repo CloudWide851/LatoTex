@@ -1,0 +1,171 @@
+import { useCallback } from "react";
+import { openProject, runtimeLogWrite, workspaceExportPdf } from "../../shared/api/desktop";
+import { isPdfPath } from "../../shared/utils/fileKind";
+import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
+
+type TranslationFn = (key: any) => string;
+
+export function useCompileActions(params: {
+  activeProjectId: string | null;
+  selectedFile: string | null;
+  fileList: string[];
+  editorContent: string;
+  pdfUrl: string | null;
+  compiledPdfBytes: Uint8Array | null;
+  setBusy: (value: boolean) => void;
+  setToast: (value: { type: "info" | "error"; message: string }) => void;
+  setTree: (value: any[]) => void;
+  setSelectedFile: (value: string | null) => void;
+  setCompileDiagnostics: (value: string[]) => void;
+  setLastCompileFailed: (value: boolean) => void;
+  setPdfUrl: (value: string | null) => void;
+  setCompiledPdfBytes: (value: Uint8Array | null) => void;
+  setPreferCompiledPreview: (value: boolean) => void;
+  editorRef: React.MutableRefObject<any>;
+  t: TranslationFn;
+}) {
+  const {
+    activeProjectId,
+    selectedFile,
+    fileList,
+    editorContent,
+    pdfUrl,
+    compiledPdfBytes,
+    setBusy,
+    setToast,
+    setTree,
+    setSelectedFile,
+    setCompileDiagnostics,
+    setLastCompileFailed,
+    setPdfUrl,
+    setCompiledPdfBytes,
+    setPreferCompiledPreview,
+    editorRef,
+    t,
+  } = params;
+
+  const runCompilePass = useCallback(async (
+    projectId: string,
+    mainPath: string,
+    mainContent: string,
+    options: { updatePreview: boolean; emitToast: boolean },
+  ) => {
+    return runCompilePassWorkflow({
+      projectId,
+      mainPath,
+      mainContent,
+      fileList,
+      currentPdfUrl: pdfUrl,
+      updatePreview: options.updatePreview,
+      emitToast: options.emitToast,
+      t,
+      setLastCompileFailed,
+      setCompileDiagnostics,
+      setPdfUrl,
+      setCompiledPdfBytes,
+      setPreferCompiledPreview,
+      setToast,
+    });
+  }, [
+    fileList,
+    pdfUrl,
+    setCompileDiagnostics,
+    setCompiledPdfBytes,
+    setLastCompileFailed,
+    setPdfUrl,
+    setPreferCompiledPreview,
+    setToast,
+    t,
+  ]);
+
+  const runCompilePassForAgent = useCallback(async (input: {
+    projectId: string;
+    mainPath: string;
+    mainContent: string;
+    options: { updatePreview: boolean; emitToast: boolean };
+  }) => {
+    return runCompilePass(input.projectId, input.mainPath, input.mainContent, input.options);
+  }, [runCompilePass]);
+
+  const handleCompile = useCallback(async () => {
+    if (!activeProjectId || !selectedFile) {
+      return;
+    }
+    setBusy(true);
+    setCompileDiagnostics([]);
+    try {
+      await runCompilePass(activeProjectId, selectedFile, editorContent, {
+        updatePreview: true,
+        emitToast: true,
+      });
+    } catch (error) {
+      setLastCompileFailed(true);
+      setToast({ type: "error", message: String(error) });
+      setCompileDiagnostics([String(error)]);
+      setCompiledPdfBytes(null);
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    activeProjectId,
+    editorContent,
+    runCompilePass,
+    selectedFile,
+    setBusy,
+    setCompileDiagnostics,
+    setCompiledPdfBytes,
+    setLastCompileFailed,
+    setToast,
+  ]);
+
+  const handleExportCompiledPdf = useCallback(async () => {
+    if (!activeProjectId || !compiledPdfBytes || compiledPdfBytes.length === 0) {
+      setToast({ type: "error", message: t("toast.pdfNotReady") });
+      return;
+    }
+    const fallbackName = isPdfPath(selectedFile)
+      ? selectedFile!.split("/").pop() ?? "compiled.pdf"
+      : `${(selectedFile ?? "compiled").replace(/\.[^/.]+$/, "")}.pdf`;
+    setBusy(true);
+    try {
+      const saved = await workspaceExportPdf(activeProjectId, fallbackName, compiledPdfBytes);
+      if (!saved) {
+        return;
+      }
+      await runtimeLogWrite("INFO", `compiled pdf exported: ${saved.savedPath}`);
+      const snapshot = await openProject(activeProjectId);
+      setTree(snapshot.tree);
+      setSelectedFile(saved.savedPath);
+      setToast({ type: "info", message: t("toast.pdfSaved") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    activeProjectId,
+    compiledPdfBytes,
+    selectedFile,
+    setBusy,
+    setSelectedFile,
+    setToast,
+    setTree,
+    t,
+  ]);
+
+  const handleEditorUndo = useCallback(() => {
+    editorRef.current?.trigger("latotex", "undo", null);
+  }, [editorRef]);
+
+  const handleEditorRedo = useCallback(() => {
+    editorRef.current?.trigger("latotex", "redo", null);
+  }, [editorRef]);
+
+  return {
+    runCompilePassForAgent,
+    handleCompile,
+    handleExportCompiledPdf,
+    handleEditorUndo,
+    handleEditorRedo,
+  };
+}

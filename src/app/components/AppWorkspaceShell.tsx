@@ -13,24 +13,23 @@ import type {
 } from "../../shared/types/app";
 import type { LogTab } from "../app-config";
 import { AgentChatOverlay, type AgentCommandItem, type AgentPhase } from "./AgentChatOverlay";
-import { ExplorerTree } from "./ExplorerTree";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
-import { LibraryUploadMenu } from "./LibraryUploadMenu";
 import { PageRail } from "./PageRail";
 import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isTabularPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
+import { CompileAssistPopover } from "./editor/CompileAssistPopover";
+import { ensureLatexCompletionProvider } from "./editor/latexCompletion";
+import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
+import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
-
 type TranslationFn = (key: any) => string;
-
 type AgentStatusKey =
   | "agent.statusIdle"
   | "agent.statusRunning"
   | "agent.statusDone"
   | "agent.statusError";
-
 export function AppWorkspaceShell(props: {
   page: WorkspacePage;
   pageRailItems: Array<{ id: WorkspacePage; icon: any; label: string }>;
@@ -81,10 +80,10 @@ export function AppWorkspaceShell(props: {
   onTabCloseAction: (action: CloseTabsAction, tabId: string) => void;
   onTabPin: (tabId: string) => void;
   onEditorChange: (value: string) => void;
-  onEditorMount: (editor: any) => void;
+  onEditorMount: (editor: any, monaco: any) => void;
   onAgentPromptChange: (value: string) => void;
   onAgentToggle: () => void;
-  onAgentRun: () => void;
+  onAgentRun: (promptOverride?: string) => void;
   onAgentSessionPickerOpenChange: (value: boolean) => void;
   onAgentSessionPickerIndexChange: (value: number) => void;
   onAgentSessionConfirm: () => void;
@@ -190,16 +189,14 @@ export function AppWorkspaceShell(props: {
     onFsAction,
     t,
   } = props;
-
   const [previewZoom, setPreviewZoom] = useState(1);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
   const [editorPanelWidth, setEditorPanelWidth] = useState(0);
+  const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
-
   useEffect(() => {
     setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
   }, [previewDefaultZoom]);
-
   useEffect(() => {
     const node = editorPanelRef.current;
     if (!node || typeof ResizeObserver === "undefined") {
@@ -213,7 +210,11 @@ export function AppWorkspaceShell(props: {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-
+  useEffect(() => {
+    if (!compileErrorLine) {
+      setCompileAssistDismissedFor("");
+    }
+  }, [compileErrorLine]);
   const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
   const selectedIsPdf = isPdfPath(selectedFile);
   const selectedIsMarkdown = isMarkdownPath(selectedFile);
@@ -244,6 +245,14 @@ export function AppWorkspaceShell(props: {
     { token: "/memory", label: t("agent.command.memory.label"), description: t("agent.command.memory.description") },
     { token: "/resume", label: t("agent.command.resume.label"), description: t("agent.command.resume.description") },
   ];
+  const compileAssistKey = compileDiagnostics.join("\n").slice(0, 2400);
+  const showCompileAssist = Boolean(
+    compileErrorLine && compileDiagnostics.length > 0 && compileAssistDismissedFor !== compileAssistKey,
+  );
+  const compileAutoFixPrompt = `/review ${t("workspace.compileAssist.commandHint")} ${compileDiagnostics
+    .slice(0, 8)
+    .join(" ; ")
+    .slice(0, 1800)}`;
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
       <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
@@ -257,34 +266,6 @@ export function AppWorkspaceShell(props: {
         <FolderOpen className="h-5 w-5" />
       </button>
     </div>
-  );
-
-  const renderWorkspaceExplorerPanel = () => (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {t("explorer.title")}
-      </h2>
-      <div className="h-[calc(100%-24px)] overflow-auto pr-1">
-        {activeProjectId ? (
-          <ExplorerTree
-            tree={tree}
-            selectedPath={selectedFile}
-            dirtyByPath={dirtyByPath}
-            gitDecorations={explorerGitDecorations}
-            busy={busy}
-            onSelect={onSelectFile}
-            onAction={(action, path, targetPath, content) =>
-              onFsAction("workspace", action, path, targetPath, content)
-            }
-            onRevealInSystem={onWorkspaceRevealInSystem}
-            onOpenTerminal={onWorkspaceOpenTerminal}
-            t={t}
-          />
-        ) : (
-          <div className="text-xs text-slate-500">{t("workspace.noProject")}</div>
-        )}
-      </div>
-    </aside>
   );
 
   const renderPdfPreviewPanel = () => (
@@ -360,15 +341,33 @@ export function AppWorkspaceShell(props: {
             >
               <Save className="h-4 w-4" />
             </button>
-            <button
-              className="rounded border border-primary-600 bg-primary-600 p-1.5 text-white transition hover:bg-primary-700 disabled:opacity-50"
-              onClick={onCompile}
-              disabled={busy}
-              title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
-              aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
-            >
-              <Play className="h-4 w-4" />
-            </button>
+            <div className="relative">
+              <button
+                className="rounded border border-primary-600 bg-primary-600 p-1.5 text-white transition hover:bg-primary-700 disabled:opacity-50"
+                onClick={() => {
+                  setCompileAssistDismissedFor("");
+                  onCompile();
+                }}
+                disabled={busy}
+                title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
+                aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
+              >
+                <Play className="h-4 w-4" />
+              </button>
+              <CompileAssistPopover
+                visible={showCompileAssist}
+                diagnostics={compileDiagnostics}
+                onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
+                onAutoFix={() => {
+                  if (agentCollapsed) {
+                    onAgentToggle();
+                  }
+                  onAgentRun(compileAutoFixPrompt);
+                  setCompileAssistDismissedFor(compileAssistKey);
+                }}
+                t={t}
+              />
+            </div>
           </div>
         </div>
 
@@ -403,12 +402,21 @@ export function AppWorkspaceShell(props: {
               language="latex"
               value={editorContent}
               onChange={(value) => onEditorChange(value ?? "")}
-              onMount={onEditorMount}
+              onMount={(editor, monaco) => {
+                ensureLatexCompletionProvider(monaco);
+                onEditorMount(editor, monaco);
+              }}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,
                 smoothScrolling: true,
                 automaticLayout: true,
+                quickSuggestions: { other: true, comments: false, strings: true },
+                suggestOnTriggerCharacters: true,
+                tabCompletion: "on",
+                inlineSuggest: { enabled: true },
+                bracketPairColorization: { enabled: true },
+                acceptSuggestionOnCommitCharacter: true,
                 wordWrap: "on",
                 wordWrapColumn: 0,
                 wrappingIndent: "same",
@@ -476,7 +484,19 @@ export function AppWorkspaceShell(props: {
               onLayout={(layout) => onSavePanelLayout("latex", layout)}
             >
               <Panel id={`latex-explorer-${activeProjectId}`} order={1} defaultSize={latexLayout[0]} minSize={16}>
-                {renderWorkspaceExplorerPanel()}
+                <WorkspaceExplorerPanel
+                  activeProjectId={activeProjectId}
+                  tree={tree}
+                  selectedFile={selectedFile}
+                  dirtyByPath={dirtyByPath}
+                  explorerGitDecorations={explorerGitDecorations}
+                  busy={busy}
+                  onSelectFile={onSelectFile}
+                  onFsAction={onFsAction}
+                  onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
+                  onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
+                  t={t}
+                />
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
               <Panel id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
@@ -497,7 +517,19 @@ export function AppWorkspaceShell(props: {
               onLayout={(layout) => onSavePanelLayout("analysis", layout)}
             >
               <Panel id={`analysis-explorer-${activeProjectId ?? "none"}`} order={1} defaultSize={analysisLayout[0]} minSize={18}>
-                {renderWorkspaceExplorerPanel()}
+                <WorkspaceExplorerPanel
+                  activeProjectId={activeProjectId}
+                  tree={tree}
+                  selectedFile={selectedFile}
+                  dirtyByPath={dirtyByPath}
+                  explorerGitDecorations={explorerGitDecorations}
+                  busy={busy}
+                  onSelectFile={onSelectFile}
+                  onFsAction={onFsAction}
+                  onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
+                  onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
+                  t={t}
+                />
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
               <Panel id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
@@ -514,34 +546,16 @@ export function AppWorkspaceShell(props: {
               onLayout={(layout) => onSavePanelLayout("library", layout)}
             >
               <Panel id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
-                <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t("library.title")}
-                    </h2>
-                    <LibraryUploadMenu
-                      busy={busy}
-                      onImportPdf={onLibraryImportPdf}
-                      onImportLink={onLibraryImportLink}
-                      t={t}
-                    />
-                  </div>
-                  <div className="h-[calc(100%-32px)] overflow-auto pr-1">
-                    <ExplorerTree
-                      mode="library"
-                      tree={libraryTree}
-                      selectedPath={selectedLibraryPath}
-                      allowRescan
-                      busy={busy}
-                      onSelect={onSelectLibraryPath}
-                      onRescan={onLibraryRescan}
-                      onImportPdf={onLibraryImportPdf}
-                      onImportLink={onLibraryImportLink}
-                      onAction={() => Promise.resolve()}
-                      t={t}
-                    />
-                  </div>
-                </aside>
+                <LibraryExplorerPanel
+                  libraryTree={libraryTree}
+                  selectedLibraryPath={selectedLibraryPath}
+                  busy={busy}
+                  onSelectLibraryPath={onSelectLibraryPath}
+                  onLibraryRescan={onLibraryRescan}
+                  onLibraryImportPdf={onLibraryImportPdf}
+                  onLibraryImportLink={onLibraryImportLink}
+                  t={t}
+                />
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
               <Panel id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>

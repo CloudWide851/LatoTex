@@ -213,7 +213,7 @@ export function AppContainerView(props: any) {
             onTabClose={handleTabClose}
             onTabCloseAction={handleTabCloseAction}
             onTabPin={handleTabPin}
-            onEditorMount={(editor) => {
+            onEditorMount={(editor, _monaco) => {
               editorRef.current = editor;
             }}
             onAgentPromptChange={setAgentPrompt}

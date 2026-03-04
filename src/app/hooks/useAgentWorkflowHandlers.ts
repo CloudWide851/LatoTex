@@ -91,13 +91,14 @@ export function useAgentWorkflowHandlers(params: {
     [currentProposal?.targetPath, selectedFile, setAgentProposalsByPath],
   );
 
-  const handleRunAgent = useCallback(async () => {
-    if (!activeProjectId || !agentPrompt.trim()) {
+  const handleRunAgent = useCallback(async (promptOverride?: string) => {
+    const nextPrompt = (promptOverride ?? agentPrompt).trim();
+    if (!activeProjectId || !nextPrompt) {
       return;
     }
     await runAgentWorkflow({
       activeProjectId,
-      agentPrompt,
+      agentPrompt: nextPrompt,
       editorContent,
       selectedFile,
       t,
