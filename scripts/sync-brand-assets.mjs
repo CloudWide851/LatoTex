@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const sourceLogo = path.resolve("src/assets/branding/logo.svg");
+const canonicalLogo = path.resolve("src/assets/branding/logo.svg");
+const roundedIconLogo = path.resolve("src/assets/branding/logo-icon-rounded.svg");
+const sourceLogo = fs.existsSync(roundedIconLogo) ? roundedIconLogo : canonicalLogo;
 const tauriLogo = path.resolve("src-tauri/icons/logo.svg");
 
 if (!fs.existsSync(sourceLogo)) {
@@ -18,4 +20,3 @@ if (!currentContent || !sourceContent.equals(currentContent)) {
 } else {
   console.log("Brand logo already synced");
 }
-

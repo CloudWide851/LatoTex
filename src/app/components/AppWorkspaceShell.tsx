@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import { FolderOpen, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -101,6 +101,7 @@ export function AppWorkspaceShell(props: {
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (link: string) => void;
+  onLibraryAnalyzePaper: (path: string) => void;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
@@ -181,6 +182,7 @@ export function AppWorkspaceShell(props: {
     onLibraryRescan,
     onLibraryImportPdf,
     onLibraryImportLink,
+    onLibraryAnalyzePaper,
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
     onSavePanelLayout,
@@ -190,11 +192,27 @@ export function AppWorkspaceShell(props: {
   } = props;
 
   const [previewZoom, setPreviewZoom] = useState(1);
+  const editorPanelRef = useRef<HTMLDivElement | null>(null);
+  const [editorPanelWidth, setEditorPanelWidth] = useState(0);
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
 
   useEffect(() => {
     setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
   }, [previewDefaultZoom]);
+
+  useEffect(() => {
+    const node = editorPanelRef.current;
+    if (!node || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const update = () => {
+      setEditorPanelWidth(Math.max(0, Math.floor(node.getBoundingClientRect().width)));
+    };
+    update();
+    const observer = new ResizeObserver(() => update());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
   const selectedIsPdf = isPdfPath(selectedFile);
@@ -366,7 +384,7 @@ export function AppWorkspaceShell(props: {
           t={t}
         />
 
-        <div className="relative h-full min-h-0">
+        <div ref={editorPanelRef} className="relative h-full min-h-0">
           {agentProposal ? (
             <AgentProposalMiniBar
               proposal={agentProposal}
@@ -398,6 +416,7 @@ export function AppWorkspaceShell(props: {
             />
           )}
           <AgentChatOverlay
+            containerWidth={editorPanelWidth}
             collapsed={agentCollapsed}
             phase={agentPhase}
             statusLine={t(agentStatusKey)}
@@ -530,6 +549,7 @@ export function AppWorkspaceShell(props: {
                   <LibraryDocumentViewer
                     projectId={activeProjectId}
                     selectedPath={selectedLibraryPath}
+                    onAnalyzePaper={onLibraryAnalyzePaper}
                     t={t}
                   />
                 </section>

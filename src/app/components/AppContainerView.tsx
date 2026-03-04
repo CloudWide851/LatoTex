@@ -92,6 +92,7 @@ export function AppContainerView(props: any) {
     handleLibraryRescan,
     handleLibraryImportPdf,
     handleLibraryImportLink,
+    handleLibraryAnalyzePaper,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,
     savePanelLayout,
@@ -239,6 +240,7 @@ export function AppContainerView(props: any) {
             onLibraryRescan={handleLibraryRescan}
             onLibraryImportPdf={handleLibraryImportPdf}
             onLibraryImportLink={handleLibraryImportLink}
+            onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
             onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
             onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
             onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}

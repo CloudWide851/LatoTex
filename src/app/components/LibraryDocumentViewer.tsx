@@ -1,4 +1,4 @@
-import { FileText, FileUp } from "lucide-react";
+import { FileSearch, FileText, FileUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
@@ -31,9 +31,10 @@ type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
   selectedPath: string | null;
+  onAnalyzePaper: (path: string) => void;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, t } = props;
+  const { projectId, selectedPath, onAnalyzePaper, t } = props;
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -328,6 +329,19 @@ export function LibraryDocumentViewer(props: {
             disabled={!hasPdf}
           >
             {t("library.viewer.showPdf")}
+          </button>
+          <button
+            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            onClick={() => {
+              if (selectedPath) {
+                onAnalyzePaper(selectedPath);
+              }
+            }}
+            title={t("library.viewer.analyzePaper")}
+            disabled={!selectedPath || loading}
+          >
+            <FileSearch className="h-3.5 w-3.5" />
+            {t("library.viewer.analyzePaper")}
           </button>
 
           {viewMode === "pdf" ? (

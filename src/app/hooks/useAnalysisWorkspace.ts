@@ -1,222 +1,217 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   analysisExportArtifact,
-  analysisListReports,
   analysisSaveReport,
-  runAgent,
+  runAgentStart,
   runtimeLogWrite,
   workspaceRevealInSystem,
 } from "../../shared/api/desktop";
-import type { AnalysisReportItem } from "../../shared/types/app";
-import { getPyodideRunner } from "../../features/analysis/pyodide/runner";
+import type { SwarmEvent } from "../../shared/types/app";
+import {
+  buildPaperAnalysisContext,
+  listCandidateDataFiles,
+  loadDataSnapshots,
+  type AnalysisSourceSnapshot,
+} from "./analysisDataSources";
+import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
+import { createDefaultTask, loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
+import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
+import { newRunId, newTaskId, nowIso } from "./analysisTypes";
+import {
+  buildReportHtml,
+  clampChart,
+  deriveSections,
+  extractEventCards,
+  parsePayloadJson,
+  summarizeSnapshotsForPrompt,
+  toChartFromSnapshots,
+  upsertRun,
+  waitForRunOutput,
+} from "./analysisWorkspaceHelpers";
 
 type TranslationFn = (key: any) => string;
-
-type AgentPlan = {
-  title: string;
-  steps: string[];
-  insights: string[];
-  summary: string;
-  pythonScript: string;
-};
-
-function fallbackPlan(t: TranslationFn): AgentPlan {
-  return {
-    title: t("analysis.defaultTitle"),
-    steps: [t("analysis.defaultStep")],
-    insights: [],
-    summary: t("analysis.defaultSummary"),
-    pythonScript: "",
-  };
-}
-
-export type AnalysisResultView = {
-  runId: string;
-  title: string;
-  summary: string;
-  steps: string[];
-  insights: string[];
-  labels: string[];
-  values: number[];
-  reportHtml: string;
-  reportRelativePath?: string;
-  assetRelativePaths: string[];
-  chartDataUrl: string;
-};
-
-function parseAgentPlan(raw: string): AgentPlan {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/```json\s*([\s\S]*?)```/i);
-  const candidate = fenced?.[1] ?? trimmed;
-  try {
-    const parsed = JSON.parse(candidate) as Partial<AgentPlan>;
-    return {
-      title: parsed.title?.trim() || "Analysis Report",
-      steps: Array.isArray(parsed.steps) ? parsed.steps.map((item) => String(item)) : [],
-      insights: Array.isArray(parsed.insights) ? parsed.insights.map((item) => String(item)) : [],
-      summary: parsed.summary?.trim() || "",
-      pythonScript: parsed.pythonScript?.trim() || "",
-    };
-  } catch {
-    return {
-      title: "Analysis Report",
-      steps: [],
-      insights: [],
-      summary: "",
-      pythonScript: "",
-    };
-  }
-}
-
-function toBase64SvgDataUrl(svg: string): string {
-  const bytes = new TextEncoder().encode(svg);
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  const encoded = typeof window !== "undefined" ? window.btoa(binary) : "";
-  return `data:image/svg+xml;base64,${encoded}`;
-}
-
-function buildBarChartSvg(labels: string[], values: number[]): string {
-  const width = 840;
-  const height = 360;
-  const padding = 48;
-  const max = Math.max(...values, 1);
-  const barWidth = Math.max(24, Math.floor((width - padding * 2) / Math.max(values.length, 1) - 16));
-  const step = Math.max(1, Math.floor((width - padding * 2) / Math.max(values.length, 1)));
-
-  const bars = values
-    .map((value, index) => {
-      const x = padding + index * step + 8;
-      const barHeight = Math.max(6, Math.round((value / max) * (height - padding * 2)));
-      const y = height - padding - barHeight;
-      const label = labels[index] ?? `item-${index + 1}`;
-      return `
-        <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="6" fill="#10A37F" opacity="0.88" />
-        <text x="${x + barWidth / 2}" y="${height - padding + 18}" text-anchor="middle" font-size="12" fill="#334155">${label}</text>
-        <text x="${x + barWidth / 2}" y="${y - 8}" text-anchor="middle" font-size="12" fill="#0f172a">${value.toFixed(2)}</text>
-      `;
-    })
-    .join("\n");
-
-  return `
-  <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-    <rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff" />
-    <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#cbd5e1" />
-    <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" stroke="#cbd5e1" />
-    ${bars}
-  </svg>`;
-}
-
-function buildReportHtml(result: AnalysisResultView): string {
-  const steps = result.steps.map((item) => `<li>${item}</li>`).join("");
-  const insights = result.insights.map((item) => `<li>${item}</li>`).join("");
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${result.title}</title>
-    <style>
-      body { font-family: 'Segoe UI', sans-serif; margin: 24px; color: #0f172a; background: #f8fafc; }
-      h1 { margin: 0 0 8px; font-size: 28px; }
-      .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-      .muted { color: #64748b; font-size: 13px; }
-      img { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
-    </style>
-  </head>
-  <body>
-    <h1>${result.title}</h1>
-    <p class="muted">${new Date().toLocaleString()}</p>
-    <section class="card">
-      <h2>Summary</h2>
-      <p>${result.summary || "No summary generated."}</p>
-    </section>
-    <section class="card">
-      <h2>Process</h2>
-      <ol>${steps}</ol>
-    </section>
-    <section class="card">
-      <h2>Insights</h2>
-      <ul>${insights}</ul>
-    </section>
-    <section class="card">
-      <h2>Chart</h2>
-      <img src="${result.chartDataUrl}" alt="analysis chart" />
-    </section>
-  </body>
-</html>`;
-}
-
-function normalizeNumberArray(value: unknown): number[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item))
-    .slice(0, 32);
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.map((item) => String(item)).slice(0, 32);
-}
-
-const DEFAULT_PYTHON_SCRIPT = [
-  "import math",
-  "labels = [f'p{i}' for i in range(1, 9)]",
-  "values = [round((math.sin(i * 0.7) + 1.5) * 25 + i * 3, 3) for i in range(1, 9)]",
-  "analysis_result = {",
-  "  'labels': labels,",
-  "  'values': values,",
-  "  'insights': [",
-  "    'Generated fallback trend data in Pyodide.',",
-  "    'Values are suitable for demo rendering and report export.'",
-  "  ]",
-  "}",
-].join("\n");
 
 export function useAnalysisWorkspace(params: {
   projectId: string | null;
   selectedFile: string | null;
   editorContent: string;
+  fileList: string[];
+  locale: "zh-CN" | "en-US";
+  events: SwarmEvent[];
   t: TranslationFn;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;
 }) {
-  const { projectId, selectedFile, editorContent, setToast, t } = params;
+  const { projectId, selectedFile, editorContent, fileList, locale, events, setToast, t } = params;
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<AnalysisResultView | null>(null);
-  const [reports, setReports] = useState<AnalysisReportItem[]>([]);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<AnalysisTask[]>([]);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [selectedInputFiles, setSelectedInputFiles] = useState<string[]>([]);
+  const [activeRunIds, setActiveRunIds] = useState<string[]>([]);
+  const loadedRef = useRef(false);
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refreshReports = useCallback(async () => {
-    if (!projectId) {
-      setReports([]);
-      return;
+  const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
+  const activeTask = useMemo(
+    () => tasks.find((item) => item.id === activeTaskId) ?? null,
+    [activeTaskId, tasks],
+  );
+  const activeRun = useMemo(() => {
+    if (!activeTask) {
+      return null;
     }
-    try {
-      const response = await analysisListReports(projectId);
-      setReports(response.reports);
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
+    if (activeTask.activeRunId) {
+      return activeTask.runs.find((item) => item.id === activeTask.activeRunId) ?? activeTask.runs[0] ?? null;
     }
-  }, [projectId, setToast]);
+    return activeTask.runs[0] ?? null;
+  }, [activeTask]);
+  const timelineCards = useMemo(() => extractEventCards(events, activeRunIds), [events, activeRunIds]);
 
   useEffect(() => {
-    void refreshReports();
-  }, [refreshReports]);
+    if (!projectId) {
+      setTasks([]);
+      setActiveTaskId(null);
+      setPrompt("");
+      setSelectedInputFiles([]);
+      loadedRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    loadAnalysisTaskState(projectId, t("analysis.defaultTaskName"))
+      .then((state) => {
+        if (cancelled) {
+          return;
+        }
+        setTasks(state.tasks);
+        setActiveTaskId(state.activeTaskId);
+        if (candidateFiles.length > 0) {
+          setSelectedInputFiles(candidateFiles.slice(0, Math.min(8, candidateFiles.length)));
+        }
+        loadedRef.current = true;
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setToast({ type: "error", message: String(error) });
+          const fallback = createDefaultTask(t("analysis.defaultTaskName"));
+          setTasks([fallback]);
+          setActiveTaskId(fallback.id);
+          loadedRef.current = true;
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [candidateFiles, projectId, setToast, t]);
 
-  const canRun = useMemo(() => Boolean(projectId && prompt.trim().length > 0), [projectId, prompt]);
+  useEffect(() => {
+    if (!projectId || !loadedRef.current) {
+      return;
+    }
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+    }
+    persistTimerRef.current = setTimeout(() => {
+      void saveAnalysisTaskState(projectId, {
+        version: 1,
+        activeTaskId,
+        tasks,
+      }).catch((error) => setToast({ type: "error", message: String(error) }));
+    }, 180);
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
+  }, [activeTaskId, projectId, setToast, tasks]);
 
-  const runAnalysisForPrompt = useCallback(async (inputPrompt: string) => {
+  const canRun = useMemo(() => Boolean(projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt]);
+
+  const setActiveRunForTask = useCallback((taskId: string, runId: string) => {
+    setTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, activeRunId: runId, updatedAt: nowIso() } : item)));
+  }, []);
+
+  const createTask = useCallback((sourceType: AnalysisSourceType = "data", sourcePath?: string, name?: string) => {
+    const createdAt = nowIso();
+    const task: AnalysisTask = {
+      id: newTaskId("analysis"),
+      name: (name?.trim() || t("analysis.defaultTaskName")).slice(0, 64),
+      sourceType,
+      sourcePath,
+      runs: [],
+      createdAt,
+      updatedAt: createdAt,
+    };
+    setTasks((prev) => [task, ...prev]);
+    setActiveTaskId(task.id);
+    return task;
+  }, [t]);
+
+  const renameTask = useCallback((taskId: string, name: string) => {
+    const normalized = name.trim();
+    if (!normalized) {
+      return;
+    }
+    setTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, name: normalized.slice(0, 64), updatedAt: nowIso() } : item)));
+  }, []);
+
+  const deleteTask = useCallback((taskId: string) => {
+    setTasks((prev) => {
+      const next = prev.filter((item) => item.id !== taskId);
+      if (next.length === 0) {
+        const fallback = createDefaultTask(t("analysis.defaultTaskName"));
+        setActiveTaskId(fallback.id);
+        return [fallback];
+      }
+      if (activeTaskId === taskId) {
+        setActiveTaskId(next[0].id);
+      }
+      return next;
+    });
+  }, [activeTaskId, t]);
+
+  const toggleInputFile = useCallback((path: string) => {
+    setSelectedInputFiles((prev) => (prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path]));
+  }, []);
+
+  const selectAllInputs = useCallback(() => {
+    setSelectedInputFiles(candidateFiles);
+  }, [candidateFiles]);
+
+  const invertInputs = useCallback(() => {
+    setSelectedInputFiles((prev) => candidateFiles.filter((item) => !prev.includes(item)));
+  }, [candidateFiles]);
+
+  const runRolePrompt = useCallback(async (role: string, promptText: string, contextRefs: string[]) => {
+    if (!projectId) {
+      throw new Error("project missing");
+    }
+    const accepted = await runAgentStart({
+      projectId,
+      role,
+      prompt: promptText,
+      contextRefs,
+      bypassCache: true,
+    });
+    setActiveRunIds((prev) => [...prev, accepted.runId]);
+    return {
+      runId: accepted.runId,
+      output: await waitForRunOutput(accepted.runId),
+    };
+  }, [projectId]);
+
+  const runAnalysisForPrompt = useCallback(async (inputPrompt: string, forcedTaskId?: string) => {
     const normalizedPrompt = inputPrompt.trim();
     if (!projectId) {
       setAnalysisError(t("analysis.error.noProject"));
+      return;
+    }
+    const targetTaskId = forcedTaskId ?? activeTaskId;
+    const task = tasks.find((item) => item.id === targetTaskId) ?? null;
+    if (!task) {
+      setAnalysisError(t("analysis.error.noTask"));
       return;
     }
     if (!normalizedPrompt) {
@@ -225,93 +220,178 @@ export function useAnalysisWorkspace(params: {
     }
     setAnalysisError(null);
     setRunning(true);
-    try {
-      const planningPrompt = [
-        "You are a data analysis planner.",
-        "Return strict JSON with keys:",
-        "title (string), steps (string[]), insights (string[]), summary (string), pythonScript (string).",
-        "The pythonScript must set a variable analysis_result as dict with labels and values arrays.",
-        "",
-        `User request: ${normalizedPrompt}`,
-        selectedFile ? `Current file: ${selectedFile}` : "",
-        editorContent ? `Current content:\n${editorContent.slice(0, 6000)}` : "",
-      ].join("\n");
-      let plan: AgentPlan;
-      try {
-        const planned = await runAgent({
-          projectId,
-          role: "task",
-          prompt: planningPrompt,
-          contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
-        });
-        plan = parseAgentPlan(planned.output);
-      } catch (error) {
-        await runtimeLogWrite("WARN", `analysis planner fallback: ${String(error)}`).catch(() => undefined);
-        plan = fallbackPlan(t);
-      }
-      const script = plan.pythonScript || DEFAULT_PYTHON_SCRIPT;
-      const runner = getPyodideRunner();
-      let rawObj: Record<string, unknown> = {};
-      try {
-        const raw = await runner.runScript(script, 60_000);
-        rawObj = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-      } catch (error) {
-        await runtimeLogWrite("WARN", `analysis pyodide fallback: ${String(error)}`).catch(() => undefined);
-      }
-      const labels = normalizeStringArray(rawObj.labels);
-      const values = normalizeNumberArray(rawObj.values);
-      const insights = [
-        ...plan.insights,
-        ...normalizeStringArray(rawObj.insights),
-      ].slice(0, 16);
-      const normalizedLabels = labels.length > 0 ? labels : values.map((_, index) => `item-${index + 1}`);
-      const normalizedValues = values.length > 0 ? values : [12, 23, 19, 31, 28];
-      const svg = buildBarChartSvg(normalizedLabels, normalizedValues);
-      const chartDataUrl = toBase64SvgDataUrl(svg);
-      const runId = `${Date.now()}`;
+    setActiveRunIds([]);
 
-      const baseResult: AnalysisResultView = {
-        runId,
-        title: plan.title || t("analysis.defaultTitle"),
-        summary: plan.summary || t("analysis.defaultSummary"),
-        steps: plan.steps.length > 0 ? plan.steps : [t("analysis.defaultStep")],
-        insights,
-        labels: normalizedLabels,
-        values: normalizedValues,
-        chartDataUrl,
-        reportHtml: "",
-        assetRelativePaths: [],
-      };
-      const reportHtml = buildReportHtml(baseResult);
+    try {
+      const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
+      const outputLanguageLabel = languageLabel(outputLanguage);
+      const contextRefs: string[] = [];
+      if (selectedFile) {
+        contextRefs.push(`file:${selectedFile}`);
+      }
+
+      let snapshots: AnalysisSourceSnapshot[] = [];
+      let sourceBlock = "";
+      const steps: string[] = [];
+      if (task.sourceType === "paper" && task.sourcePath) {
+        steps.push(t("analysis.step.paperExtract"));
+        const paperContext = await buildPaperAnalysisContext(projectId, task.sourcePath);
+        const chunkSummaries: string[] = [];
+        for (const chunk of paperContext.chunks) {
+          const chunkPrompt = [
+            `Summarize the following paper segment in ${outputLanguageLabel}.`,
+            "Return concise markdown bullet points of methods, findings, and limitations.",
+            `Chunk pages: ${chunk.pageStart}-${chunk.pageEnd}`,
+            chunk.text,
+          ].join("\n\n");
+          const chunkResult = await runRolePrompt("explore", chunkPrompt, contextRefs);
+          chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
+        }
+        sourceBlock = [
+          `Paper source: ${paperContext.sourcePath}`,
+          `Title: ${paperContext.title}`,
+          "Metadata:",
+          paperContext.metadataBlock,
+          "Chunk summaries:",
+          chunkSummaries.join("\n\n"),
+        ].join("\n\n");
+        snapshots = [
+          {
+            path: paperContext.sourcePath,
+            kind: "paper",
+            summary: `chunks=${paperContext.chunks.length}`,
+            excerpt: sourceBlock.slice(0, 8000),
+          },
+        ];
+      } else {
+        const chosenFiles = selectedInputFiles.length > 0 ? selectedInputFiles : candidateFiles.slice(0, 8);
+        if (chosenFiles.length === 0) {
+          throw new Error(t("analysis.error.noInputFiles"));
+        }
+        steps.push(t("analysis.step.loadData"));
+        snapshots = await loadDataSnapshots(projectId, chosenFiles);
+        sourceBlock = summarizeSnapshotsForPrompt(snapshots);
+      }
+
+      if (selectedFile && editorContent.trim()) {
+        sourceBlock = `${sourceBlock}\n\n---\n\nCurrent editor file (${selectedFile}):\n${editorContent.slice(0, 2200)}`;
+      }
+
+      steps.push(t("analysis.step.agentSynthesis"));
+      const agentPrompt = [
+        `You are a senior data analyst. Output language must be ${outputLanguageLabel}.`,
+        "Return strict JSON only with keys:",
+        "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
+        "The report must be complete, practical, and visually-oriented.",
+        "If user asks another language explicitly, honor user request.",
+        "User request:",
+        normalizedPrompt,
+        "\nSource material:",
+        sourceBlock,
+      ].join("\n\n");
+      const finalResult = await runRolePrompt("task", agentPrompt, contextRefs);
+      const parsed = parsePayloadJson(finalResult.output);
+
+      const chartSource = clampChart(
+        Array.isArray(parsed.chart)
+          ? parsed.chart
+              .map((item) => ({ label: String(item.label ?? ""), value: Number(item.value ?? Number.NaN) }))
+              .filter((item) => item.label && Number.isFinite(item.value))
+          : [],
+      );
+      const fallbackChart = toChartFromSnapshots(snapshots);
+      const chart = chartSource.length > 0 ? chartSource : fallbackChart;
+      const labels = chart.map((item) => item.label);
+      const values = chart.map((item) => item.value);
+
+      const mergedSteps = Array.from(
+        new Set([
+          ...steps,
+          ...(Array.isArray(parsed.steps) ? parsed.steps.map((item) => String(item)) : []),
+        ]),
+      ).slice(0, 20);
+      const insights = (Array.isArray(parsed.insights) ? parsed.insights.map((item) => String(item)) : [])
+        .filter((item) => item.trim())
+        .slice(0, 24);
+      const sections = deriveSections(parsed);
+      const runRecordId = newRunId("analysis-run");
+
+      const resultTitle = (parsed.title?.trim() || `${task.name} - ${t("analysis.defaultTitle")}`).slice(0, 120);
+      const resultSummary = parsed.summary?.trim() || t("analysis.defaultSummary");
+      const report = buildReportHtml({
+        language: outputLanguage,
+        title: resultTitle,
+        summary: resultSummary,
+        steps: mergedSteps.length > 0 ? mergedSteps : [t("analysis.defaultStep")],
+        insights: insights.length > 0 ? insights : [t("analysis.defaultInsight")],
+        sections,
+        labels,
+        values,
+      });
+
       const saved = await analysisSaveReport({
         projectId,
-        runId,
-        title: baseResult.title,
-        reportHtml,
-        assets: [
-          {
-            fileName: "chart.svg",
-            dataUrl: chartDataUrl,
-          },
-        ],
+        runId: runRecordId,
+        title: resultTitle,
+        reportHtml: report.html,
+        assets: [{ fileName: "chart.svg", dataUrl: report.chartDataUrl }],
       });
-      const nextResult: AnalysisResultView = {
-        ...baseResult,
-        reportHtml,
+
+      const runRecord: AnalysisTaskRun = {
+        id: runRecordId,
+        prompt: normalizedPrompt,
+        title: resultTitle,
+        summary: resultSummary,
+        reportHtml: report.html,
         reportRelativePath: saved.reportRelativePath,
         assetRelativePaths: saved.assetRelativePaths,
+        labels,
+        values,
+        insights,
+        steps: mergedSteps,
+        sourceType: task.sourceType,
+        sourcePath: task.sourcePath,
+        inputFiles: task.sourceType === "paper"
+          ? [task.sourcePath ?? ""]
+          : (selectedInputFiles.length > 0 ? selectedInputFiles : candidateFiles.slice(0, 8)),
+        outputLanguage,
+        agentRunId: finalResult.runId,
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
       };
-      setResult(nextResult);
-      await refreshReports();
+
+      setTasks((prev) =>
+        prev.map((item) => {
+          if (item.id !== task.id) {
+            return item;
+          }
+          return upsertRun(item, runRecord);
+        }),
+      );
+      setActiveTaskId(task.id);
+      setPrompt("");
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
       const message = `${t("analysis.error.failed")}: ${String(error)}`;
       setAnalysisError(message);
       setToast({ type: "error", message });
+      await runtimeLogWrite("ERROR", `analysis run failed: ${String(error)}`).catch(() => undefined);
     } finally {
       setRunning(false);
     }
-  }, [editorContent, projectId, refreshReports, selectedFile, setToast, t]);
+  }, [
+    activeTaskId,
+    candidateFiles,
+    editorContent,
+    locale,
+    projectId,
+    runRolePrompt,
+    selectedFile,
+    selectedInputFiles,
+    setToast,
+    t,
+    tasks,
+  ]);
 
   const runAnalysis = useCallback(async () => {
     await runAnalysisForPrompt(prompt);
@@ -321,6 +401,13 @@ export function useAnalysisWorkspace(params: {
     setPrompt(inputPrompt);
     await runAnalysisForPrompt(inputPrompt);
   }, [runAnalysisForPrompt]);
+
+  const runPaperAnalysisFromLibrary = useCallback(async (sourcePath: string) => {
+    const task = createTask("paper", sourcePath, `${t("analysis.paperTaskName")}: ${sourcePath.split("/").pop() || sourcePath}`);
+    const promptText = t("analysis.paperDefaultPrompt");
+    setPrompt(promptText);
+    await runAnalysisForPrompt(promptText, task.id);
+  }, [createTask, runAnalysisForPrompt, t]);
 
   const exportArtifact = useCallback(async (relativePath: string) => {
     if (!projectId) {
@@ -349,12 +436,28 @@ export function useAnalysisWorkspace(params: {
     setPrompt,
     running,
     canRun,
-    result,
     analysisError,
-    reports,
+    tasks,
+    activeTaskId,
+    activeTask,
+    activeRun,
+    timelineCards,
+    filePickerOpen,
+    setFilePickerOpen,
+    candidateFiles,
+    selectedInputFiles,
+    setSelectedInputFiles,
+    toggleInputFile,
+    selectAllInputs,
+    invertInputs,
+    setActiveTaskId,
+    setActiveRunForTask,
+    createTask,
+    renameTask,
+    deleteTask,
     runAnalysis,
     runAnalysisWithPrompt,
-    refreshReports,
+    runPaperAnalysisFromLibrary,
     exportArtifact,
     revealArtifact,
   };

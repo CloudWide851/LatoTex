@@ -11,7 +11,6 @@ import {
   gitStatus,
   openProject,
   projectIntegrityStatus,
-  setTrayLabels,
 } from "../shared/api/desktop";
 import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
@@ -28,6 +27,10 @@ import { useAgentSessionController } from "./hooks/useAgentSessionController";
 import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
 import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
 import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
+import {
+  useCompiledPreviewResetOnProjectChange,
+  useTrayLabelSync,
+} from "./hooks/useAppContainerRuntimeEffects";
 
 type IntegrityIssue = {
   projectId: string;
@@ -163,28 +166,21 @@ export function AppContainer() {
     [s.pdfUrl, s.selectedFilePdfUrl],
   );
 
-  useEffect(() => {
-    if (!isTauriRuntime) {
-      return;
-    }
-    setTrayLabels(t("tray.showMain"), t("tray.exit"), t("tray.tooltip")).catch(() => undefined);
-  }, [isTauriRuntime, locale, t]);
-
-  useEffect(() => {
-    s.setPdfUrl((prev) => {
-      if (prev) {
-        URL.revokeObjectURL(prev);
-      }
-      return null;
-    });
-    s.setCompiledPdfBytes(null);
-    s.setPreferCompiledPreview(false);
-  }, [s.activeProjectId, s.setCompiledPdfBytes, s.setPdfUrl, s.setPreferCompiledPreview]);
+  useTrayLabelSync({ isTauriRuntime, locale, t });
+  useCompiledPreviewResetOnProjectChange({
+    activeProjectId: s.activeProjectId,
+    setPdfUrl: s.setPdfUrl,
+    setCompiledPdfBytes: s.setCompiledPdfBytes,
+    setPreferCompiledPreview: s.setPreferCompiledPreview,
+  });
 
   const analysisWorkspace = useAnalysisWorkspace({
     projectId: s.activeProjectId,
     selectedFile: s.selectedFile,
     editorContent: s.editorContent,
+    fileList: s.fileList,
+    locale,
+    events: s.events,
     t,
     setToast: s.setToast,
   });
@@ -561,6 +557,10 @@ export function AppContainer() {
       handleLibraryRescan={handlers.handleLibraryRescan}
       handleLibraryImportPdf={handlers.handleLibraryImportPdf}
       handleLibraryImportLink={handlers.handleLibraryImportLink}
+      handleLibraryAnalyzePaper={(path: string) => {
+        s.setPage("analysis");
+        void analysisWorkspace.runPaperAnalysisFromLibrary(path);
+      }}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
       savePanelLayout={savePanelLayout}

@@ -1,21 +1,75 @@
 import { Download, FolderOpen } from "lucide-react";
-import type { AnalysisReportItem } from "../../../shared/types/app";
-import type { AnalysisResultView } from "../../hooks/useAnalysisWorkspace";
+import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
+import { AnalysisFilePickerDialog } from "./AnalysisFilePickerDialog";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
+import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
+import { AnalysisTaskTabs } from "./AnalysisTaskTabs";
 
 type TranslationFn = (key: any) => string;
+
+function renderArtifacts(
+  paths: string[],
+  t: TranslationFn,
+  onExportArtifact: (relativePath: string) => void,
+  onRevealArtifact: (relativePath: string) => void,
+) {
+  if (paths.length === 0) {
+    return (
+      <div className="rounded border border-dashed border-slate-300 px-2 py-2 text-[11px] text-slate-500">
+        {t("analysis.noArtifacts")}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1">
+      {paths.map((path) => (
+        <div key={path} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1">
+          <span className="truncate text-[11px] text-slate-700">{path}</span>
+          <div className="flex items-center gap-1">
+            <button
+              className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
+              onClick={() => onRevealArtifact(path)}
+            >
+              {t("analysis.openLocation")}
+            </button>
+            <button
+              className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
+              onClick={() => onExportArtifact(path)}
+            >
+              {t("analysis.saveAs")}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function AnalysisWorkspace(props: {
   busy: boolean;
   prompt: string;
   canRun: boolean;
   running: boolean;
-  result: AnalysisResultView | null;
   errorMessage: string | null;
-  reports: AnalysisReportItem[];
+  tasks: AnalysisTask[];
+  activeTaskId: string | null;
+  activeRun: AnalysisTaskRun | null;
+  timelineCards: AnalysisTimelineCard[];
+  filePickerOpen: boolean;
+  candidateFiles: string[];
+  selectedInputFiles: string[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
-  onRefresh: () => void;
+  onSelectTask: (taskId: string) => void;
+  onCreateTask: () => void;
+  onRenameTask: (taskId: string, name: string) => void;
+  onDeleteTask: (taskId: string) => void;
+  onSetActiveRun: (taskId: string, runId: string) => void;
+  onOpenFilePicker: () => void;
+  onCloseFilePicker: () => void;
+  onToggleInputFile: (path: string) => void;
+  onSelectAllInputs: () => void;
+  onInvertInputs: () => void;
   onExportArtifact: (relativePath: string) => void;
   onRevealArtifact: (relativePath: string) => void;
   t: TranslationFn;
@@ -25,129 +79,132 @@ export function AnalysisWorkspace(props: {
     prompt,
     canRun,
     running,
-    result,
     errorMessage,
-    reports,
+    tasks,
+    activeTaskId,
+    activeRun,
+    timelineCards,
+    filePickerOpen,
+    candidateFiles,
+    selectedInputFiles,
     onPromptChange,
     onRun,
-    onRefresh,
+    onSelectTask,
+    onCreateTask,
+    onRenameTask,
+    onDeleteTask,
+    onSetActiveRun,
+    onOpenFilePicker,
+    onCloseFilePicker,
+    onToggleInputFile,
+    onSelectAllInputs,
+    onInvertInputs,
     onExportArtifact,
     onRevealArtifact,
     t,
   } = props;
 
-  const renderArtifacts = (paths: string[]) => {
-    if (paths.length === 0) {
-      return (
-        <div className="rounded border border-dashed border-slate-300 px-2 py-2 text-[11px] text-slate-500">
-          {t("analysis.noArtifacts")}
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-1">
-        {paths.map((path) => (
-          <div key={path} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1">
-            <span className="truncate text-[11px] text-slate-700">{path}</span>
-            <div className="flex items-center gap-1">
-              <button
-                className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-                onClick={() => onRevealArtifact(path)}
-              >
-                {t("analysis.openLocation")}
-              </button>
-              <button
-                className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-                onClick={() => onExportArtifact(path)}
-              >
-                {t("analysis.saveAs")}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
-    <div className="relative h-full min-h-0 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
-      {errorMessage ? (
-        <div className="mb-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {errorMessage}
-        </div>
-      ) : null}
-      {!result ? (
-        <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 pb-28 text-sm text-slate-500">
-          {t("analysis.blankHint")}
-        </div>
-      ) : (
-        <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_300px] gap-2 pb-32">
-          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <h3 className="text-sm font-semibold text-slate-800">{result.title}</h3>
-              <p className="mt-1 text-xs text-slate-600">{result.summary}</p>
-              <div className="mt-2 flex items-center gap-1">
-                {result.reportRelativePath && (
-                  <>
-                    <button
-                      className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
-                      onClick={() => onRevealArtifact(result.reportRelativePath!)}
-                    >
-                      <FolderOpen className="mr-1 inline h-3 w-3" />
-                      {t("analysis.openLocation")}
-                    </button>
-                    <button
-                      className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
-                      onClick={() => onExportArtifact(result.reportRelativePath!)}
-                    >
-                      <Download className="mr-1 inline h-3 w-3" />
-                      {t("analysis.saveAs")}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            <iframe
-              title={t("analysis.reportTitle")}
-              srcDoc={result.reportHtml}
-              className="h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white"
-            />
-          </div>
+    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
+      <AnalysisTaskTabs
+        tasks={tasks}
+        activeTaskId={activeTaskId}
+        running={running}
+        onSelectTask={onSelectTask}
+        onCreateTask={onCreateTask}
+        onRenameTask={onRenameTask}
+        onDeleteTask={onDeleteTask}
+        t={t}
+      />
 
-          <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
-            <section className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.artifacts")}</h4>
-            </section>
-            <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
-              {renderArtifacts(result.assetRelativePaths)}
-            </section>
-            <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.history")}</h4>
-              <div className="space-y-1">
-                {reports.map((item) => (
-                  <div key={item.runId} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
-                    <div className="truncate font-medium">{item.runId}</div>
-                    <div className="mt-1 flex items-center gap-1">
+      <div className="relative min-h-0 px-3 pb-32 pt-2">
+        {errorMessage ? (
+          <div className="mb-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {errorMessage}
+          </div>
+        ) : null}
+
+        {!activeRun ? (
+          <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+            {t("analysis.blankHint")}
+          </div>
+        ) : (
+          <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <h3 className="text-sm font-semibold text-slate-800">{activeRun.title}</h3>
+                <p className="mt-1 text-xs text-slate-600">{activeRun.summary}</p>
+                <div className="mt-2 flex items-center gap-1">
+                  {activeRun.reportRelativePath && (
+                    <>
                       <button
-                        className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-                        onClick={() => onRevealArtifact(item.reportRelativePath)}
+                        className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
+                        onClick={() => onRevealArtifact(activeRun.reportRelativePath!)}
                       >
+                        <FolderOpen className="mr-1 inline h-3 w-3" />
                         {t("analysis.openLocation")}
                       </button>
                       <button
-                        className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-                        onClick={() => onExportArtifact(item.reportRelativePath)}
+                        className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
+                        onClick={() => onExportArtifact(activeRun.reportRelativePath!)}
                       >
+                        <Download className="mr-1 inline h-3 w-3" />
                         {t("analysis.saveAs")}
                       </button>
-                    </div>
-                  </div>
-                ))}
+                    </>
+                  )}
+                </div>
               </div>
-            </section>
-          </aside>
-        </div>
-      )}
+              <iframe
+                title={t("analysis.reportTitle")}
+                srcDoc={activeRun.reportHtml}
+                className="h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white"
+              />
+            </div>
+
+            <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
+              <section className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.artifacts")}</h4>
+              </section>
+              <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                {renderArtifacts(activeRun.assetRelativePaths, t, onExportArtifact, onRevealArtifact)}
+              </section>
+              <AnalysisRunTimeline cards={timelineCards} t={t} />
+              <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.history")}</h4>
+                <div className="space-y-1">
+                  {(tasks.find((item) => item.id === activeTaskId)?.runs ?? []).map((item) => (
+                    <div key={item.id} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
+                      <button className="w-full truncate text-left font-medium" onClick={() => onSetActiveRun(activeTaskId!, item.id)}>
+                        {item.title}
+                      </button>
+                      <div className="mt-1 flex items-center gap-1">
+                        {item.reportRelativePath ? (
+                          <>
+                            <button
+                              className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
+                              onClick={() => onRevealArtifact(item.reportRelativePath!)}
+                            >
+                              {t("analysis.openLocation")}
+                            </button>
+                            <button
+                              className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
+                              onClick={() => onExportArtifact(item.reportRelativePath!)}
+                            >
+                              {t("analysis.saveAs")}
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </aside>
+          </div>
+        )}
+      </div>
+
       <AnalysisPromptOverlay
         prompt={prompt}
         canRun={canRun}
@@ -155,7 +212,18 @@ export function AnalysisWorkspace(props: {
         busy={busy}
         onPromptChange={onPromptChange}
         onRun={onRun}
-        onRefresh={onRefresh}
+        onPickFiles={onOpenFilePicker}
+        t={t}
+      />
+
+      <AnalysisFilePickerDialog
+        open={filePickerOpen}
+        files={candidateFiles}
+        selectedFiles={selectedInputFiles}
+        onToggleFile={onToggleInputFile}
+        onSelectAll={onSelectAllInputs}
+        onInvert={onInvertInputs}
+        onClose={onCloseFilePicker}
         t={t}
       />
     </div>

@@ -3,7 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-const sourceLogo = path.resolve("src/assets/branding/logo.svg");
+const canonicalLogo = path.resolve("src/assets/branding/logo.svg");
+const roundedIconLogo = path.resolve("src/assets/branding/logo-icon-rounded.svg");
+const sourceLogo = fs.existsSync(roundedIconLogo) ? roundedIconLogo : canonicalLogo;
 const tauriLogo = path.resolve("src-tauri/icons/logo.svg");
 const hashFile = path.resolve("src-tauri/icons/.brand-logo.sha256");
 const force = process.argv.includes("--force");
@@ -28,7 +30,7 @@ if (!force && currentHash === sourceHash) {
   process.exit(0);
 }
 
-console.log("Regenerating Tauri icons from canonical brand logo...");
+console.log("Regenerating Tauri icons from configured brand icon source...");
 const result = spawnSync("pnpm", ["exec", "tauri", "icon", "src-tauri/icons/logo.svg"], {
   stdio: "inherit",
   shell: process.platform === "win32",
@@ -40,4 +42,3 @@ if (result.status !== 0) {
 
 fs.writeFileSync(hashFile, `${sourceHash}\n`);
 console.log("Brand icons regenerated and hash updated");
-

@@ -128,16 +128,28 @@ export function useAppPanelNodes(params: any) {
       prompt={analysisWorkspace.prompt}
       canRun={analysisWorkspace.canRun}
       running={analysisWorkspace.running}
-      result={analysisWorkspace.result}
       errorMessage={analysisWorkspace.analysisError}
-      reports={analysisWorkspace.reports}
+      tasks={analysisWorkspace.tasks}
+      activeTaskId={analysisWorkspace.activeTaskId}
+      activeRun={analysisWorkspace.activeRun}
+      timelineCards={analysisWorkspace.timelineCards}
+      filePickerOpen={analysisWorkspace.filePickerOpen}
+      candidateFiles={analysisWorkspace.candidateFiles}
+      selectedInputFiles={analysisWorkspace.selectedInputFiles}
       onPromptChange={analysisWorkspace.setPrompt}
       onRun={() => {
         void analysisWorkspace.runAnalysis();
       }}
-      onRefresh={() => {
-        void analysisWorkspace.refreshReports();
-      }}
+      onSelectTask={analysisWorkspace.setActiveTaskId}
+      onCreateTask={() => analysisWorkspace.createTask("data")}
+      onRenameTask={analysisWorkspace.renameTask}
+      onDeleteTask={analysisWorkspace.deleteTask}
+      onSetActiveRun={analysisWorkspace.setActiveRunForTask}
+      onOpenFilePicker={() => analysisWorkspace.setFilePickerOpen(true)}
+      onCloseFilePicker={() => analysisWorkspace.setFilePickerOpen(false)}
+      onToggleInputFile={analysisWorkspace.toggleInputFile}
+      onSelectAllInputs={analysisWorkspace.selectAllInputs}
+      onInvertInputs={analysisWorkspace.invertInputs}
       onExportArtifact={(relativePath: string) => {
         void analysisWorkspace.exportArtifact(relativePath);
       }}

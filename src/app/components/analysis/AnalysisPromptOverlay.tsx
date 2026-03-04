@@ -1,4 +1,4 @@
-import { Play, RefreshCcw } from "lucide-react";
+import { ListFilter, Play } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { SvgSpinner } from "../../../components/ui/svg-spinner";
 
@@ -11,10 +11,10 @@ export function AnalysisPromptOverlay(props: {
   busy: boolean;
   onPromptChange: (value: string) => void;
   onRun: () => void;
-  onRefresh: () => void;
+  onPickFiles: () => void;
   t: TranslationFn;
 }) {
-  const { prompt, canRun, running, busy, onPromptChange, onRun, onRefresh, t } = props;
+  const { prompt, canRun, running, busy, onPromptChange, onRun, onPickFiles, t } = props;
 
   return (
     <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
@@ -40,12 +40,12 @@ export function AnalysisPromptOverlay(props: {
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
             <button
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-              title={t("analysis.refresh")}
-              aria-label={t("analysis.refresh")}
-              onClick={onRefresh}
+              title={t("analysis.pickFiles")}
+              aria-label={t("analysis.pickFiles")}
+              onClick={onPickFiles}
               disabled={running || busy}
             >
-              <RefreshCcw className="h-4 w-4" />
+              <ListFilter className="h-4 w-4" />
             </button>
             <button
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-40"
