@@ -1,6 +1,8 @@
-import { ListFilter, Play } from "lucide-react";
+import { Play } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "../../../lib/utils";
 import { SvgSpinner } from "../../../components/ui/svg-spinner";
+import { applyPromptRefSuggestion, suggestPromptRefs } from "../../hooks/analysisPromptRefs";
 
 type TranslationFn = (key: any) => string;
 
@@ -9,12 +11,46 @@ export function AnalysisPromptOverlay(props: {
   canRun: boolean;
   running: boolean;
   busy: boolean;
+  candidateFiles: string[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
-  onPickFiles: () => void;
   t: TranslationFn;
 }) {
-  const { prompt, canRun, running, busy, onPromptChange, onRun, onPickFiles, t } = props;
+  const { prompt, canRun, running, busy, candidateFiles, onPromptChange, onRun, t } = props;
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
+  const suggestions = useMemo(() => suggestPromptRefs(prompt, candidateFiles), [candidateFiles, prompt]);
+
+  useEffect(() => {
+    setSuggestionIndex((prev) => Math.min(prev, Math.max(0, suggestions.length - 1)));
+  }, [suggestions.length]);
+
+  const applySuggestionAtIndex = (index: number) => {
+    const target = suggestions[index];
+    if (!target) {
+      return;
+    }
+    onPromptChange(applyPromptRefSuggestion(prompt, target));
+    setSuggestionIndex(0);
+  };
+
+  const appendDroppedPaths = (paths: string[]) => {
+    if (paths.length === 0) {
+      return;
+    }
+    const normalizedSet = new Set(candidateFiles.map((item) => item.replace(/\\/g, "/")));
+    let next = prompt;
+    for (const path of paths) {
+      const normalized = path.replace(/\\/g, "/").trim();
+      if (!normalizedSet.has(normalized)) {
+        continue;
+      }
+      next = applyPromptRefSuggestion(next, normalized);
+    }
+    if (next !== prompt) {
+      onPromptChange(next);
+    }
+  };
 
   return (
     <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
@@ -24,11 +60,49 @@ export function AnalysisPromptOverlay(props: {
             className={cn(
               "h-[96px] w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-24 text-sm text-slate-700 outline-none transition",
               "focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
+              dragActive ? "border-primary-500 bg-primary-50/50" : "",
             )}
             value={prompt}
             placeholder={t("analysis.promptPlaceholder")}
             onChange={(event) => onPromptChange(event.target.value)}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!dragActive) {
+                setDragActive(true);
+              }
+            }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragActive(false);
+              const dataTransfer = event.dataTransfer;
+              const customRaw = dataTransfer.getData("application/x-latotex-path");
+              const customPaths = customRaw
+                .split(/\r?\n/g)
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0);
+              const plainRaw = dataTransfer.getData("text/plain");
+              const plainPaths = plainRaw
+                .split(/\r?\n/g)
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0);
+              appendDroppedPaths([...customPaths, ...plainPaths]);
+            }}
             onKeyDown={(event) => {
+              if (suggestions.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+                event.preventDefault();
+                const delta = event.key === "ArrowDown" ? 1 : -1;
+                setSuggestionIndex((prev) => Math.max(0, Math.min(suggestions.length - 1, prev + delta)));
+                return;
+              }
+              if (suggestions.length > 0 && (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey))) {
+                const hasAtRefQuery = /(?:^|\s)@(?:"[^"]*"?|[^\s"]*)$/.test(prompt);
+                if (hasAtRefQuery) {
+                  event.preventDefault();
+                  applySuggestionAtIndex(suggestionIndex);
+                  return;
+                }
+              }
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 if (!busy && canRun && !running) {
@@ -37,16 +111,27 @@ export function AnalysisPromptOverlay(props: {
               }
             }}
           />
+          {suggestions.length > 0 ? (
+            <div className="absolute bottom-10 left-2 right-24 z-20 max-h-36 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft">
+              {suggestions.map((path, index) => (
+                <button
+                  key={path}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition",
+                    index === suggestionIndex ? "bg-primary-50 text-primary-700" : "text-slate-700 hover:bg-slate-100",
+                  )}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    applySuggestionAtIndex(index);
+                  }}
+                  title={path}
+                >
+                  <span className="truncate">@{path}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
-            <button
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-              title={t("analysis.pickFiles")}
-              aria-label={t("analysis.pickFiles")}
-              onClick={onPickFiles}
-              disabled={running || busy}
-            >
-              <ListFilter className="h-4 w-4" />
-            </button>
             <button
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-40"
               title={running ? t("analysis.running") : t("analysis.run")}

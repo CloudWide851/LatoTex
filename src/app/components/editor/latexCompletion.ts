@@ -1,4 +1,5 @@
 import { getEvents, runAgentStart } from "../../../shared/api/desktop";
+import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 
 const LATEX_COMMAND_SNIPPETS: Array<{ label: string; insertText: string }> = [
   { label: "\\section", insertText: "\\section{${1}}" },
@@ -44,7 +45,7 @@ const LATEX_ENVIRONMENTS = [
 ];
 
 const registeredMonaco = new WeakSet<object>();
-const REMOTE_COMPLETION_TIMEOUT_MS = 4_500;
+const REMOTE_COMPLETION_TIMEOUT_MS = 2_200;
 const REMOTE_COMPLETION_TTL_MS = 18_000;
 const REMOTE_COMPLETION_MAX = 6;
 
@@ -52,6 +53,8 @@ type LatexCompletionContext = {
   projectId: string | null;
   selectedFile: string | null;
   completionModelId: string | null;
+  fileList: string[];
+  selectedFileContent: string;
 };
 
 type RemoteSuggestion = {
@@ -64,6 +67,8 @@ let completionContextProvider: () => LatexCompletionContext = () => ({
   projectId: null,
   selectedFile: null,
   completionModelId: null,
+  fileList: [],
+  selectedFileContent: "",
 });
 
 const remoteSuggestionCache = new Map<
@@ -75,6 +80,13 @@ const remoteProviderBackoffUntil = new Map<string, number>();
 
 export function configureLatexCompletionRuntime(getter: () => LatexCompletionContext) {
   completionContextProvider = getter;
+  const context = getter();
+  scheduleProjectSymbolIndexSync({
+    projectId: context.projectId,
+    fileList: context.fileList,
+    selectedFile: context.selectedFile,
+    selectedFileContent: context.selectedFileContent,
+  });
 }
 
 function collectUniqueMatches(text: string, pattern: RegExp): string[] {
@@ -241,7 +253,13 @@ async function fetchRemoteSuggestions(params: {
   linePrefix: string;
   fullText: string;
 }): Promise<RemoteSuggestion[]> {
-  const { projectId, selectedFile, completionModelId } = completionContextProvider();
+  const {
+    projectId,
+    selectedFile,
+    completionModelId,
+    fileList,
+    selectedFileContent,
+  } = completionContextProvider();
   if (!projectId || !completionModelId) {
     return [];
   }
@@ -265,6 +283,15 @@ async function fetchRemoteSuggestions(params: {
 
   const fetchPromise = (async () => {
     try {
+      const symbolHintPrefix = focusedLine.replace(/^.*?([\\A-Za-z_][A-Za-z0-9_:@-]*)$/, "$1");
+      const projectSymbols = await getIndexedProjectSymbols({
+        projectId,
+        fileList,
+        selectedFile,
+        selectedFileContent,
+        prefix: symbolHintPrefix.replace(/^\\/, ""),
+        limit: 20,
+      });
       const prompt = [
         "You are a LaTeX autocomplete engine.",
         "Return strict JSON only.",
@@ -276,8 +303,11 @@ async function fetchRemoteSuggestions(params: {
         "Current line prefix:",
         focusedLine,
         "",
+        "Known project symbols (high confidence):",
+        projectSymbols.join(", "),
+        "",
         "Current document context (tail):",
-        params.fullText.slice(Math.max(0, params.fullText.length - 1400)),
+        params.fullText.slice(Math.max(0, params.fullText.length - 720)),
       ].join("\n");
       const accepted = await runAgentStart({
         projectId,
@@ -306,6 +336,22 @@ async function fetchRemoteSuggestions(params: {
   return fetchPromise;
 }
 
+function wordPrefixFromLine(linePrefix: string): string {
+  const match = linePrefix.match(/([\\A-Za-z_][A-Za-z0-9_:@-]*)$/);
+  return match?.[1] ?? "";
+}
+
+function toSymbolCompletionItems(monaco: any, replaceRange: any, symbols: string[]): any[] {
+  return symbols.map((symbol) => ({
+    label: symbol,
+    kind: symbol.startsWith("\\")
+      ? monaco.languages.CompletionItemKind.Function
+      : monaco.languages.CompletionItemKind.Text,
+    insertText: symbol,
+    range: replaceRange,
+  }));
+}
+
 export function ensureLatexCompletionProvider(monaco: any) {
   if (!monaco || typeof monaco !== "object") {
     return;
@@ -315,17 +361,75 @@ export function ensureLatexCompletionProvider(monaco: any) {
   }
   registeredMonaco.add(monaco);
 
+  monaco.languages.registerInlineCompletionsProvider("latex", {
+    async provideInlineCompletions(model: any, position: any) {
+      const text = String(model.getValue() ?? "");
+      const linePrefix = String(model.getLineContent(position.lineNumber) ?? "").slice(0, Math.max(0, position.column - 1));
+      const prefix = wordPrefixFromLine(linePrefix);
+      if (prefix.length < 2) {
+        return { items: [] };
+      }
+      const context = completionContextProvider();
+      scheduleProjectSymbolIndexSync({
+        projectId: context.projectId,
+        fileList: context.fileList,
+        selectedFile: context.selectedFile,
+        selectedFileContent: text,
+      });
+      const projectSymbols = await getIndexedProjectSymbols({
+        projectId: context.projectId,
+        fileList: context.fileList,
+        selectedFile: context.selectedFile,
+        selectedFileContent: text,
+        prefix: prefix.replace(/^\\/, ""),
+        limit: 8,
+      });
+      let candidate = projectSymbols.find((item) => item.startsWith(prefix) && item !== prefix) ?? null;
+      if (!candidate && /\\[A-Za-z]{2,}$/.test(prefix)) {
+        const remote = await fetchRemoteSuggestions({ linePrefix, fullText: text });
+        candidate = remote
+          .map((item) => item.insertText.replace(/\$\{\d+:?([^}]*)\}/g, "$1").replace(/\$\d+/g, ""))
+          .find((item) => item.startsWith(prefix) && item !== prefix) ?? null;
+      }
+      if (!candidate) {
+        return { items: [] };
+      }
+      const insertText = candidate.slice(prefix.length);
+      if (!insertText) {
+        return { items: [] };
+      }
+      return {
+        items: [
+          {
+            insertText,
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          },
+        ],
+      };
+    },
+    freeInlineCompletions: () => undefined,
+  });
+
   monaco.languages.registerCompletionItemProvider("latex", {
     triggerCharacters: ["\\", "{", ","],
     async provideCompletionItems(model: any, position: any) {
       const text = String(model.getValue() ?? "");
       const linePrefix = String(model.getLineContent(position.lineNumber) ?? "").slice(0, Math.max(0, position.column - 1));
+      const wordPrefix = wordPrefixFromLine(linePrefix);
       const replaceRange = buildReplaceRange(monaco, model, position);
       const inRef = /\\(?:auto)?ref\{[^}]*$/i.test(linePrefix);
       const inCite = /\\cite[a-zA-Z*]*\{[^}]*$/i.test(linePrefix);
       const inBegin = /\\begin\{[^}]*$/i.test(linePrefix);
       const inCommand = /\\[A-Za-z]*$/.test(linePrefix);
       const suggestions: any[] = [];
+      const context = completionContextProvider();
+
+      scheduleProjectSymbolIndexSync({
+        projectId: context.projectId,
+        fileList: context.fileList,
+        selectedFile: context.selectedFile,
+        selectedFileContent: text,
+      });
 
       if (inRef) {
         for (const key of collectLabelKeys(text)) {
@@ -372,6 +476,18 @@ export function ensureLatexCompletionProvider(monaco: any) {
         }
       }
 
+      if (wordPrefix.length >= 2) {
+        const projectSymbols = await getIndexedProjectSymbols({
+          projectId: context.projectId,
+          fileList: context.fileList,
+          selectedFile: context.selectedFile,
+          selectedFileContent: text,
+          prefix: wordPrefix.replace(/^\\/, ""),
+          limit: 40,
+        });
+        suggestions.push(...toSymbolCompletionItems(monaco, replaceRange, projectSymbols));
+      }
+
       const shouldQueryRemote = /\\[A-Za-z]{2,}$/.test(linePrefix) || inRef || inCite || inBegin;
       if (shouldQueryRemote) {
         const remoteSuggestions = await fetchRemoteSuggestions({
@@ -395,7 +511,14 @@ export function ensureLatexCompletionProvider(monaco: any) {
         }
       }
 
-      return { suggestions };
+      const deduped = new Map<string, any>();
+      for (const item of suggestions) {
+        const key = `${String(item.label)}::${String(item.insertText ?? "")}`;
+        if (!deduped.has(key)) {
+          deduped.set(key, item);
+        }
+      }
+      return { suggestions: Array.from(deduped.values()) };
     },
   });
 }

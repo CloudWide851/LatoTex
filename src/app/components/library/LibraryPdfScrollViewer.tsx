@@ -161,7 +161,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [pages, visiblePage]);
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3">
+    <div ref={scrollRef} className="h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7">
       <Document
         file={pdfUrl}
         loading={

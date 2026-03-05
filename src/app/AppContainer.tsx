@@ -506,6 +506,7 @@ export function AppContainer() {
       libraryTree={s.libraryTree}
       selectedFile={s.selectedFile}
       selectedLibraryPath={s.selectedLibraryPath}
+      fileList={s.fileList}
       editorContent={s.editorContent}
       editorTabs={s.editorTabs}
       activeTabId={s.activeTabId}

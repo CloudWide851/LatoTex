@@ -43,6 +43,7 @@ export function AppWorkspaceShell(props: {
   libraryTree: ResourceNode[];
   selectedFile: string | null;
   selectedLibraryPath: string | null;
+  fileList: string[];
   editorContent: string;
   editorTabs: EditorTab[];
   activeTabId: string | null;
@@ -128,6 +129,7 @@ export function AppWorkspaceShell(props: {
     libraryTree,
     selectedFile,
     selectedLibraryPath,
+    fileList,
     editorContent,
     editorTabs,
     activeTabId,
@@ -203,8 +205,10 @@ export function AppWorkspaceShell(props: {
       projectId: activeProjectId,
       selectedFile,
       completionModelId,
+      fileList,
+      selectedFileContent: editorContent,
     }));
-  }, [activeProjectId, completionModelId, selectedFile]);
+  }, [activeProjectId, completionModelId, editorContent, fileList, selectedFile]);
   useEffect(() => {
     if (!compileErrorLine) {
       setCompileAssistDismissedFor("");
@@ -409,7 +413,7 @@ export function AppWorkspaceShell(props: {
                 quickSuggestions: { other: true, comments: false, strings: true },
                 suggestOnTriggerCharacters: true,
                 tabCompletion: "on",
-                inlineSuggest: { enabled: true },
+                inlineSuggest: { enabled: true, mode: "subword" },
                 bracketPairColorization: { enabled: true },
                 acceptSuggestionOnCommitCharacter: true,
                 wordWrap: "on",

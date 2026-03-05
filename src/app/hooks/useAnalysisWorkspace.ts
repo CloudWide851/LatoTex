@@ -14,6 +14,7 @@ import {
   type AnalysisSourceSnapshot,
 } from "./analysisDataSources";
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
+import { resolvePromptInputFiles } from "./analysisPromptRefs";
 import { createDefaultTask, loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
 import { newRunId, newTaskId, nowIso } from "./analysisTypes";
@@ -47,10 +48,9 @@ export function useAnalysisWorkspace(params: {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [filePickerOpen, setFilePickerOpen] = useState(false);
-  const [selectedInputFiles, setSelectedInputFiles] = useState<string[]>([]);
   const [activeRunIds, setActiveRunIds] = useState<string[]>([]);
   const loadedRef = useRef(false);
+  const tasksRef = useRef<AnalysisTask[]>([]);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
@@ -74,11 +74,14 @@ export function useAnalysisWorkspace(params: {
   const timelineCards = useMemo(() => extractEventCards(events, activeRunIds), [events, activeRunIds]);
 
   useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  useEffect(() => {
     if (!projectId) {
       setTasks([]);
       setActiveTaskId(null);
       setPrompt("");
-      setSelectedInputFiles([]);
       loadedRef.current = false;
       return;
     }
@@ -90,9 +93,6 @@ export function useAnalysisWorkspace(params: {
         }
         setTasks(state.tasks);
         setActiveTaskId(state.activeTaskId);
-        if (candidateFiles.length > 0) {
-          setSelectedInputFiles(csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles);
-        }
         loadedRef.current = true;
       })
       .catch((error) => {
@@ -107,7 +107,7 @@ export function useAnalysisWorkspace(params: {
     return () => {
       cancelled = true;
     };
-  }, [candidateFiles, csvCandidateFiles, projectId, setToast, t]);
+  }, [projectId, setToast, t]);
 
   useEffect(() => {
     if (!projectId || !loadedRef.current) {
@@ -176,17 +176,15 @@ export function useAnalysisWorkspace(params: {
     });
   }, [activeTaskId, t]);
 
-  const toggleInputFile = useCallback((path: string) => {
-    setSelectedInputFiles((prev) => (prev.includes(path) ? prev.filter((item) => item !== path) : [...prev, path]));
+  const ensureTasksReady = useCallback(async () => {
+    if (loadedRef.current) {
+      return;
+    }
+    const startedAt = Date.now();
+    while (!loadedRef.current && Date.now() - startedAt < 3_500) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
   }, []);
-
-  const selectAllInputs = useCallback(() => {
-    setSelectedInputFiles(candidateFiles);
-  }, [candidateFiles]);
-
-  const invertInputs = useCallback(() => {
-    setSelectedInputFiles((prev) => candidateFiles.filter((item) => !prev.includes(item)));
-  }, [candidateFiles]);
 
   const runRolePrompt = useCallback(async (role: string, promptText: string, contextRefs: string[]) => {
     if (!projectId) {
@@ -206,14 +204,21 @@ export function useAnalysisWorkspace(params: {
     };
   }, [projectId]);
 
-  const runAnalysisForPrompt = useCallback(async (inputPrompt: string, forcedTaskId?: string) => {
+  const runAnalysisForPrompt = useCallback(async (
+    inputPrompt: string,
+    options?: {
+      forcedTaskId?: string;
+      taskSnapshot?: AnalysisTask;
+    },
+  ) => {
     const normalizedPrompt = inputPrompt.trim();
     if (!projectId) {
       setAnalysisError(t("analysis.error.noProject"));
       return;
     }
-    const targetTaskId = forcedTaskId ?? activeTaskId;
-    const task = tasks.find((item) => item.id === targetTaskId) ?? null;
+    await ensureTasksReady();
+    const targetTaskId = options?.forcedTaskId ?? activeTaskId;
+    const task = options?.taskSnapshot ?? tasksRef.current.find((item) => item.id === targetTaskId) ?? null;
     if (!task) {
       setAnalysisError(t("analysis.error.noTask"));
       return;
@@ -236,6 +241,7 @@ export function useAnalysisWorkspace(params: {
 
       let snapshots: AnalysisSourceSnapshot[] = [];
       let sourceBlock = "";
+      let resolvedInputFiles: string[] = [];
       const steps: string[] = [];
       if (task.sourceType === "paper" && task.sourcePath) {
         steps.push(t("analysis.step.paperExtract"));
@@ -267,12 +273,18 @@ export function useAnalysisWorkspace(params: {
             excerpt: sourceBlock.slice(0, 8000),
           },
         ];
+        resolvedInputFiles = [task.sourcePath];
       } else {
+        const promptRefs = resolvePromptInputFiles(normalizedPrompt, candidateFiles);
         const defaultInputFiles = csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles;
-        const chosenFiles = selectedInputFiles.length > 0 ? selectedInputFiles : defaultInputFiles;
+        const chosenFiles = promptRefs.resolved.length > 0 ? promptRefs.resolved : defaultInputFiles;
+        if (promptRefs.unresolved.length > 0 && promptRefs.resolved.length === 0) {
+          throw new Error(`${t("analysis.error.invalidInputRefs")}: ${promptRefs.unresolved.join(", ")}`);
+        }
         if (chosenFiles.length === 0) {
           throw new Error(t("analysis.error.noInputFiles"));
         }
+        resolvedInputFiles = chosenFiles;
         steps.push(t("analysis.step.loadData"));
         snapshots = await loadDataSnapshots(projectId, chosenFiles);
         const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
@@ -410,11 +422,7 @@ export function useAnalysisWorkspace(params: {
         steps: mergedSteps,
         sourceType: task.sourceType,
         sourcePath: task.sourcePath,
-        inputFiles: task.sourceType === "paper"
-          ? [task.sourcePath ?? ""]
-          : (selectedInputFiles.length > 0
-            ? selectedInputFiles
-            : (csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles)),
+        inputFiles: resolvedInputFiles,
         outputLanguage,
         agentRunId: finalResult.runId,
         createdAt: nowIso(),
@@ -445,14 +453,13 @@ export function useAnalysisWorkspace(params: {
     candidateFiles,
     csvCandidateFiles,
     editorContent,
+    ensureTasksReady,
     locale,
     projectId,
     runRolePrompt,
     selectedFile,
-    selectedInputFiles,
     setToast,
     t,
-    tasks,
   ]);
 
   const runAnalysis = useCallback(async () => {
@@ -465,11 +472,15 @@ export function useAnalysisWorkspace(params: {
   }, [runAnalysisForPrompt]);
 
   const runPaperAnalysisFromLibrary = useCallback(async (sourcePath: string) => {
+    await ensureTasksReady();
     const task = createTask("paper", sourcePath, `${t("analysis.paperTaskName")}: ${sourcePath.split("/").pop() || sourcePath}`);
     const promptText = t("analysis.paperDefaultPrompt");
     setPrompt(promptText);
-    await runAnalysisForPrompt(promptText, task.id);
-  }, [createTask, runAnalysisForPrompt, t]);
+    await runAnalysisForPrompt(promptText, {
+      forcedTaskId: task.id,
+      taskSnapshot: task,
+    });
+  }, [createTask, ensureTasksReady, runAnalysisForPrompt, t]);
 
   const exportArtifact = useCallback(async (relativePath: string) => {
     if (!projectId) {
@@ -504,14 +515,7 @@ export function useAnalysisWorkspace(params: {
     activeTask,
     activeRun,
     timelineCards,
-    filePickerOpen,
-    setFilePickerOpen,
     candidateFiles,
-    selectedInputFiles,
-    setSelectedInputFiles,
-    toggleInputFile,
-    selectAllInputs,
-    invertInputs,
     setActiveTaskId,
     setActiveRunForTask,
     createTask,

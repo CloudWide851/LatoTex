@@ -1,6 +1,5 @@
 import { Download, FolderOpen } from "lucide-react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
-import { AnalysisFilePickerDialog } from "./AnalysisFilePickerDialog";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
 import { AnalysisTaskTabs } from "./AnalysisTaskTabs";
@@ -55,9 +54,7 @@ export function AnalysisWorkspace(props: {
   activeTaskId: string | null;
   activeRun: AnalysisTaskRun | null;
   timelineCards: AnalysisTimelineCard[];
-  filePickerOpen: boolean;
   candidateFiles: string[];
-  selectedInputFiles: string[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
   onSelectTask: (taskId: string) => void;
@@ -65,11 +62,6 @@ export function AnalysisWorkspace(props: {
   onRenameTask: (taskId: string, name: string) => void;
   onDeleteTask: (taskId: string) => void;
   onSetActiveRun: (taskId: string, runId: string) => void;
-  onOpenFilePicker: () => void;
-  onCloseFilePicker: () => void;
-  onToggleInputFile: (path: string) => void;
-  onSelectAllInputs: () => void;
-  onInvertInputs: () => void;
   onExportArtifact: (relativePath: string) => void;
   onRevealArtifact: (relativePath: string) => void;
   t: TranslationFn;
@@ -84,9 +76,7 @@ export function AnalysisWorkspace(props: {
     activeTaskId,
     activeRun,
     timelineCards,
-    filePickerOpen,
     candidateFiles,
-    selectedInputFiles,
     onPromptChange,
     onRun,
     onSelectTask,
@@ -94,11 +84,6 @@ export function AnalysisWorkspace(props: {
     onRenameTask,
     onDeleteTask,
     onSetActiveRun,
-    onOpenFilePicker,
-    onCloseFilePicker,
-    onToggleInputFile,
-    onSelectAllInputs,
-    onInvertInputs,
     onExportArtifact,
     onRevealArtifact,
     t,
@@ -210,20 +195,9 @@ export function AnalysisWorkspace(props: {
         canRun={canRun}
         running={running}
         busy={busy}
+        candidateFiles={candidateFiles}
         onPromptChange={onPromptChange}
         onRun={onRun}
-        onPickFiles={onOpenFilePicker}
-        t={t}
-      />
-
-      <AnalysisFilePickerDialog
-        open={filePickerOpen}
-        files={candidateFiles}
-        selectedFiles={selectedInputFiles}
-        onToggleFile={onToggleInputFile}
-        onSelectAll={onSelectAllInputs}
-        onInvert={onInvertInputs}
-        onClose={onCloseFilePicker}
         t={t}
       />
     </div>

@@ -230,6 +230,14 @@ body::before {
   clip-path: circle(var(--ripple-radius) at var(--ripple-x) var(--ripple-y));
 }
 
+.monaco-editor .ghost-text,
+.monaco-editor .inline-completion-text,
+.monaco-editor .inlineCompletions-view-line {
+  color: #0f5132 !important;
+  background-color: rgba(22, 163, 74, 0.22);
+  border-radius: 3px;
+}
+
 [data-theme="dark"] .bg-slate-100 {
   background-color: var(--app-bg) !important;
 }

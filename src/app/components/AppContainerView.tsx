@@ -39,6 +39,7 @@ export function AppContainerView(props: any) {
     libraryTree,
     selectedFile,
     selectedLibraryPath,
+    fileList,
     editorContent,
     editorTabs,
     activeTabId,
@@ -183,6 +184,7 @@ export function AppContainerView(props: any) {
             libraryTree={libraryTree}
             selectedFile={selectedFile}
             selectedLibraryPath={selectedLibraryPath}
+            fileList={fileList}
             editorContent={editorContent}
             editorTabs={editorTabs}
             activeTabId={activeTabId}

@@ -1,4 +1,4 @@
-import { FileSearch, FileText, FileUp } from "lucide-react";
+import { Check, Copy, ExternalLink, FileSearch, FileText, FileUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
@@ -10,11 +10,11 @@ import {
 } from "../../shared/api/desktop";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
-import { LibraryAnnotationToolbar } from "./library/LibraryAnnotationToolbar";
 import {
   LibraryPdfScrollViewer,
   type LibraryPdfScrollViewerHandle,
 } from "./library/LibraryPdfScrollViewer";
+import { LibraryPdfToolSidebar } from "./library/LibraryPdfToolSidebar";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./library/annotationPalette";
 import {
   parseAnnotationPayload,
@@ -343,53 +343,27 @@ export function LibraryDocumentViewer(props: {
             <FileSearch className="h-3.5 w-3.5" />
             {t("library.viewer.analyzePaper")}
           </button>
-
           {viewMode === "pdf" ? (
-            <LibraryAnnotationToolbar
-              t={t}
-              hasPdf={hasPdf}
-              mode={annotationMode}
-              onModeChange={setAnnotationMode}
-              highlightColor={highlightColor}
-              onHighlightColorChange={setHighlightColor}
-              textColor={textColor}
-              onTextColorChange={setTextColor}
-              canUndo={pageStrokeCount > 0}
-              canClear={pageStrokeCount > 0 || pageTextBoxCount > 0}
-              onUndo={() =>
-                setAnnotationStrokes((items) => {
-                  const pageItems = items.filter((item) => item.page === currentPage);
-                  if (pageItems.length === 0) {
-                    return items;
-                  }
-                  const lastId = pageItems[pageItems.length - 1].id;
-                  return items.filter((item) => item.id !== lastId);
-                })
-              }
-              onClear={() => {
-                setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
-                setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
-              }}
-              pageInput={pageInput}
-              onPageInputChange={setPageInput}
-              onPageCommit={() => {
-                const parsed = Number(pageInput);
-                if (Number.isFinite(parsed)) {
-                  jumpToPage(parsed);
-                } else {
-                  setPageInput(String(currentPage));
-                }
-              }}
-              onPrevPage={() => jumpToPage(currentPage - 1)}
-              onNextPage={() => jumpToPage(currentPage + 1)}
-              pdfZoom={pdfZoom}
-              onZoomOut={() => setPdfZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}
-              onZoomIn={() => setPdfZoom((prev) => Math.min(2.4, Number((prev + 0.1).toFixed(2))))}
-              activeLink={activeLink}
-              copyState={copyState}
-              onOpenLink={() => void handleOpenLink()}
-              onCopyLink={() => void handleCopyLink()}
-            />
+            <>
+              <button
+                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                onClick={() => void handleOpenLink()}
+                disabled={!activeLink}
+                title={t("library.viewer.openLink")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>{t("library.viewer.openLink")}</span>
+              </button>
+              <button
+                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                onClick={() => void handleCopyLink()}
+                disabled={!activeLink}
+                title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
+              >
+                {copyState ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                <span>{copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}</span>
+              </button>
+            </>
           ) : null}
         </div>
       </section>
@@ -405,7 +379,48 @@ export function LibraryDocumentViewer(props: {
               {t("library.viewer.error")} {loadError}
             </div>
           ) : hasPdf && pdfUrl ? (
-            <div className="h-full min-h-0">
+            <div className="grid h-full min-h-0 grid-cols-[48px_minmax(0,1fr)] gap-2">
+              <LibraryPdfToolSidebar
+                t={t}
+                hasPdf={hasPdf}
+                mode={annotationMode}
+                onModeChange={setAnnotationMode}
+                highlightColor={highlightColor}
+                onHighlightColorChange={setHighlightColor}
+                textColor={textColor}
+                onTextColorChange={setTextColor}
+                canUndo={pageStrokeCount > 0}
+                canClear={pageStrokeCount > 0 || pageTextBoxCount > 0}
+                onUndo={() =>
+                  setAnnotationStrokes((items) => {
+                    const pageItems = items.filter((item) => item.page === currentPage);
+                    if (pageItems.length === 0) {
+                      return items;
+                    }
+                    const lastId = pageItems[pageItems.length - 1].id;
+                    return items.filter((item) => item.id !== lastId);
+                  })
+                }
+                onClear={() => {
+                  setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
+                  setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
+                }}
+                pageInput={pageInput}
+                onPageInputChange={setPageInput}
+                onPageCommit={() => {
+                  const parsed = Number(pageInput);
+                  if (Number.isFinite(parsed)) {
+                    jumpToPage(parsed);
+                  } else {
+                    setPageInput(String(currentPage));
+                  }
+                }}
+                onPrevPage={() => jumpToPage(currentPage - 1)}
+                onNextPage={() => jumpToPage(currentPage + 1)}
+                pdfZoom={pdfZoom}
+                onZoomOut={() => setPdfZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}
+                onZoomIn={() => setPdfZoom((prev) => Math.min(2.4, Number((prev + 0.1).toFixed(2))))}
+              />
               <LibraryPdfScrollViewer
                 ref={viewerRef}
                 pdfUrl={pdfUrl}

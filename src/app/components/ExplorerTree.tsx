@@ -10,9 +10,7 @@ import {
   type MoveCopyPanel,
   resolveDecorationTone,
 } from "./explorer/treeUtils";
-
 type TranslationFn = (key: any) => string;
-
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
@@ -370,7 +368,14 @@ export function ExplorerTree(props: {
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
           )}
           style={indentStyle}
+          draggable={!isDirectory}
           title={node.relativePath}
+          onDragStart={(event) => {
+            if (isDirectory) return;
+            event.dataTransfer.effectAllowed = "copy";
+            event.dataTransfer.setData("application/x-latotex-path", node.relativePath);
+            event.dataTransfer.setData("text/plain", node.relativePath);
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -382,17 +387,13 @@ export function ExplorerTree(props: {
             });
           }}
           onClick={() => {
-            if (isDirectory) {
-              setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
-            }
+            if (isDirectory) setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
             onSelect(node.relativePath);
           }}
           onDoubleClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            if (mode === "workspace" && node.kind === "file") {
-              triggerRename(node.relativePath, node.name);
-            }
+            if (mode === "workspace" && node.kind === "file") triggerRename(node.relativePath, node.name);
           }}
         >
           {isDirectory ? (
