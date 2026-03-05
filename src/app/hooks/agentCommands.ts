@@ -1,4 +1,5 @@
 export type AgentSlashCommand = "review" | "check-ref" | "new" | "memory" | "resume";
+export type AgentCommitIntent = "ask" | "force" | "skip";
 
 export type ParsedAgentPrompt =
   | {
@@ -110,4 +111,38 @@ export function pickCommandSuggestions(input: string): Array<`/${AgentSlashComma
     return [...AGENT_COMMAND_TOKENS];
   }
   return AGENT_COMMAND_TOKENS.filter((candidate) => candidate.startsWith(token as `/${AgentSlashCommand}`));
+}
+
+export function resolveAgentCommitIntent(rawPrompt: string): AgentCommitIntent {
+  const prompt = rawPrompt.trim().toLowerCase();
+  if (!prompt) {
+    return "ask";
+  }
+  const skipPatterns = [
+    "不要提交",
+    "不提交",
+    "无需提交",
+    "don't commit",
+    "do not commit",
+    "without commit",
+    "skip commit",
+    "no commit",
+  ];
+  if (skipPatterns.some((item) => prompt.includes(item))) {
+    return "skip";
+  }
+  const forcePatterns = [
+    "自动提交",
+    "请提交",
+    "帮我提交",
+    "提交git",
+    "提交到git",
+    "git commit",
+    "auto commit",
+    "commit changes",
+  ];
+  if (forcePatterns.some((item) => prompt.includes(item))) {
+    return "force";
+  }
+  return "ask";
 }

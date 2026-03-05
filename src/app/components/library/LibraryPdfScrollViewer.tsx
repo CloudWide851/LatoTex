@@ -8,7 +8,11 @@ import {
 } from "react";
 import { Document, Page } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
-import type { AnnotationStroke, AnnotationTextBox } from "./annotationModel";
+import type {
+  AnnotationStroke,
+  AnnotationTextBox,
+  AnnotationTextStylePreset,
+} from "./annotationModel";
 import { PdfAnnotationLayer } from "./PdfAnnotationLayer";
 
 ensureReactPdfWorker();
@@ -30,7 +34,10 @@ export const LibraryPdfScrollViewer = forwardRef<
     zoom: number;
     mode: ToolMode;
     highlightColor: string;
+    highlightWidth: number;
+    highlightOpacity: number;
     textColor: string;
+    textBoxStylePreset: AnnotationTextStylePreset;
     strokes: AnnotationStroke[];
     textBoxes: AnnotationTextBox[];
     onStrokesChange: (next: AnnotationStroke[]) => void;
@@ -46,7 +53,10 @@ export const LibraryPdfScrollViewer = forwardRef<
     zoom,
     mode,
     highlightColor,
+    highlightWidth,
+    highlightOpacity,
     textColor,
+    textBoxStylePreset,
     strokes,
     textBoxes,
     onStrokesChange,
@@ -222,7 +232,10 @@ export const LibraryPdfScrollViewer = forwardRef<
                     page={page}
                     mode={mode}
                     highlightColor={highlightColor}
+                    highlightWidth={highlightWidth}
+                    highlightOpacity={highlightOpacity}
                     textColor={textColor}
+                    textBoxStylePreset={textBoxStylePreset}
                     strokes={strokes}
                     textBoxes={textBoxes}
                     onStrokesChange={onStrokesChange}

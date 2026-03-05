@@ -13,6 +13,7 @@ export type AgentFileProposal = {
   targetPath: string;
   originalContent: string;
   candidateContent: string;
+  commitIntent: "ask" | "force" | "skip";
   summary: string;
   analysisPrompt: string;
   insertions?: number;

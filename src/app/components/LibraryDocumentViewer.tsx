@@ -21,9 +21,11 @@ import {
   toLibraryAnnotationPath,
   type AnnotationPayload,
   type AnnotationStroke,
+  type AnnotationTextStylePreset,
   type AnnotationTextBox,
 } from "./library/annotationModel";
 import { filenameFromPath } from "./library/viewerUtils";
+import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
@@ -46,7 +48,10 @@ export function LibraryDocumentViewer(props: {
   const [viewMode, setViewMode] = useState<"bib" | "pdf">("bib");
   const [annotationMode, setAnnotationMode] = useState<ToolMode>("select");
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0]);
+  const [highlightWidth, setHighlightWidth] = useState<number>(16);
+  const [highlightOpacity, setHighlightOpacity] = useState<number>(0.65);
   const [textColor, setTextColor] = useState<string>(TEXT_COLORS[0]);
+  const [textBoxStylePreset, setTextBoxStylePreset] = useState<AnnotationTextStylePreset>("minimal");
   const [annotationStrokes, setAnnotationStrokes] = useState<AnnotationStroke[]>([]);
   const [annotationTextBoxes, setAnnotationTextBoxes] = useState<AnnotationTextBox[]>([]);
   const [annotationLoaded, setAnnotationLoaded] = useState(false);
@@ -100,6 +105,9 @@ export function LibraryDocumentViewer(props: {
       setPageCount(1);
       setPageInput("1");
       setPdfZoom(1);
+      setHighlightWidth(16);
+      setHighlightOpacity(0.65);
+      setTextBoxStylePreset("minimal");
       setPdfUrl((prev) => {
         if (prev) {
           URL.revokeObjectURL(prev);
@@ -119,6 +127,9 @@ export function LibraryDocumentViewer(props: {
     setPageCount(1);
     setPageInput("1");
     setPdfZoom(1);
+    setHighlightWidth(16);
+    setHighlightOpacity(0.65);
+    setTextBoxStylePreset("minimal");
 
     const load = async () => {
       const summary = await libraryCitationSummary(projectId, selectedPath);
@@ -265,6 +276,29 @@ export function LibraryDocumentViewer(props: {
     setPageInput(String(normalized));
     viewerRef.current?.scrollToPage(normalized);
   }, [pageCount]);
+  const handleUndoCurrentPage = useCallback(() => {
+    setAnnotationStrokes((items) => {
+      const pageItems = items.filter((item) => item.page === currentPage);
+      if (pageItems.length === 0) {
+        return items;
+      }
+      const lastId = pageItems[pageItems.length - 1].id;
+      return items.filter((item) => item.id !== lastId);
+    });
+  }, [currentPage]);
+  const handleClearCurrentPage = useCallback(() => {
+    setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
+    setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
+  }, [currentPage]);
+
+  useLibraryPdfShortcuts({
+    enabled: viewMode === "pdf" && hasPdf,
+    currentPage,
+    jumpToPage,
+    setMode: setAnnotationMode,
+    onUndo: handleUndoCurrentPage,
+    setZoom: setPdfZoom,
+  });
 
   const handleOpenLink = async () => {
     if (!activeLink) {
@@ -387,24 +421,18 @@ export function LibraryDocumentViewer(props: {
                 onModeChange={setAnnotationMode}
                 highlightColor={highlightColor}
                 onHighlightColorChange={setHighlightColor}
+                highlightWidth={highlightWidth}
+                onHighlightWidthChange={setHighlightWidth}
+                highlightOpacity={highlightOpacity}
+                onHighlightOpacityChange={setHighlightOpacity}
                 textColor={textColor}
                 onTextColorChange={setTextColor}
+                textBoxStylePreset={textBoxStylePreset}
+                onTextBoxStylePresetChange={setTextBoxStylePreset}
                 canUndo={pageStrokeCount > 0}
                 canClear={pageStrokeCount > 0 || pageTextBoxCount > 0}
-                onUndo={() =>
-                  setAnnotationStrokes((items) => {
-                    const pageItems = items.filter((item) => item.page === currentPage);
-                    if (pageItems.length === 0) {
-                      return items;
-                    }
-                    const lastId = pageItems[pageItems.length - 1].id;
-                    return items.filter((item) => item.id !== lastId);
-                  })
-                }
-                onClear={() => {
-                  setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
-                  setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
-                }}
+                onUndo={handleUndoCurrentPage}
+                onClear={handleClearCurrentPage}
                 pageInput={pageInput}
                 onPageInputChange={setPageInput}
                 onPageCommit={() => {
@@ -428,7 +456,10 @@ export function LibraryDocumentViewer(props: {
                 zoom={pdfZoom}
                 mode={annotationMode}
                 highlightColor={highlightColor}
+                highlightWidth={highlightWidth}
+                highlightOpacity={highlightOpacity}
                 textColor={textColor}
+                textBoxStylePreset={textBoxStylePreset}
                 strokes={annotationStrokes}
                 textBoxes={annotationTextBoxes}
                 onStrokesChange={setAnnotationStrokes}

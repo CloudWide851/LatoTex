@@ -21,7 +21,10 @@ export type AnnotationTextStyle = {
   textColor: string;
   backgroundColor: string;
   borderColor: string;
+  borderWidth: number;
 };
+
+export type AnnotationTextStylePreset = "minimal" | "boxed" | "note";
 
 export type AnnotationTextBox = {
   id: string;
@@ -50,21 +53,55 @@ const DEFAULT_STROKE_STYLE: AnnotationStrokeStyle = {
 const DEFAULT_TEXT_STYLE: AnnotationTextStyle = {
   fontSize: 14,
   textColor: "#1f2937",
-  backgroundColor: "rgba(255,255,255,0.86)",
-  borderColor: "#93c5fd",
+  backgroundColor: "transparent",
+  borderColor: "transparent",
+  borderWidth: 0,
 };
 
-export function createDefaultStrokeStyle(color?: string): AnnotationStrokeStyle {
+export function createDefaultStrokeStyle(
+  color?: string,
+  options?: Partial<Pick<AnnotationStrokeStyle, "width" | "opacity">>,
+): AnnotationStrokeStyle {
+  const width = Number(options?.width ?? DEFAULT_STROKE_STYLE.width);
+  const opacity = Number(options?.opacity ?? DEFAULT_STROKE_STYLE.opacity);
   return {
     color: typeof color === "string" && color.trim().length > 0 ? color : DEFAULT_STROKE_STYLE.color,
-    width: DEFAULT_STROKE_STYLE.width,
-    opacity: DEFAULT_STROKE_STYLE.opacity,
+    width: Number.isFinite(width) ? Math.max(6, Math.min(42, width)) : DEFAULT_STROKE_STYLE.width,
+    opacity: Number.isFinite(opacity)
+      ? Math.max(0.2, Math.min(1, opacity))
+      : DEFAULT_STROKE_STYLE.opacity,
   };
 }
 
-export function createDefaultTextStyle(textColor?: string): AnnotationTextStyle {
+function styleForPreset(preset: AnnotationTextStylePreset): Omit<AnnotationTextStyle, "fontSize" | "textColor"> {
+  if (preset === "boxed") {
+    return {
+      backgroundColor: "rgba(255,255,255,0.86)",
+      borderColor: "#93c5fd",
+      borderWidth: 1,
+    };
+  }
+  if (preset === "note") {
+    return {
+      backgroundColor: "rgba(254,243,199,0.72)",
+      borderColor: "#f59e0b",
+      borderWidth: 1,
+    };
+  }
+  return {
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+    borderWidth: 0,
+  };
+}
+
+export function createDefaultTextStyle(
+  textColor?: string,
+  preset: AnnotationTextStylePreset = "minimal",
+): AnnotationTextStyle {
   return {
     ...DEFAULT_TEXT_STYLE,
+    ...styleForPreset(preset),
     textColor:
       typeof textColor === "string" && textColor.trim().length > 0
         ? textColor
@@ -162,6 +199,14 @@ export function parseAnnotationPayload(content: string): AnnotationPayload {
             textColor: String(item?.style?.textColor ?? DEFAULT_TEXT_STYLE.textColor),
             backgroundColor: String(item?.style?.backgroundColor ?? DEFAULT_TEXT_STYLE.backgroundColor),
             borderColor: String(item?.style?.borderColor ?? DEFAULT_TEXT_STYLE.borderColor),
+            borderWidth: (() => {
+              const parsed = Number(item?.style?.borderWidth);
+              if (Number.isFinite(parsed)) {
+                return Math.max(0, Math.min(4, parsed));
+              }
+              const legacyBorder = String(item?.style?.borderColor ?? "");
+              return legacyBorder.trim().length > 0 && legacyBorder !== "transparent" ? 1 : 0;
+            })(),
           },
         } as AnnotationTextBox;
       });

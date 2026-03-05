@@ -4,6 +4,7 @@ import {
   clampNormalized,
   createDefaultStrokeStyle,
   createDefaultTextStyle,
+  type AnnotationTextStylePreset,
   type AnnotationPoint,
   type AnnotationStroke,
   type AnnotationTextBox,
@@ -12,6 +13,7 @@ import { hexToRgba } from "./annotationPalette";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type DragMode = "move" | "resize";
+const HIGHLIGHT_CURSOR = `url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Crect x='2' y='2' width='10' height='22' rx='3' fill='%23facc15' stroke='%23b45309' stroke-width='1.4'/%3E%3Crect x='12' y='17' width='12' height='7' rx='2' fill='%23fef3c7' stroke='%23b45309' stroke-width='1.2'/%3E%3C/svg%3E") 4 22, crosshair`;
 
 type DragState = {
   mode: DragMode;
@@ -68,7 +70,10 @@ export function PdfAnnotationLayer(props: {
   page: number;
   mode: ToolMode;
   highlightColor: string;
+  highlightWidth: number;
+  highlightOpacity: number;
   textColor: string;
+  textBoxStylePreset: AnnotationTextStylePreset;
   strokes: AnnotationStroke[];
   textBoxes: AnnotationTextBox[];
   onStrokesChange: (next: AnnotationStroke[]) => void;
@@ -79,7 +84,10 @@ export function PdfAnnotationLayer(props: {
     page,
     mode,
     highlightColor,
+    highlightWidth,
+    highlightOpacity,
     textColor,
+    textBoxStylePreset,
     strokes,
     textBoxes,
     onStrokesChange,
@@ -202,7 +210,10 @@ export function PdfAnnotationLayer(props: {
         id: `stroke-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         page,
         points: previous.map(clampPoint),
-        style: createDefaultStrokeStyle(highlightColor),
+        style: createDefaultStrokeStyle(highlightColor, {
+          width: highlightWidth,
+          opacity: highlightOpacity,
+        }),
       };
       onStrokesChange([...strokes, stroke]);
       return null;
@@ -231,8 +242,8 @@ export function PdfAnnotationLayer(props: {
           <polyline
             points={draftStroke.map((point) => `${point.x},${point.y}`).join(" ")}
             fill="none"
-            stroke={hexToRgba(highlightColor, 0.72)}
-            strokeWidth="16"
+            stroke={hexToRgba(highlightColor, Math.min(1, highlightOpacity + 0.07))}
+            strokeWidth={highlightWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -242,6 +253,16 @@ export function PdfAnnotationLayer(props: {
       <div
         ref={layerRef}
         className="absolute inset-0 z-20"
+        style={{
+          cursor:
+            mode === "highlight"
+              ? HIGHLIGHT_CURSOR
+              : mode === "eraser"
+                ? "cell"
+                : mode === "textbox"
+                  ? "text"
+                  : "default",
+        }}
         onMouseDown={(event) => {
           const rect = layerRef.current?.getBoundingClientRect();
           if (!rect) {
@@ -260,7 +281,7 @@ export function PdfAnnotationLayer(props: {
               h: 160,
               z: nextTextBoxZ(textBoxes),
               content: "",
-              style: createDefaultTextStyle(textColor),
+              style: createDefaultTextStyle(textColor, textBoxStylePreset),
             };
             onTextBoxesChange([...textBoxes, nextBox]);
             setSelectedTextBoxId(id);
@@ -309,7 +330,7 @@ export function PdfAnnotationLayer(props: {
           return (
             <div
               key={box.id}
-              className={`absolute rounded border shadow-sm ${selected ? "ring-2 ring-primary-300" : ""}`}
+              className={`absolute rounded ${selected ? "ring-2 ring-primary-300" : ""}`}
               style={{
                 left: `${(box.x / 1000) * 100}%`,
                 top: `${(box.y / 1000) * 100}%`,
@@ -317,6 +338,8 @@ export function PdfAnnotationLayer(props: {
                 height: `${(box.h / 1000) * 100}%`,
                 zIndex: box.z,
                 borderColor: box.style.borderColor,
+                borderStyle: box.style.borderWidth > 0 ? "solid" : "none",
+                borderWidth: `${box.style.borderWidth}px`,
                 backgroundColor: box.style.backgroundColor,
               }}
               onMouseDown={(event) => {
@@ -345,7 +368,7 @@ export function PdfAnnotationLayer(props: {
               {editing ? (
                 <textarea
                   autoFocus
-                  className="h-full w-full resize-none rounded border-none bg-white/95 p-1.5 text-xs leading-5 outline-none"
+                  className="h-full w-full resize-none rounded border-none bg-transparent p-1.5 text-xs leading-5 outline-none"
                   style={{
                     color: box.style.textColor,
                     fontSize: `${box.style.fontSize}px`,
@@ -377,7 +400,9 @@ export function PdfAnnotationLayer(props: {
                 >
                   {box.content.trim().length > 0
                     ? box.content
-                    : t("library.viewer.textboxPlaceholder")}
+                    : selected
+                      ? t("library.viewer.textboxPlaceholder")
+                      : ""}
                 </div>
               )}
               {selected && mode === "select" && !editing ? (

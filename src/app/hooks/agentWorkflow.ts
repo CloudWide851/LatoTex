@@ -5,7 +5,7 @@ import {
 } from "../../shared/api/desktop";
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
-import { extractReferenceQueries, parseAgentPrompt } from "./agentCommands";
+import { extractReferenceQueries, parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";
 import { buildAgentMemoryContext } from "./agentMemoryStore";
 import { buildToolSearchQueryBlock } from "./agentToolSearch";
 import {
@@ -287,6 +287,7 @@ export async function runAgentWorkflow(params: {
 
   const prompt = agentPrompt.trim();
   const parsed = parseAgentPrompt(prompt);
+  const commitIntent = resolveAgentCommitIntent(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
   const memoryContext = await buildAgentMemoryContext(activeProjectId, targetPath).catch(() => "");
   const withMemoryContext = (basePrompt: string) =>
@@ -403,6 +404,7 @@ export async function runAgentWorkflow(params: {
           targetPath,
           originalContent,
           candidateContent: fixedContent,
+          commitIntent,
           summary: t("agent.proposalReady"),
           analysisPrompt: buildAnalysisPrompt(prompt, fixedContent, targetPath),
           insertions,
@@ -528,6 +530,7 @@ export async function runAgentWorkflow(params: {
         targetPath,
         originalContent,
         candidateContent: resolved.candidate,
+        commitIntent,
         summary: t("agent.proposalReady"),
         analysisPrompt: buildAnalysisPrompt(prompt, normalizedOutput, targetPath),
         insertions,

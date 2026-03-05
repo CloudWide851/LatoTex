@@ -1,4 +1,12 @@
-import { openProject, writeFile } from "../../shared/api/desktop";
+import {
+  gitCommit,
+  gitStage,
+  openProject,
+  runtimeLogWrite,
+  writeFile,
+} from "../../shared/api/desktop";
+import { generateGitSummary } from "./useGitSummaryGenerator";
+import { isLatexPath } from "./agentPatchEdits";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 
 const MAX_AGENT_MESSAGES = 200;
@@ -20,6 +28,7 @@ export async function applyAgentProposal(params: {
   setPage: (value: any) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
+  requestAutoCommitDecision?: (targetPath: string) => Promise<boolean>;
   t: (key: any) => string;
 }) {
   const {
@@ -39,6 +48,7 @@ export async function applyAgentProposal(params: {
     setPage,
     setToast,
     runAnalysisFromAgent,
+    requestAutoCommitDecision,
     t,
   } = params;
 
@@ -65,6 +75,39 @@ export async function applyAgentProposal(params: {
     setAgentProposal(null);
     setAgentRunId(null);
     await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+
+    const commitIntent = proposal.commitIntent ?? "ask";
+    const canAutoCommit = isLatexPath(proposal.targetPath) && commitIntent !== "skip";
+    if (canAutoCommit) {
+      let shouldCommit = false;
+      if (commitIntent === "force") {
+        shouldCommit = true;
+      } else if (requestAutoCommitDecision) {
+        shouldCommit = await requestAutoCommitDecision(proposal.targetPath);
+      } else {
+        shouldCommit = window.confirm(
+          t("agent.autoCommit.desc").replace("{path}", proposal.targetPath),
+        );
+      }
+      if (shouldCommit) {
+        try {
+          await gitStage(activeProjectId, [proposal.targetPath]);
+          const summary = (await generateGitSummary(activeProjectId, [proposal.targetPath])).trim();
+          const fallback = `agent(latex): apply edits to ${proposal.targetPath}`;
+          await gitCommit(activeProjectId, summary || fallback);
+          await runtimeLogWrite("INFO", `agent_auto_commit: ${proposal.targetPath}`).catch(() => undefined);
+          await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+          setToast({ type: "info", message: t("agent.autoCommit.success") });
+        } catch (commitError) {
+          await runtimeLogWrite("ERROR", `agent_auto_commit_failed: ${String(commitError)}`).catch(() => undefined);
+          setToast({
+            type: "error",
+            message: t("agent.autoCommit.failed").replace("{error}", String(commitError)),
+          });
+        }
+      }
+    }
+
     if (withAnalysis && runAnalysisFromAgent) {
       setPage("analysis");
       await runAnalysisFromAgent(proposal.analysisPrompt);
