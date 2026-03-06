@@ -9,72 +9,49 @@ use crate::models::{
     Ack, AgentRunAccepted, AgentRunCancelInput, AgentRunRequest, AgentRunStartAccepted,
     CompileRecord, CompileRecordInput, EventBatch, EventQuery,
 };
-use crate::secure;
 use crate::state::AppState;
 use crate::storage;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use serde_json::json;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::State;
-use uuid::Uuid;
 
 const AGENT_RETRY_MAX: u32 = 3;
-const AGENT_CACHE_TTL_SECONDS: i64 = 30 * 60;
-const AGENT_MAX_CONCURRENT: u32 = 4;
-
-struct AgentRunSlotGuard {
-    slots: Arc<(std::sync::Mutex<u32>, std::sync::Condvar)>,
-}
-
-impl Drop for AgentRunSlotGuard {
-    fn drop(&mut self) {
-        let (lock, cvar) = &*self.slots;
-        if let Ok(mut current) = lock.lock() {
-            *current = current.saturating_sub(1);
-            cvar.notify_one();
-        }
-    }
-}
-
-fn acquire_agent_slot(state: &AppState) -> Result<AgentRunSlotGuard, String> {
-    let slots = state.agent_slots.clone();
-    let (lock, cvar) = &*slots;
-    let mut current = lock.lock().map_err(|_| "failed to lock agent slots".to_string())?;
-    while *current >= AGENT_MAX_CONCURRENT {
-        current = cvar
-            .wait(current)
-            .map_err(|_| "failed to wait for agent slot".to_string())?;
-    }
-    *current = current.saturating_add(1);
-    drop(current);
-    Ok(AgentRunSlotGuard { slots })
-}
 
 struct ProviderError {
     message: String,
     retryable: bool,
 }
 
-fn hash_cache_key(
-    role: &str,
-    protocol_id: &str,
-    model_name: &str,
-    prompt: &str,
-    context_refs: &[String],
-) -> String {
-    let mut hasher = DefaultHasher::new();
-    role.hash(&mut hasher);
-    protocol_id.hash(&mut hasher);
-    model_name.hash(&mut hasher);
-    prompt.hash(&mut hasher);
-    context_refs.hash(&mut hasher);
-    format!("{:x}", hasher.finish())
+fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, ProviderError> {
+    let trimmed = body.trim();
+    if trimmed.is_empty() {
+        return Err(ProviderError {
+            message: format!("{provider} response body is empty"),
+            retryable: true,
+        });
+    }
+    serde_json::from_str(trimmed).map_err(|error| {
+        let error_text = error.to_string();
+        let compact_preview = trimmed
+            .replace('\n', " ")
+            .replace('\r', " ")
+            .chars()
+            .take(260)
+            .collect::<String>();
+        let retryable = error_text.contains("EOF while parsing")
+            || error_text.contains("expected value at line 1 column 1")
+            || error_text.contains("expected value at line 1 column 0");
+        ProviderError {
+            message: format!(
+                "{provider} response parse error: {error_text}; body_preview={compact_preview}"
+            ),
+            retryable,
+        }
+    })
 }
 
 fn should_retry(status: StatusCode) -> bool {
@@ -138,10 +115,7 @@ fn call_openai_compatible(
         });
     }
 
-    let parsed: serde_json::Value = serde_json::from_str(&body).map_err(|e| ProviderError {
-        message: e.to_string(),
-        retryable: false,
-    })?;
+    let parsed = parse_provider_json(&body, "OpenAI-compatible")?;
     let content = parsed
         .get("choices")
         .and_then(|v| v.get(0))
@@ -190,10 +164,7 @@ fn call_anthropic(
         });
     }
 
-    let parsed: serde_json::Value = serde_json::from_str(&body).map_err(|e| ProviderError {
-        message: e.to_string(),
-        retryable: false,
-    })?;
+    let parsed = parse_provider_json(&body, "Anthropic")?;
     let content = parsed
         .get("content")
         .and_then(extract_text_content)
@@ -243,10 +214,7 @@ fn call_gemini(
         });
     }
 
-    let parsed: serde_json::Value = serde_json::from_str(&body).map_err(|e| ProviderError {
-        message: e.to_string(),
-        retryable: false,
-    })?;
+    let parsed = parse_provider_json(&body, "Gemini")?;
     let content = parsed
         .get("candidates")
         .and_then(|v| v.get(0))
@@ -318,134 +286,78 @@ pub fn agent_run(
     state: State<'_, AppState>,
     input: AgentRunRequest,
 ) -> Result<AgentRunAccepted, String> {
-    let _slot_guard = acquire_agent_slot(&state)?;
+    const WAIT_TIMEOUT: Duration = Duration::from_secs(260);
+    const WAIT_INTERVAL: Duration = Duration::from_millis(240);
+
     state.log(
         "INFO",
-        &format!("agent_run: role={}, project={}", input.role, input.project_id),
+        &format!(
+            "agent_run(sync-through-start): role={}, project={}",
+            input.role, input.project_id
+        ),
     );
-    let run_id = Uuid::new_v4().to_string();
-    storage::append_event(
-        &state.db_path,
-        &run_id,
-        &input.project_id,
-        &input.role,
-        "agent.run.accepted",
-        json!({
-            "prompt": input.prompt,
-            "contextRefs": input.context_refs,
-            "modelOverride": input.model_override
-        }),
-    )?;
+    let accepted = swarm_pipeline::agent_run_start(&state, input)?;
+    let run_id = accepted.run_id.clone();
+    let started_at = Instant::now();
+    let mut cursor: i64 = 0;
+    let mut fallback_output = String::new();
 
-    let (protocol_id, base_url, model_name, resolved_model_id) = storage::resolve_agent_model(
-        &state.db_path,
-        &input.role,
-        input.model_override.as_deref(),
-    )?;
-    let secure_context = secure::SecureStorageContext {
-        db_path: state.db_path.clone(),
-        runtime_root: state.runtime_root.clone(),
-    };
-    let api_key = secure::get_model_api_key(&secure_context, &resolved_model_id)?
-        .api_key
-        .ok_or_else(|| format!("API key is missing for model: {resolved_model_id}"))?;
-    let full_prompt = if input.context_refs.is_empty() {
-        input.prompt.clone()
-    } else {
-        format!(
-            "{}\n\n[Context]\n{}",
-            input.prompt,
-            input.context_refs.join("\n")
-        )
-    };
-    let cache_key = hash_cache_key(
-        &input.role,
-        &protocol_id,
-        &model_name,
-        &full_prompt,
-        &input.context_refs,
-    );
-
-    if input.bypass_cache {
-        storage::append_event(
-            &state.db_path,
-            &run_id,
-            &input.project_id,
-            &input.role,
-            "agent.cache.bypass",
-            json!({ "cacheKey": cache_key, "protocolId": protocol_id, "model": model_name }),
-        )?;
-    } else {
-        if let Some(cached) = storage::load_agent_cache(&state.db_path, &cache_key)? {
-            storage::append_event(
-                &state.db_path,
-                &run_id,
-                &input.project_id,
-                &input.role,
-                "agent.cache.hit",
-                json!({ "cacheKey": cache_key, "protocolId": protocol_id, "model": model_name }),
-            )?;
-            storage::append_event(
-                &state.db_path,
-                &run_id,
-                &input.project_id,
-                &input.role,
-                "agent.run.completed",
-                json!({ "output": cached, "cached": true }),
-            )?;
-            return Ok(AgentRunAccepted {
-                run_id,
-                status: "completed".to_string(),
-                output: cached,
-            });
+    loop {
+        if started_at.elapsed() > WAIT_TIMEOUT {
+            return Err("agent.run.timeout".to_string());
         }
-    }
-
-    storage::append_event(
-        &state.db_path,
-        &run_id,
-        &input.project_id,
-        &input.role,
-        "agent.cache.miss",
-        json!({ "cacheKey": cache_key, "protocolId": protocol_id, "model": model_name }),
-    )?;
-
-    let output =
-        call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)?;
-    if !input.bypass_cache {
-        storage::store_agent_cache(
+        let batch = storage::events_since(
             &state.db_path,
-            &cache_key,
-            &protocol_id,
-            &model_name,
-            &output,
-            AGENT_CACHE_TTL_SECONDS,
+            EventQuery {
+                cursor: Some(cursor),
+                limit: Some(240),
+                run_id: Some(run_id.clone()),
+            },
         )?;
-        storage::append_event(
-            &state.db_path,
-            &run_id,
-            &input.project_id,
-            &input.role,
-            "agent.cache.store",
-            json!({ "cacheKey": cache_key }),
-        )?;
-    }
-    storage::append_event(
-        &state.db_path,
-        &run_id,
-        &input.project_id,
-        &input.role,
-        "agent.run.completed",
-        json!({
-            "output": output
-        }),
-    )?;
+        cursor = batch.next_cursor;
 
-    Ok(AgentRunAccepted {
-        run_id,
-        status: "completed".to_string(),
-        output,
-    })
+        for event in batch.events {
+            let payload = event.payload;
+            match event.kind.as_str() {
+                "responses.output_text.delta" => {
+                    if let Some(chunk) = payload.get("content").and_then(|value| value.as_str()) {
+                        fallback_output.push_str(chunk);
+                    }
+                }
+                "agent.run.completed" => {
+                    let output = payload
+                        .get("output")
+                        .and_then(|value| value.as_str())
+                        .map(|value| value.to_string())
+                        .unwrap_or(fallback_output);
+                    return Ok(AgentRunAccepted {
+                        run_id,
+                        status: "completed".to_string(),
+                        output,
+                    });
+                }
+                "agent.run.cancelled" => return Err("agent.run.cancelled".to_string()),
+                "agent.run.failed" => {
+                    let message = payload
+                        .get("content")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.trim().is_empty())
+                        .map(|value| value.to_string())
+                        .or_else(|| {
+                            payload
+                                .get("message")
+                                .and_then(|value| value.as_str())
+                                .map(|value| value.to_string())
+                        })
+                        .unwrap_or_else(|| "agent.run.failed".to_string());
+                    return Err(message);
+                }
+                _ => {}
+            }
+        }
+
+        thread::sleep(WAIT_INTERVAL);
+    }
 }
 
 #[tauri::command]

@@ -77,6 +77,26 @@ pub struct WorkspaceExportPdfResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ShareSessionCreateInput {
+    pub project_id: String,
+    pub target_path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionInfo {
+    pub active: bool,
+    pub session_id: Option<String>,
+    pub project_id: Option<String>,
+    pub target_path: Option<String>,
+    pub local_url: Option<String>,
+    pub tunnel_url: Option<String>,
+    pub password: Option<String>,
+    pub expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileReadInput {
     pub project_id: String,
     pub relative_path: String,

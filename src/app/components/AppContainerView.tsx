@@ -26,6 +26,12 @@ export function AppContainerView(props: any) {
     setProjectSearchSearched,
     handleInitProjectFromFolderWithGuard,
     handleWindowControlWithGuard,
+    shareSession,
+    shareBusy,
+    shareSyncing,
+    handleShareStart,
+    handleShareStop,
+    handleShareRefresh,
     t,
     recoverWorkspaceLayout,
     page,
@@ -94,6 +100,7 @@ export function AppContainerView(props: any) {
     handleLibraryImportPdf,
     handleLibraryImportLink,
     handleLibraryAnalyzePaper,
+    analysisRunning,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,
     savePanelLayout,
@@ -160,6 +167,13 @@ export function AppContainerView(props: any) {
           }}
           onOpenFolder={handleInitProjectFromFolderWithGuard}
           onWindowControl={handleWindowControlWithGuard}
+          selectedFile={selectedFile}
+          shareSession={shareSession}
+          shareBusy={shareBusy}
+          shareSyncing={shareSyncing}
+          onShareStart={handleShareStart}
+          onShareStop={handleShareStop}
+          onShareRefresh={handleShareRefresh}
           t={t}
         />
 
@@ -247,6 +261,7 @@ export function AppContainerView(props: any) {
             onLibraryImportPdf={handleLibraryImportPdf}
             onLibraryImportLink={handleLibraryImportLink}
             onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
+            analysisRunning={analysisRunning}
             onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
             onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
             onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}

@@ -28,6 +28,7 @@
     "lucide-react": "^0.542.0",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "4.8.69",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
@@ -38,7 +39,8 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.3.1",
-    "texlyre-busytex": "^0.1.2-alpha"
+    "texlyre-busytex": "^0.1.2-alpha",
+    "yjs": "^13.6.29"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

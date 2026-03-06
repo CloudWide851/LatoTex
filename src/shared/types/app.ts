@@ -63,6 +63,17 @@ export type WorkspaceExportPdfResponse = {
   fileName: string;
 };
 
+export type ShareSessionInfo = {
+  active: boolean;
+  sessionId?: string | null;
+  projectId?: string | null;
+  targetPath?: string | null;
+  localUrl?: string | null;
+  tunnelUrl?: string | null;
+  password?: string | null;
+  expiresAt?: string | null;
+};
+
 export type SwarmEvent = {
   seq: number;
   id: string;

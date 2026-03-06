@@ -43,6 +43,7 @@ import type {
   RuntimeLogReadFilters,
   RuntimeLogReadResponse,
   ResourceNode,
+  ShareSessionInfo,
   WorkspaceExportPdfResponse,
 } from "../types/app";
 import type { HealthCheckResponse } from "../types/health";
@@ -146,6 +147,23 @@ export function workspaceOpenTerminal(projectId: string, relativePath?: string) 
   return invoke("workspace_open_terminal", {
     input: { projectId, relativePath }
   });
+}
+
+export function shareSessionCreate(
+  projectId: string,
+  targetPath: string,
+): Promise<ShareSessionInfo> {
+  return invoke<ShareSessionInfo>("share_session_create", {
+    input: { projectId, targetPath },
+  });
+}
+
+export function shareSessionStatus(): Promise<ShareSessionInfo> {
+  return invoke<ShareSessionInfo>("share_session_status");
+}
+
+export function shareSessionStop(): Promise<Ack> {
+  return invoke<Ack>("share_session_stop");
 }
 
 export function openExternalLink(url: string): Promise<Ack> {

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LatoTex Share</title>
+    <style>
+      :root {
+        font-family: "Segoe UI", Arial, sans-serif;
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        background: #eef2f8;
+        color: #0f172a;
+      }
+      .wrap {
+        display: grid;
+        grid-template-rows: auto auto minmax(280px, 1fr);
+        gap: 10px;
+        min-height: 100vh;
+        padding: 10px;
+      }
+      .card {
+        border: 1px solid #d6deea;
+        background: #fff;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      input, textarea, button {
+        font: inherit;
+      }
+      input, textarea {
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 8px;
+      }
+      button {
+        border: 1px solid #0f766e;
+        background: #0f766e;
+        color: #fff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      button.secondary {
+        border-color: #94a3b8;
+        background: #fff;
+        color: #334155;
+      }
+      .main {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr) 300px;
+      }
+      .editor {
+        width: 100%;
+        min-height: 280px;
+        height: 46vh;
+        resize: vertical;
+        font-family: Consolas, "Courier New", monospace;
+      }
+      .comments {
+        max-height: 46vh;
+        overflow: auto;
+      }
+      .comment-item {
+        border: 1px solid #d6deea;
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 8px;
+        margin-bottom: 8px;
+      }
+      iframe {
+        border: 1px solid #d6deea;
+        width: 100%;
+        height: 36vh;
+        border-radius: 8px;
+        background: #fff;
+      }
+      .muted {
+        color: #64748b;
+        font-size: 12px;
+      }
+      .status {
+        font-size: 12px;
+        color: #0f766e;
+      }
+      @media (max-width: 980px) {
+        .main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="card">
+        <div class="row">
+          <strong>LatoTex Collaborative Share</strong>
+          <span class="muted" id="meta">-</span>
+        </div>
+        <div class="row" style="margin-top: 8px">
+          <input id="pwd" placeholder="Session password" />
+          <button id="connect">Connect</button>
+          <span class="status" id="status">idle</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <button class="secondary" id="add-comment">Add comment from selection</button>
+          <button class="secondary" id="compile">Request compile</button>
+          <button class="secondary" id="reload-pdf">Reload PDF</button>
+          <span class="muted">Comments are selection-anchored (start/end offsets).</span>
+        </div>
+      </section>
+
+      <section class="main">
+        <section class="card">
+          <textarea id="editor" class="editor" placeholder="Connected TeX content..."></textarea>
+          <div class="muted" id="cursor-info" style="margin-top: 6px"></div>
+          <iframe id="pdf" title="PDF Preview"></iframe>
+        </section>
+        <section class="card comments">
+          <strong>Comments</strong>
+          <div id="comments" style="margin-top: 8px"></div>
+        </section>
+      </section>
+    </div>
+
+    <script type="module">
+      import * as Y from "https://esm.sh/yjs@13.6.29";
+
+      const params = new URLSearchParams(window.location.search);
+      const sid = params.get("sid") || "";
+      const metaEl = document.getElementById("meta");
+      const statusEl = document.getElementById("status");
+      const pwdEl = document.getElementById("pwd");
+      const editorEl = document.getElementById("editor");
+      const commentsEl = document.getElementById("comments");
+      const cursorInfoEl = document.getElementById("cursor-info");
+      const pdfEl = document.getElementById("pdf");
+      const connectBtn = document.getElementById("connect");
+      const addCommentBtn = document.getElementById("add-comment");
+      const compileBtn = document.getElementById("compile");
+      const reloadPdfBtn = document.getElementById("reload-pdf");
+
+      const clientId = `web-${Math.random().toString(36).slice(2, 10)}`;
+      const doc = new Y.Doc();
+      const yText = doc.getText("tex");
+      const yComments = doc.getArray("comments");
+      let connected = false;
+      let syncingRemote = false;
+      let cursor = 0;
+      let pollTimer = null;
+
+      metaEl.textContent = sid ? `session=${sid}` : "missing session id";
+
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      function toBase64(uint8) {
+        let binary = "";
+        for (const byte of uint8) {
+          binary += String.fromCharCode(byte);
+        }
+        return btoa(binary);
+      }
+
+      function fromBase64(raw) {
+        const bin = atob(raw);
+        const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i += 1) {
+          out[i] = bin.charCodeAt(i);
+        }
+        return out;
+      }
+
+      async function postJson(path, body) {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        return response.json();
+      }
+
+      async function pushUpdate(update) {
+        if (!connected) {
+          return;
+        }
+        await postJson("/api/sync/push", {
+          sid,
+          pwd: pwdEl.value.trim(),
+          clientId,
+          update: toBase64(update),
+        });
+      }
+
+      async function pullUpdates() {
+        if (!connected) {
+          return;
+        }
+        const pwd = encodeURIComponent(pwdEl.value.trim());
+        const response = await fetch(`/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${pwd}&cursor=${cursor}`);
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const payload = await response.json();
+        for (const item of payload.events || []) {
+          cursor = Math.max(cursor, Number(item.seq || 0));
+          if (item.from === clientId) {
+            continue;
+          }
+          syncingRemote = true;
+          try {
+            Y.applyUpdate(doc, fromBase64(item.update), "remote");
+          } finally {
+            syncingRemote = false;
+          }
+        }
+        cursor = Math.max(cursor, Number(payload.nextCursor || cursor));
+      }
+
+      function renderComments() {
+        const items = yComments.toArray();
+        if (items.length === 0) {
+          commentsEl.innerHTML = '<div class="muted">No comments yet.</div>';
+          return;
+        }
+        commentsEl.innerHTML = "";
+        items.forEach((item, index) => {
+          const block = document.createElement("div");
+          block.className = "comment-item";
+          const replies = Array.isArray(item.replies) ? item.replies : [];
+          const resolved = Boolean(item.resolved);
+          block.innerHTML = `
+            <div><strong>${resolved ? "Resolved" : "Open"}</strong> [${item.start}, ${item.end}]</div>
+            <div style="margin-top:4px">${item.text || ""}</div>
+            <div class="muted" style="margin-top:4px">${item.createdAt || ""}</div>
+            <div style="margin-top:6px">
+              ${replies.map((reply) => `<div class="muted">- ${reply}</div>`).join("")}
+            </div>
+          `;
+          const row = document.createElement("div");
+          row.className = "row";
+          row.style.marginTop = "6px";
+          const replyBtn = document.createElement("button");
+          replyBtn.className = "secondary";
+          replyBtn.textContent = "Reply";
+          replyBtn.onclick = () => {
+            const next = prompt("Reply");
+            if (!next) return;
+            const current = yComments.get(index);
+            const nextItem = {
+              ...current,
+              replies: [...(current.replies || []), next],
+            };
+            yComments.delete(index, 1);
+            yComments.insert(index, [nextItem]);
+          };
+          const toggleBtn = document.createElement("button");
+          toggleBtn.className = "secondary";
+          toggleBtn.textContent = resolved ? "Reopen" : "Resolve";
+          toggleBtn.onclick = () => {
+            const current = yComments.get(index);
+            const nextItem = { ...current, resolved: !resolved };
+            yComments.delete(index, 1);
+            yComments.insert(index, [nextItem]);
+          };
+          row.appendChild(replyBtn);
+          row.appendChild(toggleBtn);
+          block.appendChild(row);
+          commentsEl.appendChild(block);
+        });
+      }
+
+      function refreshPdfFrame() {
+        const pwd = encodeURIComponent(pwdEl.value.trim());
+        const tick = Date.now();
+        pdfEl.src = `/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${pwd}&t=${tick}`;
+      }
+
+      yText.observe(() => {
+        const value = yText.toString();
+        if (editorEl.value !== value) {
+          const start = editorEl.selectionStart || 0;
+          editorEl.value = value;
+          const next = Math.min(start, value.length);
+          editorEl.setSelectionRange(next, next);
+        }
+      });
+
+      yComments.observeDeep(renderComments);
+
+      doc.on("update", (update, origin) => {
+        if (origin === "remote" || syncingRemote) {
+          return;
+        }
+        pushUpdate(update).catch((error) => setStatus(`push failed: ${error}`));
+      });
+
+      editorEl.addEventListener("input", () => {
+        const next = editorEl.value;
+        const current = yText.toString();
+        if (next === current) {
+          return;
+        }
+        doc.transact(() => {
+          yText.delete(0, current.length);
+          yText.insert(0, next);
+        }, "editor");
+      });
+
+      editorEl.addEventListener("select", () => {
+        const start = editorEl.selectionStart || 0;
+        const end = editorEl.selectionEnd || 0;
+        cursorInfoEl.textContent = `selection: ${start}-${end}`;
+      });
+
+      addCommentBtn.addEventListener("click", () => {
+        if (!connected) return;
+        const start = editorEl.selectionStart || 0;
+        const end = editorEl.selectionEnd || 0;
+        const text = prompt("Comment text");
+        if (!text) return;
+        yComments.push([{
+          id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          start,
+          end,
+          text,
+          replies: [],
+          resolved: false,
+          createdAt: new Date().toISOString(),
+        }]);
+      });
+
+      compileBtn.addEventListener("click", async () => {
+        if (!connected) return;
+        try {
+          await postJson("/api/compile/request", { sid, pwd: pwdEl.value.trim() });
+          setStatus("compile requested");
+        } catch (error) {
+          setStatus(`compile request failed: ${error}`);
+        }
+      });
+
+      reloadPdfBtn.addEventListener("click", () => {
+        refreshPdfFrame();
+      });
+
+      connectBtn.addEventListener("click", async () => {
+        const pwd = pwdEl.value.trim();
+        if (!sid || !pwd) {
+          setStatus("session id or password missing");
+          return;
+        }
+        try {
+          setStatus("connecting...");
+          await fetch(`/api/bootstrap?sid=${encodeURIComponent(sid)}`);
+          const snapshotResp = await fetch(`/api/snapshot?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`);
+          if (!snapshotResp.ok) {
+            throw new Error(await snapshotResp.text());
+          }
+          const snapshot = await snapshotResp.json();
+          doc.transact(() => {
+            const current = yText.toString();
+            yText.delete(0, current.length);
+            yText.insert(0, snapshot.content || "");
+          }, "remote");
+          connected = true;
+          cursor = 0;
+          if (pollTimer) {
+            clearInterval(pollTimer);
+          }
+          pollTimer = setInterval(() => {
+            pullUpdates().catch((error) => setStatus(`pull failed: ${error}`));
+          }, 580);
+          setStatus("connected");
+          refreshPdfFrame();
+          renderComments();
+        } catch (error) {
+          connected = false;
+          setStatus(`connect failed: ${error}`);
+        }
+      });
+    </script>
+  </body>
+</html>

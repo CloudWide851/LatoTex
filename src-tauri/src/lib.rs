@@ -24,6 +24,7 @@ use commands::projects::{
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list, project_open, project_search_content,
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
+use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test, model_test_draft, protocol_test, runtime_log_clear_current_session,
     runtime_log_info, runtime_log_read, runtime_log_write, settings_get, settings_update,
@@ -120,6 +121,9 @@ pub fn run() {
             library_import_link,
             library_citation_summary,
             library_resolve_pdf_preview,
+            share_session_create,
+            share_session_status,
+            share_session_stop,
             fs_operation,
             latex_compile_record,
             agent_run,

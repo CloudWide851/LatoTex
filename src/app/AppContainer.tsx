@@ -29,6 +29,7 @@ import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
 import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
+import { useShareSession } from "./hooks/useShareSession";
 
 type IntegrityIssue = {
   projectId: string;
@@ -420,6 +421,20 @@ export function AppContainer() {
   });
 
   const explorerGitDecorations = useExplorerGitDecorations(s.gitStatusState?.changes);
+  const shareSession = useShareSession({
+    activeProjectId: s.activeProjectId,
+    selectedFile: s.selectedFile,
+    editorContent: s.editorContent,
+    compiledPdfUrl: s.pdfUrl,
+    setEditorContent: s.setEditorContent,
+    onCompile: handlers.handleCompile,
+    setToast: (value) => {
+      if (value) {
+        s.setToast(value);
+      }
+    },
+    t,
+  });
 
   const panels = useAppPanelNodes({
     settings: s.settings,
@@ -469,6 +484,7 @@ export function AppContainer() {
   const handleLibraryAnalyzePaper = useLibraryAnalysisNavigator({
     setPage: s.setPage,
     runPaperAnalysisFromLibrary: analysisWorkspace.runPaperAnalysisFromLibrary,
+    analysisRunning: analysisWorkspace.running,
   });
 
   return (
@@ -493,6 +509,12 @@ export function AppContainer() {
       setProjectSearchSearched={s.setProjectSearchSearched}
       handleInitProjectFromFolderWithGuard={workspaceActions.handleInitProjectFromFolderWithGuard}
       handleWindowControlWithGuard={workspaceActions.handleWindowControlWithGuard}
+      shareSession={shareSession.shareSession}
+      shareBusy={shareSession.shareBusy}
+      shareSyncing={shareSession.shareSyncing}
+      handleShareStart={shareSession.startShare}
+      handleShareStop={shareSession.stopShare}
+      handleShareRefresh={shareSession.refreshShareStatus}
       t={t}
       recoverWorkspaceLayout={panels.recoverWorkspaceLayout}
       page={s.page}
@@ -561,6 +583,7 @@ export function AppContainer() {
       handleLibraryImportPdf={handlers.handleLibraryImportPdf}
       handleLibraryImportLink={handlers.handleLibraryImportLink}
       handleLibraryAnalyzePaper={handleLibraryAnalyzePaper}
+      analysisRunning={analysisWorkspace.running}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
       savePanelLayout={savePanelLayout}
