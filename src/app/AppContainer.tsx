@@ -1,13 +1,24 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
-import { SHELL_MIN, upsertProject } from "./app-config";
+import {
+  getLibraryTree,
+  gitBranches,
+  gitCheckInstalled,
+  gitLog,
+  gitStatus,
+  openProject,
+  projectIntegrityStatus,
+} from "../shared/api/desktop";
+import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
+import { useAppEffects } from "./hooks/useAppEffects";
 import { buildEditorTab } from "./hooks/useEditorTabs";
-import { useNativeWindowCloseBridge } from "./hooks/windowCloseRequest";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useAppContainerWorkspaceActions } from "./hooks/useAppContainerWorkspaceActions";
+import { useAnalysisWorkspace } from "./hooks/useAnalysisWorkspace";
+import { isPdfPath } from "../shared/utils/fileKind";
 import { useAppContainerState } from "./hooks/useAppContainerState";
 import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { useSettingsPersistence } from "./hooks/useSettingsPersistence";
@@ -15,23 +26,22 @@ import { useAppPanelNodes } from "./hooks/useAppPanelNodes";
 import { useAgentSessionController } from "./hooks/useAgentSessionController";
 import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
 import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
+import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
+import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
-import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
-import { useWorkbenchRuntimeState } from "./hooks/useWorkbenchRuntimeState";
-import { useWorkbenchRuntimeEffects } from "./hooks/useWorkbenchRuntimeEffects";
-import { useAppStartup } from "./hooks/useAppStartup";
-import { readFile } from "../shared/api/workspace";
-import { isExcelPath, isImagePath, isPdfPath } from "../shared/utils/fileKind";
+
+type IntegrityIssue = {
+  projectId: string;
+  missingRequired: string[];
+};
+
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
-  const [integrityIssue, setIntegrityIssue] = useState<ProjectIntegrityIssue | null>(null);
-  const [closeBehaviorDialogOpen, setCloseBehaviorDialogOpen] = useState(false);
-  const [closeBehaviorRememberChoice, setCloseBehaviorRememberChoice] = useState(false);
-  const [closeDecisionBusy, setCloseDecisionBusy] = useState(false);
+  const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
   const s = useAppContainerState(t);
-  const { allowNextWindowCloseRef, requestNativeWindowClose } = useNativeWindowCloseBridge(isTauriRuntime);
+
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
     setSelectedFile: s.setSelectedFile,
@@ -49,24 +59,85 @@ export function AppContainer() {
     workingContentByPathRef: s.workingContentByPathRef,
     activeProjectIdRef: s.activeProjectIdRef,
   });
-  const { refreshGitWorkspace, loadProjectData } = useProjectDataLoader({
-    page: s.page,
-    activeProjectIdRef: s.activeProjectIdRef,
-    integrityCheckedRef: s.integrityCheckedRef,
-    lastLoadedProjectIdRef: s.lastLoadedProjectIdRef,
-    loadedLibraryProjectIdRef: s.loadedLibraryProjectIdRef,
-    settingsRef: s.settingsRef,
-    setIntegrityIssue,
-    setGitAvailability: s.setGitAvailability,
-    setGitStatusState: s.setGitStatusState,
-    setGitBranchesState: s.setGitBranchesState,
-    setGitCommits: s.setGitCommits,
-    setTree: s.setTree,
-    setSelectedFile: s.setSelectedFile,
-    setLibraryTree: s.setLibraryTree,
-    setSelectedLibraryPath: s.setSelectedLibraryPath,
-    setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
-  });
+
+  const refreshGitWorkspace = useCallback(
+    async (projectIdOverride?: string) => {
+      const projectId = projectIdOverride ?? s.activeProjectIdRef.current;
+      if (!projectId) {
+        return;
+      }
+      const availability = await gitCheckInstalled().catch(() => ({
+        installed: false,
+        version: undefined,
+      }));
+      s.setGitAvailability(availability);
+      if (availability.installed) {
+        s.setSuppressAutoGitInstall(false);
+      }
+      if (!availability.installed) {
+        s.setGitStatusState({
+          isRepo: false,
+          branch: "-",
+          ahead: 0,
+          behind: 0,
+          changes: [],
+        });
+        s.setGitBranchesState([]);
+        s.setGitCommits([]);
+        return;
+      }
+      const [state, branches, commits] = await Promise.all([
+        gitStatus(projectId),
+        gitBranches(projectId).catch(() => []),
+        gitLog(projectId, 50).catch(() => []),
+      ]);
+      s.setGitStatusState(state);
+      s.setGitBranchesState(branches);
+      s.setGitCommits(commits);
+    },
+    [
+      s.activeProjectIdRef,
+      s.setGitAvailability,
+      s.setSuppressAutoGitInstall,
+      s.setGitStatusState,
+      s.setGitBranchesState,
+      s.setGitCommits,
+    ],
+  );
+
+  const loadProjectData = useCallback(
+    async (projectId: string) => {
+      if (!s.integrityCheckedRef.current.has(projectId)) {
+        const integrity = await projectIntegrityStatus(projectId);
+        if (integrity.missingRequired.length > 0) {
+          setIntegrityIssue({
+            projectId,
+            missingRequired: integrity.missingRequired,
+          });
+          return;
+        }
+        s.integrityCheckedRef.current.add(projectId);
+      }
+      const snapshot = await openProject(projectId);
+      s.setTree(snapshot.tree);
+      s.setSelectedFile(snapshot.mainFile);
+      const [papers] = await Promise.all([getLibraryTree(projectId)]);
+      s.setLibraryTree(papers);
+      s.setSelectedLibraryPath(null);
+      s.lastLoadedProjectIdRef.current = projectId;
+      await refreshGitWorkspace(projectId);
+    },
+    [
+      refreshGitWorkspace,
+      s.integrityCheckedRef,
+      s.lastLoadedProjectIdRef,
+      s.setLibraryTree,
+      s.setSelectedFile,
+      s.setSelectedLibraryPath,
+      s.setTree,
+    ],
+  );
+
   const { persistSettings, savePanelLayout, cancelPendingAutoSave } = useSettingsPersistence({
     activeProjectId: s.activeProjectId,
     locale,
@@ -81,66 +152,38 @@ export function AppContainer() {
     autoSaveReadyRef: s.autoSaveReadyRef,
     lastAutoSavedHashRef: s.lastAutoSavedHashRef,
   });
+
   useEffect(
     () => () => {
-      if (s.pdfUrl?.startsWith("blob:")) {
+      if (s.pdfUrl) {
         URL.revokeObjectURL(s.pdfUrl);
       }
-      if (s.selectedFilePdfUrl?.startsWith("blob:")) {
+      if (s.selectedFilePdfUrl) {
         URL.revokeObjectURL(s.selectedFilePdfUrl);
       }
-      if (s.selectedImagePreviewUrl?.startsWith("blob:")) {
-        URL.revokeObjectURL(s.selectedImagePreviewUrl);
-      }
     },
-    [s.pdfUrl, s.selectedFilePdfUrl, s.selectedImagePreviewUrl],
+    [s.pdfUrl, s.selectedFilePdfUrl],
   );
-  const startup = useAppStartup({
-    isTauriRuntime,
-    settingsRef: s.settingsRef,
-    setStatus: s.setStatus,
-    setProjects: s.setProjects,
-    setSettings: s.setSettings,
-    setRuntimeInfo: s.setRuntimeInfo,
-    setLocale,
-    setActiveProjectId: s.setActiveProjectId,
-    setToast: s.setToast,
-    t,
+
+  useTrayLabelSync({ isTauriRuntime, locale, t });
+  useCompiledPreviewResetOnProjectChange({
+    activeProjectId: s.activeProjectId,
+    setPdfUrl: s.setPdfUrl,
+    setCompiledPdfBytes: s.setCompiledPdfBytes,
+    setPreferCompiledPreview: s.setPreferCompiledPreview,
   });
-  const runtime = useWorkbenchRuntimeState({
-    s,
-    isTauriRuntime,
+
+  const analysisWorkspace = useAnalysisWorkspace({
+    projectId: s.activeProjectId,
+    selectedFile: s.selectedFile,
+    editorContent: s.editorContent,
+    fileList: s.fileList,
     locale,
-    startupReady: startup.startupReady,
+    events: s.events,
     t,
-    persistSettings,
+    setToast: s.setToast,
   });
-  const { idleSleep, analysisWorkspace, analysisEnvPrompt } = runtime;
-  const resolveSelectedFileContent = useCallback(async (): Promise<string | null> => {
-    const selectedPath = s.selectedFile;
-    if (!s.activeProjectId || !selectedPath) {
-      return null;
-    }
-    if (!s.fileSet.has(selectedPath)) {
-      return null;
-    }
-    if (isPdfPath(selectedPath) || isExcelPath(selectedPath) || isImagePath(selectedPath)) {
-      return null;
-    }
-    if (s.selectedTextFileReadyPath === selectedPath) {
-      return s.editorContent;
-    }
-    const workingContent = s.workingContentByPathRef.current[selectedPath];
-    if (typeof workingContent === "string") {
-      return workingContent;
-    }
-    const savedContent = s.savedContentByPathRef.current[selectedPath];
-    if (typeof savedContent === "string") {
-      return savedContent;
-    }
-    const loaded = await readFile(s.activeProjectId, selectedPath);
-    return loaded.content ?? "";
-  }, [s.activeProjectId, s.editorContent, s.fileSet, s.selectedFile, s.selectedTextFileReadyPath, s.savedContentByPathRef, s.workingContentByPathRef]);
+
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,
@@ -149,27 +192,16 @@ export function AppContainer() {
     selectedFile: s.selectedFile,
     fileList: s.fileList,
     editorContent: s.editorContent,
-    resolveSelectedFileContent,
     pdfUrl: s.pdfUrl,
-    compiledPdfRelativePath: s.compiledPdfRelativePath,
+    compiledPdfBytes: s.compiledPdfBytes,
     agentPrompt: s.agentPrompt,
+    windowActionBusy: s.windowActionBusy,
     settings: s.settings,
     projectSearchQuery: s.projectSearchQuery,
     gitDownloadTaskId: s.gitDownloadTaskId,
     gitInstallerLaunched: s.gitInstallerLaunched,
     deleteIntent: s.deleteIntent,
     deleteDontAskAgain: s.deleteDontAskAgain,
-    requestCloseBehaviorDecision: () => {
-      if (closeBehaviorDialogOpen || closeDecisionBusy) {
-        return false;
-      }
-      setCloseBehaviorRememberChoice(false);
-      setCloseDecisionBusy(false);
-      setCloseBehaviorDialogOpen(true);
-      return true;
-    },
-    requestNativeWindowClose,
-    setCloseDecisionBusy,
     setBusy: s.setBusy,
     setTree: s.setTree,
     setLibraryTree: s.setLibraryTree,
@@ -181,25 +213,26 @@ export function AppContainer() {
     setSettings: s.setSettings,
     setToast: s.setToast,
     setCompileDiagnostics: s.setCompileDiagnostics,
-    setCompileInstallProgress: s.setCompileInstallProgress,
     setLastCompileFailed: s.setLastCompileFailed,
     setPdfUrl: s.setPdfUrl,
-    setCompiledPdfRelativePath: s.setCompiledPdfRelativePath,
+    setCompiledPdfBytes: s.setCompiledPdfBytes,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
     setAgentMessages: s.setAgentMessages,
     agentProposalsByPath: s.agentProposalsByPath,
     setAgentProposalsByPath: s.setAgentProposalsByPath,
-    setAgentPendingAction: s.setAgentPendingAction,
     setAgentRunId: s.setAgentRunId,
     setAgentPrompt: s.setAgentPrompt,
     setAgentCollapsed: s.setAgentCollapsed,
     setAgentPhase: s.setAgentPhase,
     setAgentStatusKey: s.setAgentStatusKey,
+    setWindowActionBusy: s.setWindowActionBusy,
+    setIsMaximized: s.setIsMaximized,
     setProjectSearchResults: s.setProjectSearchResults,
     setProjectSearchSearched: s.setProjectSearchSearched,
     setProjectSearchBusy: s.setProjectSearchBusy,
     setPage: s.setPage,
     setPendingRevealLine: s.setPendingRevealLine,
+    setBusytexCacheInfo: s.setBusytexCacheInfo,
     setDeleteIntent: s.setDeleteIntent,
     setDeleteDontAskAgain: s.setDeleteDontAskAgain,
     setThemeTransition: s.setThemeTransition,
@@ -216,47 +249,105 @@ export function AppContainer() {
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
   });
-  const activeAgentProposal = useMemo(() => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null), [s.agentProposalsByPath, s.selectedFile]);
+
+  const activeAgentProposal = useMemo(
+    () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
+    [s.agentProposalsByPath, s.selectedFile],
+  );
+
   useAgentProposalDecorations({
     editorRef: s.editorRef,
     selectedFile: s.selectedFile,
     activeProposal: activeAgentProposal,
   });
-  useWorkbenchRuntimeEffects({
-    s,
-    runtime,
+
+  const { getCachedTextContent, handleTextFileLoaded } = useTextContentCacheBridge({
+    workingContentByPathRef: s.workingContentByPathRef,
+    savedContentByPathRef: s.savedContentByPathRef,
+    dirtyByPathRef: s.dirtyByPathRef,
+  });
+
+  useAppEffects({
     t,
     isTauriRuntime,
+    activeProjectId: s.activeProjectId,
+    selectedFile: s.selectedFile,
+    pendingRevealLine: s.pendingRevealLine,
+    page: s.page,
+    cursor: s.cursor,
+    toast: s.toast,
+    gitDownloadTaskId: s.gitDownloadTaskId,
+    gitInstallerLaunched: s.gitInstallerLaunched,
+    suppressAutoGitInstall: s.suppressAutoGitInstall,
+    gitAvailabilityInstalled: s.gitAvailability?.installed,
+    settingsTheme: s.settings?.uiPrefs?.theme as ThemeMode | undefined,
+    busytexCachePolicy: s.settings?.uiPrefs?.busytexCachePolicy as
+      | "install-first"
+      | "appdata-only"
+      | undefined,
     loadProjectData,
     refreshGitWorkspace,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
+    handleGitInstallerDownloadStart: handlers.handleGitInstallerDownloadStart,
+    setStatus: s.setStatus,
+    setProjects: s.setProjects,
+    setSettings: s.setSettings,
+    setRuntimeInfo: s.setRuntimeInfo,
+    setLocale,
+    setActiveProjectId: s.setActiveProjectId,
+    setTree: s.setTree,
+    setLibraryTree: s.setLibraryTree,
+    setSelectedFile: s.setSelectedFile,
+    setSelectedLibraryPath: s.setSelectedLibraryPath,
+    setEditorContent: s.setEditorContent,
+    setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
+    setToast: s.setToast,
+    setProjectSearchQuery: s.setProjectSearchQuery,
+    setProjectSearchResults: s.setProjectSearchResults,
+    setProjectSearchSearched: s.setProjectSearchSearched,
+    setEvents: s.setEvents,
+    setCursor: s.setCursor,
+    setBusytexCacheInfo: s.setBusytexCacheInfo,
+    resizeFrameRef: s.resizeFrameRef,
+    setIsMaximized: s.setIsMaximized,
+    editorRef: s.editorRef,
+    setPendingRevealLine: s.setPendingRevealLine,
+    setGitDownloadState: s.setGitDownloadState,
+    setGitDownloadTaskId: s.setGitDownloadTaskId,
+    setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
+    getCachedTextContent,
+    onTextFileLoaded: handleTextFileLoaded,
   });
-  const handleLibraryViewModeChange = useCallback((mode: "bib" | "pdf" | "compare") => {
-    const projectId = s.activeProjectId;
-    if (!projectId) {
+
+  useEffect(() => {
+    if (!s.selectedFile || isPdfPath(s.selectedFile)) {
       return;
     }
-    s.setSettings((prev) => {
-      if (!prev) {
-        return prev;
-      }
-      const currentMap = prev.uiPrefs?.libraryViewModeByProject ?? {};
-      if (currentMap[projectId] === mode) {
-        return prev;
-      }
-      return {
-        ...prev,
-        uiPrefs: {
-          ...(prev.uiPrefs ?? {}),
-          language: prev.uiPrefs?.language,
-          libraryViewModeByProject: {
-            ...currentMap,
-            [projectId]: mode,
-          },
-        },
-      };
-    });
-  }, [s.activeProjectId, s.setSettings]);
+    s.workingContentByPathRef.current[s.selectedFile] = s.editorContent;
+    const saved = s.savedContentByPathRef.current[s.selectedFile];
+    if (typeof saved === "string") {
+      const dirty = s.editorContent !== saved;
+      s.setDirtyByPath((prev) => {
+        const wasDirty = Boolean(prev[s.selectedFile!]);
+        if (dirty === wasDirty) {
+          return prev;
+        }
+        const next = { ...prev };
+        if (dirty) {
+          next[s.selectedFile!] = true;
+        } else {
+          delete next[s.selectedFile!];
+        }
+        return next;
+      });
+    }
+  }, [
+    s.editorContent,
+    s.savedContentByPathRef,
+    s.selectedFile,
+    s.setDirtyByPath,
+    s.workingContentByPathRef,
+  ]);
 
   const workspaceActions = useAppContainerWorkspaceActions({
     selectedFile: s.selectedFile,
@@ -266,7 +357,7 @@ export function AppContainer() {
     handleWindowControl: handlers.handleWindowControl,
     requestUnsavedGuard: unsaved.requestUnsavedGuard,
     editorTabsRef: s.editorTabsRef,
-    allowNextWindowCloseRef,
+    closeGuardUnlockedRef: s.closeGuardUnlockedRef,
     handleInitProjectFromFolder: handlers.handleInitProjectFromFolder,
     resetEditorSession: unsaved.resetEditorSession,
     handleEditorUndo: handlers.handleEditorUndo,
@@ -286,7 +377,6 @@ export function AppContainer() {
     setActiveTabId: s.setActiveTabId,
     buildEditorTab,
     setSelectedFile: s.setSelectedFile,
-    setPreviewOverridePath: s.setPreviewOverridePath,
     activeProjectIdRef: s.activeProjectIdRef,
     integrityCheckedRef: s.integrityCheckedRef,
     integrityIssue,
@@ -310,6 +400,7 @@ export function AppContainer() {
     setModelModalInitial: s.setModelModalInitial,
     setModelModalOpen: s.setModelModalOpen,
   });
+
   const agentSession = useAgentSessionController({
     activeProjectId: s.activeProjectId,
     selectedFile: s.selectedFile,
@@ -325,10 +416,10 @@ export function AppContainer() {
     setPage: s.setPage,
     setSelectedFile: s.setSelectedFile,
     setToast: s.setToast,
-    suspended: idleSleep.sleeping,
     runTaskAgent: handlers.handleRunAgent,
     t,
   });
+
   const explorerGitDecorations = useExplorerGitDecorations(s.gitStatusState?.changes);
   const shareSession = useShareSession({
     activeProjectId: s.activeProjectId,
@@ -336,7 +427,6 @@ export function AppContainer() {
     editorContent: s.editorContent,
     compiledPdfUrl: s.pdfUrl,
     setEditorContent: s.setEditorContent,
-    markPathSaved: unsaved.markPathSaved,
     onCompile: handlers.handleCompile,
     setToast: (value) => {
       if (value) {
@@ -344,8 +434,8 @@ export function AppContainer() {
       }
     },
     t,
-    suspended: idleSleep.sleeping,
   });
+
   const panels = useAppPanelNodes({
     settings: s.settings,
     locale,
@@ -353,9 +443,9 @@ export function AppContainer() {
     t,
     busy: s.busy,
     activeProjectId: s.activeProjectId,
-    fileList: s.fileList,
     settingsSection: s.settingsSection,
     setSettingsSection: s.setSettingsSection,
+    busytexCacheInfo: s.busytexCacheInfo,
     runtimeInfo: s.runtimeInfo,
     runtimeLogs: s.runtimeLogs,
     runtimeLogLoading: s.runtimeLogLoading,
@@ -364,6 +454,7 @@ export function AppContainer() {
     modelTestById: s.modelTestById,
     handleLocaleChange: handlers.handleLocaleChange,
     handleThemeModeChange: handlers.handleThemeModeChange,
+    handleBusyTexCachePolicyChange: handlers.handleBusyTexCachePolicyChange,
     openModelModal: workspaceActions.openModelModal,
     setRuntimeLogLoading: s.setRuntimeLogLoading,
     setRuntimeLogs: s.setRuntimeLogs,
@@ -371,7 +462,6 @@ export function AppContainer() {
     handleTestModel: workspaceActions.handleTestModel,
     handleTestAllModels: workspaceActions.handleTestAllModels,
     setSettings: s.setSettings,
-    releaseRuntimeMemory: runtime.releaseRuntimeMemory,
     analysisWorkspace,
     gitStatusState: s.gitStatusState,
     gitBranchesState: s.gitBranchesState,
@@ -384,6 +474,7 @@ export function AppContainer() {
     handleGenerateGitSummary: workspaceActions.handleGenerateGitSummary,
     setBusy: s.setBusy,
     setGitInitProgress: s.setGitInitProgress,
+    handleGitInstallerDownloadStart: handlers.handleGitInstallerDownloadStart,
     handleGitInstallerCancel: handlers.handleGitInstallerCancel,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
     openWorkspaceFile: workspaceActions.openWorkspaceFile,
@@ -395,24 +486,11 @@ export function AppContainer() {
     runPaperAnalysisFromLibrary: analysisWorkspace.runPaperAnalysisFromLibrary,
     analysisRunning: analysisWorkspace.running,
   });
-  const handleCloseBehaviorDialogCancel = useCallback(() => {
-    setCloseBehaviorDialogOpen(false);
-    setCloseDecisionBusy(false);
-    setCloseBehaviorRememberChoice(false);
-  }, []);
-  const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
-    if (closeDecisionBusy) {
-      return;
-    }
-    setCloseBehaviorDialogOpen(false);
-    void handlers.handleWindowCloseDecision(behavior, closeBehaviorRememberChoice);
-  }, [closeBehaviorRememberChoice, closeDecisionBusy, handlers]);
+
   return (
     <AppContainerView
+      windowActionBusy={s.windowActionBusy}
       status={s.status}
-      sleeping={idleSleep.sleeping}
-      onWakeFromSleep={idleSleep.wake}
-      startupReady={startup.startupReady}
       logoMark={logoMark}
       projects={s.projects}
       activeProjectId={s.activeProjectId}
@@ -434,29 +512,18 @@ export function AppContainer() {
       shareSession={shareSession.shareSession}
       shareBusy={shareSession.shareBusy}
       shareSyncing={shareSession.shareSyncing}
-      shareConflict={shareSession.shareConflict}
-      shareComments={shareSession.shareComments}
-      shareEditAnnotations={shareSession.shareEditAnnotations}
-      shareMode={shareSession.shareMode}
-      shareSessionName={shareSession.shareSessionName}
-      handleShareModeChange={(mode: "local" | "remote") => shareSession.setShareMode(mode)}
-      handleShareSessionNameChange={(value: string) => shareSession.setShareSessionName(value)}
       handleShareStart={shareSession.startShare}
       handleShareStop={shareSession.stopShare}
       handleShareRefresh={shareSession.refreshShareStatus}
-      handleShareConflictResolve={shareSession.resolveShareConflict}
       t={t}
       recoverWorkspaceLayout={panels.recoverWorkspaceLayout}
       page={s.page}
       pageRailItems={s.pageRailItems}
       shellLayout={panels.shellLayout}
       latexLayout={panels.latexLayout}
-      latexTerminalLayout={panels.latexTerminalLayout}
       analysisLayout={panels.analysisLayout}
       libraryLayout={panels.libraryLayout}
-      libraryBibLayout={panels.libraryBibLayout}
       settings={s.settings}
-      setSettings={s.setSettings}
       tree={s.tree}
       libraryTree={s.libraryTree}
       selectedFile={s.selectedFile}
@@ -467,21 +534,16 @@ export function AppContainer() {
       activeTabId={s.activeTabId}
       dirtyByPath={s.dirtyByPath}
       pdfUrl={s.pdfUrl}
-      compiledPdfRelativePath={s.compiledPdfRelativePath}
       preferCompiledPreview={s.preferCompiledPreview}
       selectedFilePdfUrl={s.selectedFilePdfUrl}
-      selectedImagePreviewUrl={s.selectedImagePreviewUrl}
-      previewOverridePath={s.previewOverridePath}
       compileErrorLine={panels.compileErrorLine}
       compileDiagnostics={s.compileDiagnostics}
-      compileInstallProgress={s.compileInstallProgress}
       agentCollapsed={s.agentCollapsed}
       agentPhase={s.agentPhase}
       agentStatusKey={s.agentStatusKey}
       agentPrompt={s.agentPrompt}
       agentMessages={s.agentMessages}
       agentProposal={activeAgentProposal}
-      agentPendingAction={s.agentPendingAction}
       agentRunId={s.agentRunId}
       agentSessions={agentSession.agentSessions}
       agentSessionPickerOpen={agentSession.agentSessionPickerOpen}
@@ -510,9 +572,7 @@ export function AppContainer() {
       handleAgentRollback={agentSession.handleAgentRollback}
       handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
-      handleResolveAgentPendingAction={handlers.handleResolveAgentPendingAction}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
-      handleWriteSelectedFileContent={handlers.handleWriteSelectedFileContent}
       handleCompile={handlers.handleCompile}
       handleExportCompiledPdf={handlers.handleExportCompiledPdf}
       handleEditorUndo={handlers.handleEditorUndo}
@@ -522,17 +582,12 @@ export function AppContainer() {
       handleLibraryRescan={handlers.handleLibraryRescan}
       handleLibraryImportPdf={handlers.handleLibraryImportPdf}
       handleLibraryImportLink={handlers.handleLibraryImportLink}
-      handleLibrarySyncZotero={handlers.handleLibrarySyncZotero}
       handleLibraryAnalyzePaper={handleLibraryAnalyzePaper}
       analysisRunning={analysisWorkspace.running}
-      libraryViewMode={s.activeProjectId ? (s.settings?.uiPrefs?.libraryViewModeByProject?.[s.activeProjectId] ?? null) : null}
-      handleLibraryViewModeChange={handleLibraryViewModeChange}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
-      handleWorkspaceRescan={handlers.handleWorkspaceRescan}
       savePanelLayout={savePanelLayout}
       requestFsAction={handlers.requestFsAction}
-      runFsAction={handlers.runFsAction}
       overlay={s.overlay}
       logsTab={s.logsTab}
       events={s.events}
@@ -544,7 +599,6 @@ export function AppContainer() {
       integrityIssue={integrityIssue}
       themeTransition={s.themeTransition}
       toast={s.toast}
-      analysisEnvPrompt={analysisEnvPrompt}
       setModelModalOpen={s.setModelModalOpen}
       setModelModalInitial={s.setModelModalInitial}
       setModelModalMode={s.setModelModalMode}
@@ -563,14 +617,6 @@ export function AppContainer() {
       handleUnsavedDialogSaveAndContinue={unsaved.handleUnsavedDialogSaveAndContinue}
       handleUnsavedDialogDiscardAndContinue={unsaved.handleUnsavedDialogDiscardAndContinue}
       handleUnsavedDialogCancel={unsaved.handleUnsavedDialogCancel}
-      closeBehaviorDialogOpen={closeBehaviorDialogOpen}
-      closeBehaviorRememberChoice={closeBehaviorRememberChoice}
-      closeBehaviorDialogBusy={closeDecisionBusy}
-      setCloseBehaviorRememberChoice={setCloseBehaviorRememberChoice}
-      handleCloseBehaviorDialogCancel={handleCloseBehaviorDialogCancel}
-      handleCloseBehaviorDialogResolve={handleCloseBehaviorDialogResolve}
-      suspended={idleSleep.sleeping}
     />
   );
 }
-

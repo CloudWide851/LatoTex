@@ -1,7 +1,143 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-include!("models_core.rs");
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HealthCheckResponse {
+    pub app: String,
+    pub version: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSummary {
+    pub id: String,
+    pub name: String,
+    pub root_path: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceNode {
+    pub name: String,
+    pub relative_path: String,
+    pub kind: String,
+    pub children: Vec<ResourceNode>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSnapshot {
+    pub summary: ProjectSummary,
+    pub tree: Vec<ResourceNode>,
+    pub main_file: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateProjectInput {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectRefInput {
+    pub project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectPathActionInput {
+    pub project_id: String,
+    pub relative_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenExternalLinkInput {
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportPdfInput {
+    pub project_id: String,
+    pub default_file_name: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportPdfResponse {
+    pub saved_path: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionCreateInput {
+    pub project_id: String,
+    pub target_path: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionInfo {
+    pub active: bool,
+    pub session_id: Option<String>,
+    pub project_id: Option<String>,
+    pub target_path: Option<String>,
+    pub local_url: Option<String>,
+    pub tunnel_url: Option<String>,
+    pub password: Option<String>,
+    pub expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileReadInput {
+    pub project_id: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileReadResponse {
+    pub relative_path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileReadBinaryResponse {
+    pub relative_path: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileWriteInput {
+    pub project_id: String,
+    pub relative_path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileWriteBinaryInput {
+    pub project_id: String,
+    pub relative_path: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ack {
+    pub ok: bool,
+    pub message: String,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,7 +154,6 @@ pub struct RuntimeLogReadInput {
     pub keyword: Option<String>,
     pub from_time: Option<String>,
     pub to_time: Option<String>,
-    pub log_file_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -36,21 +171,6 @@ pub struct RuntimeLogReadResponse {
     pub entries: Vec<RuntimeLogEntry>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeLogSession {
-    pub file_name: String,
-    pub modified_at: String,
-    pub size_bytes: u64,
-    pub is_current: bool,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeLogSessionListResponse {
-    pub sessions: Vec<RuntimeLogSession>,
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeLogClearInput {
@@ -65,49 +185,6 @@ pub struct RuntimeLogInfo {
     pub runtime_root: String,
     pub install_mode: String,
     pub version: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeMemorySnapshot {
-    pub process_id: u32,
-    pub rss_bytes: u64,
-    pub private_bytes: Option<u64>,
-    pub webview_rss_bytes: Option<u64>,
-    pub webview_private_bytes: Option<u64>,
-    pub webview_process_count: Option<u32>,
-    pub total_rss_bytes: Option<u64>,
-    pub total_private_bytes: Option<u64>,
-    pub sampled_at: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuntimeDiagnosticsBundleExport {
-    pub path: String,
-    pub file_name: String,
-    pub size_bytes: u64,
-    pub created_at: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppBackgroundImage {
-    pub path: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BackgroundImageReadInput {
-    pub path: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppBackgroundImagePayload {
-    pub path: String,
-    pub mime: String,
-    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -132,50 +209,45 @@ pub struct CompileRecord {
     pub created_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentExecuteRequest {
+pub struct AgentRunRequest {
     pub project_id: String,
-    pub workflow_id: String,
-    pub callsite: String,
+    pub role: String,
     pub prompt: String,
     pub context_refs: Vec<String>,
     pub model_override: Option<String>,
     #[serde(default)]
     pub bypass_cache: bool,
-    pub team_mode: Option<String>,
 }
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentExecuteCancelInput {
+pub struct AgentRunCancelInput {
     pub run_id: String,
 }
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentExecuteStartAccepted {
+pub struct AgentRunAccepted {
+    pub run_id: String,
+    pub status: String,
+    pub output: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunStartAccepted {
     pub run_id: String,
     pub status: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentRunsRecoverInput {
-    pub project_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentRunsRecoverResponse {
-    pub recovered_run_ids: Vec<String>,
-}
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct EventQuery {
     pub cursor: Option<i64>,
     pub limit: Option<u32>,
     pub run_id: Option<String>,
-    pub wait_ms: Option<u64>,
-    pub exclude_kinds: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -217,21 +289,11 @@ pub struct ModelProtocol {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelCapabilities {
-    pub api_mode: Option<String>,
-    pub reasoning_mode: Option<String>,
-    pub auto_repair: Option<bool>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct ModelCatalogItem {
     pub id: String,
     pub protocol_id: String,
     pub display_name: String,
     pub request_name: String,
-    #[serde(default)]
-    pub capabilities: Option<ModelCapabilities>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -257,58 +319,12 @@ pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
     pub close_to_tray_notice_enabled: Option<bool>,
-    pub close_behavior: Option<String>,
-    pub close_behavior_remember: Option<bool>,
     pub theme: Option<String>,
-    pub theme_preset: Option<String>,
+    pub busytex_cache_policy: Option<String>,
+    pub busytex_cache_dir: Option<String>,
     pub preview_default_zoom: Option<f64>,
-    pub paper_brief_engine: Option<String>,
-    pub terminal_shell: Option<String>,
     pub panel_layout: Option<Value>,
-    pub feature_model_bindings: Option<FeatureModelBindings>,
-    pub channels: Option<ChannelPrefs>,
-    pub background_image_path: Option<String>,
-    pub background_image_paths: Option<Vec<String>>,
-    pub background_blur_px: Option<f64>,
-    pub background_crop_by_path: Option<std::collections::HashMap<String, BackgroundCropRect>>,
-    pub editor_background_color: Option<String>,
-    pub interface_density: Option<String>,
-    pub accent_color: Option<String>,
-    pub accent_custom_color: Option<String>,
-    pub scrollbar_color_mode: Option<String>,
-    pub scrollbar_width_px: Option<f64>,
-    pub scrollbar_thumb_color: Option<String>,
-    pub scrollbar_track_color: Option<String>,
-    pub glass_opacity: Option<f64>,
-    pub glass_blur_px: Option<f64>,
-    pub motion_level: Option<String>,
-    pub font_scale: Option<f64>,
-    pub pdf_page_gap_px: Option<f64>,
-    pub log_font_size_px: Option<f64>,
-    pub panel_radius_px: Option<f64>,
-    pub panel_border_contrast: Option<String>,
-    pub memory_guard_prefs: Option<MemoryGuardPrefs>,
-    pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
-    pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
-    pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
-    pub workspace_explorer_default_expanded: Option<bool>,
-    pub library_explorer_default_expanded: Option<bool>,
-    pub workspace_explorer_expanded_paths_by_project:
-        Option<std::collections::HashMap<String, Vec<String>>>,
-    pub library_explorer_expanded_paths_by_project:
-        Option<std::collections::HashMap<String, Vec<String>>>,
-    pub sidebar_page_order: Option<Vec<String>>,
-    pub agent_tool_prefs: Option<AgentToolPrefs>,
-    pub agent_permission_prefs: Option<AgentPermissionPrefs>,
-    pub agent_team_prefs: Option<AgentTeamPrefs>,
-    pub plugin_catalog_sources: Option<Vec<PluginCatalogSource>>,
-    pub docx_auto_save_enabled: Option<bool>,
-    pub mcp_servers: Option<Vec<McpServerConfig>>,
-    pub enabled_skills: Option<Vec<String>>,
-    pub hidden_skills: Option<Vec<String>>,
 }
-
-include!("models_settings.rs");
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -325,8 +341,6 @@ pub struct ModelCatalogItemInput {
     pub protocol_id: String,
     pub display_name: String,
     pub request_name: String,
-    #[serde(default)]
-    pub capabilities: Option<ModelCapabilities>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -418,12 +432,95 @@ pub struct ModelTestResult {
     pub ok: bool,
     pub message: String,
 }
-include!("models_library.rs");
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryRefInput {
+    pub project_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationSummaryInput {
+    pub project_id: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPdfPreviewInput {
+    pub project_id: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationSummaryResponse {
+    pub source_path: String,
+    pub bib_path: Option<String>,
+    pub citation_key: Option<String>,
+    pub title: Option<String>,
+    pub authors: Vec<String>,
+    pub published_at: Option<String>,
+    pub doi: Option<String>,
+    pub arxiv_id: Option<String>,
+    pub source: Option<String>,
+    pub urls: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPdfPreviewResponse {
+    pub relative_path: Option<String>,
+    pub source_url: Option<String>,
+    pub cached: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLinkImportInput {
+    pub project_id: String,
+    pub link: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchInput {
+    pub project_id: String,
+    pub query: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchHit {
+    pub relative_path: String,
+    pub line_number: u32,
+    pub snippet: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectIntegrityStatus {
+    pub project_id: String,
+    pub missing_required: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsOperationInput {
+    pub project_id: String,
+    pub scope: String,
+    pub action: String,
+    pub path: String,
+    pub target_path: Option<String>,
+    pub content: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsOperationResult {
+    pub ok: bool,
+    pub message: String,
+}
 include!("models_git.rs");
-include!("models_agent_workflows.rs");
-include!("models_native_runtime.rs");
-include!("models_resource_warmup.rs");
-include!("models_terminal.rs");
-include!("models_plugins.rs");
-include!("models_docx.rs");
-include!("models_markdown_runtime.rs");

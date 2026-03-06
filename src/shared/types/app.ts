@@ -1,7 +1,4 @@
-import type { CodeLanguageInfo } from "../utils/codeLanguage";
-import type { PluginCatalogSource } from "../plugins/pluginTypes";
-
-export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "library" | "git" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -9,8 +6,6 @@ export type EditorTab = {
   title: string;
   pinned: boolean;
   preview: boolean;
-  language: CodeLanguageInfo;
-  languageTag: string;
   lastAccessed: number;
 };
 
@@ -44,7 +39,6 @@ export type ResourceNode = {
   name: string;
   relativePath: string;
   kind: "file" | "directory";
-  directoryRole?: "pythonVenv";
   children: ResourceNode[];
 };
 
@@ -69,90 +63,15 @@ export type WorkspaceExportPdfResponse = {
   fileName: string;
 };
 
-export type WorkspaceExportAssetResponse = {
-  savedPath: string;
-  fileName: string;
-};
-
-export type TerminalStartResponse = {
-  sessionId: string;
-  cwd: string;
-  shell: string;
-  venvPath?: string | null;
-  envSource?: string | null;
-  status: string;
-};
-
-export type TerminalOutputChunk = {
-  seq: number;
-  stream: "stdout" | "stderr" | string;
-  text: string;
-};
-
-export type TerminalReadResponse = {
-  cursor: number;
-  chunks: TerminalOutputChunk[];
-  exitCode?: number | null;
-  status: "running" | "exited" | string;
-};
-
-export type MarkdownRunCodeResponse = {
-  language: string;
-  status: "completed" | "failed" | string;
-  stdout: string;
-  stderr: string;
-  exitCode?: number | null;
-  durationMs: number;
-  truncated: boolean;
-  runner: string;
-};
-
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;
-  sessionName?: string | null;
-  sessionCreatedAt?: string | null;
   projectId?: string | null;
   targetPath?: string | null;
-  mode?: "local" | "remote" | string | null;
   localUrl?: string | null;
   tunnelUrl?: string | null;
-  localJoinUrl?: string | null;
-  remoteJoinUrl?: string | null;
-  activeJoinUrl?: string | null;
-  passwordRequired?: boolean | null;
   password?: string | null;
   expiresAt?: string | null;
-  status?: "starting" | "ready" | "failed" | "stopping" | string | null;
-  pdfState?: "empty" | "ready" | "uploading" | "error" | string | null;
-  pdfUpdatedAt?: string | null;
-  syncSeq?: number | null;
-  syncEventCount?: number | null;
-  lastSyncAt?: string | null;
-  tunnelState?: "pending" | "ready" | "failed" | string | null;
-  tunnelError?: string | null;
-  participants?: ShareParticipantInfo[];
-};
-
-export type ShareParticipantInfo = {
-  participantId: string;
-  username: string;
-  lastSeenAt: string;
-  lastAction?: string | null;
-};
-
-export type ShareCommentItem = {
-  id: string;
-  username: string;
-  text: string;
-  quote?: string;
-  source?: "tex" | "pdf" | string;
-  sessionName?: string;
-  sessionCreatedAt?: string;
-  page?: number;
-  start?: number;
-  end?: number;
-  createdAt?: string;
 };
 
 export type SwarmEvent = {
@@ -171,15 +90,9 @@ export type EventBatch = {
   events: SwarmEvent[];
 };
 
-export type AgentExecuteStartAccepted = {
+export type AgentRunStartAccepted = {
   runId: string;
   status: string;
-};
-
-export type AgentTeamMode = "auto" | "force" | "off";
-
-export type AgentRunsRecoverResponse = {
-  recoveredRunIds: string[];
 };
 
 export type AgentModelBinding = {
@@ -199,11 +112,6 @@ export type ModelCatalogItem = {
   protocolId: string;
   displayName: string;
   requestName: string;
-  capabilities?: {
-    apiMode?: string;
-    reasoningMode?: string;
-    autoRepair?: boolean;
-  };
 };
 
 export type ProtocolHealth = {
@@ -258,224 +166,18 @@ export type AppSettings = {
     skipDeleteConfirm?: boolean;
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
-    themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
+    busytexCachePolicy?: "install-first" | "appdata-only";
+    busytexCacheDir?: string;
     previewDefaultZoom?: number;
-    paperBriefEngine?: "auto" | "pdfjs" | "python";
-    terminalShell?: "powershell" | "cmd" | "system";
     panelLayout?: PanelLayoutPrefs;
-    featureModelBindings?: FeatureModelBindings;
-    channels?: ChannelPrefs;
-    closeBehavior?: "ask" | "tray" | "exit";
-    closeBehaviorRemember?: boolean;
-    backgroundImagePath?: string;
-    backgroundImagePaths?: string[];
-    backgroundBlurPx?: number;
-    backgroundCropByPath?: Record<string, BackgroundCropRect>;
-    editorBackgroundColor?: string;
-    interfaceDensity?: "compact" | "comfortable" | "spacious";
-    accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
-    accentCustomColor?: string;
-    scrollbarColorMode?: "accent" | "custom";
-    scrollbarWidthPx?: number;
-    scrollbarThumbColor?: string;
-    scrollbarTrackColor?: string;
-    glassOpacity?: number;
-    glassBlurPx?: number;
-    motionLevel?: "full" | "reduced" | "none";
-    fontScale?: number;
-    pdfPageGapPx?: number;
-    logFontSizePx?: number;
-    panelRadiusPx?: number;
-    panelBorderContrast?: "soft" | "normal" | "strong";
-    memoryGuardPrefs?: MemoryGuardPrefs;
-    analysisEnvRootsByProject?: Record<string, string>;
-    librarySelectedPathByProject?: Record<string, string>;
-    libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
-    workspaceExplorerDefaultExpanded?: boolean;
-    libraryExplorerDefaultExpanded?: boolean;
-    workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
-    libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
-    sidebarPageOrder?: WorkspacePage[];
-    agentToolPrefs?: AgentToolPrefs;
-    agentPermissionPrefs?: AgentPermissionPrefs;
-    agentTeamPrefs?: AgentTeamPrefs;
-    pluginCatalogSources?: PluginCatalogSource[];
-    docxAutoSaveEnabled?: boolean;
-    mcpServers?: McpServerConfig[];
-    enabledSkills?: string[];
-    hiddenSkills?: string[];
   };
-};
-
-export type BackgroundCropRect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-export type AgentTeamRolePrefs = {
-  id: string;
-  name: string;
-  description?: string;
-  identityPrompt?: string;
-  modelId?: string;
-  phase?: "plan" | "research" | "edit" | "review" | "final";
-  canWrite?: boolean;
-  toolAccess?: string[];
-  mcpServerIds?: string[];
-  skillIds?: string[];
-  color?: string;
-  enabled?: boolean;
-};
-
-export type AgentTeamConfig = {
-  id: string;
-  name: string;
-  enabled?: boolean;
-  callsites?: string[];
-  parallelism?: number;
-  requirePlanApproval?: boolean;
-  roles?: AgentTeamRolePrefs[];
-};
-
-export type AgentTeamPrefs = {
-  enabled?: boolean;
-  defaultTeamId?: string;
-  teams?: AgentTeamConfig[];
-};
-
-export type AgentToolPrefs = {
-  webSearchEnabled?: boolean;
-  workspaceReadEnabled?: boolean;
-  pythonEnabled?: boolean;
-  mcpEnabled?: boolean;
-  writeRequiresConfirmation?: boolean;
-};
-
-export type PermissionMode = "allow" | "ask" | "deny";
-
-export type AgentPermissionPrefs = {
-  webSearch?: PermissionMode;
-  workspaceRead?: PermissionMode;
-  python?: PermissionMode;
-  mcp?: PermissionMode;
-  skills?: PermissionMode;
-  pluginCommands?: PermissionMode;
-  nonLatexWrites?: PermissionMode;
-  mcpServerModes?: Record<string, PermissionMode>;
-  pluginModes?: Record<string, PermissionMode>;
-};
-
-export type MemoryGuardPrefs = {
-  enabled?: boolean;
-  highWatermarkMb?: number;
-  criticalWatermarkMb?: number;
-  sampleIntervalSec?: number;
-  criticalAction?: "release" | "sleep";
-};
-
-export type McpServerConfig = {
-  id: string;
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  enabled?: boolean;
-};
-
-export type McpValidationResult = {
-  ok: boolean;
-  message: string;
-  tools: string[];
-};
-
-export type SkillValidationResult = {
-  ok: boolean;
-  skillId: string;
-  message: string;
-  source: "builtIn" | "configured" | "custom" | string;
-  manifestPath?: string | null;
-  details?: string[];
-};
-
-export type TelegramTestInput = {
-  token: string;
-  chatId?: string;
-  text: string;
-};
-
-export type FeatureModelBindings = {
-  latexAgentModelId?: string;
-  analysisAgentModelId?: string;
-  gitSummaryModelId?: string;
-  chatAgentModelId?: string;
-  translationModelId?: string;
-  completionModelId?: string;
-};
-
-export type ChannelPrefs = {
-  telegramEnabled?: boolean;
-  telegramBotToken?: string;
-  telegramChatId?: string;
-  dingtalkEnabled?: boolean;
-  dingtalkClientId?: string;
-  dingtalkClientSecret?: string;
-};
-
-export type TelegramPollInput = {
-  offset?: number;
-  limit?: number;
-  timeoutSecs?: number;
-};
-
-export type TelegramUpdateItem = {
-  updateId: number;
-  messageId: number;
-  chatId: string;
-  username: string;
-  text: string;
-};
-
-export type TelegramPollResult = {
-  nextOffset: number;
-  updates: TelegramUpdateItem[];
-};
-
-export type DingTalkPollInput = {
-  limit?: number;
-};
-
-export type DingTalkUpdateItem = {
-  conversationId: string;
-  senderId: string;
-  senderName: string;
-  text: string;
-  replyToken?: string | null;
-};
-
-export type DingTalkPollResult = {
-  updates: DingTalkUpdateItem[];
-  status: string;
-};
-
-export type DingTalkSendInput = {
-  replyToken?: string | null;
-  webhook?: string | null;
-  text: string;
-};
-
-export type DingTalkTestInput = {
-  clientId: string;
-  clientSecret: string;
 };
 
 export type PanelLayoutPrefs = {
   shell?: number[];
   latex?: number[];
-  latexTerminal?: number[];
   analysis?: number[];
   library?: number[];
-  libraryBib?: number[];
   git?: number[];
   settings?: number[];
 };
@@ -486,25 +188,6 @@ export type RuntimeLogInfo = {
   runtimeRoot: string;
   installMode: string;
   version: string;
-};
-
-export type RuntimeMemorySnapshot = {
-  processId: number;
-  rssBytes: number;
-  privateBytes?: number | null;
-  webviewRssBytes?: number | null;
-  webviewPrivateBytes?: number | null;
-  webviewProcessCount?: number | null;
-  totalRssBytes?: number | null;
-  totalPrivateBytes?: number | null;
-  sampledAt: string;
-};
-
-export type RuntimeDiagnosticsBundleExport = {
-  path: string;
-  fileName: string;
-  sizeBytes: number;
-  createdAt: string;
 };
 
 export type RuntimeLogEntry = {
@@ -518,26 +201,224 @@ export type RuntimeLogReadResponse = {
   entries: RuntimeLogEntry[];
 };
 
-export type RuntimeLogSession = {
+export type RuntimeLogReadFilters = {
+  limit?: number;
+  level?: string;
+  keyword?: string;
+  fromTime?: string;
+  toTime?: string;
+};
+
+export type LibraryCitationSummary = {
+  sourcePath: string;
+  bibPath?: string | null;
+  citationKey?: string | null;
+  title?: string | null;
+  authors: string[];
+  publishedAt?: string | null;
+  doi?: string | null;
+  arxivId?: string | null;
+  source?: string | null;
+  urls: string[];
+};
+
+export type LibraryPdfPreview = {
+  relativePath?: string | null;
+  sourceUrl?: string | null;
+  cached: boolean;
+};
+
+export type CompileRecord = {
+  id: string;
+  projectId: string;
+  mainFile: string;
+  status: string;
+  diagnostics: string[];
+  durationMs: number;
+  createdAt: string;
+};
+
+export type ReferenceEvidence = {
+  title: string;
+  url: string;
+  snippet: string;
+};
+
+export type ReferenceCheckItem = {
+  query: string;
+  ok: boolean;
+  message: string;
+  results: ReferenceEvidence[];
+};
+
+export type ReferenceCheckResponse = {
+  items: ReferenceCheckItem[];
+};
+
+export type AnalysisAssetInput = {
   fileName: string;
-  modifiedAt: string;
-  sizeBytes: number;
-  isCurrent: boolean;
+  dataUrl: string;
 };
 
-export type RuntimeLogSessionListResponse = {
-  sessions: RuntimeLogSession[];
+export type AnalysisSaveReportResponse = {
+  runId: string;
+  runDir: string;
+  reportRelativePath: string;
+  assetRelativePaths: string[];
 };
 
-export type AppBackgroundImage = {
+export type AnalysisReportItem = {
+  runId: string;
+  reportRelativePath: string;
+  assetRelativePaths: string[];
+  updatedAtUnixMs: number;
+};
+
+export type AnalysisListReportsResponse = {
+  reports: AnalysisReportItem[];
+};
+
+export type AnalysisExportArtifactResponse = {
+  savedPath: string;
+};
+
+export type ModelProtocolInput = {
+  id: string;
+  displayName: string;
+  baseUrl: string;
+  apiKey?: string;
+};
+
+export type ModelCatalogItemInput = {
+  id: string;
+  protocolId: string;
+  displayName: string;
+  requestName: string;
+};
+
+export type FsScope = "workspace" | "library";
+export type FsAction = "create_file" | "create_folder" | "rename" | "copy" | "move" | "delete";
+
+export type FsOperationInput = {
+  projectId: string;
+  scope: FsScope;
+  action: FsAction;
   path: string;
+  targetPath?: string;
+  content?: string;
 };
 
-export type AppBackgroundImagePayload = {
+export type FsOperationResult = {
+  ok: boolean;
+  message: string;
+};
+
+export type ProjectSearchHit = {
+  relativePath: string;
+  lineNumber: number;
+  snippet: string;
+};
+
+export type ProjectIntegrityStatus = {
+  projectId: string;
+  missingRequired: string[];
+};
+
+export type GitStatusEntry = {
   path: string;
-  mime: string;
-  bytes: number[];
+  indexStatus: string;
+  worktreeStatus: string;
+  addedLines: number;
+  removedLines: number;
+  ignored: boolean;
 };
 
-export * from "./app-extended";
+export type GitStatus = {
+  isRepo: boolean;
+  branch: string;
+  upstream?: string;
+  ahead: number;
+  behind: number;
+  changes: GitStatusEntry[];
+};
 
+export type GitBranchInfo = {
+  name: string;
+  current: boolean;
+};
+
+export type GitCommitInfo = {
+  hash: string;
+  shortHash: string;
+  author: string;
+  date: string;
+  subject: string;
+};
+
+export type GitCommitFileEntry = {
+  path: string;
+  status: string;
+  addedLines: number;
+  removedLines: number;
+};
+
+export type GitAvailability = {
+  installed: boolean;
+  version?: string;
+};
+
+export type GitDownloadStart = {
+  taskId: string;
+  fileName: string;
+  downloadUrl: string;
+};
+
+export type GitDownloadStatus = {
+  taskId: string;
+  status: string;
+  fileName: string;
+  downloadedBytes: number;
+  totalBytes: number;
+  speedBps: number;
+  progressPercent: number;
+  installerPath: string;
+  error?: string;
+};
+
+export type GitDiffLine = {
+  kind: "added" | "removed" | "context" | "meta";
+  oldLine?: number;
+  newLine?: number;
+  text: string;
+};
+
+export type GitDiffHunk = {
+  header: string;
+  lines: GitDiffLine[];
+};
+
+export type GitDiffResponse = {
+  path: string;
+  staged: boolean;
+  addedLines: number;
+  removedLines: number;
+  hunks: GitDiffHunk[];
+};
+
+export type BusyTexCacheInfo = {
+  policy: string;
+  requestedDir: string;
+  actualDir: string;
+  installDirWritable: boolean;
+  usingFallback: boolean;
+};
+
+export type Ack = {
+  ok: boolean;
+  message: string;
+};
+
+export type GitInitProgress = {
+  phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
+  message: string;
+};

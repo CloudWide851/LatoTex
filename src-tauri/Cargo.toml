@@ -1,13 +1,9 @@
-[workspace]
-members = ["crates/latotex-agent", "crates/latotex-workspace"]
-resolver = "2"
-
 [package]
 name = "latotex"
 version = "0.1.0"
 description = "LatoTex desktop app"
 authors = ["LatoTex Team"]
-license = "AGPL-3.0-only"
+license = "MIT"
 repository = ""
 edition = "2021"
 rust-version = "1.77.2"
@@ -20,8 +16,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-latotex-agent = { path = "crates/latotex-agent" }
-latotex-workspace = { path = "crates/latotex-workspace" }
 chrono = { version = "0.4.39", features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -32,21 +26,8 @@ keyring = "3"
 rfd = "0.15"
 trash = "5"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
-tokio = { version = "1", features = ["time"] }
 regex = "1"
 urlencoding = "2"
 base64 = "0.22"
 ring = "0.17.14"
 tiny_http = "0.12.0"
-zip = "2"
-tar = "0.4"
-portable-pty = "0.8"
-
-[target.'cfg(target_os = "windows")'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
-
-[profile.release]
-lto = true
-codegen-units = 1
-strip = "symbols"
-panic = "abort"
