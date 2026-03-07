@@ -112,6 +112,11 @@ export type ModelCatalogItem = {
   protocolId: string;
   displayName: string;
   requestName: string;
+  capabilities?: {
+    apiMode?: string;
+    reasoningMode?: string;
+    autoRepair?: boolean;
+  };
 };
 
 export type ProtocolHealth = {
@@ -294,6 +299,11 @@ export type ModelCatalogItemInput = {
   protocolId: string;
   displayName: string;
   requestName: string;
+  capabilities?: {
+    apiMode?: string;
+    reasoningMode?: string;
+    autoRepair?: boolean;
+  };
 };
 
 export type FsScope = "workspace" | "library";

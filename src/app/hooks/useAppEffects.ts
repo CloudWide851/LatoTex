@@ -358,7 +358,7 @@ export function useAppEffects(params: {
       }
       inFlight = true;
       try {
-        const batch = await getEvents(cursorRef.current, 120);
+        const batch = await getEvents(cursorRef.current, 120, undefined, 1400);
         if (batch.events.length > 0) {
           setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
           cursorRef.current = batch.nextCursor;

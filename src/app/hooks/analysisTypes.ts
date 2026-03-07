@@ -7,7 +7,7 @@ export type AnalysisTaskRun = {
   prompt: string;
   title: string;
   summary: string;
-  reportHtml: string;
+  reportHtml?: string;
   reportRelativePath?: string;
   assetRelativePaths: string[];
   labels: string[];
@@ -19,6 +19,7 @@ export type AnalysisTaskRun = {
   inputFiles: string[];
   outputLanguage: AnalysisOutputLanguage;
   agentRunId?: string;
+  eventRunIds?: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -28,6 +29,8 @@ export type AnalysisTask = {
   name: string;
   sourceType: AnalysisSourceType;
   sourcePath?: string;
+  draftPrompt: string;
+  lastError: string | null;
   activeRunId?: string;
   createdAt: string;
   updatedAt: string;

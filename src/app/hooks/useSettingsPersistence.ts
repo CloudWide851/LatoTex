@@ -88,6 +88,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           protocolId: model.protocolId,
           displayName: model.displayName,
           requestName: model.requestName,
+          capabilities: model.capabilities,
         })),
         agentBindings: nextSettings.agentBindings,
         uiPrefs: {

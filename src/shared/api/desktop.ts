@@ -299,8 +299,13 @@ export function runAgentCancel(runId: string) {
   return invoke<Ack>("agent_run_cancel", { input: { runId } });
 }
 
-export function getEvents(cursor?: number, limit = 200, runId?: string): Promise<EventBatch> {
-  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId } });
+export function getEvents(
+  cursor?: number,
+  limit = 200,
+  runId?: string,
+  waitMs?: number,
+): Promise<EventBatch> {
+  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId, waitMs } });
 }
 
 export function setTrayLabels(showLabel: string, exitLabel: string, tooltip: string) {

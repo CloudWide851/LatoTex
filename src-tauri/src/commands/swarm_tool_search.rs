@@ -42,6 +42,7 @@ fn call_model_output(
     model_override: Option<&str>,
     prompt: &str,
     context_refs: &[String],
+    bypass_cache: bool,
 ) -> Result<String, String> {
     let (protocol_id, base_url, model_name, api_key) =
         resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
@@ -50,7 +51,15 @@ fn call_model_output(
     } else {
         format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
     };
-    call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)
+    call_provider_with_retry(
+        Some(db_path),
+        &protocol_id,
+        &base_url,
+        &api_key,
+        &model_name,
+        &full_prompt,
+        bypass_cache,
+    )
 }
 
 fn normalize_query(candidate: &str) -> Option<String> {
@@ -196,6 +205,7 @@ pub(super) fn run_stage_tool_search(
     context_refs: &[String],
     cancel_flag: &Arc<AtomicBool>,
     model_override: Option<&str>,
+    bypass_cache: bool,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
     emit_stage_event(
@@ -285,6 +295,7 @@ pub(super) fn run_stage_tool_search(
         model_override,
         &final_prompt,
         context_refs,
+        bypass_cache,
     )?;
     ensure_not_cancelled(cancel_flag)?;
     emit_response_event(

@@ -128,17 +128,22 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
     let mut model_catalog = Vec::new();
     let mut catalog_stmt = conn
         .prepare(
-            "SELECT id, protocol_id, display_name, request_name
+            "SELECT id, protocol_id, display_name, request_name, capabilities_json
              FROM model_catalog ORDER BY protocol_id, display_name",
         )
         .map_err(|e| e.to_string())?;
     let catalog_rows = catalog_stmt
         .query_map([], |row| {
+            let capabilities_raw: Option<String> = row.get(4)?;
+            let capabilities = capabilities_raw
+                .as_deref()
+                .and_then(|raw| serde_json::from_str::<crate::models::ModelCapabilities>(raw).ok());
             Ok(ModelCatalogItem {
                 id: row.get(0)?,
                 protocol_id: row.get(1)?,
                 display_name: row.get(2)?,
                 request_name: row.get(3)?,
+                capabilities,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -338,11 +343,15 @@ fn update_model_catalog(
     conn.execute("DELETE FROM model_catalog", [])
         .map_err(|e| e.to_string())?;
     for model in models {
+        let capabilities_json = model
+            .capabilities
+            .as_ref()
+            .map(|value| serde_json::to_string(value).unwrap_or_else(|_| "null".to_string()));
         conn.execute(
-            "INSERT INTO model_catalog (id, protocol_id, display_name, request_name)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(id) DO UPDATE SET protocol_id = excluded.protocol_id, display_name = excluded.display_name, request_name = excluded.request_name",
-            params![model.id, model.protocol_id, model.display_name, model.request_name],
+            "INSERT INTO model_catalog (id, protocol_id, display_name, request_name, capabilities_json)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET protocol_id = excluded.protocol_id, display_name = excluded.display_name, request_name = excluded.request_name, capabilities_json = excluded.capabilities_json",
+            params![model.id, model.protocol_id, model.display_name, model.request_name, capabilities_json],
         )
         .map_err(|e| e.to_string())?;
     }
@@ -389,7 +398,7 @@ fn upsert_catalog_for_legacy_binding(
 ) -> Result<String, String> {
     let model_id = format!("{protocol_id}-{}", normalize_model_key(request_name));
     conn.execute(
-        "INSERT OR IGNORE INTO model_catalog (id, protocol_id, display_name, request_name) VALUES (?1, ?2, ?3, ?4)",
+        "INSERT OR IGNORE INTO model_catalog (id, protocol_id, display_name, request_name, capabilities_json) VALUES (?1, ?2, ?3, ?4, NULL)",
         params![model_id, protocol_id, display_name, request_name],
     )
     .map_err(|e| e.to_string())?;

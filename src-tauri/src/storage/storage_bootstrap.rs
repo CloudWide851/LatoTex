@@ -61,7 +61,8 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             id TEXT PRIMARY KEY,
             protocol_id TEXT NOT NULL,
             display_name TEXT NOT NULL,
-            request_name TEXT NOT NULL
+            request_name TEXT NOT NULL,
+            capabilities_json TEXT
         );
 
         CREATE TABLE IF NOT EXISTS agent_bindings (
@@ -90,6 +91,7 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
 
     ensure_ui_prefs_column(&conn)?;
     ensure_agent_binding_model_id_column(&conn)?;
+    ensure_model_catalog_capabilities_column(&conn)?;
 
     conn.execute(
         "INSERT OR IGNORE INTO app_settings (id, active_project_id, ui_prefs_json) VALUES (1, NULL, NULL)",
@@ -252,6 +254,23 @@ fn prune_seeded_model_defaults(conn: &Connection) -> Result<(), String> {
     conn.execute("DELETE FROM agent_bindings", [])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn ensure_model_catalog_capabilities_column(conn: &Connection) -> Result<(), String> {
+    match conn.execute("ALTER TABLE model_catalog ADD COLUMN capabilities_json TEXT", []) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let message = error.to_string().to_lowercase();
+            if message.contains("duplicate column name")
+                || message.contains("already exists")
+                || message.contains("no such table")
+            {
+                Ok(())
+            } else {
+                Err(error.to_string())
+            }
+        }
+    }
 }
 
 fn backfill_legacy_agent_bindings(conn: &Connection) -> Result<(), String> {

@@ -77,6 +77,7 @@ fn call_model_output(
     model_override: Option<&str>,
     prompt: &str,
     context_refs: &[String],
+    bypass_cache: bool,
 ) -> Result<String, String> {
     let (protocol_id, base_url, model_name, api_key) =
         resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
@@ -85,7 +86,15 @@ fn call_model_output(
     } else {
         format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
     };
-    super::call_provider_with_retry(&protocol_id, &base_url, &api_key, &model_name, &full_prompt)
+    super::call_provider_with_retry(
+        Some(db_path),
+        &protocol_id,
+        &base_url,
+        &api_key,
+        &model_name,
+        &full_prompt,
+        bypass_cache,
+    )
 }
 
 fn run_stage_role(
@@ -102,6 +111,7 @@ fn run_stage_role(
     cancel_flag: &Arc<AtomicBool>,
     model_override: Option<&str>,
     tool_name: &str,
+    bypass_cache: bool,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
     emit_stage_event(
@@ -133,6 +143,7 @@ fn run_stage_role(
         model_override,
         prompt,
         context_refs,
+        bypass_cache,
     )?;
     ensure_not_cancelled(cancel_flag)?;
     emit_tool_event(
@@ -233,6 +244,7 @@ fn run_agent_pipeline_async(
     input: AgentRunRequest,
 ) -> Result<String, String> {
     if input.role == "web_search" {
+        let bypass_cache = input.bypass_cache;
         return super::swarm_tool_search::run_stage_tool_search(
             &db_path,
             &runtime_root,
@@ -246,8 +258,11 @@ fn run_agent_pipeline_async(
             &input.context_refs,
             &cancel_flag,
             input.model_override.as_deref(),
+            bypass_cache,
         );
     }
+
+    let bypass_cache = input.bypass_cache;
 
     if input.role != "task" {
         return run_stage_role(
@@ -264,6 +279,7 @@ fn run_agent_pipeline_async(
             &cancel_flag,
             input.model_override.as_deref(),
             "provider_generate",
+            bypass_cache,
         );
     }
 
@@ -290,6 +306,7 @@ fn run_agent_pipeline_async(
         &input.context_refs,
         &cancel_flag,
         None,
+        bypass_cache,
     )?;
 
     let explore_prompt_a = format!(
@@ -322,6 +339,7 @@ fn run_agent_pipeline_async(
             &context_a,
             &cancel_a,
             None,
+            bypass_cache,
         )
     });
 
@@ -346,6 +364,7 @@ fn run_agent_pipeline_async(
             &context_b,
             &cancel_b,
             None,
+            bypass_cache,
         )
     });
 
@@ -373,6 +392,7 @@ fn run_agent_pipeline_async(
         &input.context_refs,
         &cancel_flag,
         None,
+        bypass_cache,
     )?;
 
     let task_prompt_base = format!(
@@ -393,6 +413,7 @@ fn run_agent_pipeline_async(
         &input.context_refs,
         &cancel_flag,
         input.model_override.as_deref(),
+        bypass_cache,
     )?;
 
     if final_output.trim().is_empty() {
@@ -413,6 +434,7 @@ fn run_agent_pipeline_async(
             &input.context_refs,
             &cancel_flag,
             None,
+            bypass_cache,
         )?;
     }
 

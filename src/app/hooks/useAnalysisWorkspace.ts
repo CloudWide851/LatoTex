@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   analysisExportArtifact,
   analysisSaveReport,
+  readFile,
   runAgentStart,
   runtimeLogWrite,
   workspaceRevealInSystem,
@@ -43,15 +44,14 @@ export function useAnalysisWorkspace(params: {
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;
 }) {
   const { projectId, selectedFile, editorContent, fileList, locale, events, setToast, t } = params;
-  const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [activeRunIds, setActiveRunIds] = useState<string[]>([]);
+  const [activeRunHtml, setActiveRunHtml] = useState("");
   const loadedRef = useRef(false);
   const tasksRef = useRef<AnalysisTask[]>([]);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runInFlightRef = useRef(false);
 
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
   const csvCandidateFiles = useMemo(
@@ -71,7 +71,49 @@ export function useAnalysisWorkspace(params: {
     }
     return activeTask.runs[0] ?? null;
   }, [activeTask]);
-  const timelineCards = useMemo(() => extractEventCards(events, activeRunIds), [events, activeRunIds]);
+  const prompt = activeTask?.draftPrompt ?? "";
+  const analysisError = activeTask?.lastError ?? null;
+  const timelineCards = useMemo(() => {
+    if (!activeRun) {
+      return [];
+    }
+    const runIds = Array.isArray(activeRun.eventRunIds) && activeRun.eventRunIds.length > 0
+      ? activeRun.eventRunIds
+      : activeRun.agentRunId
+        ? [activeRun.agentRunId]
+        : [];
+    return extractEventCards(events, runIds);
+  }, [activeRun, events]);
+
+  useEffect(() => {
+    if (!activeRun) {
+      setActiveRunHtml("");
+      return;
+    }
+    if (typeof activeRun.reportHtml === "string" && activeRun.reportHtml.trim().length > 0) {
+      setActiveRunHtml(activeRun.reportHtml);
+      return;
+    }
+    if (!projectId || !activeRun.reportRelativePath) {
+      setActiveRunHtml("");
+      return;
+    }
+    let cancelled = false;
+    readFile(projectId, activeRun.reportRelativePath)
+      .then((file) => {
+        if (!cancelled) {
+          setActiveRunHtml(file.content ?? "");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActiveRunHtml("");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRun, projectId]);
 
   useEffect(() => {
     tasksRef.current = tasks;
@@ -81,7 +123,6 @@ export function useAnalysisWorkspace(params: {
     if (!projectId) {
       setTasks([]);
       setActiveTaskId(null);
-      setPrompt("");
       loadedRef.current = false;
       return;
     }
@@ -133,6 +174,21 @@ export function useAnalysisWorkspace(params: {
 
   const canRun = useMemo(() => Boolean(projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt]);
 
+  const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
+    setTasks((prev) => prev.map((item) => (item.id === taskId ? updater(item) : item)));
+  }, []);
+
+  const setPrompt = useCallback((value: string) => {
+    if (!activeTaskId) {
+      return;
+    }
+    updateTaskById(activeTaskId, (task) => ({
+      ...task,
+      draftPrompt: value,
+      updatedAt: nowIso(),
+    }));
+  }, [activeTaskId, updateTaskById]);
+
   const setActiveRunForTask = useCallback((taskId: string, runId: string) => {
     setTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, activeRunId: runId, updatedAt: nowIso() } : item)));
   }, []);
@@ -144,6 +200,8 @@ export function useAnalysisWorkspace(params: {
       name: (name?.trim() || t("analysis.defaultTaskName")).slice(0, 64),
       sourceType,
       sourcePath,
+      draftPrompt: "",
+      lastError: null,
       runs: [],
       createdAt,
       updatedAt: createdAt,
@@ -186,7 +244,12 @@ export function useAnalysisWorkspace(params: {
     }
   }, []);
 
-  const runRolePrompt = useCallback(async (role: string, promptText: string, contextRefs: string[]) => {
+  const runRolePrompt = useCallback(async (
+    role: string,
+    promptText: string,
+    contextRefs: string[],
+    bypassCache = false,
+  ) => {
     if (!projectId) {
       throw new Error("project missing");
     }
@@ -195,9 +258,8 @@ export function useAnalysisWorkspace(params: {
       role,
       prompt: promptText,
       contextRefs,
-      bypassCache: true,
+      bypassCache,
     });
-    setActiveRunIds((prev) => [...prev, accepted.runId]);
     return {
       runId: accepted.runId,
       output: await waitForRunOutput(accepted.runId),
@@ -209,29 +271,62 @@ export function useAnalysisWorkspace(params: {
     options?: {
       forcedTaskId?: string;
       taskSnapshot?: AnalysisTask;
+      savePrompt?: boolean;
     },
   ) => {
     const normalizedPrompt = inputPrompt.trim();
+    if (runInFlightRef.current) {
+      setToast({ type: "info", message: t("analysis.running") });
+      return;
+    }
     if (!projectId) {
-      setAnalysisError(t("analysis.error.noProject"));
+      setToast({ type: "error", message: t("analysis.error.noProject") });
       return;
     }
     await ensureTasksReady();
     const targetTaskId = options?.forcedTaskId ?? activeTaskId;
     const task = options?.taskSnapshot ?? tasksRef.current.find((item) => item.id === targetTaskId) ?? null;
     if (!task) {
-      setAnalysisError(t("analysis.error.noTask"));
+      setToast({ type: "error", message: t("analysis.error.noTask") });
       return;
     }
     if (!normalizedPrompt) {
-      setAnalysisError(t("analysis.error.emptyPrompt"));
+      updateTaskById(task.id, (item) => ({
+        ...item,
+        lastError: t("analysis.error.emptyPrompt"),
+        updatedAt: nowIso(),
+      }));
       return;
     }
-    setAnalysisError(null);
+    runInFlightRef.current = true;
+    if (options?.savePrompt !== false) {
+      updateTaskById(task.id, (item) => ({
+        ...item,
+        draftPrompt: normalizedPrompt,
+        lastError: null,
+        updatedAt: nowIso(),
+      }));
+    } else {
+      updateTaskById(task.id, (item) => ({
+        ...item,
+        lastError: null,
+        updatedAt: nowIso(),
+      }));
+    }
     setRunning(true);
-    setActiveRunIds([]);
 
     try {
+      const runIds: string[] = [];
+      const runRolePromptWithTrace = async (
+        role: string,
+        promptText: string,
+        contextRefs: string[],
+        bypassCache = false,
+      ) => {
+        const result = await runRolePrompt(role, promptText, contextRefs, bypassCache);
+        runIds.push(result.runId);
+        return result;
+      };
       const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
       const outputLanguageLabel = languageLabel(outputLanguage);
       const contextRefs: string[] = [];
@@ -254,7 +349,7 @@ export function useAnalysisWorkspace(params: {
             `Chunk pages: ${chunk.pageStart}-${chunk.pageEnd}`,
             chunk.text,
           ].join("\n\n");
-          const chunkResult = await runRolePrompt("explore", chunkPrompt, contextRefs);
+          const chunkResult = await runRolePromptWithTrace("explore", chunkPrompt, contextRefs);
           chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
         }
         sourceBlock = [
@@ -303,7 +398,7 @@ export function useAnalysisWorkspace(params: {
             snapshot.excerpt.slice(0, 2400),
           ].join("\n\n");
           try {
-            const profileResult = await runRolePrompt("explore", profilePrompt, contextRefs);
+            const profileResult = await runRolePromptWithTrace("explore", profilePrompt, contextRefs);
             perFileProfiles.push(`[${snapshot.path}]\n${profileResult.output}`);
           } catch {
             perFileProfiles.push(`[${snapshot.path}]\nprofile_failed`);
@@ -319,7 +414,7 @@ export function useAnalysisWorkspace(params: {
           "Per-file profiles:",
           perFileProfiles.join("\n\n"),
         ].join("\n\n");
-        const crossFileResult = await runRolePrompt("explore", crossFilePrompt, contextRefs);
+        const crossFileResult = await runRolePromptWithTrace("explore", crossFilePrompt, contextRefs);
 
         steps.push(t("analysis.step.deepDive"));
         const deepDivePrompt = [
@@ -331,7 +426,7 @@ export function useAnalysisWorkspace(params: {
           "Cross-file synthesis:",
           crossFileResult.output,
         ].join("\n\n");
-        const deepDiveResult = await runRolePrompt("explore", deepDivePrompt, contextRefs);
+        const deepDiveResult = await runRolePromptWithTrace("explore", deepDivePrompt, contextRefs);
 
         sourceBlock = [
           snapshotSummary,
@@ -360,7 +455,7 @@ export function useAnalysisWorkspace(params: {
         "\nSource material:",
         sourceBlock,
       ].join("\n\n");
-      const finalResult = await runRolePrompt("task", agentPrompt, contextRefs);
+      const finalResult = await runRolePromptWithTrace("task", agentPrompt, contextRefs);
       const parsed = parsePayloadJson(finalResult.output);
 
       const chartSource = clampChart(
@@ -425,27 +520,29 @@ export function useAnalysisWorkspace(params: {
         inputFiles: resolvedInputFiles,
         outputLanguage,
         agentRunId: finalResult.runId,
+        eventRunIds: Array.from(new Set(runIds)),
         createdAt: nowIso(),
         updatedAt: nowIso(),
       };
 
-      setTasks((prev) =>
-        prev.map((item) => {
-          if (item.id !== task.id) {
-            return item;
-          }
-          return upsertRun(item, runRecord);
-        }),
-      );
+      updateTaskById(task.id, (item) => ({
+        ...upsertRun(item, runRecord),
+        lastError: null,
+        draftPrompt: options?.savePrompt === false ? item.draftPrompt : "",
+      }));
       setActiveTaskId(task.id);
-      setPrompt("");
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
       const message = `${t("analysis.error.failed")}: ${String(error)}`;
-      setAnalysisError(message);
+      updateTaskById(task.id, (item) => ({
+        ...item,
+        lastError: message,
+        updatedAt: nowIso(),
+      }));
       setToast({ type: "error", message });
       await runtimeLogWrite("ERROR", `analysis run failed: ${String(error)}`).catch(() => undefined);
     } finally {
+      runInFlightRef.current = false;
       setRunning(false);
     }
   }, [
@@ -460,6 +557,7 @@ export function useAnalysisWorkspace(params: {
     selectedFile,
     setToast,
     t,
+    updateTaskById,
   ]);
 
   const runAnalysis = useCallback(async () => {
@@ -469,18 +567,33 @@ export function useAnalysisWorkspace(params: {
   const runAnalysisWithPrompt = useCallback(async (inputPrompt: string) => {
     setPrompt(inputPrompt);
     await runAnalysisForPrompt(inputPrompt);
-  }, [runAnalysisForPrompt]);
+  }, [runAnalysisForPrompt, setPrompt]);
 
   const runPaperAnalysisFromLibrary = useCallback(async (sourcePath: string) => {
     await ensureTasksReady();
-    const task = createTask("paper", sourcePath, `${t("analysis.paperTaskName")}: ${sourcePath.split("/").pop() || sourcePath}`);
+    if (runInFlightRef.current) {
+      setToast({ type: "info", message: t("analysis.running") });
+      return;
+    }
+    const normalizedPath = sourcePath.replace(/\\/g, "/");
+    const existingTask = tasksRef.current.find(
+      (item) => item.sourceType === "paper" && (item.sourcePath ?? "").replace(/\\/g, "/") === normalizedPath,
+    );
+    const task = existingTask ?? createTask("paper", sourcePath, `${t("analysis.paperTaskName")}: ${sourcePath.split("/").pop() || sourcePath}`);
+    setActiveTaskId(task.id);
+    updateTaskById(task.id, (item) => ({
+      ...item,
+      draftPrompt: "",
+      lastError: null,
+      updatedAt: nowIso(),
+    }));
     const promptText = t("analysis.paperDefaultPrompt");
-    setPrompt(promptText);
     await runAnalysisForPrompt(promptText, {
       forcedTaskId: task.id,
       taskSnapshot: task,
+      savePrompt: false,
     });
-  }, [createTask, ensureTasksReady, runAnalysisForPrompt, t]);
+  }, [createTask, ensureTasksReady, runAnalysisForPrompt, setToast, t, updateTaskById]);
 
   const exportArtifact = useCallback(async (relativePath: string) => {
     if (!projectId) {
@@ -514,6 +627,7 @@ export function useAnalysisWorkspace(params: {
     activeTaskId,
     activeTask,
     activeRun,
+    activeRunHtml,
     timelineCards,
     candidateFiles,
     setActiveTaskId,

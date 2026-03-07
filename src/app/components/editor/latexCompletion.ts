@@ -228,7 +228,7 @@ async function waitCompletionRunOutput(runId: string): Promise<string> {
   const startedAt = Date.now();
   let deltaOutput = "";
   while (Date.now() - startedAt < REMOTE_COMPLETION_TIMEOUT_MS) {
-    const batch = await getEvents(cursor, 120, runId);
+    const batch = await getEvents(cursor, 120, runId, 1300);
     cursor = batch.nextCursor;
     for (const event of batch.events) {
       const payload = event.payload ?? {};

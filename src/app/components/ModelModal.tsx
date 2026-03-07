@@ -166,6 +166,7 @@ export function ModelModal(props: {
           protocolId: resolvedProtocol.id,
           displayName: modelDisplayName.trim(),
           requestName,
+          capabilities: initialModel?.capabilities,
         },
         modelApiKey: modelApiKey.trim(),
         modelApiKeyChanged: apiKeyChanged,

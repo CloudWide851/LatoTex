@@ -53,6 +53,7 @@ export function AnalysisWorkspace(props: {
   tasks: AnalysisTask[];
   activeTaskId: string | null;
   activeRun: AnalysisTaskRun | null;
+  activeRunHtml: string;
   timelineCards: AnalysisTimelineCard[];
   candidateFiles: string[];
   onPromptChange: (value: string) => void;
@@ -75,6 +76,7 @@ export function AnalysisWorkspace(props: {
     tasks,
     activeTaskId,
     activeRun,
+    activeRunHtml,
     timelineCards,
     candidateFiles,
     onPromptChange,
@@ -141,8 +143,9 @@ export function AnalysisWorkspace(props: {
                 </div>
               </div>
               <iframe
+                key={activeRun.id}
                 title={t("analysis.reportTitle")}
-                srcDoc={activeRun.reportHtml}
+                srcDoc={activeRunHtml}
                 className="h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white"
               />
             </div>

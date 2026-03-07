@@ -14,15 +14,37 @@ function normalizeTask(input: Partial<AnalysisTask>): AnalysisTask | null {
   const updatedAt = typeof input.updatedAt === "string" && input.updatedAt ? input.updatedAt : createdAt;
   const sourceType = input.sourceType === "paper" ? "paper" : "data";
   const sourcePath = typeof input.sourcePath === "string" && input.sourcePath.trim() ? input.sourcePath : undefined;
+  const draftPrompt = typeof input.draftPrompt === "string" ? input.draftPrompt : "";
+  const lastError = typeof input.lastError === "string"
+    ? input.lastError
+    : input.lastError === null
+      ? null
+      : null;
   const activeRunId = typeof input.activeRunId === "string" && input.activeRunId.trim()
     ? input.activeRunId.trim()
     : undefined;
-  const runs = Array.isArray(input.runs) ? input.runs : [];
+  const runs = Array.isArray(input.runs)
+    ? input.runs
+        .filter((item) => item && typeof item === "object")
+        .map((item) => {
+          const run = item as Record<string, unknown>;
+          const eventRunIds = Array.isArray(run.eventRunIds)
+            ? run.eventRunIds.map((id) => String(id))
+            : undefined;
+          return {
+            ...run,
+            reportHtml: typeof run.reportHtml === "string" ? run.reportHtml : undefined,
+            eventRunIds,
+          };
+        }) as any[]
+    : [];
   return {
     id,
     name,
     sourceType,
     sourcePath,
+    draftPrompt,
+    lastError,
     activeRunId,
     createdAt,
     updatedAt,
@@ -54,6 +76,8 @@ export function createDefaultTask(name: string): AnalysisTask {
     id: newTaskId("analysis"),
     name,
     sourceType: "data",
+    draftPrompt: "",
+    lastError: null,
     createdAt,
     updatedAt: createdAt,
     runs: [],
@@ -87,5 +111,15 @@ export async function saveAnalysisTaskState(
   state: AnalysisTaskState,
 ): Promise<void> {
   const normalized = sanitizeState(state);
-  await writeFile(projectId, TASK_STORE_PATH, `${JSON.stringify(normalized, null, 2)}\n`);
+  const lean = {
+    ...normalized,
+    tasks: normalized.tasks.map((task) => ({
+      ...task,
+      runs: task.runs.map((run) => ({
+        ...run,
+        reportHtml: undefined,
+      })),
+    })),
+  };
+  await writeFile(projectId, TASK_STORE_PATH, `${JSON.stringify(lean, null, 2)}\n`);
 }

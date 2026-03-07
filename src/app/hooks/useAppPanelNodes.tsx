@@ -132,6 +132,7 @@ export function useAppPanelNodes(params: any) {
       tasks={analysisWorkspace.tasks}
       activeTaskId={analysisWorkspace.activeTaskId}
       activeRun={analysisWorkspace.activeRun}
+      activeRunHtml={analysisWorkspace.activeRunHtml}
       timelineCards={analysisWorkspace.timelineCards}
       candidateFiles={analysisWorkspace.candidateFiles}
       onPromptChange={analysisWorkspace.setPrompt}

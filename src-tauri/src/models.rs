@@ -242,12 +242,13 @@ pub struct AgentRunStartAccepted {
     pub status: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EventQuery {
     pub cursor: Option<i64>,
     pub limit: Option<u32>,
     pub run_id: Option<String>,
+    pub wait_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -289,11 +290,21 @@ pub struct ModelProtocol {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ModelCapabilities {
+    pub api_mode: Option<String>,
+    pub reasoning_mode: Option<String>,
+    pub auto_repair: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelCatalogItem {
     pub id: String,
     pub protocol_id: String,
     pub display_name: String,
     pub request_name: String,
+    #[serde(default)]
+    pub capabilities: Option<ModelCapabilities>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -341,6 +352,8 @@ pub struct ModelCatalogItemInput {
     pub protocol_id: String,
     pub display_name: String,
     pub request_name: String,
+    #[serde(default)]
+    pub capabilities: Option<ModelCapabilities>,
 }
 
 #[derive(Debug, Deserialize)]

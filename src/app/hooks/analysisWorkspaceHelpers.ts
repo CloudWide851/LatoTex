@@ -27,7 +27,7 @@ export type AgentAnalysisPayload = {
 };
 
 const RUN_TIMEOUT_MS = 300_000;
-const RUN_POLL_INTERVAL_MS = 350;
+const RUN_POLL_INTERVAL_MS = 120;
 const MAX_PROMPT_SNAPSHOT = 2200;
 
 function toBase64SvgDataUrl(svg: string): string {
@@ -125,8 +125,16 @@ export function parsePayloadJson(raw: string): AgentAnalysisPayload {
   }
   const fenced = trimmed.match(/```json\s*([\s\S]*?)```/i);
   const candidate = (fenced?.[1] ?? trimmed).trim();
+  const relaxedCandidate = (() => {
+    const firstBrace = candidate.indexOf("{");
+    const lastBrace = candidate.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return candidate.slice(firstBrace, lastBrace + 1);
+    }
+    return candidate;
+  })();
   try {
-    return JSON.parse(candidate) as AgentAnalysisPayload;
+    return JSON.parse(relaxedCandidate) as AgentAnalysisPayload;
   } catch {
     return {};
   }
@@ -293,7 +301,7 @@ export async function waitForRunOutput(runId: string): Promise<string> {
   const started = Date.now();
   let streamed = "";
   while (Date.now() - started < RUN_TIMEOUT_MS) {
-    const batch = await getEvents(cursor, 200, runId);
+    const batch = await getEvents(cursor, 200, runId, 2000);
     cursor = batch.nextCursor;
     for (const event of batch.events) {
       const payload = event.payload ?? {};
@@ -340,7 +348,7 @@ export function deriveSections(payload: AgentAnalysisPayload): Array<{ title: st
 }
 
 export function upsertRun(task: AnalysisTask, run: AnalysisTaskRun): AnalysisTask {
-  const runs = [run, ...task.runs.filter((item) => item.id !== run.id)].slice(0, 120);
+  const runs = [run, ...task.runs.filter((item) => item.id !== run.id)].slice(0, 40);
   return {
     ...task,
     activeRunId: run.id,
