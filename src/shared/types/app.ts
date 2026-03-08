@@ -72,6 +72,17 @@ export type ShareSessionInfo = {
   tunnelUrl?: string | null;
   password?: string | null;
   expiresAt?: string | null;
+  status?: "starting" | "ready" | "failed" | "stopping" | string | null;
+  tunnelState?: "pending" | "ready" | "failed" | string | null;
+  tunnelError?: string | null;
+  participants?: ShareParticipantInfo[];
+};
+
+export type ShareParticipantInfo = {
+  participantId: string;
+  username: string;
+  lastSeenAt: string;
+  lastAction?: string | null;
 };
 
 export type SwarmEvent = {

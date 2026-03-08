@@ -84,6 +84,15 @@ pub struct ShareSessionCreateInput {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ShareParticipantInfo {
+    pub participant_id: String,
+    pub username: String,
+    pub last_seen_at: String,
+    pub last_action: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ShareSessionInfo {
     pub active: bool,
     pub session_id: Option<String>,
@@ -93,6 +102,11 @@ pub struct ShareSessionInfo {
     pub tunnel_url: Option<String>,
     pub password: Option<String>,
     pub expires_at: Option<String>,
+    pub status: Option<String>,
+    pub tunnel_state: Option<String>,
+    pub tunnel_error: Option<String>,
+    #[serde(default)]
+    pub participants: Vec<ShareParticipantInfo>,
 }
 
 #[derive(Debug, Deserialize)]

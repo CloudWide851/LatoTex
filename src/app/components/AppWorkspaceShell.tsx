@@ -8,6 +8,7 @@ import type {
   FsAction,
   FsScope,
   ResourceNode,
+  ShareSessionInfo,
   SwarmEvent,
   WorkspacePage,
 } from "../../shared/types/app";
@@ -23,6 +24,7 @@ import { configureLatexCompletionRuntime, ensureLatexCompletionProvider } from "
 import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
+import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
 type TranslationFn = (key: any) => string;
 type AgentStatusKey =
@@ -73,7 +75,13 @@ export function AppWorkspaceShell(props: {
   settingsPanel: React.ReactNode;
   gitPanel: React.ReactNode;
   analysisPanel: React.ReactNode;
+  shareSession: ShareSessionInfo | null;
+  shareBusy: boolean;
+  shareSyncing: boolean;
   onPageChange: (page: WorkspacePage) => void;
+  onShareStart: () => void | Promise<void>;
+  onShareStop: () => void | Promise<void>;
+  onShareRefresh: () => void | Promise<void>;
   onSelectFile: (path: string | null) => void;
   onSelectLibraryPath: (path: string | null) => void;
   onTabSelect: (tabId: string) => void;
@@ -102,6 +110,7 @@ export function AppWorkspaceShell(props: {
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (link: string) => void;
   onLibraryAnalyzePaper: (path: string) => void;
+  analysisRunning: boolean;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
@@ -156,7 +165,13 @@ export function AppWorkspaceShell(props: {
     settingsPanel,
     gitPanel,
     analysisPanel,
+    shareSession,
+    shareBusy,
+    shareSyncing,
     onPageChange,
+    onShareStart,
+    onShareStop,
+    onShareRefresh,
     onSelectFile,
     onSelectLibraryPath,
     onTabSelect,
@@ -185,6 +200,7 @@ export function AppWorkspaceShell(props: {
     onLibraryImportPdf,
     onLibraryImportLink,
     onLibraryAnalyzePaper,
+    analysisRunning,
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
     onSavePanelLayout,
@@ -311,7 +327,19 @@ export function AppWorkspaceShell(props: {
 
     return (
       <div className="grid h-full grid-rows-[44px_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
-        <div className="flex items-center justify-end border-b border-slate-200 px-3">
+        <div className="flex items-center justify-between border-b border-slate-200 px-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <WorkspaceShareControl
+              selectedFile={selectedFile}
+              shareSession={shareSession}
+              shareBusy={shareBusy}
+              shareSyncing={shareSyncing}
+              onShareStart={onShareStart}
+              onShareStop={onShareStop}
+              onShareRefresh={onShareRefresh}
+              t={t}
+            />
+          </div>
           <div className="flex items-center gap-2">
             <button
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
@@ -562,6 +590,7 @@ export function AppWorkspaceShell(props: {
                     projectId={activeProjectId}
                     selectedPath={selectedLibraryPath}
                     onAnalyzePaper={onLibraryAnalyzePaper}
+                    analysisRunning={analysisRunning}
                     t={t}
                   />
                 </section>

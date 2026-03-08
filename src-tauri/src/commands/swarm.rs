@@ -261,7 +261,16 @@ fn call_openai_chat(
                 return Err(error);
             }
 
-            let parsed = parse_provider_json(&body, "OpenAI-compatible/chat")?;
+            let parsed = match parse_provider_json(&body, "OpenAI-compatible/chat") {
+                Ok(value) => value,
+                Err(error) => {
+                    if error.auto_repairable {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
             let content = parsed
                 .get("choices")
                 .and_then(|v| v.get(0))
@@ -347,7 +356,16 @@ fn call_openai_responses(
                 }
                 return Err(error);
             }
-            let parsed = parse_provider_json(&body, "OpenAI-compatible/responses")?;
+            let parsed = match parse_provider_json(&body, "OpenAI-compatible/responses") {
+                Ok(value) => value,
+                Err(error) => {
+                    if error.auto_repairable {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
             let content = extract_openai_responses_content(&parsed);
             if !content.trim().is_empty() {
                 return Ok(content);
@@ -457,7 +475,16 @@ fn call_anthropic(
                 return Err(error);
             }
 
-            let parsed = parse_provider_json(&body, "Anthropic")?;
+            let parsed = match parse_provider_json(&body, "Anthropic") {
+                Ok(value) => value,
+                Err(error) => {
+                    if error.auto_repairable {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
             let content = parsed
                 .get("content")
                 .and_then(extract_text_content)
@@ -545,7 +572,16 @@ fn call_gemini(
                 return Err(error);
             }
 
-            let parsed = parse_provider_json(&body, "Gemini")?;
+            let parsed = match parse_provider_json(&body, "Gemini") {
+                Ok(value) => value,
+                Err(error) => {
+                    if error.auto_repairable {
+                        last_error = Some(error);
+                        continue;
+                    }
+                    return Err(error);
+                }
+            };
             let content = parsed
                 .get("candidates")
                 .and_then(|v| v.get(0))

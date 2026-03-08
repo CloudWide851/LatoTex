@@ -1,4 +1,4 @@
-use crate::models::{Ack, ShareSessionCreateInput, ShareSessionInfo};
+use crate::models::{Ack, ShareParticipantInfo, ShareSessionCreateInput, ShareSessionInfo};
 use crate::state::AppState;
 use crate::storage;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -16,13 +16,24 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::State;
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 use uuid::Uuid;
 
 const SHARE_TTL_HOURS: i64 = 24;
 const MAX_SYNC_EVENTS_PER_PULL: usize = 400;
+const SHARE_TUNNEL_READY_TIMEOUT_SECS: u64 = 45;
+const SHARE_PARTICIPANT_IDLE_SECS: i64 = 120;
+
+#[derive(Debug, Clone)]
+struct ShareParticipantState {
+    participant_id: String,
+    username: String,
+    last_seen_at: String,
+    last_seen_unix: i64,
+    last_action: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,10 +53,14 @@ struct ShareRuntime {
     local_port: u16,
     local_url: String,
     tunnel_url: Option<String>,
+    status: String,
+    tunnel_state: String,
+    tunnel_error: Option<String>,
     expires_at: String,
     expires_unix: i64,
     next_seq: u64,
     sync_events: Vec<ShareSyncEvent>,
+    participants: HashMap<String, ShareParticipantState>,
     compile_requested: bool,
     pdf_bytes: Vec<u8>,
     stop_flag: Arc<AtomicBool>,
@@ -59,6 +74,9 @@ struct PushSyncBody {
     pwd: String,
     client_id: String,
     update: String,
+    participant_id: Option<String>,
+    username: Option<String>,
+    action: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +92,24 @@ struct UploadPdfBody {
     sid: String,
     pwd: String,
     pdf_base64: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JoinBody {
+    sid: String,
+    pwd: String,
+    client_id: Option<String>,
+    username: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PresencePingBody {
+    sid: String,
+    pwd: String,
+    participant_id: String,
+    action: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -174,9 +210,69 @@ fn is_session_expired(runtime: &ShareRuntime) -> bool {
     Utc::now().timestamp() > runtime.expires_unix
 }
 
+fn prune_participants(runtime: &mut ShareRuntime) {
+    let cutoff = Utc::now().timestamp() - SHARE_PARTICIPANT_IDLE_SECS;
+    runtime
+        .participants
+        .retain(|_, value| value.last_seen_unix >= cutoff);
+}
+
+fn upsert_participant(
+    runtime: &mut ShareRuntime,
+    participant_id: &str,
+    username: &str,
+    action: Option<&str>,
+) {
+    if participant_id.trim().is_empty() || username.trim().is_empty() {
+        return;
+    }
+    let now_unix = Utc::now().timestamp();
+    let now = now_iso();
+    let next_action = action
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(existing) = runtime.participants.get_mut(participant_id) {
+        if !username.trim().is_empty() {
+            existing.username = username.trim().to_string();
+        }
+        existing.last_seen_unix = now_unix;
+        existing.last_seen_at = now;
+        if next_action.is_some() {
+            existing.last_action = next_action;
+        }
+    } else {
+        runtime.participants.insert(
+            participant_id.to_string(),
+            ShareParticipantState {
+                participant_id: participant_id.to_string(),
+                username: username.trim().to_string(),
+                last_seen_unix: now_unix,
+                last_seen_at: now,
+                last_action: next_action,
+            },
+        );
+    }
+    prune_participants(runtime);
+}
+
+fn participant_public_list(runtime: &ShareRuntime) -> Vec<ShareParticipantInfo> {
+    let mut participants: Vec<ShareParticipantInfo> = runtime
+        .participants
+        .values()
+        .map(|item| ShareParticipantInfo {
+            participant_id: item.participant_id.clone(),
+            username: item.username.clone(),
+            last_seen_at: item.last_seen_at.clone(),
+            last_action: item.last_action.clone(),
+        })
+        .collect();
+    participants.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
+    participants
+}
+
 fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
     ShareSessionInfo {
-        active: true,
+        active: runtime.status == "ready" && runtime.tunnel_url.is_some(),
         session_id: Some(runtime.session_id.clone()),
         project_id: Some(runtime.project_id.clone()),
         target_path: Some(runtime.target_path.clone()),
@@ -184,6 +280,10 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
         tunnel_url: runtime.tunnel_url.clone(),
         password: Some(runtime.password.clone()),
         expires_at: Some(runtime.expires_at.clone()),
+        status: Some(runtime.status.clone()),
+        tunnel_state: Some(runtime.tunnel_state.clone()),
+        tunnel_error: runtime.tunnel_error.clone(),
+        participants: participant_public_list(runtime),
     }
 }
 
@@ -278,7 +378,7 @@ fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>)
     }
 
     if method == Method::Get && path == "/api/bootstrap" {
-        let guard = if let Ok(runtime_guard) = runtime.lock() {
+        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
             runtime_guard
         } else {
             let _ = request.respond(json_response(
@@ -287,6 +387,7 @@ fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>)
             ));
             return;
         };
+        prune_participants(&mut guard);
         let _ = request.respond(json_response(
             StatusCode(200),
             json!({
@@ -295,6 +396,139 @@ fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>)
                 "targetPath": guard.target_path,
                 "expiresAt": guard.expires_at,
                 "hasPdf": !guard.pdf_bytes.is_empty(),
+                "status": guard.status.clone(),
+                "tunnelState": guard.tunnel_state.clone(),
+                "tunnelError": guard.tunnel_error.clone(),
+                "participants": participant_public_list(&guard),
+            }),
+        ));
+        return;
+    }
+
+    if method == Method::Post && path == "/api/join" {
+        let body = match parse_json_body::<JoinBody>(&mut request) {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = request.respond(json_response(
+                    StatusCode(400),
+                    json!({ "ok": false, "message": error }),
+                ));
+                return;
+            }
+        };
+        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
+            runtime_guard
+        } else {
+            let _ = request.respond(json_response(
+                StatusCode(500),
+                json!({ "ok": false, "message": "runtime lock failed" }),
+            ));
+            return;
+        };
+        if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
+            let _ = request.respond(response);
+            return;
+        }
+        let username = body.username.trim();
+        if username.is_empty() {
+            let _ = request.respond(json_response(
+                StatusCode(400),
+                json!({ "ok": false, "message": "username required" }),
+            ));
+            return;
+        }
+        let participant_id = format!(
+            "p-{}",
+            body.client_id
+                .unwrap_or_else(|| Uuid::new_v4().simple().to_string())
+                .chars()
+                .filter(|ch| ch.is_ascii_alphanumeric())
+                .take(16)
+                .collect::<String>()
+        );
+        upsert_participant(
+            &mut guard,
+            &participant_id,
+            username,
+            Some("joined collaboration"),
+        );
+        let _ = request.respond(json_response(
+            StatusCode(200),
+            json!({
+                "ok": true,
+                "participantId": participant_id,
+                "username": username,
+                "participants": participant_public_list(&guard),
+            }),
+        ));
+        return;
+    }
+
+    if method == Method::Post && path == "/api/presence/ping" {
+        let body = match parse_json_body::<PresencePingBody>(&mut request) {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = request.respond(json_response(
+                    StatusCode(400),
+                    json!({ "ok": false, "message": error }),
+                ));
+                return;
+            }
+        };
+        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
+            runtime_guard
+        } else {
+            let _ = request.respond(json_response(
+                StatusCode(500),
+                json!({ "ok": false, "message": "runtime lock failed" }),
+            ));
+            return;
+        };
+        if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
+            let _ = request.respond(response);
+            return;
+        }
+        let username = guard
+            .participants
+            .get(&body.participant_id)
+            .map(|item| item.username.clone())
+            .unwrap_or_else(|| "Guest".to_string());
+        upsert_participant(
+            &mut guard,
+            &body.participant_id,
+            &username,
+            body.action.as_deref(),
+        );
+        let _ = request.respond(json_response(
+            StatusCode(200),
+            json!({
+                "ok": true,
+                "participants": participant_public_list(&guard),
+            }),
+        ));
+        return;
+    }
+
+    if method == Method::Get && path == "/api/presence/list" {
+        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
+            runtime_guard
+        } else {
+            let _ = request.respond(json_response(
+                StatusCode(500),
+                json!({ "ok": false, "message": "runtime lock failed" }),
+            ));
+            return;
+        };
+        if let Err(response) = verify_query_auth(&guard, &query) {
+            let _ = request.respond(response);
+            return;
+        }
+        prune_participants(&mut guard);
+        let _ = request.respond(json_response(
+            StatusCode(200),
+            json!({
+                "ok": true,
+                "participants": participant_public_list(&guard),
             }),
         ));
         return;
@@ -396,6 +630,24 @@ fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>)
             update: body.update,
             created_at: now_iso(),
         });
+        let participant_id = body
+            .participant_id
+            .as_deref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("desktop-owner");
+        let participant_name = body
+            .username
+            .as_deref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Desktop");
+        upsert_participant(
+            &mut guard,
+            participant_id,
+            participant_name,
+            body.action.as_deref().or(Some("editing")),
+        );
         if guard.sync_events.len() > 4_000 {
             let drop_count = guard.sync_events.len().saturating_sub(3_200);
             guard.sync_events.drain(0..drop_count);
@@ -589,70 +841,147 @@ fn ensure_cloudflared_binary(runtime_root: &Path) -> Result<PathBuf, String> {
     Ok(binary)
 }
 
-#[cfg(target_os = "windows")]
-fn start_cloud_tunnel(runtime_root: &Path, runtime: Arc<Mutex<ShareRuntime>>) {
-    let binary = match ensure_cloudflared_binary(runtime_root) {
-        Ok(path) => path,
-        Err(_) => return,
-    };
-    let local_port = match runtime.lock() {
-        Ok(guard) => guard.local_port,
-        Err(_) => return,
-    };
-    let mut child = match Command::new(binary)
-        .args([
-            "tunnel",
-            "--url",
-            &format!("http://127.0.0.1:{local_port}"),
-            "--no-autoupdate",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
-        Ok(process) => process,
-        Err(_) => return,
-    };
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
+fn mark_share_failed(runtime: &Arc<Mutex<ShareRuntime>>, message: &str) {
     if let Ok(mut guard) = runtime.lock() {
-        guard.cloudflared_child = Some(child);
-    }
-
-    let apply_url = move |line: &str, runtime: &Arc<Mutex<ShareRuntime>>| {
-        for token in line.split_whitespace() {
-            if token.starts_with("https://") && token.contains("trycloudflare.com") {
-                if let Ok(mut guard) = runtime.lock() {
-                    if guard.tunnel_url.is_none() {
-                        guard.tunnel_url = Some(token.trim().to_string());
-                    }
-                }
-                break;
-            }
-        }
-    };
-
-    if let Some(stream) = stdout {
-        let runtime_clone = runtime.clone();
-        thread::spawn(move || {
-            let reader = BufReader::new(stream);
-            for line in reader.lines().flatten() {
-                apply_url(&line, &runtime_clone);
-            }
-        });
-    }
-    if let Some(stream) = stderr {
-        thread::spawn(move || {
-            let reader = BufReader::new(stream);
-            for line in reader.lines().flatten() {
-                apply_url(&line, &runtime);
-            }
-        });
+        guard.status = "failed".to_string();
+        guard.tunnel_state = "failed".to_string();
+        guard.tunnel_error = Some(message.to_string());
     }
 }
 
+#[cfg(target_os = "windows")]
+fn start_cloud_tunnel(runtime_root: &Path, runtime: Arc<Mutex<ShareRuntime>>) {
+    let runtime_root = runtime_root.to_path_buf();
+    thread::spawn(move || {
+        if let Ok(mut guard) = runtime.lock() {
+            guard.status = "starting".to_string();
+            guard.tunnel_state = "pending".to_string();
+            guard.tunnel_error = None;
+        }
+        let binary = match ensure_cloudflared_binary(&runtime_root) {
+            Ok(path) => path,
+            Err(error) => {
+                mark_share_failed(&runtime, &format!("cloudflared setup failed: {error}"));
+                return;
+            }
+        };
+        let local_port = match runtime.lock() {
+            Ok(guard) => guard.local_port,
+            Err(_) => {
+                mark_share_failed(&runtime, "failed to lock share runtime");
+                return;
+            }
+        };
+        let mut child = match Command::new(binary)
+            .args([
+                "tunnel",
+                "--url",
+                &format!("http://127.0.0.1:{local_port}"),
+                "--no-autoupdate",
+            ])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(process) => process,
+            Err(error) => {
+                mark_share_failed(&runtime, &format!("cloudflared spawn failed: {error}"));
+                return;
+            }
+        };
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        if let Ok(mut guard) = runtime.lock() {
+            guard.cloudflared_child = Some(child);
+        }
+
+        let apply_url = move |line: &str, runtime: &Arc<Mutex<ShareRuntime>>| {
+            for token in line.split_whitespace() {
+                if token.starts_with("https://") && token.contains("trycloudflare.com") {
+                    if let Ok(mut guard) = runtime.lock() {
+                        if guard.tunnel_url.is_none() {
+                            guard.tunnel_url = Some(token.trim().to_string());
+                            guard.status = "ready".to_string();
+                            guard.tunnel_state = "ready".to_string();
+                            guard.tunnel_error = None;
+                        }
+                    }
+                    break;
+                }
+            }
+        };
+
+        if let Some(stream) = stdout {
+            let runtime_clone = runtime.clone();
+            thread::spawn(move || {
+                let reader = BufReader::new(stream);
+                for line in reader.lines().map_while(Result::ok) {
+                    apply_url(&line, &runtime_clone);
+                }
+            });
+        }
+        if let Some(stream) = stderr {
+            let runtime_clone = runtime.clone();
+            thread::spawn(move || {
+                let reader = BufReader::new(stream);
+                for line in reader.lines().map_while(Result::ok) {
+                    apply_url(&line, &runtime_clone);
+                }
+            });
+        }
+
+        let started = Instant::now();
+        loop {
+            thread::sleep(Duration::from_millis(240));
+            let mut fail_reason: Option<String> = None;
+            let mut ready = false;
+            let mut should_stop = false;
+            if let Ok(mut guard) = runtime.lock() {
+                should_stop = guard.stop_flag.load(Ordering::Relaxed);
+                if should_stop {
+                    return;
+                }
+                if guard.tunnel_url.is_some() {
+                    ready = true;
+                } else if let Some(child) = guard.cloudflared_child.as_mut() {
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            fail_reason = Some(format!("cloudflared exited: {status}"));
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            fail_reason = Some(format!("cloudflared status check failed: {error}"));
+                        }
+                    }
+                }
+            }
+            if should_stop || ready {
+                return;
+            }
+            if let Some(message) = fail_reason {
+                mark_share_failed(&runtime, &message);
+                return;
+            }
+            if started.elapsed().as_secs() > SHARE_TUNNEL_READY_TIMEOUT_SECS {
+                if let Ok(mut guard) = runtime.lock() {
+                    if let Some(child) = guard.cloudflared_child.as_mut() {
+                        let _ = child.kill();
+                    }
+                }
+                mark_share_failed(
+                    &runtime,
+                    "cloudflared tunnel url timeout; failed to obtain public url",
+                );
+                return;
+            }
+        }
+    });
+}
+
 #[cfg(not(target_os = "windows"))]
-fn start_cloud_tunnel(_runtime_root: &Path, _runtime: Arc<Mutex<ShareRuntime>>) {}
+fn start_cloud_tunnel(_runtime_root: &Path, runtime: Arc<Mutex<ShareRuntime>>) {
+    mark_share_failed(&runtime, "cloud tunnel is only implemented for Windows runtime");
+}
 
 #[tauri::command]
 pub fn share_session_create(
@@ -687,10 +1016,14 @@ pub fn share_session_create(
         local_port,
         local_url: format!("http://127.0.0.1:{local_port}/?sid={session_id}"),
         tunnel_url: None,
+        status: "starting".to_string(),
+        tunnel_state: "pending".to_string(),
+        tunnel_error: None,
         expires_at: expires_at.clone(),
         expires_unix,
         next_seq: 1,
         sync_events: Vec::new(),
+        participants: HashMap::new(),
         compile_requested: false,
         pdf_bytes: Vec::new(),
         stop_flag: Arc::new(AtomicBool::new(false)),
@@ -726,9 +1059,13 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
             tunnel_url: None,
             password: None,
             expires_at: None,
+            status: None,
+            tunnel_state: None,
+            tunnel_error: None,
+            participants: Vec::new(),
         });
     };
-    let guard = runtime
+    let mut guard = runtime
         .lock()
         .map_err(|_| "failed to lock share runtime".to_string())?;
     if is_session_expired(&guard) {
@@ -743,8 +1080,13 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
             tunnel_url: None,
             password: None,
             expires_at: None,
+            status: None,
+            tunnel_state: None,
+            tunnel_error: None,
+            participants: Vec::new(),
         });
     }
+    prune_participants(&mut guard);
     Ok(build_session_info(&guard))
 }
 

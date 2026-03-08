@@ -35,6 +35,17 @@ async function postJson(url: string, payload: unknown) {
   return response.json();
 }
 
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function matchPath(left: string | null | undefined, right: string | null | undefined): boolean {
+  if (!left || !right) {
+    return false;
+  }
+  return left.replace(/\\/g, "/") === right.replace(/\\/g, "/");
+}
+
 export function useShareSession(params: {
   activeProjectId: string | null;
   selectedFile: string | null;
@@ -55,6 +66,7 @@ export function useShareSession(params: {
     setToast,
     t,
   } = params;
+
   const [shareSession, setShareSession] = useState<ShareSessionInfo | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -62,51 +74,105 @@ export function useShareSession(params: {
   const yDocRef = useRef<Y.Doc | null>(null);
   const yTextRef = useRef<Y.Text | null>(null);
   const pullCursorRef = useRef(0);
-  const pollTimerRef = useRef<number | null>(null);
-  const compilePollRef = useRef<number | null>(null);
-  const localClientIdRef = useRef(`desktop-${Math.random().toString(36).slice(2, 10)}`);
   const applyingRemoteRef = useRef(false);
+  const statusTimerRef = useRef<number | null>(null);
+  const syncTimerRef = useRef<number | null>(null);
+  const compileTimerRef = useRef<number | null>(null);
+  const statusFlightRef = useRef(false);
+  const syncFlightRef = useRef(false);
+  const compileFlightRef = useRef(false);
   const uploadingPdfRef = useRef(false);
   const lastUploadedPdfUrlRef = useRef<string | null>(null);
+  const localClientIdRef = useRef(`desktop-${Math.random().toString(36).slice(2, 10)}`);
+  const participantIdRef = useRef(`desktop-owner-${Math.random().toString(36).slice(2, 8)}`);
+  const editorContentRef = useRef(editorContent);
 
-  const active = Boolean(shareSession?.active && shareSession?.localUrl && shareSession?.password);
+  useEffect(() => {
+    editorContentRef.current = editorContent;
+  }, [editorContent]);
+
+  const active = Boolean(
+    shareSession?.active &&
+      shareSession?.status === "ready" &&
+      shareSession?.localUrl &&
+      shareSession?.password,
+  );
   const activeTarget = shareSession?.targetPath ?? null;
   const localUrl = shareSession?.localUrl ?? "";
   const sessionId = shareSession?.sessionId ?? "";
   const sessionPwd = shareSession?.password ?? "";
-  const collabEnabled = Boolean(
-    active && selectedFile && activeTarget && selectedFile.replace(/\\/g, "/") === activeTarget.replace(/\\/g, "/"),
-  );
+  const collabEnabled = Boolean(active && matchPath(selectedFile, activeTarget));
+
+  const clearTimer = (timerRef: React.MutableRefObject<number | null>) => {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   const refreshShareStatus = useCallback(async () => {
+    if (statusFlightRef.current) {
+      return shareSession;
+    }
+    statusFlightRef.current = true;
     try {
       const status = await shareSessionStatus();
-      setShareSession(status.active ? status : null);
+      setShareSession((status.active || status.status) ? status : null);
+      return status;
     } catch (error) {
       setToast({ type: "error", message: String(error) });
+      return null;
+    } finally {
+      statusFlightRef.current = false;
     }
-  }, [setToast]);
+  }, [setToast, shareSession]);
+
+  const waitForTunnelReady = useCallback(
+    async (expectedSessionId: string) => {
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 48_000) {
+        const next = await refreshShareStatus();
+        if (!next) {
+          await wait(680);
+          continue;
+        }
+        if (next.sessionId !== expectedSessionId) {
+          await wait(680);
+          continue;
+        }
+        if (next.status === "ready" && next.tunnelUrl) {
+          return next;
+        }
+        if (next.status === "failed") {
+          throw new Error(next.tunnelError || "share tunnel failed");
+        }
+        await wait(680);
+      }
+      throw new Error(t("share.startTimeout"));
+    },
+    [refreshShareStatus, t],
+  );
 
   const startShare = useCallback(async () => {
-    if (!activeProjectId || !selectedFile) {
-      setToast({ type: "error", message: t("share.startNeedTex") });
-      return;
-    }
-    if (!selectedFile.toLowerCase().endsWith(".tex")) {
+    if (!activeProjectId || !selectedFile || !selectedFile.toLowerCase().endsWith(".tex")) {
       setToast({ type: "error", message: t("share.startNeedTex") });
       return;
     }
     setShareBusy(true);
     try {
       const created = await shareSessionCreate(activeProjectId, selectedFile);
-      setShareSession(created.active ? created : null);
+      setShareSession(created);
+      const ready = await waitForTunnelReady(created.sessionId || "");
+      setShareSession(ready);
       setToast({ type: "info", message: t("share.started") });
     } catch (error) {
+      await shareSessionStop().catch(() => undefined);
+      setShareSession(null);
       setToast({ type: "error", message: String(error) });
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, selectedFile, setToast, t]);
+  }, [activeProjectId, selectedFile, setToast, t, waitForTunnelReady]);
 
   const stopShare = useCallback(async () => {
     setShareBusy(true);
@@ -126,26 +192,28 @@ export function useShareSession(params: {
   }, [refreshShareStatus]);
 
   useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const timer = window.setInterval(() => {
-      void refreshShareStatus();
-    }, 2500);
-    return () => {
-      window.clearInterval(timer);
+    clearTimer(statusTimerRef);
+    const run = async () => {
+      if (!shareSession) {
+        return;
+      }
+      await refreshShareStatus();
+      const fast =
+        shareSession.status === "starting" || shareSession.status === "failed" || shareBusy;
+      statusTimerRef.current = Number(window.setTimeout(run, fast ? 900 : 2400));
     };
-  }, [active, refreshShareStatus]);
+    if (shareSession) {
+      statusTimerRef.current = Number(window.setTimeout(run, 900));
+    }
+    return () => clearTimer(statusTimerRef);
+  }, [refreshShareStatus, shareBusy, shareSession]);
 
   useEffect(() => {
     if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
       setSyncing(false);
       yDocRef.current = null;
       yTextRef.current = null;
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      clearTimer(syncTimerRef);
       return;
     }
 
@@ -162,6 +230,9 @@ export function useShareSession(params: {
         sid: sessionId,
         pwd: sessionPwd,
         clientId: localClientIdRef.current,
+        participantId: participantIdRef.current,
+        username: "Desktop",
+        action: "editing",
         update: toBase64(update),
       });
     };
@@ -176,12 +247,19 @@ export function useShareSession(params: {
 
     const onText = () => {
       const next = yText.toString();
-      if (next === editorContent) {
+      if (next === editorContentRef.current) {
         return;
       }
       applyingRemoteRef.current = true;
-      setEditorContent(next);
-      applyingRemoteRef.current = false;
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          setEditorContent(next);
+          applyingRemoteRef.current = false;
+        });
+      } else {
+        setEditorContent(next);
+        applyingRemoteRef.current = false;
+      }
     };
     yText.observe(onText);
 
@@ -201,49 +279,60 @@ export function useShareSession(params: {
     };
 
     const pullUpdates = async () => {
-      const response = await fetch(
-        `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&cursor=${pullCursorRef.current}`,
-      );
-      if (!response.ok) {
-        throw new Error(await response.text());
+      if (syncFlightRef.current) {
+        return;
       }
-      const payload = await response.json() as { nextCursor?: number; events?: Array<{ seq: number; from: string; update: string }> };
-      const updates = Array.isArray(payload.events) ? payload.events : [];
-      for (const event of updates) {
-        pullCursorRef.current = Math.max(pullCursorRef.current, Number(event.seq || 0));
-        if (event.from === localClientIdRef.current) {
-          continue;
+      syncFlightRef.current = true;
+      try {
+        const response = await fetch(
+          `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&cursor=${pullCursorRef.current}`,
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
         }
-        applyingRemoteRef.current = true;
-        try {
-          Y.applyUpdate(doc, fromBase64(event.update), "remote");
-        } finally {
-          applyingRemoteRef.current = false;
+        const payload = await response.json() as { nextCursor?: number; events?: Array<{ seq: number; from: string; update: string }> };
+        const updates = Array.isArray(payload.events) ? payload.events : [];
+        for (const event of updates) {
+          pullCursorRef.current = Math.max(pullCursorRef.current, Number(event.seq || 0));
+          if (event.from === localClientIdRef.current) {
+            continue;
+          }
+          applyingRemoteRef.current = true;
+          try {
+            Y.applyUpdate(doc, fromBase64(event.update), "remote");
+          } finally {
+            applyingRemoteRef.current = false;
+          }
         }
+        pullCursorRef.current = Math.max(pullCursorRef.current, Number(payload.nextCursor || pullCursorRef.current));
+      } finally {
+        syncFlightRef.current = false;
       }
-      pullCursorRef.current = Math.max(pullCursorRef.current, Number(payload.nextCursor || pullCursorRef.current));
+    };
+
+    const syncLoop = async () => {
+      if (!collabEnabled) {
+        return;
+      }
+      await pullUpdates().catch(() => undefined);
+      syncTimerRef.current = Number(window.setTimeout(syncLoop, 700));
     };
 
     void initialize().catch((error) => {
       setToast({ type: "error", message: String(error) });
     });
-    pollTimerRef.current = Number(window.setInterval(() => {
-      void pullUpdates().catch(() => undefined);
-    }, 520));
+    syncTimerRef.current = Number(window.setTimeout(syncLoop, 760));
 
     return () => {
       setSyncing(false);
       doc.off("update", onDocUpdate);
       yText.unobserve(onText);
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+      clearTimer(syncTimerRef);
       yDocRef.current = null;
       yTextRef.current = null;
       doc.destroy();
     };
-  }, [collabEnabled, editorContent, localUrl, sessionId, sessionPwd, setEditorContent, setToast]);
+  }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast]);
 
   useEffect(() => {
     if (!collabEnabled || applyingRemoteRef.current) {
@@ -265,27 +354,33 @@ export function useShareSession(params: {
   }, [collabEnabled, editorContent]);
 
   useEffect(() => {
-    if (!active || !localUrl || !sessionId || !sessionPwd || compilePollRef.current) {
+    clearTimer(compileTimerRef);
+    if (!active || !localUrl || !sessionId || !sessionPwd) {
       return;
     }
-    compilePollRef.current = Number(window.setInterval(() => {
-      void postJson(`${localUrl}/api/compile/take`, {
-        sid: sessionId,
-        pwd: sessionPwd,
-      })
-        .then(async (payload) => {
-          if (payload?.requested) {
-            await onCompile();
-          }
-        })
-        .catch(() => undefined);
-    }, 1600));
-    return () => {
-      if (compilePollRef.current) {
-        window.clearInterval(compilePollRef.current);
-        compilePollRef.current = null;
+    const compileLoop = async () => {
+      if (compileFlightRef.current) {
+        compileTimerRef.current = Number(window.setTimeout(compileLoop, 2000));
+        return;
       }
+      compileFlightRef.current = true;
+      try {
+        const payload = await postJson(`${localUrl}/api/compile/take`, {
+          sid: sessionId,
+          pwd: sessionPwd,
+        });
+        if (payload?.requested) {
+          await onCompile();
+        }
+      } catch {
+        // noop
+      } finally {
+        compileFlightRef.current = false;
+      }
+      compileTimerRef.current = Number(window.setTimeout(compileLoop, 2000));
     };
+    compileTimerRef.current = Number(window.setTimeout(compileLoop, 2000));
+    return () => clearTimer(compileTimerRef);
   }, [active, localUrl, onCompile, sessionId, sessionPwd]);
 
   useEffect(() => {

@@ -167,13 +167,6 @@ export function AppContainerView(props: any) {
           }}
           onOpenFolder={handleInitProjectFromFolderWithGuard}
           onWindowControl={handleWindowControlWithGuard}
-          selectedFile={selectedFile}
-          shareSession={shareSession}
-          shareBusy={shareBusy}
-          shareSyncing={shareSyncing}
-          onShareStart={handleShareStart}
-          onShareStop={handleShareStop}
-          onShareRefresh={handleShareRefresh}
           t={t}
         />
 
@@ -226,6 +219,12 @@ export function AppContainerView(props: any) {
             gitPanel={gitPanel}
             analysisPanel={analysisPanel}
             onPageChange={setPage}
+            shareSession={shareSession}
+            shareBusy={shareBusy}
+            shareSyncing={shareSyncing}
+            onShareStart={handleShareStart}
+            onShareStop={handleShareStop}
+            onShareRefresh={handleShareRefresh}
             onSelectFile={handleSelectWorkspacePath}
             onSelectLibraryPath={setSelectedLibraryPath}
             onEditorChange={setEditorContent}

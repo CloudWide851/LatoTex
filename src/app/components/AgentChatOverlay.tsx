@@ -1,14 +1,20 @@
-import { ChevronDown, ChevronUp, CornerDownLeft, MessageSquareMore, Send, Sparkles, Square, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import {
+  ChevronDown,
+  ChevronUp,
+  CornerDownLeft,
+  MessageSquareMore,
+  Send,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
 import { AgentSessionPicker } from "./agent/AgentSessionPicker";
 import { pickCommandSuggestions } from "../hooks/agentCommands";
 import type {
   AgentChatMessage,
-  AgentEventCard,
   AgentFileProposal,
   AgentSessionSummary,
 } from "../hooks/agentTypes";
@@ -21,183 +27,118 @@ export type AgentCommandItem = {
   description: string;
 };
 
-function messageLineCount(text: string): number {
-  return text.split(/\r?\n/).length;
+type ActivityLine = {
+  id: string;
+  text: string;
+  tone: "neutral" | "success" | "error";
+};
+
+function normalizeLine(value: string): string {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/\r?\n/g, " ")
+    .trim();
 }
 
-function looksLikePatchText(text: string): boolean {
-  const normalized = text.replace(/\r\n/g, "\n");
-  return (
-    normalized.includes("<<<<<<< SEARCH") ||
-    normalized.includes(">>>>>>> REPLACE") ||
-    normalized.includes("path:") && normalized.includes("=======")
-  );
-}
+function lineFromEvent(event: SwarmEvent): ActivityLine | null {
+  const payload = event.payload ?? {};
+  const status = typeof payload.status === "string" ? payload.status : "";
+  const stage = typeof payload.stage === "string" ? payload.stage : "";
+  const title = typeof payload.title === "string" ? payload.title : "";
+  const tool = typeof payload.toolName === "string" ? payload.toolName : "";
+  const content = typeof payload.content === "string" ? payload.content : "";
 
-function MarkdownMessage(props: { content: string }) {
-  const { content } = props;
-  return (
-    <article className="markdown-preview max-w-full overflow-x-auto break-words text-xs leading-5 text-slate-700">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-    </article>
-  );
-}
-
-function PatchTextMessage(props: { content: string }) {
-  const { content } = props;
-  return (
-    <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded border border-slate-200 bg-white/70 p-2 text-[11px] leading-5 text-slate-700">
-      {content}
-    </pre>
-  );
-}
-
-function toCardKind(kind: string): string {
-  if (kind.startsWith("a2a.")) {
-    return "a2a";
+  const pathMatch = content.match(/path:\s*([^\n\r]+)/i);
+  if (pathMatch?.[1]) {
+    return {
+      id: event.id,
+      text: normalizeLine(pathMatch[1]),
+      tone: "neutral",
+    };
   }
-  if (kind.startsWith("mcp.")) {
-    return "mcp";
+
+  if (event.kind === "mcp.tool.call.started" || event.kind === "mcp.tool.call.completed") {
+    const tone: ActivityLine["tone"] = event.kind.endsWith(".completed") ? "success" : "neutral";
+    return {
+      id: event.id,
+      text: normalizeLine([tool || title || stage || event.kind, status].filter(Boolean).join(" · ")),
+      tone,
+    };
   }
-  if (kind.startsWith("responses.")) {
-    return "responses";
+
+  if (event.kind === "a2a.task.started" || event.kind === "a2a.task.completed") {
+    return {
+      id: event.id,
+      text: normalizeLine([title || stage || event.kind, status].filter(Boolean).join(" · ")),
+      tone: event.kind.endsWith(".completed") ? "success" : "neutral",
+    };
   }
-  if (kind.startsWith("agent.run")) {
-    return "run";
+
+  if (event.kind === "agent.run.failed") {
+    return {
+      id: event.id,
+      text: normalizeLine(content || title || event.kind),
+      tone: "error",
+    };
   }
-  return "other";
+
+  if (event.kind === "agent.run.cancelled" || event.kind === "agent.run.completed") {
+    return {
+      id: event.id,
+      text: normalizeLine(title || event.kind),
+      tone: event.kind.endsWith(".completed") ? "success" : "neutral",
+    };
+  }
+
+  if (event.kind === "responses.output_text.delta") {
+    const short = normalizeLine(content).slice(0, 180);
+    if (!short) {
+      return null;
+    }
+    return { id: event.id, text: short, tone: "neutral" };
+  }
+
+  if (!title && !status) {
+    return null;
+  }
+  return {
+    id: event.id,
+    text: normalizeLine([title || stage || event.kind, status].filter(Boolean).join(" · ")),
+    tone: "neutral",
+  };
 }
 
-function extractEventCards(events: SwarmEvent[], runId: string | null): AgentEventCard[] {
+function toActivityLines(events: SwarmEvent[], runId: string | null, fallback: string): ActivityLine[] {
   if (!runId) {
-    return [];
+    return fallback.trim() ? [{ id: "fallback", text: fallback.trim(), tone: "neutral" }] : [];
   }
-  const filtered = events
+  const lines = events
     .filter((event) => event.runId === runId)
-    .filter((event) => {
-      const kind = toCardKind(event.kind);
-      return kind === "a2a" || kind === "mcp" || kind === "responses" || kind === "run";
-    })
-    .sort((a, b) => a.seq - b.seq);
-  const byCard = new Map<string, AgentEventCard>();
-  for (const event of filtered) {
-    const payload = event.payload ?? {};
-    const cardKey =
-      typeof payload.cardKey === "string" && payload.cardKey.trim().length > 0
-        ? payload.cardKey
-        : event.id;
-    const append = payload.append === true;
-    const content =
-      typeof payload.content === "string"
-        ? payload.content
-        : typeof payload.output === "string"
-          ? payload.output
-          : "";
-    const existing = byCard.get(cardKey);
-    if (!existing) {
-      byCard.set(cardKey, {
-        id: event.id,
-        runId: event.runId,
-        kind: event.kind,
-        stage: typeof payload.stage === "string" ? payload.stage : "run",
-        source: typeof payload.source === "string" ? payload.source : event.role,
-        status: typeof payload.status === "string" ? payload.status : "running",
-        title: typeof payload.title === "string" ? payload.title : event.kind,
-        content,
-        cardKey,
-        createdAt: event.createdAt,
-      });
+    .sort((a, b) => a.seq - b.seq)
+    .map((event) => lineFromEvent(event))
+    .filter((line): line is ActivityLine => Boolean(line));
+  const deduped: ActivityLine[] = [];
+  for (const item of lines) {
+    const prev = deduped[deduped.length - 1];
+    if (prev?.text === item.text && prev.tone === item.tone) {
       continue;
     }
-    existing.kind = event.kind;
-    existing.status =
-      typeof payload.status === "string" && payload.status.trim().length > 0
-        ? payload.status
-        : existing.status;
-    existing.title =
-      typeof payload.title === "string" && payload.title.trim().length > 0
-        ? payload.title
-        : existing.title;
-    existing.stage =
-      typeof payload.stage === "string" && payload.stage.trim().length > 0
-        ? payload.stage
-        : existing.stage;
-    existing.source =
-      typeof payload.source === "string" && payload.source.trim().length > 0
-        ? payload.source
-        : existing.source;
-    existing.content = append ? `${existing.content}${content}` : content || existing.content;
+    deduped.push(item);
   }
-  return Array.from(byCard.values());
+  if (deduped.length === 0 && fallback.trim()) {
+    return [{ id: "fallback", text: fallback.trim(), tone: "neutral" }];
+  }
+  return deduped.slice(-120);
 }
 
-function statusTone(status: string): string {
-  if (status === "error" || status === "failed") {
-    return "border-rose-300 bg-rose-50 text-rose-700";
+function toneClass(tone: ActivityLine["tone"]): string {
+  if (tone === "error") {
+    return "text-rose-700";
   }
-  if (status === "success" || status === "completed") {
-    return "border-emerald-300 bg-emerald-50 text-emerald-700";
+  if (tone === "success") {
+    return "text-emerald-700";
   }
-  return "border-slate-300 bg-slate-50 text-slate-700";
-}
-
-function ProposalBar(props: {
-  proposal: AgentFileProposal;
-  busy: boolean;
-  applyLabel: string;
-  rejectLabel: string;
-  autoAnalyzeLabel: string;
-  onAccept: (withAnalysis: boolean) => void;
-  onReject: () => void;
-}) {
-  const { proposal, busy, applyLabel, rejectLabel, autoAnalyzeLabel, onAccept, onReject } = props;
-  const [withAnalysis, setWithAnalysis] = useState(false);
-  useEffect(() => {
-    setWithAnalysis(false);
-  }, [proposal.id]);
-  return (
-    <div className="border-b border-amber-200 bg-amber-50 px-3 py-2">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-amber-900">{proposal.targetPath}</p>
-          <p className="truncate text-[11px] text-amber-700">
-            +{proposal.insertions ?? 0} / -{proposal.deletions ?? 0}
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-            onClick={onReject}
-            disabled={busy}
-          >
-            {rejectLabel}
-          </button>
-          <button
-            className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-[11px] text-white hover:bg-primary-700 disabled:opacity-40"
-            onClick={() => onAccept(withAnalysis)}
-            disabled={busy}
-          >
-            {applyLabel}
-          </button>
-        </div>
-      </div>
-      <label className="mb-1 flex items-center gap-2 text-[11px] text-amber-900">
-        <input
-          type="checkbox"
-          className="h-3.5 w-3.5"
-          checked={withAnalysis}
-          onChange={(event) => setWithAnalysis(event.target.checked)}
-          disabled={busy}
-        />
-        <span>{autoAnalyzeLabel}</span>
-      </label>
-      {proposal.changedLines && proposal.changedLines.length > 0 ? (
-        <p className="truncate text-[11px] text-amber-800">
-          {proposal.changedLines.slice(0, 16).join(", ")}
-        </p>
-      ) : null}
-    </div>
-  );
+  return "text-slate-700";
 }
 
 export function AgentChatOverlay(props: {
@@ -248,8 +189,6 @@ export function AgentChatOverlay(props: {
     collapseLabel,
     prompt,
     busy,
-    messages,
-    proposal,
     runId,
     sessions,
     sessionPickerOpen,
@@ -263,17 +202,10 @@ export function AgentChatOverlay(props: {
     onSessionConfirm,
     onRollback,
     onToggle,
-    onAcceptProposal,
-    onRejectProposal,
     runLabel,
     placeholder,
     activityShowLabel,
     activityHideLabel,
-    applyLabel,
-    rejectLabel,
-    autoAnalyzeLabel,
-    showMoreLabel,
-    showLessLabel,
     commands,
     resumeTitle,
     resumeHint,
@@ -283,11 +215,9 @@ export function AgentChatOverlay(props: {
 
   const [activityExpanded, setActivityExpanded] = useState(true);
   const [commandIndex, setCommandIndex] = useState(0);
-  const [expandedMessageIds, setExpandedMessageIds] = useState<Record<string, boolean>>({});
-  const [expandedCardKeys, setExpandedCardKeys] = useState<Record<string, boolean>>({});
-  const canShowActivity = phase !== "idle" || messages.length > 0 || events.length > 0;
-  const showActivityPanel = activityExpanded && canShowActivity;
-  const eventCards = useMemo(() => extractEventCards(events, runId), [events, runId]);
+  const [commandPlacement, setCommandPlacement] = useState<"above" | "below">("above");
+  const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const activityContainerRef = useRef<HTMLDivElement | null>(null);
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
   const commandSuggestions = useMemo(
     () =>
@@ -300,21 +230,68 @@ export function AgentChatOverlay(props: {
     Math.max(commandIndex, 0),
     Math.max(commandSuggestions.length - 1, 0),
   );
+  const commandPanelWidth = useMemo(() => {
+    const maxLength = commandSuggestions.reduce((max, item) => {
+      return Math.max(max, item.label.length + item.description.length);
+    }, 0);
+    return Math.min(320, Math.max(170, maxLength * 2.2 + 64));
+  }, [commandSuggestions]);
+
+  const activityLines = useMemo(() => toActivityLines(events, runId, statusLine), [events, runId, statusLine]);
+  const currentStatusLine = activityLines[activityLines.length - 1]?.text || statusLine;
+  const canShowActivity = activityLines.length > 0;
+  const showActivityPanel = activityExpanded && canShowActivity;
+
+  useEffect(() => {
+    if (!showActivityPanel || !activityContainerRef.current) {
+      return;
+    }
+    const el = activityContainerRef.current;
+    el.scrollTop = el.scrollHeight;
+  }, [activityLines, showActivityPanel]);
+
+  const updateCommandPlacement = () => {
+    if (!promptRef.current || commandSuggestions.length === 0 || typeof window === "undefined") {
+      return;
+    }
+    const el = promptRef.current;
+    const rect = el.getBoundingClientRect();
+    const caret = el.selectionStart ?? prompt.length;
+    const beforeCaret = el.value.slice(0, caret);
+    const currentLine = beforeCaret.split(/\r?\n/g).length;
+    const totalLines = Math.max(el.value.split(/\r?\n/g).length, 1);
+    const prefersBelow = currentLine <= Math.ceil(totalLines / 2);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    if (prefersBelow && spaceBelow >= 120) {
+      setCommandPlacement("below");
+      return;
+    }
+    if (!prefersBelow && spaceAbove >= 120) {
+      setCommandPlacement("above");
+      return;
+    }
+    setCommandPlacement(spaceBelow >= spaceAbove ? "below" : "above");
+  };
+
+  useEffect(() => {
+    updateCommandPlacement();
+  }, [prompt, commandSuggestions.length]);
 
   if (collapsed) {
     return (
       <button
         className={cn(
-          "absolute bottom-4 left-1/2 z-30 flex max-w-[min(520px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-4 left-1/2 z-30 flex max-w-[min(620px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
         )}
         onClick={onToggle}
-        title={statusLine}
+        title={currentStatusLine}
       >
         <Sparkles className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{statusLine}</span>
+        <span className="truncate">{currentStatusLine}</span>
       </button>
     );
   }
@@ -332,14 +309,14 @@ export function AgentChatOverlay(props: {
         }}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-3">
-          <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-700">
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{title}</span>
-            <span className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-              {statusLine}
+            <span className="shrink-0">{title}</span>
+            <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+              {currentStatusLine}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="ml-2 flex items-center gap-1">
             {canShowActivity ? (
               <button
                 className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
@@ -366,99 +343,21 @@ export function AgentChatOverlay(props: {
 
         <div className="flex min-h-0 flex-1 flex-col">
           {showActivityPanel ? (
-            <div className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2">
-              {messages.map((message) => {
-                const longMessage =
-                  messageLineCount(message.text) > 12 || message.text.length > 720;
-                const expanded = expandedMessageIds[message.id] ?? false;
-                const isMarkdown = message.format === "markdown";
-                const patchLike = looksLikePatchText(message.text);
-                const bodyClass = !expanded && longMessage
-                  ? "max-h-32 overflow-hidden"
-                  : expanded && longMessage
-                    ? "max-h-56 overflow-y-auto"
-                    : "";
-                return (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "min-w-0 overflow-hidden rounded-md border px-2 py-1 text-xs leading-5",
-                      message.role === "user"
-                        ? "border-primary-200 bg-primary-50 text-primary-900"
-                        : "border-slate-200 bg-slate-100 text-slate-700",
-                    )}
-                  >
-                    <div className={cn(bodyClass)}>
-                      {patchLike ? (
-                        <PatchTextMessage content={message.text} />
-                      ) : isMarkdown ? (
-                        <MarkdownMessage content={message.text} />
-                      ) : (
-                        <p className="whitespace-pre-wrap break-words">{message.text}</p>
-                      )}
-                    </div>
-                    {longMessage ? (
-                      <button
-                        className="mt-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
-                        onClick={() =>
-                          setExpandedMessageIds((prev) => ({
-                            ...prev,
-                            [message.id]: !expanded,
-                          }))
-                        }
-                      >
-                        {expanded ? showLessLabel : showMoreLabel}
-                      </button>
-                    ) : null}
-                  </div>
-                );
-              })}
-
-              {eventCards.map((card) => {
-                const expanded = expandedCardKeys[card.cardKey] ?? false;
-                const longCard = messageLineCount(card.content) > 10 || card.content.length > 680;
-                const patchLike = looksLikePatchText(card.content);
-                const bodyClass = !expanded && longCard
-                  ? "max-h-32 overflow-hidden"
-                  : expanded && longCard
-                    ? "max-h-56 overflow-y-auto"
-                    : "";
-                return (
-                  <div
-                    key={card.cardKey}
-                    className={cn("min-w-0 overflow-hidden rounded-md border px-2 py-1 text-xs", statusTone(card.status))}
-                  >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
-                      <span className="truncate font-semibold">{card.title}</span>
-                      <span className="max-w-[45%] shrink-0 truncate text-right uppercase">{card.stage}</span>
-                    </div>
-                    <div className={cn(bodyClass)}>
-                      {card.content.trim().length > 0 ? (
-                        patchLike ? (
-                          <PatchTextMessage content={card.content} />
-                        ) : (
-                          <MarkdownMessage content={card.content} />
-                        )
-                      ) : (
-                        <p className="text-[11px] opacity-70">{card.source}</p>
-                      )}
-                    </div>
-                    {longCard ? (
-                      <button
-                        className="mt-1 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50"
-                        onClick={() =>
-                          setExpandedCardKeys((prev) => ({
-                            ...prev,
-                            [card.cardKey]: !expanded,
-                          }))
-                        }
-                      >
-                        {expanded ? showLessLabel : showMoreLabel}
-                      </button>
-                    ) : null}
-                  </div>
-                );
-              })}
+            <div
+              ref={activityContainerRef}
+              className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2"
+            >
+              {activityLines.map((line) => (
+                <p
+                  key={line.id}
+                  className={cn(
+                    "whitespace-pre-wrap break-words rounded px-1 py-0.5 text-[11px] leading-5",
+                    toneClass(line.tone),
+                  )}
+                >
+                  {line.text}
+                </p>
+              ))}
             </div>
           ) : null}
 
@@ -475,6 +374,7 @@ export function AgentChatOverlay(props: {
                 onSessionConfirm={onSessionConfirm}
               />
               <textarea
+                ref={promptRef}
                 className={cn(
                   "w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
                   showActivityPanel
@@ -484,6 +384,9 @@ export function AgentChatOverlay(props: {
                 value={prompt}
                 placeholder={placeholder}
                 onChange={(event) => onPromptChange(event.target.value)}
+                onClick={updateCommandPlacement}
+                onKeyUp={updateCommandPlacement}
+                onSelect={updateCommandPlacement}
                 onKeyDown={(event) => {
                   if (sessionPickerOpen) {
                     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -538,7 +441,18 @@ export function AgentChatOverlay(props: {
                 }}
               />
               {commandSuggestions.length > 0 ? (
-                <div className="absolute bottom-10 left-1 right-10 z-20 max-h-36 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft">
+                <div
+                  className={cn(
+                    "absolute left-1 z-20 max-h-32 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft",
+                    commandPlacement === "above"
+                      ? "bottom-[calc(100%+6px)]"
+                      : "top-[calc(100%+6px)]",
+                  )}
+                  style={{
+                    width: commandPanelWidth,
+                    maxWidth: "min(360px, calc(100% - 2rem))",
+                  }}
+                >
                   {commandSuggestions.map((item, index) => (
                     <button
                       key={item.token}
@@ -554,8 +468,8 @@ export function AgentChatOverlay(props: {
                         setCommandIndex(0);
                       }}
                     >
-                      <span className="font-mono">{item.label}</span>
-                      <span className="text-[11px] text-slate-500">{item.description}</span>
+                      <span className="shrink-0 font-mono">{item.label}</span>
+                      <span className="truncate text-[11px] text-slate-500">{item.description}</span>
                     </button>
                   ))}
                 </div>

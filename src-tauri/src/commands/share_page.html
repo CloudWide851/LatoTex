@@ -6,132 +6,220 @@
     <title>LatoTex Share</title>
     <style>
       :root {
-        font-family: "Segoe UI", Arial, sans-serif;
         color-scheme: light;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      * {
+        box-sizing: border-box;
       }
       body {
         margin: 0;
-        background: #eef2f8;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 10% 10%, #dbeafe 0%, transparent 40%),
+          radial-gradient(circle at 85% 16%, #ccfbf1 0%, transparent 36%),
+          #eef2ff;
         color: #0f172a;
       }
-      .wrap {
+      .shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 14px;
         display: grid;
-        grid-template-rows: auto auto minmax(280px, 1fr);
-        gap: 10px;
-        min-height: 100vh;
-        padding: 10px;
+        gap: 12px;
       }
       .card {
-        border: 1px solid #d6deea;
-        background: #fff;
-        border-radius: 10px;
-        padding: 10px;
+        border: 1px solid #cbd5e1;
+        background: rgba(255, 255, 255, 0.94);
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
       }
-      .row {
-        display: flex;
+      .top {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+      }
+      .title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .sub {
+        margin-top: 4px;
+        color: #475569;
+        font-size: 13px;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #bae6fd;
+        background: #e0f2fe;
+        color: #075985;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      .status .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #0ea5e9;
+      }
+      .toolbar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto;
         gap: 8px;
         align-items: center;
-        flex-wrap: wrap;
       }
-      input, textarea, button {
-        font: inherit;
-      }
-      input, textarea {
+      .field,
+      .editor,
+      .comment-input {
+        width: 100%;
         border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        padding: 8px;
+        border-radius: 10px;
+        padding: 9px 10px;
+        font: inherit;
+        color: #0f172a;
+        background: #fff;
       }
-      button {
+      .field:focus,
+      .editor:focus,
+      .comment-input:focus {
+        outline: 2px solid #93c5fd;
+        border-color: #60a5fa;
+      }
+      .btn {
         border: 1px solid #0f766e;
         background: #0f766e;
         color: #fff;
-        border-radius: 8px;
-        padding: 8px 12px;
+        border-radius: 10px;
+        padding: 9px 12px;
         cursor: pointer;
+        font: inherit;
+        white-space: nowrap;
       }
-      button.secondary {
+      .btn.secondary {
         border-color: #94a3b8;
         background: #fff;
         color: #334155;
       }
-      .main {
+      .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .layout {
         display: grid;
-        gap: 10px;
-        grid-template-columns: minmax(0, 1fr) 300px;
+        grid-template-columns: minmax(0, 1fr) 280px;
+        gap: 12px;
       }
       .editor {
-        width: 100%;
-        min-height: 280px;
-        height: 46vh;
+        min-height: 300px;
+        height: 44vh;
         resize: vertical;
-        font-family: Consolas, "Courier New", monospace;
+        font-family: Consolas, "JetBrains Mono", monospace;
       }
+      .panel-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: #334155;
+        font-weight: 700;
+      }
+      .participants,
       .comments {
-        max-height: 46vh;
+        max-height: 220px;
         overflow: auto;
       }
-      .comment-item {
-        border: 1px solid #d6deea;
+      .item {
+        border: 1px solid #dbe2f0;
         background: #f8fafc;
-        border-radius: 8px;
+        border-radius: 10px;
         padding: 8px;
         margin-bottom: 8px;
       }
+      .user-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+      }
       iframe {
-        border: 1px solid #d6deea;
         width: 100%;
-        height: 36vh;
-        border-radius: 8px;
+        height: 34vh;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
         background: #fff;
       }
       .muted {
         color: #64748b;
         font-size: 12px;
       }
-      .status {
-        font-size: 12px;
-        color: #0f766e;
+      .error {
+        color: #be123c;
+      }
+      .tool-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
       }
       @media (max-width: 980px) {
-        .main {
+        .toolbar {
+          grid-template-columns: 1fr;
+        }
+        .layout {
           grid-template-columns: 1fr;
         }
       }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <section class="card">
-        <div class="row">
-          <strong>LatoTex Collaborative Share</strong>
-          <span class="muted" id="meta">-</span>
+    <div class="shell">
+      <section class="card top">
+        <div>
+          <h1 class="title">LatoTex Collaborative Editing</h1>
+          <div class="sub" id="meta">session=-</div>
         </div>
-        <div class="row" style="margin-top: 8px">
-          <input id="pwd" placeholder="Session password" />
-          <button id="connect">Connect</button>
-          <span class="status" id="status">idle</span>
-        </div>
+        <div class="status"><span class="dot"></span><span id="status">idle</span></div>
       </section>
 
-      <section class="card">
-        <div class="row">
-          <button class="secondary" id="add-comment">Add comment from selection</button>
-          <button class="secondary" id="compile">Request compile</button>
-          <button class="secondary" id="reload-pdf">Reload PDF</button>
-          <span class="muted">Comments are selection-anchored (start/end offsets).</span>
-        </div>
+      <section class="card toolbar">
+        <input id="username" class="field" placeholder="Username" maxlength="32" />
+        <input id="pwd" class="field" placeholder="Session password" />
+        <button id="connect" class="btn">Join</button>
+        <button id="reload-pdf" class="btn secondary">Reload PDF</button>
       </section>
 
-      <section class="main">
+      <section class="layout">
         <section class="card">
-          <textarea id="editor" class="editor" placeholder="Connected TeX content..."></textarea>
-          <div class="muted" id="cursor-info" style="margin-top: 6px"></div>
+          <div class="tool-row">
+            <button id="add-comment" class="btn secondary">Add Comment</button>
+            <button id="compile" class="btn secondary">Request Compile</button>
+            <span class="muted">Select text, then add comment. Your username is shown to all collaborators.</span>
+          </div>
+          <textarea id="editor" class="editor" placeholder="TeX content"></textarea>
+          <div class="muted" id="cursor-info"></div>
           <iframe id="pdf" title="PDF Preview"></iframe>
         </section>
-        <section class="card comments">
-          <strong>Comments</strong>
-          <div id="comments" style="margin-top: 8px"></div>
-        </section>
+        <aside class="card">
+          <h3 class="panel-title">Collaborators</h3>
+          <div id="participants" class="participants"></div>
+          <h3 class="panel-title">Comments</h3>
+          <div id="comments" class="comments"></div>
+          <input id="comment-input" class="comment-input" placeholder="Reply to latest comment..." />
+        </aside>
       </section>
     </div>
 
@@ -143,45 +231,59 @@
       const metaEl = document.getElementById("meta");
       const statusEl = document.getElementById("status");
       const pwdEl = document.getElementById("pwd");
+      const usernameEl = document.getElementById("username");
       const editorEl = document.getElementById("editor");
       const commentsEl = document.getElementById("comments");
+      const participantsEl = document.getElementById("participants");
       const cursorInfoEl = document.getElementById("cursor-info");
       const pdfEl = document.getElementById("pdf");
       const connectBtn = document.getElementById("connect");
       const addCommentBtn = document.getElementById("add-comment");
       const compileBtn = document.getElementById("compile");
       const reloadPdfBtn = document.getElementById("reload-pdf");
+      const replyInput = document.getElementById("comment-input");
 
       const clientId = `web-${Math.random().toString(36).slice(2, 10)}`;
+      const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
+      if (usernameEl) {
+        usernameEl.value = localStorage.getItem(usernameStorageKey) || "";
+      }
+      metaEl.textContent = sid ? `session=${sid}` : "missing session id";
+
       const doc = new Y.Doc();
       const yText = doc.getText("tex");
       const yComments = doc.getArray("comments");
       let connected = false;
       let syncingRemote = false;
+      let participantId = "";
       let cursor = 0;
-      let pollTimer = null;
+      let pullTimer = null;
+      let presenceTimer = null;
+      let lastAction = "reading";
 
-      metaEl.textContent = sid ? `session=${sid}` : "missing session id";
-
-      function setStatus(text) {
+      function setStatus(text, isError = false) {
         statusEl.textContent = text;
+        statusEl.classList.toggle("error", isError);
       }
 
       function toBase64(uint8) {
         let binary = "";
-        for (const byte of uint8) {
-          binary += String.fromCharCode(byte);
-        }
+        for (const byte of uint8) binary += String.fromCharCode(byte);
         return btoa(binary);
       }
 
       function fromBase64(raw) {
         const bin = atob(raw);
         const out = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i += 1) {
-          out[i] = bin.charCodeAt(i);
-        }
+        for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
         return out;
+      }
+
+      function avatarColor(name) {
+        let hash = 0;
+        for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue} 70% 45%)`;
       }
 
       async function postJson(path, body) {
@@ -197,33 +299,66 @@
         return response.json();
       }
 
-      async function pushUpdate(update) {
-        if (!connected) {
+      function renderParticipants(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+          participantsEl.innerHTML = '<div class="muted">No active collaborators.</div>';
           return;
         }
+        participantsEl.innerHTML = "";
+        for (const item of items) {
+          const node = document.createElement("div");
+          node.className = "item";
+          const name = String(item.username || "Guest");
+          const action = String(item.lastAction || "reading");
+          node.innerHTML = `
+            <div class="user-row">
+              <span class="avatar" style="background:${avatarColor(name)}">${name.slice(0, 1).toUpperCase()}</span>
+              <strong>${name}</strong>
+            </div>
+            <div class="muted" style="margin-top:4px">${action}</div>
+          `;
+          participantsEl.appendChild(node);
+        }
+      }
+
+      async function pingPresence(action) {
+        if (!connected || !participantId) return;
+        try {
+          const payload = await postJson("/api/presence/ping", {
+            sid,
+            pwd: pwdEl.value.trim(),
+            participantId,
+            action,
+          });
+          renderParticipants(payload.participants || []);
+        } catch {
+          // ignore intermittent failures
+        }
+      }
+
+      async function pushUpdate(update) {
+        if (!connected) return;
         await postJson("/api/sync/push", {
           sid,
           pwd: pwdEl.value.trim(),
           clientId,
           update: toBase64(update),
+          participantId,
+          username: usernameEl.value.trim(),
+          action: lastAction,
         });
       }
 
       async function pullUpdates() {
-        if (!connected) {
-          return;
-        }
-        const pwd = encodeURIComponent(pwdEl.value.trim());
-        const response = await fetch(`/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${pwd}&cursor=${cursor}`);
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
+        if (!connected) return;
+        const response = await fetch(
+          `/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwdEl.value.trim())}&cursor=${cursor}`
+        );
+        if (!response.ok) throw new Error(await response.text());
         const payload = await response.json();
         for (const item of payload.events || []) {
           cursor = Math.max(cursor, Number(item.seq || 0));
-          if (item.from === clientId) {
-            continue;
-          }
+          if (item.from === clientId) continue;
           syncingRemote = true;
           try {
             Y.applyUpdate(doc, fromBase64(item.update), "remote");
@@ -241,89 +376,48 @@
           return;
         }
         commentsEl.innerHTML = "";
-        items.forEach((item, index) => {
-          const block = document.createElement("div");
-          block.className = "comment-item";
-          const replies = Array.isArray(item.replies) ? item.replies : [];
-          const resolved = Boolean(item.resolved);
-          block.innerHTML = `
-            <div><strong>${resolved ? "Resolved" : "Open"}</strong> [${item.start}, ${item.end}]</div>
+        for (const item of items) {
+          const node = document.createElement("div");
+          node.className = "item";
+          node.innerHTML = `
+            <div><strong>${item.username || "Guest"}</strong> [${item.start}, ${item.end}]</div>
             <div style="margin-top:4px">${item.text || ""}</div>
             <div class="muted" style="margin-top:4px">${item.createdAt || ""}</div>
-            <div style="margin-top:6px">
-              ${replies.map((reply) => `<div class="muted">- ${reply}</div>`).join("")}
-            </div>
           `;
-          const row = document.createElement("div");
-          row.className = "row";
-          row.style.marginTop = "6px";
-          const replyBtn = document.createElement("button");
-          replyBtn.className = "secondary";
-          replyBtn.textContent = "Reply";
-          replyBtn.onclick = () => {
-            const next = prompt("Reply");
-            if (!next) return;
-            const current = yComments.get(index);
-            const nextItem = {
-              ...current,
-              replies: [...(current.replies || []), next],
-            };
-            yComments.delete(index, 1);
-            yComments.insert(index, [nextItem]);
-          };
-          const toggleBtn = document.createElement("button");
-          toggleBtn.className = "secondary";
-          toggleBtn.textContent = resolved ? "Reopen" : "Resolve";
-          toggleBtn.onclick = () => {
-            const current = yComments.get(index);
-            const nextItem = { ...current, resolved: !resolved };
-            yComments.delete(index, 1);
-            yComments.insert(index, [nextItem]);
-          };
-          row.appendChild(replyBtn);
-          row.appendChild(toggleBtn);
-          block.appendChild(row);
-          commentsEl.appendChild(block);
-        });
+          commentsEl.appendChild(node);
+        }
       }
 
       function refreshPdfFrame() {
+        if (!connected) return;
         const pwd = encodeURIComponent(pwdEl.value.trim());
-        const tick = Date.now();
-        pdfEl.src = `/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${pwd}&t=${tick}`;
+        pdfEl.src = `/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${pwd}&t=${Date.now()}`;
       }
 
       yText.observe(() => {
         const value = yText.toString();
         if (editorEl.value !== value) {
-          const start = editorEl.selectionStart || 0;
+          const at = editorEl.selectionStart || 0;
           editorEl.value = value;
-          const next = Math.min(start, value.length);
-          editorEl.setSelectionRange(next, next);
+          editorEl.setSelectionRange(Math.min(at, value.length), Math.min(at, value.length));
         }
       });
-
       yComments.observeDeep(renderComments);
-
       doc.on("update", (update, origin) => {
-        if (origin === "remote" || syncingRemote) {
-          return;
-        }
-        pushUpdate(update).catch((error) => setStatus(`push failed: ${error}`));
+        if (origin === "remote" || syncingRemote) return;
+        pushUpdate(update).catch((error) => setStatus(String(error), true));
       });
 
       editorEl.addEventListener("input", () => {
+        lastAction = "editing text";
         const next = editorEl.value;
         const current = yText.toString();
-        if (next === current) {
-          return;
-        }
+        if (next === current) return;
         doc.transact(() => {
           yText.delete(0, current.length);
           yText.insert(0, next);
         }, "editor");
       });
-
       editorEl.addEventListener("select", () => {
         const start = editorEl.selectionStart || 0;
         const end = editorEl.selectionEnd || 0;
@@ -338,13 +432,13 @@
         if (!text) return;
         yComments.push([{
           id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          username: usernameEl.value.trim(),
           start,
           end,
           text,
-          replies: [],
-          resolved: false,
           createdAt: new Date().toISOString(),
         }]);
+        lastAction = "adding comment";
       });
 
       compileBtn.addEventListener("click", async () => {
@@ -352,28 +446,44 @@
         try {
           await postJson("/api/compile/request", { sid, pwd: pwdEl.value.trim() });
           setStatus("compile requested");
+          lastAction = "requested compile";
+          await pingPresence(lastAction);
         } catch (error) {
-          setStatus(`compile request failed: ${error}`);
+          setStatus(`compile failed: ${error}`, true);
         }
       });
 
-      reloadPdfBtn.addEventListener("click", () => {
-        refreshPdfFrame();
+      reloadPdfBtn.addEventListener("click", refreshPdfFrame);
+
+      replyInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        const text = replyInput.value.trim();
+        if (!text) return;
+        const items = yComments.toArray();
+        if (items.length === 0) return;
+        const last = items[items.length - 1];
+        const next = { ...last, text: `${last.text}\n[Reply ${usernameEl.value.trim()}] ${text}` };
+        yComments.delete(items.length - 1, 1);
+        yComments.insert(items.length - 1, [next]);
+        replyInput.value = "";
+        lastAction = "replying comment";
       });
 
       connectBtn.addEventListener("click", async () => {
         const pwd = pwdEl.value.trim();
-        if (!sid || !pwd) {
-          setStatus("session id or password missing");
+        const username = usernameEl.value.trim();
+        if (!sid || !pwd || !username) {
+          setStatus("session/password/username required", true);
           return;
         }
+        localStorage.setItem(usernameStorageKey, username);
         try {
           setStatus("connecting...");
-          await fetch(`/api/bootstrap?sid=${encodeURIComponent(sid)}`);
+          const joined = await postJson("/api/join", { sid, pwd, clientId, username });
+          participantId = String(joined.participantId || "");
+          renderParticipants(joined.participants || []);
           const snapshotResp = await fetch(`/api/snapshot?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`);
-          if (!snapshotResp.ok) {
-            throw new Error(await snapshotResp.text());
-          }
+          if (!snapshotResp.ok) throw new Error(await snapshotResp.text());
           const snapshot = await snapshotResp.json();
           doc.transact(() => {
             const current = yText.toString();
@@ -382,18 +492,21 @@
           }, "remote");
           connected = true;
           cursor = 0;
-          if (pollTimer) {
-            clearInterval(pollTimer);
-          }
-          pollTimer = setInterval(() => {
-            pullUpdates().catch((error) => setStatus(`pull failed: ${error}`));
-          }, 580);
+          if (pullTimer) clearInterval(pullTimer);
+          if (presenceTimer) clearInterval(presenceTimer);
+          pullTimer = setInterval(() => {
+            pullUpdates().catch((error) => setStatus(`sync failed: ${error}`, true));
+          }, 720);
+          presenceTimer = setInterval(() => {
+            pingPresence(lastAction);
+          }, 1400);
+          await pingPresence("joined and reading");
           setStatus("connected");
           refreshPdfFrame();
           renderComments();
         } catch (error) {
           connected = false;
-          setStatus(`connect failed: ${error}`);
+          setStatus(`connect failed: ${error}`, true);
         }
       });
     </script>
