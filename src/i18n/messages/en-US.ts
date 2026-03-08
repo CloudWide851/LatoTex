@@ -349,6 +349,7 @@ export const enUS = {
   "agent.proposalApplied": "Changes have been applied to the file.",
   "agent.autoCommit.title": "Auto Commit After Agent Apply?",
   "agent.autoCommit.desc": "Apply and commit the Agent edits for {path} now?",
+  "agent.pendingAction.waiting": "Agent is waiting for your action.",
   "agent.autoCommit.yes": "Yes",
   "agent.autoCommit.no": "No",
   "agent.autoCommit.success": "Agent changes were committed.",

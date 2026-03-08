@@ -18,6 +18,7 @@ import type {
   AgentFileProposal,
   AgentSessionSummary,
 } from "../hooks/agentTypes";
+import type { AgentPendingAction } from "../hooks/useAppContainerState";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -108,9 +109,9 @@ function lineFromEvent(event: SwarmEvent): ActivityLine | null {
   };
 }
 
-function toActivityLines(events: SwarmEvent[], runId: string | null, fallback: string): ActivityLine[] {
+function toActivityLines(events: SwarmEvent[], runId: string | null): ActivityLine[] {
   if (!runId) {
-    return fallback.trim() ? [{ id: "fallback", text: fallback.trim(), tone: "neutral" }] : [];
+    return [];
   }
   const lines = events
     .filter((event) => event.runId === runId)
@@ -124,9 +125,6 @@ function toActivityLines(events: SwarmEvent[], runId: string | null, fallback: s
       continue;
     }
     deduped.push(item);
-  }
-  if (deduped.length === 0 && fallback.trim()) {
-    return [{ id: "fallback", text: fallback.trim(), tone: "neutral" }];
   }
   return deduped.slice(-120);
 }
@@ -151,6 +149,7 @@ export function AgentChatOverlay(props: {
   busy: boolean;
   messages: AgentChatMessage[];
   proposal: AgentFileProposal | null;
+  pendingAction: AgentPendingAction;
   runId: string | null;
   sessions: AgentSessionSummary[];
   sessionPickerOpen: boolean;
@@ -166,6 +165,7 @@ export function AgentChatOverlay(props: {
   onToggle: () => void;
   onAcceptProposal: (withAnalysis: boolean) => void;
   onRejectProposal: () => void;
+  onPendingActionResolve: (accept: boolean) => void;
   runLabel: string;
   placeholder: string;
   activityShowLabel: string;
@@ -180,6 +180,11 @@ export function AgentChatOverlay(props: {
   resumeHint: string;
   resumeEmptyLabel: string;
   rollbackLabel: string;
+  pendingActionTitle: string;
+  pendingActionDesc: string;
+  pendingActionWaitLabel: string;
+  pendingActionYesLabel: string;
+  pendingActionNoLabel: string;
 }) {
   const {
     collapsed,
@@ -190,6 +195,7 @@ export function AgentChatOverlay(props: {
     prompt,
     busy,
     runId,
+    pendingAction,
     sessions,
     sessionPickerOpen,
     sessionPickerIndex,
@@ -202,6 +208,7 @@ export function AgentChatOverlay(props: {
     onSessionConfirm,
     onRollback,
     onToggle,
+    onPendingActionResolve,
     runLabel,
     placeholder,
     activityShowLabel,
@@ -211,6 +218,11 @@ export function AgentChatOverlay(props: {
     resumeHint,
     resumeEmptyLabel,
     rollbackLabel,
+    pendingActionTitle,
+    pendingActionDesc,
+    pendingActionWaitLabel,
+    pendingActionYesLabel,
+    pendingActionNoLabel,
   } = props;
 
   const [activityExpanded, setActivityExpanded] = useState(true);
@@ -237,8 +249,28 @@ export function AgentChatOverlay(props: {
     return Math.min(320, Math.max(170, maxLength * 2.2 + 64));
   }, [commandSuggestions]);
 
-  const activityLines = useMemo(() => toActivityLines(events, runId, statusLine), [events, runId, statusLine]);
-  const currentStatusLine = activityLines[activityLines.length - 1]?.text || statusLine;
+  const activityLines = useMemo(() => toActivityLines(events, runId), [events, runId]);
+  const pendingActionLabel = useMemo(() => {
+    if (!pendingAction) {
+      return "";
+    }
+    if (pendingAction.kind === "autoCommit") {
+      return pendingActionWaitLabel;
+    }
+    return pendingActionWaitLabel;
+  }, [pendingAction, pendingActionWaitLabel]);
+  const currentStatusLine = pendingActionLabel
+    || activityLines[activityLines.length - 1]?.text
+    || ((phase === "running" || phase === "starting" || Boolean(runId)) ? statusLine : "");
+  const pendingActionDescription = useMemo(() => {
+    if (!pendingAction) {
+      return "";
+    }
+    if (pendingAction.kind === "autoCommit") {
+      return pendingActionDesc.replace("{path}", pendingAction.targetPath);
+    }
+    return pendingActionDesc;
+  }, [pendingAction, pendingActionDesc]);
   const canShowActivity = activityLines.length > 0;
   const showActivityPanel = activityExpanded && canShowActivity;
 
@@ -279,6 +311,7 @@ export function AgentChatOverlay(props: {
   }, [prompt, commandSuggestions.length]);
 
   if (collapsed) {
+    const collapsedText = currentStatusLine || title;
     return (
       <button
         className={cn(
@@ -288,33 +321,26 @@ export function AgentChatOverlay(props: {
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
         )}
         onClick={onToggle}
-        title={currentStatusLine}
+        title={collapsedText}
       >
         <Sparkles className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{currentStatusLine}</span>
+        <span className="truncate">{collapsedText}</span>
       </button>
     );
   }
 
-  const targetHeight = showActivityPanel
-    ? "clamp(220px, 52%, 420px)"
-    : "clamp(176px, 30%, 248px)";
-
   return (
-    <div className="pointer-events-none absolute inset-x-2 bottom-3 top-3 z-20 flex items-end">
-      <div
-        className="pointer-events-auto grid w-full max-w-full min-w-0 max-h-full grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up"
-        style={{
-          height: `min(${targetHeight}, calc(100% - 4px))`,
-        }}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-3">
+    <div className="pointer-events-none absolute inset-x-2 bottom-3 z-20 flex items-end">
+      <div className="pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up">
+        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
             <span className="shrink-0">{title}</span>
-            <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-              {currentStatusLine}
-            </span>
+            {currentStatusLine ? (
+              <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                {currentStatusLine}
+              </span>
+            ) : null}
           </div>
           <div className="ml-2 flex items-center gap-1">
             {canShowActivity ? (
@@ -341,158 +367,172 @@ export function AgentChatOverlay(props: {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
-          {showActivityPanel ? (
-            <div
-              ref={activityContainerRef}
-              className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2"
-            >
-              {activityLines.map((line) => (
-                <p
-                  key={line.id}
-                  className={cn(
-                    "whitespace-pre-wrap break-words rounded px-1 py-0.5 text-[11px] leading-5",
-                    toneClass(line.tone),
-                  )}
-                >
-                  {line.text}
-                </p>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="mt-auto p-3">
-            <div className="relative">
-              <AgentSessionPicker
-                open={sessionPickerOpen}
-                sessions={sessions}
-                sessionPickerIndex={sessionPickerIndex}
-                resumeTitle={resumeTitle}
-                resumeHint={resumeHint}
-                resumeEmptyLabel={resumeEmptyLabel}
-                onSessionPickerIndexChange={onSessionPickerIndexChange}
-                onSessionConfirm={onSessionConfirm}
-              />
-              <textarea
-                ref={promptRef}
+        {showActivityPanel ? (
+          <div
+            ref={activityContainerRef}
+            className="max-h-[26vh] space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2"
+          >
+            {activityLines.map((line) => (
+              <p
+                key={line.id}
                 className={cn(
-                  "w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
-                  showActivityPanel
-                    ? "h-[clamp(84px,16vh,132px)]"
-                    : "h-[clamp(78px,15vh,112px)]",
+                  "whitespace-pre-wrap break-words rounded px-1 py-0.5 text-[11px] leading-5",
+                  toneClass(line.tone),
                 )}
-                value={prompt}
-                placeholder={placeholder}
-                onChange={(event) => onPromptChange(event.target.value)}
-                onClick={updateCommandPlacement}
-                onKeyUp={updateCommandPlacement}
-                onSelect={updateCommandPlacement}
-                onKeyDown={(event) => {
-                  if (sessionPickerOpen) {
-                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                      event.preventDefault();
-                      if (sessions.length === 0) {
-                        return;
-                      }
-                      const delta = event.key === "ArrowDown" ? 1 : -1;
-                      const nextIndex = Math.max(0, Math.min(sessions.length - 1, sessionPickerIndex + delta));
-                      onSessionPickerIndexChange(nextIndex);
-                      return;
-                    }
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      onSessionConfirm();
-                      return;
-                    }
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      onSessionPickerOpenChange(false);
-                      return;
-                    }
-                  }
-                  if (
-                    commandSuggestions.length > 0 &&
-                    (event.key === "ArrowDown" || event.key === "ArrowUp")
-                  ) {
+              >
+                {line.text}
+              </p>
+            ))}
+          </div>
+        ) : null}
+
+        {pendingAction?.kind === "autoCommit" ? (
+          <div className="space-y-2 border-b border-slate-200 bg-amber-50/70 px-3 py-2">
+            <p className="text-xs font-semibold text-amber-700">{pendingActionTitle}</p>
+            <p className="text-xs text-amber-700">{pendingActionDescription}</p>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-700"
+                onClick={() => onPendingActionResolve(true)}
+              >
+                {pendingActionYesLabel}
+              </button>
+              <button
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                onClick={() => onPendingActionResolve(false)}
+              >
+                {pendingActionNoLabel}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="p-3">
+          <div className="relative">
+            <AgentSessionPicker
+              open={sessionPickerOpen}
+              sessions={sessions}
+              sessionPickerIndex={sessionPickerIndex}
+              resumeTitle={resumeTitle}
+              resumeHint={resumeHint}
+              resumeEmptyLabel={resumeEmptyLabel}
+              onSessionPickerIndexChange={onSessionPickerIndexChange}
+              onSessionConfirm={onSessionConfirm}
+            />
+            <textarea
+              ref={promptRef}
+              className="h-[clamp(84px,16vh,132px)] w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              value={prompt}
+              placeholder={placeholder}
+              onChange={(event) => onPromptChange(event.target.value)}
+              onClick={updateCommandPlacement}
+              onKeyUp={updateCommandPlacement}
+              onSelect={updateCommandPlacement}
+              onKeyDown={(event) => {
+                if (sessionPickerOpen) {
+                  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
                     event.preventDefault();
-                    setCommandIndex((prev) => {
-                      if (event.key === "ArrowDown") {
-                        return Math.min(prev + 1, commandSuggestions.length - 1);
-                      }
-                      return Math.max(prev - 1, 0);
-                    });
-                    return;
-                  }
-                  if (commandSuggestions.length > 0 && event.key === "Tab") {
-                    event.preventDefault();
-                    const next = commandSuggestions[activeCommandIndex];
-                    if (next) {
-                      onPromptChange(`${next.token} `);
-                      setCommandIndex(0);
+                    if (sessions.length === 0) {
+                      return;
                     }
+                    const delta = event.key === "ArrowDown" ? 1 : -1;
+                    const nextIndex = Math.max(0, Math.min(sessions.length - 1, sessionPickerIndex + delta));
+                    onSessionPickerIndexChange(nextIndex);
                     return;
                   }
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
-                    if (!busy && prompt.trim()) {
-                      onRun();
-                    }
+                    onSessionConfirm();
+                    return;
                   }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    onSessionPickerOpenChange(false);
+                    return;
+                  }
+                }
+                if (
+                  commandSuggestions.length > 0 &&
+                  (event.key === "ArrowDown" || event.key === "ArrowUp")
+                ) {
+                  event.preventDefault();
+                  setCommandIndex((prev) => {
+                    if (event.key === "ArrowDown") {
+                      return Math.min(prev + 1, commandSuggestions.length - 1);
+                    }
+                    return Math.max(prev - 1, 0);
+                  });
+                  return;
+                }
+                if (commandSuggestions.length > 0 && event.key === "Tab") {
+                  event.preventDefault();
+                  const next = commandSuggestions[activeCommandIndex];
+                  if (next) {
+                    onPromptChange(`${next.token} `);
+                    setCommandIndex(0);
+                  }
+                  return;
+                }
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  if (!busy && prompt.trim()) {
+                    onRun();
+                  }
+                }
+              }}
+            />
+            {commandSuggestions.length > 0 ? (
+              <div
+                className={cn(
+                  "absolute left-1 z-20 max-h-32 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft",
+                  commandPlacement === "above"
+                    ? "bottom-[calc(100%+6px)]"
+                    : "top-[calc(100%+6px)]",
+                )}
+                style={{
+                  width: commandPanelWidth,
+                  maxWidth: "min(360px, calc(100% - 2rem))",
                 }}
-              />
-              {commandSuggestions.length > 0 ? (
-                <div
-                  className={cn(
-                    "absolute left-1 z-20 max-h-32 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft",
-                    commandPlacement === "above"
-                      ? "bottom-[calc(100%+6px)]"
-                      : "top-[calc(100%+6px)]",
-                  )}
-                  style={{
-                    width: commandPanelWidth,
-                    maxWidth: "min(360px, calc(100% - 2rem))",
-                  }}
-                >
-                  {commandSuggestions.map((item, index) => (
-                    <button
-                      key={item.token}
-                      className={cn(
-                        "flex w-full items-start justify-between gap-2 rounded px-2 py-1 text-left text-xs transition",
-                        index === activeCommandIndex
-                          ? "bg-primary-50 text-primary-700"
-                          : "hover:bg-slate-100",
-                      )}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        onPromptChange(`${item.token} `);
-                        setCommandIndex(0);
-                      }}
-                    >
-                      <span className="shrink-0 font-mono">{item.label}</span>
-                      <span className="truncate text-[11px] text-slate-500">{item.description}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {rollbackVisible ? (
-                <button
-                  className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
-                  title={rollbackLabel}
-                  aria-label={rollbackLabel}
-                  onClick={onRollback}
-                >
-                  <CornerDownLeft className="h-3.5 w-3.5" />
-                </button>
-              ) : null}
-              <button
-                className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={onRun}
-                disabled={busy || (phase !== "running" && !prompt.trim())}
-                title={runLabel}
               >
-                {phase === "running" ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+                {commandSuggestions.map((item, index) => (
+                  <button
+                    key={item.token}
+                    className={cn(
+                      "flex w-full items-start justify-between gap-2 rounded px-2 py-1 text-left text-xs transition",
+                      index === activeCommandIndex
+                        ? "bg-primary-50 text-primary-700"
+                        : "hover:bg-slate-100",
+                    )}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      onPromptChange(`${item.token} `);
+                      setCommandIndex(0);
+                    }}
+                  >
+                    <span className="shrink-0 font-mono">{item.label}</span>
+                    <span className="truncate text-[11px] text-slate-500">{item.description}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {rollbackVisible ? (
+              <button
+                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                title={rollbackLabel}
+                aria-label={rollbackLabel}
+                onClick={onRollback}
+              >
+                <CornerDownLeft className="h-3.5 w-3.5" />
               </button>
-            </div>
+            ) : null}
+            <button
+              className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={onRun}
+              disabled={busy || (phase !== "running" && !prompt.trim())}
+              title={runLabel}
+            >
+              {phase === "running" ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+            </button>
           </div>
         </div>
       </div>

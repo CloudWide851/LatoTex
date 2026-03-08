@@ -349,6 +349,7 @@ export const zhCN: Record<MessageKey, string> = {
   "agent.proposalApplied": "已将修改应用到文件。",
   "agent.autoCommit.title": "是否自动提交本次 Agent 修改？",
   "agent.autoCommit.desc": "是否立即提交 {path} 的 Agent 修改？",
+  "agent.pendingAction.waiting": "Agent 正在等待你操作",
   "agent.autoCommit.yes": "是",
   "agent.autoCommit.no": "否",
   "agent.autoCommit.success": "Agent 修改已提交。",

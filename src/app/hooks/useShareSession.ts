@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as Y from "yjs";
 import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/desktop";
 import type { ShareSessionInfo } from "../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
+type YTextLike = {
+  toString: () => string;
+  delete: (index: number, length: number) => void;
+  insert: (index: number, text: string) => void;
+  observe: (cb: () => void) => void;
+  unobserve: (cb: () => void) => void;
+};
+type YDocLike = {
+  getText: (name: string) => YTextLike;
+  on: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
+  off: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
+  transact: (fn: () => void, origin?: unknown) => void;
+  destroy: () => void;
+};
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -46,7 +59,7 @@ function matchPath(left: string | null | undefined, right: string | null | undef
   return left.replace(/\\/g, "/") === right.replace(/\\/g, "/");
 }
 
-function applyYTextDelta(target: Y.Text, current: string, next: string) {
+function applyYTextDelta(target: YTextLike, current: string, next: string) {
   if (current === next) {
     return;
   }
@@ -100,8 +113,8 @@ export function useShareSession(params: {
   const [shareBusy, setShareBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  const yDocRef = useRef<Y.Doc | null>(null);
-  const yTextRef = useRef<Y.Text | null>(null);
+  const yDocRef = useRef<YDocLike | null>(null);
+  const yTextRef = useRef<YTextLike | null>(null);
   const pullCursorRef = useRef(0);
   const applyingRemoteRef = useRef(false);
   const statusTimerRef = useRef<number | null>(null);
@@ -246,121 +259,147 @@ export function useShareSession(params: {
       clearTimer(syncTimerRef);
       return;
     }
+    let disposed = false;
+    let dispose: (() => void) | null = null;
 
-    const doc = new Y.Doc();
-    const yText = doc.getText("tex");
-    yDocRef.current = doc;
-    yTextRef.current = yText;
-    pullCursorRef.current = 0;
-    applyingRemoteRef.current = false;
-    setSyncing(true);
-
-    const pushUpdate = async (update: Uint8Array) => {
-      await postJson(`${localUrl}/api/sync/push`, {
-        sid: sessionId,
-        pwd: sessionPwd,
-        clientId: localClientIdRef.current,
-        participantId: participantIdRef.current,
-        username: t("share.desktopUser"),
-        action: t("share.action.editing"),
-        update: toBase64(update),
-      });
-    };
-
-    const onDocUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin === "remote" || applyingRemoteRef.current) {
+    const start = async () => {
+      const yjs = await import("yjs");
+      if (disposed) {
         return;
       }
-      void pushUpdate(update).catch(() => undefined);
-    };
-    doc.on("update", onDocUpdate);
+      const doc = new yjs.Doc();
+      const yText = doc.getText("tex");
+      yDocRef.current = doc as unknown as YDocLike;
+      yTextRef.current = yText as unknown as YTextLike;
+      pullCursorRef.current = 0;
+      applyingRemoteRef.current = false;
+      setSyncing(true);
 
-    const onText = () => {
-      const next = yText.toString();
-      if (next === editorContentRef.current) {
-        return;
-      }
-      applyingRemoteRef.current = true;
-      if (typeof window !== "undefined") {
-        window.requestAnimationFrame(() => {
+      const pushUpdate = async (update: Uint8Array) => {
+        await postJson(`${localUrl}/api/sync/push`, {
+          sid: sessionId,
+          pwd: sessionPwd,
+          clientId: localClientIdRef.current,
+          participantId: participantIdRef.current,
+          username: t("share.desktopUser"),
+          action: t("share.action.editing"),
+          update: toBase64(update),
+        });
+      };
+
+      const onDocUpdate = (update: Uint8Array, origin: unknown) => {
+        if (origin === "remote" || applyingRemoteRef.current) {
+          return;
+        }
+        void pushUpdate(update).catch(() => undefined);
+      };
+      doc.on("update", onDocUpdate);
+
+      const onText = () => {
+        const next = yText.toString();
+        if (next === editorContentRef.current) {
+          return;
+        }
+        applyingRemoteRef.current = true;
+        if (typeof window !== "undefined") {
+          window.requestAnimationFrame(() => {
+            setEditorContent(next);
+            applyingRemoteRef.current = false;
+          });
+        } else {
           setEditorContent(next);
           applyingRemoteRef.current = false;
-        });
-      } else {
-        setEditorContent(next);
-        applyingRemoteRef.current = false;
-      }
-    };
-    yText.observe(onText);
+        }
+      };
+      yText.observe(onText);
 
-    const initialize = async () => {
-      const response = await fetch(
-        `${localUrl}/api/snapshot?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}`,
-      );
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      const payload = await response.json() as { content?: string };
-      const initial = payload.content ?? "";
-      doc.transact(() => {
-        applyYTextDelta(yText, yText.toString(), initial);
-      }, "remote");
-    };
-
-    const pullUpdates = async () => {
-      if (syncFlightRef.current) {
-        return;
-      }
-      syncFlightRef.current = true;
-      try {
+      const initialize = async () => {
         const response = await fetch(
-          `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&cursor=${pullCursorRef.current}`,
+          `${localUrl}/api/snapshot?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}`,
         );
         if (!response.ok) {
           throw new Error(await response.text());
         }
-        const payload = await response.json() as { nextCursor?: number; events?: Array<{ seq: number; from: string; update: string }> };
-        const updates = Array.isArray(payload.events) ? payload.events : [];
-        for (const event of updates) {
-          pullCursorRef.current = Math.max(pullCursorRef.current, Number(event.seq || 0));
-          if (event.from === localClientIdRef.current) {
-            continue;
-          }
-          applyingRemoteRef.current = true;
-          try {
-            Y.applyUpdate(doc, fromBase64(event.update), "remote");
-          } finally {
-            applyingRemoteRef.current = false;
-          }
+        const payload = await response.json() as { content?: string };
+        const initial = payload.content ?? "";
+        doc.transact(() => {
+          applyYTextDelta(yText as unknown as YTextLike, yText.toString(), initial);
+        }, "remote");
+      };
+
+      const pullUpdates = async () => {
+        if (syncFlightRef.current) {
+          return;
         }
-        pullCursorRef.current = Math.max(pullCursorRef.current, Number(payload.nextCursor || pullCursorRef.current));
-      } finally {
-        syncFlightRef.current = false;
-      }
+        syncFlightRef.current = true;
+        try {
+          const response = await fetch(
+            `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&cursor=${pullCursorRef.current}`,
+          );
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          const payload = await response.json() as { nextCursor?: number; events?: Array<{ seq: number; from: string; update: string }> };
+          const updates = Array.isArray(payload.events) ? payload.events : [];
+          for (const event of updates) {
+            pullCursorRef.current = Math.max(pullCursorRef.current, Number(event.seq || 0));
+            if (event.from === localClientIdRef.current) {
+              continue;
+            }
+            applyingRemoteRef.current = true;
+            try {
+              yjs.applyUpdate(doc, fromBase64(event.update), "remote");
+            } finally {
+              applyingRemoteRef.current = false;
+            }
+          }
+          pullCursorRef.current = Math.max(pullCursorRef.current, Number(payload.nextCursor || pullCursorRef.current));
+        } finally {
+          syncFlightRef.current = false;
+        }
+      };
+
+      const syncLoop = async () => {
+        if (!collabEnabled || disposed) {
+          return;
+        }
+        await pullUpdates().catch(() => undefined);
+        const hidden = typeof document !== "undefined" && document.hidden;
+        syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
+      };
+
+      void initialize().catch((error) => {
+        setToast({ type: "error", message: String(error) });
+      });
+      syncTimerRef.current = Number(window.setTimeout(syncLoop, 760));
+
+      dispose = () => {
+        setSyncing(false);
+        doc.off("update", onDocUpdate);
+        yText.unobserve(onText);
+        clearTimer(syncTimerRef);
+        yDocRef.current = null;
+        yTextRef.current = null;
+        doc.destroy();
+      };
     };
 
-    const syncLoop = async () => {
-      if (!collabEnabled) {
-        return;
+    void start().catch((error) => {
+      if (!disposed) {
+        setToast({ type: "error", message: String(error) });
       }
-      await pullUpdates().catch(() => undefined);
-      const hidden = typeof document !== "undefined" && document.hidden;
-      syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
-    };
-
-    void initialize().catch((error) => {
-      setToast({ type: "error", message: String(error) });
     });
-    syncTimerRef.current = Number(window.setTimeout(syncLoop, 760));
 
     return () => {
-      setSyncing(false);
-      doc.off("update", onDocUpdate);
-      yText.unobserve(onText);
-      clearTimer(syncTimerRef);
-      yDocRef.current = null;
-      yTextRef.current = null;
-      doc.destroy();
+      disposed = true;
+      if (dispose) {
+        dispose();
+      } else {
+        setSyncing(false);
+        clearTimer(syncTimerRef);
+        yDocRef.current = null;
+        yTextRef.current = null;
+      }
     };
   }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast]);
 

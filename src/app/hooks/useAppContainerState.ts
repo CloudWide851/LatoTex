@@ -33,6 +33,12 @@ import {
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 
 export type AgentProposalMap = Record<string, AgentFileProposal>;
+export type AgentPendingAction =
+  | {
+      kind: "autoCommit";
+      targetPath: string;
+    }
+  | null;
 
 export function useAppContainerState(t: (...args: any[]) => string) {
   const [status, setStatus] = useState<"ready" | "offline">("ready");
@@ -53,6 +59,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [agentPrompt, setAgentPrompt] = useState("");
   const [agentMessages, setAgentMessages] = useState<AgentChatMessage[]>([]);
   const [agentProposalsByPath, setAgentProposalsByPath] = useState<AgentProposalMap>({});
+  const [agentPendingAction, setAgentPendingAction] = useState<AgentPendingAction>(null);
   const [agentRunId, setAgentRunId] = useState<string | null>(null);
   const [agentCollapsed, setAgentCollapsed] = useState(true);
   const [agentPhase, setAgentPhase] = useState<"idle" | "running" | "done" | "error">("idle");
@@ -184,6 +191,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setAgentMessages,
     agentProposalsByPath,
     setAgentProposalsByPath,
+    agentPendingAction,
+    setAgentPendingAction,
     agentRunId,
     setAgentRunId,
     agentCollapsed,

@@ -27,6 +27,7 @@ import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut, type AgentStatusKey } from "./workspace/workspaceShellUtils";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
+import type { AgentPendingAction } from "../hooks/useAppContainerState";
 type TranslationFn = (key: any) => string;
 export function AppWorkspaceShell(props: {
   page: WorkspacePage;
@@ -57,6 +58,7 @@ export function AppWorkspaceShell(props: {
   agentPrompt: string;
   agentMessages: AgentChatMessage[];
   agentProposal: AgentFileProposal | null;
+  agentPendingAction: AgentPendingAction;
   agentRunId: string | null;
   agentSessions: AgentSessionSummary[];
   agentSessionPickerOpen: boolean;
@@ -95,6 +97,7 @@ export function AppWorkspaceShell(props: {
   onAgentRollback: () => void;
   onAgentAcceptProposal: (withAnalysis: boolean) => void;
   onAgentRejectProposal: () => void;
+  onAgentPendingActionResolve: (accept: boolean) => void;
   onOpenFolder: () => void;
   onSaveFile: () => void;
   onCompile: () => void;
@@ -150,6 +153,7 @@ export function AppWorkspaceShell(props: {
     agentPrompt,
     agentMessages,
     agentProposal,
+    agentPendingAction,
     agentRunId,
     agentSessions,
     agentSessionPickerOpen,
@@ -185,6 +189,7 @@ export function AppWorkspaceShell(props: {
     onAgentRollback,
     onAgentAcceptProposal,
     onAgentRejectProposal,
+    onAgentPendingActionResolve,
     onOpenFolder,
     onSaveFile,
     onCompile,
@@ -231,22 +236,8 @@ export function AppWorkspaceShell(props: {
   const selectedIsCsv = isCsvPath(selectedFile);
   const selectedIsExcel = isExcelPath(selectedFile);
   const selectedIsTabular = isTabularPath(selectedFile);
-  const previewMode: "pdf" | "markdown" | "empty" = selectedIsPdf
-    ? selectedFilePdfUrl
-      ? "pdf"
-      : "empty"
-    : selectedIsTabular
-      ? "empty"
-    : preferCompiledPreview && compiledPdfUrl
-      ? "pdf"
-    : selectedIsMarkdown
-      ? "markdown"
-      : compiledPdfUrl
-        ? "pdf"
-        : "empty";
-  const previewPdfUrl = previewMode === "pdf"
-    ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl)
-    : null;
+  const previewMode: "pdf" | "markdown" | "empty" = selectedIsPdf ? (selectedFilePdfUrl ? "pdf" : "empty") : selectedIsTabular ? "empty" : preferCompiledPreview && compiledPdfUrl ? "pdf" : selectedIsMarkdown ? "markdown" : compiledPdfUrl ? "pdf" : "empty";
+  const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
   const agentCommandItems = buildAgentCommandItems(t);
   const compileAssistKey = compileDiagnostics.join("\n").slice(0, 2400);
@@ -449,6 +440,7 @@ export function AppWorkspaceShell(props: {
             busy={busy}
             messages={agentMessages}
             proposal={agentProposal}
+            pendingAction={agentPendingAction}
             runId={agentRunId}
             sessions={agentSessions}
             sessionPickerOpen={agentSessionPickerOpen}
@@ -464,6 +456,7 @@ export function AppWorkspaceShell(props: {
             onToggle={onAgentToggle}
             onAcceptProposal={onAgentAcceptProposal}
             onRejectProposal={onAgentRejectProposal}
+            onPendingActionResolve={onAgentPendingActionResolve}
             runLabel={agentPhase === "running" ? t("agent.run.cancel") : t("workspace.runTaskAgent")}
             placeholder={t("workspace.agentPlaceholder")}
             activityShowLabel={t("agent.activityShow")}
@@ -478,6 +471,11 @@ export function AppWorkspaceShell(props: {
             resumeHint={t("agent.resume.hint")}
             resumeEmptyLabel={t("agent.resume.empty")}
             rollbackLabel={t("agent.rollback.restore")}
+            pendingActionTitle={t("agent.autoCommit.title")}
+            pendingActionDesc={t("agent.autoCommit.desc")}
+            pendingActionWaitLabel={t("agent.pendingAction.waiting")}
+            pendingActionYesLabel={t("agent.autoCommit.yes")}
+            pendingActionNoLabel={t("agent.autoCommit.no")}
           />
         </div>
       </div>

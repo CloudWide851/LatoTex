@@ -1,8 +1,13 @@
+import { Suspense, lazy } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
-import { AppWorkspaceShell } from "./AppWorkspaceShell";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
+
+const AppWorkspaceShell = lazy(async () => {
+  const module = await import("./AppWorkspaceShell");
+  return { default: module.AppWorkspaceShell };
+});
 
 export function AppContainerView(props: any) {
   const {
@@ -61,6 +66,7 @@ export function AppContainerView(props: any) {
     agentPrompt,
     agentMessages,
     agentProposal,
+    agentPendingAction,
     agentRunId,
     agentSessions,
     agentSessionPickerOpen,
@@ -89,6 +95,7 @@ export function AppContainerView(props: any) {
     handleAgentRollback,
     handleAcceptAgentProposal,
     handleRejectAgentProposal,
+    handleResolveAgentPendingAction,
     handleSaveActiveFile,
     handleCompile,
     handleExportCompiledPdf,
@@ -176,99 +183,109 @@ export function AppContainerView(props: any) {
           retryLabel={t("workspace.crashedRetry")}
           onRecover={recoverWorkspaceLayout}
         >
-          <AppWorkspaceShell
-            page={page}
-            pageRailItems={pageRailItems}
-            activeProjectId={activeProjectId}
-            busy={busy}
-            shellLayout={shellLayout}
-            latexLayout={latexLayout}
-            analysisLayout={analysisLayout}
-            libraryLayout={libraryLayout}
-            previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
-            completionModelId={completionModelId}
-            tree={tree}
-            libraryTree={libraryTree}
-            selectedFile={selectedFile}
-            selectedLibraryPath={selectedLibraryPath}
-            fileList={fileList}
-            editorContent={editorContent}
-            editorTabs={editorTabs}
-            activeTabId={activeTabId}
-            dirtyByPath={dirtyByPath}
-            compiledPdfUrl={pdfUrl}
-            preferCompiledPreview={preferCompiledPreview}
-            selectedFilePdfUrl={selectedFilePdfUrl}
-            compileErrorLine={compileErrorLine}
-            compileDiagnostics={compileDiagnostics}
-            agentCollapsed={agentCollapsed}
-            agentPhase={agentPhase}
-            agentStatusKey={agentStatusKey}
-            agentPrompt={agentPrompt}
-            agentMessages={agentMessages}
-            agentProposal={agentProposal}
-            agentRunId={agentRunId}
-            agentSessions={agentSessions}
-            agentSessionPickerOpen={agentSessionPickerOpen}
-            agentSessionPickerIndex={agentSessionPickerIndex}
-            agentRollbackVisible={agentRollbackVisible}
-            events={events}
-            explorerGitDecorations={explorerGitDecorations}
-            shellMin={SHELL_MIN}
-            settingsPanel={settingsPanel}
-            gitPanel={gitPanel}
-            analysisPanel={analysisPanel}
-            onPageChange={setPage}
-            shareSession={shareSession}
-            shareBusy={shareBusy}
-            shareSyncing={shareSyncing}
-            onShareStart={handleShareStart}
-            onShareStop={handleShareStop}
-            onShareRefresh={handleShareRefresh}
-            onSelectFile={handleSelectWorkspacePath}
-            onSelectLibraryPath={setSelectedLibraryPath}
-            onEditorChange={setEditorContent}
-            onTabSelect={handleTabSelect}
-            onTabClose={handleTabClose}
-            onTabCloseAction={handleTabCloseAction}
-            onTabPin={handleTabPin}
-            onEditorMount={(editor, _monaco) => {
-              editorRef.current = editor;
-            }}
-            onAgentPromptChange={setAgentPrompt}
-            onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
-            onAgentRun={handleRunAgent}
-            onAgentSessionPickerOpenChange={setAgentSessionPickerOpen}
-            onAgentSessionPickerIndexChange={setAgentSessionPickerIndex}
-            onAgentSessionConfirm={handleAgentSessionConfirm}
-            onAgentRollback={handleAgentRollback}
-            onAgentAcceptProposal={(withAnalysis) => {
-              void handleAcceptAgentProposal(withAnalysis);
-            }}
-            onAgentRejectProposal={handleRejectAgentProposal}
-            onOpenFolder={handleInitProjectFromFolderWithGuard}
-            onSaveFile={handleSaveActiveFile}
-            onCompile={handleCompile}
-            onExportPdf={handleExportCompiledPdf}
-            onEditorUndo={handleEditorUndo}
-            onEditorRedo={handleEditorRedo}
-            onOpenLogs={(tab) => {
-              setLogsTab(tab);
-              setOverlay("logs");
-            }}
-            onLibraryRescan={handleLibraryRescan}
-            onLibraryImportPdf={handleLibraryImportPdf}
-            onLibraryImportLink={handleLibraryImportLink}
-            onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
-            analysisRunning={analysisRunning}
-            onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
-            onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
-            onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
-            onFsAction={(scope, action, path, targetPath, content) =>
-              requestFsAction(scope, action, path, targetPath, content)
+          <Suspense
+            fallback={
+              <section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">
+                {t("common.loading")}
+              </section>
             }
-            t={t}
-          />
+          >
+            <AppWorkspaceShell
+              page={page}
+              pageRailItems={pageRailItems}
+              activeProjectId={activeProjectId}
+              busy={busy}
+              shellLayout={shellLayout}
+              latexLayout={latexLayout}
+              analysisLayout={analysisLayout}
+              libraryLayout={libraryLayout}
+              previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
+              completionModelId={completionModelId}
+              tree={tree}
+              libraryTree={libraryTree}
+              selectedFile={selectedFile}
+              selectedLibraryPath={selectedLibraryPath}
+              fileList={fileList}
+              editorContent={editorContent}
+              editorTabs={editorTabs}
+              activeTabId={activeTabId}
+              dirtyByPath={dirtyByPath}
+              compiledPdfUrl={pdfUrl}
+              preferCompiledPreview={preferCompiledPreview}
+              selectedFilePdfUrl={selectedFilePdfUrl}
+              compileErrorLine={compileErrorLine}
+              compileDiagnostics={compileDiagnostics}
+              agentCollapsed={agentCollapsed}
+              agentPhase={agentPhase}
+              agentStatusKey={agentStatusKey}
+              agentPrompt={agentPrompt}
+              agentMessages={agentMessages}
+              agentProposal={agentProposal}
+              agentPendingAction={agentPendingAction}
+              agentRunId={agentRunId}
+              agentSessions={agentSessions}
+              agentSessionPickerOpen={agentSessionPickerOpen}
+              agentSessionPickerIndex={agentSessionPickerIndex}
+              agentRollbackVisible={agentRollbackVisible}
+              events={events}
+              explorerGitDecorations={explorerGitDecorations}
+              shellMin={SHELL_MIN}
+              settingsPanel={settingsPanel}
+              gitPanel={gitPanel}
+              analysisPanel={analysisPanel}
+              onPageChange={setPage}
+              shareSession={shareSession}
+              shareBusy={shareBusy}
+              shareSyncing={shareSyncing}
+              onShareStart={handleShareStart}
+              onShareStop={handleShareStop}
+              onShareRefresh={handleShareRefresh}
+              onSelectFile={handleSelectWorkspacePath}
+              onSelectLibraryPath={setSelectedLibraryPath}
+              onEditorChange={setEditorContent}
+              onTabSelect={handleTabSelect}
+              onTabClose={handleTabClose}
+              onTabCloseAction={handleTabCloseAction}
+              onTabPin={handleTabPin}
+              onEditorMount={(editor, _monaco) => {
+                editorRef.current = editor;
+              }}
+              onAgentPromptChange={setAgentPrompt}
+              onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
+              onAgentRun={handleRunAgent}
+              onAgentSessionPickerOpenChange={setAgentSessionPickerOpen}
+              onAgentSessionPickerIndexChange={setAgentSessionPickerIndex}
+              onAgentSessionConfirm={handleAgentSessionConfirm}
+              onAgentRollback={handleAgentRollback}
+              onAgentAcceptProposal={(withAnalysis) => {
+                void handleAcceptAgentProposal(withAnalysis);
+              }}
+              onAgentRejectProposal={handleRejectAgentProposal}
+              onAgentPendingActionResolve={handleResolveAgentPendingAction}
+              onOpenFolder={handleInitProjectFromFolderWithGuard}
+              onSaveFile={handleSaveActiveFile}
+              onCompile={handleCompile}
+              onExportPdf={handleExportCompiledPdf}
+              onEditorUndo={handleEditorUndo}
+              onEditorRedo={handleEditorRedo}
+              onOpenLogs={(tab) => {
+                setLogsTab(tab);
+                setOverlay("logs");
+              }}
+              onLibraryRescan={handleLibraryRescan}
+              onLibraryImportPdf={handleLibraryImportPdf}
+              onLibraryImportLink={handleLibraryImportLink}
+              onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
+              analysisRunning={analysisRunning}
+              onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
+              onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
+              onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
+              onFsAction={(scope, action, path, targetPath, content) =>
+                requestFsAction(scope, action, path, targetPath, content)
+              }
+              t={t}
+            />
+          </Suspense>
         </AppErrorBoundary>
       </div>
 

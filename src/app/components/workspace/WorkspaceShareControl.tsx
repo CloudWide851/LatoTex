@@ -1,6 +1,5 @@
 import { ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
@@ -95,9 +94,22 @@ export function WorkspaceShareControl(props: {
       setQrDataUrl("");
       return;
     }
-    void QRCode.toDataURL(shareLink, { width: 164, margin: 1 })
-      .then((url) => setQrDataUrl(url))
-      .catch(() => setQrDataUrl(""));
+    let disposed = false;
+    void import("qrcode")
+      .then((module) => module.default.toDataURL(shareLink, { width: 164, margin: 1 }))
+      .then((url) => {
+        if (!disposed) {
+          setQrDataUrl(url);
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setQrDataUrl("");
+        }
+      });
+    return () => {
+      disposed = true;
+    };
   }, [panelOpen, shareLink]);
 
   return (

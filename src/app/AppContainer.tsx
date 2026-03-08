@@ -220,6 +220,7 @@ export function AppContainer() {
     setAgentMessages: s.setAgentMessages,
     agentProposalsByPath: s.agentProposalsByPath,
     setAgentProposalsByPath: s.setAgentProposalsByPath,
+    setAgentPendingAction: s.setAgentPendingAction,
     setAgentRunId: s.setAgentRunId,
     setAgentPrompt: s.setAgentPrompt,
     setAgentCollapsed: s.setAgentCollapsed,
@@ -522,6 +523,7 @@ export function AppContainer() {
       agentPrompt={s.agentPrompt}
       agentMessages={s.agentMessages}
       agentProposal={activeAgentProposal}
+      agentPendingAction={s.agentPendingAction}
       agentRunId={s.agentRunId}
       agentSessions={agentSession.agentSessions}
       agentSessionPickerOpen={agentSession.agentSessionPickerOpen}
@@ -550,6 +552,7 @@ export function AppContainer() {
       handleAgentRollback={agentSession.handleAgentRollback}
       handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
+      handleResolveAgentPendingAction={handlers.handleResolveAgentPendingAction}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
       handleCompile={handlers.handleCompile}
       handleExportCompiledPdf={handlers.handleExportCompiledPdf}

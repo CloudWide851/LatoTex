@@ -1,8 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { applyAgentProposal } from "./agentProposalActions";
 import { runAgentWorkflow } from "./agentWorkflow";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
-import type { AgentProposalMap } from "./useAppContainerState";
+import type { AgentPendingAction, AgentProposalMap } from "./useAppContainerState";
 
 export function useAgentWorkflowHandlers(params: {
   activeProjectId: string | null;
@@ -13,6 +13,7 @@ export function useAgentWorkflowHandlers(params: {
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposalsByPath: AgentProposalMap;
   setAgentProposalsByPath: React.Dispatch<React.SetStateAction<AgentProposalMap>>;
+  setAgentPendingAction: (value: AgentPendingAction) => void;
   setAgentRunId: (value: string | null) => void;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean) => void;
@@ -45,6 +46,7 @@ export function useAgentWorkflowHandlers(params: {
     setAgentMessages,
     agentProposalsByPath,
     setAgentProposalsByPath,
+    setAgentPendingAction,
     setAgentRunId,
     setAgentPrompt,
     setAgentCollapsed,
@@ -65,6 +67,37 @@ export function useAgentWorkflowHandlers(params: {
   const currentProposal: AgentFileProposal | null = selectedFile
     ? agentProposalsByPath[selectedFile] ?? null
     : null;
+  const pendingResolverRef = useRef<((value: boolean) => void) | null>(null);
+
+  const clearPendingDecision = useCallback((nextValue: boolean) => {
+    const resolver = pendingResolverRef.current;
+    pendingResolverRef.current = null;
+    setAgentPendingAction(null);
+    if (resolver) {
+      resolver(nextValue);
+    }
+  }, [setAgentPendingAction]);
+
+  const requestAutoCommitDecision = useCallback((targetPath: string) => {
+    if (pendingResolverRef.current) {
+      pendingResolverRef.current(false);
+      pendingResolverRef.current = null;
+    }
+    setAgentPendingAction({ kind: "autoCommit", targetPath });
+    return new Promise<boolean>((resolve) => {
+      pendingResolverRef.current = resolve;
+    });
+  }, [setAgentPendingAction]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingResolverRef.current) {
+        pendingResolverRef.current(false);
+        pendingResolverRef.current = null;
+      }
+      setAgentPendingAction(null);
+    };
+  }, [setAgentPendingAction]);
 
   const setScopedAgentProposal = useCallback(
     (value: AgentFileProposal | null) => {
@@ -92,6 +125,7 @@ export function useAgentWorkflowHandlers(params: {
   );
 
   const handleRunAgent = useCallback(async (promptOverride?: string) => {
+    clearPendingDecision(false);
     const nextPrompt = (promptOverride ?? agentPrompt).trim();
     if (!activeProjectId || !nextPrompt) {
       return;
@@ -132,9 +166,11 @@ export function useAgentWorkflowHandlers(params: {
     setSelectedFile,
     setToast,
     t,
+    clearPendingDecision,
   ]);
 
   const handleRejectAgentProposal = useCallback(() => {
+    clearPendingDecision(false);
     if (currentProposal) {
       if (selectedFile !== currentProposal.targetPath) {
         setSelectedFile(currentProposal.targetPath);
@@ -150,6 +186,7 @@ export function useAgentWorkflowHandlers(params: {
     setAgentRunId,
     setEditorContent,
     setSelectedFile,
+    clearPendingDecision,
   ]);
 
   const handleAcceptAgentProposal = useCallback(async (withAnalysis: boolean) => {
@@ -173,6 +210,7 @@ export function useAgentWorkflowHandlers(params: {
       setPage,
       setToast,
       runAnalysisFromAgent,
+      requestAutoCommitDecision,
       t,
     });
   }, [
@@ -181,6 +219,7 @@ export function useAgentWorkflowHandlers(params: {
     markPathSaved,
     refreshGitWorkspace,
     runAnalysisFromAgent,
+    requestAutoCommitDecision,
     selectedFile,
     setAgentMessages,
     setScopedAgentProposal,
@@ -194,9 +233,14 @@ export function useAgentWorkflowHandlers(params: {
     t,
   ]);
 
+  const handleResolveAgentPendingAction = useCallback((accept: boolean) => {
+    clearPendingDecision(accept);
+  }, [clearPendingDecision]);
+
   return {
     handleRunAgent,
     handleAcceptAgentProposal,
     handleRejectAgentProposal,
+    handleResolveAgentPendingAction,
   };
 }

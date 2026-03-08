@@ -1,32 +1,112 @@
 use super::*;
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 const SHARE_TUNNEL_READY_TIMEOUT_SECS: u64 = 45;
+const CLOUDFLARED_TARGET_NAME: &str = "cloudflared.exe";
+const CLOUDFLARED_RELEASE_NAME: &str = "cloudflared-windows-amd64.exe";
+const CLOUDFLARED_DOWNLOAD_URLS: [&str; 2] = [
+    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
+    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared.exe",
+];
+
+#[cfg(target_os = "windows")]
+fn cloudflared_runtime_binary(runtime_root: &Path) -> PathBuf {
+    runtime_root.join("tools").join(CLOUDFLARED_TARGET_NAME)
+}
+
+#[cfg(target_os = "windows")]
+fn cloudflared_candidate_sources(runtime_root: &Path) -> Vec<PathBuf> {
+    let mut candidates = Vec::<PathBuf>::new();
+    candidates.push(runtime_root.join("tools").join(CLOUDFLARED_RELEASE_NAME));
+    candidates.push(runtime_root.join("tools").join(CLOUDFLARED_TARGET_NAME));
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/cloudflared-windows-amd64.exe"),
+    );
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/cloudflared.exe"),
+    );
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("resources/tools/cloudflared-windows-amd64.exe"));
+            candidates.push(exe_dir.join("resources/tools/cloudflared.exe"));
+            candidates.push(exe_dir.join("tools/cloudflared-windows-amd64.exe"));
+            candidates.push(exe_dir.join("tools/cloudflared.exe"));
+            candidates.push(exe_dir.join("../resources/tools/cloudflared-windows-amd64.exe"));
+            candidates.push(exe_dir.join("../resources/tools/cloudflared.exe"));
+        }
+    }
+    candidates
+}
+
+#[cfg(target_os = "windows")]
+fn copy_first_existing_cloudflared(runtime_root: &Path) -> Result<Option<PathBuf>, String> {
+    let target_binary = cloudflared_runtime_binary(runtime_root);
+    let target_parent = target_binary
+        .parent()
+        .ok_or_else(|| "invalid cloudflared target path".to_string())?;
+    fs::create_dir_all(target_parent).map_err(|e| e.to_string())?;
+    if target_binary.exists() {
+        return Ok(Some(target_binary));
+    }
+    for source in cloudflared_candidate_sources(runtime_root) {
+        if !source.exists() {
+            continue;
+        }
+        if source == target_binary {
+            return Ok(Some(target_binary));
+        }
+        fs::copy(&source, &target_binary).map_err(|e| e.to_string())?;
+        return Ok(Some(target_binary));
+    }
+    Ok(None)
+}
+
+#[cfg(target_os = "windows")]
+fn download_cloudflared(runtime_root: &Path) -> Result<PathBuf, String> {
+    let target_binary = cloudflared_runtime_binary(runtime_root);
+    let target_parent = target_binary
+        .parent()
+        .ok_or_else(|| "invalid cloudflared target path".to_string())?;
+    fs::create_dir_all(target_parent).map_err(|e| e.to_string())?;
+    let mut errors = Vec::<String>::new();
+    for url in CLOUDFLARED_DOWNLOAD_URLS {
+        match reqwest::blocking::get(url) {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    errors.push(format!("{url} => {}", response.status()));
+                    continue;
+                }
+                match response.bytes() {
+                    Ok(bytes) => {
+                        if bytes.len() < 1024 {
+                            errors.push(format!("{url} => body too small"));
+                            continue;
+                        }
+                        fs::write(&target_binary, &bytes).map_err(|e| e.to_string())?;
+                        return Ok(target_binary);
+                    }
+                    Err(error) => errors.push(format!("{url} => {}", error)),
+                }
+            }
+            Err(error) => errors.push(format!("{url} => {}", error)),
+        }
+    }
+    Err(format!(
+        "download failed; bundled binary expected at src-tauri/resources/tools/{CLOUDFLARED_RELEASE_NAME}; errors: {}",
+        errors.join(" | ")
+    ))
+}
 
 #[cfg(target_os = "windows")]
 fn ensure_cloudflared_binary(runtime_root: &Path) -> Result<PathBuf, String> {
-    let tool_dir = runtime_root.join("tools");
-    fs::create_dir_all(&tool_dir).map_err(|e| e.to_string())?;
-    let binary = tool_dir.join("cloudflared.exe");
-    if binary.exists() {
+    if let Some(binary) = copy_first_existing_cloudflared(runtime_root)? {
         return Ok(binary);
     }
-    let download_url =
-        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe";
-    let response = reqwest::blocking::get(download_url).map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "cloudflared download failed: {}",
-            response.status()
-        ));
-    }
-    let bytes = response.bytes().map_err(|e| e.to_string())?;
-    fs::write(&binary, &bytes).map_err(|e| e.to_string())?;
-    Ok(binary)
+    download_cloudflared(runtime_root)
 }
 
 fn mark_share_failed(runtime: &Arc<Mutex<ShareRuntime>>, message: &str) {

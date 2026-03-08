@@ -9,7 +9,7 @@ import type {
 } from "../../shared/types/app";
 import type { AgentStatusKey, ThemeMode } from "../app-config";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
-import type { AgentProposalMap } from "./useAppContainerState";
+import type { AgentPendingAction, AgentProposalMap } from "./useAppContainerState";
 
 export type TranslationFn = (key: any) => string;
 export type DeleteIntent = { scope: FsScope; path: string } | null;
@@ -49,6 +49,7 @@ export type UseAppHandlersParams = {
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposalsByPath: AgentProposalMap;
   setAgentProposalsByPath: React.Dispatch<React.SetStateAction<AgentProposalMap>>;
+  setAgentPendingAction: (value: AgentPendingAction) => void;
   setAgentRunId: (value: string | null) => void;
   setAgentPrompt: (value: string) => void;
   setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;
