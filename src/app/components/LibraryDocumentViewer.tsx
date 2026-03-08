@@ -404,7 +404,7 @@ export function LibraryDocumentViewer(props: {
       </section>
 
       {viewMode === "pdf" ? (
-        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white p-3">
+        <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2">
           {loading ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-500">
               {t("library.viewer.loading")}
@@ -414,7 +414,7 @@ export function LibraryDocumentViewer(props: {
               {t("library.viewer.error")} {loadError}
             </div>
           ) : hasPdf && pdfUrl ? (
-            <div className="grid h-full min-h-0 grid-cols-[48px_minmax(0,1fr)] gap-2">
+            <div className="grid h-full min-h-0 grid-cols-[56px_minmax(0,1fr)] gap-3">
               <LibraryPdfToolSidebar
                 t={t}
                 hasPdf={hasPdf}

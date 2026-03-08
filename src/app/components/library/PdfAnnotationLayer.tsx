@@ -277,8 +277,8 @@ export function PdfAnnotationLayer(props: {
               page,
               x: clampNormalized(point.x),
               y: clampNormalized(point.y),
-              w: 260,
-              h: 160,
+              w: 220,
+              h: 112,
               z: nextTextBoxZ(textBoxes),
               content: "",
               style: createDefaultTextStyle(textColor, textBoxStylePreset),
@@ -327,6 +327,10 @@ export function PdfAnnotationLayer(props: {
         {pageTextBoxes.map((box) => {
           const selected = box.id === selectedTextBoxId;
           const editing = box.id === editingTextBoxId;
+          const hasContent = box.content.trim().length > 0;
+          if (!editing && !hasContent) {
+            return null;
+          }
           return (
             <div
               key={box.id}
@@ -382,7 +386,16 @@ export function PdfAnnotationLayer(props: {
                       ),
                     )
                   }
-                  onBlur={() => setEditingTextBoxId(null)}
+                  onBlur={() => {
+                    const target = textBoxes.find((item) => item.id === box.id);
+                    if (!target || target.content.trim().length === 0) {
+                      onTextBoxesChange(textBoxes.filter((item) => item.id !== box.id));
+                      setSelectedTextBoxId((current) => (current === box.id ? null : current));
+                      setEditingTextBoxId(null);
+                      return;
+                    }
+                    setEditingTextBoxId(null);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
                       event.preventDefault();
@@ -398,14 +411,10 @@ export function PdfAnnotationLayer(props: {
                     fontSize: `${box.style.fontSize}px`,
                   }}
                 >
-                  {box.content.trim().length > 0
-                    ? box.content
-                    : selected
-                      ? t("library.viewer.textboxPlaceholder")
-                      : ""}
+                  {box.content}
                 </div>
               )}
-              {selected && mode === "select" && !editing ? (
+              {hasContent && selected && mode === "select" && !editing ? (
                 <button
                   className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 cursor-se-resize rounded-sm border border-slate-300 bg-white/90"
                   onMouseDown={(event) => {

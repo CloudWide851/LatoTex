@@ -46,6 +46,35 @@ function matchPath(left: string | null | undefined, right: string | null | undef
   return left.replace(/\\/g, "/") === right.replace(/\\/g, "/");
 }
 
+function applyYTextDelta(target: Y.Text, current: string, next: string) {
+  if (current === next) {
+    return;
+  }
+  let start = 0;
+  const maxStart = Math.min(current.length, next.length);
+  while (start < maxStart && current[start] === next[start]) {
+    start += 1;
+  }
+  let endCurrent = current.length;
+  let endNext = next.length;
+  while (
+    endCurrent > start &&
+    endNext > start &&
+    current[endCurrent - 1] === next[endNext - 1]
+  ) {
+    endCurrent -= 1;
+    endNext -= 1;
+  }
+  const removeLen = endCurrent - start;
+  const insert = next.slice(start, endNext);
+  if (removeLen > 0) {
+    target.delete(start, removeLen);
+  }
+  if (insert.length > 0) {
+    target.insert(start, insert);
+  }
+}
+
 export function useShareSession(params: {
   activeProjectId: string | null;
   selectedFile: string | null;
@@ -200,10 +229,11 @@ export function useShareSession(params: {
       await refreshShareStatus();
       const fast =
         shareSession.status === "starting" || shareSession.status === "failed" || shareBusy;
-      statusTimerRef.current = Number(window.setTimeout(run, fast ? 900 : 2400));
+      const hidden = typeof document !== "undefined" && document.hidden;
+      statusTimerRef.current = Number(window.setTimeout(run, fast ? 1200 : hidden ? 4600 : 2800));
     };
     if (shareSession) {
-      statusTimerRef.current = Number(window.setTimeout(run, 900));
+      statusTimerRef.current = Number(window.setTimeout(run, 1100));
     }
     return () => clearTimer(statusTimerRef);
   }, [refreshShareStatus, shareBusy, shareSession]);
@@ -231,8 +261,8 @@ export function useShareSession(params: {
         pwd: sessionPwd,
         clientId: localClientIdRef.current,
         participantId: participantIdRef.current,
-        username: "Desktop",
-        action: "editing",
+        username: t("share.desktopUser"),
+        action: t("share.action.editing"),
         update: toBase64(update),
       });
     };
@@ -273,8 +303,7 @@ export function useShareSession(params: {
       const payload = await response.json() as { content?: string };
       const initial = payload.content ?? "";
       doc.transact(() => {
-        yText.delete(0, yText.length);
-        yText.insert(0, initial);
+        applyYTextDelta(yText, yText.toString(), initial);
       }, "remote");
     };
 
@@ -315,7 +344,8 @@ export function useShareSession(params: {
         return;
       }
       await pullUpdates().catch(() => undefined);
-      syncTimerRef.current = Number(window.setTimeout(syncLoop, 700));
+      const hidden = typeof document !== "undefined" && document.hidden;
+      syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
     };
 
     void initialize().catch((error) => {
@@ -348,8 +378,7 @@ export function useShareSession(params: {
       return;
     }
     doc.transact(() => {
-      yText.delete(0, current.length);
-      yText.insert(0, editorContent);
+      applyYTextDelta(yText, current, editorContent);
     }, "editor");
   }, [collabEnabled, editorContent]);
 
@@ -377,9 +406,10 @@ export function useShareSession(params: {
       } finally {
         compileFlightRef.current = false;
       }
-      compileTimerRef.current = Number(window.setTimeout(compileLoop, 2000));
+      const hidden = typeof document !== "undefined" && document.hidden;
+      compileTimerRef.current = Number(window.setTimeout(compileLoop, hidden ? 3600 : 2200));
     };
-    compileTimerRef.current = Number(window.setTimeout(compileLoop, 2000));
+    compileTimerRef.current = Number(window.setTimeout(compileLoop, 2200));
     return () => clearTimer(compileTimerRef);
   }, [active, localUrl, onCompile, sessionId, sessionPwd]);
 

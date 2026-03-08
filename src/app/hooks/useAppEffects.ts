@@ -351,9 +351,14 @@ export function useAppEffects(params: {
       }, delay);
     };
 
+    const resolvePollDelay = (activeDelay: number, idleDelay: number) => {
+      const hidden = typeof document !== "undefined" && document.hidden;
+      return hidden ? Math.max(idleDelay, activeDelay + 1000) : activeDelay;
+    };
+
     const poll = async () => {
       if (cancelled || inFlight) {
-        schedule(1100);
+        schedule(resolvePollDelay(1200, 2200));
         return;
       }
       inFlight = true;
@@ -363,12 +368,12 @@ export function useAppEffects(params: {
           setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
           cursorRef.current = batch.nextCursor;
           setCursor(batch.nextCursor);
-          schedule(550);
+          schedule(resolvePollDelay(650, 2100));
         } else {
-          schedule(1400);
+          schedule(resolvePollDelay(1500, 2600));
         }
       } catch {
-        schedule(1800);
+        schedule(resolvePollDelay(1800, 3200));
       } finally {
         inFlight = false;
       }
@@ -494,24 +499,51 @@ export function useAppEffects(params: {
     if (!gitDownloadTaskId) {
       return;
     }
-    const timer = setInterval(() => {
-      gitDownloadStatus(gitDownloadTaskId)
-        .then((nextState) => {
-          setGitDownloadState(nextState);
-          if (nextState.status === "completed" && !gitInstallerLaunched) {
-            handleGitRunInstaller().catch(() => undefined);
-          }
-          if (nextState.status === "failed" || nextState.status === "cancelled") {
-            setGitDownloadTaskId(null);
-            setSuppressAutoGitInstall(true);
-          }
-          if (nextState.status === "completed" && gitInstallerLaunched) {
-            setGitDownloadTaskId(null);
-          }
-        })
-        .catch(() => undefined);
-    }, 500);
-    return () => clearInterval(timer);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    let inFlight = false;
+    const schedule = (ms: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void poll();
+      }, ms);
+    };
+    const poll = async () => {
+      if (cancelled || inFlight) {
+        schedule(1100);
+        return;
+      }
+      inFlight = true;
+      try {
+        const nextState = await gitDownloadStatus(gitDownloadTaskId);
+        setGitDownloadState(nextState);
+        if (nextState.status === "completed" && !gitInstallerLaunched) {
+          handleGitRunInstaller().catch(() => undefined);
+        }
+        if (nextState.status === "failed" || nextState.status === "cancelled") {
+          setGitDownloadTaskId(null);
+          setSuppressAutoGitInstall(true);
+          return;
+        }
+        if (nextState.status === "completed" && gitInstallerLaunched) {
+          setGitDownloadTaskId(null);
+          return;
+        }
+        const hidden = typeof document !== "undefined" && document.hidden;
+        schedule(hidden ? 1800 : 900);
+      } catch {
+        schedule(1600);
+      } finally {
+        inFlight = false;
+      }
+    };
+    schedule(600);
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, [
     gitDownloadTaskId,
     gitInstallerLaunched,

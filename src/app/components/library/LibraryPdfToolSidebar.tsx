@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -8,6 +8,7 @@ import {
   Minus,
   MousePointer2,
   Plus,
+  SlidersHorizontal,
   Type,
   Undo2,
 } from "lucide-react";
@@ -16,25 +17,45 @@ import type { AnnotationTextStylePreset } from "./annotationModel";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type TranslationFn = (key: any) => string;
-type ConfigMenuState =
-  | {
-      kind: "highlight" | "textbox";
-      x: number;
-      y: number;
-    }
-  | null;
+type PanelKind = "highlight" | "textbox";
 
 function toolButtonClass(active: boolean): string {
   return [
-    "inline-flex h-8 w-8 items-center justify-center rounded-md border transition",
+    "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition",
     active
-      ? "border-primary-600 bg-primary-600 text-white"
-      : "border-slate-300 bg-white text-slate-600 hover:bg-slate-100",
+      ? "border-primary-500 bg-primary-50 text-primary-700 shadow-sm"
+      : "border-slate-300/90 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100",
   ].join(" ");
 }
 
 function titleWithShortcut(label: string, shortcut: string): string {
   return `${label} (${shortcut})`;
+}
+
+function ColorSwatch(props: {
+  color: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  title: string;
+}) {
+  const { color, active, disabled, onClick, title } = props;
+  return (
+    <button
+      type="button"
+      className={[
+        "h-6 w-6 rounded-full border transition",
+        active
+          ? "border-slate-800 ring-2 ring-primary-200"
+          : "border-slate-300 hover:border-slate-500",
+      ].join(" ")}
+      style={{ backgroundColor: color }}
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+    />
+  );
 }
 
 export function LibraryPdfToolSidebar(props: {
@@ -94,26 +115,29 @@ export function LibraryPdfToolSidebar(props: {
     onZoomIn,
   } = props;
 
-  const [menu, setMenu] = useState<ConfigMenuState>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelKind, setPanelKind] = useState<PanelKind>("highlight");
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    if (!menu) {
+    if (!panelOpen) {
       return;
     }
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (!target) {
-        setMenu(null);
+        setPanelOpen(false);
         return;
       }
-      if (menuRef.current && menuRef.current.contains(target)) {
+      if (panelRef.current?.contains(target) || containerRef.current?.contains(target)) {
         return;
       }
-      setMenu(null);
+      setPanelOpen(false);
     };
     const onEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setMenu(null);
+        setPanelOpen(false);
       }
     };
     window.addEventListener("mousedown", onMouseDown);
@@ -122,11 +146,27 @@ export function LibraryPdfToolSidebar(props: {
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("keydown", onEscape);
     };
-  }, [menu]);
+  }, [panelOpen]);
+
+  const activePanelTitle = useMemo(
+    () =>
+      panelKind === "highlight"
+        ? t("library.viewer.menu.highlightTitle")
+        : t("library.viewer.menu.textboxTitle"),
+    [panelKind, t],
+  );
+
+  const openConfig = (kind: PanelKind) => {
+    if (!hasPdf) {
+      return;
+    }
+    setPanelKind(kind);
+    setPanelOpen(true);
+  };
 
   return (
-    <>
-      <aside className="flex h-full w-12 flex-col items-center gap-2 rounded border border-slate-200 bg-slate-50 px-1 py-2">
+    <div ref={containerRef} className="relative flex h-full">
+      <aside className="flex h-full w-14 flex-col items-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-2 shadow-sm">
         <button
           className={toolButtonClass(mode === "select")}
           title={titleWithShortcut(t("library.viewer.toolSelect"), t("library.viewer.shortcut.select"))}
@@ -136,23 +176,35 @@ export function LibraryPdfToolSidebar(props: {
         >
           <MousePointer2 className="h-4 w-4" />
         </button>
+
         <button
           className={toolButtonClass(mode === "highlight")}
-          style={mode === "highlight" ? { backgroundColor: highlightColor, borderColor: highlightColor } : undefined}
-          title={`${titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))} · ${t("library.viewer.configureHint")}`}
+          title={titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))}
           aria-label={titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))}
           onClick={() => onModeChange("highlight")}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            if (!hasPdf) {
-              return;
-            }
-            setMenu({ kind: "highlight", x: event.clientX, y: event.clientY });
-          }}
           disabled={!hasPdf}
         >
           <Highlighter className="h-4 w-4" />
+          <span
+            className="absolute ml-3.5 mt-3.5 h-2.5 w-2.5 rounded-full border border-white shadow"
+            style={{ backgroundColor: highlightColor }}
+          />
         </button>
+
+        <button
+          className={toolButtonClass(mode === "textbox")}
+          title={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
+          aria-label={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
+          onClick={() => onModeChange("textbox")}
+          disabled={!hasPdf}
+        >
+          <Type className="h-4 w-4" />
+          <span
+            className="absolute ml-3.5 mt-3.5 h-2.5 w-2.5 rounded-full border border-white shadow"
+            style={{ backgroundColor: textColor }}
+          />
+        </button>
+
         <button
           className={toolButtonClass(mode === "eraser")}
           title={titleWithShortcut(t("library.viewer.eraser"), t("library.viewer.shortcut.eraser"))}
@@ -162,54 +214,22 @@ export function LibraryPdfToolSidebar(props: {
         >
           <Eraser className="h-4 w-4" />
         </button>
+
         <button
-          className={toolButtonClass(mode === "textbox")}
-          style={mode === "textbox" ? { backgroundColor: textColor, borderColor: textColor } : undefined}
-          title={`${titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))} · ${t("library.viewer.configureHint")}`}
-          aria-label={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
-          onClick={() => onModeChange("textbox")}
+          className={toolButtonClass(false)}
+          title={t("library.viewer.configureHint")}
+          aria-label={t("library.viewer.configureHint")}
+          onClick={() => openConfig(mode === "textbox" ? "textbox" : "highlight")}
           onContextMenu={(event) => {
             event.preventDefault();
-            if (!hasPdf) {
-              return;
-            }
-            setMenu({ kind: "textbox", x: event.clientX, y: event.clientY });
+            openConfig(mode === "textbox" ? "textbox" : "highlight");
           }}
           disabled={!hasPdf}
         >
-          <Type className="h-4 w-4" />
+          <SlidersHorizontal className="h-4 w-4" />
         </button>
 
-        <div className="my-1 h-px w-8 bg-slate-200" />
-
-        <select
-          className="h-7 w-10 rounded border border-slate-300 bg-white px-1 text-[10px] text-slate-700"
-          value={highlightColor}
-          onChange={(event) => onHighlightColorChange(event.target.value)}
-          title={t("library.viewer.highlightColor")}
-          disabled={!hasPdf}
-        >
-          {HIGHLIGHT_COLORS.map((color, index) => (
-            <option key={color} value={color}>
-              {index + 1}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-7 w-10 rounded border border-slate-300 bg-white px-1 text-[10px] text-slate-700"
-          value={textColor}
-          onChange={(event) => onTextColorChange(event.target.value)}
-          title={t("library.viewer.textColor")}
-          disabled={!hasPdf}
-        >
-          {TEXT_COLORS.map((color, index) => (
-            <option key={color} value={color}>
-              {index + 1}
-            </option>
-          ))}
-        </select>
-
-        <div className="my-1 h-px w-8 bg-slate-200" />
+        <div className="my-0.5 h-px w-8 bg-slate-200" />
 
         <button
           className={toolButtonClass(false)}
@@ -220,6 +240,7 @@ export function LibraryPdfToolSidebar(props: {
         >
           <Undo2 className="h-4 w-4" />
         </button>
+
         <button
           className={toolButtonClass(false)}
           onClick={onClear}
@@ -230,7 +251,7 @@ export function LibraryPdfToolSidebar(props: {
           <Check className="h-4 w-4" />
         </button>
 
-        <div className="my-1 h-px w-8 bg-slate-200" />
+        <div className="my-0.5 h-px w-8 bg-slate-200" />
 
         <button
           className={toolButtonClass(false)}
@@ -240,14 +261,16 @@ export function LibraryPdfToolSidebar(props: {
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
+
         <input
-          className="h-7 w-10 rounded border border-slate-300 bg-white px-1 text-center text-[10px] text-slate-700"
+          className="h-8 w-9 rounded-lg border border-slate-300 bg-white px-1 text-center text-[11px] text-slate-700"
           value={pageInput}
           onChange={(event) => onPageInputChange(event.target.value)}
           onBlur={onPageCommit}
           title={t("library.viewer.pageInput")}
           disabled={!hasPdf}
         />
+
         <button
           className={toolButtonClass(false)}
           onClick={onNextPage}
@@ -257,7 +280,7 @@ export function LibraryPdfToolSidebar(props: {
           <ChevronRight className="h-4 w-4" />
         </button>
 
-        <div className="my-1 h-px w-8 bg-slate-200" />
+        <div className="my-0.5 h-px w-8 bg-slate-200" />
 
         <button
           className={toolButtonClass(false)}
@@ -267,7 +290,9 @@ export function LibraryPdfToolSidebar(props: {
         >
           <Minus className="h-4 w-4" />
         </button>
-        <span className="text-[10px] text-slate-600">{Math.round(pdfZoom * 100)}%</span>
+
+        <span className="text-[10px] font-medium text-slate-600">{Math.round(pdfZoom * 100)}%</span>
+
         <button
           className={toolButtonClass(false)}
           onClick={onZoomIn}
@@ -278,19 +303,59 @@ export function LibraryPdfToolSidebar(props: {
         </button>
       </aside>
 
-      {menu ? (
+      {panelOpen ? (
         <div
-          ref={menuRef}
-          className="fixed z-[75] w-56 rounded-md border border-slate-300 bg-white p-2 shadow-xl"
-          style={{ left: menu.x + 8, top: menu.y + 8 }}
+          ref={panelRef}
+          className="absolute left-[64px] top-2 z-[75] w-64 rounded-xl border border-slate-300 bg-white/95 p-3 shadow-xl backdrop-blur"
         >
-          {menu.kind === "highlight" ? (
-            <div className="space-y-2">
-              <div className="text-[11px] font-semibold text-slate-700">{t("library.viewer.menu.highlightTitle")}</div>
-              <label className="flex items-center justify-between gap-2 text-[11px] text-slate-600">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-700">{activePanelTitle}</span>
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+              <button
+                className={[
+                  "rounded-md px-2 py-1 text-[11px] transition",
+                  panelKind === "highlight" ? "bg-white text-slate-900 shadow" : "text-slate-500",
+                ].join(" ")}
+                onClick={() => setPanelKind("highlight")}
+                type="button"
+              >
+                {t("preview.annotationEnable")}
+              </button>
+              <button
+                className={[
+                  "rounded-md px-2 py-1 text-[11px] transition",
+                  panelKind === "textbox" ? "bg-white text-slate-900 shadow" : "text-slate-500",
+                ].join(" ")}
+                onClick={() => setPanelKind("textbox")}
+                type="button"
+              >
+                {t("library.viewer.textboxMode")}
+              </button>
+            </div>
+          </div>
+
+          {panelKind === "highlight" ? (
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1 text-[11px] text-slate-500">{t("library.viewer.highlightColor")}</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {HIGHLIGHT_COLORS.map((color) => (
+                    <ColorSwatch
+                      key={color}
+                      color={color}
+                      active={highlightColor === color}
+                      disabled={!hasPdf}
+                      onClick={() => onHighlightColorChange(color)}
+                      title={t("library.viewer.highlightColor")}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-[11px] text-slate-600">
                 <span>{t("library.viewer.menu.highlightWidth")}</span>
                 <select
-                  className="h-7 w-20 rounded border border-slate-300 bg-white px-1 text-[11px]"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-[11px]"
                   value={String(highlightWidth)}
                   onChange={(event) => onHighlightWidthChange(Number(event.target.value))}
                 >
@@ -301,10 +366,11 @@ export function LibraryPdfToolSidebar(props: {
                   ))}
                 </select>
               </label>
-              <label className="flex items-center justify-between gap-2 text-[11px] text-slate-600">
+
+              <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-[11px] text-slate-600">
                 <span>{t("library.viewer.menu.highlightOpacity")}</span>
                 <select
-                  className="h-7 w-20 rounded border border-slate-300 bg-white px-1 text-[11px]"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-[11px]"
                   value={String(highlightOpacity)}
                   onChange={(event) => onHighlightOpacityChange(Number(event.target.value))}
                 >
@@ -317,12 +383,27 @@ export function LibraryPdfToolSidebar(props: {
               </label>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="text-[11px] font-semibold text-slate-700">{t("library.viewer.menu.textboxTitle")}</div>
-              <label className="flex items-center justify-between gap-2 text-[11px] text-slate-600">
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1 text-[11px] text-slate-500">{t("library.viewer.textColor")}</div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {TEXT_COLORS.map((color) => (
+                    <ColorSwatch
+                      key={color}
+                      color={color}
+                      active={textColor === color}
+                      disabled={!hasPdf}
+                      onClick={() => onTextColorChange(color)}
+                      title={t("library.viewer.textColor")}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-[11px] text-slate-600">
                 <span>{t("library.viewer.menu.textboxStyle")}</span>
                 <select
-                  className="h-7 w-28 rounded border border-slate-300 bg-white px-1 text-[11px]"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-[11px]"
                   value={textBoxStylePreset}
                   onChange={(event) =>
                     onTextBoxStylePresetChange(event.target.value as AnnotationTextStylePreset)
@@ -337,6 +418,6 @@ export function LibraryPdfToolSidebar(props: {
           )}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

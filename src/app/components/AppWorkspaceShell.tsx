@@ -13,7 +13,7 @@ import type {
   WorkspacePage,
 } from "../../shared/types/app";
 import type { LogTab } from "../app-config";
-import { AgentChatOverlay, type AgentCommandItem, type AgentPhase } from "./AgentChatOverlay";
+import { AgentChatOverlay, type AgentPhase } from "./AgentChatOverlay";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { PageRail } from "./PageRail";
 import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isTabularPath } from "../../shared/utils/fileKind";
@@ -25,13 +25,9 @@ import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
+import { buildAgentCommandItems, composeTitleWithShortcut, type AgentStatusKey } from "./workspace/workspaceShellUtils";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
 type TranslationFn = (key: any) => string;
-type AgentStatusKey =
-  | "agent.statusIdle"
-  | "agent.statusRunning"
-  | "agent.statusDone"
-  | "agent.statusError";
 export function AppWorkspaceShell(props: {
   page: WorkspacePage;
   pageRailItems: Array<{ id: WorkspacePage; icon: any; label: string }>;
@@ -230,7 +226,6 @@ export function AppWorkspaceShell(props: {
       setCompileAssistDismissedFor("");
     }
   }, [compileErrorLine]);
-  const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
   const selectedIsPdf = isPdfPath(selectedFile);
   const selectedIsMarkdown = isMarkdownPath(selectedFile);
   const selectedIsCsv = isCsvPath(selectedFile);
@@ -253,13 +248,7 @@ export function AppWorkspaceShell(props: {
     ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl)
     : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
-  const agentCommandItems: AgentCommandItem[] = [
-    { token: "/review", label: t("agent.command.review.label"), description: t("agent.command.review.description") },
-    { token: "/check-ref", label: t("agent.command.checkRef.label"), description: t("agent.command.checkRef.description") },
-    { token: "/new", label: t("agent.command.new.label"), description: t("agent.command.new.description") },
-    { token: "/memory", label: t("agent.command.memory.label"), description: t("agent.command.memory.description") },
-    { token: "/resume", label: t("agent.command.resume.label"), description: t("agent.command.resume.description") },
-  ];
+  const agentCommandItems = buildAgentCommandItems(t);
   const compileAssistKey = compileDiagnostics.join("\n").slice(0, 2400);
   const showCompileAssist = Boolean(
     compileErrorLine && compileDiagnostics.length > 0 && compileAssistDismissedFor !== compileAssistKey,

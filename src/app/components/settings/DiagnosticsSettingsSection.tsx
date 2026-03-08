@@ -88,8 +88,12 @@ export function DiagnosticsSettingsSection(props: {
   useEffect(() => {
     void onReloadLogs();
     const timer = window.setInterval(() => {
+      const hidden = typeof document !== "undefined" && document.hidden;
+      if (hidden) {
+        return;
+      }
       void onReloadLogs({ silent: true });
-    }, 2500);
+    }, 2800);
     return () => {
       window.clearInterval(timer);
     };

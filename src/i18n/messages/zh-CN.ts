@@ -38,6 +38,8 @@ export const zhCN: Record<MessageKey, string> = {
   "share.panelCollapse": "折叠共享详情",
   "share.panelExpand": "展开共享详情",
   "share.startTimeout": "共享启动超时：未获取到公网地址。",
+  "share.desktopUser": "桌面端",
+  "share.action.editing": "编辑中",
   "nav.latex": "LaTeX",
   "nav.analysis": "数据分析",
   "nav.library": "论文库",

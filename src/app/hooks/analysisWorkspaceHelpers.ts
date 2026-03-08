@@ -27,7 +27,7 @@ export type AgentAnalysisPayload = {
 };
 
 const RUN_TIMEOUT_MS = 300_000;
-const RUN_POLL_INTERVAL_MS = 120;
+const RUN_POLL_INTERVAL_MS = 240;
 const MAX_PROMPT_SNAPSHOT = 2200;
 
 function toBase64SvgDataUrl(svg: string): string {

@@ -36,6 +36,8 @@ export const enUS = {
   "share.panelCollapse": "Collapse share details",
   "share.panelExpand": "Expand share details",
   "share.startTimeout": "Share start timeout: failed to obtain a public URL.",
+  "share.desktopUser": "Desktop",
+  "share.action.editing": "editing",
   "nav.latex": "LaTeX",
   "nav.analysis": "Analytics",
   "nav.library": "Papers",

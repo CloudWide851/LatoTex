@@ -3,7 +3,6 @@ import {
   analysisExportArtifact,
   analysisSaveReport,
   readFile,
-  runAgentStart,
   runtimeLogWrite,
   workspaceRevealInSystem,
 } from "../../shared/api/desktop";
@@ -17,8 +16,10 @@ import {
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
 import { resolvePromptInputFiles } from "./analysisPromptRefs";
 import { createDefaultTask, loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
+import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
+import { ensureAnalysisTasksLoaded, runRolePromptWithAgent } from "./analysisRunHelpers";
 import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
-import { newRunId, newTaskId, nowIso } from "./analysisTypes";
+import { newRunId, nowIso } from "./analysisTypes";
 import {
   buildReportHtml,
   clampChart,
@@ -28,11 +29,9 @@ import {
   summarizeSnapshotsForPrompt,
   toChartFromSnapshots,
   upsertRun,
-  waitForRunOutput,
 } from "./analysisWorkspaceHelpers";
 
 type TranslationFn = (key: any) => string;
-
 export function useAnalysisWorkspace(params: {
   projectId: string | null;
   selectedFile: string | null;
@@ -175,7 +174,7 @@ export function useAnalysisWorkspace(params: {
   const canRun = useMemo(() => Boolean(projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt]);
 
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
-    setTasks((prev) => prev.map((item) => (item.id === taskId ? updater(item) : item)));
+    setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
 
   const setPrompt = useCallback((value: string) => {
@@ -194,77 +193,35 @@ export function useAnalysisWorkspace(params: {
   }, []);
 
   const createTask = useCallback((sourceType: AnalysisSourceType = "data", sourcePath?: string, name?: string) => {
-    const createdAt = nowIso();
-    const task: AnalysisTask = {
-      id: newTaskId("analysis"),
-      name: (name?.trim() || t("analysis.defaultTaskName")).slice(0, 64),
+    const task = createAnalysisTask({
+      defaultName: t("analysis.defaultTaskName"),
       sourceType,
       sourcePath,
-      draftPrompt: "",
-      lastError: null,
-      runs: [],
-      createdAt,
-      updatedAt: createdAt,
-    };
+      name,
+    });
     setTasks((prev) => [task, ...prev]);
     setActiveTaskId(task.id);
     return task;
   }, [t]);
 
   const renameTask = useCallback((taskId: string, name: string) => {
-    const normalized = name.trim();
-    if (!normalized) {
-      return;
-    }
-    setTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, name: normalized.slice(0, 64), updatedAt: nowIso() } : item)));
+    setTasks((prev) => renameTaskList(prev, taskId, name));
   }, []);
 
   const deleteTask = useCallback((taskId: string) => {
     setTasks((prev) => {
-      const next = prev.filter((item) => item.id !== taskId);
-      if (next.length === 0) {
-        const fallback = createDefaultTask(t("analysis.defaultTaskName"));
-        setActiveTaskId(fallback.id);
-        return [fallback];
-      }
-      if (activeTaskId === taskId) {
-        setActiveTaskId(next[0].id);
-      }
-      return next;
+      const nextState = deleteTaskFromList({
+        tasks: prev,
+        taskId,
+        activeTaskId,
+        buildFallback: () => createDefaultTask(t("analysis.defaultTaskName")),
+      });
+      setActiveTaskId(nextState.nextActiveTaskId);
+      return nextState.tasks;
     });
   }, [activeTaskId, t]);
 
-  const ensureTasksReady = useCallback(async () => {
-    if (loadedRef.current) {
-      return;
-    }
-    const startedAt = Date.now();
-    while (!loadedRef.current && Date.now() - startedAt < 3_500) {
-      await new Promise((resolve) => setTimeout(resolve, 40));
-    }
-  }, []);
-
-  const runRolePrompt = useCallback(async (
-    role: string,
-    promptText: string,
-    contextRefs: string[],
-    bypassCache = false,
-  ) => {
-    if (!projectId) {
-      throw new Error("project missing");
-    }
-    const accepted = await runAgentStart({
-      projectId,
-      role,
-      prompt: promptText,
-      contextRefs,
-      bypassCache,
-    });
-    return {
-      runId: accepted.runId,
-      output: await waitForRunOutput(accepted.runId),
-    };
-  }, [projectId]);
+  const ensureTasksReady = useCallback(async () => ensureAnalysisTasksLoaded(loadedRef), []);
 
   const runAnalysisForPrompt = useCallback(async (
     inputPrompt: string,
@@ -323,7 +280,13 @@ export function useAnalysisWorkspace(params: {
         contextRefs: string[],
         bypassCache = false,
       ) => {
-        const result = await runRolePrompt(role, promptText, contextRefs, bypassCache);
+        const result = await runRolePromptWithAgent({
+          projectId,
+          role,
+          promptText,
+          contextRefs,
+          bypassCache,
+        });
         runIds.push(result.runId);
         return result;
       };
@@ -553,17 +516,14 @@ export function useAnalysisWorkspace(params: {
     ensureTasksReady,
     locale,
     projectId,
-    runRolePrompt,
+    runRolePromptWithAgent,
     selectedFile,
     setToast,
     t,
     updateTaskById,
   ]);
 
-  const runAnalysis = useCallback(async () => {
-    await runAnalysisForPrompt(prompt);
-  }, [prompt, runAnalysisForPrompt]);
-
+  const runAnalysis = useCallback(async () => runAnalysisForPrompt(prompt), [prompt, runAnalysisForPrompt]);
   const runAnalysisWithPrompt = useCallback(async (inputPrompt: string) => {
     setPrompt(inputPrompt);
     await runAnalysisForPrompt(inputPrompt);
@@ -596,9 +556,7 @@ export function useAnalysisWorkspace(params: {
   }, [createTask, ensureTasksReady, runAnalysisForPrompt, setToast, t, updateTaskById]);
 
   const exportArtifact = useCallback(async (relativePath: string) => {
-    if (!projectId) {
-      return;
-    }
+    if (!projectId) return;
     try {
       await analysisExportArtifact(projectId, relativePath);
     } catch (error) {
@@ -607,9 +565,7 @@ export function useAnalysisWorkspace(params: {
   }, [projectId, setToast]);
 
   const revealArtifact = useCallback(async (relativePath: string) => {
-    if (!projectId) {
-      return;
-    }
+    if (!projectId) return;
     try {
       await workspaceRevealInSystem(projectId, relativePath);
     } catch (error) {

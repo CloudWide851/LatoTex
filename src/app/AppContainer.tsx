@@ -18,7 +18,6 @@ import { buildEditorTab } from "./hooks/useEditorTabs";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useAppContainerWorkspaceActions } from "./hooks/useAppContainerWorkspaceActions";
 import { useAnalysisWorkspace } from "./hooks/useAnalysisWorkspace";
-import { isPdfPath } from "../shared/utils/fileKind";
 import { useAppContainerState } from "./hooks/useAppContainerState";
 import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { useSettingsPersistence } from "./hooks/useSettingsPersistence";
@@ -30,6 +29,7 @@ import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
+import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
 
 type IntegrityIssue = {
   projectId: string;
@@ -319,35 +319,13 @@ export function AppContainer() {
     onTextFileLoaded: handleTextFileLoaded,
   });
 
-  useEffect(() => {
-    if (!s.selectedFile || isPdfPath(s.selectedFile)) {
-      return;
-    }
-    s.workingContentByPathRef.current[s.selectedFile] = s.editorContent;
-    const saved = s.savedContentByPathRef.current[s.selectedFile];
-    if (typeof saved === "string") {
-      const dirty = s.editorContent !== saved;
-      s.setDirtyByPath((prev) => {
-        const wasDirty = Boolean(prev[s.selectedFile!]);
-        if (dirty === wasDirty) {
-          return prev;
-        }
-        const next = { ...prev };
-        if (dirty) {
-          next[s.selectedFile!] = true;
-        } else {
-          delete next[s.selectedFile!];
-        }
-        return next;
-      });
-    }
-  }, [
-    s.editorContent,
-    s.savedContentByPathRef,
-    s.selectedFile,
-    s.setDirtyByPath,
-    s.workingContentByPathRef,
-  ]);
+  useEditorDirtySyncEffect({
+    selectedFile: s.selectedFile,
+    editorContent: s.editorContent,
+    savedContentByPathRef: s.savedContentByPathRef,
+    workingContentByPathRef: s.workingContentByPathRef,
+    setDirtyByPath: s.setDirtyByPath,
+  });
 
   const workspaceActions = useAppContainerWorkspaceActions({
     selectedFile: s.selectedFile,

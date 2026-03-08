@@ -47,13 +47,13 @@ export function EditorTabsBar(props: {
     const observer = new ResizeObserver(refreshOverflow);
     observer.observe(element);
     element.addEventListener("scroll", refreshOverflow, { passive: true });
-    const timer = window.setInterval(refreshOverflow, 360);
+    let raf = window.requestAnimationFrame(refreshOverflow);
     return () => {
       observer.disconnect();
       element.removeEventListener("scroll", refreshOverflow);
-      window.clearInterval(timer);
+      window.cancelAnimationFrame(raf);
     };
-  }, [tabs.length]);
+  }, [tabs]);
 
   useEffect(() => {
     if (!activeTabId || !rootRef.current) {
