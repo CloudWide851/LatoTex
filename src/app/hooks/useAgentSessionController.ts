@@ -57,6 +57,7 @@ export function useAgentSessionController(params: {
   const [agentRollback, setAgentRollback] = useState<AgentRunRollback | null>(null);
   const [agentRollbackVisible, setAgentRollbackVisible] = useState(false);
   const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runLaunchLockRef = useRef(false);
 
   useEffect(() => {
     let disposed = false;
@@ -188,64 +189,72 @@ export function useAgentSessionController(params: {
       }
       return;
     }
-    const rawPrompt = agentPrompt.trim();
-    if (!rawPrompt) {
+    if (runLaunchLockRef.current) {
       return;
     }
-    const parsed = parseAgentPrompt(rawPrompt);
-    if (parsed.kind === "command" && parsed.command === "new") {
-      if (!selectedFile) {
-        setToast({ type: "error", message: t("agent.command.requiresFile") });
+    runLaunchLockRef.current = true;
+    try {
+      const rawPrompt = agentPrompt.trim();
+      if (!rawPrompt) {
         return;
       }
-      const next = await createNewFileSession(projectId, selectedFile);
-      setAgentSessions(next.sessions);
-      setAgentCurrentSessionId(next.currentSessionId);
-      setAgentMessages([]);
-      setAgentPrompt("");
-      setAgentSessionPickerOpen(false);
-      setAgentRollbackVisible(false);
-      setToast({ type: "info", message: t("agent.command.new.done") });
-      return;
-    }
-    if (parsed.kind === "command" && parsed.command === "memory") {
-      const memoryPath = await ensureProjectMemoryDocument(projectId);
-      setPage("latex");
-      setSelectedFile(memoryPath);
-      setAgentPrompt("");
-      setToast({ type: "info", message: t("agent.command.memory.opened") });
-      return;
-    }
-    if (parsed.kind === "command" && parsed.command === "resume") {
-      if (agentSessions.length === 0) {
-        setToast({ type: "info", message: t("agent.command.resume.empty") });
-        setAgentPrompt("");
-        return;
-      }
-      const requested = parsed.args.trim();
-      if (requested) {
-        const directIndex = agentSessions.findIndex((item) => item.id === requested);
-        if (directIndex >= 0) {
-          await handleResumeSession(directIndex);
+      const parsed = parseAgentPrompt(rawPrompt);
+      if (parsed.kind === "command" && parsed.command === "new") {
+        if (!selectedFile) {
+          setToast({ type: "error", message: t("agent.command.requiresFile") });
           return;
         }
+        const next = await createNewFileSession(projectId, selectedFile);
+        setAgentSessions(next.sessions);
+        setAgentCurrentSessionId(next.currentSessionId);
+        setAgentMessages([]);
+        setAgentPrompt("");
+        setAgentSessionPickerOpen(false);
+        setAgentRollbackVisible(false);
+        setToast({ type: "info", message: t("agent.command.new.done") });
+        return;
       }
-      setAgentSessionPickerOpen(true);
-      setAgentSessionPickerIndex(0);
-      setAgentPrompt("");
-      setToast({ type: "info", message: t("agent.command.resume.opened") });
-      return;
+      if (parsed.kind === "command" && parsed.command === "memory") {
+        const memoryPath = await ensureProjectMemoryDocument(projectId);
+        setPage("latex");
+        setSelectedFile(memoryPath);
+        setAgentPrompt("");
+        setToast({ type: "info", message: t("agent.command.memory.opened") });
+        return;
+      }
+      if (parsed.kind === "command" && parsed.command === "resume") {
+        if (agentSessions.length === 0) {
+          setToast({ type: "info", message: t("agent.command.resume.empty") });
+          setAgentPrompt("");
+          return;
+        }
+        const requested = parsed.args.trim();
+        if (requested) {
+          const directIndex = agentSessions.findIndex((item) => item.id === requested);
+          if (directIndex >= 0) {
+            await handleResumeSession(directIndex);
+            return;
+          }
+        }
+        setAgentSessionPickerOpen(true);
+        setAgentSessionPickerIndex(0);
+        setAgentPrompt("");
+        setToast({ type: "info", message: t("agent.command.resume.opened") });
+        return;
+      }
+      await appendDailyMemoryPrompt(projectId, selectedFile ?? "main.tex", rawPrompt).catch(
+        () => undefined,
+      );
+      setAgentRollback({
+        sessionId: agentCurrentSessionId,
+        prompt: agentPrompt,
+        messages: agentMessages,
+      });
+      setAgentRollbackVisible(false);
+      await runTaskAgent();
+    } finally {
+      runLaunchLockRef.current = false;
     }
-    await appendDailyMemoryPrompt(projectId, selectedFile ?? "main.tex", rawPrompt).catch(
-      () => undefined,
-    );
-    setAgentRollback({
-      sessionId: agentCurrentSessionId,
-      prompt: agentPrompt,
-      messages: agentMessages,
-    });
-    setAgentRollbackVisible(false);
-    await runTaskAgent();
   }, [
     activeProjectId,
     agentCurrentSessionId,

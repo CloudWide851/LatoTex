@@ -34,9 +34,10 @@ export function LibraryDocumentViewer(props: {
   projectId: string | null;
   selectedPath: string | null;
   onAnalyzePaper: (path: string) => void;
+  analysisRunning: boolean;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onAnalyzePaper, t } = props;
+  const { projectId, selectedPath, onAnalyzePaper, analysisRunning, t } = props;
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -372,7 +373,7 @@ export function LibraryDocumentViewer(props: {
               }
             }}
             title={t("library.viewer.analyzePaper")}
-            disabled={!selectedPath || loading}
+            disabled={!selectedPath || loading || analysisRunning}
           >
             <FileSearch className="h-3.5 w-3.5" />
             {t("library.viewer.analyzePaper")}
