@@ -34,6 +34,9 @@ export function AppContainerView(props: any) {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareComments,
+    shareMode,
+    handleShareModeChange,
     handleShareStart,
     handleShareStop,
     handleShareRefresh,
@@ -237,6 +240,9 @@ export function AppContainerView(props: any) {
               shareSession={shareSession}
               shareBusy={shareBusy}
               shareSyncing={shareSyncing}
+              shareComments={shareComments}
+              shareMode={shareMode}
+              onShareModeChange={handleShareModeChange}
               onShareStart={handleShareStart}
               onShareStop={handleShareStop}
               onShareRefresh={handleShareRefresh}

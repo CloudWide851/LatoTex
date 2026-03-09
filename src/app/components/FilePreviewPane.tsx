@@ -61,6 +61,7 @@ export function FilePreviewPane(props: {
   emptyText: string;
   pdfZoom: number;
   onPdfZoomChange: (nextZoom: number) => void;
+  focusRequest?: { page: number; token: number } | null;
 }) {
   const {
     mode,
@@ -70,6 +71,7 @@ export function FilePreviewPane(props: {
     emptyText,
     pdfZoom,
     onPdfZoomChange,
+    focusRequest,
   } = props;
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -233,6 +235,20 @@ export function FilePreviewPane(props: {
       }
     };
   }, [estimatedPageHeight, mode, pageCount, pdfUrl]);
+
+  useEffect(() => {
+    if (mode !== "pdf" || !pdfUrl || !focusRequest || !viewportRef.current) {
+      return;
+    }
+    const page = Math.max(1, Math.min(pageCount, Math.floor(focusRequest.page || 1)));
+    const viewport = viewportRef.current;
+    const top = Math.max(0, (page - 1) * Math.max(1, estimatedPageHeight) - 8);
+    viewport.scrollTo({
+      top,
+      behavior: "smooth",
+    });
+    setVisiblePage(page);
+  }, [estimatedPageHeight, focusRequest, mode, pageCount, pdfUrl]);
 
   if (mode === "pdf" && pdfUrl) {
     const pages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1);

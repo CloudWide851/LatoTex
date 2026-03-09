@@ -152,9 +152,10 @@ export function workspaceOpenTerminal(projectId: string, relativePath?: string) 
 export function shareSessionCreate(
   projectId: string,
   targetPath: string,
+  mode: "local" | "remote" = "remote",
 ): Promise<ShareSessionInfo> {
   return invoke<ShareSessionInfo>("share_session_create", {
-    input: { projectId, targetPath },
+    input: { projectId, targetPath, mode },
   });
 }
 

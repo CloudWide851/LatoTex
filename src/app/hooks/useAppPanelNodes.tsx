@@ -219,6 +219,23 @@ export function useAppPanelNodes(params: any) {
     />
   );
 
+  const loadGitDiff = useCallback(
+    (path: string, staged: boolean, revision?: string) =>
+      activeProjectId ? gitDiffFile(activeProjectId, path, staged, 3, revision) : Promise.reject(new Error("git.noProject")),
+    [activeProjectId],
+  );
+  const loadGitCommitFiles = useCallback(
+    (revision: string) =>
+      activeProjectId ? gitCommitFiles(activeProjectId, revision) : Promise.resolve([]),
+    [activeProjectId],
+  );
+  const openGitFile = useCallback(
+    (path: string) => {
+      openWorkspaceFile(path, "pinned");
+    },
+    [openWorkspaceFile],
+  );
+
   const gitPanel = activeProjectId ? (
     <GitWorkspace
       status={gitStatusState}
@@ -277,11 +294,9 @@ export function useAppPanelNodes(params: any) {
           setBusy(false);
         }
       }}
-      onLoadDiff={(path, staged, revision) => gitDiffFile(activeProjectId, path, staged, 3, revision)}
-      onLoadCommitFiles={(revision) => gitCommitFiles(activeProjectId, revision)}
-      onOpenFile={(path) => {
-        openWorkspaceFile(path, "pinned");
-      }}
+      onLoadDiff={loadGitDiff}
+      onLoadCommitFiles={loadGitCommitFiles}
+      onOpenFile={openGitFile}
       onStartGitInstall={handleGitInstallerDownloadStart}
       onCancelDownload={handleGitInstallerCancel}
       onRunInstaller={handleGitRunInstaller}

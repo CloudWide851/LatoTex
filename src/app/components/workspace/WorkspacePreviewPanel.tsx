@@ -1,6 +1,7 @@
 import { AlertTriangle, Download, ListChecks, Minus, Plus, RotateCcw } from "lucide-react";
 import { FilePreviewPane } from "../FilePreviewPane";
 import { TablePreviewPane } from "../table/TablePreviewPane";
+import type { ShareCommentItem } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 type LogTab = "events" | "status";
@@ -25,6 +26,9 @@ export function WorkspacePreviewPanel(props: {
   onZoomOut: () => void;
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
+  shareComments: ShareCommentItem[];
+  onJumpToShareComment: (page: number) => void;
+  previewFocusRequest: { page: number; token: number } | null;
   t: TranslationFn;
 }) {
   const {
@@ -47,6 +51,9 @@ export function WorkspacePreviewPanel(props: {
     onZoomOut,
     onZoomReset,
     onPreviewZoomChange,
+    shareComments,
+    onJumpToShareComment,
+    previewFocusRequest,
     t,
   } = props;
 
@@ -140,9 +147,37 @@ export function WorkspacePreviewPanel(props: {
             emptyText={selectedIsMarkdown ? t("preview.markdownEmpty") : t("preview.empty")}
             pdfZoom={previewZoom}
             onPdfZoomChange={onPreviewZoomChange}
+            focusRequest={previewFocusRequest}
           />
         )}
       </div>
+      {shareComments.length > 0 ? (
+        <div className="mt-2 max-h-28 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+          <div className="mb-1 text-[11px] font-semibold text-slate-600">{t("share.commentsInPreview")}</div>
+          <div className="space-y-1.5">
+            {shareComments.slice(0, 24).map((item) => (
+              <button
+                key={`${item.id}-${item.createdAt ?? ""}`}
+                className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-left text-[11px] text-slate-700 hover:bg-slate-100"
+                onClick={() => {
+                  if (typeof item.page === "number" && item.page > 0) {
+                    onJumpToShareComment(item.page);
+                  }
+                }}
+                title={item.quote || item.text}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-semibold">{item.username}</span>
+                  <span className="shrink-0 text-[10px] text-slate-500">
+                    {typeof item.page === "number" && item.page > 0 ? `${t("share.commentPage")} ${item.page}` : "-"}
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate text-slate-600">{item.quote || item.text}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </aside>
   );
 }

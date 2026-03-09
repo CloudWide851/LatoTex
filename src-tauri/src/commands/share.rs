@@ -49,6 +49,7 @@ struct ShareRuntime {
     project_id: String,
     target_path: String,
     project_root: PathBuf,
+    mode: String,
     password: String,
     local_port: u16,
     local_url: String,
@@ -195,6 +196,19 @@ fn normalize_target_path(path: &str) -> String {
     path.replace('\\', "/").trim().to_string()
 }
 
+fn normalize_share_mode(mode: Option<String>) -> String {
+    let normalized = mode
+        .as_deref()
+        .unwrap_or("remote")
+        .trim()
+        .to_ascii_lowercase();
+    if normalized == "local" {
+        "local".to_string()
+    } else {
+        "remote".to_string()
+    }
+}
+
 fn now_iso() -> String {
     Utc::now().to_rfc3339()
 }
@@ -270,14 +284,48 @@ fn participant_public_list(runtime: &ShareRuntime) -> Vec<ShareParticipantInfo> 
     participants
 }
 
+fn build_local_join_url(runtime: &ShareRuntime) -> String {
+    if runtime.mode == "local" {
+        format!(
+            "{}/?sid={}&pwd={}",
+            runtime.local_url,
+            runtime.session_id,
+            runtime.password
+        )
+    } else {
+        format!("{}/?sid={}", runtime.local_url, runtime.session_id)
+    }
+}
+
+fn build_remote_join_url(runtime: &ShareRuntime) -> Option<String> {
+    let tunnel = runtime.tunnel_url.as_ref()?;
+    Some(format!("{}/?sid={}", tunnel.trim_end_matches('/'), runtime.session_id))
+}
+
+fn build_active_join_url(runtime: &ShareRuntime) -> Option<String> {
+    if runtime.mode == "local" {
+        Some(build_local_join_url(runtime))
+    } else {
+        build_remote_join_url(runtime)
+    }
+}
+
 fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
+    let local_join_url = build_local_join_url(runtime);
+    let remote_join_url = build_remote_join_url(runtime);
+    let active_join_url = build_active_join_url(runtime);
     ShareSessionInfo {
-        active: runtime.status == "ready" && runtime.tunnel_url.is_some(),
+        active: runtime.status == "ready" && active_join_url.is_some(),
         session_id: Some(runtime.session_id.clone()),
         project_id: Some(runtime.project_id.clone()),
         target_path: Some(runtime.target_path.clone()),
+        mode: Some(runtime.mode.clone()),
         local_url: Some(runtime.local_url.clone()),
         tunnel_url: runtime.tunnel_url.clone(),
+        local_join_url: Some(local_join_url),
+        remote_join_url,
+        active_join_url,
+        password_required: Some(runtime.mode != "local"),
         password: Some(runtime.password.clone()),
         expires_at: Some(runtime.expires_at.clone()),
         status: Some(runtime.status.clone()),
@@ -389,17 +437,29 @@ pub fn share_session_create(
         .collect::<String>();
     let expires_at = (Utc::now() + ChronoDuration::hours(SHARE_TTL_HOURS)).to_rfc3339();
     let expires_unix = (Utc::now() + ChronoDuration::hours(SHARE_TTL_HOURS)).timestamp();
+    let mode = normalize_share_mode(input.mode.clone());
+    let local_url = format!("http://127.0.0.1:{local_port}");
+    let is_local_mode = mode == "local";
     let runtime = Arc::new(Mutex::new(ShareRuntime {
         session_id: session_id.clone(),
         project_id: input.project_id.clone(),
         target_path: target_path.clone(),
         project_root,
+        mode,
         password: password.clone(),
         local_port,
-        local_url: format!("http://127.0.0.1:{local_port}/?sid={session_id}"),
+        local_url,
         tunnel_url: None,
-        status: "starting".to_string(),
-        tunnel_state: "pending".to_string(),
+        status: if is_local_mode {
+            "ready".to_string()
+        } else {
+            "starting".to_string()
+        },
+        tunnel_state: if is_local_mode {
+            "ready".to_string()
+        } else {
+            "pending".to_string()
+        },
         tunnel_error: None,
         expires_at: expires_at.clone(),
         expires_unix,
@@ -412,11 +472,17 @@ pub fn share_session_create(
         cloudflared_child: None,
     }));
     start_http_server(runtime.clone())?;
-    share_tunnel::start_cloud_tunnel(&state.runtime_root, runtime.clone());
+    if !is_local_mode {
+        share_tunnel::start_cloud_tunnel(&state.runtime_root, runtime.clone());
+    }
     swap_in_runtime(runtime.clone());
+    let mode_label = if is_local_mode { "local" } else { "remote" };
     state.log(
         "INFO",
-        &format!("share_session_create: project={}, target={}", input.project_id, target_path),
+        &format!(
+            "share_session_create: project={}, target={}, mode={mode_label}",
+            input.project_id, target_path
+        ),
     );
     let info = runtime
         .lock()
@@ -437,8 +503,13 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
             session_id: None,
             project_id: None,
             target_path: None,
+            mode: None,
             local_url: None,
             tunnel_url: None,
+            local_join_url: None,
+            remote_join_url: None,
+            active_join_url: None,
+            password_required: None,
             password: None,
             expires_at: None,
             status: None,
@@ -458,8 +529,13 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
             session_id: None,
             project_id: None,
             target_path: None,
+            mode: None,
             local_url: None,
             tunnel_url: None,
+            local_join_url: None,
+            remote_join_url: None,
+            active_join_url: None,
+            password_required: None,
             password: None,
             expires_at: None,
             status: None,
@@ -469,6 +545,28 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
         });
     }
     prune_participants(&mut guard);
+    if guard.mode == "remote" {
+        let mut tunnel_fault: Option<String> = None;
+        if let Some(child) = guard.cloudflared_child.as_mut() {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    tunnel_fault = Some(format!("cloudflared exited: {status}"));
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    tunnel_fault = Some(format!("cloudflared status check failed: {error}"));
+                }
+            }
+        } else if guard.status == "ready" || guard.status == "starting" {
+            tunnel_fault = Some("cloudflared process missing".to_string());
+        }
+        if let Some(reason) = tunnel_fault {
+            guard.status = "failed".to_string();
+            guard.tunnel_state = "failed".to_string();
+            guard.tunnel_error = Some(reason);
+            guard.tunnel_url = None;
+        }
+    }
     Ok(build_session_info(&guard))
 }
 

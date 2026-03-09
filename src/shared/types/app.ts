@@ -68,8 +68,13 @@ export type ShareSessionInfo = {
   sessionId?: string | null;
   projectId?: string | null;
   targetPath?: string | null;
+  mode?: "local" | "remote" | string | null;
   localUrl?: string | null;
   tunnelUrl?: string | null;
+  localJoinUrl?: string | null;
+  remoteJoinUrl?: string | null;
+  activeJoinUrl?: string | null;
+  passwordRequired?: boolean | null;
   password?: string | null;
   expiresAt?: string | null;
   status?: "starting" | "ready" | "failed" | "stopping" | string | null;
@@ -83,6 +88,17 @@ export type ShareParticipantInfo = {
   username: string;
   lastSeenAt: string;
   lastAction?: string | null;
+};
+
+export type ShareCommentItem = {
+  id: string;
+  username: string;
+  text: string;
+  quote?: string;
+  page?: number;
+  start?: number;
+  end?: number;
+  createdAt?: string;
 };
 
 export type SwarmEvent = {

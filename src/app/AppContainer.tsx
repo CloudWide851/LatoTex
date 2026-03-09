@@ -30,10 +30,7 @@ import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
 import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
-type IntegrityIssue = {
-  projectId: string;
-  missingRequired: string[];
-};
+type IntegrityIssue = { projectId: string; missingRequired: string[] };
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
@@ -82,16 +79,22 @@ export function AppContainer() {
         s.setGitCommits([]);
         return;
       }
-      const [state, branches, commits] = await Promise.all([
+      const [state, branches] = await Promise.all([
         gitStatus(projectId),
         gitBranches(projectId).catch(() => []),
-        gitLog(projectId, 50).catch(() => []),
       ]);
       s.setGitStatusState(state);
       s.setGitBranchesState(branches);
+      const shouldLoadHistory = s.page === "git";
+      if (!shouldLoadHistory) {
+        s.setGitCommits([]);
+        return;
+      }
+      const commits = await gitLog(projectId, 30).catch(() => []);
       s.setGitCommits(commits);
     },
     [
+      s.page,
       s.activeProjectIdRef,
       s.setGitAvailability,
       s.setSuppressAutoGitInstall,
@@ -487,6 +490,9 @@ export function AppContainer() {
       shareSession={shareSession.shareSession}
       shareBusy={shareSession.shareBusy}
       shareSyncing={shareSession.shareSyncing}
+      shareComments={shareSession.shareComments}
+      shareMode={shareSession.shareMode}
+      handleShareModeChange={(mode: "local" | "remote") => shareSession.setShareMode(mode)}
       handleShareStart={shareSession.startShare}
       handleShareStop={shareSession.stopShare}
       handleShareRefresh={shareSession.refreshShareStatus}

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/desktop";
-import type { ShareSessionInfo } from "../../shared/types/app";
+import type { ShareCommentItem, ShareSessionInfo } from "../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
+type ShareMode = "local" | "remote";
 type YTextLike = {
   toString: () => string;
   delete: (index: number, length: number) => void;
@@ -10,13 +11,44 @@ type YTextLike = {
   observe: (cb: () => void) => void;
   unobserve: (cb: () => void) => void;
 };
+type YArrayLike = {
+  toArray: () => any[];
+  observeDeep: (cb: () => void) => void;
+  unobserveDeep: (cb: () => void) => void;
+};
 type YDocLike = {
   getText: (name: string) => YTextLike;
+  getArray: (name: string) => YArrayLike;
   on: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
   off: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
   transact: (fn: () => void, origin?: unknown) => void;
   destroy: () => void;
 };
+
+function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {
+  if (!Array.isArray(rawItems)) {
+    return [];
+  }
+  return rawItems
+    .map((item, index) => {
+      const pageRaw = Number(item?.page);
+      const startRaw = Number(item?.start);
+      const endRaw = Number(item?.end);
+      return {
+        id: String(item?.id ?? `comment-${index + 1}`),
+        username: String(item?.username ?? "Guest"),
+        text: String(item?.text ?? ""),
+        quote: typeof item?.quote === "string" ? item.quote : undefined,
+        page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : undefined,
+        start: Number.isFinite(startRaw) && startRaw >= 0 ? startRaw : undefined,
+        end: Number.isFinite(endRaw) && endRaw >= 0 ? endRaw : undefined,
+        createdAt: typeof item?.createdAt === "string" ? item.createdAt : undefined,
+      } satisfies ShareCommentItem;
+    })
+    .filter((item) => item.text.trim().length > 0 || (item.quote?.trim().length ?? 0) > 0)
+    .slice(-120)
+    .reverse();
+}
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -112,9 +144,12 @@ export function useShareSession(params: {
   const [shareSession, setShareSession] = useState<ShareSessionInfo | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [shareComments, setShareComments] = useState<ShareCommentItem[]>([]);
+  const [shareMode, setShareMode] = useState<ShareMode>("remote");
 
   const yDocRef = useRef<YDocLike | null>(null);
   const yTextRef = useRef<YTextLike | null>(null);
+  const yCommentsRef = useRef<YArrayLike | null>(null);
   const pullCursorRef = useRef(0);
   const applyingRemoteRef = useRef(false);
   const statusTimerRef = useRef<number | null>(null);
@@ -159,6 +194,9 @@ export function useShareSession(params: {
     statusFlightRef.current = true;
     try {
       const status = await shareSessionStatus();
+      if (status.mode === "local" || status.mode === "remote") {
+        setShareMode(status.mode);
+      }
       setShareSession((status.active || status.status) ? status : null);
       return status;
     } catch (error) {
@@ -169,7 +207,7 @@ export function useShareSession(params: {
     }
   }, [setToast, shareSession]);
 
-  const waitForTunnelReady = useCallback(
+  const waitForShareReady = useCallback(
     async (expectedSessionId: string) => {
       const startedAt = Date.now();
       while (Date.now() - startedAt < 48_000) {
@@ -182,7 +220,7 @@ export function useShareSession(params: {
           await wait(680);
           continue;
         }
-        if (next.status === "ready" && next.tunnelUrl) {
+        if (next.status === "ready" && next.activeJoinUrl) {
           return next;
         }
         if (next.status === "failed") {
@@ -195,26 +233,30 @@ export function useShareSession(params: {
     [refreshShareStatus, t],
   );
 
-  const startShare = useCallback(async () => {
+  const startShare = useCallback(async (mode: ShareMode = shareMode) => {
     if (!activeProjectId || !selectedFile || !selectedFile.toLowerCase().endsWith(".tex")) {
       setToast({ type: "error", message: t("share.startNeedTex") });
       return;
     }
     setShareBusy(true);
     try {
-      const created = await shareSessionCreate(activeProjectId, selectedFile);
+      const nextMode: ShareMode = mode === "local" ? "local" : "remote";
+      setShareMode(nextMode);
+      const created = await shareSessionCreate(activeProjectId, selectedFile, nextMode);
       setShareSession(created);
-      const ready = await waitForTunnelReady(created.sessionId || "");
+      const ready = await waitForShareReady(created.sessionId || "");
       setShareSession(ready);
       setToast({ type: "info", message: t("share.started") });
     } catch (error) {
-      await shareSessionStop().catch(() => undefined);
-      setShareSession(null);
+      const latest = await refreshShareStatus().catch(() => null);
+      if (latest) {
+        setShareSession(latest);
+      }
       setToast({ type: "error", message: String(error) });
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, selectedFile, setToast, t, waitForTunnelReady]);
+  }, [activeProjectId, refreshShareStatus, selectedFile, setToast, shareMode, t, waitForShareReady]);
 
   const stopShare = useCallback(async () => {
     setShareBusy(true);
@@ -254,8 +296,10 @@ export function useShareSession(params: {
   useEffect(() => {
     if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
       setSyncing(false);
+      setShareComments([]);
       yDocRef.current = null;
       yTextRef.current = null;
+      yCommentsRef.current = null;
       clearTimer(syncTimerRef);
       return;
     }
@@ -269,8 +313,10 @@ export function useShareSession(params: {
       }
       const doc = new yjs.Doc();
       const yText = doc.getText("tex");
+      const yComments = doc.getArray("comments");
       yDocRef.current = doc as unknown as YDocLike;
       yTextRef.current = yText as unknown as YTextLike;
+      yCommentsRef.current = yComments as unknown as YArrayLike;
       pullCursorRef.current = 0;
       applyingRemoteRef.current = false;
       setSyncing(true);
@@ -312,6 +358,10 @@ export function useShareSession(params: {
         }
       };
       yText.observe(onText);
+      const onComments = () => {
+        setShareComments(toShareCommentItems(yComments.toArray()));
+      };
+      yComments.observeDeep(onComments);
 
       const initialize = async () => {
         const response = await fetch(
@@ -325,6 +375,7 @@ export function useShareSession(params: {
         doc.transact(() => {
           applyYTextDelta(yText as unknown as YTextLike, yText.toString(), initial);
         }, "remote");
+        onComments();
       };
 
       const pullUpdates = async () => {
@@ -377,9 +428,12 @@ export function useShareSession(params: {
         setSyncing(false);
         doc.off("update", onDocUpdate);
         yText.unobserve(onText);
+        yComments.unobserveDeep(onComments);
         clearTimer(syncTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
+        yCommentsRef.current = null;
+        setShareComments([]);
         doc.destroy();
       };
     };
@@ -399,6 +453,8 @@ export function useShareSession(params: {
         clearTimer(syncTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
+        yCommentsRef.current = null;
+        setShareComments([]);
       }
     };
   }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast]);
@@ -482,10 +538,13 @@ export function useShareSession(params: {
       shareSession,
       shareBusy,
       shareSyncing: syncing,
+      shareMode,
+      shareComments,
+      setShareMode,
       startShare,
       stopShare,
       refreshShareStatus,
     }),
-    [refreshShareStatus, shareBusy, shareSession, startShare, stopShare, syncing],
+    [refreshShareStatus, shareBusy, shareComments, shareMode, shareSession, startShare, stopShare, syncing],
   );
 }

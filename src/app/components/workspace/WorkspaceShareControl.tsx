@@ -1,10 +1,23 @@
-import { ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
+type ShareMode = "local" | "remote";
 
-function statusMessage(session: ShareSessionInfo | null, shareSyncing: boolean, t: TranslationFn): string {
+function normalizeMode(raw: string | null | undefined, fallback: ShareMode): ShareMode {
+  if (raw === "local" || raw === "remote") {
+    return raw;
+  }
+  return fallback;
+}
+
+function statusMessage(
+  session: ShareSessionInfo | null,
+  shareSyncing: boolean,
+  mode: ShareMode,
+  t: TranslationFn,
+): string {
   if (!session) {
     return t("share.status.stopped");
   }
@@ -12,12 +25,12 @@ function statusMessage(session: ShareSessionInfo | null, shareSyncing: boolean, 
     return t("share.status.failed");
   }
   if (session.status === "starting") {
-    return t("share.status.starting");
+    return mode === "local" ? t("share.status.startingLocal") : t("share.status.startingRemote");
   }
   if (shareSyncing) {
     return t("share.syncing");
   }
-  return t("share.status.ready");
+  return mode === "local" ? t("share.status.readyLocal") : t("share.status.readyRemote");
 }
 
 function avatarColor(seed: string): string {
@@ -56,12 +69,42 @@ function ParticipantList(props: { participants: ShareParticipantInfo[]; t: Trans
   );
 }
 
+function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: TranslationFn }) {
+  const { participants, t } = props;
+  if (participants.length === 0) {
+    return <span className="text-[11px] text-slate-500">{t("share.participantsEmpty")}</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {participants.slice(0, 6).map((item) => (
+        <span
+          key={item.participantId}
+          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700 shadow-sm"
+        >
+          <span
+            className="inline-flex h-2 w-2 rounded-full"
+            style={{ background: avatarColor(item.username || item.participantId) }}
+          />
+          <span className="max-w-[120px] truncate">{item.username || item.participantId}</span>
+        </span>
+      ))}
+      {participants.length > 6 ? (
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
+          +{participants.length - 6}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function WorkspaceShareControl(props: {
   selectedFile: string | null;
   shareSession: ShareSessionInfo | null;
   shareBusy: boolean;
   shareSyncing: boolean;
-  onShareStart: () => void | Promise<void>;
+  shareMode: ShareMode;
+  onShareModeChange: (mode: ShareMode) => void;
+  onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
   t: TranslationFn;
@@ -71,6 +114,8 @@ export function WorkspaceShareControl(props: {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareMode,
+    onShareModeChange,
     onShareStart,
     onShareStop,
     onShareRefresh,
@@ -79,15 +124,18 @@ export function WorkspaceShareControl(props: {
   const [panelOpen, setPanelOpen] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(true);
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [copyDone, setCopyDone] = useState(false);
   const isTexSelected = Boolean(selectedFile && selectedFile.toLowerCase().endsWith(".tex"));
   const sessionExists = Boolean(shareSession?.sessionId);
-  const shareReady = Boolean(shareSession?.status === "ready" && shareSession?.tunnelUrl);
-  const statusText = statusMessage(shareSession, shareSyncing, t);
+  const activeMode = normalizeMode(shareSession?.mode, shareMode);
+  const shareReady = Boolean(shareSession?.status === "ready" && shareSession?.activeJoinUrl);
+  const statusText = statusMessage(shareSession, shareSyncing, activeMode, t);
   const participants = useMemo(
     () => (Array.isArray(shareSession?.participants) ? shareSession?.participants : []),
     [shareSession?.participants],
   );
-  const shareLink = shareSession?.tunnelUrl || "";
+  const shareLink = shareSession?.activeJoinUrl || "";
+  const localJoinLink = shareSession?.localJoinUrl || "";
 
   useEffect(() => {
     if (!panelOpen || !shareLink) {
@@ -112,17 +160,46 @@ export function WorkspaceShareControl(props: {
     };
   }, [panelOpen, shareLink]);
 
+  useEffect(() => {
+    if (!copyDone) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCopyDone(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copyDone]);
+
+  const copyLink = (link: string) => {
+    if (!link) {
+      return;
+    }
+    void navigator.clipboard?.writeText(link).then(() => setCopyDone(true)).catch(() => undefined);
+  };
+
   return (
     <div className="relative">
       <button
-        className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+        className={`rounded border px-2 py-1.5 text-xs transition disabled:opacity-60 ${
+          sessionExists
+            ? "border-primary-600 bg-primary-50 text-primary-700 hover:bg-primary-100"
+            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        }`}
         onClick={() => setPanelOpen((prev) => !prev)}
         disabled={shareBusy}
         title={t("share.openPanel")}
+        aria-label={t("share.openPanel")}
       >
-        <Share2 className="mr-1 inline h-3.5 w-3.5" />
-        {t("topbar.share")}
+        <Share2 className="inline h-3.5 w-3.5" />
       </button>
+
+      {!panelOpen && sessionExists ? (
+        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(360px,76vw)]">
+          <div className="ml-3 h-2.5 w-2.5 rotate-45 border-l border-t border-slate-300 bg-white" />
+          <div className="rounded-lg border border-slate-300 bg-white/95 px-2.5 py-2 shadow-soft backdrop-blur-sm">
+            <div className="mb-1 text-[11px] font-semibold text-slate-700">{statusText}</div>
+            <ParticipantChips participants={participants} t={t} />
+          </div>
+        </div>
+      ) : null}
 
       {panelOpen ? (
         <section className="absolute left-0 top-[calc(100%+8px)] z-40 w-[min(430px,86vw)] rounded-lg border border-slate-300 bg-white p-3 shadow-soft">
@@ -153,9 +230,34 @@ export function WorkspaceShareControl(props: {
             <>
               <div className="space-y-1 text-xs text-slate-700">
                 <div className="rounded border border-slate-200 bg-slate-50 p-2">
-                  <strong>{t("share.publicLink")}:</strong>
-                  <div className="mt-1 break-all">{shareSession?.tunnelUrl || "-"}</div>
+                  <div className="flex items-center justify-between gap-2">
+                    <strong>{activeMode === "local" ? t("share.localLink") : t("share.publicLink")}:</strong>
+                    <button
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      disabled={!shareReady || !shareLink}
+                      onClick={() => copyLink(shareLink)}
+                      title={t("share.copyLink")}
+                    >
+                      {copyDone ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  <div className="mt-1 break-all">{shareLink || "-"}</div>
                 </div>
+                {activeMode === "remote" && localJoinLink ? (
+                  <div className="rounded border border-slate-200 bg-slate-50 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong>{t("share.localLink")}:</strong>
+                      <button
+                        className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                        onClick={() => copyLink(localJoinLink)}
+                        title={t("share.copyLink")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="mt-1 break-all">{localJoinLink}</div>
+                  </div>
+                ) : null}
                 <div className="rounded border border-slate-200 bg-slate-50 p-2">
                   <strong>{t("share.password")}:</strong> {shareSession?.password || "-"}
                 </div>
@@ -171,25 +273,26 @@ export function WorkspaceShareControl(props: {
 
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {!sessionExists ? (
-                  <button
-                    className="rounded border border-primary-600 bg-primary-600 px-3 py-1.5 text-xs text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-55"
-                    disabled={shareBusy || !isTexSelected}
-                    onClick={() => void onShareStart()}
-                  >
-                    {t("share.start")}
-                  </button>
+                  <>
+                    <select
+                      className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                      value={activeMode}
+                      onChange={(event) => onShareModeChange(event.target.value as ShareMode)}
+                      disabled={shareBusy}
+                    >
+                      <option value="remote">{t("share.mode.remote")}</option>
+                      <option value="local">{t("share.mode.local")}</option>
+                    </select>
+                    <button
+                      className="rounded border border-primary-600 bg-primary-600 px-3 py-1.5 text-xs text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-55"
+                      disabled={shareBusy || !isTexSelected}
+                      onClick={() => void onShareStart(activeMode)}
+                    >
+                      {t("share.start")}
+                    </button>
+                  </>
                 ) : (
                   <>
-                    {shareReady ? (
-                      <button
-                        className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                        disabled={shareBusy || !shareLink}
-                        onClick={() => void navigator.clipboard?.writeText(shareLink)}
-                      >
-                        <Copy className="mr-1 inline h-3 w-3" />
-                        {t("share.copyLink")}
-                      </button>
-                    ) : null}
                     <button
                       className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
                       disabled={shareBusy}
@@ -222,7 +325,9 @@ export function WorkspaceShareControl(props: {
               {qrDataUrl ? (
                 <div className="mt-3 flex items-start gap-3 rounded border border-slate-200 bg-slate-50 p-2">
                   <img src={qrDataUrl} alt="share qr" className="h-24 w-24 rounded bg-white p-1" />
-                  <p className="text-[11px] leading-5 text-slate-600">{t("share.qrHint")}</p>
+                  <p className="text-[11px] leading-5 text-slate-600">
+                    {activeMode === "local" ? t("share.qrHintLocal") : t("share.qrHintRemote")}
+                  </p>
                 </div>
               ) : null}
             </>

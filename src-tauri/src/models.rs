@@ -80,6 +80,7 @@ pub struct WorkspaceExportPdfResponse {
 pub struct ShareSessionCreateInput {
     pub project_id: String,
     pub target_path: String,
+    pub mode: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -98,8 +99,13 @@ pub struct ShareSessionInfo {
     pub session_id: Option<String>,
     pub project_id: Option<String>,
     pub target_path: Option<String>,
+    pub mode: Option<String>,
     pub local_url: Option<String>,
     pub tunnel_url: Option<String>,
+    pub local_join_url: Option<String>,
+    pub remote_join_url: Option<String>,
+    pub active_join_url: Option<String>,
+    pub password_required: Option<bool>,
     pub password: Option<String>,
     pub expires_at: Option<String>,
     pub status: Option<String>,

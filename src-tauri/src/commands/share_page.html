@@ -16,13 +16,13 @@
         margin: 0;
         min-height: 100vh;
         background:
-          radial-gradient(circle at 10% 10%, #dbeafe 0%, transparent 40%),
-          radial-gradient(circle at 85% 16%, #ccfbf1 0%, transparent 36%),
+          radial-gradient(circle at 12% 8%, #dbeafe 0%, transparent 42%),
+          radial-gradient(circle at 86% 18%, #ccfbf1 0%, transparent 36%),
           #eef2ff;
         color: #0f172a;
       }
       .shell {
-        max-width: 1200px;
+        max-width: 1240px;
         margin: 0 auto;
         padding: 14px;
         display: grid;
@@ -70,7 +70,7 @@
       }
       .toolbar {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
         gap: 8px;
         align-items: center;
       }
@@ -106,18 +106,35 @@
         background: #fff;
         color: #334155;
       }
+      .btn.ghost {
+        border-color: #cbd5e1;
+        background: #fff;
+        color: #475569;
+      }
+      .btn.active {
+        border-color: #0f766e;
+        background: #0f766e;
+        color: #fff;
+      }
       .btn:disabled {
         opacity: 0.55;
         cursor: not-allowed;
       }
+      .view-switch {
+        display: flex;
+        gap: 8px;
+      }
       .layout {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 280px;
+        grid-template-columns: minmax(0, 1fr) 320px;
         gap: 12px;
+      }
+      .view-pane {
+        display: block;
       }
       .editor {
         min-height: 300px;
-        height: 44vh;
+        height: 40vh;
         resize: vertical;
         font-family: Consolas, "JetBrains Mono", monospace;
       }
@@ -129,7 +146,7 @@
       }
       .participants,
       .comments {
-        max-height: 220px;
+        max-height: 200px;
         overflow: auto;
       }
       .item {
@@ -157,7 +174,7 @@
       }
       iframe {
         width: 100%;
-        height: 34vh;
+        height: 36vh;
         border: 1px solid #cbd5e1;
         border-radius: 10px;
         background: #fff;
@@ -175,12 +192,42 @@
         gap: 8px;
         margin-bottom: 10px;
       }
+      .pdf-quote-toolbar {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pdf-quote-text {
+        margin-top: 8px;
+        min-height: 90px;
+        max-height: 160px;
+        overflow: auto;
+        border: 1px solid #dbe2f0;
+        background: #fff;
+        border-radius: 10px;
+        padding: 8px;
+        white-space: pre-wrap;
+        user-select: text;
+        font-size: 12px;
+        line-height: 1.5;
+      }
       @media (max-width: 980px) {
         .toolbar {
           grid-template-columns: 1fr;
         }
         .layout {
           grid-template-columns: 1fr;
+        }
+        .view-pane[data-pane] {
+          display: none;
+        }
+        .view-pane[data-pane].active {
+          display: block;
+        }
+        .participants,
+        .comments {
+          max-height: 36vh;
         }
       }
     </style>
@@ -202,8 +249,14 @@
         <button id="reload-pdf" class="btn secondary">Reload PDF</button>
       </section>
 
+      <section class="card view-switch">
+        <button id="view-tex" class="btn ghost active" type="button">TeX</button>
+        <button id="view-pdf" class="btn ghost" type="button">PDF</button>
+        <button id="view-comments" class="btn ghost" type="button">Comments</button>
+      </section>
+
       <section class="layout">
-        <section class="card">
+        <section class="card view-pane active" id="pane-editor" data-pane>
           <div class="tool-row">
             <button id="add-comment" class="btn secondary">Add Comment</button>
             <button id="compile" class="btn secondary">Request Compile</button>
@@ -212,8 +265,15 @@
           <textarea id="editor" class="editor" placeholder="TeX content"></textarea>
           <div class="muted" id="cursor-info"></div>
           <iframe id="pdf" title="PDF Preview"></iframe>
+          <div class="pdf-quote-toolbar">
+            <button id="pdf-prev" class="btn ghost" type="button">&lt;</button>
+            <span id="pdf-page-label" class="muted">PDF page -/-</span>
+            <button id="pdf-next" class="btn ghost" type="button">&gt;</button>
+          </div>
+          <div id="pdf-text" class="pdf-quote-text"></div>
         </section>
-        <aside class="card">
+
+        <aside class="card view-pane" id="pane-comments" data-pane>
           <h3 class="panel-title" id="participants-title">Collaborators</h3>
           <div id="participants" class="participants"></div>
           <h3 class="panel-title" id="comments-title">Comments</h3>
@@ -223,430 +283,6 @@
       </section>
     </div>
 
-    <script type="module">
-      import * as Y from "https://esm.sh/yjs@13.6.29";
-
-      const params = new URLSearchParams(window.location.search);
-      const sid = params.get("sid") || "";
-      const metaEl = document.getElementById("meta");
-      const statusEl = document.getElementById("status");
-      const pwdEl = document.getElementById("pwd");
-      const usernameEl = document.getElementById("username");
-      const editorEl = document.getElementById("editor");
-      const commentsEl = document.getElementById("comments");
-      const participantsEl = document.getElementById("participants");
-      const cursorInfoEl = document.getElementById("cursor-info");
-      const pdfEl = document.getElementById("pdf");
-      const connectBtn = document.getElementById("connect");
-      const addCommentBtn = document.getElementById("add-comment");
-      const compileBtn = document.getElementById("compile");
-      const reloadPdfBtn = document.getElementById("reload-pdf");
-      const replyInput = document.getElementById("comment-input");
-      const participantsTitleEl = document.getElementById("participants-title");
-      const commentsTitleEl = document.getElementById("comments-title");
-      const shareHintEl = document.getElementById("share-hint");
-      const titleTextEl = document.getElementById("title-text");
-
-      const locale = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
-      const MESSAGES = {
-        "zh-CN": {
-          title: "LatoTex 协同编辑",
-          statusIdle: "空闲",
-          usernamePlaceholder: "用户名",
-          passwordPlaceholder: "会话口令",
-          join: "加入协同",
-          reloadPdf: "刷新 PDF",
-          addComment: "添加评论",
-          requestCompile: "请求编译",
-          shareHint: "选中文本后可添加评论。你的用户名会展示给所有协作者。",
-          texPlaceholder: "TeX 内容",
-          collaborators: "协作者",
-          comments: "评论",
-          replyPlaceholder: "回复最新评论...",
-          missingSession: "缺少会话 ID",
-          sessionFormat: (sid) => `会话=${sid}`,
-          noCollaborators: "当前无在线协作者。",
-          noComments: "暂无评论。",
-          guest: "访客",
-          reading: "阅读",
-          editingText: "编辑文本",
-          addingComment: "添加评论",
-          replyingComment: "回复评论",
-          compileRequested: "已请求编译",
-          compileFailed: (error) => `编译请求失败: ${error}`,
-          syncFailed: (error) => `同步失败: ${error}`,
-          connectFailed: (error) => `连接失败: ${error}`,
-          connecting: "连接中...",
-          connected: "已连接",
-          sessionRequired: "会话/口令/用户名不能为空",
-          selectionLabel: (start, end) => `选择: ${start}-${end}`,
-          promptComment: "评论内容",
-          errorPrefix: "错误",
-        },
-        "en-US": {
-          title: "LatoTex Collaborative Editing",
-          statusIdle: "idle",
-          usernamePlaceholder: "Username",
-          passwordPlaceholder: "Session password",
-          join: "Join",
-          reloadPdf: "Reload PDF",
-          addComment: "Add Comment",
-          requestCompile: "Request Compile",
-          shareHint: "Select text, then add comment. Your username is shown to all collaborators.",
-          texPlaceholder: "TeX content",
-          collaborators: "Collaborators",
-          comments: "Comments",
-          replyPlaceholder: "Reply to latest comment...",
-          missingSession: "missing session id",
-          sessionFormat: (sid) => `session=${sid}`,
-          noCollaborators: "No active collaborators.",
-          noComments: "No comments yet.",
-          guest: "Guest",
-          reading: "reading",
-          editingText: "editing text",
-          addingComment: "adding comment",
-          replyingComment: "replying comment",
-          compileRequested: "compile requested",
-          compileFailed: (error) => `compile failed: ${error}`,
-          syncFailed: (error) => `sync failed: ${error}`,
-          connectFailed: (error) => `connect failed: ${error}`,
-          connecting: "connecting...",
-          connected: "connected",
-          sessionRequired: "session/password/username required",
-          selectionLabel: (start, end) => `selection: ${start}-${end}`,
-          promptComment: "Comment text",
-          errorPrefix: "Error",
-        },
-      };
-      const i18n = MESSAGES[locale] || MESSAGES["en-US"];
-
-      const clientId = `web-${Math.random().toString(36).slice(2, 10)}`;
-      const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
-      document.title = i18n.title;
-      if (titleTextEl) titleTextEl.textContent = i18n.title;
-      if (participantsTitleEl) participantsTitleEl.textContent = i18n.collaborators;
-      if (commentsTitleEl) commentsTitleEl.textContent = i18n.comments;
-      if (shareHintEl) shareHintEl.textContent = i18n.shareHint;
-      if (usernameEl) usernameEl.placeholder = i18n.usernamePlaceholder;
-      if (pwdEl) pwdEl.placeholder = i18n.passwordPlaceholder;
-      if (editorEl) editorEl.placeholder = i18n.texPlaceholder;
-      if (replyInput) replyInput.placeholder = i18n.replyPlaceholder;
-      if (connectBtn) connectBtn.textContent = i18n.join;
-      if (reloadPdfBtn) reloadPdfBtn.textContent = i18n.reloadPdf;
-      if (addCommentBtn) addCommentBtn.textContent = i18n.addComment;
-      if (compileBtn) compileBtn.textContent = i18n.requestCompile;
-      if (usernameEl) {
-        usernameEl.value = localStorage.getItem(usernameStorageKey) || "";
-      }
-      metaEl.textContent = sid ? i18n.sessionFormat(sid) : i18n.missingSession;
-      statusEl.textContent = i18n.statusIdle;
-
-      const doc = new Y.Doc();
-      const yText = doc.getText("tex");
-      const yComments = doc.getArray("comments");
-      let connected = false;
-      let syncingRemote = false;
-      let participantId = "";
-      let cursor = 0;
-      let pullTimer = null;
-      let presenceTimer = null;
-      let pullInFlight = false;
-      let presenceInFlight = false;
-      let lastAction = i18n.reading;
-
-      function setStatus(text, isError = false) {
-        statusEl.textContent = text;
-        statusEl.classList.toggle("error", isError);
-      }
-
-      function toBase64(uint8) {
-        let binary = "";
-        for (const byte of uint8) binary += String.fromCharCode(byte);
-        return btoa(binary);
-      }
-
-      function fromBase64(raw) {
-        const bin = atob(raw);
-        const out = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
-        return out;
-      }
-
-      function avatarColor(name) {
-        let hash = 0;
-        for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-        const hue = Math.abs(hash) % 360;
-        return `hsl(${hue} 70% 45%)`;
-      }
-
-      async function postJson(path, body) {
-        const response = await fetch(path, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || `HTTP ${response.status}`);
-        }
-        return response.json();
-      }
-
-      function renderParticipants(items) {
-        if (!Array.isArray(items) || items.length === 0) {
-          participantsEl.innerHTML = `<div class="muted">${i18n.noCollaborators}</div>`;
-          return;
-        }
-        participantsEl.innerHTML = "";
-        for (const item of items) {
-          const node = document.createElement("div");
-          node.className = "item";
-          const name = String(item.username || i18n.guest);
-          const action = String(item.lastAction || i18n.reading);
-          node.innerHTML = `
-            <div class="user-row">
-              <span class="avatar" style="background:${avatarColor(name)}">${name.slice(0, 1).toUpperCase()}</span>
-              <strong>${name}</strong>
-            </div>
-            <div class="muted" style="margin-top:4px">${action}</div>
-          `;
-          participantsEl.appendChild(node);
-        }
-      }
-
-      async function pingPresence(action) {
-        if (!connected || !participantId) return;
-        try {
-          const payload = await postJson("/api/presence/ping", {
-            sid,
-            pwd: pwdEl.value.trim(),
-            participantId,
-            action,
-          });
-          renderParticipants(payload.participants || []);
-        } catch {
-          // ignore intermittent failures
-        }
-      }
-
-      async function pushUpdate(update) {
-        if (!connected) return;
-        await postJson("/api/sync/push", {
-          sid,
-          pwd: pwdEl.value.trim(),
-          clientId,
-          update: toBase64(update),
-          participantId,
-          username: usernameEl.value.trim(),
-          action: lastAction,
-        });
-      }
-
-      async function pullUpdates() {
-        if (!connected) return;
-        const response = await fetch(
-          `/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwdEl.value.trim())}&cursor=${cursor}`
-        );
-        if (!response.ok) throw new Error(await response.text());
-        const payload = await response.json();
-        for (const item of payload.events || []) {
-          cursor = Math.max(cursor, Number(item.seq || 0));
-          if (item.from === clientId) continue;
-          syncingRemote = true;
-          try {
-            Y.applyUpdate(doc, fromBase64(item.update), "remote");
-          } finally {
-            syncingRemote = false;
-          }
-        }
-        cursor = Math.max(cursor, Number(payload.nextCursor || cursor));
-      }
-
-      function renderComments() {
-        const items = yComments.toArray();
-        if (items.length === 0) {
-          commentsEl.innerHTML = `<div class="muted">${i18n.noComments}</div>`;
-          return;
-        }
-        commentsEl.innerHTML = "";
-        for (const item of items) {
-          const node = document.createElement("div");
-          node.className = "item";
-          node.innerHTML = `
-            <div><strong>${item.username || i18n.guest}</strong> [${item.start}, ${item.end}]</div>
-            <div style="margin-top:4px">${item.text || ""}</div>
-            <div class="muted" style="margin-top:4px">${item.createdAt || ""}</div>
-          `;
-          commentsEl.appendChild(node);
-        }
-      }
-
-      function refreshPdfFrame() {
-        if (!connected) return;
-        const pwd = encodeURIComponent(pwdEl.value.trim());
-        pdfEl.src = `/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${pwd}&t=${Date.now()}`;
-      }
-
-      yText.observe(() => {
-        const value = yText.toString();
-        if (editorEl.value !== value) {
-          const at = editorEl.selectionStart || 0;
-          editorEl.value = value;
-          editorEl.setSelectionRange(Math.min(at, value.length), Math.min(at, value.length));
-        }
-      });
-      yComments.observeDeep(renderComments);
-      doc.on("update", (update, origin) => {
-        if (origin === "remote" || syncingRemote) return;
-        pushUpdate(update).catch((error) => setStatus(String(error), true));
-      });
-
-      editorEl.addEventListener("input", () => {
-        lastAction = i18n.editingText;
-        const next = editorEl.value;
-        const current = yText.toString();
-        if (next === current) return;
-        const applyDelta = (currentValue, nextValue) => {
-          let start = 0;
-          const maxStart = Math.min(currentValue.length, nextValue.length);
-          while (start < maxStart && currentValue[start] === nextValue[start]) start += 1;
-          let endCurrent = currentValue.length;
-          let endNext = nextValue.length;
-          while (
-            endCurrent > start &&
-            endNext > start &&
-            currentValue[endCurrent - 1] === nextValue[endNext - 1]
-          ) {
-            endCurrent -= 1;
-            endNext -= 1;
-          }
-          const removeLen = endCurrent - start;
-          const insert = nextValue.slice(start, endNext);
-          if (removeLen > 0) yText.delete(start, removeLen);
-          if (insert.length > 0) yText.insert(start, insert);
-        };
-        doc.transact(() => {
-          applyDelta(current, next);
-        }, "editor");
-      });
-      editorEl.addEventListener("select", () => {
-        const start = editorEl.selectionStart || 0;
-        const end = editorEl.selectionEnd || 0;
-        cursorInfoEl.textContent = i18n.selectionLabel(start, end);
-      });
-
-      addCommentBtn.addEventListener("click", () => {
-        if (!connected) return;
-        const start = editorEl.selectionStart || 0;
-        const end = editorEl.selectionEnd || 0;
-        const text = prompt(i18n.promptComment);
-        if (!text) return;
-        yComments.push([{
-          id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          username: usernameEl.value.trim(),
-          start,
-          end,
-          text,
-          createdAt: new Date().toISOString(),
-        }]);
-        lastAction = i18n.addingComment;
-      });
-
-      compileBtn.addEventListener("click", async () => {
-        if (!connected) return;
-        try {
-          await postJson("/api/compile/request", { sid, pwd: pwdEl.value.trim() });
-          setStatus(i18n.compileRequested);
-          lastAction = i18n.compileRequested;
-          await pingPresence(lastAction);
-        } catch (error) {
-          setStatus(i18n.compileFailed(error), true);
-        }
-      });
-
-      reloadPdfBtn.addEventListener("click", refreshPdfFrame);
-
-      replyInput.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter") return;
-        const text = replyInput.value.trim();
-        if (!text) return;
-        const items = yComments.toArray();
-        if (items.length === 0) return;
-        const last = items[items.length - 1];
-        const next = { ...last, text: `${last.text}\n[Reply ${usernameEl.value.trim()}] ${text}` };
-        yComments.delete(items.length - 1, 1);
-        yComments.insert(items.length - 1, [next]);
-        replyInput.value = "";
-        lastAction = i18n.replyingComment;
-      });
-
-      connectBtn.addEventListener("click", async () => {
-        const pwd = pwdEl.value.trim();
-        const username = usernameEl.value.trim();
-        if (!sid || !pwd || !username) {
-          setStatus(i18n.sessionRequired, true);
-          return;
-        }
-        localStorage.setItem(usernameStorageKey, username);
-        try {
-          setStatus(i18n.connecting);
-          const joined = await postJson("/api/join", { sid, pwd, clientId, username });
-          participantId = String(joined.participantId || "");
-          renderParticipants(joined.participants || []);
-          const snapshotResp = await fetch(`/api/snapshot?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`);
-          if (!snapshotResp.ok) throw new Error(await snapshotResp.text());
-          const snapshot = await snapshotResp.json();
-          doc.transact(() => {
-            const current = yText.toString();
-            yText.delete(0, current.length);
-            yText.insert(0, snapshot.content || "");
-          }, "remote");
-          connected = true;
-          cursor = 0;
-          if (pullTimer) clearTimeout(pullTimer);
-          if (presenceTimer) clearTimeout(presenceTimer);
-
-          const pullLoop = async () => {
-            if (!connected) return;
-            if (!pullInFlight) {
-              pullInFlight = true;
-              try {
-                await pullUpdates();
-              } catch (error) {
-                setStatus(i18n.syncFailed(error), true);
-              } finally {
-                pullInFlight = false;
-              }
-            }
-            const hidden = document.hidden;
-            pullTimer = setTimeout(pullLoop, hidden ? 1800 : 900);
-          };
-
-          const presenceLoop = async () => {
-            if (!connected) return;
-            if (!presenceInFlight) {
-              presenceInFlight = true;
-              try {
-                await pingPresence(lastAction);
-              } finally {
-                presenceInFlight = false;
-              }
-            }
-            const hidden = document.hidden;
-            presenceTimer = setTimeout(presenceLoop, hidden ? 3500 : 1800);
-          };
-
-          pullTimer = setTimeout(pullLoop, 900);
-          presenceTimer = setTimeout(presenceLoop, 1400);
-          await pingPresence(i18n.reading);
-          setStatus(i18n.connected);
-          refreshPdfFrame();
-          renderComments();
-        } catch (error) {
-          connected = false;
-          setStatus(i18n.connectFailed(error), true);
-        }
-      });
-    </script>
+    <script type="module" src="/assets/share_page.js"></script>
   </body>
 </html>

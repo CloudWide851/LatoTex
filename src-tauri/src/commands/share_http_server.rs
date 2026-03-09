@@ -30,6 +30,18 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         return;
     }
 
+    if method == Method::Get && path == "/assets/share_page.js" {
+        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
+            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
+        let _ = request.respond(
+            Response::from_string(include_str!("share_page.js"))
+                .with_status_code(StatusCode(200))
+                .with_header(js_header)
+                .with_header(no_cache_header()),
+        );
+        return;
+    }
+
     if method == Method::Get && path == "/api/health" {
         let _ = request.respond(json_response(
             StatusCode(200),

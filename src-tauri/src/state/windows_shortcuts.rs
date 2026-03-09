@@ -1,5 +1,8 @@
 use std::path::Path;
+use std::os::windows::process::CommandExt;
 use std::process::Command;
+
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn escape_ps_single_quoted(value: &str) -> String {
     value.replace('\'', "''")
@@ -63,10 +66,11 @@ pub(super) fn sync_shortcuts(app_name: &str) -> Result<(), String> {
         return Err("Unable to resolve executable parent directory".to_string());
     };
     let script = build_sync_script(app_name, &exe_path, work_dir);
-    let output = Command::new("powershell")
+    let mut command = Command::new("powershell");
+    command
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
-        .output()
-        .map_err(|e| e.to_string())?;
+        .creation_flags(CREATE_NO_WINDOW);
+    let output = command.output().map_err(|e| e.to_string())?;
     if output.status.success() {
         return Ok(());
     }

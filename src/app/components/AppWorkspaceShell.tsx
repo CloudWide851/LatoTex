@@ -8,6 +8,7 @@ import type {
   FsAction,
   FsScope,
   ResourceNode,
+  ShareCommentItem,
   ShareSessionInfo,
   SwarmEvent,
   WorkspacePage,
@@ -29,6 +30,7 @@ import { buildAgentCommandItems, composeTitleWithShortcut, type AgentStatusKey }
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../hooks/agentTypes";
 import type { AgentPendingAction } from "../hooks/useAppContainerState";
 type TranslationFn = (key: any) => string;
+type ShareMode = "local" | "remote";
 export function AppWorkspaceShell(props: {
   page: WorkspacePage;
   pageRailItems: Array<{ id: WorkspacePage; icon: any; label: string }>;
@@ -76,8 +78,11 @@ export function AppWorkspaceShell(props: {
   shareSession: ShareSessionInfo | null;
   shareBusy: boolean;
   shareSyncing: boolean;
+  shareComments: ShareCommentItem[];
+  shareMode: ShareMode;
+  onShareModeChange: (mode: ShareMode) => void;
   onPageChange: (page: WorkspacePage) => void;
-  onShareStart: () => void | Promise<void>;
+  onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
   onSelectFile: (path: string | null) => void;
@@ -168,6 +173,9 @@ export function AppWorkspaceShell(props: {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareComments,
+    shareMode,
+    onShareModeChange,
     onPageChange,
     onShareStart,
     onShareStop,
@@ -211,6 +219,7 @@ export function AppWorkspaceShell(props: {
     t,
   } = props;
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewFocusRequest, setPreviewFocusRequest] = useState<{ page: number; token: number } | null>(null);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
@@ -284,6 +293,13 @@ export function AppWorkspaceShell(props: {
       onZoomOut={() => setPreviewZoom((prev) => clampPreviewZoom(prev - 0.1))}
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
+      shareComments={shareComments}
+      onJumpToShareComment={(page) =>
+        setPreviewFocusRequest({
+          page,
+          token: Date.now(),
+        })}
+      previewFocusRequest={previewFocusRequest}
       t={t}
     />
   );
@@ -314,6 +330,8 @@ export function AppWorkspaceShell(props: {
               shareSession={shareSession}
               shareBusy={shareBusy}
               shareSyncing={shareSyncing}
+              shareMode={shareMode}
+              onShareModeChange={onShareModeChange}
               onShareStart={onShareStart}
               onShareStop={onShareStop}
               onShareRefresh={onShareRefresh}

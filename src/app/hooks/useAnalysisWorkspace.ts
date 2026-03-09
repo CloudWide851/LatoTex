@@ -451,14 +451,30 @@ export function useAnalysisWorkspace(params: {
         sourceBlock,
       ].join("\n\n");
       const finalResult = await runRolePromptWithTrace("task", agentPrompt, contextRefs);
-      const parsed = parsePayloadJson(finalResult.output);
-      const hasStructuredOutput = Boolean(
+      const hasStructuredOutput = (parsed: Record<string, unknown>) => Boolean(
         (typeof parsed.title === "string" && parsed.title.trim().length > 0)
         || (typeof parsed.summary === "string" && parsed.summary.trim().length > 0)
         || (Array.isArray(parsed.sections) && parsed.sections.length > 0)
         || (Array.isArray(parsed.insights) && parsed.insights.length > 0),
       );
-      if (!hasStructuredOutput) {
+      let parsed = parsePayloadJson(finalResult.output);
+      if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
+        setStage(t("analysis.step.jsonRepair"));
+        steps.push(currentStage);
+        const repairPrompt = [
+          `Output language must be ${outputLanguageLabel}.`,
+          "You are a strict JSON formatter.",
+          "Transform the source text into a strict JSON object only (no markdown code block).",
+          "Allowed keys only:",
+          "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
+          "If unknown, use empty strings/arrays. Do not omit keys.",
+          "Source output to normalize:",
+          finalResult.output.slice(0, 14_000),
+        ].join("\n\n");
+        const repairResult = await runRolePromptWithTrace("task", repairPrompt, contextRefs, true);
+        parsed = parsePayloadJson(repairResult.output);
+      }
+      if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
         throw new Error("analysis.output.invalid_json");
       }
 
