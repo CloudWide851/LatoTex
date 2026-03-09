@@ -1,4 +1,5 @@
-import { getEvents, runAgentStart } from "../../../shared/api/desktop";
+import { runAgentStart } from "../../../shared/api/desktop";
+import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 
 const LATEX_COMMAND_SNIPPETS: Array<{ label: string; insertText: string }> = [
@@ -45,7 +46,6 @@ const LATEX_ENVIRONMENTS = [
 ];
 
 const registeredMonaco = new WeakSet<object>();
-const REMOTE_COMPLETION_TIMEOUT_MS = 2_200;
 const REMOTE_COMPLETION_TTL_MS = 18_000;
 const REMOTE_COMPLETION_MAX = 6;
 
@@ -224,29 +224,14 @@ function parseRemoteSuggestions(raw: string): RemoteSuggestion[] {
 }
 
 async function waitCompletionRunOutput(runId: string): Promise<string> {
-  let cursor = 0;
-  const startedAt = Date.now();
-  let deltaOutput = "";
-  while (Date.now() - startedAt < REMOTE_COMPLETION_TIMEOUT_MS) {
-    const batch = await getEvents(cursor, 120, runId, 1300);
-    cursor = batch.nextCursor;
-    for (const event of batch.events) {
-      const payload = event.payload ?? {};
-      if (event.kind === "responses.output_text.delta") {
-        const delta = typeof payload.content === "string" ? payload.content : "";
-        deltaOutput += delta;
-      } else if (event.kind === "agent.run.completed") {
-        const finalOutput = typeof payload.output === "string" ? payload.output : deltaOutput;
-        return finalOutput || deltaOutput;
-      } else if (event.kind === "agent.run.failed") {
-        throw new Error("agent.run.failed");
-      } else if (event.kind === "agent.run.cancelled") {
-        throw new Error("agent.run.cancelled");
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 180));
-  }
-  throw new Error("agent.run.timeout");
+  return waitForRunOutputWithPolicy({
+    runId,
+    totalTimeoutMs: 12_000,
+    inactivityTimeoutMs: 4_000,
+    eventLimit: 120,
+    waitMs: 1_200,
+    idleDelayMs: 90,
+  });
 }
 
 async function fetchRemoteSuggestions(params: {

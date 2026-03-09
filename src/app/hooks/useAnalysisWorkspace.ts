@@ -15,7 +15,7 @@ import {
 } from "./analysisDataSources";
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
 import { resolvePromptInputFiles } from "./analysisPromptRefs";
-import { createDefaultTask, loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
+import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
 import { ensureAnalysisTasksLoaded, runRolePromptWithAgent } from "./analysisRunHelpers";
 import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
@@ -126,7 +126,7 @@ export function useAnalysisWorkspace(params: {
       return;
     }
     let cancelled = false;
-    loadAnalysisTaskState(projectId, t("analysis.defaultTaskName"))
+    loadAnalysisTaskState(projectId)
       .then((state) => {
         if (cancelled) {
           return;
@@ -138,9 +138,8 @@ export function useAnalysisWorkspace(params: {
       .catch((error) => {
         if (!cancelled) {
           setToast({ type: "error", message: String(error) });
-          const fallback = createDefaultTask(t("analysis.defaultTaskName"));
-          setTasks([fallback]);
-          setActiveTaskId(fallback.id);
+          setTasks([]);
+          setActiveTaskId(null);
           loadedRef.current = true;
         }
       });
@@ -148,6 +147,18 @@ export function useAnalysisWorkspace(params: {
       cancelled = true;
     };
   }, [projectId, setToast, t]);
+
+  useEffect(() => {
+    if (tasks.length === 0) {
+      if (activeTaskId !== null) {
+        setActiveTaskId(null);
+      }
+      return;
+    }
+    if (!activeTaskId || !tasks.some((item) => item.id === activeTaskId)) {
+      setActiveTaskId(tasks[0].id);
+    }
+  }, [activeTaskId, tasks]);
 
   useEffect(() => {
     if (!projectId || !loadedRef.current) {
@@ -214,12 +225,11 @@ export function useAnalysisWorkspace(params: {
         tasks: prev,
         taskId,
         activeTaskId,
-        buildFallback: () => createDefaultTask(t("analysis.defaultTaskName")),
       });
       setActiveTaskId(nextState.nextActiveTaskId);
       return nextState.tasks;
     });
-  }, [activeTaskId, t]);
+  }, [activeTaskId]);
 
   const ensureTasksReady = useCallback(async () => ensureAnalysisTasksLoaded(loadedRef), []);
 
@@ -496,14 +506,20 @@ export function useAnalysisWorkspace(params: {
       setActiveTaskId(task.id);
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
-      const message = `${t("analysis.error.failed")}: ${String(error)}`;
+      const rawMessage = String(error);
+      const reason = rawMessage === "agent.run.timeout.total"
+        ? t("agent.run.timeout")
+        : rawMessage === "agent.run.timeout.inactive"
+          ? t("agent.run.timeout.inactive")
+          : rawMessage;
+      const message = `${t("analysis.error.failed")}: ${reason}`;
       updateTaskById(task.id, (item) => ({
         ...item,
         lastError: message,
         updatedAt: nowIso(),
       }));
       setToast({ type: "error", message });
-      await runtimeLogWrite("ERROR", `analysis run failed: ${String(error)}`).catch(() => undefined);
+      await runtimeLogWrite("ERROR", `analysis run failed: ${rawMessage}`).catch(() => undefined);
     } finally {
       runInFlightRef.current = false;
       setRunning(false);
@@ -524,10 +540,13 @@ export function useAnalysisWorkspace(params: {
   ]);
 
   const runAnalysis = useCallback(async () => runAnalysisForPrompt(prompt), [prompt, runAnalysisForPrompt]);
-  const runAnalysisWithPrompt = useCallback(async (inputPrompt: string) => {
-    setPrompt(inputPrompt);
-    await runAnalysisForPrompt(inputPrompt);
-  }, [runAnalysisForPrompt, setPrompt]);
+  const runAnalysisWithPrompt = useCallback(
+    async (inputPrompt: string) => {
+      setPrompt(inputPrompt);
+      await runAnalysisForPrompt(inputPrompt);
+    },
+    [runAnalysisForPrompt, setPrompt],
+  );
 
   const runPaperAnalysisFromLibrary = useCallback(async (sourcePath: string) => {
     await ensureTasksReady();
@@ -536,9 +555,7 @@ export function useAnalysisWorkspace(params: {
       return;
     }
     const normalizedPath = sourcePath.replace(/\\/g, "/");
-    const existingTask = tasksRef.current.find(
-      (item) => item.sourceType === "paper" && (item.sourcePath ?? "").replace(/\\/g, "/") === normalizedPath,
-    );
+    const existingTask = tasksRef.current.find((item) => item.sourceType === "paper" && (item.sourcePath ?? "").replace(/\\/g, "/") === normalizedPath);
     const task = existingTask ?? createTask("paper", sourcePath, `${t("analysis.paperTaskName")}: ${sourcePath.split("/").pop() || sourcePath}`);
     setActiveTaskId(task.id);
     updateTaskById(task.id, (item) => ({
@@ -573,28 +590,5 @@ export function useAnalysisWorkspace(params: {
     }
   }, [projectId, setToast]);
 
-  return {
-    prompt,
-    setPrompt,
-    running,
-    canRun,
-    analysisError,
-    tasks,
-    activeTaskId,
-    activeTask,
-    activeRun,
-    activeRunHtml,
-    timelineCards,
-    candidateFiles,
-    setActiveTaskId,
-    setActiveRunForTask,
-    createTask,
-    renameTask,
-    deleteTask,
-    runAnalysis,
-    runAnalysisWithPrompt,
-    runPaperAnalysisFromLibrary,
-    exportArtifact,
-    revealArtifact,
-  };
+  return { prompt, setPrompt, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }

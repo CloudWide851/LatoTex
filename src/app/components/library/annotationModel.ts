@@ -1,3 +1,5 @@
+import { normalizeStoredRichHtml, richHtmlToPlainText } from "./textboxRichText";
+
 export type AnnotationPoint = {
   x: number;
   y: number;
@@ -18,7 +20,12 @@ export type AnnotationStroke = {
 
 export type AnnotationTextStyle = {
   fontSize: number;
+  fontFamily: string;
   textColor: string;
+  textAlign: "left" | "center" | "right";
+  fontWeight: "normal" | "bold";
+  fontStyle: "normal" | "italic";
+  textDecoration: "none" | "underline";
   backgroundColor: string;
   borderColor: string;
   borderWidth: number;
@@ -35,11 +42,12 @@ export type AnnotationTextBox = {
   h: number;
   z: number;
   content: string;
+  html?: string;
   style: AnnotationTextStyle;
 };
 
 export type AnnotationPayload = {
-  version: 3;
+  version: 4;
   strokes: AnnotationStroke[];
   textBoxes: AnnotationTextBox[];
 };
@@ -52,7 +60,12 @@ const DEFAULT_STROKE_STYLE: AnnotationStrokeStyle = {
 
 const DEFAULT_TEXT_STYLE: AnnotationTextStyle = {
   fontSize: 14,
+  fontFamily: "Segoe UI",
   textColor: "#1f2937",
+  textAlign: "left",
+  fontWeight: "normal",
+  fontStyle: "normal",
+  textDecoration: "none",
   backgroundColor: "transparent",
   borderColor: "transparent",
   borderWidth: 0,
@@ -73,7 +86,9 @@ export function createDefaultStrokeStyle(
   };
 }
 
-function styleForPreset(preset: AnnotationTextStylePreset): Omit<AnnotationTextStyle, "fontSize" | "textColor"> {
+function styleForPreset(
+  preset: AnnotationTextStylePreset,
+): Pick<AnnotationTextStyle, "backgroundColor" | "borderColor" | "borderWidth"> {
   if (preset === "boxed") {
     return {
       backgroundColor: "rgba(255,255,255,0.86)",
@@ -185,6 +200,11 @@ export function parseAnnotationPayload(content: string): AnnotationPayload {
       .map((item: any, index: number) => {
         const page = Number(item?.page ?? 1);
         const z = Number(item?.z ?? index + 1);
+        const legacyContent = String(item?.content ?? "");
+        const html = normalizeStoredRichHtml(
+          typeof item?.html === "string" ? item.html : undefined,
+          legacyContent,
+        );
         return {
           id: typeof item?.id === "string" && item.id ? item.id : `textbox-${index}`,
           page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
@@ -193,10 +213,22 @@ export function parseAnnotationPayload(content: string): AnnotationPayload {
           w: clampDimension(Number(item?.w ?? 260)),
           h: clampDimension(Number(item?.h ?? 160)),
           z: Number.isFinite(z) ? Math.floor(z) : index + 1,
-          content: String(item?.content ?? ""),
+          content: richHtmlToPlainText(html),
+          html,
           style: {
             fontSize: Number(item?.style?.fontSize ?? DEFAULT_TEXT_STYLE.fontSize),
+            fontFamily: String(item?.style?.fontFamily ?? DEFAULT_TEXT_STYLE.fontFamily),
             textColor: String(item?.style?.textColor ?? DEFAULT_TEXT_STYLE.textColor),
+            textAlign: (() => {
+              const value = String(item?.style?.textAlign ?? DEFAULT_TEXT_STYLE.textAlign);
+              return value === "center" || value === "right" ? value : "left";
+            })(),
+            fontWeight: String(item?.style?.fontWeight ?? DEFAULT_TEXT_STYLE.fontWeight) === "bold" ? "bold" : "normal",
+            fontStyle: String(item?.style?.fontStyle ?? DEFAULT_TEXT_STYLE.fontStyle) === "italic" ? "italic" : "normal",
+            textDecoration:
+              String(item?.style?.textDecoration ?? DEFAULT_TEXT_STYLE.textDecoration) === "underline"
+                ? "underline"
+                : "none",
             backgroundColor: String(item?.style?.backgroundColor ?? DEFAULT_TEXT_STYLE.backgroundColor),
             borderColor: String(item?.style?.borderColor ?? DEFAULT_TEXT_STYLE.borderColor),
             borderWidth: (() => {
@@ -212,13 +244,13 @@ export function parseAnnotationPayload(content: string): AnnotationPayload {
       });
 
     return {
-      version: 3,
+      version: 4,
       strokes,
       textBoxes,
     };
   } catch {
     return {
-      version: 3,
+      version: 4,
       strokes: [],
       textBoxes: [],
     };

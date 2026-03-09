@@ -1,4 +1,5 @@
-import { gitDiffFile, runAgent } from "../../shared/api/desktop";
+import { gitDiffFile, runAgentStart } from "../../shared/api/desktop";
+import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export async function generateGitSummary(
   activeProjectId: string | null,
@@ -49,15 +50,22 @@ export async function generateGitSummary(
     joinedPatch || "(empty patch text)",
   ].join("\n");
 
-  const result = await runAgent({
+  const accepted = await runAgentStart({
     projectId: activeProjectId,
     role: "git_summary",
     prompt,
     contextRefs: files,
     bypassCache: true,
   });
+  const output = (await waitForRunOutputWithPolicy({
+    runId: accepted.runId,
+    totalTimeoutMs: 15 * 60 * 1000,
+    inactivityTimeoutMs: 75 * 1000,
+    eventLimit: 200,
+    waitMs: 2_400,
+    idleDelayMs: 120,
+  })).trim();
 
-  const output = result.output?.trim() ?? "";
   if (!output) {
     return "";
   }

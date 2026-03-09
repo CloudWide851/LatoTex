@@ -25,7 +25,7 @@ export function AnalysisTaskTabs(props: {
   };
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-2 py-1.5">
+    <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/70 px-2 py-1.5">
       {tasks.map((task) => {
         const active = task.id === activeTaskId;
         const editing = task.id === editingTaskId;
@@ -33,8 +33,10 @@ export function AnalysisTaskTabs(props: {
           <div
             key={task.id}
             className={cn(
-              "group inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs",
-              active ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 bg-white text-slate-700",
+              "group inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs shadow-[0_0_0_0_transparent]",
+              active
+                ? "border-primary-400 bg-primary-50 text-primary-700 shadow-sm"
+                : "border-slate-300 bg-white text-slate-700",
             )}
           >
             {editing ? (
@@ -76,7 +78,7 @@ export function AnalysisTaskTabs(props: {
               className="rounded p-0.5 text-slate-400 opacity-0 transition hover:bg-rose-100 hover:text-rose-700 group-hover:opacity-100"
               onClick={() => onDeleteTask(task.id)}
               title={t("analysis.deleteTask")}
-              disabled={running || tasks.length <= 1}
+              disabled={running}
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -84,15 +86,13 @@ export function AnalysisTaskTabs(props: {
         );
       })}
       <button
-        className="inline-flex h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700 hover:bg-slate-100"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
         onClick={onCreateTask}
         title={t("analysis.newTask")}
         disabled={running}
       >
         <Plus className="h-3.5 w-3.5" />
-        {t("analysis.newTask")}
       </button>
     </div>
   );
 }
-

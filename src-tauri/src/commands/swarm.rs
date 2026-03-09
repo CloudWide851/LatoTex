@@ -39,7 +39,8 @@ pub fn agent_run(
     state: State<'_, AppState>,
     input: AgentRunRequest,
 ) -> Result<AgentRunAccepted, String> {
-    const WAIT_TIMEOUT: Duration = Duration::from_secs(260);
+    const WAIT_TIMEOUT_TOTAL: Duration = Duration::from_secs(900);
+    const WAIT_TIMEOUT_INACTIVE: Duration = Duration::from_secs(75);
     const WAIT_INTERVAL: Duration = Duration::from_millis(240);
 
     state.log(
@@ -52,12 +53,16 @@ pub fn agent_run(
     let accepted = swarm_pipeline::agent_run_start(&state, input)?;
     let run_id = accepted.run_id.clone();
     let started_at = Instant::now();
+    let mut last_progress_at = started_at;
     let mut cursor: i64 = 0;
     let mut fallback_output = String::new();
 
     loop {
-        if started_at.elapsed() > WAIT_TIMEOUT {
-            return Err("agent.run.timeout".to_string());
+        if started_at.elapsed() > WAIT_TIMEOUT_TOTAL {
+            return Err("agent.run.timeout.total".to_string());
+        }
+        if last_progress_at.elapsed() > WAIT_TIMEOUT_INACTIVE {
+            return Err("agent.run.timeout.inactive".to_string());
         }
         let batch = storage::events_since(
             &state.db_path,
@@ -69,6 +74,9 @@ pub fn agent_run(
             },
         )?;
         cursor = batch.next_cursor;
+        if !batch.events.is_empty() {
+            last_progress_at = Instant::now();
+        }
 
         for event in batch.events {
             let payload = event.payload;

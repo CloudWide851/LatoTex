@@ -1,8 +1,8 @@
-import { getEvents } from "../../shared/api/desktop";
 import type { SwarmEvent } from "../../shared/types/app";
 import type { AnalysisSourceSnapshot } from "./analysisDataSources";
 import type { AnalysisOutputLanguage, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
 import { nowIso } from "./analysisTypes";
+import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export type AgentEventCard = {
   id: string;
@@ -26,8 +26,6 @@ export type AgentAnalysisPayload = {
   chart?: Array<{ label: string; value: number }>;
 };
 
-const RUN_TIMEOUT_MS = 300_000;
-const RUN_POLL_INTERVAL_MS = 240;
 const MAX_PROMPT_SNAPSHOT = 2200;
 
 function toBase64SvgDataUrl(svg: string): string {
@@ -297,31 +295,14 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
 }
 
 export async function waitForRunOutput(runId: string): Promise<string> {
-  let cursor = 0;
-  const started = Date.now();
-  let streamed = "";
-  while (Date.now() - started < RUN_TIMEOUT_MS) {
-    const batch = await getEvents(cursor, 200, runId, 2000);
-    cursor = batch.nextCursor;
-    for (const event of batch.events) {
-      const payload = event.payload ?? {};
-      if (event.kind === "responses.output_text.delta") {
-        const chunk = typeof payload.content === "string" ? payload.content : "";
-        streamed += chunk;
-      }
-      if (event.kind === "agent.run.completed") {
-        return typeof payload.output === "string" ? payload.output : streamed;
-      }
-      if (event.kind === "agent.run.failed") {
-        throw new Error(typeof payload.content === "string" ? payload.content : "agent.run.failed");
-      }
-      if (event.kind === "agent.run.cancelled") {
-        throw new Error("agent.run.cancelled");
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, RUN_POLL_INTERVAL_MS));
-  }
-  throw new Error("agent.run.timeout");
+  return waitForRunOutputWithPolicy({
+    runId,
+    totalTimeoutMs: 15 * 60 * 1000,
+    inactivityTimeoutMs: 75 * 1000,
+    eventLimit: 240,
+    waitMs: 2_400,
+    idleDelayMs: 120,
+  });
 }
 
 export function summarizeSnapshotsForPrompt(snapshots: AnalysisSourceSnapshot[]): string {

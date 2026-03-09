@@ -215,7 +215,7 @@ export const LibraryPdfScrollViewer = forwardRef<
                 pageRefs.current[page] = el;
               }}
               data-page={page}
-              className="relative mx-auto overflow-hidden rounded bg-white shadow-sm"
+              className="relative mx-auto rounded bg-white shadow-sm"
               style={{ width: `${frameWidth}px` }}
             >
               {page >= Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES) &&

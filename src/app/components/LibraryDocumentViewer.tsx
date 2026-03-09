@@ -245,7 +245,7 @@ export function LibraryDocumentViewer(props: {
     }
     const timer = window.setTimeout(() => {
       const payload: AnnotationPayload = {
-        version: 3,
+        version: 4,
         strokes: annotationStrokes,
         textBoxes: annotationTextBoxes,
       };

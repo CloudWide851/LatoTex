@@ -1,4 +1,4 @@
-import { Download, FolderOpen } from "lucide-react";
+import { Download, FolderOpen, Plus } from "lucide-react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
@@ -111,9 +111,21 @@ export function AnalysisWorkspace(props: {
           </div>
         ) : null}
 
-        {!activeRun ? (
+        {tasks.length === 0 ? (
+          <button
+            className="flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 transition hover:border-primary-300 hover:bg-primary-50/40 hover:text-primary-700"
+            onClick={onCreateTask}
+            disabled={running}
+          >
+            <span className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white">
+              <Plus className="h-5 w-5" />
+            </span>
+            <span className="text-sm font-medium">{t("analysis.emptyTaskTitle")}</span>
+            <span className="mt-1 text-xs">{t("analysis.emptyTaskHint")}</span>
+          </button>
+        ) : !activeRun ? (
           <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
-            {t("analysis.blankHint")}
+            {running ? t("analysis.centerRunning") : t("analysis.blankHint")}
           </div>
         ) : (
           <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
@@ -193,16 +205,18 @@ export function AnalysisWorkspace(props: {
         )}
       </div>
 
-      <AnalysisPromptOverlay
-        prompt={prompt}
-        canRun={canRun}
-        running={running}
-        busy={busy}
-        candidateFiles={candidateFiles}
-        onPromptChange={onPromptChange}
-        onRun={onRun}
-        t={t}
-      />
+      {tasks.length > 0 ? (
+        <AnalysisPromptOverlay
+          prompt={prompt}
+          canRun={canRun}
+          running={running}
+          busy={busy}
+          candidateFiles={candidateFiles}
+          onPromptChange={onPromptChange}
+          onRun={onRun}
+          t={t}
+        />
+      ) : null}
     </div>
   );
 }

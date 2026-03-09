@@ -44,16 +44,15 @@ export function deleteTaskFromList(options: {
   tasks: AnalysisTask[];
   taskId: string;
   activeTaskId: string | null;
-  buildFallback: () => AnalysisTask;
-}): { tasks: AnalysisTask[]; nextActiveTaskId: string } {
-  const { tasks, taskId, activeTaskId, buildFallback } = options;
+}): { tasks: AnalysisTask[]; nextActiveTaskId: string | null } {
+  const { tasks, taskId, activeTaskId } = options;
   const next = tasks.filter((item) => item.id !== taskId);
   if (next.length === 0) {
-    const fallback = buildFallback();
-    return { tasks: [fallback], nextActiveTaskId: fallback.id };
+    return { tasks: [], nextActiveTaskId: null };
   }
   if (activeTaskId === taskId) {
     return { tasks: next, nextActiveTaskId: next[0].id };
   }
-  return { tasks: next, nextActiveTaskId: activeTaskId ?? next[0].id };
+  const hasActive = activeTaskId ? next.some((item) => item.id === activeTaskId) : false;
+  return { tasks: next, nextActiveTaskId: hasActive ? activeTaskId : next[0].id };
 }

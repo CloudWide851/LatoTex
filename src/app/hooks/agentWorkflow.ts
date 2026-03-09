@@ -553,7 +553,10 @@ export async function runAgentWorkflow(params: {
       return;
     }
     const toastMessage = rawMessage === "agent.run.timeout"
+      || rawMessage === "agent.run.timeout.total"
       ? t("agent.run.timeout")
+      : rawMessage === "agent.run.timeout.inactive"
+        ? t("agent.run.timeout.inactive")
       : rawMessage === "agent.run.failed"
         ? t("agent.run.failed")
         : rawMessage;

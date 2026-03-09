@@ -30,18 +30,15 @@ import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
 import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
-
 type IntegrityIssue = {
   projectId: string;
   missingRequired: string[];
 };
-
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
   const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
   const s = useAppContainerState(t);
-
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
     setSelectedFile: s.setSelectedFile,
@@ -59,7 +56,6 @@ export function AppContainer() {
     workingContentByPathRef: s.workingContentByPathRef,
     activeProjectIdRef: s.activeProjectIdRef,
   });
-
   const refreshGitWorkspace = useCallback(
     async (projectIdOverride?: string) => {
       const projectId = projectIdOverride ?? s.activeProjectIdRef.current;

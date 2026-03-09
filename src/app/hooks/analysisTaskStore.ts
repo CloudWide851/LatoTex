@@ -60,8 +60,11 @@ function sanitizeState(input: unknown): AnalysisTaskState {
         .filter((item): item is AnalysisTask => Boolean(item))
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     : [];
-  const activeTaskId = typeof parsed.activeTaskId === "string" && parsed.activeTaskId.trim()
-    ? parsed.activeTaskId
+  const candidateActiveTaskId = typeof parsed.activeTaskId === "string" && parsed.activeTaskId.trim()
+    ? parsed.activeTaskId.trim()
+    : null;
+  const activeTaskId = candidateActiveTaskId && tasks.some((item) => item.id === candidateActiveTaskId)
+    ? candidateActiveTaskId
     : tasks[0]?.id ?? null;
   return {
     version: 1,
@@ -86,23 +89,18 @@ export function createDefaultTask(name: string): AnalysisTask {
 
 export async function loadAnalysisTaskState(
   projectId: string,
-  defaultTaskName: string,
 ): Promise<AnalysisTaskState> {
   try {
     const file = await readFile(projectId, TASK_STORE_PATH);
     const parsed = JSON.parse(file.content) as unknown;
-    const state = sanitizeState(parsed);
-    if (state.tasks.length > 0) {
-      return state;
-    }
+    return sanitizeState(parsed);
   } catch {
-    // ignore missing or malformed file and create default
+    // ignore missing or malformed file and create empty state
   }
-  const defaultTask = createDefaultTask(defaultTaskName);
   return {
     version: 1,
-    activeTaskId: defaultTask.id,
-    tasks: [defaultTask],
+    activeTaskId: null,
+    tasks: [],
   };
 }
 
