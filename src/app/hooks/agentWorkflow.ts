@@ -114,6 +114,26 @@ function buildAnalysisPrompt(sourcePrompt: string, modelOutput: string, targetPa
   ].join("\n");
 }
 
+function deriveTaskSearchQueries(userPrompt: string, paperContext?: string): string[] {
+  const candidates = userPrompt
+    .split(/[\r\n,，;；。!?！？]+/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3)
+    .slice(0, 6);
+  if (paperContext) {
+    const titleLine = paperContext
+      .split(/\r?\n/g)
+      .find((line) => line.toLowerCase().startsWith("title:"));
+    if (titleLine) {
+      const title = titleLine.slice("title:".length).trim();
+      if (title.length >= 3) {
+        candidates.unshift(title);
+      }
+    }
+  }
+  return Array.from(new Set(candidates)).slice(0, 8);
+}
+
 function buildTaskExecutionPrompt(params: {
   userPrompt: string;
   targetPath: string;
@@ -126,11 +146,14 @@ function buildTaskExecutionPrompt(params: {
     normalized.length > AGENT_TASK_FILE_CONTEXT_MAX_CHARS
       ? `${normalized.slice(0, AGENT_TASK_FILE_CONTEXT_MAX_CHARS)}\n\n...[TRUNCATED FOR CONTEXT]...`
       : normalized;
+  const queryBlock = buildToolSearchQueryBlock(deriveTaskSearchQueries(userPrompt, paperContext));
   return [
     "You are editing files in an IDE.",
     "Return only IDE-style SEARCH/REPLACE edit blocks in ```edit fences.",
     "Do not output full-file rewrites unless unavoidable.",
     "For long files, generate minimal partial edits by exact matching.",
+    "If factual details are uncertain, rely on tool_search evidence and do not invent claims or references.",
+    "When evidence is insufficient, keep the original text for that uncertain part.",
     "Each edit block must be:",
     "path: <relative path>",
     "<<<<<<< SEARCH",
@@ -143,6 +166,8 @@ function buildTaskExecutionPrompt(params: {
     "",
     "User request:",
     userPrompt,
+    "",
+    queryBlock,
     "",
     ...(paperContext
       ? [

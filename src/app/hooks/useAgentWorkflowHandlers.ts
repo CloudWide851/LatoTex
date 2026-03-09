@@ -211,6 +211,7 @@ export function useAgentWorkflowHandlers(params: {
       setToast,
       runAnalysisFromAgent,
       requestAutoCommitDecision,
+      runCompileAfterApply: runCompilePass,
       t,
     });
   }, [
@@ -218,6 +219,7 @@ export function useAgentWorkflowHandlers(params: {
     currentProposal,
     markPathSaved,
     refreshGitWorkspace,
+    runCompilePass,
     runAnalysisFromAgent,
     requestAutoCommitDecision,
     selectedFile,

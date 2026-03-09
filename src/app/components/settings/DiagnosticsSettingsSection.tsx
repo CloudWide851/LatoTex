@@ -80,7 +80,6 @@ export function DiagnosticsSettingsSection(props: {
   const [logKeyword, setLogKeyword] = useState("");
   const [logFrom, setLogFrom] = useState("");
   const [logTo, setLogTo] = useState("");
-  const [logFilterOpen, setLogFilterOpen] = useState(false);
   const [clearLogConfirmOpen, setClearLogConfirmOpen] = useState(false);
   const consoleRef = useRef<HTMLDivElement | null>(null);
   const followTailRef = useRef(true);
@@ -135,9 +134,7 @@ export function DiagnosticsSettingsSection(props: {
     });
   }, [logFrom, logKeyword, logLevelFilter, logTo, runtimeLogs]);
   const datePlaceholder = locale === "zh-CN" ? "YYYY/MM/DD HH:mm:ss" : "YYYY-MM-DD HH:mm:ss";
-  const hasActiveFilter = Boolean(
-    logLevelFilter !== "ALL" || logKeyword.trim() || normalizeLogDateInput(logFrom) || normalizeLogDateInput(logTo),
-  );
+  const hasActiveFilter = Boolean(logLevelFilter !== "ALL" || logKeyword.trim() || normalizeLogDateInput(logFrom) || normalizeLogDateInput(logTo));
 
   return (
     <div className="grid h-full min-h-0 gap-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -163,73 +160,55 @@ export function DiagnosticsSettingsSection(props: {
       </div>
 
       <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+          <Select
+            value={logLevelFilter}
+            className="min-w-[140px] max-w-[180px] text-sm"
+            onChange={(event) => setLogLevelFilter(event.target.value)}
+            aria-label={t("settings.logFilterLevel")}
+          >
+            <option value="ALL">{t("settings.logFilterAllLevels")}</option>
+            <option value="INFO">{t("settings.logLevelInfo")}</option>
+            <option value="WARN">{t("settings.logLevelWarn")}</option>
+            <option value="ERROR">{t("settings.logLevelError")}</option>
+            <option value="CRASH">{t("settings.logLevelCrash")}</option>
+          </Select>
+          <Input
+            className="h-10 min-w-[220px] flex-1 text-sm"
+            value={logKeyword}
+            onChange={(event) => setLogKeyword(event.target.value)}
+            placeholder={t("settings.logFilterKeyword")}
+          />
+          <Input
+            className="h-10 w-[210px] text-sm"
+            type="text"
+            value={logFrom}
+            onChange={(event) => setLogFrom(event.target.value)}
+            placeholder={datePlaceholder}
+            title={t("settings.logFilterFrom")}
+          />
+          <Input
+            className="h-10 w-[210px] text-sm"
+            type="text"
+            value={logTo}
+            onChange={(event) => setLogTo(event.target.value)}
+            placeholder={datePlaceholder}
+            title={t("settings.logFilterTo")}
+          />
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => setLogFilterOpen((prev) => !prev)}
+            disabled={!hasActiveFilter}
+            onClick={() => {
+              setLogLevelFilter("ALL");
+              setLogKeyword("");
+              setLogFrom("");
+              setLogTo("");
+            }}
           >
-            {logFilterOpen ? t("settings.logFilterHide") : t("settings.logFilterOpen")}
+            {t("settings.logFilterReset")}
           </Button>
-          <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-600">
-            {hasActiveFilter ? (
-              <>
-                {logLevelFilter !== "ALL" ? (
-                  <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5">{logLevelFilter}</span>
-                ) : null}
-                {logKeyword.trim() ? (
-                  <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5">{logKeyword.trim()}</span>
-                ) : null}
-                {normalizeLogDateInput(logFrom) ? (
-                  <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5">{normalizeLogDateInput(logFrom)}</span>
-                ) : null}
-                {normalizeLogDateInput(logTo) ? (
-                  <span className="rounded border border-slate-300 bg-white px-1.5 py-0.5">{normalizeLogDateInput(logTo)}</span>
-                ) : null}
-              </>
-            ) : (
-              <span>{t("settings.logFilterAllLevels")}</span>
-            )}
-          </div>
         </div>
-
-        {logFilterOpen ? (
-          <div className="mt-2 grid grid-cols-[minmax(128px,168px)_minmax(180px,1fr)_minmax(188px,220px)_minmax(188px,220px)] gap-2 max-[1260px]:grid-cols-2 max-[780px]:grid-cols-1">
-            <Select
-              value={logLevelFilter}
-              uiSize="sm"
-              onChange={(event) => setLogLevelFilter(event.target.value)}
-            >
-              <option value="ALL">{t("settings.logFilterAllLevels")}</option>
-              <option value="INFO">INFO</option>
-              <option value="WARN">WARN</option>
-              <option value="ERROR">ERROR</option>
-              <option value="CRASH">CRASH</option>
-            </Select>
-            <Input
-              className="h-8 text-xs"
-              value={logKeyword}
-              onChange={(event) => setLogKeyword(event.target.value)}
-              placeholder={t("settings.logFilterKeyword")}
-            />
-            <Input
-              className="h-8 text-xs"
-              type="text"
-              value={logFrom}
-              onChange={(event) => setLogFrom(event.target.value)}
-              placeholder={datePlaceholder}
-              title={t("settings.logFilterFrom")}
-            />
-            <Input
-              className="h-8 text-xs"
-              type="text"
-              value={logTo}
-              onChange={(event) => setLogTo(event.target.value)}
-              placeholder={datePlaceholder}
-              title={t("settings.logFilterTo")}
-            />
-          </div>
-        ) : null}
       </div>
 
       <div

@@ -2,6 +2,7 @@ import {
   gitCommit,
   gitStage,
   openProject,
+  readFile,
   runtimeLogWrite,
   writeFile,
 } from "../../shared/api/desktop";
@@ -29,6 +30,12 @@ export async function applyAgentProposal(params: {
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
   requestAutoCommitDecision?: (targetPath: string) => Promise<boolean>;
+  runCompileAfterApply?: (params: {
+    projectId: string;
+    mainPath: string;
+    mainContent: string;
+    options: { updatePreview: boolean; emitToast: boolean };
+  }) => Promise<{ status: string; diagnostics: string[] }>;
   t: (key: any) => string;
 }) {
   const {
@@ -49,6 +56,7 @@ export async function applyAgentProposal(params: {
     setToast,
     runAnalysisFromAgent,
     requestAutoCommitDecision,
+    runCompileAfterApply,
     t,
   } = params;
 
@@ -63,6 +71,25 @@ export async function applyAgentProposal(params: {
     }
     const snapshot = await openProject(activeProjectId);
     setTree(snapshot.tree);
+    const compileTargetPath = (snapshot.mainFile ?? "").trim() || proposal.targetPath;
+    if (isLatexPath(proposal.targetPath) && runCompileAfterApply && isLatexPath(compileTargetPath)) {
+      try {
+        const compileMainContent = compileTargetPath === proposal.targetPath
+          ? proposal.candidateContent
+          : (await readFile(activeProjectId, compileTargetPath)).content ?? "";
+        if (compileMainContent.trim().length > 0) {
+          await runCompileAfterApply({
+            projectId: activeProjectId,
+            mainPath: compileTargetPath,
+            mainContent: compileMainContent,
+            options: { updatePreview: true, emitToast: false },
+          });
+          await runtimeLogWrite("INFO", `agent_auto_compile: ${compileTargetPath}`).catch(() => undefined);
+        }
+      } catch (compileError) {
+        await runtimeLogWrite("ERROR", `agent_auto_compile_failed: ${String(compileError)}`).catch(() => undefined);
+      }
+    }
     setAgentMessages((prev) => {
       const appliedMessage: AgentChatMessage = {
         id: `${Date.now()}-agent-applied`,

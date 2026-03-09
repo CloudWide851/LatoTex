@@ -281,8 +281,12 @@ export function useAnalysisWorkspace(params: {
       }));
     }
     setRunning(true);
+    let currentStage = t("analysis.step.agentSynthesis");
 
     try {
+      const setStage = (label: string) => {
+        currentStage = label;
+      };
       const runIds: string[] = [];
       const runRolePromptWithTrace = async (
         role: string,
@@ -312,9 +316,11 @@ export function useAnalysisWorkspace(params: {
       let resolvedInputFiles: string[] = [];
       const steps: string[] = [];
       if (task.sourceType === "paper" && task.sourcePath) {
-        steps.push(t("analysis.step.paperExtract"));
+        setStage(t("analysis.step.paperExtract"));
+        steps.push(currentStage);
         const paperContext = await buildPaperAnalysisContext(projectId, task.sourcePath);
         const chunkSummaries: string[] = [];
+        let chunkFailures = 0;
         for (const chunk of paperContext.chunks) {
           const chunkPrompt = [
             `Summarize the following paper segment in ${outputLanguageLabel}.`,
@@ -322,8 +328,19 @@ export function useAnalysisWorkspace(params: {
             `Chunk pages: ${chunk.pageStart}-${chunk.pageEnd}`,
             chunk.text,
           ].join("\n\n");
-          const chunkResult = await runRolePromptWithTrace("explore", chunkPrompt, contextRefs);
-          chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
+          try {
+            const chunkResult = await runRolePromptWithTrace("explore", chunkPrompt, contextRefs);
+            chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
+          } catch (error) {
+            chunkFailures += 1;
+            await runtimeLogWrite(
+              "WARN",
+              `analysis paper chunk failed: path=${task.sourcePath}, chunk=${chunk.chunkIndex + 1}, reason=${String(error)}`,
+            ).catch(() => undefined);
+          }
+        }
+        if (paperContext.chunks.length > 0 && chunkSummaries.length === 0) {
+          throw new Error(`analysis.paper.chunk_failed_all(${chunkFailures})`);
         }
         sourceBlock = [
           `Paper source: ${paperContext.sourcePath}`,
@@ -353,11 +370,13 @@ export function useAnalysisWorkspace(params: {
           throw new Error(t("analysis.error.noInputFiles"));
         }
         resolvedInputFiles = chosenFiles;
-        steps.push(t("analysis.step.loadData"));
+        setStage(t("analysis.step.loadData"));
+        steps.push(currentStage);
         snapshots = await loadDataSnapshots(projectId, chosenFiles);
         const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
 
-        steps.push(t("analysis.step.profileEachFile"));
+        setStage(t("analysis.step.profileEachFile"));
+        steps.push(currentStage);
         const perFileProfiles: string[] = [];
         const profileTargets = snapshots.slice(0, Math.min(12, snapshots.length));
         for (const snapshot of profileTargets) {
@@ -378,7 +397,8 @@ export function useAnalysisWorkspace(params: {
           }
         }
 
-        steps.push(t("analysis.step.crossFile"));
+        setStage(t("analysis.step.crossFile"));
+        steps.push(currentStage);
         const crossFilePrompt = [
           `Output language must be ${outputLanguageLabel}.`,
           "You are performing cross-file analysis.",
@@ -389,7 +409,8 @@ export function useAnalysisWorkspace(params: {
         ].join("\n\n");
         const crossFileResult = await runRolePromptWithTrace("explore", crossFilePrompt, contextRefs);
 
-        steps.push(t("analysis.step.deepDive"));
+        setStage(t("analysis.step.deepDive"));
+        steps.push(currentStage);
         const deepDivePrompt = [
           `Output language must be ${outputLanguageLabel}.`,
           "Deep dive into the most important findings and likely root causes.",
@@ -416,7 +437,8 @@ export function useAnalysisWorkspace(params: {
         sourceBlock = `${sourceBlock}\n\n---\n\nCurrent editor file (${selectedFile}):\n${editorContent.slice(0, 2200)}`;
       }
 
-      steps.push(t("analysis.step.agentSynthesis"));
+      setStage(t("analysis.step.agentSynthesis"));
+      steps.push(currentStage);
       const agentPrompt = [
         `You are a senior data analyst. Output language must be ${outputLanguageLabel}.`,
         "Return strict JSON only with keys:",
@@ -430,6 +452,15 @@ export function useAnalysisWorkspace(params: {
       ].join("\n\n");
       const finalResult = await runRolePromptWithTrace("task", agentPrompt, contextRefs);
       const parsed = parsePayloadJson(finalResult.output);
+      const hasStructuredOutput = Boolean(
+        (typeof parsed.title === "string" && parsed.title.trim().length > 0)
+        || (typeof parsed.summary === "string" && parsed.summary.trim().length > 0)
+        || (Array.isArray(parsed.sections) && parsed.sections.length > 0)
+        || (Array.isArray(parsed.insights) && parsed.insights.length > 0),
+      );
+      if (!hasStructuredOutput) {
+        throw new Error("analysis.output.invalid_json");
+      }
 
       const chartSource = clampChart(
         Array.isArray(parsed.chart)
@@ -512,14 +543,14 @@ export function useAnalysisWorkspace(params: {
         : rawMessage === "agent.run.timeout.inactive"
           ? t("agent.run.timeout.inactive")
           : rawMessage;
-      const message = `${t("analysis.error.failed")}: ${reason}`;
+      const message = `${t("analysis.error.failed")}: ${currentStage} · ${reason}`;
       updateTaskById(task.id, (item) => ({
         ...item,
         lastError: message,
         updatedAt: nowIso(),
       }));
       setToast({ type: "error", message });
-      await runtimeLogWrite("ERROR", `analysis run failed: ${rawMessage}`).catch(() => undefined);
+      await runtimeLogWrite("ERROR", `analysis run failed: stage=${currentStage}; reason=${rawMessage}`).catch(() => undefined);
     } finally {
       runInFlightRef.current = false;
       setRunning(false);
@@ -556,7 +587,7 @@ export function useAnalysisWorkspace(params: {
     }
     const normalizedPath = sourcePath.replace(/\\/g, "/");
     const existingTask = tasksRef.current.find((item) => item.sourceType === "paper" && (item.sourcePath ?? "").replace(/\\/g, "/") === normalizedPath);
-    const task = existingTask ?? createTask("paper", sourcePath, `${t("analysis.paperTaskName")}: ${sourcePath.split("/").pop() || sourcePath}`);
+    const task = existingTask ?? createTask("paper", normalizedPath, `${t("analysis.paperTaskName")}: ${normalizedPath.split("/").pop() || normalizedPath}`);
     setActiveTaskId(task.id);
     updateTaskById(task.id, (item) => ({
       ...item,
