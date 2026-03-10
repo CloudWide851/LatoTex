@@ -27,7 +27,8 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "resources/tools"
+      "resources/tools",
+      "resources/core"
     ],
     "windows": {
       "allowDowngrades": false,

@@ -61,6 +61,7 @@ export function LibraryDocumentViewer(props: {
   const [pageInput, setPageInput] = useState("1");
   const [pdfZoom, setPdfZoom] = useState(1);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
+  const lastAnnotationPayloadRef = useRef<string>("");
 
   const hasPdf = Boolean(pdfUrl);
   const hasBib = bibPreview.trim().length > 0;
@@ -92,6 +93,7 @@ export function LibraryDocumentViewer(props: {
   useEffect(() => {
     let cancelled = false;
     if (!projectId || !selectedPath) {
+      lastAnnotationPayloadRef.current = "";
       setLoadError(null);
       setLinkError(null);
       setCopyState(false);
@@ -204,6 +206,7 @@ export function LibraryDocumentViewer(props: {
   useEffect(() => {
     let disposed = false;
     if (!projectId || !annotationPath) {
+      lastAnnotationPayloadRef.current = "";
       setAnnotationLoaded(false);
       setAnnotationStrokes([]);
       setAnnotationTextBoxes([]);
@@ -219,11 +222,17 @@ export function LibraryDocumentViewer(props: {
           return;
         }
         const parsed = parseAnnotationPayload(result.content);
+        lastAnnotationPayloadRef.current = JSON.stringify({
+          version: 4,
+          strokes: parsed.strokes,
+          textBoxes: parsed.textBoxes,
+        });
         setAnnotationStrokes(parsed.strokes);
         setAnnotationTextBoxes(parsed.textBoxes);
       })
       .catch(() => {
         if (!disposed) {
+          lastAnnotationPayloadRef.current = "";
           setAnnotationStrokes([]);
           setAnnotationTextBoxes([]);
         }
@@ -249,8 +258,13 @@ export function LibraryDocumentViewer(props: {
         strokes: annotationStrokes,
         textBoxes: annotationTextBoxes,
       };
+      const compact = JSON.stringify(payload);
+      if (compact === lastAnnotationPayloadRef.current) {
+        return;
+      }
+      lastAnnotationPayloadRef.current = compact;
       void writeFile(projectId, annotationPath, JSON.stringify(payload, null, 2));
-    }, 180);
+    }, 420);
     return () => {
       window.clearTimeout(timer);
     };

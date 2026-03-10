@@ -11,6 +11,11 @@ use uuid::Uuid;
 use super::swarm_events::{
     append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, envelope,
 };
+#[path = "swarm_pipeline_queries.rs"]
+mod swarm_pipeline_queries;
+use swarm_pipeline_queries::{
+    derive_tool_search_queries, spawn_run_heartbeat, with_tool_search_queries,
+};
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
 
@@ -178,62 +183,6 @@ fn run_stage_role(
         "",
     )?;
     Ok(output)
-}
-
-fn normalize_tool_query(value: &str) -> Option<String> {
-    let trimmed = value.trim().trim_matches(|ch: char| ch == '-' || ch == '*' || ch == '"' || ch == '\'');
-    if trimmed.len() < 3 || trimmed.len() > 160 {
-        return None;
-    }
-    if trimmed.starts_with('[') || trimmed.starts_with('{') {
-        return None;
-    }
-    Some(trimmed.to_string())
-}
-
-fn derive_tool_search_queries(prompt: &str) -> Vec<String> {
-    let mut out = Vec::<String>::new();
-    for line in prompt.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if let Some(value) = normalize_tool_query(
-            trimmed
-                .strip_prefix("- ")
-                .or_else(|| trimmed.strip_prefix("* "))
-                .unwrap_or(trimmed),
-        ) {
-            if !out.iter().any(|existing| existing == &value) {
-                out.push(value);
-            }
-        }
-        if out.len() >= 6 {
-            break;
-        }
-    }
-    if out.is_empty() {
-        let fallback = prompt.lines().next().unwrap_or(prompt);
-        if let Some(value) = normalize_tool_query(fallback) {
-            out.push(value);
-        }
-    }
-    out
-}
-
-fn with_tool_search_queries(prompt: &str, queries: &[String]) -> String {
-    let mut lines = Vec::new();
-    lines.push(prompt.to_string());
-    lines.push(String::new());
-    lines.push("[tool_search.queries.v1]".to_string());
-    if queries.is_empty() {
-        lines.push("- latex coding best practices".to_string());
-    } else {
-        for query in queries.iter().take(6) {
-            lines.push(format!("- {query}"));
-        }
-    }
-    lines.join("\n")
 }
 
 fn run_agent_pipeline_async(
@@ -513,6 +462,14 @@ pub fn agent_run_start(
             return;
         }
         let _slot_guard = slot_guard.unwrap();
+        let heartbeat_stop = Arc::new(AtomicBool::new(false));
+        spawn_run_heartbeat(
+            db_path.clone(),
+            run_id_for_worker.clone(),
+            worker_project_id.clone(),
+            worker_role.clone(),
+            heartbeat_stop.clone(),
+        );
         let run_output = run_agent_pipeline_async(
             db_path.clone(),
             runtime_root.clone(),
@@ -520,6 +477,7 @@ pub fn agent_run_start(
             cancel_flag,
             input,
         );
+        heartbeat_stop.store(true, Ordering::Relaxed);
         match run_output {
             Ok(output) => {
                 let mut payload = envelope(

@@ -25,7 +25,9 @@ fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
 
 fn candidate_source_dirs() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    // Dev workspace path.
+    // Side-load assets in workspace (`src-tauri/resources/core/busytex`).
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/busytex"));
+    // Legacy dev workspace path.
     candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../public/core/busytex"));
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {

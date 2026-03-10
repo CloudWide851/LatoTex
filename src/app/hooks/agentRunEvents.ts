@@ -20,7 +20,7 @@ export async function runAgentThroughEvents(params: {
   const output = await waitForRunOutputWithPolicy({
     runId: accepted.runId,
     totalTimeoutMs: 15 * 60 * 1000,
-    inactivityTimeoutMs: 75 * 1000,
+    inactivityTimeoutMs: 0,
     eventLimit: 240,
     waitMs: 2_400,
     idleDelayMs: 100,

@@ -12,6 +12,8 @@ dist/
 .vite/
 coverage/
 public/core/busytex/
+src-tauri/resources/core/busytex/
+src-tauri/resources/core/busytex-assets.tar.gz
 *.log
 pnpm-debug.log*
 npm-debug.log*

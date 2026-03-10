@@ -18,7 +18,7 @@ export type BusyTeXCompileResult = {
 };
 
 const BUSYTEX_ASSET_HINT =
-  "BusyTeX assets missing. Run `pnpm run busytex:assets` to download /public/core/busytex files.";
+  "BusyTeX assets missing. Run `pnpm run busytex:assets` to prepare src-tauri/resources/core/busytex.";
 
 let runner: BusyTexRunner | null = null;
 let resolvedBasePath: string | null = null;

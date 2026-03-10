@@ -60,7 +60,7 @@ export async function generateGitSummary(
   const output = (await waitForRunOutputWithPolicy({
     runId: accepted.runId,
     totalTimeoutMs: 15 * 60 * 1000,
-    inactivityTimeoutMs: 75 * 1000,
+    inactivityTimeoutMs: 0,
     eventLimit: 200,
     waitMs: 2_400,
     idleDelayMs: 120,

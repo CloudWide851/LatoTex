@@ -275,6 +275,8 @@ export function AppContainer() {
     pendingRevealLine: s.pendingRevealLine,
     page: s.page,
     cursor: s.cursor,
+    agentRunId: s.agentRunId,
+    analysisRunning: analysisWorkspace.running,
     toast: s.toast,
     gitDownloadTaskId: s.gitDownloadTaskId,
     gitInstallerLaunched: s.gitInstallerLaunched,

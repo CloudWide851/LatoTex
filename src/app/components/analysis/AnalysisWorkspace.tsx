@@ -117,7 +117,7 @@ export function AnalysisWorkspace(props: {
             onClick={onCreateTask}
             disabled={running}
           >
-            <span className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white">
+            <span className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white">
               <Plus className="h-5 w-5" />
             </span>
             <span className="text-sm font-medium">{t("analysis.emptyTaskTitle")}</span>

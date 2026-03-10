@@ -26,13 +26,14 @@ export async function waitForRunOutputWithPolicy(options: RunWaitOptions): Promi
   const startedAt = Date.now();
   let lastProgressAt = startedAt;
   let streamedOutput = "";
+  const enforceInactivityTimeout = inactivityTimeoutMs > 0;
 
   while (true) {
     const now = Date.now();
     if (now - startedAt >= totalTimeoutMs) {
       throw new Error("agent.run.timeout.total");
     }
-    if (now - lastProgressAt >= inactivityTimeoutMs) {
+    if (enforceInactivityTimeout && now - lastProgressAt >= inactivityTimeoutMs) {
       throw new Error("agent.run.timeout.inactive");
     }
 

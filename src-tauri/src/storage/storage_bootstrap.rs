@@ -85,6 +85,7 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_root_path ON projects(root_path);
+        CREATE INDEX IF NOT EXISTS idx_swarm_events_run_seq ON swarm_events(run_id, seq);
         ",
     )
     .map_err(|e| e.to_string())?;

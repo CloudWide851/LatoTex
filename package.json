@@ -13,7 +13,7 @@
     "brand:sync": "node scripts/sync-brand-assets.mjs",
     "brand:icons": "node scripts/ensure-brand-icons.mjs --force",
     "busytex:check": "node scripts/check-busytex-assets.mjs",
-    "busytex:assets": "pnpm exec texlyre-busytex download-assets ./public/core",
+    "busytex:assets": "pnpm exec texlyre-busytex download-assets ./src-tauri/resources/core",
     "tauri": "node scripts/ensure-brand-icons.mjs && tauri"
   },
   "packageManager": "pnpm@10.29.2",

@@ -298,7 +298,7 @@ export async function waitForRunOutput(runId: string): Promise<string> {
   return waitForRunOutputWithPolicy({
     runId,
     totalTimeoutMs: 15 * 60 * 1000,
-    inactivityTimeoutMs: 75 * 1000,
+    inactivityTimeoutMs: 0,
     eventLimit: 240,
     waitMs: 2_400,
     idleDelayMs: 120,

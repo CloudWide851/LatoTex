@@ -38,6 +38,8 @@ export function useAppEffects(params: {
   pendingRevealLine: number | null;
   page: string;
   cursor: number;
+  agentRunId: string | null;
+  analysisRunning: boolean;
   toast: { type: "info" | "error"; message: string } | null;
   gitDownloadTaskId: string | null;
   gitInstallerLaunched: boolean;
@@ -86,6 +88,8 @@ export function useAppEffects(params: {
     pendingRevealLine,
     page,
     cursor,
+    agentRunId,
+    analysisRunning,
     toast,
     gitDownloadTaskId,
     gitInstallerLaunched,
@@ -341,6 +345,7 @@ export function useAppEffects(params: {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
+    const hasLiveRun = Boolean(agentRunId) || analysisRunning;
 
     const schedule = (delay: number) => {
       if (cancelled) {
@@ -353,12 +358,15 @@ export function useAppEffects(params: {
 
     const resolvePollDelay = (activeDelay: number, idleDelay: number) => {
       const hidden = typeof document !== "undefined" && document.hidden;
-      return hidden ? Math.max(idleDelay, activeDelay + 1000) : activeDelay;
+      if (hidden) {
+        return Math.max(idleDelay, activeDelay + 1200);
+      }
+      return hasLiveRun ? activeDelay : idleDelay;
     };
 
     const poll = async () => {
       if (cancelled || inFlight) {
-        schedule(resolvePollDelay(1200, 2200));
+        schedule(resolvePollDelay(1500, 3200));
         return;
       }
       inFlight = true;
@@ -368,25 +376,25 @@ export function useAppEffects(params: {
           setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
           cursorRef.current = batch.nextCursor;
           setCursor(batch.nextCursor);
-          schedule(resolvePollDelay(650, 2100));
+          schedule(resolvePollDelay(700, 2400));
         } else {
-          schedule(resolvePollDelay(1500, 2600));
+          schedule(resolvePollDelay(2200, 4200));
         }
       } catch {
-        schedule(resolvePollDelay(1800, 3200));
+        schedule(resolvePollDelay(2600, 4600));
       } finally {
         inFlight = false;
       }
     };
 
-    schedule(320);
+    schedule(600);
     return () => {
       cancelled = true;
       if (timer) {
         clearTimeout(timer);
       }
     };
-  }, [setCursor, setEvents]);
+  }, [agentRunId, analysisRunning, setCursor, setEvents]);
 
   useEffect(() => {
     const policy = busytexCachePolicy ?? null;

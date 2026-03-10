@@ -19,6 +19,20 @@ pub fn append_event(
     .map_err(|e| e.to_string())?;
 
     let seq = conn.last_insert_rowid();
+    if seq % 120 == 0 {
+        let retain_count: i64 = 12_000;
+        let _ = conn.execute(
+            "DELETE FROM swarm_events
+             WHERE seq <= (
+               SELECT CASE
+                 WHEN MAX(seq) > ?1 THEN MAX(seq) - ?1
+                 ELSE 0
+               END
+               FROM swarm_events
+             )",
+            params![retain_count],
+        );
+    }
     Ok(SwarmEvent {
         seq,
         id,
