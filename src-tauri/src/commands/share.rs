@@ -30,6 +30,7 @@ const SHARE_PARTICIPANT_IDLE_SECS: i64 = 120;
 struct ShareParticipantState {
     participant_id: String,
     username: String,
+    auth_token: String,
     last_seen_at: String,
     last_seen_unix: i64,
     last_action: Option<String>,
@@ -76,6 +77,7 @@ struct PushSyncBody {
     client_id: String,
     update: String,
     participant_id: Option<String>,
+    participant_token: Option<String>,
     username: Option<String>,
     action: Option<String>,
 }
@@ -110,6 +112,7 @@ struct PresencePingBody {
     sid: String,
     pwd: String,
     participant_id: String,
+    participant_token: Option<String>,
     action: Option<String>,
 }
 
@@ -213,6 +216,10 @@ fn now_iso() -> String {
     Utc::now().to_rfc3339()
 }
 
+fn new_participant_token() -> String {
+    Uuid::new_v4().simple().to_string()
+}
+
 fn find_free_port() -> Result<u16, String> {
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
@@ -260,6 +267,7 @@ fn upsert_participant(
             ShareParticipantState {
                 participant_id: participant_id.to_string(),
                 username: username.trim().to_string(),
+                auth_token: new_participant_token(),
                 last_seen_unix: now_unix,
                 last_seen_at: now,
                 last_action: next_action,
@@ -362,6 +370,24 @@ fn verify_body_auth(
         StatusCode(401),
         json!({ "ok": false, "message": "unauthorized" }),
     ))
+}
+
+fn verify_participant_auth(
+    runtime: &ShareRuntime,
+    participant_id: Option<&str>,
+    participant_token: Option<&str>,
+) -> bool {
+    let Some(pid) = participant_id.map(|value| value.trim()).filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    let Some(token) = participant_token.map(|value| value.trim()).filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    runtime
+        .participants
+        .get(pid)
+        .map(|item| item.auth_token == token)
+        .unwrap_or(false)
 }
 
 fn stop_runtime(runtime: &Arc<Mutex<ShareRuntime>>) {
@@ -545,28 +571,9 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
         });
     }
     prune_participants(&mut guard);
-    if guard.mode == "remote" {
-        let mut tunnel_fault: Option<String> = None;
-        if let Some(child) = guard.cloudflared_child.as_mut() {
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    tunnel_fault = Some(format!("cloudflared exited: {status}"));
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    tunnel_fault = Some(format!("cloudflared status check failed: {error}"));
-                }
-            }
-        } else if guard.status == "ready" || guard.status == "starting" {
-            tunnel_fault = Some("cloudflared process missing".to_string());
-        }
-        if let Some(reason) = tunnel_fault {
-            guard.status = "failed".to_string();
-            guard.tunnel_state = "failed".to_string();
-            guard.tunnel_error = Some(reason);
-            guard.tunnel_url = None;
-        }
-    }
+    // Tunnel lifecycle is managed by the watchdog in `share_tunnel`.
+    // Avoid aggressively marking the session as failed here to prevent
+    // transient status polling races from tearing down an otherwise recoverable session.
     Ok(build_session_info(&guard))
 }
 

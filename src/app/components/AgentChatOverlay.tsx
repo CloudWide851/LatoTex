@@ -331,7 +331,7 @@ export function AgentChatOverlay(props: {
 
   return (
     <div className="pointer-events-none absolute inset-x-2 bottom-3 z-20 flex items-end">
-      <div className="pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up">
+      <div className="pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up transition-[box-shadow,transform,opacity] duration-150">
         <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
@@ -367,10 +367,13 @@ export function AgentChatOverlay(props: {
           </div>
         </div>
 
-        {showActivityPanel ? (
+        {canShowActivity ? (
           <div
             ref={activityContainerRef}
-            className="max-h-[26vh] space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 py-2"
+            className={cn(
+              "space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 transition-[max-height,opacity,padding] duration-150",
+              showActivityPanel ? "max-h-[26vh] py-2 opacity-100" : "max-h-0 py-0 opacity-0",
+            )}
           >
             {activityLines.map((line) => (
               <p

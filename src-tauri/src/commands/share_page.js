@@ -127,6 +127,7 @@ const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-shar
 let connected = false;
 let syncingRemote = false;
 let participantId = "";
+let participantToken = "";
 let cursor = 0;
 let pullTimer = null;
 let presenceTimer = null;
@@ -363,6 +364,7 @@ async function pingPresence(action) {
       sid,
       pwd: pwdEl.value.trim(),
       participantId,
+      participantToken,
       action,
     });
     renderParticipants(payload.participants || []);
@@ -379,6 +381,7 @@ async function pushUpdate(update) {
     clientId,
     update: toBase64(update),
     participantId,
+    participantToken,
     username: usernameEl.value.trim(),
     action: lastAction,
   });
@@ -386,8 +389,11 @@ async function pushUpdate(update) {
 
 async function pullUpdates() {
   if (!connected) return;
+  const tokenQuery = participantToken
+    ? `&participantToken=${encodeURIComponent(participantToken)}`
+    : "";
   const response = await fetch(
-    `/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwdEl.value.trim())}&cursor=${cursor}`
+    `/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwdEl.value.trim())}&participantId=${encodeURIComponent(participantId)}${tokenQuery}&cursor=${cursor}`
   );
   if (!response.ok) throw new Error(await response.text());
   const payload = await response.json();
@@ -570,6 +576,7 @@ connectBtn.addEventListener("click", async () => {
     setStatus(i18n.connecting);
     const joined = await postJson("/api/join", { sid, pwd, clientId, username });
     participantId = String(joined.participantId || "");
+    participantToken = String(joined.participantToken || "");
     renderParticipants(joined.participants || []);
     const snapshotResp = await fetch(`/api/snapshot?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`);
     if (!snapshotResp.ok) throw new Error(await snapshotResp.text());
@@ -625,4 +632,3 @@ connectBtn.addEventListener("click", async () => {
     setStatus(i18n.connectFailed(error), true);
   }
 });
-

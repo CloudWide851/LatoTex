@@ -23,7 +23,16 @@ export async function runRolePromptWithAgent(params: {
   bypassCache?: boolean;
 }): Promise<{ runId: string; output: string }> {
   const { projectId, role, promptText, contextRefs, bypassCache = false } = params;
-  const maxAttempts = 2;
+  const maxAttempts = 3;
+  const isRetryableProviderError = (message: string) =>
+    message.includes("provider.empty_body")
+    || message.includes("provider.parse_eof")
+    || message.includes("provider.parse_invalid_json")
+    || message.includes("provider.empty_output")
+    || message.includes("provider.transport_error")
+    || message.includes("provider.server_error")
+    || message.includes("provider.rate_limited")
+    || message.includes("provider.endpoint_mismatch");
   let lastError: unknown = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const retryAttempt = attempt > 0;
@@ -43,17 +52,12 @@ export async function runRolePromptWithAgent(params: {
     } catch (error) {
       lastError = error;
       const message = String(error ?? "");
-      const retryable =
-        message.includes("provider.empty_body")
-        || message.includes("provider.parse_eof")
-        || message.includes("provider.parse_invalid_json")
-        || message.includes("provider.transport_error")
-        || message.includes("provider.server_error")
-        || message.includes("provider.rate_limited");
+      const retryable = isRetryableProviderError(message);
       if (!retryable || attempt >= maxAttempts - 1) {
         break;
       }
-      await new Promise((resolve) => setTimeout(resolve, 420));
+      const delayMs = Math.min(1300, 380 + attempt * 280);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "analysis.run.failed"));

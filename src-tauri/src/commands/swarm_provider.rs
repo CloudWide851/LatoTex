@@ -10,8 +10,8 @@ use std::time::Duration;
 #[path = "swarm_provider_gemini.rs"]
 mod swarm_provider_gemini;
 use swarm_provider_gemini::call_gemini;
-const AGENT_RETRY_MAX: u32 = 3;
-const AGENT_AUTO_REPAIR_MAX: u32 = 2;
+const AGENT_RETRY_MAX: u32 = 4;
+const AGENT_AUTO_REPAIR_MAX: u32 = 3;
 
 struct ProviderError {
     code: &'static str,
@@ -59,7 +59,7 @@ fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, 
             message: format!(
                 "{provider} response parse error: {error_text}; body_preview={compact_preview}"
             ),
-            retryable: parse_eof,
+            retryable: parse_eof || html_body,
             auto_repairable: parse_eof || html_body,
         }
     })
@@ -196,6 +196,15 @@ fn extract_openai_responses_content(parsed: &serde_json::Value) -> String {
     String::new()
 }
 
+fn transport_error(error: reqwest::Error) -> ProviderError {
+    ProviderError {
+        code: "provider.transport_error",
+        message: error.to_string(),
+        retryable: error.is_timeout() || error.is_connect(),
+        auto_repairable: true,
+    }
+}
+
 fn call_openai_chat(
     client: &Client,
     base_url: &str,
@@ -227,17 +236,18 @@ fn call_openai_chat(
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_endpoints(base_url, "chat/completions") {
         for payload in &payloads {
-            let response = client
+            let response = match client
                 .post(&endpoint)
                 .bearer_auth(api_key)
                 .json(payload)
                 .send()
-                .map_err(|e| ProviderError {
-                    code: "provider.transport_error",
-                    message: e.to_string(),
-                    retryable: e.is_timeout() || e.is_connect(),
-                    auto_repairable: false,
-                })?;
+            {
+                Ok(item) => item,
+                Err(error) => {
+                    last_error = Some(transport_error(error));
+                    continue;
+                }
+            };
             let status = response.status();
             let body = response.text().unwrap_or_default();
             if !status.is_success() {
@@ -272,7 +282,7 @@ fn call_openai_chat(
             last_error = Some(ProviderError {
                 code: "provider.empty_output",
                 message: "Empty response from OpenAI-compatible chat endpoint".to_string(),
-                retryable: false,
+                retryable: true,
                 auto_repairable: true,
             });
         }
@@ -323,17 +333,18 @@ fn call_openai_responses(
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_endpoints(base_url, "responses") {
         for payload in &payloads {
-            let response = client
+            let response = match client
                 .post(&endpoint)
                 .bearer_auth(api_key)
                 .json(payload)
                 .send()
-                .map_err(|e| ProviderError {
-                    code: "provider.transport_error",
-                    message: e.to_string(),
-                    retryable: e.is_timeout() || e.is_connect(),
-                    auto_repairable: false,
-                })?;
+            {
+                Ok(item) => item,
+                Err(error) => {
+                    last_error = Some(transport_error(error));
+                    continue;
+                }
+            };
             let status = response.status();
             let body = response.text().unwrap_or_default();
             if !status.is_success() {
@@ -361,7 +372,7 @@ fn call_openai_responses(
             last_error = Some(ProviderError {
                 code: "provider.empty_output",
                 message: "Empty response from OpenAI-compatible responses endpoint".to_string(),
-                retryable: false,
+                retryable: true,
                 auto_repairable: true,
             });
         }
@@ -439,18 +450,19 @@ fn call_anthropic(
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_endpoints(base_url, "messages") {
         for payload in &payloads {
-            let response = client
+            let response = match client
                 .post(&endpoint)
                 .header("x-api-key", api_key)
                 .header("anthropic-version", "2023-06-01")
                 .json(payload)
                 .send()
-                .map_err(|e| ProviderError {
-                    code: "provider.transport_error",
-                    message: e.to_string(),
-                    retryable: e.is_timeout() || e.is_connect(),
-                    auto_repairable: false,
-                })?;
+            {
+                Ok(item) => item,
+                Err(error) => {
+                    last_error = Some(transport_error(error));
+                    continue;
+                }
+            };
 
             let status = response.status();
             let body = response.text().unwrap_or_default();
@@ -483,7 +495,7 @@ fn call_anthropic(
             last_error = Some(ProviderError {
                 code: "provider.empty_output",
                 message: "Empty response from Anthropic endpoint".to_string(),
-                retryable: false,
+                retryable: true,
                 auto_repairable: true,
             });
         }
@@ -561,10 +573,14 @@ pub(crate) fn call_provider_with_retry(
                     thread::sleep(Duration::from_millis(delay_ms.min(1_600)));
                     continue;
                 }
-                if !error.retryable || attempt >= AGENT_RETRY_MAX {
+                if attempt >= AGENT_RETRY_MAX {
                     break;
                 }
-                let delay_ms = 800_u64.saturating_mul(2_u64.pow(attempt));
+                let delay_ms = if error.retryable {
+                    800_u64.saturating_mul(2_u64.pow(attempt))
+                } else {
+                    450_u64.saturating_mul(2_u64.pow(attempt.min(2)))
+                };
                 thread::sleep(Duration::from_millis(delay_ms.min(8_000)));
             }
         }

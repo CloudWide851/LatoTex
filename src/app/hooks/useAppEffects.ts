@@ -346,6 +346,7 @@ export function useAppEffects(params: {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     const hasLiveRun = Boolean(agentRunId) || analysisRunning;
+    const needsWarmPolling = page === "analysis" || page === "latex";
 
     const schedule = (delay: number) => {
       if (cancelled) {
@@ -356,45 +357,50 @@ export function useAppEffects(params: {
       }, delay);
     };
 
-    const resolvePollDelay = (activeDelay: number, idleDelay: number) => {
+    const resolvePollDelay = (activeDelay: number, warmDelay: number, idleDelay: number) => {
       const hidden = typeof document !== "undefined" && document.hidden;
       if (hidden) {
-        return Math.max(idleDelay, activeDelay + 1200);
+        return Math.max(idleDelay, warmDelay + 1200);
       }
-      return hasLiveRun ? activeDelay : idleDelay;
+      if (hasLiveRun) {
+        return activeDelay;
+      }
+      return needsWarmPolling ? warmDelay : idleDelay;
     };
 
     const poll = async () => {
       if (cancelled || inFlight) {
-        schedule(resolvePollDelay(1500, 3200));
+        schedule(resolvePollDelay(1500, 3800, 8200));
         return;
       }
       inFlight = true;
       try {
-        const batch = await getEvents(cursorRef.current, 120, undefined, 1400);
+        const waitMs = hasLiveRun ? 1_400 : needsWarmPolling ? 900 : 250;
+        const limit = hasLiveRun ? 120 : needsWarmPolling ? 80 : 40;
+        const batch = await getEvents(cursorRef.current, limit, undefined, waitMs);
         if (batch.events.length > 0) {
-          setEvents((prev: SwarmEvent[]) => [...prev.slice(-300), ...batch.events]);
+          setEvents((prev: SwarmEvent[]) => [...prev.slice(-220), ...batch.events]);
           cursorRef.current = batch.nextCursor;
           setCursor(batch.nextCursor);
-          schedule(resolvePollDelay(700, 2400));
+          schedule(resolvePollDelay(700, 2200, 6200));
         } else {
-          schedule(resolvePollDelay(2200, 4200));
+          schedule(resolvePollDelay(2200, 4200, 9200));
         }
       } catch {
-        schedule(resolvePollDelay(2600, 4600));
+        schedule(resolvePollDelay(2800, 5200, 9800));
       } finally {
         inFlight = false;
       }
     };
 
-    schedule(600);
+    schedule(hasLiveRun ? 520 : needsWarmPolling ? 860 : 1600);
     return () => {
       cancelled = true;
       if (timer) {
         clearTimeout(timer);
       }
     };
-  }, [agentRunId, analysisRunning, setCursor, setEvents]);
+  }, [agentRunId, analysisRunning, page, setCursor, setEvents]);
 
   useEffect(() => {
     const policy = busytexCachePolicy ?? null;

@@ -42,16 +42,17 @@ pub(super) fn call_gemini(
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_gemini_endpoints(base_url, model_name, api_key) {
         for payload in &payloads {
-            let response = client
+            let response = match client
                 .post(&endpoint)
                 .json(payload)
                 .send()
-                .map_err(|e| ProviderError {
-                    code: "provider.transport_error",
-                    message: e.to_string(),
-                    retryable: e.is_timeout() || e.is_connect(),
-                    auto_repairable: false,
-                })?;
+            {
+                Ok(item) => item,
+                Err(error) => {
+                    last_error = Some(transport_error(error));
+                    continue;
+                }
+            };
 
             let status = response.status();
             let body = response.text().unwrap_or_default();
@@ -87,7 +88,7 @@ pub(super) fn call_gemini(
             last_error = Some(ProviderError {
                 code: "provider.empty_output",
                 message: "Empty response from Gemini endpoint".to_string(),
-                retryable: false,
+                retryable: true,
                 auto_repairable: true,
             });
         }

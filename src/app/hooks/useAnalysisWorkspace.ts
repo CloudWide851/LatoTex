@@ -6,7 +6,6 @@ import {
   runtimeLogWrite,
   workspaceRevealInSystem,
 } from "../../shared/api/desktop";
-import type { SwarmEvent } from "../../shared/types/app";
 import {
   buildPaperAnalysisContext,
   listCandidateDataFiles,
@@ -30,18 +29,9 @@ import {
   toChartFromSnapshots,
   upsertRun,
 } from "./analysisWorkspaceHelpers";
+import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
 
-type TranslationFn = (key: any) => string;
-export function useAnalysisWorkspace(params: {
-  projectId: string | null;
-  selectedFile: string | null;
-  editorContent: string;
-  fileList: string[];
-  locale: "zh-CN" | "en-US";
-  events: SwarmEvent[];
-  t: TranslationFn;
-  setToast: (value: { type: "info" | "error"; message: string } | null) => void;
-}) {
+export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const { projectId, selectedFile, editorContent, fileList, locale, events, setToast, t } = params;
   const [running, setRunning] = useState(false);
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);

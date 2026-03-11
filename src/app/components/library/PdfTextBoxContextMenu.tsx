@@ -25,18 +25,19 @@ type TextBoxStyle = {
 export function PdfTextBoxContextMenu(props: {
   x: number;
   y: number;
+  positioning?: "fixed" | "absolute";
   style: TextBoxStyle;
   onChangeStyle: (next: Partial<TextBoxStyle>) => void;
   onDelete: () => void;
   onClose: () => void;
   t: (key: any) => string;
 }) {
-  const { x, y, style, onChangeStyle, onDelete, onClose, t } = props;
+  const { x, y, positioning = "fixed", style, onChangeStyle, onDelete, onClose, t } = props;
 
   return (
     <div
       data-textbox-menu="true"
-      className="fixed z-[90] w-72 rounded-lg border border-slate-300 bg-white p-2 shadow-xl"
+      className={`${positioning === "fixed" ? "fixed" : "absolute"} z-[90] w-72 rounded-lg border border-slate-300 bg-white p-2 shadow-xl`}
       style={{ left: x, top: y }}
       onMouseDown={(event) => event.stopPropagation()}
     >

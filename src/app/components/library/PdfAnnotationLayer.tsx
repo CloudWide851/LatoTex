@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  clampDimension,
   clampNormalized,
   createDefaultStrokeStyle,
   createDefaultTextStyle,
@@ -12,6 +11,18 @@ import {
 import { hexToRgba } from "./annotationPalette";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
 import {
+  bringBoxToFront,
+  clampPoint,
+  distanceToStroke,
+  HIGHLIGHT_CURSOR,
+  nextTextBoxZ,
+  resolveDraggedBox,
+  resolveMenuAnchor,
+  toNormalizedPoint,
+  type DragPreview,
+  type DragState,
+} from "./pdfAnnotationLayerUtils";
+import {
   isRichTextEmpty,
   normalizeStoredRichHtml,
   plainTextToRichHtml,
@@ -20,104 +31,6 @@ import {
 } from "./textboxRichText";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
-type DragMode = "move" | "resize";
-type ContextMenuState = {
-  boxId: string;
-  x: number;
-  y: number;
-};
-const HIGHLIGHT_CURSOR = `url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Crect x='2' y='2' width='10' height='22' rx='3' fill='%23facc15' stroke='%23b45309' stroke-width='1.4'/%3E%3Crect x='12' y='17' width='12' height='7' rx='2' fill='%23fef3c7' stroke='%23b45309' stroke-width='1.2'/%3E%3C/svg%3E") 4 22, crosshair`;
-
-type DragState = {
-  mode: DragMode;
-  boxId: string;
-  start: AnnotationPoint;
-  initial: AnnotationTextBox;
-};
-type DragPreview = {
-  boxId: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-function toNormalizedPoint(
-  event: { clientX: number; clientY: number },
-  rect: DOMRect,
-): AnnotationPoint {
-  const x = ((event.clientX - rect.left) / rect.width) * 1000;
-  const y = ((event.clientY - rect.top) / rect.height) * 1000;
-  return {
-    x: clampNormalized(x),
-    y: clampNormalized(y),
-  };
-}
-
-function clampPoint(point: AnnotationPoint): AnnotationPoint {
-  return {
-    x: clampNormalized(point.x),
-    y: clampNormalized(point.y),
-  };
-}
-
-function nextTextBoxZ(textBoxes: AnnotationTextBox[]): number {
-  if (textBoxes.length === 0) {
-    return 1;
-  }
-  return Math.max(...textBoxes.map((item) => item.z || 1)) + 1;
-}
-
-function distanceToStroke(point: AnnotationPoint, stroke: AnnotationStroke): number {
-  let min = Number.POSITIVE_INFINITY;
-  for (const p of stroke.points) {
-    const dx = point.x - p.x;
-    const dy = point.y - p.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < min) {
-      min = dist;
-    }
-  }
-  return min;
-}
-
-function bringBoxToFront(textBoxes: AnnotationTextBox[], boxId: string): AnnotationTextBox[] {
-  const nextZ = nextTextBoxZ(textBoxes);
-  return textBoxes.map((item) => (item.id === boxId ? { ...item, z: nextZ } : item));
-}
-
-function resolveDraggedBox(drag: DragState, point: AnnotationPoint): DragPreview {
-  const dx = point.x - drag.start.x;
-  const dy = point.y - drag.start.y;
-  if (drag.mode === "move") {
-    return {
-      boxId: drag.boxId,
-      x: clampNormalized(drag.initial.x + dx),
-      y: clampNormalized(drag.initial.y + dy),
-      w: drag.initial.w,
-      h: drag.initial.h,
-    };
-  }
-  return {
-    boxId: drag.boxId,
-    x: drag.initial.x,
-    y: drag.initial.y,
-    w: clampDimension(drag.initial.w + dx),
-    h: clampDimension(drag.initial.h + dy),
-  };
-}
-
-function positionContextMenu(x: number, y: number): { x: number; y: number } {
-  if (typeof window === "undefined") {
-    return { x, y };
-  }
-  const width = 288;
-  const height = 248;
-  const padding = 10;
-  const nextX = Math.max(padding, Math.min(window.innerWidth - width - padding, x));
-  const nextY = Math.max(padding, Math.min(window.innerHeight - height - padding, y));
-  return { x: nextX, y: nextY };
-}
 
 export function PdfAnnotationLayer(props: {
   page: number;
@@ -153,10 +66,14 @@ export function PdfAnnotationLayer(props: {
   const dragFrameRef = useRef<number | null>(null);
   const textBoxesRef = useRef(textBoxes);
   const layerRef = useRef<HTMLDivElement | null>(null);
+  const [layerSize, setLayerSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
   const [draftStroke, setDraftStroke] = useState<AnnotationPoint[] | null>(null);
   const [editingTextBoxId, setEditingTextBoxId] = useState<string | null>(null);
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
-  const [menuState, setMenuState] = useState<ContextMenuState | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
 
   const pageStrokes = useMemo(
@@ -171,8 +88,8 @@ export function PdfAnnotationLayer(props: {
     [page, textBoxes],
   );
   const menuBox = useMemo(
-    () => (menuState ? textBoxes.find((item) => item.id === menuState.boxId) ?? null : null),
-    [menuState, textBoxes],
+    () => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null),
+    [selectedTextBoxId, textBoxes],
   );
 
   useEffect(() => {
@@ -186,10 +103,10 @@ export function PdfAnnotationLayer(props: {
     if (editingTextBoxId && !textBoxes.some((item) => item.id === editingTextBoxId)) {
       setEditingTextBoxId(null);
     }
-    if (menuState && !textBoxes.some((item) => item.id === menuState.boxId)) {
-      setMenuState(null);
+    if (menuBox === null) {
+      setMenuOpen(false);
     }
-  }, [editingTextBoxId, menuState, selectedTextBoxId, textBoxes]);
+  }, [editingTextBoxId, menuBox, selectedTextBoxId, textBoxes]);
 
   useEffect(() => {
     if (!selectedTextBoxId) {
@@ -261,8 +178,8 @@ export function PdfAnnotationLayer(props: {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && menuState) {
-        setMenuState(null);
+      if (event.key === "Escape" && menuOpen) {
+        setMenuOpen(false);
       }
       if (!selectedTextBoxId || editingTextBoxId) {
         return;
@@ -280,10 +197,10 @@ export function PdfAnnotationLayer(props: {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editingTextBoxId, menuState, onTextBoxesChange, selectedTextBoxId, textBoxes]);
+  }, [editingTextBoxId, menuOpen, onTextBoxesChange, selectedTextBoxId, textBoxes]);
 
   useEffect(() => {
-    if (!menuState) {
+    if (!menuOpen) {
       return;
     }
     const onPointerDown = (event: MouseEvent) => {
@@ -291,11 +208,14 @@ export function PdfAnnotationLayer(props: {
       if (target?.closest("[data-textbox-menu='true']")) {
         return;
       }
-      setMenuState(null);
+      if (target?.closest("[data-annotation-box='true']")) {
+        return;
+      }
+      setMenuOpen(false);
     };
     window.addEventListener("mousedown", onPointerDown);
     return () => window.removeEventListener("mousedown", onPointerDown);
-  }, [menuState]);
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!editingTextBoxId || typeof window === "undefined") {
@@ -314,6 +234,31 @@ export function PdfAnnotationLayer(props: {
     selection?.removeAllRanges();
     selection?.addRange(range);
   }, [editingTextBoxId, pageTextBoxes]);
+
+  useEffect(() => {
+    const node = layerRef.current;
+    if (!node) {
+      return;
+    }
+    const applySize = () => {
+      setLayerSize({
+        width: node.clientWidth,
+        height: node.clientHeight,
+      });
+    };
+    applySize();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => applySize());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const menuAnchor = useMemo(
+    () => resolveMenuAnchor({ menuOpen, layerSize, menuBox, dragPreview }),
+    [dragPreview, layerSize, menuBox, menuOpen],
+  );
 
   const finishDrawing = () => {
     if (!drawingRef.current) {
@@ -382,7 +327,7 @@ export function PdfAnnotationLayer(props: {
                   : "default",
         }}
         onMouseDown={(event) => {
-          setMenuState(null);
+          setMenuOpen(false);
           const rect = layerRef.current?.getBoundingClientRect();
           if (!rect) {
             return;
@@ -456,6 +401,7 @@ export function PdfAnnotationLayer(props: {
             <div
               key={box.id}
               className={`absolute rounded ${selected ? "ring-1 ring-primary-300" : ""}`}
+              data-annotation-box="true"
               style={{
                 left: `${((dragPreview?.boxId === box.id ? dragPreview.x : box.x) / 1000) * 100}%`,
                 top: `${((dragPreview?.boxId === box.id ? dragPreview.y : box.y) / 1000) * 100}%`,
@@ -473,7 +419,7 @@ export function PdfAnnotationLayer(props: {
                   return;
                 }
                 event.stopPropagation();
-                setMenuState(null);
+                setMenuOpen(true);
                 setSelectedTextBoxId(box.id);
                 onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
                 if (!editing) {
@@ -504,18 +450,13 @@ export function PdfAnnotationLayer(props: {
                 event.preventDefault();
                 event.stopPropagation();
                 setSelectedTextBoxId(box.id);
-                const next = positionContextMenu(event.clientX + 6, event.clientY + 6);
-                setMenuState({
-                  boxId: box.id,
-                  x: next.x,
-                  y: next.y,
-                });
+                setMenuOpen(true);
               }}
               onDoubleClick={(event) => {
                 event.stopPropagation();
                 setSelectedTextBoxId(box.id);
                 setEditingTextBoxId(box.id);
-                setMenuState(null);
+                setMenuOpen(true);
               }}
             >
               {editing ? (
@@ -579,10 +520,11 @@ export function PdfAnnotationLayer(props: {
             </div>
           );
         })}
-        {menuState && menuBox ? (
+        {menuAnchor && menuBox ? (
           <PdfTextBoxContextMenu
-            x={menuState.x}
-            y={menuState.y}
+            x={menuAnchor.x}
+            y={menuAnchor.y}
+            positioning="absolute"
             style={menuBox.style}
             onChangeStyle={(nextStyle) => {
               onTextBoxesChange(
@@ -595,9 +537,9 @@ export function PdfAnnotationLayer(props: {
               onTextBoxesChange(textBoxes.filter((item) => item.id !== menuBox.id));
               setEditingTextBoxId((current) => (current === menuBox.id ? null : current));
               setSelectedTextBoxId((current) => (current === menuBox.id ? null : current));
-              setMenuState(null);
+              setMenuOpen(false);
             }}
-            onClose={() => setMenuState(null)}
+            onClose={() => setMenuOpen(false)}
             t={t}
           />
         ) : null}

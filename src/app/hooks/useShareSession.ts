@@ -162,6 +162,7 @@ export function useShareSession(params: {
   const lastUploadedPdfUrlRef = useRef<string | null>(null);
   const localClientIdRef = useRef(`desktop-${Math.random().toString(36).slice(2, 10)}`);
   const participantIdRef = useRef(`desktop-owner-${Math.random().toString(36).slice(2, 8)}`);
+  const participantTokenRef = useRef("");
   const editorContentRef = useRef(editorContent);
 
   useEffect(() => {
@@ -300,6 +301,7 @@ export function useShareSession(params: {
       yDocRef.current = null;
       yTextRef.current = null;
       yCommentsRef.current = null;
+      participantTokenRef.current = "";
       clearTimer(syncTimerRef);
       return;
     }
@@ -320,6 +322,16 @@ export function useShareSession(params: {
       pullCursorRef.current = 0;
       applyingRemoteRef.current = false;
       setSyncing(true);
+      const joined = await postJson(`${localUrl}/api/join`, {
+        sid: sessionId,
+        pwd: sessionPwd,
+        clientId: localClientIdRef.current,
+        username: t("share.desktopUser"),
+      }) as { participantId?: string; participantToken?: string };
+      if (joined?.participantId) {
+        participantIdRef.current = String(joined.participantId);
+      }
+      participantTokenRef.current = String(joined?.participantToken ?? "");
 
       const pushUpdate = async (update: Uint8Array) => {
         await postJson(`${localUrl}/api/sync/push`, {
@@ -327,6 +339,7 @@ export function useShareSession(params: {
           pwd: sessionPwd,
           clientId: localClientIdRef.current,
           participantId: participantIdRef.current,
+          participantToken: participantTokenRef.current,
           username: t("share.desktopUser"),
           action: t("share.action.editing"),
           update: toBase64(update),
@@ -384,8 +397,11 @@ export function useShareSession(params: {
         }
         syncFlightRef.current = true;
         try {
+          const tokenParam = participantTokenRef.current
+            ? `&participantToken=${encodeURIComponent(participantTokenRef.current)}`
+            : "";
           const response = await fetch(
-            `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&cursor=${pullCursorRef.current}`,
+            `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&participantId=${encodeURIComponent(participantIdRef.current)}${tokenParam}&cursor=${pullCursorRef.current}`,
           );
           if (!response.ok) {
             throw new Error(await response.text());
@@ -433,6 +449,7 @@ export function useShareSession(params: {
         yDocRef.current = null;
         yTextRef.current = null;
         yCommentsRef.current = null;
+        participantTokenRef.current = "";
         setShareComments([]);
         doc.destroy();
       };
@@ -454,10 +471,11 @@ export function useShareSession(params: {
         yDocRef.current = null;
         yTextRef.current = null;
         yCommentsRef.current = null;
+        participantTokenRef.current = "";
         setShareComments([]);
       }
     };
-  }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast]);
+  }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast, t]);
 
   useEffect(() => {
     if (!collabEnabled || applyingRemoteRef.current) {
