@@ -74,23 +74,27 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
   if (participants.length === 0) {
     return <span className="text-[11px] text-slate-500">{t("share.participantsEmpty")}</span>;
   }
+  const visible = participants.slice(0, 20);
   return (
-    <div className="flex flex-wrap gap-1">
-      {participants.slice(0, 6).map((item) => (
-        <span
+    <div className="grid max-w-[200px] grid-cols-5 gap-1">
+      {visible.map((item) => (
+        <button
           key={item.participantId}
-          className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700 shadow-sm"
+          type="button"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] text-slate-700 shadow-sm"
+          title={item.username || item.participantId}
         >
           <span
-            className="inline-flex h-2 w-2 rounded-full"
+            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold text-white"
             style={{ background: avatarColor(item.username || item.participantId) }}
-          />
-          <span className="max-w-[120px] truncate">{item.username || item.participantId}</span>
-        </span>
+          >
+            {(item.username || item.participantId).slice(0, 1).toUpperCase()}
+          </span>
+        </button>
       ))}
-      {participants.length > 6 ? (
-        <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
-          +{participants.length - 6}
+      {participants.length > visible.length ? (
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] text-slate-600">
+          +{participants.length - visible.length}
         </span>
       ) : null}
     </div>
@@ -125,6 +129,7 @@ export function WorkspaceShareControl(props: {
   const [detailsExpanded, setDetailsExpanded] = useState(true);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [copyDone, setCopyDone] = useState(false);
+  const [passwordCopyDone, setPasswordCopyDone] = useState(false);
   const isTexSelected = Boolean(selectedFile && selectedFile.toLowerCase().endsWith(".tex"));
   const sessionExists = Boolean(shareSession?.sessionId);
   const activeMode = normalizeMode(shareSession?.mode, shareMode);
@@ -167,6 +172,13 @@ export function WorkspaceShareControl(props: {
     const timer = window.setTimeout(() => setCopyDone(false), 1500);
     return () => window.clearTimeout(timer);
   }, [copyDone]);
+  useEffect(() => {
+    if (!passwordCopyDone) {
+      return;
+    }
+    const timer = window.setTimeout(() => setPasswordCopyDone(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [passwordCopyDone]);
 
   const copyLink = (link: string) => {
     if (!link) {
@@ -174,11 +186,22 @@ export function WorkspaceShareControl(props: {
     }
     void navigator.clipboard?.writeText(link).then(() => setCopyDone(true)).catch(() => undefined);
   };
+  const copyPassword = (raw: string) => {
+    if (!raw) {
+      return;
+    }
+    void navigator.clipboard?.writeText(raw).then(() => setPasswordCopyDone(true)).catch(() => undefined);
+  };
+  const dotClass = shareSession?.status === "ready"
+    ? "bg-emerald-500"
+    : shareSession?.status === "starting"
+      ? "bg-amber-500"
+      : "bg-slate-400";
 
   return (
     <div className="relative">
       <button
-        className={`rounded border px-2 py-1.5 text-xs transition disabled:opacity-60 ${
+        className={`relative rounded border px-2 py-1.5 text-xs transition disabled:opacity-60 ${
           sessionExists
             ? "border-primary-600 bg-primary-50 text-primary-700 hover:bg-primary-100"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
@@ -189,12 +212,15 @@ export function WorkspaceShareControl(props: {
         aria-label={t("share.openPanel")}
       >
         <Share2 className="inline h-3.5 w-3.5" />
+        {sessionExists ? (
+          <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white ${dotClass}`} />
+        ) : null}
       </button>
 
       {!panelOpen && sessionExists ? (
-        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(360px,76vw)]">
+        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(240px,68vw)]">
           <div className="ml-3 h-2.5 w-2.5 rotate-45 border-l border-t border-slate-300 bg-white" />
-          <div className="rounded-lg border border-slate-300 bg-white/95 px-2.5 py-2 shadow-soft backdrop-blur-sm">
+          <div className="rounded-lg border border-slate-300 bg-white/95 px-2 py-2 shadow-soft backdrop-blur-sm">
             <div className="mb-1 text-[11px] font-semibold text-slate-700">{statusText}</div>
             <ParticipantChips participants={participants} t={t} />
           </div>
@@ -259,7 +285,18 @@ export function WorkspaceShareControl(props: {
                   </div>
                 ) : null}
                 <div className="rounded border border-slate-200 bg-slate-50 p-2">
-                  <strong>{t("share.password")}:</strong> {shareSession?.password || "-"}
+                  <div className="flex items-center justify-between gap-2">
+                    <strong>{t("share.password")}:</strong>
+                    <button
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      disabled={!shareSession?.password}
+                      onClick={() => copyPassword(shareSession?.password || "")}
+                      title={t("share.copyPassword")}
+                    >
+                      {passwordCopyDone ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  <div className="mt-1 break-all">{shareSession?.password || "-"}</div>
                 </div>
                 <div className="rounded border border-slate-200 bg-slate-50 p-2">
                   <strong>{t("share.expiresAt")}:</strong> {shareSession?.expiresAt || "-"}

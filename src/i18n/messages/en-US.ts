@@ -19,6 +19,7 @@ export const enUS = {
   "share.started": "Share session started.",
   "share.stopped": "Share session stopped.",
   "share.copyLink": "Copy Link",
+  "share.copyPassword": "Copy Password",
   "share.localLink": "Local Link",
   "share.publicLink": "Public Link",
   "share.password": "Password",
@@ -85,6 +86,7 @@ export const enUS = {
   "workspace.compileAssist.commandHint": "Use compile diagnostics to fix LaTeX errors with minimal edits.",
   "workspace.undo": "Undo",
   "workspace.redo": "Redo",
+  "workspace.messagePlaceholder": "Messages (coming soon)",
   "workspace.agentTitle": "Task Agent Prompt",
   "workspace.agentPlaceholder":
     "Describe what the task agent should do with current LaTeX context...",

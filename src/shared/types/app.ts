@@ -78,6 +78,8 @@ export type ShareSessionInfo = {
   password?: string | null;
   expiresAt?: string | null;
   status?: "starting" | "ready" | "failed" | "stopping" | string | null;
+  pdfState?: "empty" | "ready" | "uploading" | "error" | string | null;
+  pdfUpdatedAt?: string | null;
   tunnelState?: "pending" | "ready" | "failed" | string | null;
   tunnelError?: string | null;
   participants?: ShareParticipantInfo[];

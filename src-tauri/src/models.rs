@@ -109,6 +109,8 @@ pub struct ShareSessionInfo {
     pub password: Option<String>,
     pub expires_at: Option<String>,
     pub status: Option<String>,
+    pub pdf_state: Option<String>,
+    pub pdf_updated_at: Option<String>,
     pub tunnel_state: Option<String>,
     pub tunnel_error: Option<String>,
     #[serde(default)]
@@ -269,6 +271,7 @@ pub struct EventQuery {
     pub limit: Option<u32>,
     pub run_id: Option<String>,
     pub wait_ms: Option<u64>,
+    pub exclude_kinds: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

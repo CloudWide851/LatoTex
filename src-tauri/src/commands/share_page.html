@@ -4,285 +4,80 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>LatoTex Share</title>
-    <style>
-      :root {
-        color-scheme: light;
-        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        background:
-          radial-gradient(circle at 12% 8%, #dbeafe 0%, transparent 42%),
-          radial-gradient(circle at 86% 18%, #ccfbf1 0%, transparent 36%),
-          #eef2ff;
-        color: #0f172a;
-      }
-      .shell {
-        max-width: 1240px;
-        margin: 0 auto;
-        padding: 14px;
-        display: grid;
-        gap: 12px;
-      }
-      .card {
-        border: 1px solid #cbd5e1;
-        background: rgba(255, 255, 255, 0.94);
-        border-radius: 14px;
-        padding: 12px;
-        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-      }
-      .top {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 12px;
-        align-items: center;
-      }
-      .title {
-        margin: 0;
-        font-size: 20px;
-        font-weight: 700;
-      }
-      .sub {
-        margin-top: 4px;
-        color: #475569;
-        font-size: 13px;
-      }
-      .status {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        border: 1px solid #bae6fd;
-        background: #e0f2fe;
-        color: #075985;
-        border-radius: 999px;
-        padding: 6px 10px;
-        font-size: 12px;
-      }
-      .status .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: #0ea5e9;
-      }
-      .toolbar {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
-        gap: 8px;
-        align-items: center;
-      }
-      .field,
-      .editor,
-      .comment-input {
-        width: 100%;
-        border: 1px solid #cbd5e1;
-        border-radius: 10px;
-        padding: 9px 10px;
-        font: inherit;
-        color: #0f172a;
-        background: #fff;
-      }
-      .field:focus,
-      .editor:focus,
-      .comment-input:focus {
-        outline: 2px solid #93c5fd;
-        border-color: #60a5fa;
-      }
-      .btn {
-        border: 1px solid #0f766e;
-        background: #0f766e;
-        color: #fff;
-        border-radius: 10px;
-        padding: 9px 12px;
-        cursor: pointer;
-        font: inherit;
-        white-space: nowrap;
-      }
-      .btn.secondary {
-        border-color: #94a3b8;
-        background: #fff;
-        color: #334155;
-      }
-      .btn.ghost {
-        border-color: #cbd5e1;
-        background: #fff;
-        color: #475569;
-      }
-      .btn.active {
-        border-color: #0f766e;
-        background: #0f766e;
-        color: #fff;
-      }
-      .btn:disabled {
-        opacity: 0.55;
-        cursor: not-allowed;
-      }
-      .view-switch {
-        display: flex;
-        gap: 8px;
-      }
-      .layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 320px;
-        gap: 12px;
-      }
-      .view-pane {
-        display: block;
-      }
-      .editor {
-        min-height: 300px;
-        height: 40vh;
-        resize: vertical;
-        font-family: Consolas, "JetBrains Mono", monospace;
-      }
-      .panel-title {
-        margin: 0 0 8px;
-        font-size: 13px;
-        color: #334155;
-        font-weight: 700;
-      }
-      .participants,
-      .comments {
-        max-height: 200px;
-        overflow: auto;
-      }
-      .item {
-        border: 1px solid #dbe2f0;
-        background: #f8fafc;
-        border-radius: 10px;
-        padding: 8px;
-        margin-bottom: 8px;
-      }
-      .user-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .avatar {
-        width: 20px;
-        height: 20px;
-        border-radius: 999px;
-        color: #fff;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 11px;
-        font-weight: 600;
-      }
-      iframe {
-        width: 100%;
-        height: 36vh;
-        border: 1px solid #cbd5e1;
-        border-radius: 10px;
-        background: #fff;
-      }
-      .muted {
-        color: #64748b;
-        font-size: 12px;
-      }
-      .error {
-        color: #be123c;
-      }
-      .tool-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 10px;
-      }
-      .pdf-quote-toolbar {
-        margin-top: 10px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .pdf-quote-text {
-        margin-top: 8px;
-        min-height: 90px;
-        max-height: 160px;
-        overflow: auto;
-        border: 1px solid #dbe2f0;
-        background: #fff;
-        border-radius: 10px;
-        padding: 8px;
-        white-space: pre-wrap;
-        user-select: text;
-        font-size: 12px;
-        line-height: 1.5;
-      }
-      @media (max-width: 980px) {
-        .toolbar {
-          grid-template-columns: 1fr;
-        }
-        .layout {
-          grid-template-columns: 1fr;
-        }
-        .view-pane[data-pane] {
-          display: none;
-        }
-        .view-pane[data-pane].active {
-          display: block;
-        }
-        .participants,
-        .comments {
-          max-height: 36vh;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="/assets/pico.min.css" />
+    <link rel="stylesheet" href="/assets/share_page_theme.css" />
   </head>
   <body>
-    <div class="shell">
-      <section class="card top">
+    <main class="shell container-fluid">
+      <section class="card top-card">
         <div>
-          <h1 class="title" id="title-text">LatoTex Collaborative Editing</h1>
-          <div class="sub" id="meta">session=-</div>
+          <h1 id="title-text">LatoTex Collaborative Editing</h1>
+          <p class="meta" id="meta">session=-</p>
         </div>
-        <div class="status"><span class="dot"></span><span id="status">idle</span></div>
+        <div class="status-wrap">
+          <span class="status-chip" id="status">idle</span>
+          <span class="connected-badge" id="connected-badge">idle</span>
+        </div>
       </section>
 
       <section class="card toolbar">
-        <input id="username" class="field" placeholder="Username" maxlength="32" />
-        <input id="pwd" class="field" placeholder="Session password" />
-        <button id="connect" class="btn">Join</button>
-        <button id="reload-pdf" class="btn secondary">Reload PDF</button>
+        <input id="username" placeholder="Username" maxlength="32" />
+        <input id="pwd" placeholder="Session password" />
+        <button id="copy-password" class="secondary">Copy Password</button>
+        <button id="connect">Join</button>
+        <button id="reload-pdf" class="secondary">Reload PDF</button>
       </section>
 
-      <section class="card view-switch">
-        <button id="view-tex" class="btn ghost active" type="button">TeX</button>
-        <button id="view-pdf" class="btn ghost" type="button">PDF</button>
-        <button id="view-comments" class="btn ghost" type="button">Comments</button>
+      <section class="card tab-row">
+        <button id="view-tex" class="outline">TeX</button>
+        <button id="view-pdf" class="outline">PDF</button>
+        <button id="view-comments" class="outline">Comments</button>
       </section>
 
       <section class="layout">
-        <section class="card view-pane active" id="pane-editor" data-pane>
-          <div class="tool-row">
-            <button id="add-comment" class="btn secondary">Add Comment</button>
-            <button id="compile" class="btn secondary">Request Compile</button>
-            <span class="muted" id="share-hint">Select text, then add comment. Your username is shown to all collaborators.</span>
+        <section class="card pane active" id="pane-main">
+          <div class="toolbar-inline">
+            <button id="request-compile" class="secondary">Request Compile</button>
+            <p class="hint" id="share-hint"></p>
           </div>
-          <textarea id="editor" class="editor" placeholder="TeX content"></textarea>
-          <div class="muted" id="cursor-info"></div>
-          <iframe id="pdf" title="PDF Preview"></iframe>
-          <div class="pdf-quote-toolbar">
-            <button id="pdf-prev" class="btn ghost" type="button">&lt;</button>
-            <span id="pdf-page-label" class="muted">PDF page -/-</span>
-            <button id="pdf-next" class="btn ghost" type="button">&gt;</button>
-          </div>
-          <div id="pdf-text" class="pdf-quote-text"></div>
+
+          <section id="editor-wrap" class="editor-wrap">
+            <textarea id="editor" rows="16"></textarea>
+            <div class="cursor" id="cursor-info">0-0</div>
+          </section>
+
+          <section id="pdf-wrap" class="pdf-wrap hidden">
+            <iframe id="pdf" title="PDF Preview"></iframe>
+            <div class="pdf-nav">
+              <button id="pdf-prev" class="secondary">&lt;</button>
+              <span id="pdf-page-label" class="meta">PDF page 1/1</span>
+              <button id="pdf-next" class="secondary">&gt;</button>
+            </div>
+            <div id="pdf-text" class="pdf-text">No PDF text available.</div>
+          </section>
         </section>
 
-        <aside class="card view-pane" id="pane-comments" data-pane>
-          <h3 class="panel-title" id="participants-title">Collaborators</h3>
+        <aside class="card pane active" id="pane-side">
+          <h4 id="participants-title">Collaborators</h4>
           <div id="participants" class="participants"></div>
-          <h3 class="panel-title" id="comments-title">Comments</h3>
+
+          <h4 id="comments-title">Comments</h4>
           <div id="comments" class="comments"></div>
-          <input id="comment-input" class="comment-input" placeholder="Reply to latest comment..." />
+
+          <div class="comment-composer">
+            <div id="quote-preview" class="quote-preview" hidden>
+              <div id="quote-source" class="quote-source"></div>
+              <div id="quote-content" class="quote-content"></div>
+              <button id="clear-quote" class="secondary">Clear Quote</button>
+            </div>
+            <textarea id="comment-editor" rows="4" placeholder="Write a comment..."></textarea>
+            <button id="post-comment">Post</button>
+          </div>
         </aside>
       </section>
-    </div>
+    </main>
 
+    <button id="quick-quote" class="quick-quote" hidden>Quote</button>
     <script type="module" src="/assets/share_page.js"></script>
   </body>
 </html>

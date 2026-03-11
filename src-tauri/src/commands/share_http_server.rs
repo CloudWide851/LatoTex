@@ -81,9 +81,69 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
             .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
         let _ = request.respond(
-            Response::from_string(include_str!("share_page.js"))
+            Response::from_string(include_str!("share_page_entry.js"))
                 .with_status_code(StatusCode(200))
                 .with_header(js_header)
+                .with_header(no_cache_header()),
+        );
+        return;
+    }
+
+    if method == Method::Get && path == "/assets/share_page_app.js" {
+        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
+            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
+        let _ = request.respond(
+            Response::from_string(include_str!("share_page_app.js"))
+                .with_status_code(StatusCode(200))
+                .with_header(js_header)
+                .with_header(no_cache_header()),
+        );
+        return;
+    }
+
+    if method == Method::Get && path == "/assets/share_page_i18n.js" {
+        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
+            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
+        let _ = request.respond(
+            Response::from_string(include_str!("share_page_i18n.js"))
+                .with_status_code(StatusCode(200))
+                .with_header(js_header)
+                .with_header(no_cache_header()),
+        );
+        return;
+    }
+
+    if method == Method::Get && path == "/assets/share_page_utils.js" {
+        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
+            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
+        let _ = request.respond(
+            Response::from_string(include_str!("share_page_utils.js"))
+                .with_status_code(StatusCode(200))
+                .with_header(js_header)
+                .with_header(no_cache_header()),
+        );
+        return;
+    }
+
+    if method == Method::Get && path == "/assets/share_page_theme.css" {
+        let css_header = Header::from_bytes("Content-Type", "text/css; charset=utf-8")
+            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/css").unwrap());
+        let _ = request.respond(
+            Response::from_string(include_str!("share_page_theme.css"))
+                .with_status_code(StatusCode(200))
+                .with_header(css_header)
+                .with_header(no_cache_header()),
+        );
+        return;
+    }
+
+    if method == Method::Get && path == "/assets/pico.min.css" {
+        let css_header = Header::from_bytes("Content-Type", "text/css; charset=utf-8")
+            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/css").unwrap());
+        let _ = request.respond(
+            Response::from_string(include_str!("share_page_pico.min.css"))
+                .with_status_code(StatusCode(200))
+                .with_header(css_header)
                 .with_header(no_cache_header()),
         );
         return;
@@ -116,6 +176,8 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
                 "targetPath": guard.target_path,
                 "expiresAt": guard.expires_at,
                 "hasPdf": !guard.pdf_bytes.is_empty(),
+                "pdfState": if guard.pdf_bytes.is_empty() { "empty" } else { "ready" },
+                "pdfUpdatedAt": guard.pdf_updated_at.clone(),
                 "status": guard.status.clone(),
                 "tunnelState": guard.tunnel_state.clone(),
                 "tunnelError": guard.tunnel_error.clone(),
@@ -493,7 +555,34 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             }
         };
         guard.pdf_bytes = decoded;
+        guard.pdf_updated_at = Some(now_iso());
         let _ = request.respond(json_response(StatusCode(200), json!({ "ok": true })));
+        return;
+    }
+
+    if method == Method::Get && path == "/api/pdf/status" {
+        let guard = if let Ok(runtime_guard) = runtime.lock() {
+            runtime_guard
+        } else {
+            let _ = request.respond(json_response(
+                StatusCode(500),
+                json!({ "ok": false, "message": "runtime lock failed" }),
+            ));
+            return;
+        };
+        if let Err(response) = verify_query_auth(&guard, &query) {
+            let _ = request.respond(response);
+            return;
+        }
+        let state = if guard.pdf_bytes.is_empty() { "empty" } else { "ready" };
+        let _ = request.respond(json_response(
+            StatusCode(200),
+            json!({
+                "ok": true,
+                "state": state,
+                "updatedAt": guard.pdf_updated_at.clone(),
+            }),
+        ));
         return;
     }
 

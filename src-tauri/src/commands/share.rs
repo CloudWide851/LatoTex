@@ -65,6 +65,7 @@ struct ShareRuntime {
     participants: HashMap<String, ShareParticipantState>,
     compile_requested: bool,
     pdf_bytes: Vec<u8>,
+    pdf_updated_at: Option<String>,
     stop_flag: Arc<AtomicBool>,
     cloudflared_child: Option<Child>,
 }
@@ -337,6 +338,12 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
         password: Some(runtime.password.clone()),
         expires_at: Some(runtime.expires_at.clone()),
         status: Some(runtime.status.clone()),
+        pdf_state: Some(if runtime.pdf_bytes.is_empty() {
+            "empty".to_string()
+        } else {
+            "ready".to_string()
+        }),
+        pdf_updated_at: runtime.pdf_updated_at.clone(),
         tunnel_state: Some(runtime.tunnel_state.clone()),
         tunnel_error: runtime.tunnel_error.clone(),
         participants: participant_public_list(runtime),
@@ -494,6 +501,7 @@ pub fn share_session_create(
         participants: HashMap::new(),
         compile_requested: false,
         pdf_bytes: Vec::new(),
+        pdf_updated_at: None,
         stop_flag: Arc::new(AtomicBool::new(false)),
         cloudflared_child: None,
     }));
@@ -539,6 +547,8 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
             password: None,
             expires_at: None,
             status: None,
+            pdf_state: None,
+            pdf_updated_at: None,
             tunnel_state: None,
             tunnel_error: None,
             participants: Vec::new(),
@@ -565,6 +575,8 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
             password: None,
             expires_at: None,
             status: None,
+            pdf_state: None,
+            pdf_updated_at: None,
             tunnel_state: None,
             tunnel_error: None,
             participants: Vec::new(),

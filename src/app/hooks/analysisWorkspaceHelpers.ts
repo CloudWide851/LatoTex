@@ -249,6 +249,7 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
   const runSet = new Set(runIds);
   const filtered = events
     .filter((event) => runSet.has(event.runId))
+    .filter((event) => event.kind !== "agent.run.heartbeat")
     .filter((event) => {
       const kind = toCardKind(event.kind);
       return kind === "a2a" || kind === "mcp" || kind === "responses" || kind === "run";
@@ -297,7 +298,7 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
 export async function waitForRunOutput(runId: string): Promise<string> {
   return waitForRunOutputWithPolicy({
     runId,
-    totalTimeoutMs: 15 * 60 * 1000,
+    totalTimeoutMs: 45 * 60 * 1000,
     inactivityTimeoutMs: 0,
     eventLimit: 240,
     waitMs: 2_400,

@@ -25,6 +25,16 @@ type YDocLike = {
   destroy: () => void;
 };
 
+function isShareReady(status: ShareSessionInfo, mode: ShareMode): boolean {
+  if (status.status !== "ready") {
+    return false;
+  }
+  if (mode === "local") {
+    return Boolean(status.localJoinUrl || status.activeJoinUrl);
+  }
+  return Boolean(status.remoteJoinUrl || status.tunnelUrl || status.activeJoinUrl);
+}
+
 function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {
   if (!Array.isArray(rawItems)) {
     return [];
@@ -209,25 +219,35 @@ export function useShareSession(params: {
   }, [setToast, shareSession]);
 
   const waitForShareReady = useCallback(
-    async (expectedSessionId: string) => {
+    async (expectedSessionId: string, mode: ShareMode) => {
+      const timeoutMs = mode === "local" ? 18_000 : 120_000;
       const startedAt = Date.now();
-      while (Date.now() - startedAt < 48_000) {
+      let waitMs = 620;
+      let lastSeen: ShareSessionInfo | null = null;
+      while (Date.now() - startedAt < timeoutMs) {
         const next = await refreshShareStatus();
         if (!next) {
-          await wait(680);
+          await wait(waitMs);
+          waitMs = Math.min(1_800, waitMs + 120);
           continue;
         }
+        lastSeen = next;
         if (next.sessionId !== expectedSessionId) {
-          await wait(680);
+          await wait(waitMs);
+          waitMs = Math.min(1_800, waitMs + 120);
           continue;
         }
-        if (next.status === "ready" && next.activeJoinUrl) {
+        if (isShareReady(next, mode)) {
           return next;
         }
         if (next.status === "failed") {
           throw new Error(next.tunnelError || "share tunnel failed");
         }
-        await wait(680);
+        await wait(waitMs);
+        waitMs = Math.min(1_800, waitMs + 120);
+      }
+      if (lastSeen && lastSeen.sessionId === expectedSessionId) {
+        return lastSeen;
       }
       throw new Error(t("share.startTimeout"));
     },
@@ -245,9 +265,14 @@ export function useShareSession(params: {
       setShareMode(nextMode);
       const created = await shareSessionCreate(activeProjectId, selectedFile, nextMode);
       setShareSession(created);
-      const ready = await waitForShareReady(created.sessionId || "");
+      void onCompile().catch(() => undefined);
+      const ready = await waitForShareReady(created.sessionId || "", nextMode);
       setShareSession(ready);
-      setToast({ type: "info", message: t("share.started") });
+      if (isShareReady(ready, nextMode)) {
+        setToast({ type: "info", message: t("share.started") });
+      } else {
+        setToast({ type: "info", message: t("share.status.startingRemote") });
+      }
     } catch (error) {
       const latest = await refreshShareStatus().catch(() => null);
       if (latest) {
@@ -257,7 +282,7 @@ export function useShareSession(params: {
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, refreshShareStatus, selectedFile, setToast, shareMode, t, waitForShareReady]);
+  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, t, waitForShareReady]);
 
   const stopShare = useCallback(async () => {
     setShareBusy(true);

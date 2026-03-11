@@ -34,7 +34,7 @@ export async function runAgentThroughEvents(params: {
       params.setAgentRunId(accepted.runId);
       const output = await waitForRunOutputWithPolicy({
         runId: accepted.runId,
-        totalTimeoutMs: 15 * 60 * 1000,
+        totalTimeoutMs: 45 * 60 * 1000,
         inactivityTimeoutMs: 0,
         eventLimit: 240,
         waitMs: 2_400,
