@@ -51,27 +51,40 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
     let limit = query.limit.unwrap_or(200).min(1000) as i64;
     let trimmed_run_id = query.run_id.as_deref().map(str::trim).unwrap_or("");
     let use_run_filter = !trimmed_run_id.is_empty();
-    let (sql, params): (&str, Vec<rusqlite::types::Value>) = if use_run_filter {
-        (
-            "SELECT seq, id, run_id, project_id, role, kind, payload, created_at
-             FROM swarm_events
-             WHERE seq > ?1 AND run_id = ?2
-             ORDER BY seq ASC
-             LIMIT ?3",
-            vec![cursor.into(), trimmed_run_id.to_string().into(), limit.into()],
-        )
-    } else {
-        (
-            "SELECT seq, id, run_id, project_id, role, kind, payload, created_at
-             FROM swarm_events
-             WHERE seq > ?1
-             ORDER BY seq ASC
-             LIMIT ?2",
-            vec![cursor.into(), limit.into()],
-        )
-    };
+    let excluded_kinds: Vec<String> = query
+        .exclude_kinds
+        .unwrap_or_default()
+        .into_iter()
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+        .take(24)
+        .collect();
 
-    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let mut sql = String::from(
+        "SELECT seq, id, run_id, project_id, role, kind, payload, created_at
+         FROM swarm_events
+         WHERE seq > ?1",
+    );
+    let mut params: Vec<rusqlite::types::Value> = vec![cursor.into()];
+    let mut param_index = 2;
+    if use_run_filter {
+        sql.push_str(&format!(" AND run_id = ?{}", param_index));
+        params.push(trimmed_run_id.to_string().into());
+        param_index += 1;
+    }
+    if !excluded_kinds.is_empty() {
+        let mut placeholders = Vec::new();
+        for _ in &excluded_kinds {
+            placeholders.push(format!("?{}", param_index));
+            param_index += 1;
+        }
+        sql.push_str(&format!(" AND kind NOT IN ({})", placeholders.join(", ")));
+        params.extend(excluded_kinds.into_iter().map(Into::into));
+    }
+    sql.push_str(&format!(" ORDER BY seq ASC LIMIT ?{}", param_index));
+    params.push(limit.into());
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(rusqlite::params_from_iter(params.iter()), |row| {
             let payload_raw: String = row.get(6)?;
@@ -499,6 +512,74 @@ pub fn resolve_model_test_connection(
     };
     let api_key = secure::get_model_api_key(&secure_context, trimmed_model_id)?.api_key;
     Ok((protocol_id, base_url, model_name, api_key))
+}
+
+fn heuristic_reasoning_model(model_name: &str) -> bool {
+    let lower = model_name.to_ascii_lowercase();
+    lower.contains("think")
+        || lower.contains("reason")
+        || lower.contains("o1")
+        || lower.contains("o3")
+        || lower.contains("r1")
+        || lower.contains("qwq")
+}
+
+pub fn model_supports_reasoning(
+    db_path: &Path,
+    role: &str,
+    model_override: Option<&str>,
+) -> bool {
+    let Ok(conn) = Connection::open(db_path) else {
+        return false;
+    };
+    let override_model_id = model_override
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    let resolved_model_id = match override_model_id {
+        Some(id) => id,
+        None => {
+            let Ok(model_id) = conn.query_row(
+                "SELECT model_id FROM agent_bindings WHERE role = ?1",
+                params![role],
+                |row| row.get::<_, String>(0),
+            ) else {
+                return false;
+            };
+            if model_id.trim().is_empty() {
+                return false;
+            }
+            model_id
+        }
+    };
+
+    let Ok((model_name, capabilities_json)) = conn.query_row(
+        "SELECT request_name, capabilities_json FROM model_catalog WHERE id = ?1",
+        params![resolved_model_id],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+    ) else {
+        return false;
+    };
+
+    if let Some(raw) = capabilities_json {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) {
+            if let Some(mode_raw) = value
+                .get("reasoningMode")
+                .and_then(|item| item.as_str())
+                .or_else(|| value.get("reasoning_mode").and_then(|item| item.as_str()))
+            {
+                let mode = mode_raw.trim().to_ascii_lowercase();
+                if ["off", "none", "disabled", "unsupported"].contains(&mode.as_str()) {
+                    return false;
+                }
+                if ["on", "enabled", "required", "think"].contains(&mode.as_str()) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    heuristic_reasoning_model(&model_name)
 }
 
 #[cfg(test)]

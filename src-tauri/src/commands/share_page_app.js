@@ -1,11 +1,9 @@
 import * as Y from "https://esm.sh/yjs@13.6.29";
 import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.min.mjs";
 import { createI18n, detectLocale } from "/assets/share_page_i18n.js";
+import { renderComments, renderParticipants, withHighlight } from "/assets/share_page_render.js";
 import {
-  avatarColor,
-  escapeHtml,
   fromBase64,
-  normalizeComment,
   postJson,
   toBase64,
   trimQuote,
@@ -60,7 +58,6 @@ export async function bootstrapSharePage() {
 
   const doc = new Y.Doc();
   const yText = doc.getText("tex");
-  const yComments = doc.getArray("comments");
 
   const state = {
     clientId: `web-${Math.random().toString(36).slice(2, 10)}`,
@@ -83,6 +80,7 @@ export async function bootstrapSharePage() {
     selectionQuote: null,
     pdfReady: false,
     highlightQuote: "",
+    comments: [],
   };
 
   const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
@@ -183,27 +181,6 @@ export async function bootstrapSharePage() {
     hideQuickQuote();
   }
 
-  function renderParticipants(items) {
-    if (!Array.isArray(items) || items.length === 0) {
-      el.participants.innerHTML = `<div class="muted">${i18n.noCollaborators}</div>`;
-      return;
-    }
-    el.participants.innerHTML = "";
-    for (const item of items) {
-      const name = String(item.username || "Guest");
-      const node = document.createElement("article");
-      node.className = "participant";
-      node.innerHTML = `
-        <span class="avatar" style="background:${avatarColor(name)}">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>
-        <div>
-          <div class="name">${escapeHtml(name)}</div>
-          <div class="muted">${escapeHtml(String(item.lastAction || i18n.actionReading))}</div>
-        </div>
-      `;
-      el.participants.appendChild(node);
-    }
-  }
-
   function updatePdfPageLabel() {
     const total = state.pdfDoc?.numPages || 1;
     const page = Math.max(1, Math.min(total, state.pdfPage || 1));
@@ -223,19 +200,6 @@ export async function bootstrapSharePage() {
       .trim();
     state.pdfTextByPage.set(pageNumber, text);
     return text;
-  }
-
-  function withHighlight(text, quote) {
-    if (!quote) return escapeHtml(text);
-    const plain = String(text || "");
-    const target = trimQuote(quote, 160);
-    if (!target) return escapeHtml(plain);
-    const index = plain.toLowerCase().indexOf(target.toLowerCase());
-    if (index < 0) return escapeHtml(plain);
-    const before = escapeHtml(plain.slice(0, index));
-    const hit = escapeHtml(plain.slice(index, index + target.length));
-    const after = escapeHtml(plain.slice(index + target.length));
-    return `${before}<mark>${hit}</mark>${after}`;
   }
 
   async function renderPdfTextPane() {
@@ -308,39 +272,6 @@ export async function bootstrapSharePage() {
     }
   }
 
-  function renderComments() {
-    const items = yComments.toArray();
-    if (!items.length) {
-      el.comments.innerHTML = `<div class="muted">${i18n.noComments}</div>`;
-      return;
-    }
-    el.comments.innerHTML = "";
-    for (const raw of items.slice().reverse()) {
-      const item = normalizeComment(raw, "Guest");
-      const node = document.createElement("article");
-      node.className = "comment-item";
-      const quoteBlock = item.quote
-        ? `<button class="quote-block" data-comment-id="${escapeHtml(item.id)}" title="${escapeHtml(i18n.clickJump)}">${escapeHtml(item.quote)}</button>`
-        : "";
-      const sourceText = item.quote
-        ? item.source === "pdf"
-          ? i18n.quoteFromPdf(item.page || 1)
-          : i18n.quoteFromTex
-        : "";
-      node.innerHTML = `
-        <header>
-          <strong>${escapeHtml(item.username)}</strong>
-          <small>${escapeHtml(item.createdAt || "")}</small>
-        </header>
-        ${quoteBlock}
-        ${sourceText ? `<div class="quote-source">${escapeHtml(sourceText)}</div>` : ""}
-        <p>${escapeHtml(item.text)}</p>
-      `;
-      node.querySelector(".quote-block")?.addEventListener("click", () => jumpToComment(item));
-      el.comments.appendChild(node);
-    }
-  }
-
   async function pingPresence(action) {
     if (!state.connected || !state.participantId) return;
     const payload = await postJson("/api/presence/ping", {
@@ -350,7 +281,21 @@ export async function bootstrapSharePage() {
       participantToken: state.participantToken,
       action,
     });
-    renderParticipants(payload.participants || []);
+    renderParticipants(el.participants, payload.participants || [], i18n);
+  }
+
+  async function loadComments() {
+    if (!state.connected) return;
+    const token = state.participantToken
+      ? `&participantToken=${encodeURIComponent(state.participantToken)}`
+      : "";
+    const response = await fetch(
+      `/api/comments/list?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&participantId=${encodeURIComponent(state.participantId)}${token}&t=${Date.now()}`
+    );
+    if (!response.ok) throw new Error(await response.text());
+    const payload = await response.json();
+    state.comments = Array.isArray(payload.comments) ? payload.comments : [];
+    renderComments(el.comments, state.comments, i18n, jumpToComment);
   }
 
   async function pullUpdates() {
@@ -387,6 +332,7 @@ export async function bootstrapSharePage() {
     state.pullTimer = window.setTimeout(async () => {
       try {
         await pullUpdates();
+        await loadComments();
       } catch (error) {
         setStatus(i18n.statusSyncFailed(String(error)), true);
       }
@@ -457,7 +403,6 @@ export async function bootstrapSharePage() {
       el.editor.setSelectionRange(Math.min(at, value.length), Math.min(at, value.length));
     }
   });
-  yComments.observeDeep(renderComments);
   doc.on("update", (update, origin) => {
     if (origin === "remote" || state.syncingRemote || !state.connected) return;
     void postJson("/api/sync/push", {
@@ -516,7 +461,7 @@ export async function bootstrapSharePage() {
 
   el.clearQuote.addEventListener("click", () => setDraftQuote(null));
 
-  el.postComment.addEventListener("click", () => {
+  el.postComment.addEventListener("click", async () => {
     if (!state.connected) return;
     const text = el.commentEditor.value.trim();
     const quote = state.draftQuote;
@@ -535,11 +480,23 @@ export async function bootstrapSharePage() {
       end: quote?.end,
       createdAt: new Date().toISOString(),
     };
-    yComments.push([payload]);
-    state.action = i18n.actionCommenting;
-    el.commentEditor.value = "";
-    setDraftQuote(null);
-    setStatus(i18n.statusCommentPosted);
+    try {
+      const response = await postJson("/api/comments/post", {
+        sid,
+        pwd: el.pwd.value.trim(),
+        participantId: state.participantId,
+        participantToken: state.participantToken,
+        ...payload,
+      });
+      state.comments = Array.isArray(response?.comments) ? response.comments : state.comments;
+      renderComments(el.comments, state.comments, i18n, jumpToComment);
+      state.action = i18n.actionCommenting;
+      el.commentEditor.value = "";
+      setDraftQuote(null);
+      setStatus(i18n.statusCommentPosted);
+    } catch (error) {
+      setStatus(i18n.statusSyncFailed(String(error)), true);
+    }
   });
 
   el.requestCompile.addEventListener("click", async () => {
@@ -604,7 +561,7 @@ export async function bootstrapSharePage() {
       });
       state.participantId = String(joined.participantId || "");
       state.participantToken = String(joined.participantToken || "");
-      renderParticipants(joined.participants || []);
+      renderParticipants(el.participants, joined.participants || [], i18n);
 
       const snapshotResp = await fetch(`/api/snapshot?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`);
       if (!snapshotResp.ok) throw new Error(await snapshotResp.text());
@@ -623,7 +580,7 @@ export async function bootstrapSharePage() {
       schedulePdfStatusLoop();
       await pingPresence(i18n.actionReading);
       await reloadPdfContent().catch(() => undefined);
-      renderComments();
+      await loadComments().catch(() => undefined);
       setStatus(i18n.statusConnected);
     } catch (error) {
       state.connected = false;

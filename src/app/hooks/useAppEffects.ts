@@ -377,7 +377,13 @@ export function useAppEffects(params: {
       try {
         const waitMs = hasLiveRun ? 1_400 : needsWarmPolling ? 900 : 250;
         const limit = hasLiveRun ? 120 : needsWarmPolling ? 80 : 40;
-        const batch = await getEvents(cursorRef.current, limit, undefined, waitMs);
+        const batch = await getEvents(
+          cursorRef.current,
+          limit,
+          undefined,
+          waitMs,
+          ["responses.output_text.delta", "agent.run.heartbeat"],
+        );
         if (batch.events.length > 0) {
           setEvents((prev: SwarmEvent[]) => [...prev.slice(-220), ...batch.events]);
           cursorRef.current = batch.nextCursor;

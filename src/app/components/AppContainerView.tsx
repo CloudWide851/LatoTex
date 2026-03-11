@@ -36,7 +36,9 @@ export function AppContainerView(props: any) {
     shareSyncing,
     shareComments,
     shareMode,
+    shareSessionName,
     handleShareModeChange,
+    handleShareSessionNameChange,
     handleShareStart,
     handleShareStop,
     handleShareRefresh,
@@ -145,8 +147,15 @@ export function AppContainerView(props: any) {
     handleUnsavedDialogCancel,
   } = props;
   const completionModelId =
-    settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "completion")
-      ?.modelId ?? null;
+    settings?.uiPrefs?.featureModelBindings?.completionModelId
+    || settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "completion")
+      ?.modelId
+    || null;
+  const translationModelId =
+    settings?.uiPrefs?.featureModelBindings?.translationModelId
+    || settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "task")
+      ?.modelId
+    || null;
 
   return (
     <div
@@ -204,6 +213,7 @@ export function AppContainerView(props: any) {
               libraryLayout={libraryLayout}
               previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
               completionModelId={completionModelId}
+              translationModelId={translationModelId}
               tree={tree}
               libraryTree={libraryTree}
               selectedFile={selectedFile}
@@ -241,8 +251,11 @@ export function AppContainerView(props: any) {
               shareBusy={shareBusy}
               shareSyncing={shareSyncing}
               shareComments={shareComments}
+              channelPrefs={settings?.uiPrefs?.channels ?? null}
               shareMode={shareMode}
+              shareSessionName={shareSessionName}
               onShareModeChange={handleShareModeChange}
+              onShareSessionNameChange={handleShareSessionNameChange}
               onShareStart={handleShareStart}
               onShareStop={handleShareStop}
               onShareRefresh={handleShareRefresh}

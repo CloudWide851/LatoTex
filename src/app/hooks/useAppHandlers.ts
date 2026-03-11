@@ -262,6 +262,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setTree,
     setPage,
     runAnalysisFromAgent,
+    taskModelOverride: settings?.uiPrefs?.featureModelBindings?.latexAgentModelId ?? null,
   });
 
   const handleSaveSettings = useCallback(async () => {

@@ -7,6 +7,7 @@ export async function runAgentThroughEvents(params: {
   prompt: string;
   contextRefs: string[];
   setAgentRunId: (value: string | null) => void;
+  modelOverride?: string;
   bypassCache?: boolean;
 }): Promise<{ runId: string; output: string }> {
   const isRetryableProviderError = (message: string) =>
@@ -29,6 +30,7 @@ export async function runAgentThroughEvents(params: {
         role: params.role,
         prompt: params.prompt,
         contextRefs: params.contextRefs,
+        modelOverride: params.modelOverride,
         bypassCache: retryAttempt || (params.bypassCache ?? false),
       });
       params.setAgentRunId(accepted.runId);

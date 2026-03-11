@@ -4,6 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 
+const REQUIRED_BUSYTEX_ASSETS: [&str; 4] =
+    ["busytex.js", "busytex.wasm", "busytex_worker.js", "texlive-basic.js"];
+
 fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
     if source.is_dir() {
         fs::create_dir_all(target).map_err(|e| e.to_string())?;
@@ -40,17 +43,26 @@ fn candidate_source_dirs() -> Vec<PathBuf> {
 }
 
 fn choose_existing_source_dir() -> Option<PathBuf> {
-    let required = ["busytex.js", "busytex.wasm", "busytex_worker.js", "texlive-basic.js"];
     candidate_source_dirs().into_iter().find(|dir| {
-        required.iter().all(|name| dir.join(name).exists())
+        REQUIRED_BUSYTEX_ASSETS
+            .iter()
+            .all(|name| dir.join(name).exists())
     })
 }
 
+fn has_required_assets(dir: &Path) -> bool {
+    REQUIRED_BUSYTEX_ASSETS
+        .iter()
+        .all(|name| dir.join(name).exists())
+}
+
 fn ensure_cache_dir(cache_dir: &Path, source_dir: &Path) -> Result<(), String> {
-    if cache_dir.exists() {
+    if cache_dir.exists() && has_required_assets(cache_dir) {
         return Ok(());
     }
-    fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
+    if !cache_dir.exists() {
+        fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
+    }
     copy_recursively(source_dir, cache_dir)?;
     Ok(())
 }

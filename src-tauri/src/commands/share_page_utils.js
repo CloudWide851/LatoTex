@@ -42,6 +42,8 @@ export function normalizeComment(raw, fallbackGuest) {
     text: String(raw?.text || ""),
     quote,
     source,
+    sessionName: typeof raw?.sessionName === "string" ? raw.sessionName : "",
+    sessionCreatedAt: typeof raw?.sessionCreatedAt === "string" ? raw.sessionCreatedAt : "",
     page: Number.isFinite(page) && page > 0 ? page : undefined,
     start: Number.isFinite(start) && start >= 0 ? start : undefined,
     end: Number.isFinite(end) && end >= 0 ? end : undefined,

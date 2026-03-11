@@ -1,10 +1,3 @@
-use super::super::swarm_events::{append_protocol_event, envelope};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::time::Duration;
-
 fn normalize_tool_query(value: &str) -> Option<String> {
     let trimmed = value
         .trim()
@@ -61,37 +54,4 @@ pub(super) fn with_tool_search_queries(prompt: &str, queries: &[String]) -> Stri
         }
     }
     lines.join("\n")
-}
-
-pub(super) fn spawn_run_heartbeat(
-    db_path: PathBuf,
-    run_id: String,
-    project_id: String,
-    role: String,
-    stop_flag: Arc<AtomicBool>,
-) {
-    thread::spawn(move || {
-        while !stop_flag.load(Ordering::Relaxed) {
-            thread::sleep(Duration::from_secs(10));
-            if stop_flag.load(Ordering::Relaxed) {
-                return;
-            }
-            let _ = append_protocol_event(
-                &db_path,
-                &run_id,
-                &project_id,
-                &role,
-                "agent.run.heartbeat",
-                envelope(
-                    &run_id,
-                    "system",
-                    "run",
-                    "running",
-                    "Run Heartbeat",
-                    "",
-                    &format!("{run_id}:run:heartbeat"),
-                ),
-            );
-        }
-    });
 }

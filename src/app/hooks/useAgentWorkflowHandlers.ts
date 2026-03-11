@@ -36,6 +36,7 @@ export function useAgentWorkflowHandlers(params: {
   setTree: (value: any) => void;
   setPage: (value: any) => void;
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
+  taskModelOverride?: string | null;
 }) {
   const {
     activeProjectId,
@@ -62,6 +63,7 @@ export function useAgentWorkflowHandlers(params: {
     setTree,
     setPage,
     runAnalysisFromAgent,
+    taskModelOverride,
   } = params;
 
   const currentProposal: AgentFileProposal | null = selectedFile
@@ -148,6 +150,7 @@ export function useAgentWorkflowHandlers(params: {
       setSelectedFile,
       runCompilePass: ({ projectId, mainPath, mainContent, options }) =>
         runCompilePass({ projectId, mainPath, mainContent, options }),
+      taskModelOverride,
     });
   }, [
     activeProjectId,
@@ -166,6 +169,7 @@ export function useAgentWorkflowHandlers(params: {
     setSelectedFile,
     setToast,
     t,
+    taskModelOverride,
     clearPendingDecision,
   ]);
 

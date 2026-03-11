@@ -66,6 +66,7 @@ pub fn agent_run(
                 limit: Some(240),
                 run_id: Some(run_id.clone()),
                 wait_ms: None,
+                exclude_kinds: None,
             },
         )?;
         cursor = batch.next_cursor;

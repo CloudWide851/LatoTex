@@ -1,5 +1,6 @@
 import type {
   CloseTabsAction,
+  ChannelPrefs,
   EditorTab,
   FsAction,
   FsScope,
@@ -66,8 +67,11 @@ export type AppWorkspaceShellProps = {
   shareBusy: boolean;
   shareSyncing: boolean;
   shareComments: ShareCommentItem[];
+  channelPrefs?: ChannelPrefs | null;
   shareMode: ShareMode;
+  shareSessionName: string;
   onShareModeChange: (mode: ShareMode) => void;
+  onShareSessionNameChange: (value: string) => void;
   onPageChange: (page: WorkspacePage) => void;
   onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
@@ -107,6 +111,7 @@ export type AppWorkspaceShellProps = {
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
   previewDefaultZoom: number;
   completionModelId: string | null;
+  translationModelId: string | null;
   onFsAction: (
     scope: FsScope,
     action: FsAction,

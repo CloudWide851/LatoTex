@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { FolderOpen, Play, Redo2, Save, Undo2 } from "lucide-react";
+import { FolderOpen, MessageSquareMore, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay } from "./AgentChatOverlay";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
@@ -14,6 +14,8 @@ import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
+import { ChatWorkspace } from "./chat/ChatWorkspace";
+import { DrawWorkspace } from "./draw/DrawWorkspace";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "./workspace/workspaceShellUtils";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
@@ -62,8 +64,11 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     shareBusy,
     shareSyncing,
     shareComments,
+    channelPrefs,
     shareMode,
+    shareSessionName,
     onShareModeChange,
+    onShareSessionNameChange,
     onPageChange,
     onShareStart,
     onShareStop,
@@ -103,6 +108,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onSavePanelLayout,
     previewDefaultZoom,
     completionModelId,
+    translationModelId,
     onFsAction,
     t,
   } = props;
@@ -196,6 +202,19 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     if (page === "analysis") {
       return <section className="h-full min-h-0">{analysisPanel}</section>;
     }
+    if (page === "chat") {
+      return (
+        <ChatWorkspace
+          projectId={activeProjectId}
+          modelOverride={completionModelId}
+          channelPrefs={channelPrefs}
+          t={t}
+        />
+      );
+    }
+    if (page === "draw") {
+      return <DrawWorkspace projectId={activeProjectId} t={t} />;
+    }
     if (page === "library") {
       return renderNoProjectPanel();
     }
@@ -219,12 +238,22 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               shareBusy={shareBusy}
               shareSyncing={shareSyncing}
               shareMode={shareMode}
+              shareSessionName={shareSessionName}
               onShareModeChange={onShareModeChange}
+              onShareSessionNameChange={onShareSessionNameChange}
               onShareStart={onShareStart}
               onShareStop={onShareStop}
               onShareRefresh={onShareRefresh}
               t={t}
             />
+            <button
+              className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100"
+              title={t("nav.chat")}
+              aria-label={t("nav.chat")}
+              onClick={() => onPageChange("chat")}
+            >
+              <MessageSquareMore className="h-3.5 w-3.5" />
+            </button>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -484,6 +513,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                     selectedPath={selectedLibraryPath}
                     onAnalyzePaper={onLibraryAnalyzePaper}
                     analysisRunning={analysisRunning}
+                    translationModelId={translationModelId}
                     t={t}
                   />
                 </section>

@@ -44,6 +44,8 @@ import type {
   RuntimeLogReadResponse,
   ResourceNode,
   ShareSessionInfo,
+  TelegramPollInput,
+  TelegramPollResult,
   WorkspaceExportPdfResponse,
 } from "../types/app";
 import type { HealthCheckResponse } from "../types/health";
@@ -153,9 +155,10 @@ export function shareSessionCreate(
   projectId: string,
   targetPath: string,
   mode: "local" | "remote" = "remote",
+  sessionName?: string,
 ): Promise<ShareSessionInfo> {
   return invoke<ShareSessionInfo>("share_session_create", {
-    input: { projectId, targetPath, mode },
+    input: { projectId, targetPath, mode, sessionName },
   });
 }
 
@@ -165,6 +168,18 @@ export function shareSessionStatus(): Promise<ShareSessionInfo> {
 
 export function shareSessionStop(): Promise<Ack> {
   return invoke<Ack>("share_session_stop");
+}
+
+export function channelsTelegramPoll(input: TelegramPollInput = {}): Promise<TelegramPollResult> {
+  return invoke<TelegramPollResult>("channels_telegram_poll", { input });
+}
+
+export function channelsTelegramSend(input: {
+  chatId?: string;
+  text: string;
+  replyToMessageId?: number;
+}): Promise<Ack> {
+  return invoke<Ack>("channels_telegram_send", { input });
 }
 
 export function openExternalLink(url: string): Promise<Ack> {
@@ -305,8 +320,9 @@ export function getEvents(
   limit = 200,
   runId?: string,
   waitMs?: number,
+  excludeKinds?: string[],
 ): Promise<EventBatch> {
-  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId, waitMs } });
+  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId, waitMs, excludeKinds } });
 }
 
 export function setTrayLabels(showLabel: string, exitLabel: string, tooltip: string) {
@@ -347,6 +363,17 @@ export function updateSettings(input: {
     busytexCacheDir?: string;
     previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
+    featureModelBindings?: {
+      latexAgentModelId?: string;
+      analysisAgentModelId?: string;
+      translationModelId?: string;
+      completionModelId?: string;
+    };
+    channels?: {
+      telegramEnabled?: boolean;
+      telegramBotToken?: string;
+      telegramChatId?: string;
+    };
   };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });

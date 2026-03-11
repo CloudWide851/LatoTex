@@ -1,4 +1,4 @@
-export type WorkspacePage = "latex" | "analysis" | "library" | "git" | "settings";
+export type WorkspacePage = "latex" | "chat" | "analysis" | "draw" | "library" | "git" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -66,6 +66,8 @@ export type WorkspaceExportPdfResponse = {
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;
+  sessionName?: string | null;
+  sessionCreatedAt?: string | null;
   projectId?: string | null;
   targetPath?: string | null;
   mode?: "local" | "remote" | string | null;
@@ -97,6 +99,9 @@ export type ShareCommentItem = {
   username: string;
   text: string;
   quote?: string;
+  source?: "tex" | "pdf" | string;
+  sessionName?: string;
+  sessionCreatedAt?: string;
   page?: number;
   start?: number;
   end?: number;
@@ -204,7 +209,41 @@ export type AppSettings = {
     busytexCacheDir?: string;
     previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
+    featureModelBindings?: FeatureModelBindings;
+    channels?: ChannelPrefs;
   };
+};
+
+export type FeatureModelBindings = {
+  latexAgentModelId?: string;
+  analysisAgentModelId?: string;
+  translationModelId?: string;
+  completionModelId?: string;
+};
+
+export type ChannelPrefs = {
+  telegramEnabled?: boolean;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+};
+
+export type TelegramPollInput = {
+  offset?: number;
+  limit?: number;
+  timeoutSecs?: number;
+};
+
+export type TelegramUpdateItem = {
+  updateId: number;
+  messageId: number;
+  chatId: string;
+  username: string;
+  text: string;
+};
+
+export type TelegramPollResult = {
+  nextOffset: number;
+  updates: TelegramUpdateItem[];
 };
 
 export type PanelLayoutPrefs = {

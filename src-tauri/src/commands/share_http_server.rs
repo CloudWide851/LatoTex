@@ -1,54 +1,8 @@
 use super::*;
+use super::share_http_auth::{verify_sync_body_auth, verify_sync_query_auth};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use tiny_http::Method;
-
-fn verify_sync_query_auth(
-    runtime: &ShareRuntime,
-    query: &std::collections::HashMap<String, String>,
-) -> Result<(), Response<std::io::Cursor<Vec<u8>>>> {
-    let sid_ok = query
-        .get("sid")
-        .map(|value| value == &runtime.session_id)
-        .unwrap_or(false);
-    if !sid_ok {
-        return Err(json_response(
-            StatusCode(401),
-            json!({ "ok": false, "message": "unauthorized" }),
-        ));
-    }
-    let participant_id = query
-        .get("participantId")
-        .or_else(|| query.get("participant_id"))
-        .map(|value| value.as_str());
-    let participant_token = query
-        .get("participantToken")
-        .or_else(|| query.get("participant_token"))
-        .map(|value| value.as_str());
-    if verify_participant_auth(runtime, participant_id, participant_token) {
-        return Ok(());
-    }
-    verify_query_auth(runtime, query)
-}
-
-fn verify_sync_body_auth(
-    runtime: &ShareRuntime,
-    sid: &str,
-    pwd: &str,
-    participant_id: Option<&str>,
-    participant_token: Option<&str>,
-) -> Result<(), Response<std::io::Cursor<Vec<u8>>>> {
-    if runtime.session_id != sid {
-        return Err(json_response(
-            StatusCode(401),
-            json!({ "ok": false, "message": "unauthorized" }),
-        ));
-    }
-    if verify_participant_auth(runtime, participant_id, participant_token) {
-        return Ok(());
-    }
-    verify_body_auth(runtime, sid, pwd)
-}
 
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
     let method = request.method().clone();
@@ -72,82 +26,10 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
     }
     drop(runtime_snapshot);
 
-    if method == Method::Get && path == "/" {
-        let _ = request.respond(html_response(include_str!("share_page.html")));
-        return;
-    }
-
-    if method == Method::Get && path == "/assets/share_page.js" {
-        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
-            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
-        let _ = request.respond(
-            Response::from_string(include_str!("share_page_entry.js"))
-                .with_status_code(StatusCode(200))
-                .with_header(js_header)
-                .with_header(no_cache_header()),
-        );
-        return;
-    }
-
-    if method == Method::Get && path == "/assets/share_page_app.js" {
-        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
-            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
-        let _ = request.respond(
-            Response::from_string(include_str!("share_page_app.js"))
-                .with_status_code(StatusCode(200))
-                .with_header(js_header)
-                .with_header(no_cache_header()),
-        );
-        return;
-    }
-
-    if method == Method::Get && path == "/assets/share_page_i18n.js" {
-        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
-            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
-        let _ = request.respond(
-            Response::from_string(include_str!("share_page_i18n.js"))
-                .with_status_code(StatusCode(200))
-                .with_header(js_header)
-                .with_header(no_cache_header()),
-        );
-        return;
-    }
-
-    if method == Method::Get && path == "/assets/share_page_utils.js" {
-        let js_header = Header::from_bytes("Content-Type", "application/javascript; charset=utf-8")
-            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/javascript").unwrap());
-        let _ = request.respond(
-            Response::from_string(include_str!("share_page_utils.js"))
-                .with_status_code(StatusCode(200))
-                .with_header(js_header)
-                .with_header(no_cache_header()),
-        );
-        return;
-    }
-
-    if method == Method::Get && path == "/assets/share_page_theme.css" {
-        let css_header = Header::from_bytes("Content-Type", "text/css; charset=utf-8")
-            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/css").unwrap());
-        let _ = request.respond(
-            Response::from_string(include_str!("share_page_theme.css"))
-                .with_status_code(StatusCode(200))
-                .with_header(css_header)
-                .with_header(no_cache_header()),
-        );
-        return;
-    }
-
-    if method == Method::Get && path == "/assets/pico.min.css" {
-        let css_header = Header::from_bytes("Content-Type", "text/css; charset=utf-8")
-            .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/css").unwrap());
-        let _ = request.respond(
-            Response::from_string(include_str!("share_page_pico.min.css"))
-                .with_status_code(StatusCode(200))
-                .with_header(css_header)
-                .with_header(no_cache_header()),
-        );
-        return;
-    }
+    request = match share_http_static::try_serve_static_route(&method, &path, request) {
+        Some(pending_request) => pending_request,
+        None => return,
+    };
 
     if method == Method::Get && path == "/api/health" {
         let _ = request.respond(json_response(
@@ -181,7 +63,10 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
                 "status": guard.status.clone(),
                 "tunnelState": guard.tunnel_state.clone(),
                 "tunnelError": guard.tunnel_error.clone(),
+                "sessionName": guard.session_name.clone(),
+                "sessionCreatedAt": guard.session_created_at.clone(),
                 "participants": participant_public_list(&guard),
+                "comments": guard.comments.clone(),
             }),
         ));
         return;
@@ -322,6 +207,106 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             json!({
                 "ok": true,
                 "participants": participant_public_list(&guard),
+            }),
+        ));
+        return;
+    }
+
+    if method == Method::Get && path == "/api/comments/list" {
+        let guard = if let Ok(runtime_guard) = runtime.lock() {
+            runtime_guard
+        } else {
+            let _ = request.respond(json_response(
+                StatusCode(500),
+                json!({ "ok": false, "message": "runtime lock failed" }),
+            ));
+            return;
+        };
+        if let Err(response) = verify_sync_query_auth(&guard, &query) {
+            let _ = request.respond(response);
+            return;
+        }
+        let _ = request.respond(json_response(
+            StatusCode(200),
+            json!({
+                "ok": true,
+                "sessionName": guard.session_name.clone(),
+                "sessionCreatedAt": guard.session_created_at.clone(),
+                "comments": guard.comments.clone(),
+            }),
+        ));
+        return;
+    }
+
+    if method == Method::Post && path == "/api/comments/post" {
+        let body = match parse_json_body::<CommentPostBody>(&mut request) {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = request.respond(json_response(
+                    StatusCode(400),
+                    json!({ "ok": false, "message": error }),
+                ));
+                return;
+            }
+        };
+        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
+            runtime_guard
+        } else {
+            let _ = request.respond(json_response(
+                StatusCode(500),
+                json!({ "ok": false, "message": "runtime lock failed" }),
+            ));
+            return;
+        };
+        if let Err(response) = verify_sync_body_auth(
+            &guard,
+            &body.sid,
+            &body.pwd,
+            body.participant_id.as_deref(),
+            body.participant_token.as_deref(),
+        ) {
+            let _ = request.respond(response);
+            return;
+        }
+        if let Some(pid) = body.participant_id.as_deref() {
+            let username = body
+                .username
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| value.to_string())
+                .or_else(|| {
+                    guard
+                        .participants
+                        .get(pid)
+                        .map(|item| item.username.clone())
+                })
+                .unwrap_or_else(|| "Guest".to_string());
+            upsert_participant(
+                &mut guard,
+                pid,
+                &username,
+                Some("commenting"),
+            );
+        }
+        let appended = match append_share_comment(&mut guard, &body) {
+            Ok(item) => item,
+            Err(error) => {
+                let _ = request.respond(json_response(
+                    StatusCode(400),
+                    json!({ "ok": false, "message": error }),
+                ));
+                return;
+            }
+        };
+        let _ = request.respond(json_response(
+            StatusCode(200),
+            json!({
+                "ok": true,
+                "comment": appended,
+                "sessionName": guard.session_name.clone(),
+                "sessionCreatedAt": guard.session_created_at.clone(),
+                "comments": guard.comments.clone(),
             }),
         ));
         return;

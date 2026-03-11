@@ -42,6 +42,9 @@ function normalizeLine(value: string): string {
 }
 
 function lineFromEvent(event: SwarmEvent): ActivityLine | null {
+  if (event.kind === "agent.run.heartbeat") {
+    return null;
+  }
   const payload = event.payload ?? {};
   const status = typeof payload.status === "string" ? payload.status : "";
   const stage = typeof payload.stage === "string" ? payload.stage : "";

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  analysisExportArtifact,
   analysisSaveReport,
   readFile,
   runtimeLogWrite,
-  workspaceRevealInSystem,
 } from "../../shared/api/desktop";
 import {
   buildPaperAnalysisContext,
@@ -29,10 +27,21 @@ import {
   toChartFromSnapshots,
   upsertRun,
 } from "./analysisWorkspaceHelpers";
+import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
 
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
-  const { projectId, selectedFile, editorContent, fileList, locale, events, setToast, t } = params;
+  const {
+    projectId,
+    selectedFile,
+    editorContent,
+    fileList,
+    locale,
+    analysisModelOverride,
+    events,
+    setToast,
+    t,
+  } = params;
   const [running, setRunning] = useState(false);
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
@@ -289,6 +298,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           role,
           promptText,
           contextRefs,
+          modelOverride: analysisModelOverride ?? undefined,
           bypassCache,
         });
         runIds.push(result.runId);
@@ -586,42 +596,31 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   );
 
   const runPaperAnalysisFromLibrary = useCallback(async (sourcePath: string) => {
-    await ensureTasksReady();
-    if (runInFlightRef.current) {
-      setToast({ type: "info", message: t("analysis.running") });
-      return;
-    }
-    const normalizedPath = sourcePath.replace(/\\/g, "/");
-    const existingTask = tasksRef.current.find((item) => item.sourceType === "paper" && (item.sourcePath ?? "").replace(/\\/g, "/") === normalizedPath);
-    const task = existingTask ?? createTask("paper", normalizedPath, `${t("analysis.paperTaskName")}: ${normalizedPath.split("/").pop() || normalizedPath}`);
-    setActiveTaskId(task.id);
-    updateTaskById(task.id, (item) => ({
-      ...item,
-      draftPrompt: "",
-      lastError: null,
-      updatedAt: nowIso(),
-    }));
-    const promptText = t("analysis.paperDefaultPrompt");
-    await runAnalysisForPrompt(promptText, {
-      forcedTaskId: task.id,
-      taskSnapshot: task,
-      savePrompt: false,
+    await runPaperAnalysisTask({
+      sourcePath,
+      ensureTasksReady,
+      runInFlightRef,
+      setToast,
+      t,
+      tasksRef,
+      createTask,
+      setActiveTaskId,
+      updateTaskById,
+      runAnalysisForPrompt,
     });
   }, [createTask, ensureTasksReady, runAnalysisForPrompt, setToast, t, updateTaskById]);
 
   const exportArtifact = useCallback(async (relativePath: string) => {
-    if (!projectId) return;
     try {
-      await analysisExportArtifact(projectId, relativePath);
+      await exportAnalysisArtifact(projectId, relativePath);
     } catch (error) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
 
   const revealArtifact = useCallback(async (relativePath: string) => {
-    if (!projectId) return;
     try {
-      await workspaceRevealInSystem(projectId, relativePath);
+      await revealAnalysisArtifact(projectId, relativePath);
     } catch (error) {
       setToast({ type: "error", message: String(error) });
     }

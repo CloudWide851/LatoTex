@@ -1,6 +1,7 @@
 import { ChevronDown, Link2, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
+import zoteroIcon from "../../assets/brands/zotero.svg";
 
 type TranslationFn = (key: any) => string;
 
@@ -13,6 +14,7 @@ export function LibraryUploadMenu(props: {
   const { busy, onImportPdf, onImportLink, t } = props;
   const [menuOpen, setMenuOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [linkKind, setLinkKind] = useState<"link" | "zotero">("link");
   const [linkDraft, setLinkDraft] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,12 +62,24 @@ export function LibraryUploadMenu(props: {
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
             onClick={() => {
+              setLinkKind("link");
               setLinkOpen(true);
               setMenuOpen(false);
             }}
           >
             <Link2 className="h-3.5 w-3.5" />
             <span>{t("library.addLink")}</span>
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+            onClick={() => {
+              setLinkKind("zotero");
+              setLinkOpen(true);
+              setMenuOpen(false);
+            }}
+          >
+            <img src={zoteroIcon} alt="" className="h-3.5 w-3.5 rounded-sm" />
+            <span>{t("library.importZotero")}</span>
           </button>
         </div>
       )}
@@ -75,7 +89,7 @@ export function LibraryUploadMenu(props: {
           <input
             className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-primary-500"
             value={linkDraft}
-            placeholder={t("library.linkPlaceholder")}
+            placeholder={linkKind === "zotero" ? t("library.zoteroPlaceholder") : t("library.linkPlaceholder")}
             onChange={(event) => setLinkDraft(event.target.value)}
           />
           <div className="mt-2 flex justify-end gap-2">
@@ -114,4 +128,3 @@ export function LibraryUploadMenu(props: {
     </div>
   );
 }
-

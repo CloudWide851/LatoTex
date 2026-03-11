@@ -75,10 +75,12 @@ async function buildBasePathCandidates(): Promise<string[]> {
 }
 
 function normalizePath(path: string): string {
-  return path
-    .replace(/\\/g, "/")
-    .replace(/\/{2,}/g, "/")
-    .replace(/^(\.)\/+/, "./");
+  const withForwardSlash = path.replace(/\\/g, "/");
+  const protocolMatch = withForwardSlash.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//);
+  const protocolPrefix = protocolMatch?.[0] ?? "";
+  const tail = protocolPrefix ? withForwardSlash.slice(protocolPrefix.length) : withForwardSlash;
+  const normalizedTail = tail.replace(/\/{2,}/g, "/");
+  return `${protocolPrefix}${normalizedTail}`.replace(/^(\.)\/+/, "./");
 }
 
 async function hasValidWorkerAsset(basePath: string): Promise<boolean> {

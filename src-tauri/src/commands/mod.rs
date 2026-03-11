@@ -1,5 +1,6 @@
 pub mod analysis;
 pub mod busytex;
+pub mod channels;
 pub mod git;
 pub mod health;
 pub mod projects;

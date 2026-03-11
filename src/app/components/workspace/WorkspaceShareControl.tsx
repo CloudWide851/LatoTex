@@ -107,7 +107,9 @@ export function WorkspaceShareControl(props: {
   shareBusy: boolean;
   shareSyncing: boolean;
   shareMode: ShareMode;
+  shareSessionName: string;
   onShareModeChange: (mode: ShareMode) => void;
+  onShareSessionNameChange: (value: string) => void;
   onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
@@ -119,7 +121,9 @@ export function WorkspaceShareControl(props: {
     shareBusy,
     shareSyncing,
     shareMode,
+    shareSessionName,
     onShareModeChange,
+    onShareSessionNameChange,
     onShareStart,
     onShareStop,
     onShareRefresh,
@@ -233,6 +237,12 @@ export function WorkspaceShareControl(props: {
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold text-slate-800">{t("share.panelTitle")}</h3>
               <p className="mt-0.5 truncate text-[11px] text-emerald-700">{statusText}</p>
+              {shareSession?.sessionName ? (
+                <p className="truncate text-[11px] text-slate-500">
+                  {shareSession.sessionName}
+                  {shareSession.sessionCreatedAt ? ` · ${shareSession.sessionCreatedAt}` : ""}
+                </p>
+              ) : null}
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -311,6 +321,14 @@ export function WorkspaceShareControl(props: {
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {!sessionExists ? (
                   <>
+                    <input
+                      className="min-w-[180px] flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                      value={shareSessionName}
+                      maxLength={120}
+                      onChange={(event) => onShareSessionNameChange(event.target.value)}
+                      placeholder={t("share.sessionNamePlaceholder")}
+                      disabled={shareBusy}
+                    />
                     <select
                       className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                       value={activeMode}

@@ -20,9 +20,10 @@ export async function runRolePromptWithAgent(params: {
   role: string;
   promptText: string;
   contextRefs: string[];
+  modelOverride?: string;
   bypassCache?: boolean;
 }): Promise<{ runId: string; output: string }> {
-  const { projectId, role, promptText, contextRefs, bypassCache = false } = params;
+  const { projectId, role, promptText, contextRefs, modelOverride, bypassCache = false } = params;
   const maxAttempts = 3;
   const isRetryableProviderError = (message: string) =>
     message.includes("provider.empty_body")
@@ -43,6 +44,7 @@ export async function runRolePromptWithAgent(params: {
         role,
         prompt: promptText,
         contextRefs,
+        modelOverride,
         bypassCache: runBypassCache,
       });
       return {

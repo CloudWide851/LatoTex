@@ -178,6 +178,7 @@ export function AppContainer() {
     editorContent: s.editorContent,
     fileList: s.fileList,
     locale,
+    analysisModelOverride: s.settings?.uiPrefs?.featureModelBindings?.analysisAgentModelId ?? null,
     events: s.events,
     t,
     setToast: s.setToast,
@@ -494,7 +495,9 @@ export function AppContainer() {
       shareSyncing={shareSession.shareSyncing}
       shareComments={shareSession.shareComments}
       shareMode={shareSession.shareMode}
+      shareSessionName={shareSession.shareSessionName}
       handleShareModeChange={(mode: "local" | "remote") => shareSession.setShareMode(mode)}
+      handleShareSessionNameChange={(value: string) => shareSession.setShareSessionName(value)}
       handleShareStart={shareSession.startShare}
       handleShareStop={shareSession.stopShare}
       handleShareRefresh={shareSession.refreshShareStatus}

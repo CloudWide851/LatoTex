@@ -1,0 +1,72 @@
+import { avatarColor, escapeHtml, normalizeComment, trimQuote } from "/assets/share_page_utils.js";
+
+export function renderParticipants(container, items, i18n) {
+  if (!Array.isArray(items) || items.length === 0) {
+    container.innerHTML = `<div class="muted">${i18n.noCollaborators}</div>`;
+    return;
+  }
+  container.innerHTML = "";
+  for (const item of items) {
+    const name = String(item.username || "Guest");
+    const node = document.createElement("article");
+    node.className = "participant";
+    node.innerHTML = `
+      <span class="avatar" style="background:${avatarColor(name)}">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>
+      <div>
+        <div class="name">${escapeHtml(name)}</div>
+        <div class="muted">${escapeHtml(String(item.lastAction || i18n.actionReading))}</div>
+      </div>
+    `;
+    container.appendChild(node);
+  }
+}
+
+export function withHighlight(text, quote) {
+  if (!quote) return escapeHtml(text);
+  const plain = String(text || "");
+  const target = trimQuote(quote, 160);
+  if (!target) return escapeHtml(plain);
+  const index = plain.toLowerCase().indexOf(target.toLowerCase());
+  if (index < 0) return escapeHtml(plain);
+  const before = escapeHtml(plain.slice(0, index));
+  const hit = escapeHtml(plain.slice(index, index + target.length));
+  const after = escapeHtml(plain.slice(index + target.length));
+  return `${before}<mark>${hit}</mark>${after}`;
+}
+
+export function renderComments(container, itemsRaw, i18n, onJump) {
+  const items = Array.isArray(itemsRaw) ? itemsRaw : [];
+  if (!items.length) {
+    container.innerHTML = `<div class="muted">${i18n.noComments}</div>`;
+    return;
+  }
+  container.innerHTML = "";
+  for (const raw of items.slice().reverse()) {
+    const item = normalizeComment(raw, "Guest");
+    const node = document.createElement("article");
+    node.className = "comment-item";
+    const quoteBlock = item.quote
+      ? `<button class="quote-block" data-comment-id="${escapeHtml(item.id)}" title="${escapeHtml(i18n.clickJump)}">${escapeHtml(item.quote)}</button>`
+      : "";
+    const sourceText = item.quote
+      ? item.source === "pdf"
+        ? i18n.quoteFromPdf(item.page || 1)
+        : i18n.quoteFromTex
+      : "";
+    const sessionMeta = item.sessionCreatedAt
+      ? `${item.sessionName ? `${item.sessionName} · ` : ""}${item.sessionCreatedAt}`
+      : "";
+    node.innerHTML = `
+      <header>
+        <strong>${escapeHtml(item.username)}</strong>
+        <small>${escapeHtml(item.createdAt || "")}</small>
+      </header>
+      ${quoteBlock}
+      ${sourceText ? `<div class="quote-source">${escapeHtml(sourceText)}</div>` : ""}
+      ${sessionMeta ? `<div class="quote-source">${escapeHtml(sessionMeta)}</div>` : ""}
+      <p>${escapeHtml(item.text)}</p>
+    `;
+    node.querySelector(".quote-block")?.addEventListener("click", () => onJump(item));
+    container.appendChild(node);
+  }
+}

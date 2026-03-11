@@ -8,6 +8,7 @@ export type UseAnalysisWorkspaceParams = {
   editorContent: string;
   fileList: string[];
   locale: "zh-CN" | "en-US";
+  analysisModelOverride?: string | null;
   events: SwarmEvent[];
   t: TranslationFn;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;

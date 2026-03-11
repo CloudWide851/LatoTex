@@ -11,14 +11,8 @@ type YTextLike = {
   observe: (cb: () => void) => void;
   unobserve: (cb: () => void) => void;
 };
-type YArrayLike = {
-  toArray: () => any[];
-  observeDeep: (cb: () => void) => void;
-  unobserveDeep: (cb: () => void) => void;
-};
 type YDocLike = {
   getText: (name: string) => YTextLike;
-  getArray: (name: string) => YArrayLike;
   on: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
   off: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
   transact: (fn: () => void, origin?: unknown) => void;
@@ -49,6 +43,9 @@ function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {
         username: String(item?.username ?? "Guest"),
         text: String(item?.text ?? ""),
         quote: typeof item?.quote === "string" ? item.quote : undefined,
+        source: typeof item?.source === "string" ? item.source : undefined,
+        sessionName: typeof item?.sessionName === "string" ? item.sessionName : undefined,
+        sessionCreatedAt: typeof item?.sessionCreatedAt === "string" ? item.sessionCreatedAt : undefined,
         page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : undefined,
         start: Number.isFinite(startRaw) && startRaw >= 0 ? startRaw : undefined,
         end: Number.isFinite(endRaw) && endRaw >= 0 ? endRaw : undefined,
@@ -156,10 +153,10 @@ export function useShareSession(params: {
   const [syncing, setSyncing] = useState(false);
   const [shareComments, setShareComments] = useState<ShareCommentItem[]>([]);
   const [shareMode, setShareMode] = useState<ShareMode>("remote");
+  const [shareSessionName, setShareSessionName] = useState("");
 
   const yDocRef = useRef<YDocLike | null>(null);
   const yTextRef = useRef<YTextLike | null>(null);
-  const yCommentsRef = useRef<YArrayLike | null>(null);
   const pullCursorRef = useRef(0);
   const applyingRemoteRef = useRef(false);
   const statusTimerRef = useRef<number | null>(null);
@@ -263,11 +260,23 @@ export function useShareSession(params: {
     try {
       const nextMode: ShareMode = mode === "local" ? "local" : "remote";
       setShareMode(nextMode);
-      const created = await shareSessionCreate(activeProjectId, selectedFile, nextMode);
+      const nextSessionName = shareSessionName.trim();
+      const created = await shareSessionCreate(
+        activeProjectId,
+        selectedFile,
+        nextMode,
+        nextSessionName || undefined,
+      );
       setShareSession(created);
+      if (created.sessionName?.trim()) {
+        setShareSessionName(created.sessionName.trim());
+      }
       void onCompile().catch(() => undefined);
       const ready = await waitForShareReady(created.sessionId || "", nextMode);
       setShareSession(ready);
+      if (ready.sessionName?.trim()) {
+        setShareSessionName(ready.sessionName.trim());
+      }
       if (isShareReady(ready, nextMode)) {
         setToast({ type: "info", message: t("share.started") });
       } else {
@@ -282,7 +291,7 @@ export function useShareSession(params: {
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, t, waitForShareReady]);
+  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, waitForShareReady]);
 
   const stopShare = useCallback(async () => {
     setShareBusy(true);
@@ -300,6 +309,13 @@ export function useShareSession(params: {
   useEffect(() => {
     void refreshShareStatus();
   }, [refreshShareStatus]);
+
+  useEffect(() => {
+    const next = shareSession?.sessionName?.trim();
+    if (next) {
+      setShareSessionName(next);
+    }
+  }, [shareSession?.sessionName]);
 
   useEffect(() => {
     clearTimer(statusTimerRef);
@@ -325,7 +341,6 @@ export function useShareSession(params: {
       setShareComments([]);
       yDocRef.current = null;
       yTextRef.current = null;
-      yCommentsRef.current = null;
       participantTokenRef.current = "";
       clearTimer(syncTimerRef);
       return;
@@ -340,10 +355,8 @@ export function useShareSession(params: {
       }
       const doc = new yjs.Doc();
       const yText = doc.getText("tex");
-      const yComments = doc.getArray("comments");
       yDocRef.current = doc as unknown as YDocLike;
       yTextRef.current = yText as unknown as YTextLike;
-      yCommentsRef.current = yComments as unknown as YArrayLike;
       pullCursorRef.current = 0;
       applyingRemoteRef.current = false;
       setSyncing(true);
@@ -396,10 +409,22 @@ export function useShareSession(params: {
         }
       };
       yText.observe(onText);
-      const onComments = () => {
-        setShareComments(toShareCommentItems(yComments.toArray()));
+      const pullComments = async () => {
+        const tokenParam = participantTokenRef.current
+          ? `&participantToken=${encodeURIComponent(participantTokenRef.current)}`
+          : "";
+        const response = await fetch(
+          `${localUrl}/api/comments/list?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&participantId=${encodeURIComponent(participantIdRef.current)}${tokenParam}&t=${Date.now()}`,
+        );
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const payload = await response.json() as { comments?: any[]; sessionName?: string };
+        setShareComments(toShareCommentItems(payload.comments ?? []));
+        if (typeof payload.sessionName === "string" && payload.sessionName.trim()) {
+          setShareSessionName(payload.sessionName.trim());
+        }
       };
-      yComments.observeDeep(onComments);
 
       const initialize = async () => {
         const response = await fetch(
@@ -413,7 +438,7 @@ export function useShareSession(params: {
         doc.transact(() => {
           applyYTextDelta(yText as unknown as YTextLike, yText.toString(), initial);
         }, "remote");
-        onComments();
+        await pullComments();
       };
 
       const pullUpdates = async () => {
@@ -456,6 +481,7 @@ export function useShareSession(params: {
           return;
         }
         await pullUpdates().catch(() => undefined);
+        await pullComments().catch(() => undefined);
         const hidden = typeof document !== "undefined" && document.hidden;
         syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
       };
@@ -469,11 +495,9 @@ export function useShareSession(params: {
         setSyncing(false);
         doc.off("update", onDocUpdate);
         yText.unobserve(onText);
-        yComments.unobserveDeep(onComments);
         clearTimer(syncTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
-        yCommentsRef.current = null;
         participantTokenRef.current = "";
         setShareComments([]);
         doc.destroy();
@@ -495,7 +519,6 @@ export function useShareSession(params: {
         clearTimer(syncTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
-        yCommentsRef.current = null;
         participantTokenRef.current = "";
         setShareComments([]);
       }
@@ -583,11 +606,23 @@ export function useShareSession(params: {
       shareSyncing: syncing,
       shareMode,
       shareComments,
+      shareSessionName,
       setShareMode,
+      setShareSessionName,
       startShare,
       stopShare,
       refreshShareStatus,
     }),
-    [refreshShareStatus, shareBusy, shareComments, shareMode, shareSession, startShare, stopShare, syncing],
+    [
+      refreshShareStatus,
+      shareBusy,
+      shareComments,
+      shareMode,
+      shareSession,
+      shareSessionName,
+      startShare,
+      stopShare,
+      syncing,
+    ],
   );
 }

@@ -2,16 +2,15 @@ use crate::state::AppState;
 use crate::storage;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
-use regex::Regex;
-use reqwest::blocking::Client;
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::fs;
 use std::path::Path;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use tauri::State;
-use urlencoding::decode;
+#[path = "analysis_search.rs"]
+mod analysis_search;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -104,15 +103,6 @@ pub struct AnalysisExportArtifactResponse {
     pub saved_path: String,
 }
 
-fn decode_html_entities(input: &str) -> String {
-    input
-        .replace("&amp;", "&")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-}
-
 fn sanitize_file_name(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -130,52 +120,6 @@ fn sanitize_file_name(value: &str) -> String {
         .collect()
 }
 
-fn normalize_result_url(raw_href: &str) -> String {
-    let href = decode_html_entities(raw_href);
-    if let Some(start) = href.find("uddg=") {
-        let encoded = &href[start + 5..];
-        let encoded = encoded.split('&').next().unwrap_or(encoded);
-        if let Ok(decoded) = decode(encoded) {
-            return decoded.into_owned();
-        }
-    }
-    if href.starts_with("//") {
-        return format!("https:{href}");
-    }
-    href
-}
-
-fn parse_duckduckgo_results(html: &str, limit: usize) -> Vec<ReferenceEvidence> {
-    let anchor_re = Regex::new(
-        r#"(?s)<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#,
-    )
-    .expect("valid regex");
-    let strip_tag_re = Regex::new(r"(?s)<[^>]+>").expect("valid regex");
-    let mut items = Vec::new();
-
-    for capture in anchor_re.captures_iter(html) {
-        if items.len() >= limit {
-            break;
-        }
-        let href = capture.get(1).map(|m| m.as_str()).unwrap_or_default();
-        let raw_title = capture.get(2).map(|m| m.as_str()).unwrap_or_default();
-        let title = decode_html_entities(strip_tag_re.replace_all(raw_title, "").trim());
-        if title.is_empty() {
-            continue;
-        }
-        let url = normalize_result_url(href);
-        if url.is_empty() {
-            continue;
-        }
-        items.push(ReferenceEvidence {
-            title,
-            url,
-            snippet: String::new(),
-        });
-    }
-
-    items
-}
 
 fn parse_data_url(data_url: &str) -> Result<Vec<u8>, String> {
     if !data_url.starts_with("data:") {
@@ -216,69 +160,14 @@ pub fn reference_check(
     input: ReferenceCheckInput,
 ) -> Result<ReferenceCheckResponse, String> {
     state.log("INFO", &format!("reference_check: {} queries", input.queries.len()));
-    run_reference_check_queries(input.queries, input.limit.unwrap_or(5))
+    analysis_search::run_reference_check_queries(input.queries, input.limit.unwrap_or(5))
 }
 
 pub(crate) fn run_reference_check_queries(
     queries: Vec<String>,
     limit: u32,
 ) -> Result<ReferenceCheckResponse, String> {
-    let limit = limit.clamp(1, 8) as usize;
-    let queries: Vec<String> = queries
-        .into_iter()
-        .map(|query| query.trim().to_string())
-        .filter(|query| !query.is_empty())
-        .take(16)
-        .collect();
-    if queries.is_empty() {
-        return Err("No reference query provided".to_string());
-    }
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(12))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let mut items = Vec::new();
-    for query in queries {
-        let search_url = format!(
-            "https://duckduckgo.com/html/?q={}",
-            urlencoding::encode(&query)
-        );
-        let response = client
-            .get(search_url)
-            .header("User-Agent", "LatoTex/0.1")
-            .send()
-            .map_err(|e| e.to_string())?;
-        let status = response.status();
-        let body = response.text().map_err(|e| e.to_string())?;
-        if !status.is_success() {
-            items.push(ReferenceCheckItem {
-                query,
-                ok: false,
-                message: format!("Search request failed: {status}"),
-                results: Vec::new(),
-            });
-            continue;
-        }
-        let results = parse_duckduckgo_results(&body, limit);
-        if results.is_empty() {
-            items.push(ReferenceCheckItem {
-                query,
-                ok: false,
-                message: "No search evidence found".to_string(),
-                results,
-            });
-            continue;
-        }
-        items.push(ReferenceCheckItem {
-            query,
-            ok: true,
-            message: "Search evidence collected".to_string(),
-            results,
-        });
-    }
-
-    Ok(ReferenceCheckResponse { items })
+    analysis_search::run_reference_check_queries(queries, limit)
 }
 
 #[tauri::command]

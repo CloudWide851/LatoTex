@@ -5,7 +5,9 @@ import {
   Globe,
   Languages,
   Library,
+  MessageSquareMore,
   Palette,
+  PenTool,
   SearchCode,
   Settings2,
 } from "lucide-react";
@@ -20,7 +22,7 @@ import type {
 } from "../shared/types/app";
 
 export type Toast = { type: "info" | "error"; message: string } | null;
-export type SettingsSection = "general" | "appearance" | "models" | "agents" | "diagnostics";
+export type SettingsSection = "general" | "appearance" | "models" | "agents" | "channels" | "diagnostics";
 export type OverlayType = "logs" | null;
 export type LogTab = "status" | "events";
 export type DeleteIntent = { scope: "workspace" | "library"; path: string } | null;
@@ -51,11 +53,13 @@ export const FIXED_AGENT_ROLES = [
 
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
-  key: "nav.latex" | "nav.analysis" | "nav.library" | "nav.git" | "nav.settings";
+  key: "nav.latex" | "nav.chat" | "nav.analysis" | "nav.draw" | "nav.library" | "nav.git" | "nav.settings";
   icon: typeof FileCode2;
 }> = [
   { id: "latex", key: "nav.latex", icon: FileCode2 },
+  { id: "chat", key: "nav.chat", icon: MessageSquareMore },
   { id: "analysis", key: "nav.analysis", icon: SearchCode },
+  { id: "draw", key: "nav.draw", icon: PenTool },
   { id: "library", key: "nav.library", icon: Library },
   { id: "git", key: "nav.git", icon: GitBranch },
   { id: "settings", key: "nav.settings", icon: Settings2 },
@@ -68,6 +72,7 @@ export const SETTINGS_SECTIONS: Array<{
     | "settings.section.appearance"
     | "settings.section.models"
     | "settings.section.agents"
+    | "settings.section.channels"
     | "settings.section.diagnostics";
   icon: typeof Languages;
 }> = [
@@ -75,6 +80,7 @@ export const SETTINGS_SECTIONS: Array<{
   { id: "appearance", key: "settings.section.appearance", icon: Palette },
   { id: "models", key: "settings.section.models", icon: Globe },
   { id: "agents", key: "settings.section.agents", icon: Bot },
+  { id: "channels", key: "settings.section.channels", icon: Globe },
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];
 

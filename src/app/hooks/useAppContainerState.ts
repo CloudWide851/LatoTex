@@ -40,6 +40,43 @@ export type AgentPendingAction =
     }
   | null;
 
+function proposalStorageKey(projectId: string): string {
+  return `latotex.agent.proposals.${projectId}`;
+}
+
+function loadPersistedProposals(projectId: string): AgentProposalMap {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(proposalStorageKey(projectId));
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, AgentFileProposal>;
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+    const out: AgentProposalMap = {};
+    for (const [path, value] of Object.entries(parsed)) {
+      if (!value || typeof value !== "object") {
+        continue;
+      }
+      if (
+        typeof value.targetPath !== "string"
+        || typeof value.originalContent !== "string"
+        || typeof value.candidateContent !== "string"
+      ) {
+        continue;
+      }
+      out[path] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export function useAppContainerState(t: (...args: any[]) => string) {
   const [status, setStatus] = useState<"ready" | "offline">("ready");
   const [toast, setToast] = useState<Toast>(null);
@@ -153,6 +190,28 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   useEffect(() => {
     dirtyByPathRef.current = dirtyByPath;
   }, [dirtyByPath]);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      setAgentProposalsByPath({});
+      return;
+    }
+    setAgentProposalsByPath(loadPersistedProposals(activeProjectId));
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId || typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        proposalStorageKey(activeProjectId),
+        JSON.stringify(agentProposalsByPath),
+      );
+    } catch {
+      // Ignore storage quota errors; in-memory state remains available.
+    }
+  }, [activeProjectId, agentProposalsByPath]);
 
   return {
     status,

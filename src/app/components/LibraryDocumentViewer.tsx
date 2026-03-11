@@ -1,4 +1,4 @@
-import { Check, Copy, ExternalLink, FileSearch, FileText, FileUp } from "lucide-react";
+import { Check, Copy, ExternalLink, FileSearch, FileText, FileUp, Languages } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
@@ -26,6 +26,7 @@ import {
 } from "./library/annotationModel";
 import { filenameFromPath } from "./library/viewerUtils";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
+import { translateLibraryPaper } from "./library/libraryTranslation";
 
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
@@ -35,13 +36,15 @@ export function LibraryDocumentViewer(props: {
   selectedPath: string | null;
   onAnalyzePaper: (path: string) => void;
   analysisRunning: boolean;
+  translationModelId?: string | null;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onAnalyzePaper, analysisRunning, t } = props;
+  const { projectId, selectedPath, onAnalyzePaper, analysisRunning, translationModelId, t } = props;
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
+  const [translationBusy, setTranslationBusy] = useState(false);
   const [citation, setCitation] = useState<LibraryCitationSummary | null>(null);
   const [bibPreview, setBibPreview] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -340,6 +343,29 @@ export function LibraryDocumentViewer(props: {
     }
   };
 
+  const handleTranslatePaper = async () => {
+    if (!projectId || !selectedPath || translationBusy) {
+      return;
+    }
+    setLinkError(null);
+    setTranslationBusy(true);
+    try {
+      await translateLibraryPaper({
+        projectId,
+        selectedPath,
+        translationModelId,
+        citation,
+        bibPreview,
+        t,
+      });
+      setLinkError(t("library.viewer.translateSaved"));
+    } catch (error) {
+      setLinkError(String(error));
+    } finally {
+      setTranslationBusy(false);
+    }
+  };
+
   if (!selectedPath) {
     return (
       <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
@@ -391,6 +417,17 @@ export function LibraryDocumentViewer(props: {
           >
             <FileSearch className="h-3.5 w-3.5" />
             {t("library.viewer.analyzePaper")}
+          </button>
+          <button
+            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            onClick={() => {
+              void handleTranslatePaper();
+            }}
+            title={t("library.viewer.translatePaper")}
+            disabled={!selectedPath || loading || translationBusy}
+          >
+            <Languages className="h-3.5 w-3.5" />
+            {translationBusy ? t("library.viewer.translating") : t("library.viewer.translatePaper")}
           </button>
           {viewMode === "pdf" ? (
             <>

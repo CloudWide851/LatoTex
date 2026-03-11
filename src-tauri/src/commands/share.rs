@@ -2,6 +2,7 @@ use crate::models::{Ack, ShareParticipantInfo, ShareSessionCreateInput, ShareSes
 use crate::state::AppState;
 use crate::storage;
 use chrono::{Duration as ChronoDuration, Utc};
+use share_comments_store::{ShareCommentRecord, ShareCommentsStore};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -17,10 +18,19 @@ use std::time::Duration;
 use tauri::State;
 use tiny_http::{Header, Request, Response, Server, StatusCode};
 use uuid::Uuid;
+#[path = "share_comments_store.rs"]
+mod share_comments_store;
+#[path = "share_http_auth.rs"]
+mod share_http_auth;
 #[path = "share_http_server.rs"]
 mod share_http_server;
+#[path = "share_http_static.rs"]
+mod share_http_static;
+#[path = "share_runtime_auth.rs"]
+mod share_runtime_auth;
 #[path = "share_tunnel.rs"]
 mod share_tunnel;
+use share_runtime_auth::{verify_body_auth, verify_query_auth};
 
 const SHARE_TTL_HOURS: i64 = 24;
 const MAX_SYNC_EVENTS_PER_PULL: usize = 400;
@@ -47,6 +57,8 @@ struct ShareSyncEvent {
 
 struct ShareRuntime {
     session_id: String,
+    session_name: Option<String>,
+    session_created_at: String,
     project_id: String,
     target_path: String,
     project_root: PathBuf,
@@ -66,6 +78,8 @@ struct ShareRuntime {
     compile_requested: bool,
     pdf_bytes: Vec<u8>,
     pdf_updated_at: Option<String>,
+    comments_store: ShareCommentsStore,
+    comments: Vec<ShareCommentRecord>,
     stop_flag: Arc<AtomicBool>,
     cloudflared_child: Option<Child>,
 }
@@ -115,6 +129,24 @@ struct PresencePingBody {
     participant_id: String,
     participant_token: Option<String>,
     action: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CommentPostBody {
+    sid: String,
+    pwd: String,
+    participant_id: Option<String>,
+    participant_token: Option<String>,
+    username: Option<String>,
+    id: Option<String>,
+    text: Option<String>,
+    quote: Option<String>,
+    source: Option<String>,
+    page: Option<u32>,
+    start: Option<u32>,
+    end: Option<u32>,
+    created_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -211,6 +243,13 @@ fn normalize_share_mode(mode: Option<String>) -> String {
     } else {
         "remote".to_string()
     }
+}
+
+fn normalize_session_name(value: Option<&str>) -> Option<String> {
+    value
+        .map(|item| item.trim())
+        .filter(|item| !item.is_empty())
+        .map(|item| item.chars().take(120).collect())
 }
 
 fn now_iso() -> String {
@@ -326,6 +365,8 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
     ShareSessionInfo {
         active: runtime.status == "ready" && active_join_url.is_some(),
         session_id: Some(runtime.session_id.clone()),
+        session_name: runtime.session_name.clone(),
+        session_created_at: Some(runtime.session_created_at.clone()),
         project_id: Some(runtime.project_id.clone()),
         target_path: Some(runtime.target_path.clone()),
         mode: Some(runtime.mode.clone()),
@@ -350,51 +391,83 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
     }
 }
 
-fn verify_query_auth(
-    runtime: &ShareRuntime,
-    query: &HashMap<String, String>,
-) -> Result<(), Response<std::io::Cursor<Vec<u8>>>> {
-    let sid_ok = query.get("sid").map(|value| value == &runtime.session_id).unwrap_or(false);
-    let pwd_ok = query.get("pwd").map(|value| value == &runtime.password).unwrap_or(false);
-    if sid_ok && pwd_ok {
-        return Ok(());
+fn inactive_share_session_info() -> ShareSessionInfo {
+    ShareSessionInfo {
+        active: false,
+        session_id: None,
+        session_name: None,
+        session_created_at: None,
+        project_id: None,
+        target_path: None,
+        mode: None,
+        local_url: None,
+        tunnel_url: None,
+        local_join_url: None,
+        remote_join_url: None,
+        active_join_url: None,
+        password_required: None,
+        password: None,
+        expires_at: None,
+        status: None,
+        pdf_state: None,
+        pdf_updated_at: None,
+        tunnel_state: None,
+        tunnel_error: None,
+        participants: Vec::new(),
     }
-    Err(json_response(
-        StatusCode(401),
-        json!({ "ok": false, "message": "unauthorized" }),
-    ))
 }
 
-fn verify_body_auth(
-    runtime: &ShareRuntime,
-    sid: &str,
-    pwd: &str,
-) -> Result<(), Response<std::io::Cursor<Vec<u8>>>> {
-    if runtime.session_id == sid && runtime.password == pwd {
-        return Ok(());
-    }
-    Err(json_response(
-        StatusCode(401),
-        json!({ "ok": false, "message": "unauthorized" }),
-    ))
+fn to_comment_json(
+    body: &CommentPostBody,
+    fallback_username: &str,
+    session_name: Option<&str>,
+    session_created_at: &str,
+) -> serde_json::Value {
+    json!({
+        "id": body.id.as_deref().unwrap_or_default(),
+        "username": body.username.as_deref().unwrap_or(fallback_username),
+        "text": body.text.as_deref().unwrap_or_default(),
+        "quote": body.quote.as_deref().unwrap_or_default(),
+        "source": body.source.as_deref().unwrap_or("tex"),
+        "sessionName": session_name.unwrap_or(""),
+        "sessionCreatedAt": session_created_at,
+        "page": body.page,
+        "start": body.start,
+        "end": body.end,
+        "createdAt": body.created_at.as_deref().unwrap_or_default(),
+    })
 }
 
-fn verify_participant_auth(
-    runtime: &ShareRuntime,
-    participant_id: Option<&str>,
-    participant_token: Option<&str>,
-) -> bool {
-    let Some(pid) = participant_id.map(|value| value.trim()).filter(|value| !value.is_empty()) else {
-        return false;
+fn append_share_comment(
+    runtime: &mut ShareRuntime,
+    body: &CommentPostBody,
+) -> Result<ShareCommentRecord, String> {
+    let participant_name = body
+        .participant_id
+        .as_deref()
+        .and_then(|pid| runtime.participants.get(pid))
+        .map(|item| item.username.clone())
+        .unwrap_or_else(|| "Guest".to_string());
+    let comment_value = to_comment_json(
+        body,
+        &participant_name,
+        runtime.session_name.as_deref(),
+        &runtime.session_created_at,
+    );
+    let Some(comment) = share_comments_store::normalize_comment_value(&comment_value, &participant_name) else {
+        return Err("comment text or quote required".to_string());
     };
-    let Some(token) = participant_token.map(|value| value.trim()).filter(|value| !value.is_empty()) else {
-        return false;
-    };
+    runtime.comments.push(comment.clone());
+    runtime.comments.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    if runtime.comments.len() > 1_200 {
+        let trim = runtime.comments.len().saturating_sub(1_000);
+        runtime.comments.drain(0..trim);
+    }
     runtime
-        .participants
-        .get(pid)
-        .map(|item| item.auth_token == token)
-        .unwrap_or(false)
+        .comments_store
+        .persist_comments(&runtime.comments)
+        .map_err(|error| format!("persist comments failed: {error}"))?;
+    Ok(comment)
 }
 
 fn stop_runtime(runtime: &Arc<Mutex<ShareRuntime>>) {
@@ -468,13 +541,19 @@ pub fn share_session_create(
         .chars()
         .take(8)
         .collect::<String>();
+    let session_name = normalize_session_name(input.session_name.as_deref());
+    let session_created_at = now_iso();
     let expires_at = (Utc::now() + ChronoDuration::hours(SHARE_TTL_HOURS)).to_rfc3339();
     let expires_unix = (Utc::now() + ChronoDuration::hours(SHARE_TTL_HOURS)).timestamp();
     let mode = normalize_share_mode(input.mode.clone());
     let local_url = format!("http://127.0.0.1:{local_port}");
     let is_local_mode = mode == "local";
+    let comments_store = ShareCommentsStore::new(&project_root, &session_id);
+    let comments = comments_store.load_comments();
     let runtime = Arc::new(Mutex::new(ShareRuntime {
         session_id: session_id.clone(),
+        session_name,
+        session_created_at,
         project_id: input.project_id.clone(),
         target_path: target_path.clone(),
         project_root,
@@ -502,6 +581,8 @@ pub fn share_session_create(
         compile_requested: false,
         pdf_bytes: Vec::new(),
         pdf_updated_at: None,
+        comments_store,
+        comments,
         stop_flag: Arc::new(AtomicBool::new(false)),
         cloudflared_child: None,
     }));
@@ -532,27 +613,7 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
         .map_err(|_| "failed to lock share slot".to_string())?
         .clone();
     let Some(runtime) = runtime else {
-        return Ok(ShareSessionInfo {
-            active: false,
-            session_id: None,
-            project_id: None,
-            target_path: None,
-            mode: None,
-            local_url: None,
-            tunnel_url: None,
-            local_join_url: None,
-            remote_join_url: None,
-            active_join_url: None,
-            password_required: None,
-            password: None,
-            expires_at: None,
-            status: None,
-            pdf_state: None,
-            pdf_updated_at: None,
-            tunnel_state: None,
-            tunnel_error: None,
-            participants: Vec::new(),
-        });
+        return Ok(inactive_share_session_info());
     };
     let mut guard = runtime
         .lock()
@@ -560,27 +621,7 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
     if is_session_expired(&guard) {
         drop(guard);
         clear_runtime();
-        return Ok(ShareSessionInfo {
-            active: false,
-            session_id: None,
-            project_id: None,
-            target_path: None,
-            mode: None,
-            local_url: None,
-            tunnel_url: None,
-            local_join_url: None,
-            remote_join_url: None,
-            active_join_url: None,
-            password_required: None,
-            password: None,
-            expires_at: None,
-            status: None,
-            pdf_state: None,
-            pdf_updated_at: None,
-            tunnel_state: None,
-            tunnel_error: None,
-            participants: Vec::new(),
-        });
+        return Ok(inactive_share_session_info());
     }
     prune_participants(&mut guard);
     // Tunnel lifecycle is managed by the watchdog in `share_tunnel`.

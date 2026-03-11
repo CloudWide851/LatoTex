@@ -10,6 +10,7 @@ use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
 use commands::busytex::busytex_cache_prepare;
+use commands::channels::{channels_telegram_poll, channels_telegram_send};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
     git_commit_files,
@@ -124,6 +125,8 @@ pub fn run() {
             share_session_create,
             share_session_status,
             share_session_stop,
+            channels_telegram_poll,
+            channels_telegram_send,
             fs_operation,
             latex_compile_record,
             agent_run,

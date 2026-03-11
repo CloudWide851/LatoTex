@@ -173,6 +173,12 @@ export function WorkspacePreviewPanel(props: {
                   </span>
                 </div>
                 <div className="mt-0.5 truncate text-slate-600">{item.quote || item.text}</div>
+                {item.sessionCreatedAt ? (
+                  <div className="mt-0.5 truncate text-[10px] text-slate-500">
+                    {item.sessionName ? `${item.sessionName} · ` : ""}
+                    {item.sessionCreatedAt}
+                  </div>
+                ) : null}
               </button>
             ))}
           </div>

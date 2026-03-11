@@ -1,6 +1,7 @@
 import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon } from "lucide-react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
+import telegramIcon from "../../assets/brands/telegram.svg";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Select } from "../../components/ui/select";
@@ -29,6 +30,7 @@ const SETTINGS_SECTIONS: Array<{
     | "settings.section.appearance"
     | "settings.section.models"
     | "settings.section.agents"
+    | "settings.section.channels"
     | "settings.section.diagnostics";
   icon: typeof Languages;
 }> = [
@@ -36,20 +38,10 @@ const SETTINGS_SECTIONS: Array<{
   { id: "appearance", key: "settings.section.appearance", icon: Palette },
   { id: "models", key: "settings.section.models", icon: Globe },
   { id: "agents", key: "settings.section.agents", icon: Bot },
+  { id: "channels", key: "settings.section.channels", icon: Globe },
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];
 const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
-const AGENT_ROLE_LABEL_KEY: Record<string, string> = {
-  plan: "settings.agentRole.plan",
-  task: "settings.agentRole.task",
-  completion: "settings.agentRole.completion",
-  explore: "settings.agentRole.explore",
-  web_search: "settings.agentRole.webSearch",
-  review: "settings.agentRole.review",
-  ephemeral: "settings.agentRole.ephemeral",
-  git_summary: "settings.agentRole.gitSummary",
-};
-
 export function SettingsPanel(props: {
   settings: AppSettings | null;
   activeProjectId: string | null;
@@ -412,40 +404,146 @@ export function SettingsPanel(props: {
         {settingsSection === "agents" && (
           <div className="space-y-2">
             <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
-            {localSettings.agentBindings.map((binding, index) => (
-              <div
-                className="grid grid-cols-[110px_minmax(220px,1fr)] items-center gap-2 rounded-lg border border-slate-200 p-2 max-[980px]:grid-cols-1"
-                key={`${binding.role}-${index}`}
-              >
-                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {t((AGENT_ROLE_LABEL_KEY[binding.role] ?? binding.role) as any)}
-                </span>
-                <Select
-                  value={binding.modelId}
+            {[
+              {
+                key: "latexAgentModelId",
+                label: t("settings.featureModel.latexAgent"),
+                fallbackRole: "task",
+              },
+              {
+                key: "analysisAgentModelId",
+                label: t("settings.featureModel.analysisAgent"),
+                fallbackRole: "task",
+              },
+              {
+                key: "translationModelId",
+                label: t("settings.featureModel.translation"),
+                fallbackRole: "task",
+              },
+              {
+                key: "completionModelId",
+                label: t("settings.featureModel.completion"),
+                fallbackRole: "completion",
+              },
+            ].map((item) => {
+              const featureBindings = localSettings.uiPrefs?.featureModelBindings ?? {};
+              const fallbackModelId =
+                localSettings.agentBindings.find((binding) => binding.role === item.fallbackRole)?.modelId ?? "";
+              const currentValue = (featureBindings as Record<string, string | undefined>)[item.key] ?? fallbackModelId;
+              return (
+                <div
+                  className="grid grid-cols-[180px_minmax(220px,1fr)] items-center gap-2 rounded-lg border border-slate-200 p-2 max-[980px]:grid-cols-1"
+                  key={item.key}
+                >
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
+                    {item.label}
+                  </span>
+                  <Select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setSettings((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              uiPrefs: {
+                                ...(prev.uiPrefs ?? {}),
+                                featureModelBindings: {
+                                  ...(prev.uiPrefs?.featureModelBindings ?? {}),
+                                  [item.key]: event.target.value,
+                                },
+                              },
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="">{t("settings.noModelAssigned")}</option>
+                    {activeModelCatalog.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.displayName} ({model.requestName || "-"})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {settingsSection === "channels" && (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <img src={telegramIcon} alt="" className="h-4 w-4 rounded-sm" />
+                <span>{t("settings.channels.telegram")}</span>
+              </div>
+              <label className="mb-2 flex items-center justify-between text-xs text-slate-600">
+                <span>{t("settings.channels.telegramEnabled")}</span>
+                <Checkbox
+                  checked={Boolean(localSettings.uiPrefs?.channels?.telegramEnabled)}
                   onChange={(event) =>
                     setSettings((prev) =>
                       prev
                         ? {
                             ...prev,
-                            agentBindings: prev.agentBindings.map((item, idx) =>
-                              idx === index
-                                ? { ...item, modelId: event.target.value }
-                                : item,
-                            ),
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              channels: {
+                                ...(prev.uiPrefs?.channels ?? {}),
+                                telegramEnabled: event.target.checked,
+                              },
+                            },
                           }
                         : prev,
                     )
                   }
-                >
-                  <option value="">{t("settings.noModelAssigned")}</option>
-                  {activeModelCatalog.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.displayName} ({model.requestName || "-"})
-                    </option>
-                  ))}
-                </Select>
+                />
+              </label>
+              <div className="grid gap-2">
+                <input
+                  value={localSettings.uiPrefs?.channels?.telegramBotToken ?? ""}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              channels: {
+                                ...(prev.uiPrefs?.channels ?? {}),
+                                telegramBotToken: event.target.value,
+                              },
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                  placeholder={t("settings.channels.telegramToken")}
+                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                />
+                <input
+                  value={localSettings.uiPrefs?.channels?.telegramChatId ?? ""}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              channels: {
+                                ...(prev.uiPrefs?.channels ?? {}),
+                                telegramChatId: event.target.value,
+                              },
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                  placeholder={t("settings.channels.telegramChatId")}
+                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                />
               </div>
-            ))}
+            </div>
           </div>
         )}
 

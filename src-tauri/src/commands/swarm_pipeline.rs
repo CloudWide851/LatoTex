@@ -14,7 +14,7 @@ use super::swarm_events::{
 #[path = "swarm_pipeline_queries.rs"]
 mod swarm_pipeline_queries;
 use swarm_pipeline_queries::{
-    derive_tool_search_queries, spawn_run_heartbeat, with_tool_search_queries,
+    derive_tool_search_queries, with_tool_search_queries,
 };
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
@@ -233,15 +233,34 @@ fn run_agent_pipeline_async(
     }
 
     let request_queries = derive_tool_search_queries(&input.prompt);
-    let plan_prompt = [
-        "You are a planning agent.",
-        "Generate concise execution steps for the user request.",
-        "Return markdown with sections: Goal, Steps, Risks.",
-        "",
-        "User request:",
-        input.prompt.as_str(),
-    ]
-    .join("\n");
+    let reasoning_enabled = storage::model_supports_reasoning(
+        &db_path,
+        "plan",
+        input.model_override.as_deref(),
+    );
+    let plan_prompt = if reasoning_enabled {
+        [
+            "You are a planning agent.",
+            "Model capability check: reasoning is available. Think deeply before final output.",
+            "Generate concise execution steps for the user request.",
+            "Return markdown with sections: Goal, Steps, Risks.",
+            "",
+            "User request:",
+            input.prompt.as_str(),
+        ]
+        .join("\n")
+    } else {
+        [
+            "You are a planning agent.",
+            "Model capability check: reasoning is unavailable. Do not use think-only parameters.",
+            "Generate concise execution steps for the user request.",
+            "Return markdown with sections: Goal, Steps, Risks.",
+            "",
+            "User request:",
+            input.prompt.as_str(),
+        ]
+        .join("\n")
+    };
     let plan_output = super::swarm_tool_search::run_stage_tool_search(
         &db_path,
         &runtime_root,
@@ -462,14 +481,6 @@ pub fn agent_run_start(
             return;
         }
         let _slot_guard = slot_guard.unwrap();
-        let heartbeat_stop = Arc::new(AtomicBool::new(false));
-        spawn_run_heartbeat(
-            db_path.clone(),
-            run_id_for_worker.clone(),
-            worker_project_id.clone(),
-            worker_role.clone(),
-            heartbeat_stop.clone(),
-        );
         let run_output = run_agent_pipeline_async(
             db_path.clone(),
             runtime_root.clone(),
@@ -477,7 +488,6 @@ pub fn agent_run_start(
             cancel_flag,
             input,
         );
-        heartbeat_stop.store(true, Ordering::Relaxed);
         match run_output {
             Ok(output) => {
                 let mut payload = envelope(
