@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/desktop";
 import type { ShareCommentItem, ShareSessionInfo } from "../../shared/types/app";
-
 type TranslationFn = (key: any) => string;
 type ShareMode = "local" | "remote";
 type YTextLike = {
@@ -18,7 +17,6 @@ type YDocLike = {
   transact: (fn: () => void, origin?: unknown) => void;
   destroy: () => void;
 };
-
 function isShareReady(status: ShareSessionInfo, mode: ShareMode): boolean {
   if (status.status !== "ready") {
     return false;
@@ -28,7 +26,6 @@ function isShareReady(status: ShareSessionInfo, mode: ShareMode): boolean {
   }
   return Boolean(status.remoteJoinUrl || status.tunnelUrl || status.activeJoinUrl);
 }
-
 function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {
   if (!Array.isArray(rawItems)) {
     return [];
@@ -56,7 +53,6 @@ function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {
     .slice(-120)
     .reverse();
 }
-
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let index = 0; index < bytes.length; index += 1) {
@@ -64,7 +60,6 @@ function toBase64(bytes: Uint8Array): string {
   }
   return btoa(binary);
 }
-
 function fromBase64(raw: string): Uint8Array {
   const binary = atob(raw);
   const bytes = new Uint8Array(binary.length);
@@ -73,7 +68,6 @@ function fromBase64(raw: string): Uint8Array {
   }
   return bytes;
 }
-
 async function postJson(url: string, payload: unknown) {
   const response = await fetch(url, {
     method: "POST",
@@ -86,18 +80,15 @@ async function postJson(url: string, payload: unknown) {
   }
   return response.json();
 }
-
 async function wait(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
-
 function matchPath(left: string | null | undefined, right: string | null | undefined): boolean {
   if (!left || !right) {
     return false;
   }
   return left.replace(/\\/g, "/") === right.replace(/\\/g, "/");
 }
-
 function applyYTextDelta(target: YTextLike, current: string, next: string) {
   if (current === next) {
     return;
@@ -126,7 +117,6 @@ function applyYTextDelta(target: YTextLike, current: string, next: string) {
     target.insert(start, insert);
   }
 }
-
 export function useShareSession(params: {
   activeProjectId: string | null;
   selectedFile: string | null;
@@ -147,14 +137,12 @@ export function useShareSession(params: {
     setToast,
     t,
   } = params;
-
   const [shareSession, setShareSession] = useState<ShareSessionInfo | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [shareComments, setShareComments] = useState<ShareCommentItem[]>([]);
   const [shareMode, setShareMode] = useState<ShareMode>("remote");
   const [shareSessionName, setShareSessionName] = useState("");
-
   const yDocRef = useRef<YDocLike | null>(null);
   const yTextRef = useRef<YTextLike | null>(null);
   const pullCursorRef = useRef(0);
@@ -171,11 +159,9 @@ export function useShareSession(params: {
   const participantIdRef = useRef(`desktop-owner-${Math.random().toString(36).slice(2, 8)}`);
   const participantTokenRef = useRef("");
   const editorContentRef = useRef(editorContent);
-
   useEffect(() => {
     editorContentRef.current = editorContent;
   }, [editorContent]);
-
   const active = Boolean(
     shareSession?.active &&
       shareSession?.status === "ready" &&
@@ -187,14 +173,12 @@ export function useShareSession(params: {
   const sessionId = shareSession?.sessionId ?? "";
   const sessionPwd = shareSession?.password ?? "";
   const collabEnabled = Boolean(active && matchPath(selectedFile, activeTarget));
-
   const clearTimer = (timerRef: React.MutableRefObject<number | null>) => {
     if (timerRef.current) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
   };
-
   const refreshShareStatus = useCallback(async () => {
     if (statusFlightRef.current) {
       return shareSession;
@@ -214,7 +198,6 @@ export function useShareSession(params: {
       statusFlightRef.current = false;
     }
   }, [setToast, shareSession]);
-
   const waitForShareReady = useCallback(
     async (expectedSessionId: string, mode: ShareMode) => {
       const timeoutMs = mode === "local" ? 18_000 : 120_000;
@@ -250,7 +233,6 @@ export function useShareSession(params: {
     },
     [refreshShareStatus, t],
   );
-
   const startShare = useCallback(async (mode: ShareMode = shareMode) => {
     if (!activeProjectId || !selectedFile || !selectedFile.toLowerCase().endsWith(".tex")) {
       setToast({ type: "error", message: t("share.startNeedTex") });
@@ -292,7 +274,6 @@ export function useShareSession(params: {
       setShareBusy(false);
     }
   }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, waitForShareReady]);
-
   const stopShare = useCallback(async () => {
     setShareBusy(true);
     try {
@@ -305,18 +286,15 @@ export function useShareSession(params: {
       setShareBusy(false);
     }
   }, [setToast, t]);
-
   useEffect(() => {
     void refreshShareStatus();
   }, [refreshShareStatus]);
-
   useEffect(() => {
     const next = shareSession?.sessionName?.trim();
     if (next) {
       setShareSessionName(next);
     }
   }, [shareSession?.sessionName]);
-
   useEffect(() => {
     clearTimer(statusTimerRef);
     const run = async () => {
@@ -334,7 +312,6 @@ export function useShareSession(params: {
     }
     return () => clearTimer(statusTimerRef);
   }, [refreshShareStatus, shareBusy, shareSession]);
-
   useEffect(() => {
     if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
       setSyncing(false);
@@ -347,7 +324,6 @@ export function useShareSession(params: {
     }
     let disposed = false;
     let dispose: (() => void) | null = null;
-
     const start = async () => {
       const yjs = await import("yjs");
       if (disposed) {
@@ -370,7 +346,6 @@ export function useShareSession(params: {
         participantIdRef.current = String(joined.participantId);
       }
       participantTokenRef.current = String(joined?.participantToken ?? "");
-
       const pushUpdate = async (update: Uint8Array) => {
         await postJson(`${localUrl}/api/sync/push`, {
           sid: sessionId,
@@ -383,7 +358,6 @@ export function useShareSession(params: {
           update: toBase64(update),
         });
       };
-
       const onDocUpdate = (update: Uint8Array, origin: unknown) => {
         if (origin === "remote" || applyingRemoteRef.current) {
           return;
@@ -391,7 +365,6 @@ export function useShareSession(params: {
         void pushUpdate(update).catch(() => undefined);
       };
       doc.on("update", onDocUpdate);
-
       const onText = () => {
         const next = yText.toString();
         if (next === editorContentRef.current) {
@@ -425,7 +398,6 @@ export function useShareSession(params: {
           setShareSessionName(payload.sessionName.trim());
         }
       };
-
       const initialize = async () => {
         const response = await fetch(
           `${localUrl}/api/snapshot?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}`,
@@ -440,7 +412,6 @@ export function useShareSession(params: {
         }, "remote");
         await pullComments();
       };
-
       const pullUpdates = async () => {
         if (syncFlightRef.current) {
           return;
@@ -475,7 +446,6 @@ export function useShareSession(params: {
           syncFlightRef.current = false;
         }
       };
-
       const syncLoop = async () => {
         if (!collabEnabled || disposed) {
           return;
@@ -485,12 +455,10 @@ export function useShareSession(params: {
         const hidden = typeof document !== "undefined" && document.hidden;
         syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
       };
-
       void initialize().catch((error) => {
         setToast({ type: "error", message: String(error) });
       });
       syncTimerRef.current = Number(window.setTimeout(syncLoop, 760));
-
       dispose = () => {
         setSyncing(false);
         doc.off("update", onDocUpdate);
@@ -503,13 +471,11 @@ export function useShareSession(params: {
         doc.destroy();
       };
     };
-
     void start().catch((error) => {
       if (!disposed) {
         setToast({ type: "error", message: String(error) });
       }
     });
-
     return () => {
       disposed = true;
       if (dispose) {
@@ -524,7 +490,6 @@ export function useShareSession(params: {
       }
     };
   }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast, t]);
-
   useEffect(() => {
     if (!collabEnabled || applyingRemoteRef.current) {
       return;
@@ -542,7 +507,6 @@ export function useShareSession(params: {
       applyYTextDelta(yText, current, editorContent);
     }, "editor");
   }, [collabEnabled, editorContent]);
-
   useEffect(() => {
     clearTimer(compileTimerRef);
     if (!active || !localUrl || !sessionId || !sessionPwd) {
@@ -573,7 +537,6 @@ export function useShareSession(params: {
     compileTimerRef.current = Number(window.setTimeout(compileLoop, 2200));
     return () => clearTimer(compileTimerRef);
   }, [active, localUrl, onCompile, sessionId, sessionPwd]);
-
   useEffect(() => {
     if (!active || !localUrl || !sessionId || !sessionPwd || !compiledPdfUrl) {
       return;
@@ -598,7 +561,6 @@ export function useShareSession(params: {
         uploadingPdfRef.current = false;
       });
   }, [active, compiledPdfUrl, localUrl, sessionId, sessionPwd]);
-
   return useMemo(
     () => ({
       shareSession,

@@ -31,6 +31,7 @@ export type UseAppHandlersParams = {
   gitInstallerLaunched: boolean;
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
+  requestCloseBehaviorDecision: () => void;
   setBusy: (value: boolean) => void;
   setTree: (value: ResourceNode[]) => void;
   setLibraryTree: (value: ResourceNode[]) => void;

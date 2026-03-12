@@ -36,6 +36,24 @@ pub fn load_agent_cache(db_path: &Path, cache_key: &str) -> Result<Option<String
     Ok(Some(response))
 }
 
+fn prune_agent_cache(conn: &Connection) -> Result<(), String> {
+    let now = Utc::now().to_rfc3339();
+    conn.execute("DELETE FROM agent_cache WHERE expires_at < ?1", params![now])
+        .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "DELETE FROM agent_cache
+         WHERE cache_key IN (
+           SELECT cache_key FROM agent_cache
+           ORDER BY created_at DESC
+           LIMIT -1 OFFSET 4000
+         )",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub fn store_agent_cache(
     db_path: &Path,
     cache_key: &str,
@@ -66,6 +84,9 @@ pub fn store_agent_cache(
         ],
     )
     .map_err(|e| e.to_string())?;
+
+    // Keep cache bounded for long-running sessions.
+    let _ = prune_agent_cache(&conn);
     Ok(())
 }
 

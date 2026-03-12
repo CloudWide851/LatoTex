@@ -71,6 +71,12 @@ export function AppOverlays(props: {
   onDeleteDontAskChange: (value: boolean) => void;
   onIntegrityCancel: () => void;
   onIntegrityRepair: () => void;
+  closeBehaviorDialogOpen: boolean;
+  closeBehaviorRemember: boolean;
+  closeBehaviorDialogBusy: boolean;
+  onCloseBehaviorRememberChange: (value: boolean) => void;
+  onCloseBehaviorCancel: () => void;
+  onCloseBehaviorConfirm: (behavior: "tray" | "exit") => void;
   t: TranslationFn;
 }) {
   const {
@@ -97,6 +103,12 @@ export function AppOverlays(props: {
     onDeleteDontAskChange,
     onIntegrityCancel,
     onIntegrityRepair,
+    closeBehaviorDialogOpen,
+    closeBehaviorRemember,
+    closeBehaviorDialogBusy,
+    onCloseBehaviorRememberChange,
+    onCloseBehaviorCancel,
+    onCloseBehaviorConfirm,
     t,
   } = props;
 
@@ -241,6 +253,51 @@ export function AppOverlays(props: {
               </Button>
               <Button size="sm" onClick={onIntegrityRepair}>
                 {t("workspace.integrityRepair")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {closeBehaviorDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+          <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
+            <h3 className="text-sm font-semibold text-slate-800">
+              {t("window.closeConfirmTitle")}
+            </h3>
+            <p className="mt-2 text-xs text-slate-600">
+              {t("window.closeConfirmHint")}
+            </p>
+            <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+              <Checkbox
+                checked={closeBehaviorRemember}
+                onChange={(event) => onCloseBehaviorRememberChange(event.target.checked)}
+              />
+              {t("window.closeRemember")}
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onCloseBehaviorConfirm("tray")}
+                disabled={closeBehaviorDialogBusy}
+              >
+                {t("window.closeActionTray")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onCloseBehaviorConfirm("exit")}
+                disabled={closeBehaviorDialogBusy}
+              >
+                {t("window.closeActionExit")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCloseBehaviorCancel}
+                disabled={closeBehaviorDialogBusy}
+              >
+                {t("common.cancel")}
               </Button>
             </div>
           </div>

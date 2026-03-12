@@ -1,4 +1,5 @@
 import { Suspense, lazy } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
@@ -111,6 +112,7 @@ export function AppContainerView(props: any) {
     handleLibraryRescan,
     handleLibraryImportPdf,
     handleLibraryImportLink,
+    handleLibrarySyncZotero,
     handleLibraryAnalyzePaper,
     analysisRunning,
     handleWorkspaceRevealInSystem,
@@ -145,6 +147,11 @@ export function AppContainerView(props: any) {
     handleUnsavedDialogSaveAndContinue,
     handleUnsavedDialogDiscardAndContinue,
     handleUnsavedDialogCancel,
+    closeBehaviorDialogOpen,
+    closeBehaviorRememberChoice,
+    setCloseBehaviorRememberChoice,
+    handleCloseBehaviorDialogCancel,
+    handleCloseBehaviorDialogResolve,
   } = props;
   const completionModelId =
     settings?.uiPrefs?.featureModelBindings?.completionModelId
@@ -156,10 +163,28 @@ export function AppContainerView(props: any) {
     || settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "task")
       ?.modelId
     || null;
+  const backgroundPath = String(settings?.uiPrefs?.backgroundImagePath ?? "").trim();
+  const backgroundUrl = backgroundPath
+    ? (() => {
+        try {
+          return convertFileSrc(backgroundPath);
+        } catch {
+          return backgroundPath;
+        }
+      })()
+    : "";
+  const appBackgroundStyle = backgroundUrl
+    ? {
+        backgroundImage: `linear-gradient(rgba(248,250,252,0.88), rgba(248,250,252,0.88)), url("${backgroundUrl}")`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : undefined;
 
   return (
     <div
       className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""}`}
+      style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">
         <AppTopbar
@@ -294,6 +319,7 @@ export function AppContainerView(props: any) {
               onLibraryRescan={handleLibraryRescan}
               onLibraryImportPdf={handleLibraryImportPdf}
               onLibraryImportLink={handleLibraryImportLink}
+              onLibrarySyncZotero={handleLibrarySyncZotero}
               onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
               analysisRunning={analysisRunning}
               onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
@@ -336,6 +362,12 @@ export function AppContainerView(props: any) {
         onDeleteDontAskChange={setDeleteDontAskAgain}
         onIntegrityCancel={handleIntegrityCancel}
         onIntegrityRepair={handleIntegrityRepair}
+        closeBehaviorDialogOpen={closeBehaviorDialogOpen}
+        closeBehaviorRemember={closeBehaviorRememberChoice}
+        closeBehaviorDialogBusy={windowActionBusy}
+        onCloseBehaviorRememberChange={setCloseBehaviorRememberChoice}
+        onCloseBehaviorCancel={handleCloseBehaviorDialogCancel}
+        onCloseBehaviorConfirm={handleCloseBehaviorDialogResolve}
         t={t}
       />
 

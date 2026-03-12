@@ -112,9 +112,8 @@ export async function applyAgentProposal(params: {
       } else if (requestAutoCommitDecision) {
         shouldCommit = await requestAutoCommitDecision(proposal.targetPath);
       } else {
-        shouldCommit = window.confirm(
-          t("agent.autoCommit.desc").replace("{path}", proposal.targetPath),
-        );
+        await runtimeLogWrite("WARN", "agent_auto_commit_decision_missing").catch(() => undefined);
+        shouldCommit = false;
       }
       if (shouldCommit) {
         try {

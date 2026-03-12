@@ -5,7 +5,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay } from "./AgentChatOverlay";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { PageRail } from "./PageRail";
-import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isTabularPath } from "../../shared/utils/fileKind";
+import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isSvgPath, isTabularPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
@@ -101,6 +101,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onLibraryRescan,
     onLibraryImportPdf,
     onLibraryImportLink,
+    onLibrarySyncZotero,
     onLibraryAnalyzePaper,
     analysisRunning,
     onWorkspaceRevealInSystem,
@@ -136,10 +137,23 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   }, [compileErrorLine]);
   const selectedIsPdf = isPdfPath(selectedFile);
   const selectedIsMarkdown = isMarkdownPath(selectedFile);
+  const selectedIsSvg = isSvgPath(selectedFile);
   const selectedIsCsv = isCsvPath(selectedFile);
   const selectedIsExcel = isExcelPath(selectedFile);
   const selectedIsTabular = isTabularPath(selectedFile);
-  const previewMode: "pdf" | "markdown" | "empty" = selectedIsPdf ? (selectedFilePdfUrl ? "pdf" : "empty") : selectedIsTabular ? "empty" : preferCompiledPreview && compiledPdfUrl ? "pdf" : selectedIsMarkdown ? "markdown" : compiledPdfUrl ? "pdf" : "empty";
+  const previewMode: "pdf" | "markdown" | "svg" | "empty" = selectedIsPdf
+    ? (selectedFilePdfUrl ? "pdf" : "empty")
+    : selectedIsTabular
+      ? "empty"
+      : selectedIsSvg
+        ? "svg"
+        : preferCompiledPreview && compiledPdfUrl
+          ? "pdf"
+          : selectedIsMarkdown
+            ? "markdown"
+            : compiledPdfUrl
+              ? "pdf"
+              : "empty";
   const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
   const agentCommandItems = buildAgentCommandItems(t);
@@ -172,6 +186,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedFile={selectedFile}
       selectedIsCsv={selectedIsCsv}
       selectedIsMarkdown={selectedIsMarkdown}
+      selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}
       editorContent={editorContent}
       compiledPdfUrl={compiledPdfUrl}
@@ -502,6 +517,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   onLibraryRescan={onLibraryRescan}
                   onLibraryImportPdf={onLibraryImportPdf}
                   onLibraryImportLink={onLibraryImportLink}
+                  onLibrarySyncZotero={onLibrarySyncZotero}
                   t={t}
                 />
               </Panel>

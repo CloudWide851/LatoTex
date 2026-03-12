@@ -19,6 +19,8 @@ include!("storage/project_snapshot_tree.rs");
 include!("storage/workspace_files_search.rs");
 include!("storage/events_settings_models.rs");
 include!("storage/agent_cache_time.rs");
+include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
+include!("storage/library_translation_engine.rs");
 include!("storage/workspace_ops_compile.rs");
 include!("storage/remote_metadata_fetch.rs");

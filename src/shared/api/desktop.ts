@@ -7,6 +7,7 @@ import type {
   AnalysisSaveReportResponse,
   AgentRunStartAccepted,
   AgentModelBinding,
+  AppBackgroundImage,
   AppSettings,
   BusyTexCacheInfo,
   CompileRecord,
@@ -26,6 +27,8 @@ import type {
   GitStatus,
   LibraryCitationSummary,
   LibraryPdfPreview,
+  LibraryTranslateResult,
+  LibraryZoteroSyncResult,
   ModelCatalogItemInput,
   ModelDraftTestInput,
   ModelApiKeyValue,
@@ -40,6 +43,7 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   RuntimeLogInfo,
+  RuntimeMemorySnapshot,
   RuntimeLogReadFilters,
   RuntimeLogReadResponse,
   ResourceNode,
@@ -253,6 +257,38 @@ export function importLibraryLink(projectId: string, link: string): Promise<Ack>
   return invoke<Ack>("library_import_link", { input: { projectId, link } });
 }
 
+export function syncLibraryZotero(input: {
+  projectId: string;
+  ownerId: string;
+  apiKey: string;
+  scope?: "users" | "groups";
+}): Promise<LibraryZoteroSyncResult> {
+  return invoke<LibraryZoteroSyncResult>("library_zotero_sync", {
+    input: {
+      projectId: input.projectId,
+      ownerId: input.ownerId,
+      apiKey: input.apiKey,
+      scope: input.scope ?? "users",
+    },
+  });
+}
+
+export function translateLibraryDocument(input: {
+  projectId: string;
+  relativePath: string;
+  targetLanguage?: string;
+  modelOverride?: string;
+}): Promise<LibraryTranslateResult> {
+  return invoke<LibraryTranslateResult>("library_translate_document", {
+    input: {
+      projectId: input.projectId,
+      relativePath: input.relativePath,
+      targetLanguage: input.targetLanguage,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
 export function libraryCitationSummary(
   projectId: string,
   relativePath: string,
@@ -374,9 +410,16 @@ export function updateSettings(input: {
       telegramBotToken?: string;
       telegramChatId?: string;
     };
+    closeBehavior?: "ask" | "tray" | "exit";
+    closeBehaviorRemember?: boolean;
+    backgroundImagePath?: string;
   };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
+}
+
+export function pickBackgroundImage(): Promise<AppBackgroundImage | null> {
+  return invoke<AppBackgroundImage | null>("settings_pick_background_image");
 }
 
 export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> {
@@ -434,6 +477,10 @@ export function runtimeLogWrite(level: string, message: string) {
 
 export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
   return invoke<RuntimeLogInfo>("runtime_log_info");
+}
+
+export function runtimeMemorySnapshot(): Promise<RuntimeMemorySnapshot> {
+  return invoke<RuntimeMemorySnapshot>("runtime_memory_snapshot");
 }
 
 export function runtimeLogRead(filters: RuntimeLogReadFilters = {}): Promise<RuntimeLogReadResponse> {

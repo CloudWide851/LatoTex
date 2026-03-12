@@ -1,7 +1,8 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteBinaryInput,
     FileWriteInput,
-    FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput,
+    FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput, LibraryTranslateInput,
+    LibraryTranslateResponse, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
     LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
     OpenExternalLinkInput, ProjectPathActionInput,
     ProjectIntegrityStatus, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
@@ -255,6 +256,52 @@ pub fn library_import_link(
 ) -> Result<Ack, String> {
     state.log("INFO", &format!("library_import_link: {}", input.project_id));
     storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())
+}
+
+#[tauri::command]
+pub fn library_zotero_sync(
+    state: State<'_, AppState>,
+    input: LibraryZoteroSyncInput,
+) -> Result<LibraryZoteroSyncResponse, String> {
+    let scope = input.scope.as_deref().unwrap_or("users").trim().to_string();
+    state.log(
+        "INFO",
+        &format!(
+            "library_zotero_sync: project={}, scope={}, owner={}",
+            input.project_id, scope, input.owner_id
+        ),
+    );
+    storage::sync_zotero_library(
+        &state.db_path,
+        &input.project_id,
+        Some(&scope),
+        input.owner_id.trim(),
+        input.api_key.trim(),
+    )
+}
+
+#[tauri::command]
+pub fn library_translate_document(
+    state: State<'_, AppState>,
+    input: LibraryTranslateInput,
+) -> Result<LibraryTranslateResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "library_translate_document: project={}, path={}, lang={}",
+            input.project_id,
+            input.relative_path,
+            input.target_language.as_deref().unwrap_or("-")
+        ),
+    );
+    storage::translate_library_document(
+        &state.db_path,
+        &state.runtime_root,
+        &input.project_id,
+        &input.relative_path,
+        input.target_language.as_deref(),
+        input.model_override.as_deref(),
+    )
 }
 
 #[tauri::command]

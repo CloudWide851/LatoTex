@@ -16,8 +16,15 @@ import {
   resolveCandidateFromOutput,
 } from "./agentPatchEdits";
 import {
+  extractPaperLinkFromPrompt,
+  inferPaperPromptAction,
   resolveAgentPaperContextForPrompt,
 } from "./agentPaperContext";
+import {
+  executePaperLinkFlow,
+  resolvePaperCommandLink,
+  resolvePaperFlowAction,
+} from "./agentPaperActions";
 import { compileProposalPreviewWithAutoFix } from "./agentProposalPreviewCompile";
 import { buildAnalysisPrompt, buildTaskExecutionPrompt } from "./agentTaskPrompt";
 import { runAgentThroughEvents } from "./agentRunEvents";
@@ -261,7 +268,6 @@ export async function runAgentWorkflow(params: {
       format,
     });
   };
-
   try {
     if (parsed.kind === "command" && parsed.command === "review") {
       if (!selectedFile) {
@@ -407,6 +413,48 @@ export async function runAgentWorkflow(params: {
       return;
     }
 
+    if (parsed.kind === "command" && parsed.command === "paper") {
+      const link = resolvePaperCommandLink(parsed.args);
+      if (!link) {
+        throw new Error(t("agent.command.paper.requiresLink"));
+      }
+      await executePaperLinkFlow({
+        activeProjectId,
+        link,
+        action: resolvePaperFlowAction(parsed.args),
+        instruction: parsed.args,
+        t,
+        withMemoryContext,
+        setAgentRunId,
+        modelOverride: taskModelOverride ?? undefined,
+        pushAgentMessage,
+        normalizeOutput: cleanAgentOutput,
+      });
+      setAgentPhase("done");
+      setAgentStatusKey("agent.statusDone");
+      return;
+    }
+
+    const inferredAction = inferPaperPromptAction(prompt);
+    const inferredLink = extractPaperLinkFromPrompt(prompt);
+    if (parsed.kind === "plain" && inferredLink && inferredAction !== "none") {
+      await executePaperLinkFlow({
+        activeProjectId,
+        link: inferredLink,
+        action: resolvePaperFlowAction(prompt),
+        instruction: prompt,
+        t,
+        withMemoryContext,
+        setAgentRunId,
+        modelOverride: taskModelOverride ?? undefined,
+        pushAgentMessage,
+        normalizeOutput: cleanAgentOutput,
+      });
+      setAgentPhase("done");
+      setAgentStatusKey("agent.statusDone");
+      return;
+    }
+
     const allowed = await shouldAllowTargetPath({
       activeProjectId,
       targetPath,
@@ -524,9 +572,14 @@ export async function runAgentWorkflow(params: {
         ? t("agent.run.timeout.inactive")
       : rawMessage === "agent.run.failed"
         ? t("agent.run.failed")
+      : rawMessage === "agent.paper.invalidLink"
+        ? t("agent.paper.invalidLink")
+      : rawMessage === "agent.paper.importResolveFailed"
+        ? t("agent.paper.importResolveFailed")
         : rawMessage;
     setAgentPhase("error");
     setAgentStatusKey("agent.statusError");
     setToast({ type: "error", message: toastMessage });
   }
 }
+

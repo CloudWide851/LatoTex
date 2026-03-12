@@ -135,6 +135,7 @@ export function useAppEffects(params: {
   const tRef = useRef(t);
   const cursorRef = useRef(cursor);
   const isMaximizedRef = useRef(false);
+  const selectedFilePdfObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     tRef.current = t;
@@ -173,6 +174,8 @@ export function useAppEffects(params: {
         uiPrefs: {
           ...(appSettings.uiPrefs ?? {}),
           closeToTrayNoticeEnabled: appSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true,
+          closeBehavior: appSettings.uiPrefs?.closeBehavior ?? "ask",
+          closeBehaviorRemember: appSettings.uiPrefs?.closeBehaviorRemember ?? false,
           theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
           busytexCachePolicy:
             appSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
@@ -248,6 +251,10 @@ export function useAppEffects(params: {
 
   useEffect(() => {
     if (!activeProjectId || !selectedFile) {
+      if (selectedFilePdfObjectUrlRef.current) {
+        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
+        selectedFilePdfObjectUrlRef.current = null;
+      }
       setSelectedFilePdfUrl(null);
       return;
     }
@@ -261,6 +268,11 @@ export function useAppEffects(params: {
           const url = URL.createObjectURL(
             new Blob([Uint8Array.from(result.bytes)], { type: "application/pdf" }),
           );
+          const prev = selectedFilePdfObjectUrlRef.current;
+          if (prev && prev !== url) {
+            URL.revokeObjectURL(prev);
+          }
+          selectedFilePdfObjectUrlRef.current = url;
           setSelectedFilePdfUrl(url);
           setEditorContent("");
         })
@@ -274,11 +286,19 @@ export function useAppEffects(params: {
       };
     }
     if (isExcelPath(selectedFile)) {
+      if (selectedFilePdfObjectUrlRef.current) {
+        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
+        selectedFilePdfObjectUrlRef.current = null;
+      }
       setSelectedFilePdfUrl(null);
       setEditorContent("");
       return () => {
         cancelled = true;
       };
+    }
+    if (selectedFilePdfObjectUrlRef.current) {
+      URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
+      selectedFilePdfObjectUrlRef.current = null;
     }
     setSelectedFilePdfUrl(null);
     const cached = getCachedTextContent?.(selectedFile);
@@ -314,6 +334,15 @@ export function useAppEffects(params: {
   ]);
 
   useEffect(() => {
+    return () => {
+      if (selectedFilePdfObjectUrlRef.current) {
+        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
+        selectedFilePdfObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!pendingRevealLine || !editorRef.current) {
       return;
     }
@@ -346,7 +375,8 @@ export function useAppEffects(params: {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     const hasLiveRun = Boolean(agentRunId) || analysisRunning;
-    const needsWarmPolling = page === "analysis" || page === "latex";
+    const needsWarmPolling = page === "analysis" || page === "latex" || page === "chat";
+    const shouldStoreEvents = hasLiveRun || page === "latex" || page === "analysis" || page === "chat";
 
     const schedule = (delay: number) => {
       if (cancelled) {
@@ -385,7 +415,9 @@ export function useAppEffects(params: {
           ["responses.output_text.delta", "agent.run.heartbeat"],
         );
         if (batch.events.length > 0) {
-          setEvents((prev: SwarmEvent[]) => [...prev.slice(-220), ...batch.events]);
+          if (shouldStoreEvents) {
+            setEvents((prev: SwarmEvent[]) => [...prev.slice(-220), ...batch.events]);
+          }
           cursorRef.current = batch.nextCursor;
           setCursor(batch.nextCursor);
           schedule(resolvePollDelay(700, 2200, 6200));

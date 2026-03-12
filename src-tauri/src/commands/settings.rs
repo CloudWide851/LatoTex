@@ -1,5 +1,5 @@
 use crate::models::{
-    Ack, AppSettings, ModelApiKeyGetInput, ModelApiKeySetInput, ModelApiKeyValue,
+    Ack, AppBackgroundImage, AppSettings, ModelApiKeyGetInput, ModelApiKeySetInput, ModelApiKeyValue,
     ModelDraftTestInput, ModelTestInput, ModelTestResult, ProtocolHealth, ProtocolTestInput,
     RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput,
     RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
@@ -13,18 +13,20 @@ use reqwest::StatusCode;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
 use std::time::Duration;
 use tauri::State;
-
+use rfd::FileDialog;
 mod settings_keysave;
+#[path = "settings_memory.rs"]
+mod settings_memory;
 pub use settings_keysave::model_api_key_save_verified;
-
+pub use settings_memory::runtime_memory_snapshot;
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");
     storage::load_settings(&state.db_path, &state.runtime_root)
 }
-
 #[tauri::command]
 pub fn settings_update(
     state: State<'_, AppState>,
@@ -33,7 +35,43 @@ pub fn settings_update(
     state.log("INFO", "settings_update");
     storage::update_settings(&state.db_path, &state.runtime_root, input)
 }
-
+fn normalized_image_extension(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "jpg" | "jpeg" => "jpg",
+        "webp" => "webp",
+        "bmp" => "bmp",
+        _ => "png",
+    }
+}
+#[tauri::command]
+pub fn settings_pick_background_image(
+    state: State<'_, AppState>,
+) -> Result<Option<AppBackgroundImage>, String> {
+    let selected = FileDialog::new()
+        .add_filter("Image", &["png", "jpg", "jpeg", "webp", "bmp"])
+        .pick_file();
+    let Some(source) = selected else {
+        return Ok(None);
+    };
+    let wallpapers_dir = state.app_data_dir.join("wallpapers");
+    fs::create_dir_all(&wallpapers_dir).map_err(|e| e.to_string())?;
+    let ext = normalized_image_extension(&source);
+    let target = wallpapers_dir.join(format!("wallpaper-{}.{}", uuid::Uuid::new_v4(), ext));
+    fs::copy(&source, &target).map_err(|e| e.to_string())?;
+    state.log(
+        "INFO",
+        &format!("settings_pick_background_image: {}", target.to_string_lossy()),
+    );
+    Ok(Some(AppBackgroundImage {
+        path: target.to_string_lossy().to_string(),
+    }))
+}
 #[tauri::command]
 pub fn protocol_test(
     _state: State<'_, AppState>,
@@ -55,37 +93,31 @@ pub fn protocol_test(
             message: "Base URL is required".to_string(),
         });
     }
-
     let api_key = input
         .api_key
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|value| value.to_string());
-
     let client = Client::builder()
         .timeout(Duration::from_secs(12))
         .build()
         .map_err(|e| e.to_string())?;
-
     let result = match input.protocol_id.as_str() {
         "anthropic" => probe_anthropic(&client, &base_url, api_key.as_deref()),
         "gemini" => probe_gemini(&client, &base_url, api_key.as_deref()),
         _ => probe_openai_compatible(&client, &base_url, api_key.as_deref()),
     };
-
     let (ok, message) = match result {
         Ok(status) => (true, format!("Link test passed ({status})")),
         Err(error) => (false, error),
     };
-
     Ok(ProtocolHealth {
         protocol_id: input.protocol_id,
         ok,
         message,
     })
 }
-
 #[tauri::command]
 pub fn model_test(
     state: State<'_, AppState>,
@@ -94,12 +126,10 @@ pub fn model_test(
     state.log("INFO", &format!("model_test: {}", input.model_id));
     let (protocol_id, base_url, request_name, api_key) =
         storage::resolve_model_test_connection(&state.db_path, &state.runtime_root, &input.model_id)?;
-
     let client = Client::builder()
         .timeout(Duration::from_secs(18))
         .build()
         .map_err(|e| e.to_string())?;
-
     let result = call_model_generation_test(
         &client,
         &protocol_id,
@@ -107,7 +137,6 @@ pub fn model_test(
         &request_name,
         api_key.as_deref(),
     );
-
     let (ok, message) = match result {
         Ok(output) => (
             true,
@@ -118,14 +147,12 @@ pub fn model_test(
         ),
         Err(error) => (false, error),
     };
-
     Ok(ModelTestResult {
         model_id: input.model_id,
         ok,
         message,
     })
 }
-
 #[tauri::command]
 pub fn model_test_draft(
     state: State<'_, AppState>,
@@ -135,7 +162,6 @@ pub fn model_test_draft(
     let base_url = input.base_url.trim();
     let request_name = input.request_name.trim();
     let api_key = input.api_key.trim();
-
     if protocol_id.is_empty() {
         return Err("Protocol id is required".to_string());
     }
@@ -148,17 +174,14 @@ pub fn model_test_draft(
     if api_key.is_empty() {
         return Err("API key is required".to_string());
     }
-
     state.log(
         "INFO",
         &format!("model_test_draft: protocol={protocol_id}, model={request_name}"),
     );
-
     let client = Client::builder()
         .timeout(Duration::from_secs(18))
         .build()
         .map_err(|e| e.to_string())?;
-
     let result = call_model_generation_test(
         &client,
         protocol_id,
@@ -166,7 +189,6 @@ pub fn model_test_draft(
         request_name,
         Some(api_key),
     );
-
     let (ok, message) = match result {
         Ok(output) => (
             true,
@@ -177,14 +199,12 @@ pub fn model_test_draft(
         ),
         Err(error) => (false, error),
     };
-
     Ok(ModelTestResult {
         model_id: request_name.to_string(),
         ok,
         message,
     })
 }
-
 #[tauri::command]
 pub fn model_api_key_set(
     state: State<'_, AppState>,
@@ -214,7 +234,6 @@ pub fn model_api_key_set(
             message: "cleared".to_string(),
         });
     }
-
     let outcome = secure::store_model_api_key(&secure_context, model_id, api_key)?;
     state.log(
         "INFO",
@@ -229,7 +248,6 @@ pub fn model_api_key_set(
         message: "stored".to_string(),
     })
 }
-
 #[tauri::command]
 pub fn model_api_key_get(
     state: State<'_, AppState>,
@@ -262,11 +280,9 @@ pub fn model_api_key_get(
         diagnostic_code: resolved.diagnostic_code,
     })
 }
-
 fn is_success_status(status: StatusCode) -> bool {
     status.is_success()
 }
-
 fn probe_openai_compatible(
     client: &Client,
     base_url: &str,
@@ -281,7 +297,6 @@ fn probe_openai_compatible(
     if !normalized.ends_with("/v1") {
         endpoints.push(format!("{normalized}/v1/models"));
     }
-
     let mut last_error = "No response".to_string();
     for endpoint in endpoints {
         match client.get(endpoint).bearer_auth(key).send() {
@@ -299,7 +314,6 @@ fn probe_openai_compatible(
     }
     Err(last_error)
 }
-
 fn probe_anthropic(client: &Client, base_url: &str, api_key: Option<&str>) -> Result<StatusCode, String> {
     let key = api_key
         .map(str::trim)
@@ -310,7 +324,6 @@ fn probe_anthropic(client: &Client, base_url: &str, api_key: Option<&str>) -> Re
     if normalized.ends_with("/v1") {
         endpoints.push(format!("{normalized}/models"));
     }
-
     let mut last_error = "No response".to_string();
     for endpoint in endpoints {
         match client
@@ -333,7 +346,6 @@ fn probe_anthropic(client: &Client, base_url: &str, api_key: Option<&str>) -> Re
     }
     Err(last_error)
 }
-
 fn probe_gemini(client: &Client, base_url: &str, api_key: Option<&str>) -> Result<StatusCode, String> {
     let key = api_key
         .map(str::trim)
@@ -349,7 +361,6 @@ fn probe_gemini(client: &Client, base_url: &str, api_key: Option<&str>) -> Resul
         Err(format!("HTTP {status}"))
     }
 }
-
 fn resolve_api_key(api_key: Option<&str>) -> Result<String, String> {
     let key = api_key
         .map(str::trim)
@@ -358,7 +369,6 @@ fn resolve_api_key(api_key: Option<&str>) -> Result<String, String> {
         .to_string();
     Ok(key)
 }
-
 fn call_model_generation_test(
     _client: &Client,
     protocol_id: &str,
@@ -377,7 +387,6 @@ fn call_model_generation_test(
         true,
     )
 }
-
 #[tauri::command]
 pub fn runtime_log_write(
     state: State<'_, AppState>,
@@ -394,7 +403,6 @@ pub fn runtime_log_write(
         message: "logged".to_string(),
     })
 }
-
 #[tauri::command]
 pub fn runtime_log_info(state: State<'_, AppState>) -> Result<RuntimeLogInfo, String> {
     Ok(RuntimeLogInfo {
@@ -405,7 +413,6 @@ pub fn runtime_log_info(state: State<'_, AppState>) -> Result<RuntimeLogInfo, St
         version: state.app_version.clone(),
     })
 }
-
 fn parse_runtime_log_line(raw_line: &str) -> RuntimeLogEntry {
     let raw = raw_line.to_string();
     let mut timestamp = String::new();
@@ -437,7 +444,6 @@ fn parse_runtime_log_line(raw_line: &str) -> RuntimeLogEntry {
         raw,
     }
 }
-
 fn runtime_log_entry_matches(entry: &RuntimeLogEntry, input: &RuntimeLogReadInput) -> bool {
     if let Some(level) = input.level.as_deref() {
         let level = level.trim().to_uppercase();
@@ -468,7 +474,6 @@ fn runtime_log_entry_matches(entry: &RuntimeLogEntry, input: &RuntimeLogReadInpu
     }
     true
 }
-
 fn input_has_runtime_log_filters(input: &RuntimeLogReadInput) -> bool {
     let has_non_empty = |value: &Option<String>| value.as_deref().map(str::trim).filter(|item| !item.is_empty()).is_some();
     has_non_empty(&input.level)
@@ -476,7 +481,6 @@ fn input_has_runtime_log_filters(input: &RuntimeLogReadInput) -> bool {
         || has_non_empty(&input.from_time)
         || has_non_empty(&input.to_time)
 }
-
 fn read_last_log_lines(path: &std::path::Path, limit: usize) -> Result<Vec<String>, String> {
     if limit == 0 {
         return Ok(Vec::new());
@@ -524,7 +528,6 @@ fn read_last_log_lines(path: &std::path::Path, limit: usize) -> Result<Vec<Strin
     }
     Ok(collected)
 }
-
 #[tauri::command]
 pub fn runtime_log_read(
     state: State<'_, AppState>,
@@ -553,7 +556,6 @@ pub fn runtime_log_read(
     }
     Ok(RuntimeLogReadResponse { entries })
 }
-
 #[tauri::command]
 pub fn runtime_log_clear_current_session(
     state: State<'_, AppState>,

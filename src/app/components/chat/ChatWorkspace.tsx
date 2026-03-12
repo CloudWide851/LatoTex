@@ -4,6 +4,7 @@ import {
   channelsTelegramPoll,
   channelsTelegramSend,
   getEvents,
+  readFile,
   runAgentCancel,
   runAgentStart,
 } from "../../../shared/api/desktop";
@@ -16,6 +17,7 @@ import {
   type ChatMessage,
   type ChatSession,
 } from "../../hooks/chatSessionStore";
+import { parseAgentPrompt } from "../../hooks/agentCommands";
 
 type TranslationFn = (key: any) => string;
 
@@ -138,12 +140,47 @@ export function ChatWorkspace(props: {
     );
   };
 
+  const loadProjectMemoryText = useCallback(async () => {
+    if (!projectId) {
+      return "";
+    }
+    const candidates = [".latotex/MEMORY.md", "MEMORY.md", "memory.md"];
+    for (const path of candidates) {
+      try {
+        const loaded = await readFile(projectId, path);
+        const text = String(loaded.content || "").trim();
+        if (text) {
+          return text;
+        }
+      } catch {
+        // Try next candidate.
+      }
+    }
+    return "";
+  }, [projectId]);
+
   const runPrompt = useCallback(async (
     promptRaw: string,
     options?: { sessionId?: string; telegramChatId?: string; telegramMessageId?: number; telegramUser?: string },
   ) => {
     const prompt = promptRaw.trim();
     if (!projectId || !prompt || running) {
+      return;
+    }
+    const parsed = parseAgentPrompt(prompt);
+    if (parsed.kind === "command" && parsed.command === "new") {
+      const title = parsed.args.trim().slice(0, 80) || t("chat.sessionNew");
+      const next = newChatSession(title);
+      setSessions((prev) => [next, ...prev]);
+      setActiveSessionId(next.id);
+      setDraft("");
+      if (options?.telegramChatId) {
+        await channelsTelegramSend({
+          chatId: options.telegramChatId,
+          text: t("chat.command.new.done"),
+          replyToMessageId: options.telegramMessageId,
+        }).catch(() => undefined);
+      }
       return;
     }
     const sessionId = options?.sessionId ?? ensureSession();
@@ -158,6 +195,24 @@ export function ChatWorkspace(props: {
       createdAt: new Date().toISOString(),
     };
     appendMessage(sessionId, userMessage);
+    if (parsed.kind === "command" && parsed.command === "memory") {
+      const memory = await loadProjectMemoryText();
+      const responseText = memory || t("chat.command.memory.empty");
+      appendMessage(sessionId, {
+        id: `a-${Date.now().toString(36)}`,
+        role: "assistant",
+        text: responseText,
+        createdAt: new Date().toISOString(),
+      });
+      if (options?.telegramChatId) {
+        await channelsTelegramSend({
+          chatId: options.telegramChatId,
+          text: responseText.slice(0, 3900),
+          replyToMessageId: options.telegramMessageId,
+        }).catch(() => undefined);
+      }
+      return;
+    }
     setSessions((prev) =>
       updateSession(prev, sessionId, (session) => {
         if (session.messages.length > 0) {
@@ -248,7 +303,7 @@ export function ChatWorkspace(props: {
       setRunning(false);
       setPendingRunId(null);
     }
-  }, [appendMessage, ensureSession, modelOverride, projectId, running, t, updateMessageText]);
+  }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, t, updateMessageText]);
 
   const sendMessage = async () => {
     await runPrompt(draft);

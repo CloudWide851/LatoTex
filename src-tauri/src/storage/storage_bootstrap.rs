@@ -84,8 +84,23 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS translation_terms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL,
+            source_term TEXT NOT NULL,
+            target_term TEXT NOT NULL,
+            target_language TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0.6,
+            hit_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(project_id, target_language, source_term)
+        );
+
         CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_root_path ON projects(root_path);
         CREATE INDEX IF NOT EXISTS idx_swarm_events_run_seq ON swarm_events(run_id, seq);
+        CREATE INDEX IF NOT EXISTS idx_translation_terms_lookup
+          ON translation_terms(project_id, target_language, updated_at DESC);
         ",
     )
     .map_err(|e| e.to_string())?;
@@ -364,4 +379,5 @@ pub fn create_project(db_path: &Path, projects_dir: &Path, name: &str) -> Result
 
     project_snapshot(db_path, &project_id)
 }
+
 

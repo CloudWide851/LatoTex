@@ -10,14 +10,12 @@ pub fn append_event(
     let id = Uuid::new_v4().to_string();
     let payload_json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
     let created_at = now_iso();
-
     conn.execute(
         "INSERT INTO swarm_events (id, run_id, project_id, role, kind, payload, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![id, run_id, project_id, role, kind, payload_json, created_at],
     )
     .map_err(|e| e.to_string())?;
-
     let seq = conn.last_insert_rowid();
     if seq % 120 == 0 {
         let retain_count: i64 = 12_000;
@@ -44,7 +42,6 @@ pub fn append_event(
         created_at,
     })
 }
-
 pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let cursor = query.cursor.unwrap_or(0);
@@ -59,7 +56,6 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
         .filter(|item| !item.is_empty())
         .take(24)
         .collect();
-
     let mut sql = String::from(
         "SELECT seq, id, run_id, project_id, role, kind, payload, created_at
          FROM swarm_events
@@ -83,7 +79,6 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
     }
     sql.push_str(&format!(" ORDER BY seq ASC LIMIT ?{}", param_index));
     params.push(limit.into());
-
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(rusqlite::params_from_iter(params.iter()), |row| {
@@ -101,7 +96,6 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
             })
         })
         .map_err(|e| e.to_string())?;
-
     let mut events = Vec::new();
     let mut next_cursor = cursor;
     for row in rows {
@@ -109,10 +103,8 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
         next_cursor = event.seq;
         events.push(event);
     }
-
     Ok(EventBatch { next_cursor, events })
 }
-
 const FIXED_AGENT_ROLES: [&str; 8] = [
     "plan",
     "task",
@@ -123,7 +115,6 @@ const FIXED_AGENT_ROLES: [&str; 8] = [
     "ephemeral",
     "git_summary",
 ];
-
 fn normalize_agent_bindings(bindings: Vec<AgentModelBinding>) -> Vec<AgentModelBinding> {
     let mut by_role = std::collections::HashMap::<String, String>::new();
     for binding in bindings {
@@ -137,7 +128,6 @@ fn normalize_agent_bindings(bindings: Vec<AgentModelBinding>) -> Vec<AgentModelB
         })
         .collect()
 }
-
 pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let (active_project_id, ui_prefs_json): (Option<String>, Option<String>) = conn
@@ -151,7 +141,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
         Some(raw) => serde_json::from_str::<UiPrefs>(&raw).ok(),
         None => None,
     };
-
     let mut model_catalog = Vec::new();
     let mut catalog_stmt = conn
         .prepare(
@@ -177,7 +166,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
     for row in catalog_rows {
         model_catalog.push(row.map_err(|e| e.to_string())?);
     }
-
     let secure_context = secure::SecureStorageContext {
         db_path: db_path.to_path_buf(),
         runtime_root: runtime_root.to_path_buf(),
@@ -196,7 +184,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
             acc
         },
     );
-
     let mut model_protocols = Vec::new();
     let mut protocol_stmt = conn
         .prepare("SELECT id, display_name, base_url FROM model_protocols ORDER BY id")
@@ -210,7 +197,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
             ))
         })
         .map_err(|e| e.to_string())?;
-
     for row in protocol_rows {
         let (id, display_name, base_url) = row.map_err(|e| e.to_string())?;
         let model_key_exists = protocol_has_model_key.get(&id).copied().unwrap_or(false);
@@ -221,7 +207,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
             base_url,
         });
     }
-
     let mut agent_bindings = Vec::new();
     let mut binding_stmt = conn
         .prepare("SELECT role, provider, model, COALESCE(model_id, '') FROM agent_bindings ORDER BY role")
@@ -236,7 +221,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
             ))
         })
         .map_err(|e| e.to_string())?;
-
     for row in binding_rows {
         let (role, provider, model, model_id) = row.map_err(|e| e.to_string())?;
         let resolved_model_id = if model_id.trim().is_empty() {
@@ -256,15 +240,12 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
         } else {
             model_id
         };
-
         agent_bindings.push(AgentModelBinding {
             role,
             model_id: resolved_model_id,
         });
     }
-
     let agent_bindings = normalize_agent_bindings(agent_bindings);
-
     Ok(AppSettings {
         active_project_id,
         model_protocols,
@@ -273,7 +254,6 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
         ui_prefs,
     })
 }
-
 pub fn update_settings(
     db_path: &Path,
     runtime_root: &Path,
@@ -281,7 +261,6 @@ pub fn update_settings(
 ) -> Result<AppSettings, String> {
     let mut conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
-
     tx.execute(
         "UPDATE app_settings SET active_project_id = ?1, ui_prefs_json = ?2 WHERE id = 1",
         params![
@@ -293,14 +272,12 @@ pub fn update_settings(
         ],
     )
     .map_err(|e| e.to_string())?;
-
     update_model_protocols(&tx, input.model_protocols)?;
     update_model_catalog(&tx, db_path, runtime_root, input.model_catalog)?;
     update_agent_bindings(&tx, input.agent_bindings)?;
     tx.commit().map_err(|e| e.to_string())?;
     load_settings(db_path, runtime_root)
 }
-
 fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>) -> Result<(), String> {
     conn.execute("DELETE FROM model_protocols", [])
         .map_err(|e| e.to_string())?;
@@ -309,7 +286,6 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
         [],
     )
     .map_err(|e| e.to_string())?;
-
     for protocol in protocols {
         conn.execute(
             "INSERT INTO model_protocols (id, display_name, base_url)
@@ -318,14 +294,12 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
             params![&protocol.id, &protocol.display_name, &protocol.base_url],
         )
         .map_err(|e| e.to_string())?;
-
         let legacy_provider = match protocol.id.as_str() {
             "openai-compatible" => "openai".to_string(),
             "anthropic" => "anthropic".to_string(),
             "gemini" => "gemini".to_string(),
             other => other.to_string(),
         };
-
         conn.execute(
             "INSERT INTO provider_profiles (provider, base_url, api_key_ref)
              VALUES (?1, ?2, ?3)
@@ -337,11 +311,9 @@ fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>)
             ],
         )
         .map_err(|e| e.to_string())?;
-
     }
     Ok(())
 }
-
 fn update_model_catalog(
     conn: &Connection,
     db_path: &Path,
@@ -366,7 +338,6 @@ fn update_model_catalog(
             secure::delete_model_api_key(&secure_context, &existing_id)?;
         }
     }
-
     conn.execute("DELETE FROM model_catalog", [])
         .map_err(|e| e.to_string())?;
     for model in models {
@@ -384,11 +355,9 @@ fn update_model_catalog(
     }
     Ok(())
 }
-
 fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) -> Result<(), String> {
     conn.execute("DELETE FROM agent_bindings", [])
         .map_err(|e| e.to_string())?;
-
     for binding in bindings {
         let model_id = binding.model_id.trim().to_string();
         if model_id.is_empty() {
@@ -405,7 +374,6 @@ fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) ->
         let Some((protocol_id, request_name)) = resolved else {
             continue;
         };
-
         conn.execute(
             "INSERT INTO agent_bindings (role, provider, model, model_id)
              VALUES (?1, ?2, ?3, ?4)
@@ -416,7 +384,6 @@ fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) ->
     }
     Ok(())
 }
-
 fn upsert_catalog_for_legacy_binding(
     conn: &Connection,
     protocol_id: &str,
@@ -431,7 +398,6 @@ fn upsert_catalog_for_legacy_binding(
     .map_err(|e| e.to_string())?;
     Ok(model_id)
 }
-
 pub fn resolve_agent_model(
     db_path: &Path,
     role: &str,
@@ -448,7 +414,6 @@ pub fn resolve_agent_model(
     } else {
         None
     };
-
     let resolved_model_id = match model_id {
         Some(id) => id,
         None => conn
@@ -459,7 +424,6 @@ pub fn resolve_agent_model(
             )
             .map_err(|_| format!("No model binding configured for role: {role}"))?,
     };
-
     let (protocol_id, model_name): (String, String) = conn
         .query_row(
             "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
@@ -467,7 +431,6 @@ pub fn resolve_agent_model(
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|_| "Configured model is missing from model catalog".to_string())?;
-
     let base_url = conn
         .query_row(
             "SELECT base_url FROM model_protocols WHERE id = ?1",
@@ -475,10 +438,8 @@ pub fn resolve_agent_model(
             |row| row.get::<_, String>(0),
         )
         .map_err(|_| "Protocol configuration not found for model".to_string())?;
-
     Ok((protocol_id, base_url, model_name, resolved_model_id))
 }
-
 pub fn resolve_model_test_connection(
     db_path: &Path,
     runtime_root: &Path,
@@ -489,7 +450,6 @@ pub fn resolve_model_test_connection(
     if trimmed_model_id.is_empty() {
         return Err("Model id is required".to_string());
     }
-
     let (protocol_id, model_name): (String, String) = conn
         .query_row(
             "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
@@ -497,7 +457,6 @@ pub fn resolve_model_test_connection(
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|_| format!("Model not found: {trimmed_model_id}"))?;
-
     let base_url = conn
         .query_row(
             "SELECT base_url FROM model_protocols WHERE id = ?1",
@@ -505,7 +464,6 @@ pub fn resolve_model_test_connection(
             |row| row.get::<_, String>(0),
         )
         .map_err(|_| format!("Protocol not found for model: {trimmed_model_id}"))?;
-
     let secure_context = secure::SecureStorageContext {
         db_path: db_path.to_path_buf(),
         runtime_root: runtime_root.to_path_buf(),
@@ -513,7 +471,6 @@ pub fn resolve_model_test_connection(
     let api_key = secure::get_model_api_key(&secure_context, trimmed_model_id)?.api_key;
     Ok((protocol_id, base_url, model_name, api_key))
 }
-
 fn heuristic_reasoning_model(model_name: &str) -> bool {
     let lower = model_name.to_ascii_lowercase();
     lower.contains("think")
@@ -523,7 +480,6 @@ fn heuristic_reasoning_model(model_name: &str) -> bool {
         || lower.contains("r1")
         || lower.contains("qwq")
 }
-
 pub fn model_supports_reasoning(
     db_path: &Path,
     role: &str,
@@ -552,7 +508,6 @@ pub fn model_supports_reasoning(
             model_id
         }
     };
-
     let Ok((model_name, capabilities_json)) = conn.query_row(
         "SELECT request_name, capabilities_json FROM model_catalog WHERE id = ?1",
         params![resolved_model_id],
@@ -560,7 +515,6 @@ pub fn model_supports_reasoning(
     ) else {
         return false;
     };
-
     if let Some(raw) = capabilities_json {
         if let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) {
             if let Some(mode_raw) = value
@@ -578,14 +532,11 @@ pub fn model_supports_reasoning(
             }
         }
     }
-
     heuristic_reasoning_model(&model_name)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn normalize_agent_bindings_fills_fixed_roles() {
         let bindings = vec![
@@ -608,4 +559,3 @@ mod tests {
         assert_eq!(review.map(|item| item.model_id.as_str()), Some(""));
     }
 }
-

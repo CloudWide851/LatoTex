@@ -23,7 +23,7 @@ import type { AgentPendingAction } from "../hooks/useAppContainerState";
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
 export type AgentCommandItem = {
-  token: "/review" | "/check-ref" | "/new" | "/memory" | "/resume";
+  token: "/review" | "/check-ref" | "/new" | "/memory" | "/resume" | "/paper";
   label: string;
   description: string;
 };
@@ -545,3 +545,4 @@ export function AgentChatOverlay(props: {
     </div>
   );
 }
+

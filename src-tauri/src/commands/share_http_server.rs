@@ -1,13 +1,9 @@
 use super::*;
 use super::share_http_auth::{verify_sync_body_auth, verify_sync_query_auth};
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine;
 use tiny_http::Method;
-
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
     let method = request.method().clone();
     let (path, query) = split_url_path_query(request.url());
-
     let runtime_snapshot = if let Ok(guard) = runtime.lock() {
         guard
     } else {
@@ -25,12 +21,10 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         return;
     }
     drop(runtime_snapshot);
-
     request = match share_http_static::try_serve_static_route(&method, &path, request) {
         Some(pending_request) => pending_request,
         None => return,
     };
-
     if method == Method::Get && path == "/api/health" {
         let _ = request.respond(json_response(
             StatusCode(200),
@@ -38,7 +32,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Get && path == "/api/bootstrap" {
         let mut guard = if let Ok(runtime_guard) = runtime.lock() {
             runtime_guard
@@ -57,8 +50,8 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
                 "sessionId": guard.session_id,
                 "targetPath": guard.target_path,
                 "expiresAt": guard.expires_at,
-                "hasPdf": !guard.pdf_bytes.is_empty(),
-                "pdfState": if guard.pdf_bytes.is_empty() { "empty" } else { "ready" },
+                "hasPdf": share_pdf_ready(&guard),
+                "pdfState": if share_pdf_ready(&guard) { "ready" } else { "empty" },
                 "pdfUpdatedAt": guard.pdf_updated_at.clone(),
                 "status": guard.status.clone(),
                 "tunnelState": guard.tunnel_state.clone(),
@@ -71,7 +64,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Post && path == "/api/join" {
         let body = match parse_json_body::<JoinBody>(&mut request) {
             Ok(value) => value,
@@ -135,7 +127,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Post && path == "/api/presence/ping" {
         let body = match parse_json_body::<PresencePingBody>(&mut request) {
             Ok(value) => value,
@@ -186,7 +177,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Get && path == "/api/presence/list" {
         let mut guard = if let Ok(runtime_guard) = runtime.lock() {
             runtime_guard
@@ -211,7 +201,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Get && path == "/api/comments/list" {
         let guard = if let Ok(runtime_guard) = runtime.lock() {
             runtime_guard
@@ -237,7 +226,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Post && path == "/api/comments/post" {
         let body = match parse_json_body::<CommentPostBody>(&mut request) {
             Ok(value) => value,
@@ -311,7 +299,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Get && path == "/api/snapshot" {
         let guard = if let Ok(runtime_guard) = runtime.lock() {
             runtime_guard
@@ -334,7 +321,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Get && path == "/api/sync/pull" {
         let guard = if let Ok(runtime_guard) = runtime.lock() {
             runtime_guard
@@ -375,7 +361,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Post && path == "/api/sync/push" {
         let body = match parse_json_body::<PushSyncBody>(&mut request) {
             Ok(value) => value,
@@ -442,7 +427,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Post && path == "/api/compile/request" {
         let body = match parse_json_body::<SessionBody>(&mut request) {
             Ok(value) => value,
@@ -471,7 +455,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         let _ = request.respond(json_response(StatusCode(200), json!({ "ok": true })));
         return;
     }
-
     if method == Method::Post && path == "/api/compile/take" {
         let body = match parse_json_body::<SessionBody>(&mut request) {
             Ok(value) => value,
@@ -504,107 +487,20 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     }
-
     if method == Method::Post && path == "/api/pdf/upload" {
-        let body = match parse_json_body::<UploadPdfBody>(&mut request) {
-            Ok(value) => value,
-            Err(error) => {
-                let _ = request.respond(json_response(
-                    StatusCode(400),
-                    json!({ "ok": false, "message": error }),
-                ));
-                return;
-            }
-        };
-        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
-            runtime_guard
-        } else {
-            let _ = request.respond(json_response(
-                StatusCode(500),
-                json!({ "ok": false, "message": "runtime lock failed" }),
-            ));
-            return;
-        };
-        if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
-            let _ = request.respond(response);
-            return;
-        }
-        let decoded = match BASE64_STANDARD.decode(body.pdf_base64.as_bytes()) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                let _ = request.respond(json_response(
-                    StatusCode(400),
-                    json!({ "ok": false, "message": error.to_string() }),
-                ));
-                return;
-            }
-        };
-        guard.pdf_bytes = decoded;
-        guard.pdf_updated_at = Some(now_iso());
-        let _ = request.respond(json_response(StatusCode(200), json!({ "ok": true })));
+        share_http_pdf::handle_pdf_upload(request, runtime);
         return;
     }
-
     if method == Method::Get && path == "/api/pdf/status" {
-        let guard = if let Ok(runtime_guard) = runtime.lock() {
-            runtime_guard
-        } else {
-            let _ = request.respond(json_response(
-                StatusCode(500),
-                json!({ "ok": false, "message": "runtime lock failed" }),
-            ));
-            return;
-        };
-        if let Err(response) = verify_query_auth(&guard, &query) {
-            let _ = request.respond(response);
-            return;
-        }
-        let state = if guard.pdf_bytes.is_empty() { "empty" } else { "ready" };
-        let _ = request.respond(json_response(
-            StatusCode(200),
-            json!({
-                "ok": true,
-                "state": state,
-                "updatedAt": guard.pdf_updated_at.clone(),
-            }),
-        ));
+        share_http_pdf::handle_pdf_status(request, runtime, &query);
         return;
     }
-
     if method == Method::Get && path == "/api/pdf" {
-        let guard = if let Ok(runtime_guard) = runtime.lock() {
-            runtime_guard
-        } else {
-            let _ = request.respond(json_response(
-                StatusCode(500),
-                json!({ "ok": false, "message": "runtime lock failed" }),
-            ));
-            return;
-        };
-        if let Err(response) = verify_query_auth(&guard, &query) {
-            let _ = request.respond(response);
-            return;
-        }
-        if guard.pdf_bytes.is_empty() {
-            let _ = request.respond(json_response(
-                StatusCode(404),
-                json!({ "ok": false, "message": "pdf not ready" }),
-            ));
-            return;
-        }
-        let _ = request.respond(
-            Response::from_data(guard.pdf_bytes.clone())
-                .with_status_code(StatusCode(200))
-                .with_header(pdf_header())
-                .with_header(no_cache_header()),
-        );
+        share_http_pdf::handle_pdf_fetch(request, runtime, &query);
         return;
     }
-
     let _ = request.respond(json_response(
         StatusCode(404),
         json!({ "ok": false, "message": "not found" }),
     ));
 }
-
-

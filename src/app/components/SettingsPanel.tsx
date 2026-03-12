@@ -20,6 +20,8 @@ import {
   type ThemeMode,
 } from "../app-config";
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
+import { BackgroundImageCard } from "./settings/BackgroundImageCard";
+import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 
 type TranslationFn = (key: any) => string;
 
@@ -212,6 +214,7 @@ export function SettingsPanel(props: {
                 />
               </label>
             </div>
+            <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
             <div className="rounded-lg border border-slate-200 p-4">
               <h3 className="mb-3 text-sm font-semibold text-slate-800">
                 {t("settings.busytexCacheTitle")}
@@ -307,6 +310,7 @@ export function SettingsPanel(props: {
                 <p className="text-xs text-slate-500">{t("settings.previewZoomHint")}</p>
               </div>
             </div>
+            <BackgroundImageCard settings={localSettings} setSettings={setSettings} t={t} />
           </div>
         )}
 

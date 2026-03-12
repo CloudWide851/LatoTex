@@ -39,6 +39,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     gitInstallerLaunched,
     deleteIntent,
     deleteDontAskAgain,
+    requestCloseBehaviorDecision,
     setBusy,
     setTree,
     setLibraryTree,
@@ -95,6 +96,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibraryRescan,
     handleLibraryImportPdf,
     handleLibraryImportLink,
+    handleLibrarySyncZotero,
   } = useGitHandlers({
     t,
     activeProjectId,
@@ -109,6 +111,20 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setLibraryTree,
     refreshGitWorkspace,
   });
+
+  const runWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {
+    const appWindow = getCurrentWindow();
+    if (behavior === "exit") {
+      await appWindow.close();
+      await runtimeLogWrite("INFO", "window closed");
+      return;
+    }
+    await appWindow.hide();
+    if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
+      setToast({ type: "info", message: t("toast.minimizedToTray") });
+    }
+    await runtimeLogWrite("INFO", "window hidden to tray");
+  }, [setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
 
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
@@ -136,11 +152,17 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         }
         return;
       }
-      await appWindow.hide();
-      if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
-        setToast({ type: "info", message: t("toast.minimizedToTray") });
+      const closeBehavior = settings?.uiPrefs?.closeBehavior ?? "ask";
+      if (closeBehavior === "exit") {
+        await runWindowCloseBehavior("exit");
+        return;
       }
-      await runtimeLogWrite("INFO", "window hidden to tray");
+      if (closeBehavior === "tray") {
+        await runWindowCloseBehavior("tray");
+        return;
+      }
+      requestCloseBehaviorDecision();
+      await runtimeLogWrite("INFO", "window close decision requested");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });
@@ -158,6 +180,47 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     settings?.uiPrefs?.closeToTrayNoticeEnabled,
     t,
     windowActionBusy,
+    requestCloseBehaviorDecision,
+    runWindowCloseBehavior,
+  ]);
+
+  const handleWindowCloseDecision = useCallback(async (
+    behavior: "tray" | "exit",
+    remember: boolean,
+  ) => {
+    if (!isTauriRuntime) {
+      setToast({ type: "error", message: t("toast.windowUnavailable") });
+      return;
+    }
+    try {
+      if (remember && settings) {
+        const nextSettings: AppSettings = {
+          ...settings,
+          uiPrefs: {
+            ...(settings.uiPrefs ?? {}),
+            language: settings.uiPrefs?.language ?? locale,
+            closeBehavior: behavior,
+            closeBehaviorRemember: true,
+            panelLayout: settings.uiPrefs?.panelLayout,
+          },
+        };
+        await persistSettings(nextSettings);
+        await runtimeLogWrite("INFO", `window close behavior remembered: ${behavior}`);
+      }
+      await runWindowCloseBehavior(behavior);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setToast({ type: "error", message: t("toast.windowActionFailed") });
+      await runtimeLogWrite("ERROR", `window close decision failed: ${message}`);
+    }
+  }, [
+    isTauriRuntime,
+    locale,
+    persistSettings,
+    runWindowCloseBehavior,
+    setToast,
+    settings,
+    t,
   ]);
 
   const handleInitProjectFromFolder = useCallback(async () => {
@@ -480,6 +543,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
 
   return {
     handleWindowControl,
+    handleWindowCloseDecision,
     handleInitProjectFromFolder,
     handleSaveFile,
     handleCompile,
@@ -509,5 +573,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibraryRescan,
     handleLibraryImportPdf,
     handleLibraryImportLink,
+    handleLibrarySyncZotero,
   };
 }

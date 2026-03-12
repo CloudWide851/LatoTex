@@ -1,8 +1,17 @@
-import { runAgent, writeFile } from "../../../shared/api/desktop";
+import { translateLibraryDocument } from "../../../shared/api/desktop";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
-import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
 
 type TranslationFn = (key: any) => string;
+
+function resolveTargetLanguage(t: TranslationFn): string {
+  if (typeof window === "undefined") {
+    return t("library.translation.target.enUS");
+  }
+  const locale = (window.localStorage.getItem("latotex.locale") || "en-US").trim();
+  return locale === "zh-CN"
+    ? t("library.translation.target.zhCN")
+    : t("library.translation.target.enUS");
+}
 
 export async function translateLibraryPaper(input: {
   projectId: string;
@@ -11,10 +20,10 @@ export async function translateLibraryPaper(input: {
   citation: LibraryCitationSummary | null;
   bibPreview: string;
   t: TranslationFn;
-}): Promise<string> {
+}): Promise<{ relativePath: string; detail: string }> {
   const { projectId, selectedPath, translationModelId, citation, bibPreview, t } = input;
-  const targetLanguage = t("settings.language.zh-CN").includes("中") ? "中文" : "English";
-  const sourceText = bibPreview.trim().length > 0
+  const targetLanguage = resolveTargetLanguage(t);
+  const metadataHint = bibPreview.trim().length > 0
     ? bibPreview
     : [
       `Title: ${citation?.title ?? "-"}`,
@@ -23,26 +32,29 @@ export async function translateLibraryPaper(input: {
       `arXiv: ${citation?.arxivId ?? "-"}`,
       `URLs: ${(citation?.urls ?? []).join(", ")}`,
     ].join("\n");
-  const prompt = [
-    `Translate the paper metadata/content to ${targetLanguage}.`,
-    "Preserve structure and technical terms. If source contains BibTeX style fields, keep key/value shape unchanged.",
-    "Return markdown only.",
-    "",
-    sourceText,
-  ].join("\n");
-  const result = await runAgent({
+  const result = await translateLibraryDocument({
     projectId,
-    role: "task",
-    prompt,
-    contextRefs: [`file:${selectedPath}`],
+    relativePath: selectedPath,
+    targetLanguage,
     modelOverride: translationModelId ?? undefined,
   });
-  const translated = result.output?.trim();
-  if (!translated) {
+  if (!result.relativePath?.trim()) {
     throw new Error(t("library.viewer.translateFailed"));
   }
-  const basePath = selectedPath.replace(/\.[^/.]+$/, "");
-  const targetRelative = `${basePath}.translated.md`;
-  await writeFile(projectId, toLibraryWorkspacePath(targetRelative), translated);
-  return targetRelative;
+  if (!result.sourceKind && metadataHint.trim().length === 0) {
+    throw new Error(t("library.viewer.translateFailed"));
+  }
+
+  const detailParts = [
+    result.engine ? `engine=${result.engine}` : "",
+    result.detectedLanguage ? `source=${result.detectedLanguage}` : "",
+    result.extractionEngine ? `extract=${result.extractionEngine}` : "",
+    typeof result.glossaryCount === "number" ? `glossary=${result.glossaryCount}` : "",
+    result.refinedBySearch ? "search-refined=true" : "",
+  ].filter((item) => item.length > 0);
+
+  return {
+    relativePath: result.relativePath,
+    detail: detailParts.join(" | "),
+  };
 }

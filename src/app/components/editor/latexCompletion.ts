@@ -48,6 +48,8 @@ const LATEX_ENVIRONMENTS = [
 const registeredMonaco = new WeakSet<object>();
 const REMOTE_COMPLETION_TTL_MS = 18_000;
 const REMOTE_COMPLETION_MAX = 6;
+const REMOTE_COMPLETION_CACHE_MAX_KEYS = 220;
+const REMOTE_PROVIDER_BACKOFF_MAX_KEYS = 80;
 
 type LatexCompletionContext = {
   projectId: string | null;
@@ -77,6 +79,44 @@ const remoteSuggestionCache = new Map<
 >();
 const remoteSuggestionInFlight = new Map<string, Promise<RemoteSuggestion[]>>();
 const remoteProviderBackoffUntil = new Map<string, number>();
+
+function pruneRemoteCompletionCaches(now = Date.now()) {
+  for (const [key, value] of remoteSuggestionCache.entries()) {
+    if (value.expiresAt <= now) {
+      remoteSuggestionCache.delete(key);
+    }
+  }
+  while (remoteSuggestionCache.size > REMOTE_COMPLETION_CACHE_MAX_KEYS) {
+    const oldest = remoteSuggestionCache.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    remoteSuggestionCache.delete(oldest);
+  }
+  for (const [key, backoffUntil] of remoteProviderBackoffUntil.entries()) {
+    if (backoffUntil <= now) {
+      remoteProviderBackoffUntil.delete(key);
+    }
+  }
+  while (remoteProviderBackoffUntil.size > REMOTE_PROVIDER_BACKOFF_MAX_KEYS) {
+    const oldest = remoteProviderBackoffUntil.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    remoteProviderBackoffUntil.delete(oldest);
+  }
+}
+
+function setRemoteSuggestionCache(
+  cacheKey: string,
+  value: { expiresAt: number; suggestions: RemoteSuggestion[] },
+) {
+  if (remoteSuggestionCache.has(cacheKey)) {
+    remoteSuggestionCache.delete(cacheKey);
+  }
+  remoteSuggestionCache.set(cacheKey, value);
+  pruneRemoteCompletionCaches();
+}
 
 export function configureLatexCompletionRuntime(getter: () => LatexCompletionContext) {
   completionContextProvider = getter;
@@ -252,6 +292,7 @@ async function fetchRemoteSuggestions(params: {
   if (backoffUntil > Date.now()) {
     return [];
   }
+  pruneRemoteCompletionCaches();
   const focusedLine = params.linePrefix.trim();
   if (focusedLine.length < 2 || focusedLine.length > 180) {
     return [];
@@ -304,7 +345,7 @@ async function fetchRemoteSuggestions(params: {
       });
       const output = await waitCompletionRunOutput(accepted.runId);
       const suggestions = parseRemoteSuggestions(output);
-      remoteSuggestionCache.set(cacheKey, {
+      setRemoteSuggestionCache(cacheKey, {
         expiresAt: Date.now() + REMOTE_COMPLETION_TTL_MS,
         suggestions,
       });

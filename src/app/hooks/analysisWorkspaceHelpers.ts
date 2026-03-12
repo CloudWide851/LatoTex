@@ -87,6 +87,7 @@ function reportText(language: AnalysisOutputLanguage) {
       sections: "详细分析",
       chart: "图表",
       empty: "暂无内容",
+      chartAlt: "分析图表",
     };
   }
   return {
@@ -97,6 +98,7 @@ function reportText(language: AnalysisOutputLanguage) {
     sections: "Detailed Analysis",
     chart: "Charts",
     empty: "No content",
+    chartAlt: "analysis chart",
   };
 }
 
@@ -234,7 +236,7 @@ export function buildReportHtml(input: {
     </section>
     <section class="card">
       <h2>${text.chart}</h2>
-      <img src="${chartDataUrl}" alt="analysis chart" />
+      <img src="${chartDataUrl}" alt="${text.chartAlt}" />
     </section>
   </div>
 </body>
@@ -338,3 +340,5 @@ export function upsertRun(task: AnalysisTask, run: AnalysisTaskRun): AnalysisTas
     updatedAt: nowIso(),
   };
 }
+
+

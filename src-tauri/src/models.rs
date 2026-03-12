@@ -212,6 +212,21 @@ pub struct RuntimeLogInfo {
     pub version: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeMemorySnapshot {
+    pub process_id: u32,
+    pub rss_bytes: u64,
+    pub private_bytes: Option<u64>,
+    pub sampled_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppBackgroundImage {
+    pub path: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompileRecordInput {
@@ -356,6 +371,8 @@ pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
     pub close_to_tray_notice_enabled: Option<bool>,
+    pub close_behavior: Option<String>,
+    pub close_behavior_remember: Option<bool>,
     pub theme: Option<String>,
     pub busytex_cache_policy: Option<String>,
     pub busytex_cache_dir: Option<String>,
@@ -363,6 +380,7 @@ pub struct UiPrefs {
     pub panel_layout: Option<Value>,
     pub feature_model_bindings: Option<FeatureModelBindings>,
     pub channels: Option<ChannelPrefs>,
+    pub background_image_path: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -523,95 +541,5 @@ pub struct ModelTestResult {
     pub ok: bool,
     pub message: String,
 }
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryRefInput {
-    pub project_id: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryCitationSummaryInput {
-    pub project_id: String,
-    pub relative_path: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryPdfPreviewInput {
-    pub project_id: String,
-    pub relative_path: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryCitationSummaryResponse {
-    pub source_path: String,
-    pub bib_path: Option<String>,
-    pub citation_key: Option<String>,
-    pub title: Option<String>,
-    pub authors: Vec<String>,
-    pub published_at: Option<String>,
-    pub doi: Option<String>,
-    pub arxiv_id: Option<String>,
-    pub source: Option<String>,
-    pub urls: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryPdfPreviewResponse {
-    pub relative_path: Option<String>,
-    pub source_url: Option<String>,
-    pub cached: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LibraryLinkImportInput {
-    pub project_id: String,
-    pub link: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectSearchInput {
-    pub project_id: String,
-    pub query: String,
-    pub limit: Option<u32>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectSearchHit {
-    pub relative_path: String,
-    pub line_number: u32,
-    pub snippet: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectIntegrityStatus {
-    pub project_id: String,
-    pub missing_required: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FsOperationInput {
-    pub project_id: String,
-    pub scope: String,
-    pub action: String,
-    pub path: String,
-    pub target_path: Option<String>,
-    pub content: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FsOperationResult {
-    pub ok: bool,
-    pub message: String,
-}
+include!("models_library.rs");
 include!("models_git.rs");

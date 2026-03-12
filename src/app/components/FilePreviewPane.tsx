@@ -40,6 +40,27 @@ function normalizeHtmlToMarkdown(input: string): string {
     .replace(/<[^>]+>/g, "");
 }
 
+function sanitizeSvgForPreview(input: string): string {
+  return input
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*(['"]).*?\1/gi, "")
+    .replace(/\son[a-z]+\s*=\s*[^\s>]+/gi, "")
+    .replace(/javascript:/gi, "");
+}
+
+function buildSvgPreviewDocument(svgContent: string): string {
+  const safe = sanitizeSvgForPreview(svgContent);
+  return [
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\" />",
+    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />",
+    "<style>html,body{margin:0;padding:0;width:100%;height:100%;background:#f8fafc;}body{display:flex;align-items:center;justify-content:center;overflow:auto;}svg{max-width:100%;height:auto;}</style>",
+    "</head><body>",
+    safe,
+    "</body></html>",
+  ].join("");
+}
+
 type LensPendingPoint = {
   visible: boolean;
   viewportX: number;
@@ -54,9 +75,10 @@ const LENS_SIZE = 220;
 const PDF_VIRTUAL_PADDING_PAGES = 2;
 
 export function FilePreviewPane(props: {
-  mode: "pdf" | "markdown" | "empty";
+  mode: "pdf" | "markdown" | "svg" | "empty";
   pdfUrl: string | null;
   markdownContent: string;
+  svgContent: string;
   title: string;
   emptyText: string;
   pdfZoom: number;
@@ -67,6 +89,7 @@ export function FilePreviewPane(props: {
     mode,
     pdfUrl,
     markdownContent,
+    svgContent,
     title,
     emptyText,
     pdfZoom,
@@ -200,6 +223,8 @@ export function FilePreviewPane(props: {
     () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
     [markdownContent],
   );
+  const sanitizedSvg = useMemo(() => sanitizeSvgForPreview(svgContent ?? ""), [svgContent]);
+  const svgDoc = useMemo(() => buildSvgPreviewDocument(sanitizedSvg), [sanitizedSvg]);
 
   useEffect(() => {
     if (mode !== "pdf" || !pdfUrl) {
@@ -460,6 +485,23 @@ export function FilePreviewPane(props: {
             </ReactMarkdown>
           </article>
         )}
+      </div>
+    );
+  }
+
+  if (mode === "svg") {
+    return sanitizedSvg.trim().length === 0 ? (
+      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+        {emptyText}
+      </div>
+    ) : (
+      <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+        <iframe
+          title={title}
+          sandbox="allow-same-origin"
+          srcDoc={svgDoc}
+          className="h-full w-full border-0"
+        />
       </div>
     );
   }

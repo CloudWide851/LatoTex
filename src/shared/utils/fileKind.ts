@@ -19,6 +19,10 @@ export function isPdfPath(path: string | null | undefined): boolean {
   return extensionOf(path ?? "") === "pdf";
 }
 
+export function isSvgPath(path: string | null | undefined): boolean {
+  return extensionOf(path ?? "") === "svg";
+}
+
 export function isMarkdownPath(path: string | null | undefined): boolean {
   return MARKDOWN_EXTENSIONS.has(extensionOf(path ?? ""));
 }

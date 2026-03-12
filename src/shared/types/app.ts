@@ -211,6 +211,9 @@ export type AppSettings = {
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: FeatureModelBindings;
     channels?: ChannelPrefs;
+    closeBehavior?: "ask" | "tray" | "exit";
+    closeBehaviorRemember?: boolean;
+    backgroundImagePath?: string;
   };
 };
 
@@ -263,6 +266,13 @@ export type RuntimeLogInfo = {
   version: string;
 };
 
+export type RuntimeMemorySnapshot = {
+  processId: number;
+  rssBytes: number;
+  privateBytes?: number | null;
+  sampledAt: string;
+};
+
 export type RuntimeLogEntry = {
   timestamp: string;
   level: string;
@@ -272,6 +282,10 @@ export type RuntimeLogEntry = {
 
 export type RuntimeLogReadResponse = {
   entries: RuntimeLogEntry[];
+};
+
+export type AppBackgroundImage = {
+  path: string;
 };
 
 export type RuntimeLogReadFilters = {
@@ -299,6 +313,23 @@ export type LibraryPdfPreview = {
   relativePath?: string | null;
   sourceUrl?: string | null;
   cached: boolean;
+};
+
+export type LibraryZoteroSyncResult = {
+  relativePath: string;
+  entryCount: number;
+  totalResults?: number | null;
+};
+
+export type LibraryTranslateResult = {
+  relativePath: string;
+  sourceKind: string;
+  engine: string;
+  artifactPaths?: string[];
+  detectedLanguage?: string | null;
+  extractionEngine?: string | null;
+  refinedBySearch?: boolean;
+  glossaryCount?: number;
 };
 
 export type CompileRecord = {
@@ -500,3 +531,4 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+

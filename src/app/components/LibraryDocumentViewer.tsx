@@ -27,10 +27,8 @@ import {
 import { filenameFromPath } from "./library/viewerUtils";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { translateLibraryPaper } from "./library/libraryTranslation";
-
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
-
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
   selectedPath: string | null;
@@ -65,7 +63,6 @@ export function LibraryDocumentViewer(props: {
   const [pdfZoom, setPdfZoom] = useState(1);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
   const lastAnnotationPayloadRef = useRef<string>("");
-
   const hasPdf = Boolean(pdfUrl);
   const hasBib = bibPreview.trim().length > 0;
   const activeLink = useMemo(
@@ -84,7 +81,6 @@ export function LibraryDocumentViewer(props: {
     () => annotationTextBoxes.filter((item) => item.page === currentPage).length,
     [annotationTextBoxes, currentPage],
   );
-
   useEffect(() => {
     return () => {
       if (pdfUrl) {
@@ -92,7 +88,6 @@ export function LibraryDocumentViewer(props: {
       }
     };
   }, [pdfUrl]);
-
   useEffect(() => {
     let cancelled = false;
     if (!projectId || !selectedPath) {
@@ -122,7 +117,6 @@ export function LibraryDocumentViewer(props: {
       });
       return;
     }
-
     setLoading(true);
     setLoadError(null);
     setLinkError(null);
@@ -136,7 +130,6 @@ export function LibraryDocumentViewer(props: {
     setHighlightWidth(16);
     setHighlightOpacity(0.65);
     setTextBoxStylePreset("minimal");
-
     const load = async () => {
       const summary = await libraryCitationSummary(projectId, selectedPath);
       if (cancelled) {
@@ -147,7 +140,6 @@ export function LibraryDocumentViewer(props: {
         authors: summary.authors ?? [],
         urls: summary.urls ?? [],
       });
-
       const bibRelative = summary.bibPath ?? (selectedPath.toLowerCase().endsWith(".bib") ? selectedPath : "");
       if (bibRelative) {
         const bibResult = await readFile(projectId, toLibraryWorkspacePath(bibRelative));
@@ -157,7 +149,6 @@ export function LibraryDocumentViewer(props: {
       } else if (!cancelled) {
         setBibPreview("");
       }
-
       const pdfPreview = await libraryResolvePdfPreview(projectId, selectedPath);
       if (cancelled) {
         return;
@@ -188,7 +179,6 @@ export function LibraryDocumentViewer(props: {
         });
       }
     };
-
     load()
       .catch((error) => {
         if (!cancelled) {
@@ -200,12 +190,10 @@ export function LibraryDocumentViewer(props: {
           setLoading(false);
         }
       });
-
     return () => {
       cancelled = true;
     };
   }, [projectId, selectedPath]);
-
   useEffect(() => {
     let disposed = false;
     if (!projectId || !annotationPath) {
@@ -218,7 +206,6 @@ export function LibraryDocumentViewer(props: {
     setAnnotationLoaded(false);
     setAnnotationStrokes([]);
     setAnnotationTextBoxes([]);
-
     void readFile(projectId, annotationPath)
       .then((result) => {
         if (disposed) {
@@ -245,12 +232,10 @@ export function LibraryDocumentViewer(props: {
           setAnnotationLoaded(true);
         }
       });
-
     return () => {
       disposed = true;
     };
   }, [annotationPath, projectId]);
-
   useEffect(() => {
     if (!annotationLoaded || !projectId || !annotationPath) {
       return;
@@ -272,13 +257,11 @@ export function LibraryDocumentViewer(props: {
       window.clearTimeout(timer);
     };
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
-
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
       setAnnotationMode("select");
     }
   }, [hasPdf, viewMode]);
-
   useEffect(() => {
     if (currentPage <= pageCount) {
       return;
@@ -287,7 +270,6 @@ export function LibraryDocumentViewer(props: {
     setCurrentPage(next);
     setPageInput(String(next));
   }, [currentPage, pageCount]);
-
   const jumpToPage = useCallback((next: number) => {
     const normalized = Math.max(1, Math.min(pageCount || 1, Math.floor(next)));
     setCurrentPage(normalized);
@@ -308,7 +290,6 @@ export function LibraryDocumentViewer(props: {
     setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
     setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
   }, [currentPage]);
-
   useLibraryPdfShortcuts({
     enabled: viewMode === "pdf" && hasPdf,
     currentPage,
@@ -317,7 +298,6 @@ export function LibraryDocumentViewer(props: {
     onUndo: handleUndoCurrentPage,
     setZoom: setPdfZoom,
   });
-
   const handleOpenLink = async () => {
     if (!activeLink) {
       return;
@@ -329,7 +309,6 @@ export function LibraryDocumentViewer(props: {
       setLinkError(t("library.viewer.linkOpenFailed"));
     }
   };
-
   const handleCopyLink = async () => {
     if (!activeLink || typeof navigator === "undefined" || !navigator.clipboard) {
       return;
@@ -342,7 +321,6 @@ export function LibraryDocumentViewer(props: {
       setLinkError(t("library.viewer.linkOpenFailed"));
     }
   };
-
   const handleTranslatePaper = async () => {
     if (!projectId || !selectedPath || translationBusy) {
       return;
@@ -365,7 +343,6 @@ export function LibraryDocumentViewer(props: {
       setTranslationBusy(false);
     }
   };
-
   if (!selectedPath) {
     return (
       <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
@@ -373,7 +350,6 @@ export function LibraryDocumentViewer(props: {
       </div>
     );
   }
-
   return (
     <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
       <section className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3">
@@ -453,7 +429,6 @@ export function LibraryDocumentViewer(props: {
           ) : null}
         </div>
       </section>
-
       {viewMode === "pdf" ? (
         <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2">
           {loading ? (
@@ -552,7 +527,6 @@ export function LibraryDocumentViewer(props: {
               </div>
             )}
           </section>
-
           <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("library.viewer.metadataTab")}
@@ -613,3 +587,5 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
+
+

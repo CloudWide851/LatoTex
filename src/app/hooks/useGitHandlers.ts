@@ -3,6 +3,7 @@ import {
   getLibraryTree,
   importLibraryLink,
   importLibraryPdf,
+  syncLibraryZotero,
   gitDownloadCancel,
   gitDownloadInstallerStart,
   gitRunInstaller,
@@ -175,6 +176,37 @@ export function useGitHandlers(params: {
     }
   }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
 
+  const handleLibrarySyncZotero = useCallback(async (input: {
+    ownerId: string;
+    apiKey: string;
+    scope?: "users" | "groups";
+  }) => {
+    if (!activeProjectId) {
+      return;
+    }
+    const ownerId = input.ownerId.trim();
+    const apiKey = input.apiKey.trim();
+    if (!ownerId || !apiKey) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await syncLibraryZotero({
+        projectId: activeProjectId,
+        ownerId,
+        apiKey,
+        scope: input.scope ?? "users",
+      });
+      const nextTree = await getLibraryTree(activeProjectId);
+      setLibraryTree(nextTree);
+      setToast({ type: "info", message: t("library.zoteroSyncDone") });
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
+
   return {
     handleGitAction,
     handleGitInstallerDownloadStart,
@@ -183,5 +215,6 @@ export function useGitHandlers(params: {
     handleLibraryRescan,
     handleLibraryImportPdf,
     handleLibraryImportLink,
+    handleLibrarySyncZotero,
   };
 }

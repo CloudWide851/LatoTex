@@ -104,6 +104,7 @@ export type AppWorkspaceShellProps = {
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (link: string) => void;
+  onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   onLibraryAnalyzePaper: (path: string) => void;
   analysisRunning: boolean;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;

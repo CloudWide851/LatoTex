@@ -19,5 +19,6 @@ export function buildAgentCommandItems(t: TranslationFn): AgentCommandItem[] {
     { token: "/new", label: t("agent.command.new.label"), description: t("agent.command.new.description") },
     { token: "/memory", label: t("agent.command.memory.label"), description: t("agent.command.memory.description") },
     { token: "/resume", label: t("agent.command.resume.label"), description: t("agent.command.resume.description") },
+    { token: "/paper", label: t("agent.command.paper.label"), description: t("agent.command.paper.description") },
   ];
 }

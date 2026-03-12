@@ -20,11 +20,14 @@ export function useEditorDirtySyncEffect(params: {
     if (!selectedFile || isPdfPath(selectedFile)) {
       return;
     }
-    workingContentByPathRef.current[selectedFile] = editorContent;
     const saved = savedContentByPathRef.current[selectedFile];
     if (typeof saved !== "string") {
+      if (editorContent.trim().length > 0) {
+        workingContentByPathRef.current[selectedFile] = editorContent;
+      }
       return;
     }
+    workingContentByPathRef.current[selectedFile] = editorContent;
     const dirty = editorContent !== saved;
     setDirtyByPath((prev) => {
       const wasDirty = Boolean(prev[selectedFile]);

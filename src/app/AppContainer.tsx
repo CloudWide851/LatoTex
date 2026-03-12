@@ -3,15 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
-import {
-  getLibraryTree,
-  gitBranches,
-  gitCheckInstalled,
-  gitLog,
-  gitStatus,
-  openProject,
-  projectIntegrityStatus,
-} from "../shared/api/desktop";
 import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
 import { buildEditorTab } from "./hooks/useEditorTabs";
@@ -30,11 +21,13 @@ import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
 import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
-type IntegrityIssue = { projectId: string; missingRequired: string[] };
+import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
-  const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
+  const [integrityIssue, setIntegrityIssue] = useState<ProjectIntegrityIssue | null>(null);
+  const [closeBehaviorDialogOpen, setCloseBehaviorDialogOpen] = useState(false);
+  const [closeBehaviorRememberChoice, setCloseBehaviorRememberChoice] = useState(false);
   const s = useAppContainerState(t);
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
@@ -53,89 +46,22 @@ export function AppContainer() {
     workingContentByPathRef: s.workingContentByPathRef,
     activeProjectIdRef: s.activeProjectIdRef,
   });
-  const refreshGitWorkspace = useCallback(
-    async (projectIdOverride?: string) => {
-      const projectId = projectIdOverride ?? s.activeProjectIdRef.current;
-      if (!projectId) {
-        return;
-      }
-      const availability = await gitCheckInstalled().catch(() => ({
-        installed: false,
-        version: undefined,
-      }));
-      s.setGitAvailability(availability);
-      if (availability.installed) {
-        s.setSuppressAutoGitInstall(false);
-      }
-      if (!availability.installed) {
-        s.setGitStatusState({
-          isRepo: false,
-          branch: "-",
-          ahead: 0,
-          behind: 0,
-          changes: [],
-        });
-        s.setGitBranchesState([]);
-        s.setGitCommits([]);
-        return;
-      }
-      const [state, branches] = await Promise.all([
-        gitStatus(projectId),
-        gitBranches(projectId).catch(() => []),
-      ]);
-      s.setGitStatusState(state);
-      s.setGitBranchesState(branches);
-      const shouldLoadHistory = s.page === "git";
-      if (!shouldLoadHistory) {
-        s.setGitCommits([]);
-        return;
-      }
-      const commits = await gitLog(projectId, 30).catch(() => []);
-      s.setGitCommits(commits);
-    },
-    [
-      s.page,
-      s.activeProjectIdRef,
-      s.setGitAvailability,
-      s.setSuppressAutoGitInstall,
-      s.setGitStatusState,
-      s.setGitBranchesState,
-      s.setGitCommits,
-    ],
-  );
-
-  const loadProjectData = useCallback(
-    async (projectId: string) => {
-      if (!s.integrityCheckedRef.current.has(projectId)) {
-        const integrity = await projectIntegrityStatus(projectId);
-        if (integrity.missingRequired.length > 0) {
-          setIntegrityIssue({
-            projectId,
-            missingRequired: integrity.missingRequired,
-          });
-          return;
-        }
-        s.integrityCheckedRef.current.add(projectId);
-      }
-      const snapshot = await openProject(projectId);
-      s.setTree(snapshot.tree);
-      s.setSelectedFile(snapshot.mainFile);
-      const [papers] = await Promise.all([getLibraryTree(projectId)]);
-      s.setLibraryTree(papers);
-      s.setSelectedLibraryPath(null);
-      s.lastLoadedProjectIdRef.current = projectId;
-      await refreshGitWorkspace(projectId);
-    },
-    [
-      refreshGitWorkspace,
-      s.integrityCheckedRef,
-      s.lastLoadedProjectIdRef,
-      s.setLibraryTree,
-      s.setSelectedFile,
-      s.setSelectedLibraryPath,
-      s.setTree,
-    ],
-  );
+  const { refreshGitWorkspace, loadProjectData } = useProjectDataLoader({
+    page: s.page,
+    activeProjectIdRef: s.activeProjectIdRef,
+    integrityCheckedRef: s.integrityCheckedRef,
+    lastLoadedProjectIdRef: s.lastLoadedProjectIdRef,
+    setIntegrityIssue,
+    setGitAvailability: s.setGitAvailability,
+    setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
+    setGitStatusState: s.setGitStatusState,
+    setGitBranchesState: s.setGitBranchesState,
+    setGitCommits: s.setGitCommits,
+    setTree: s.setTree,
+    setSelectedFile: s.setSelectedFile,
+    setLibraryTree: s.setLibraryTree,
+    setSelectedLibraryPath: s.setSelectedLibraryPath,
+  });
 
   const { persistSettings, savePanelLayout, cancelPendingAutoSave } = useSettingsPersistence({
     activeProjectId: s.activeProjectId,
@@ -202,6 +128,10 @@ export function AppContainer() {
     gitInstallerLaunched: s.gitInstallerLaunched,
     deleteIntent: s.deleteIntent,
     deleteDontAskAgain: s.deleteDontAskAgain,
+    requestCloseBehaviorDecision: () => {
+      setCloseBehaviorRememberChoice(false);
+      setCloseBehaviorDialogOpen(true);
+    },
     setBusy: s.setBusy,
     setTree: s.setTree,
     setLibraryTree: s.setLibraryTree,
@@ -468,6 +398,16 @@ export function AppContainer() {
     analysisRunning: analysisWorkspace.running,
   });
 
+  const handleCloseBehaviorDialogCancel = useCallback(() => {
+    setCloseBehaviorDialogOpen(false);
+    setCloseBehaviorRememberChoice(false);
+  }, []);
+
+  const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
+    setCloseBehaviorDialogOpen(false);
+    void handlers.handleWindowCloseDecision(behavior, closeBehaviorRememberChoice);
+  }, [closeBehaviorRememberChoice, handlers]);
+
   return (
     <AppContainerView
       windowActionBusy={s.windowActionBusy}
@@ -570,6 +510,7 @@ export function AppContainer() {
       handleLibraryRescan={handlers.handleLibraryRescan}
       handleLibraryImportPdf={handlers.handleLibraryImportPdf}
       handleLibraryImportLink={handlers.handleLibraryImportLink}
+      handleLibrarySyncZotero={handlers.handleLibrarySyncZotero}
       handleLibraryAnalyzePaper={handleLibraryAnalyzePaper}
       analysisRunning={analysisWorkspace.running}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
@@ -605,6 +546,11 @@ export function AppContainer() {
       handleUnsavedDialogSaveAndContinue={unsaved.handleUnsavedDialogSaveAndContinue}
       handleUnsavedDialogDiscardAndContinue={unsaved.handleUnsavedDialogDiscardAndContinue}
       handleUnsavedDialogCancel={unsaved.handleUnsavedDialogCancel}
+      closeBehaviorDialogOpen={closeBehaviorDialogOpen}
+      closeBehaviorRememberChoice={closeBehaviorRememberChoice}
+      setCloseBehaviorRememberChoice={setCloseBehaviorRememberChoice}
+      handleCloseBehaviorDialogCancel={handleCloseBehaviorDialogCancel}
+      handleCloseBehaviorDialogResolve={handleCloseBehaviorDialogResolve}
     />
   );
 }

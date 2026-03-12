@@ -172,7 +172,23 @@ pub fn import_library_link(db_path: &Path, project_id: &str, link: &str) -> Resu
     let papers_root = library_root(&project_root);
     fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
 
-    let (stem, citation_key, bib_entry) = if let Some(doi) = normalize_doi(trimmed) {
+    let (stem, citation_key, bib_entry) = if let Some(zotero_target) = parse_zotero_target(trimmed) {
+        let bibtex = fetch_zotero_bibtex(&zotero_target)?;
+        let stem = match &zotero_target {
+            ZoteroTarget::Item {
+                scope,
+                owner_id,
+                key,
+            } => format!("zotero-{scope}-{owner_id}-item-{}", slugify_name(key, "item")),
+            ZoteroTarget::Collection {
+                scope,
+                owner_id,
+                key,
+            } => format!("zotero-{scope}-{owner_id}-collection-{}", slugify_name(key, "collection")),
+        };
+        let key = sanitize_citation_key(&stem);
+        (stem, key, bibtex)
+    } else if let Some(doi) = normalize_doi(trimmed) {
         let stem = format!("doi-{}", slugify_name(&doi, "doi"));
         let key = sanitize_citation_key(&stem);
         let entry = format!(

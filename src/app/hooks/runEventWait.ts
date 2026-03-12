@@ -37,7 +37,7 @@ export async function waitForRunOutputWithPolicy(options: RunWaitOptions): Promi
       throw new Error("agent.run.timeout.inactive");
     }
 
-    const batch = await getEvents(cursor, eventLimit, runId, waitMs);
+    const batch = await getEvents(cursor, eventLimit, runId, waitMs, ["responses.output_text.delta", "agent.run.heartbeat"]);
     cursor = batch.nextCursor;
     if (batch.events.length > 0) {
       lastProgressAt = Date.now();
@@ -69,3 +69,4 @@ export async function waitForRunOutputWithPolicy(options: RunWaitOptions): Promi
     }
   }
 }
+

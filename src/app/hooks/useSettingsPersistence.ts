@@ -95,11 +95,16 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           language: nextSettings.uiPrefs?.language ?? locale,
           skipDeleteConfirm: nextSettings.uiPrefs?.skipDeleteConfirm ?? false,
           closeToTrayNoticeEnabled: nextSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true,
+          closeBehavior: nextSettings.uiPrefs?.closeBehavior ?? "ask",
+          closeBehaviorRemember: nextSettings.uiPrefs?.closeBehaviorRemember ?? false,
           theme: (nextSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
           busytexCachePolicy: nextSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
           busytexCacheDir: nextSettings.uiPrefs?.busytexCacheDir,
           previewDefaultZoom: nextSettings.uiPrefs?.previewDefaultZoom ?? 1,
           panelLayout: nextSettings.uiPrefs?.panelLayout,
+          featureModelBindings: nextSettings.uiPrefs?.featureModelBindings,
+          channels: nextSettings.uiPrefs?.channels,
+          backgroundImagePath: nextSettings.uiPrefs?.backgroundImagePath,
         },
       });
 

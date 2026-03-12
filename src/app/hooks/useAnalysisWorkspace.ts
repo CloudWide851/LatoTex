@@ -29,7 +29,6 @@ import {
 } from "./analysisWorkspaceHelpers";
 import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
-
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const {
     projectId,
@@ -50,7 +49,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const tasksRef = useRef<AnalysisTask[]>([]);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runInFlightRef = useRef(false);
-
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
   const csvCandidateFiles = useMemo(
     () => candidateFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
@@ -82,7 +80,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         : [];
     return extractEventCards(events, runIds);
   }, [activeRun, events]);
-
   useEffect(() => {
     if (!activeRun) {
       setActiveRunHtml("");
@@ -112,11 +109,9 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       cancelled = true;
     };
   }, [activeRun, projectId]);
-
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
-
   useEffect(() => {
     if (!projectId) {
       setTasks([]);
@@ -146,7 +141,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       cancelled = true;
     };
   }, [projectId, setToast, t]);
-
   useEffect(() => {
     if (tasks.length === 0) {
       if (activeTaskId !== null) {
@@ -158,7 +152,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setActiveTaskId(tasks[0].id);
     }
   }, [activeTaskId, tasks]);
-
   useEffect(() => {
     if (!projectId || !loadedRef.current) {
       return;
@@ -180,13 +173,10 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }
     };
   }, [activeTaskId, projectId, setToast, tasks]);
-
   const canRun = useMemo(() => Boolean(projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt]);
-
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
     setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
-
   const setPrompt = useCallback((value: string) => {
     if (!activeTaskId) {
       return;
@@ -197,11 +187,9 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       updatedAt: nowIso(),
     }));
   }, [activeTaskId, updateTaskById]);
-
   const setActiveRunForTask = useCallback((taskId: string, runId: string) => {
     setTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, activeRunId: runId, updatedAt: nowIso() } : item)));
   }, []);
-
   const createTask = useCallback((sourceType: AnalysisSourceType = "data", sourcePath?: string, name?: string) => {
     const task = createAnalysisTask({
       defaultName: t("analysis.defaultTaskName"),
@@ -213,11 +201,9 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     setActiveTaskId(task.id);
     return task;
   }, [t]);
-
   const renameTask = useCallback((taskId: string, name: string) => {
     setTasks((prev) => renameTaskList(prev, taskId, name));
   }, []);
-
   const deleteTask = useCallback((taskId: string) => {
     setTasks((prev) => {
       const nextState = deleteTaskFromList({
@@ -229,9 +215,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       return nextState.tasks;
     });
   }, [activeTaskId]);
-
   const ensureTasksReady = useCallback(async () => ensureAnalysisTasksLoaded(loadedRef), []);
-
   const runAnalysisForPrompt = useCallback(async (
     inputPrompt: string,
     options?: {
@@ -281,7 +265,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     }
     setRunning(true);
     let currentStage = t("analysis.step.agentSynthesis");
-
     try {
       const setStage = (label: string) => {
         currentStage = label;
@@ -310,7 +293,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       if (selectedFile) {
         contextRefs.push(`file:${selectedFile}`);
       }
-
       let snapshots: AnalysisSourceSnapshot[] = [];
       let sourceBlock = "";
       let resolvedInputFiles: string[] = [];
@@ -374,7 +356,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         steps.push(currentStage);
         snapshots = await loadDataSnapshots(projectId, chosenFiles);
         const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
-
         setStage(t("analysis.step.profileEachFile"));
         steps.push(currentStage);
         const perFileProfiles: string[] = [];
@@ -396,7 +377,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
             perFileProfiles.push(`[${snapshot.path}]\nprofile_failed`);
           }
         }
-
         setStage(t("analysis.step.crossFile"));
         steps.push(currentStage);
         const crossFilePrompt = [
@@ -408,7 +388,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           perFileProfiles.join("\n\n"),
         ].join("\n\n");
         const crossFileResult = await runRolePromptWithTrace("explore", crossFilePrompt, contextRefs);
-
         setStage(t("analysis.step.deepDive"));
         steps.push(currentStage);
         const deepDivePrompt = [
@@ -421,7 +400,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           crossFileResult.output,
         ].join("\n\n");
         const deepDiveResult = await runRolePromptWithTrace("explore", deepDivePrompt, contextRefs);
-
         sourceBlock = [
           snapshotSummary,
           "Per-file profile summary:",
@@ -432,11 +410,9 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           deepDiveResult.output,
         ].join("\n\n");
       }
-
       if (selectedFile && editorContent.trim()) {
         sourceBlock = `${sourceBlock}\n\n---\n\nCurrent editor file (${selectedFile}):\n${editorContent.slice(0, 2200)}`;
       }
-
       setStage(t("analysis.step.agentSynthesis"));
       steps.push(currentStage);
       const agentPrompt = [
@@ -477,7 +453,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
         throw new Error("analysis.output.invalid_json");
       }
-
       const chartSource = clampChart(
         Array.isArray(parsed.chart)
           ? parsed.chart
@@ -489,7 +464,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       const chart = chartSource.length > 0 ? chartSource : fallbackChart;
       const labels = chart.map((item) => item.label);
       const values = chart.map((item) => item.value);
-
       const mergedSteps = Array.from(
         new Set([
           ...steps,
@@ -501,7 +475,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         .slice(0, 24);
       const sections = deriveSections(parsed);
       const runRecordId = newRunId("analysis-run");
-
       const resultTitle = (parsed.title?.trim() || `${task.name} - ${t("analysis.defaultTitle")}`).slice(0, 120);
       const resultSummary = parsed.summary?.trim() || t("analysis.defaultSummary");
       const report = buildReportHtml({
@@ -514,7 +487,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         labels,
         values,
       });
-
       const saved = await analysisSaveReport({
         projectId,
         runId: runRecordId,
@@ -522,7 +494,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         reportHtml: report.html,
         assets: [{ fileName: "chart.svg", dataUrl: report.chartDataUrl }],
       });
-
       const runRecord: AnalysisTaskRun = {
         id: runRecordId,
         prompt: normalizedPrompt,
@@ -544,7 +515,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         createdAt: nowIso(),
         updatedAt: nowIso(),
       };
-
       updateTaskById(task.id, (item) => ({
         ...upsertRun(item, runRecord),
         lastError: null,
@@ -585,7 +555,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     t,
     updateTaskById,
   ]);
-
   const runAnalysis = useCallback(async () => runAnalysisForPrompt(prompt), [prompt, runAnalysisForPrompt]);
   const runAnalysisWithPrompt = useCallback(
     async (inputPrompt: string) => {
@@ -594,7 +563,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     },
     [runAnalysisForPrompt, setPrompt],
   );
-
   const runPaperAnalysisFromLibrary = useCallback(async (sourcePath: string) => {
     await runPaperAnalysisTask({
       sourcePath,
@@ -609,7 +577,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       runAnalysisForPrompt,
     });
   }, [createTask, ensureTasksReady, runAnalysisForPrompt, setToast, t, updateTaskById]);
-
   const exportArtifact = useCallback(async (relativePath: string) => {
     try {
       await exportAnalysisArtifact(projectId, relativePath);
@@ -617,7 +584,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-
   const revealArtifact = useCallback(async (relativePath: string) => {
     try {
       await revealAnalysisArtifact(projectId, relativePath);
@@ -625,6 +591,5 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-
   return { prompt, setPrompt, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }

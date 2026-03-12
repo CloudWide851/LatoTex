@@ -14,6 +14,8 @@
     "brand:icons": "node scripts/ensure-brand-icons.mjs --force",
     "busytex:check": "node scripts/check-busytex-assets.mjs",
     "busytex:assets": "pnpm exec texlyre-busytex download-assets ./src-tauri/resources/core",
+    "soak:6h-sim": "node scripts/soak-6h-sim.mjs",
+    "audit:debt": "node scripts/audit-historical-debt.mjs",
     "tauri": "node scripts/ensure-brand-icons.mjs && tauri"
   },
   "packageManager": "pnpm@10.29.2",
@@ -57,3 +59,4 @@
     "vitest": "^2.1.8"
   }
 }
+

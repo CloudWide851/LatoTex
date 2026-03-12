@@ -12,6 +12,7 @@ export function LibraryExplorerPanel(props: {
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (link: string) => void;
+  onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   t: TranslationFn;
 }) {
   const {
@@ -22,6 +23,7 @@ export function LibraryExplorerPanel(props: {
     onLibraryRescan,
     onLibraryImportPdf,
     onLibraryImportLink,
+    onLibrarySyncZotero,
     t,
   } = props;
 
@@ -35,6 +37,7 @@ export function LibraryExplorerPanel(props: {
           busy={busy}
           onImportPdf={onLibraryImportPdf}
           onImportLink={onLibraryImportLink}
+          onSyncZotero={onLibrarySyncZotero}
           t={t}
         />
       </div>

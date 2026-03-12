@@ -24,18 +24,21 @@ mod share_comments_store;
 mod share_http_auth;
 #[path = "share_http_server.rs"]
 mod share_http_server;
+#[path = "share_http_pdf.rs"]
+mod share_http_pdf;
 #[path = "share_http_static.rs"]
 mod share_http_static;
 #[path = "share_runtime_auth.rs"]
 mod share_runtime_auth;
 #[path = "share_tunnel.rs"]
 mod share_tunnel;
+#[path = "share_pdf.rs"]
+mod share_pdf;
+use share_pdf::share_pdf_ready;
 use share_runtime_auth::{verify_body_auth, verify_query_auth};
-
 const SHARE_TTL_HOURS: i64 = 24;
 const MAX_SYNC_EVENTS_PER_PULL: usize = 400;
 const SHARE_PARTICIPANT_IDLE_SECS: i64 = 120;
-
 #[derive(Debug, Clone)]
 struct ShareParticipantState {
     participant_id: String,
@@ -45,7 +48,6 @@ struct ShareParticipantState {
     last_seen_unix: i64,
     last_action: Option<String>,
 }
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ShareSyncEvent {
@@ -54,7 +56,6 @@ struct ShareSyncEvent {
     update: String,
     created_at: String,
 }
-
 struct ShareRuntime {
     session_id: String,
     session_name: Option<String>,
@@ -76,14 +77,14 @@ struct ShareRuntime {
     sync_events: Vec<ShareSyncEvent>,
     participants: HashMap<String, ShareParticipantState>,
     compile_requested: bool,
-    pdf_bytes: Vec<u8>,
+    pdf_cache_path: Option<PathBuf>,
+    pdf_size_bytes: u64,
     pdf_updated_at: Option<String>,
     comments_store: ShareCommentsStore,
     comments: Vec<ShareCommentRecord>,
     stop_flag: Arc<AtomicBool>,
     cloudflared_child: Option<Child>,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PushSyncBody {
@@ -96,14 +97,12 @@ struct PushSyncBody {
     username: Option<String>,
     action: Option<String>,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SessionBody {
     sid: String,
     pwd: String,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UploadPdfBody {
@@ -111,7 +110,6 @@ struct UploadPdfBody {
     pwd: String,
     pdf_base64: String,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct JoinBody {
@@ -120,7 +118,6 @@ struct JoinBody {
     client_id: Option<String>,
     username: String,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PresencePingBody {
@@ -130,7 +127,6 @@ struct PresencePingBody {
     participant_token: Option<String>,
     action: Option<String>,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CommentPostBody {
@@ -148,53 +144,44 @@ struct CommentPostBody {
     end: Option<u32>,
     created_at: Option<String>,
 }
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PullSyncResponse {
     next_cursor: u64,
     events: Vec<ShareSyncEvent>,
 }
-
 fn share_runtime_slot() -> &'static Mutex<Option<Arc<Mutex<ShareRuntime>>>> {
     static SLOT: OnceLock<Mutex<Option<Arc<Mutex<ShareRuntime>>>>> = OnceLock::new();
     SLOT.get_or_init(|| Mutex::new(None))
 }
-
 fn json_header() -> Header {
     Header::from_bytes("Content-Type", "application/json; charset=utf-8")
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/json").unwrap())
 }
-
 fn html_header() -> Header {
     Header::from_bytes("Content-Type", "text/html; charset=utf-8")
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/html").unwrap())
 }
-
 fn pdf_header() -> Header {
     Header::from_bytes("Content-Type", "application/pdf")
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/octet-stream").unwrap())
 }
-
 fn no_cache_header() -> Header {
     Header::from_bytes("Cache-Control", "no-store")
         .unwrap_or_else(|_| Header::from_bytes("Pragma", "no-cache").unwrap())
 }
-
 fn json_response(status: StatusCode, payload: serde_json::Value) -> Response<std::io::Cursor<Vec<u8>>> {
     Response::from_string(payload.to_string())
         .with_status_code(status)
         .with_header(json_header())
         .with_header(no_cache_header())
 }
-
 fn html_response(content: &'static str) -> Response<std::io::Cursor<Vec<u8>>> {
     Response::from_string(content)
         .with_status_code(StatusCode(200))
         .with_header(html_header())
         .with_header(no_cache_header())
 }
-
 fn split_url_path_query(url: &str) -> (String, HashMap<String, String>) {
     let mut query = HashMap::<String, String>::new();
     let mut parts = url.splitn(2, '?');
@@ -215,7 +202,6 @@ fn split_url_path_query(url: &str) -> (String, HashMap<String, String>) {
     }
     (path, query)
 }
-
 fn parse_json_body<T: DeserializeOwned>(request: &mut Request) -> Result<T, String> {
     let mut raw = String::new();
     request
@@ -227,11 +213,9 @@ fn parse_json_body<T: DeserializeOwned>(request: &mut Request) -> Result<T, Stri
     }
     serde_json::from_str::<T>(&raw).map_err(|e| e.to_string())
 }
-
 fn normalize_target_path(path: &str) -> String {
     path.replace('\\', "/").trim().to_string()
 }
-
 fn normalize_share_mode(mode: Option<String>) -> String {
     let normalized = mode
         .as_deref()
@@ -244,40 +228,30 @@ fn normalize_share_mode(mode: Option<String>) -> String {
         "remote".to_string()
     }
 }
-
 fn normalize_session_name(value: Option<&str>) -> Option<String> {
-    value
-        .map(|item| item.trim())
-        .filter(|item| !item.is_empty())
-        .map(|item| item.chars().take(120).collect())
+    value.map(str::trim).filter(|item| !item.is_empty()).map(|item| item.chars().take(120).collect())
 }
-
 fn now_iso() -> String {
     Utc::now().to_rfc3339()
 }
-
 fn new_participant_token() -> String {
     Uuid::new_v4().simple().to_string()
 }
-
 fn find_free_port() -> Result<u16, String> {
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     drop(listener);
     Ok(port)
 }
-
 fn is_session_expired(runtime: &ShareRuntime) -> bool {
     Utc::now().timestamp() > runtime.expires_unix
 }
-
 fn prune_participants(runtime: &mut ShareRuntime) {
     let cutoff = Utc::now().timestamp() - SHARE_PARTICIPANT_IDLE_SECS;
     runtime
         .participants
         .retain(|_, value| value.last_seen_unix >= cutoff);
 }
-
 fn upsert_participant(
     runtime: &mut ShareRuntime,
     participant_id: &str,
@@ -316,22 +290,16 @@ fn upsert_participant(
     }
     prune_participants(runtime);
 }
-
 fn participant_public_list(runtime: &ShareRuntime) -> Vec<ShareParticipantInfo> {
-    let mut participants: Vec<ShareParticipantInfo> = runtime
-        .participants
-        .values()
-        .map(|item| ShareParticipantInfo {
-            participant_id: item.participant_id.clone(),
-            username: item.username.clone(),
-            last_seen_at: item.last_seen_at.clone(),
-            last_action: item.last_action.clone(),
-        })
-        .collect();
+    let mut participants: Vec<ShareParticipantInfo> = runtime.participants.values().map(|item| ShareParticipantInfo {
+        participant_id: item.participant_id.clone(),
+        username: item.username.clone(),
+        last_seen_at: item.last_seen_at.clone(),
+        last_action: item.last_action.clone(),
+    }).collect();
     participants.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
     participants
 }
-
 fn build_local_join_url(runtime: &ShareRuntime) -> String {
     if runtime.mode == "local" {
         format!(
@@ -344,20 +312,13 @@ fn build_local_join_url(runtime: &ShareRuntime) -> String {
         format!("{}/?sid={}", runtime.local_url, runtime.session_id)
     }
 }
-
 fn build_remote_join_url(runtime: &ShareRuntime) -> Option<String> {
     let tunnel = runtime.tunnel_url.as_ref()?;
     Some(format!("{}/?sid={}", tunnel.trim_end_matches('/'), runtime.session_id))
 }
-
 fn build_active_join_url(runtime: &ShareRuntime) -> Option<String> {
-    if runtime.mode == "local" {
-        Some(build_local_join_url(runtime))
-    } else {
-        build_remote_join_url(runtime)
-    }
+    if runtime.mode == "local" { Some(build_local_join_url(runtime)) } else { build_remote_join_url(runtime) }
 }
-
 fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
     let local_join_url = build_local_join_url(runtime);
     let remote_join_url = build_remote_join_url(runtime);
@@ -379,10 +340,10 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
         password: Some(runtime.password.clone()),
         expires_at: Some(runtime.expires_at.clone()),
         status: Some(runtime.status.clone()),
-        pdf_state: Some(if runtime.pdf_bytes.is_empty() {
-            "empty".to_string()
-        } else {
+        pdf_state: Some(if share_pdf_ready(runtime) {
             "ready".to_string()
+        } else {
+            "empty".to_string()
         }),
         pdf_updated_at: runtime.pdf_updated_at.clone(),
         tunnel_state: Some(runtime.tunnel_state.clone()),
@@ -390,7 +351,6 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
         participants: participant_public_list(runtime),
     }
 }
-
 fn inactive_share_session_info() -> ShareSessionInfo {
     ShareSessionInfo {
         active: false,
@@ -416,7 +376,6 @@ fn inactive_share_session_info() -> ShareSessionInfo {
         participants: Vec::new(),
     }
 }
-
 fn to_comment_json(
     body: &CommentPostBody,
     fallback_username: &str,
@@ -437,7 +396,6 @@ fn to_comment_json(
         "createdAt": body.created_at.as_deref().unwrap_or_default(),
     })
 }
-
 fn append_share_comment(
     runtime: &mut ShareRuntime,
     body: &CommentPostBody,
@@ -469,16 +427,18 @@ fn append_share_comment(
         .map_err(|error| format!("persist comments failed: {error}"))?;
     Ok(comment)
 }
-
 fn stop_runtime(runtime: &Arc<Mutex<ShareRuntime>>) {
     if let Ok(mut guard) = runtime.lock() {
         guard.stop_flag.store(true, Ordering::Relaxed);
         if let Some(child) = guard.cloudflared_child.as_mut() {
             let _ = child.kill();
         }
+        if let Some(path) = guard.pdf_cache_path.take() {
+            let _ = fs::remove_file(path);
+        }
+        guard.pdf_size_bytes = 0;
     }
 }
-
 fn swap_in_runtime(next: Arc<Mutex<ShareRuntime>>) {
     if let Ok(mut slot) = share_runtime_slot().lock() {
         if let Some(previous) = slot.take() {
@@ -487,7 +447,6 @@ fn swap_in_runtime(next: Arc<Mutex<ShareRuntime>>) {
         *slot = Some(next);
     }
 }
-
 fn clear_runtime() {
     if let Ok(mut slot) = share_runtime_slot().lock() {
         if let Some(previous) = slot.take() {
@@ -495,7 +454,6 @@ fn clear_runtime() {
         }
     }
 }
-
 fn start_http_server(runtime: Arc<Mutex<ShareRuntime>>) -> Result<(), String> {
     let port = runtime
         .lock()
@@ -518,7 +476,6 @@ fn start_http_server(runtime: Arc<Mutex<ShareRuntime>>) -> Result<(), String> {
     });
     Ok(())
 }
-
 #[tauri::command]
 pub fn share_session_create(
     state: State<'_, AppState>,
@@ -579,7 +536,8 @@ pub fn share_session_create(
         sync_events: Vec::new(),
         participants: HashMap::new(),
         compile_requested: false,
-        pdf_bytes: Vec::new(),
+        pdf_cache_path: None,
+        pdf_size_bytes: 0,
         pdf_updated_at: None,
         comments_store,
         comments,
@@ -605,7 +563,6 @@ pub fn share_session_create(
         .map_err(|_| "failed to lock share runtime".to_string())?;
     Ok(info)
 }
-
 #[tauri::command]
 pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionInfo, String> {
     let runtime = share_runtime_slot()
@@ -629,7 +586,6 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
     // transient status polling races from tearing down an otherwise recoverable session.
     Ok(build_session_info(&guard))
 }
-
 #[tauri::command]
 pub fn share_session_stop(state: State<'_, AppState>) -> Result<Ack, String> {
     clear_runtime();
@@ -639,4 +595,3 @@ pub fn share_session_stop(state: State<'_, AppState>) -> Result<Ack, String> {
         message: "stopped".to_string(),
     })
 }
-

@@ -38,6 +38,7 @@ release/
 Thumbs.db
 
 # Local collaboration / agent files
+.latotex/
 AGENTS.md
 CLAUDE.md
 .claude/

@@ -57,7 +57,7 @@ export function AppTopbar(props: {
   } = props;
 
   return (
-    <header className="app-topbar relative grid h-12 grid-cols-[minmax(0,1fr)_minmax(420px,760px)_minmax(0,1fr)] items-center border-b px-3">
+    <header className="app-topbar relative grid h-12 grid-cols-[minmax(0,1fr)_minmax(240px,clamp(300px,52vw,760px))_minmax(0,1fr)] items-center border-b px-3">
       <div className="flex min-w-0 items-center gap-2 justify-self-start">
         <div
           className="brand-badge flex items-center gap-2 rounded-md px-2 py-1"
@@ -73,7 +73,7 @@ export function AppTopbar(props: {
         )}
       </div>
 
-      <div className="mx-3 flex min-w-0 w-full items-center gap-2 justify-self-center">
+      <div className="mx-2 flex min-w-0 w-full items-center gap-2 justify-self-center">
         <ProjectSwitcher
           projects={projects}
           activeProjectId={activeProjectId}

@@ -16,6 +16,7 @@ const MEMORY_ROOT = ".latotex/memory";
 const MEMORY_MAIN_PATH = ".latotex/MEMORY.md";
 const MEMORY_INDEX_PATH = `${MEMORY_ROOT}/index.json`;
 const DAILY_DIR = `${MEMORY_ROOT}/daily`;
+const TRANSLATION_GLOSSARY_PATH = `${MEMORY_ROOT}/translation-glossary.md`;
 const SESSION_JSON_START = "<!-- LATOTEX_SESSION_JSON_START -->";
 const SESSION_JSON_END = "<!-- LATOTEX_SESSION_JSON_END -->";
 
@@ -388,10 +389,11 @@ export async function buildAgentMemoryContext(
   const index = await loadIndex(projectId);
   const entry = ensureFileEntry(index, filePath);
   const activeSessionId = sessionId ?? entry.currentSessionId;
-  const [mainDoc, dailyDoc, fileDoc, sessionMessages] = await Promise.all([
+  const [mainDoc, dailyDoc, fileDoc, glossaryDoc, sessionMessages] = await Promise.all([
     readText(projectId, MEMORY_MAIN_PATH),
     readText(projectId, dailyPath()),
     readText(projectId, fileSummaryPath(filePath)),
+    readText(projectId, TRANSLATION_GLOSSARY_PATH),
     activeSessionId ? loadSessionMessages(projectId, filePath, activeSessionId) : Promise.resolve([]),
   ]);
   const recent = summarizeRecentMessages(sessionMessages, 10);
@@ -399,6 +401,7 @@ export async function buildAgentMemoryContext(
     ["PROJECT_MEMORY", trimSection(mainDoc ?? "", 2200)],
     ["DAILY_MEMORY", trimSection(dailyDoc ?? "", 1600)],
     ["FILE_MEMORY", trimSection(fileDoc ?? "", 1800)],
+    ["TRANSLATION_GLOSSARY", trimSection(glossaryDoc ?? "", 1600)],
     ["RECENT_SESSION", trimSection(recent, 1200)],
   ].filter((item) => item[1].trim().length > 0);
   if (chunks.length === 0) {
@@ -422,3 +425,4 @@ export async function appendDailyMemoryPrompt(
   const next = existing.trimEnd().length === 0 ? `${defaultDailyDoc()}\n${entry}\n` : `${existing.trimEnd()}\n${entry}\n`;
   await writeFile(projectId, path, next);
 }
+
