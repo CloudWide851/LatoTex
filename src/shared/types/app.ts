@@ -272,6 +272,11 @@ export type RuntimeMemorySnapshot = {
   processId: number;
   rssBytes: number;
   privateBytes?: number | null;
+  webviewRssBytes?: number | null;
+  webviewPrivateBytes?: number | null;
+  webviewProcessCount?: number | null;
+  totalRssBytes?: number | null;
+  totalPrivateBytes?: number | null;
   sampledAt: string;
 };
 
@@ -542,4 +547,3 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
-

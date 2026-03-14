@@ -20,7 +20,7 @@ type PanelKind = "highlight" | "textbox";
 
 function toolButtonClass(active: boolean): string {
   return [
-    "inline-flex h-9 w-9 items-center justify-center rounded-xl border transition",
+    "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition",
     active
       ? "border-primary-500 bg-primary-50 text-primary-700 shadow-sm"
       : "border-slate-300/90 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100",
@@ -165,9 +165,15 @@ export function LibraryPdfToolSidebar(props: {
     [panelKind, t],
   );
 
+  const openPanelFor = (kind: PanelKind) => {
+    setPanelKind(kind);
+    onModeChange(kind === "textbox" ? "textbox" : "highlight");
+    setPanelOpen(true);
+  };
+
   return (
-    <div ref={containerRef} className="relative flex h-full">
-      <aside className="flex h-full w-14 flex-col items-center gap-2 rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-2 shadow-sm">
+    <div ref={containerRef} className="relative flex h-full min-h-0">
+      <aside className="flex h-full min-h-0 w-12 flex-col items-center gap-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-1.5 shadow-sm">
         <button
           className={toolButtonClass(mode === "select")}
           title={titleWithShortcut(t("library.viewer.toolSelect"), t("library.viewer.shortcut.select"))}
@@ -183,6 +189,11 @@ export function LibraryPdfToolSidebar(props: {
           title={titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))}
           aria-label={titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))}
           onClick={() => onModeChange("highlight")}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openPanelFor("highlight");
+          }}
           disabled={!hasPdf}
         >
           <Highlighter className="h-4 w-4" />
@@ -197,6 +208,11 @@ export function LibraryPdfToolSidebar(props: {
           title={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
           aria-label={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
           onClick={() => onModeChange("textbox")}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openPanelFor("textbox");
+          }}
           disabled={!hasPdf}
         >
           <Type className="h-4 w-4" />
@@ -216,7 +232,7 @@ export function LibraryPdfToolSidebar(props: {
           <Eraser className="h-4 w-4" />
         </button>
 
-        <div className="my-0.5 h-px w-8 bg-slate-200" />
+        <div className="my-0.5 h-px w-7 bg-slate-200" />
 
         <button
           className={toolButtonClass(false)}
@@ -238,7 +254,7 @@ export function LibraryPdfToolSidebar(props: {
           <Check className="h-4 w-4" />
         </button>
 
-        <div className="my-0.5 h-px w-8 bg-slate-200" />
+        <div className="my-0.5 h-px w-7 bg-slate-200" />
 
         <button
           className={toolButtonClass(false)}
@@ -250,7 +266,7 @@ export function LibraryPdfToolSidebar(props: {
         </button>
 
         <input
-          className="h-8 w-9 rounded-lg border border-slate-300 bg-white px-1 text-center text-[11px] text-slate-700"
+          className="h-7 w-8 rounded-lg border border-slate-300 bg-white px-1 text-center text-[10px] text-slate-700"
           value={pageInput}
           onChange={(event) => onPageInputChange(event.target.value)}
           onBlur={onPageCommit}
@@ -267,7 +283,7 @@ export function LibraryPdfToolSidebar(props: {
           <ChevronRight className="h-4 w-4" />
         </button>
 
-        <div className="my-0.5 h-px w-8 bg-slate-200" />
+        <div className="my-0.5 h-px w-7 bg-slate-200" />
 
         <button
           className={toolButtonClass(false)}
@@ -293,7 +309,7 @@ export function LibraryPdfToolSidebar(props: {
       {panelOpen ? (
         <div
           ref={panelRef}
-          className="absolute left-[64px] top-2 z-[75] w-64 rounded-xl border border-slate-300 bg-white/95 p-3 shadow-xl backdrop-blur"
+          className="absolute left-[56px] top-2 z-[75] w-64 rounded-xl border border-slate-300 bg-white/95 p-3 shadow-xl backdrop-blur"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">{activePanelTitle}</span>

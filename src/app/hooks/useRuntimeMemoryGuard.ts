@@ -49,10 +49,18 @@ export function useRuntimeMemoryGuard(params: {
         if (cancelled) {
           return;
         }
-        const rssMb = Math.round(snapshot.rssBytes / MB);
-        const privateMb = snapshot.privateBytes != null
-          ? Math.round(Number(snapshot.privateBytes) / MB)
+
+        const measuredRssBytes = snapshot.totalRssBytes ?? snapshot.rssBytes;
+        const measuredPrivateBytes = snapshot.totalPrivateBytes ?? snapshot.privateBytes ?? null;
+        const rssMb = Math.round(measuredRssBytes / MB);
+        const privateMb = measuredPrivateBytes != null
+          ? Math.round(Number(measuredPrivateBytes) / MB)
           : null;
+        const webviewMb = snapshot.webviewRssBytes != null
+          ? Math.round(Number(snapshot.webviewRssBytes) / MB)
+          : null;
+        const webviewCount = snapshot.webviewProcessCount ?? null;
+
         const nextLevel: MemoryLevel = rssMb >= CRITICAL_WATERMARK_MB
           ? "critical"
           : rssMb >= HIGH_WATERMARK_MB
@@ -67,7 +75,7 @@ export function useRuntimeMemoryGuard(params: {
           }));
           await logWithCooldown(
             "WARN",
-            `runtime memory critical: rss=${rssMb}MB, private=${privateMb ?? "-"}MB`,
+            `runtime memory critical: rss=${rssMb}MB, private=${privateMb ?? "-"}MB, webview=${webviewMb ?? "-"}MB, webviewProcesses=${webviewCount ?? "-"}`,
           );
         } else if (nextLevel === "high") {
           setEvents((prev) => trimEventsForMemoryPressure(prev, {
@@ -78,13 +86,13 @@ export function useRuntimeMemoryGuard(params: {
           if (levelRef.current === "normal") {
             await logWithCooldown(
               "WARN",
-              `runtime memory high: rss=${rssMb}MB, private=${privateMb ?? "-"}MB`,
+              `runtime memory high: rss=${rssMb}MB, private=${privateMb ?? "-"}MB, webview=${webviewMb ?? "-"}MB, webviewProcesses=${webviewCount ?? "-"}`,
             );
           }
         } else if (levelRef.current !== "normal") {
           await logWithCooldown(
             "INFO",
-            `runtime memory recovered: rss=${rssMb}MB, private=${privateMb ?? "-"}MB`,
+            `runtime memory recovered: rss=${rssMb}MB, private=${privateMb ?? "-"}MB, webview=${webviewMb ?? "-"}MB, webviewProcesses=${webviewCount ?? "-"}`,
           );
         }
 
@@ -107,4 +115,3 @@ export function useRuntimeMemoryGuard(params: {
     };
   }, [isTauriRuntime, setEvents]);
 }
-

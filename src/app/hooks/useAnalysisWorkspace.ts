@@ -249,20 +249,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       return;
     }
     runInFlightRef.current = true;
-    if (options?.savePrompt !== false) {
-      updateTaskById(task.id, (item) => ({
-        ...item,
-        draftPrompt: normalizedPrompt,
-        lastError: null,
-        updatedAt: nowIso(),
-      }));
-    } else {
-      updateTaskById(task.id, (item) => ({
-        ...item,
-        lastError: null,
-        updatedAt: nowIso(),
-      }));
-    }
+    updateTaskById(task.id, (item) => ({
+      ...item,
+      draftPrompt: "",
+      lastError: null,
+      updatedAt: nowIso(),
+    }));
     setRunning(true);
     let currentStage = t("analysis.step.agentSynthesis");
     try {
@@ -593,4 +585,3 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
-

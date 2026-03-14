@@ -16,7 +16,7 @@ import type {
 import { PdfAnnotationLayer } from "./PdfAnnotationLayer";
 
 ensureReactPdfWorker();
-const PDF_VIRTUAL_PADDING_PAGES = 2;
+const PDF_VIRTUAL_PADDING_PAGES = 1;
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 

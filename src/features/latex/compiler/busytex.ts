@@ -23,36 +23,52 @@ const BUSYTEX_ASSET_HINT =
 let runner: BusyTexRunner | null = null;
 let resolvedBasePath: string | null = null;
 let preparedCacheBasePath: string | null = null;
-let preparingCache = false;
+let preparingCachePromise: Promise<string | null> | null = null;
+
+function resetBusyTexRuntime(resetCacheBase = false) {
+  runner = null;
+  resolvedBasePath = null;
+  if (resetCacheBase) {
+    preparedCacheBasePath = null;
+  }
+}
 
 async function resolveCacheBasePath(): Promise<string | null> {
   if (preparedCacheBasePath) {
     return preparedCacheBasePath;
   }
-  if (!isTauri() || preparingCache) {
+  if (!isTauri()) {
     return null;
   }
+  if (preparingCachePromise) {
+    return preparingCachePromise;
+  }
 
-  preparingCache = true;
-  try {
-    const policy =
-      typeof window !== "undefined"
-        ? (window.localStorage.getItem("latotex.busytex.cachePolicy") as
-            | "install-first"
-            | "appdata-only"
-            | null)
-        : null;
-    const info = await busytexCachePrepare(policy ?? "install-first");
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
-      window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
+  preparingCachePromise = (async () => {
+    try {
+      const policy =
+        typeof window !== "undefined"
+          ? (window.localStorage.getItem("latotex.busytex.cachePolicy") as
+              | "install-first"
+              | "appdata-only"
+              | null)
+          : null;
+      const info = await busytexCachePrepare(policy ?? "install-first");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
+        window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
+      }
+      preparedCacheBasePath = convertFileSrc(info.actualDir).replace(/\/+$/, "");
+      return preparedCacheBasePath;
+    } catch {
+      return null;
     }
-    preparedCacheBasePath = convertFileSrc(info.actualDir).replace(/\/+$/, "");
-    return preparedCacheBasePath;
-  } catch {
-    return null;
+  })();
+
+  try {
+    return await preparingCachePromise;
   } finally {
-    preparingCache = false;
+    preparingCachePromise = null;
   }
 }
 
@@ -83,10 +99,37 @@ function normalizePath(path: string): string {
   return `${protocolPrefix}${normalizedTail}`.replace(/^(\.)\/+/, "./");
 }
 
-async function hasValidWorkerAsset(basePath: string): Promise<boolean> {
+async function checkAssetReachable(url: string): Promise<boolean> {
   try {
-    const workerUrl = `${basePath}/busytex_worker.js`;
-    const response = await fetch(workerUrl, { cache: "no-store" });
+    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (head.ok) {
+      return true;
+    }
+    if (head.status !== 405 && head.status !== 501) {
+      return false;
+    }
+  } catch {
+    // fallback to GET check
+  }
+
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { Range: "bytes=0-32" },
+    });
+    if (!response.ok) {
+      return false;
+    }
+    await response.body?.cancel().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function hasValidWorkerAsset(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
       return false;
     }
@@ -97,14 +140,27 @@ async function hasValidWorkerAsset(basePath: string): Promise<boolean> {
   }
 }
 
+async function hasRequiredBusyTexAssets(basePath: string): Promise<boolean> {
+  const workerUrl = `${basePath}/busytex_worker.js`;
+  if (!(await hasValidWorkerAsset(workerUrl))) {
+    return false;
+  }
+
+  const assetChecks = await Promise.all([
+    checkAssetReachable(`${basePath}/busytex.js`),
+    checkAssetReachable(`${basePath}/busytex.wasm`),
+    checkAssetReachable(`${basePath}/texlive-basic.js`),
+  ]);
+  return assetChecks.every(Boolean);
+}
+
 async function resolveBusyTexBasePath(): Promise<string> {
   if (resolvedBasePath) {
     return resolvedBasePath;
   }
   const candidates = (await buildBasePathCandidates()).map(normalizePath);
   for (const candidate of candidates) {
-    // Validate worker asset first to avoid "Unexpected token '<'" from HTML fallback pages.
-    if (await hasValidWorkerAsset(candidate)) {
+    if (await hasRequiredBusyTexAssets(candidate)) {
       resolvedBasePath = candidate;
       return candidate;
     }
@@ -145,6 +201,17 @@ function flattenLogs(raw: unknown): string[] {
   return [JSON.stringify(raw)];
 }
 
+function isRecoverableAssetError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("busytex")
+    || normalized.includes("busytex_worker.js")
+    || normalized.includes("failed to fetch")
+    || normalized.includes("texlive-basic")
+    || normalized.includes("not found")
+  );
+}
+
 async function getRunner(): Promise<BusyTexRunner> {
   if (!runner) {
     const basePath = await resolveBusyTexBasePath();
@@ -158,12 +225,13 @@ async function getRunner(): Promise<BusyTexRunner> {
   return runner;
 }
 
-export async function compileWithBusyTeX(
+async function compileInternal(
   mainSource: string,
   files: Record<string, string>,
-  mainFilePath = "main.tex"
+  mainFilePath: string,
+  allowRetry: boolean,
+  startAt: number,
 ): Promise<BusyTeXCompileResult> {
-  const start = performance.now();
   try {
     const currentRunner = await getRunner();
     const compiler = new XeLatex(currentRunner);
@@ -173,12 +241,12 @@ export async function compileWithBusyTeX(
 
     const rawResult = (await compiler.compile({
       input: mainSource,
-      additionalFiles
+      additionalFiles,
     })) as BusyTexCompileResponse;
 
     const diagnostics = [
       ...flattenLogs(rawResult.logs),
-      ...(rawResult.log ? [rawResult.log] : [])
+      ...(rawResult.log ? [rawResult.log] : []),
     ];
 
     const pdfBytes = normalizeToUint8Array(rawResult.pdf);
@@ -190,7 +258,7 @@ export async function compileWithBusyTeX(
       return {
         status: "error",
         diagnostics: finalDiagnostics,
-        durationMs: Math.round(performance.now() - start)
+        durationMs: Math.round(performance.now() - startAt),
       };
     }
 
@@ -198,21 +266,31 @@ export async function compileWithBusyTeX(
       status: "success",
       pdfBytes,
       diagnostics,
-      durationMs: Math.round(performance.now() - start)
+      durationMs: Math.round(performance.now() - startAt),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const normalized = message.toLowerCase();
-    const hint =
-      normalized.includes("busytex") ||
-      normalized.includes("busytex_worker.js") ||
-      normalized.includes("failed to fetch")
-        ? [BUSYTEX_ASSET_HINT]
-        : [];
+
+    if (allowRetry && isRecoverableAssetError(message)) {
+      resetBusyTexRuntime(true);
+      await resolveCacheBasePath().catch(() => null);
+      return compileInternal(mainSource, files, mainFilePath, false, startAt);
+    }
+
+    const hint = isRecoverableAssetError(message) ? [BUSYTEX_ASSET_HINT] : [];
     return {
       status: "error",
       diagnostics: [message, ...hint],
-      durationMs: Math.round(performance.now() - start)
+      durationMs: Math.round(performance.now() - startAt),
     };
   }
+}
+
+export async function compileWithBusyTeX(
+  mainSource: string,
+  files: Record<string, string>,
+  mainFilePath = "main.tex",
+): Promise<BusyTeXCompileResult> {
+  const startedAt = performance.now();
+  return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }

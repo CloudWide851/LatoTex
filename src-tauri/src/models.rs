@@ -218,6 +218,11 @@ pub struct RuntimeMemorySnapshot {
     pub process_id: u32,
     pub rss_bytes: u64,
     pub private_bytes: Option<u64>,
+    pub webview_rss_bytes: Option<u64>,
+    pub webview_private_bytes: Option<u64>,
+    pub webview_process_count: Option<u32>,
+    pub total_rss_bytes: Option<u64>,
+    pub total_private_bytes: Option<u64>,
     pub sampled_at: String,
 }
 

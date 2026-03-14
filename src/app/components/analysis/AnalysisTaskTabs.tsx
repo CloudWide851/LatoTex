@@ -18,10 +18,19 @@ export function AnalysisTaskTabs(props: {
   const { tasks, activeTaskId, running, onSelectTask, onCreateTask, onRenameTask, onDeleteTask, t } = props;
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
 
   const beginRename = (task: AnalysisTask) => {
     setEditingTaskId(task.id);
     setEditingName(task.name);
+  };
+
+  const commitRename = (taskId: string) => {
+    const normalized = editingName.trim();
+    if (normalized.length > 0) {
+      onRenameTask(taskId, normalized);
+    }
+    setEditingTaskId(null);
   };
 
   return (
@@ -45,15 +54,13 @@ export function AnalysisTaskTabs(props: {
                 value={editingName}
                 autoFocus
                 onChange={(event) => setEditingName(event.target.value)}
-                onBlur={() => {
-                  onRenameTask(task.id, editingName);
-                  setEditingTaskId(null);
-                }}
+                onBlur={() => commitRename(task.id)}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") {
+                  if (event.key === "Enter" && !isComposing) {
                     event.preventDefault();
-                    onRenameTask(task.id, editingName);
-                    setEditingTaskId(null);
+                    commitRename(task.id);
                   }
                   if (event.key === "Escape") {
                     event.preventDefault();
@@ -62,20 +69,31 @@ export function AnalysisTaskTabs(props: {
                 }}
               />
             ) : (
-              <button className="truncate text-left" onClick={() => onSelectTask(task.id)} title={task.name}>
+              <button
+                type="button"
+                className="truncate text-left"
+                onClick={() => onSelectTask(task.id)}
+                onDoubleClick={() => beginRename(task)}
+                title={task.name}
+              >
                 {task.name}
               </button>
             )}
             <button
-              className="rounded p-0.5 text-slate-400 opacity-0 transition hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100"
-              onClick={() => beginRename(task)}
+              type="button"
+              className="rounded p-0.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                beginRename(task);
+              }}
               title={t("analysis.renameTask")}
-              disabled={running}
             >
               <Edit3 className="h-3 w-3" />
             </button>
             <button
-              className="rounded p-0.5 text-slate-400 opacity-0 transition hover:bg-rose-100 hover:text-rose-700 group-hover:opacity-100"
+              type="button"
+              className="rounded p-0.5 text-slate-500 transition hover:bg-rose-100 hover:text-rose-700"
               onClick={() => onDeleteTask(task.id)}
               title={t("analysis.deleteTask")}
               disabled={running}
@@ -86,6 +104,7 @@ export function AnalysisTaskTabs(props: {
         );
       })}
       <button
+        type="button"
         className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
         onClick={onCreateTask}
         title={t("analysis.newTask")}
