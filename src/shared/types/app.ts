@@ -530,6 +530,14 @@ export type GitDiffResponse = {
   hunks: GitDiffHunk[];
 };
 
+export type AnalysisPyodideCacheInfo = {
+  policy: string;
+  requestedDir: string;
+  actualDir: string;
+  installDirWritable: boolean;
+  usingFallback: boolean;
+};
+
 export type BusyTexCacheInfo = {
   policy: string;
   requestedDir: string;
@@ -547,3 +555,4 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+

@@ -1,3 +1,4 @@
+import { RefreshCcw } from "lucide-react";
 import type { FsAction, FsScope, ResourceNode } from "../../../shared/types/app";
 import { ExplorerTree } from "../ExplorerTree";
 import { LibraryUploadMenu } from "../LibraryUploadMenu";
@@ -68,11 +69,13 @@ export function LibraryExplorerPanel(props: {
         </h2>
         <div className="flex items-center gap-1">
           <button
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
             onClick={onLibraryRescan}
             disabled={busy}
+            title={t("explorer.action.rescan")}
+            aria-label={t("explorer.action.rescan")}
           >
-            {t("explorer.action.rescan")}
+            <RefreshCcw className="h-4 w-4" />
           </button>
           <LibraryUploadMenu
             busy={busy}

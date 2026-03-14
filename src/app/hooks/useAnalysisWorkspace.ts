@@ -12,6 +12,7 @@ import {
 } from "./analysisDataSources";
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
 import { resolvePromptInputFiles } from "./analysisPromptRefs";
+import { buildPyodideAnalysisProfile } from "../../features/analysis/pyodide/profile";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
 import { ensureAnalysisTasksLoaded, runRolePromptWithAgent } from "./analysisRunHelpers";
@@ -350,56 +351,30 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
         setStage(t("analysis.step.profileEachFile"));
         steps.push(currentStage);
-        const perFileProfiles: string[] = [];
-        const profileTargets = snapshots.slice(0, Math.min(12, snapshots.length));
-        for (const snapshot of profileTargets) {
-          const profilePrompt = [
-            `Output language must be ${outputLanguageLabel}.`,
-            "Profile this file and return compact markdown with fields:",
-            "overview, data quality, anomalies, and actionable next checks.",
-            `File: ${snapshot.path}`,
-            `Summary: ${snapshot.summary}`,
-            "Excerpt:",
-            snapshot.excerpt.slice(0, 2400),
-          ].join("\n\n");
-          try {
-            const profileResult = await runRolePromptWithTrace("explore", profilePrompt, contextRefs);
-            perFileProfiles.push(`[${snapshot.path}]\n${profileResult.output}`);
-          } catch {
-            perFileProfiles.push(`[${snapshot.path}]\nprofile_failed`);
-          }
+        let pyodideProfileText = "{}";
+        try {
+          const pyodideProfile = await buildPyodideAnalysisProfile({
+            snapshots,
+            prompt: normalizedPrompt,
+            outputLanguage: outputLanguageLabel,
+          });
+          pyodideProfileText = JSON.stringify(pyodideProfile, null, 2).slice(0, 12000);
+          await runtimeLogWrite(
+            "INFO",
+            `analysis pyodide profile ready: source=${pyodideProfile.runtimeSource}, files=${pyodideProfile.fileCount}`
+          ).catch(() => undefined);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          pyodideProfileText = JSON.stringify({
+            runtimeSource: "unavailable",
+            error: reason,
+          });
+          await runtimeLogWrite("WARN", `analysis pyodide profile failed: ${reason}`).catch(() => undefined);
         }
-        setStage(t("analysis.step.crossFile"));
-        steps.push(currentStage);
-        const crossFilePrompt = [
-          `Output language must be ${outputLanguageLabel}.`,
-          "You are performing cross-file analysis.",
-          "Find relationships, inconsistencies, and linked hypotheses across files.",
-          `Total selected files: ${chosenFiles.length}.`,
-          "Per-file profiles:",
-          perFileProfiles.join("\n\n"),
-        ].join("\n\n");
-        const crossFileResult = await runRolePromptWithTrace("explore", crossFilePrompt, contextRefs);
-        setStage(t("analysis.step.deepDive"));
-        steps.push(currentStage);
-        const deepDivePrompt = [
-          `Output language must be ${outputLanguageLabel}.`,
-          "Deep dive into the most important findings and likely root causes.",
-          "Return compact markdown with: key finding, evidence, confidence, and verification plan.",
-          "User request:",
-          normalizedPrompt,
-          "Cross-file synthesis:",
-          crossFileResult.output,
-        ].join("\n\n");
-        const deepDiveResult = await runRolePromptWithTrace("explore", deepDivePrompt, contextRefs);
         sourceBlock = [
           snapshotSummary,
-          "Per-file profile summary:",
-          perFileProfiles.join("\n\n"),
-          "Cross-file synthesis:",
-          crossFileResult.output,
-          "Deep-dive findings:",
-          deepDiveResult.output,
+          "Structured profile (pyodide):",
+          pyodideProfileText,
         ].join("\n\n");
       }
       if (selectedFile && editorContent.trim()) {
@@ -585,3 +560,4 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+

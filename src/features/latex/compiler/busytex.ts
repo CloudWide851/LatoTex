@@ -58,7 +58,8 @@ async function resolveCacheBasePath(): Promise<string | null> {
         window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
         window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
       }
-      preparedCacheBasePath = convertFileSrc(info.actualDir).replace(/\/+$/, "");
+      const normalizedActualDir = info.actualDir.replace(/\\/g, "/");
+      preparedCacheBasePath = convertFileSrc(normalizedActualDir).replace(/\/+$/, "");
       return preparedCacheBasePath;
     } catch {
       return null;
@@ -91,7 +92,10 @@ async function buildBasePathCandidates(): Promise<string[]> {
 }
 
 function normalizePath(path: string): string {
-  const withForwardSlash = path.replace(/\\/g, "/");
+  const withForwardSlash = path
+    .replace(/%5C/gi, "/")
+    .replace(/%3A/gi, ":")
+    .replace(/\\/g, "/");
   const protocolMatch = withForwardSlash.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//);
   const protocolPrefix = protocolMatch?.[0] ?? "";
   const tail = protocolPrefix ? withForwardSlash.slice(protocolPrefix.length) : withForwardSlash;

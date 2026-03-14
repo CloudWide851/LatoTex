@@ -1,3 +1,5 @@
+import type { PyodideSourceConfig } from "./analysisWorker";
+
 type WorkerOk = { id: number; ok: true; result: unknown };
 type WorkerErr = { id: number; ok: false; error: string };
 type WorkerResponse = WorkerOk | WorkerErr;
@@ -31,20 +33,41 @@ class PyodideRunner {
     };
   }
 
-  runScript(script: string, timeoutMs = 45_000): Promise<unknown> {
+  private postMessage(message: Record<string, unknown>, timeoutMs: number): Promise<unknown> {
     const id = this.seq++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error("Pyodide analysis timed out"));
+        reject(new Error("Pyodide worker request timed out"));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      this.worker.postMessage({
-        id,
+      this.worker.postMessage({ id, ...message });
+    });
+  }
+
+  async initialize(source: PyodideSourceConfig, timeoutMs = 120_000): Promise<void> {
+    await this.postMessage(
+      {
+        type: "init",
+        source,
+      },
+      timeoutMs,
+    );
+  }
+
+  runScript(
+    script: string,
+    context: Record<string, unknown> = {},
+    timeoutMs = 60_000,
+  ): Promise<unknown> {
+    return this.postMessage(
+      {
         type: "run",
         script,
-      });
-    });
+        context,
+      },
+      timeoutMs,
+    );
   }
 
   terminate() {

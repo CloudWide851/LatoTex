@@ -10,6 +10,7 @@ import type {
   AppBackgroundImage,
   AppBackgroundImagePayload,
   AppSettings,
+  AnalysisPyodideCacheInfo,
   BusyTexCacheInfo,
   CompileRecord,
   CredentialSaveResult,
@@ -591,3 +592,7 @@ export function gitDiffFile(
 export function busytexCachePrepare(policy: "install-first" | "appdata-only"): Promise<BusyTexCacheInfo> {
   return invoke<BusyTexCacheInfo>("busytex_cache_prepare", { input: { policy } });
 }
+export function analysisPyodidePrepare(policy: "install-first" | "appdata-only"): Promise<AnalysisPyodideCacheInfo> {
+  return invoke<AnalysisPyodideCacheInfo>("analysis_pyodide_prepare", { input: { policy } });
+}
+

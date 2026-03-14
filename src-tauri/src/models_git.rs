@@ -182,3 +182,19 @@ pub struct BusyTexCacheInfo {
 pub struct BusyTexCachePrepareInput {
     pub policy: String,
 }
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPyodideCacheInfo {
+    pub policy: String,
+    pub requested_dir: String,
+    pub actual_dir: String,
+    pub install_dir_writable: bool,
+    pub using_fallback: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPyodidePrepareInput {
+    pub policy: String,
+}
+

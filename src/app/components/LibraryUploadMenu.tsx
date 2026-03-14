@@ -40,14 +40,13 @@ export function LibraryUploadMenu(props: {
   return (
     <div ref={rootRef} className="relative">
       <button
-        className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+        className="inline-flex h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
         onClick={() => setMenuOpen((prev) => !prev)}
         disabled={busy}
         title={t("library.upload")}
         aria-label={t("library.upload")}
       >
-        <Upload className="h-3.5 w-3.5" />
-        <span>{t("library.upload")}</span>
+        <Upload className="h-4 w-4" />
         <ChevronDown className="h-3.5 w-3.5" />
       </button>
 

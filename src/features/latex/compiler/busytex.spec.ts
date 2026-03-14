@@ -51,6 +51,9 @@ describe("BusyTeX compile adapter", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.doUnmock("@tauri-apps/api/core");
+    vi.doUnmock("../../../shared/api/desktop");
+    vi.resetModules();
   });
 
   it("maps successful compile output to a success result", async () => {
@@ -99,6 +102,39 @@ describe("BusyTeX compile adapter", () => {
 
     expect(result.status).toBe("error");
     expect(result.diagnostics.join(" ")).toContain("BusyTeX assets missing");
+  });
+
+  it("normalizes encoded windows asset paths from tauri cache", async () => {
+    mockCompilePayload = {
+      success: true,
+      pdf: [1, 2, 3],
+      logs: [],
+      exitCode: 0,
+    };
+    const fetchSpy = vi.fn(async () => new Response("self.onmessage = () => {}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+      convertFileSrc: () => "http://asset.localhost/F%3A%5CLatoTex%5Cbusytex-cache",
+    }));
+    vi.doMock("../../../shared/api/desktop", () => ({
+      busytexCachePrepare: vi.fn(async () => ({
+        policy: "install-first",
+        requestedDir: "F:\\LatoTex\\busytex-cache",
+        actualDir: "F:\\LatoTex\\busytex-cache",
+        installDirWritable: true,
+        usingFallback: false,
+      })),
+    }));
+    vi.resetModules();
+
+    const { compileWithBusyTeX } = await import("./busytex");
+    const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
+
+    expect(result.status).toBe("success");
+    expect(
+      fetchSpy.mock.calls.some((call) => String((call as unknown[])[0]).includes("F:/LatoTex/busytex-cache/busytex_worker.js")),
+    ).toBe(true);
   });
 });
 

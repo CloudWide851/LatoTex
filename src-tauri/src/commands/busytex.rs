@@ -1,4 +1,9 @@
-use crate::models::{BusyTexCacheInfo, BusyTexCachePrepareInput};
+use crate::models::{
+    AnalysisPyodideCacheInfo,
+    AnalysisPyodidePrepareInput,
+    BusyTexCacheInfo,
+    BusyTexCachePrepareInput,
+};
 use crate::state::AppState;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -6,6 +11,17 @@ use tauri::State;
 
 const REQUIRED_BUSYTEX_ASSETS: [&str; 4] =
     ["busytex.js", "busytex.wasm", "busytex_worker.js", "texlive-basic.js"];
+
+const REQUIRED_PYODIDE_ASSETS: [&str; 3] =
+    ["pyodide.mjs", "pyodide.asm.wasm", "python_stdlib.zip"];
+
+struct CachePrepareResult {
+    policy: String,
+    requested_dir: String,
+    actual_dir: String,
+    install_dir_writable: bool,
+    using_fallback: bool,
+}
 
 fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
     if source.is_dir() {
@@ -26,38 +42,32 @@ fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn candidate_source_dirs() -> Vec<PathBuf> {
+fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
+    required_assets.iter().all(|name| dir.join(name).exists())
+}
+
+fn candidate_source_dirs(relative_subdir: &str) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    // Side-load assets in workspace (`src-tauri/resources/core/busytex`).
-    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/busytex"));
-    // Legacy dev workspace path.
-    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../public/core/busytex"));
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/core/{relative_subdir}")));
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../public/core/{relative_subdir}")));
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            candidates.push(exe_dir.join("resources/core/busytex"));
-            candidates.push(exe_dir.join("core/busytex"));
-            candidates.push(exe_dir.join("../resources/core/busytex"));
+            candidates.push(exe_dir.join(format!("resources/core/{relative_subdir}")));
+            candidates.push(exe_dir.join(format!("core/{relative_subdir}")));
+            candidates.push(exe_dir.join(format!("../resources/core/{relative_subdir}")));
         }
     }
     candidates
 }
 
-fn choose_existing_source_dir() -> Option<PathBuf> {
-    candidate_source_dirs().into_iter().find(|dir| {
-        REQUIRED_BUSYTEX_ASSETS
-            .iter()
-            .all(|name| dir.join(name).exists())
-    })
+fn choose_existing_source_dir(required_assets: &[&str], relative_subdir: &str) -> Option<PathBuf> {
+    candidate_source_dirs(relative_subdir)
+        .into_iter()
+        .find(|dir| has_required_assets(dir, required_assets))
 }
 
-fn has_required_assets(dir: &Path) -> bool {
-    REQUIRED_BUSYTEX_ASSETS
-        .iter()
-        .all(|name| dir.join(name).exists())
-}
-
-fn ensure_cache_dir(cache_dir: &Path, source_dir: &Path) -> Result<(), String> {
-    if cache_dir.exists() && has_required_assets(cache_dir) {
+fn ensure_cache_dir(cache_dir: &Path, source_dir: &Path, required_assets: &[&str]) -> Result<(), String> {
+    if cache_dir.exists() && has_required_assets(cache_dir, required_assets) {
         return Ok(());
     }
     if !cache_dir.exists() {
@@ -74,43 +84,12 @@ fn is_permission_denied(message: &str) -> bool {
         || lower.contains("os error 5")
 }
 
-#[tauri::command]
-pub fn busytex_cache_prepare(
-    state: State<'_, AppState>,
-    input: BusyTexCachePrepareInput,
-) -> Result<BusyTexCacheInfo, String> {
-    let policy = input.policy.trim().to_string();
-    let source_dir = choose_existing_source_dir()
-        .ok_or_else(|| "BusyTeX source assets were not found in app resources".to_string())?;
-
-    let install_dir = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|parent| parent.join("busytex-cache")))
-        .unwrap_or_else(|| state.runtime_root.join("busytex-cache"));
-    let appdata_dir = state.app_data_dir.join("busytex-cache");
-
-    let requested_dir = if policy == "appdata-only" {
-        appdata_dir.clone()
-    } else {
-        install_dir.clone()
-    };
-
-    let mut actual_dir = requested_dir.clone();
-    let mut install_dir_writable = true;
-    let mut using_fallback = false;
-
-    let ensure_result = ensure_cache_dir(&requested_dir, &source_dir);
-    if let Err(error) = ensure_result {
-        if requested_dir == install_dir && is_permission_denied(&error) {
-            install_dir_writable = false;
-            using_fallback = true;
-            actual_dir = appdata_dir.clone();
-            ensure_cache_dir(&actual_dir, &source_dir)?;
-        } else {
-            return Err(error);
-        }
-    }
-
+fn write_cache_marker(
+    actual_dir: &Path,
+    policy: &str,
+    requested_dir: &Path,
+    using_fallback: bool,
+) {
     let marker_path = actual_dir.join(".cache-info.json");
     let marker_json = serde_json::json!({
         "policy": policy,
@@ -122,12 +101,103 @@ pub fn busytex_cache_prepare(
         marker_path,
         serde_json::to_string_pretty(&marker_json).unwrap_or_else(|_| "{}".to_string()),
     );
+}
 
-    Ok(BusyTexCacheInfo {
-        policy,
+fn prepare_cache(
+    state: &State<'_, AppState>,
+    policy: &str,
+    cache_dir_name: &str,
+    source_relative_subdir: &str,
+    required_assets: &[&str],
+    missing_hint: &str,
+) -> Result<CachePrepareResult, String> {
+    let source_dir = choose_existing_source_dir(required_assets, source_relative_subdir)
+        .ok_or_else(|| missing_hint.to_string())?;
+
+    let install_dir = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.join(cache_dir_name)))
+        .unwrap_or_else(|| state.runtime_root.join(cache_dir_name));
+    let appdata_dir = state.app_data_dir.join(cache_dir_name);
+
+    let requested_dir = if policy == "appdata-only" {
+        appdata_dir.clone()
+    } else {
+        install_dir.clone()
+    };
+
+    let mut actual_dir = requested_dir.clone();
+    let mut install_dir_writable = true;
+    let mut using_fallback = false;
+
+    let ensure_result = ensure_cache_dir(&requested_dir, &source_dir, required_assets);
+    if let Err(error) = ensure_result {
+        if requested_dir == install_dir && is_permission_denied(&error) {
+            install_dir_writable = false;
+            using_fallback = true;
+            actual_dir = appdata_dir.clone();
+            ensure_cache_dir(&actual_dir, &source_dir, required_assets)?;
+        } else {
+            return Err(error);
+        }
+    }
+
+    write_cache_marker(&actual_dir, policy, &requested_dir, using_fallback);
+
+    Ok(CachePrepareResult {
+        policy: policy.to_string(),
         requested_dir: requested_dir.to_string_lossy().to_string(),
         actual_dir: actual_dir.to_string_lossy().to_string(),
         install_dir_writable,
         using_fallback,
     })
 }
+
+#[tauri::command]
+pub fn busytex_cache_prepare(
+    state: State<'_, AppState>,
+    input: BusyTexCachePrepareInput,
+) -> Result<BusyTexCacheInfo, String> {
+    let policy = input.policy.trim();
+    let prepared = prepare_cache(
+        &state,
+        policy,
+        "busytex-cache",
+        "busytex",
+        &REQUIRED_BUSYTEX_ASSETS,
+        "BusyTeX source assets were not found in app resources",
+    )?;
+
+    Ok(BusyTexCacheInfo {
+        policy: prepared.policy,
+        requested_dir: prepared.requested_dir,
+        actual_dir: prepared.actual_dir,
+        install_dir_writable: prepared.install_dir_writable,
+        using_fallback: prepared.using_fallback,
+    })
+}
+
+#[tauri::command]
+pub fn analysis_pyodide_prepare(
+    state: State<'_, AppState>,
+    input: AnalysisPyodidePrepareInput,
+) -> Result<AnalysisPyodideCacheInfo, String> {
+    let policy = input.policy.trim();
+    let prepared = prepare_cache(
+        &state,
+        policy,
+        "analysis-pyodide-cache",
+        "pyodide",
+        &REQUIRED_PYODIDE_ASSETS,
+        "Pyodide source assets were not found in app resources",
+    )?;
+
+    Ok(AnalysisPyodideCacheInfo {
+        policy: prepared.policy,
+        requested_dir: prepared.requested_dir,
+        actual_dir: prepared.actual_dir,
+        install_dir_writable: prepared.install_dir_writable,
+        using_fallback: prepared.using_fallback,
+    })
+}
+

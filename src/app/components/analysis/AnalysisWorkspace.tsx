@@ -128,9 +128,9 @@ export function AnalysisWorkspace(props: {
             </button>
           ) : !activeRun ? (
             <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/70 p-4 motion-page-in">
-              <div className="flex h-[min(62vh,68%)] w-full max-w-4xl min-h-[220px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/90 text-sm text-slate-500 shadow-soft">
+              <span className="text-sm text-slate-500">
                 {running ? t("analysis.centerRunning") : t("analysis.blankHint")}
-              </div>
+              </span>
             </div>
           ) : (
             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
@@ -229,3 +229,4 @@ export function AnalysisWorkspace(props: {
     </div>
   );
 }
+

@@ -9,7 +9,7 @@ mod storage;
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
-use commands::busytex::busytex_cache_prepare;
+use commands::busytex::{analysis_pyodide_prepare, busytex_cache_prepare};
 use commands::channels::{channels_telegram_poll, channels_telegram_send};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
@@ -171,8 +171,10 @@ pub fn run() {
             git_fetch,
             git_pull,
             git_push,
-            busytex_cache_prepare
+            busytex_cache_prepare,
+            analysis_pyodide_prepare
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
