@@ -321,6 +321,7 @@ export type LibraryPdfPreview = {
   relativePath?: string | null;
   sourceUrl?: string | null;
   cached: boolean;
+  translatedRelativePath?: string | null;
 };
 
 export type LibraryZoteroSyncResult = {
@@ -338,6 +339,8 @@ export type LibraryTranslateResult = {
   extractionEngine?: string | null;
   refinedBySearch?: boolean;
   glossaryCount?: number;
+  translatedPdfRelativePath: string;
+  sourcePdfRelativePath: string;
 };
 
 export type CompileRecord = {

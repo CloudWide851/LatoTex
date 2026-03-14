@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import { FolderOpen, MessageSquareMore, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -10,6 +10,7 @@ import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
 import { configureLatexCompletionRuntime, ensureLatexCompletionProvider } from "./editor/latexCompletion";
+import { buildCompileAssistHint } from "./editor/compileAssistHint";
 import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
@@ -176,10 +177,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const showCompileAssist = Boolean(
     compileErrorLine && compileDiagnostics.length > 0 && compileAssistDismissedFor !== compileAssistKey,
   );
-  const compileAutoFixPrompt = `/review ${t("workspace.compileAssist.commandHint")} ${compileDiagnostics
-    .slice(0, 8)
-    .join(" ; ")
-    .slice(0, 1800)}`;
+  const compileAssistHint = useMemo(() => buildCompileAssistHint(compileDiagnostics, t), [compileDiagnostics, t]);
   const showChatWorkspace = chatTabOpen && chatTabActive;
   const handleOpenChatTab = () => {
     setChatTabOpen(true);
@@ -337,14 +335,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               <CompileAssistPopover
                 visible={showCompileAssist}
                 diagnostics={compileDiagnostics}
+                hint={compileAssistHint}
                 onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
-                onAutoFix={() => {
-                  if (agentCollapsed) {
-                    onAgentToggle();
-                  }
-                  onAgentRun(compileAutoFixPrompt);
-                  setCompileAssistDismissedFor(compileAssistKey);
-                }}
                 t={t}
               />
             </div>

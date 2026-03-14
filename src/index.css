@@ -149,7 +149,11 @@ body::before {
 .wallpaper-enabled .bg-white\/80,
 .wallpaper-enabled .bg-slate-50,
 .wallpaper-enabled .bg-slate-50\/80,
-.wallpaper-enabled .bg-slate-100 {
+.wallpaper-enabled .bg-slate-50\/70,
+.wallpaper-enabled .bg-slate-100,
+.wallpaper-enabled [class*="bg-white/"],
+.wallpaper-enabled [class*="bg-slate-50/"],
+.wallpaper-enabled [class*="bg-slate-100/"] {
   background-color: rgba(248, 250, 252, 0.58) !important;
   backdrop-filter: blur(var(--wallpaper-blur));
   -webkit-backdrop-filter: blur(var(--wallpaper-blur));
@@ -161,7 +165,11 @@ body::before {
 [data-theme="dark"] .wallpaper-enabled .bg-white\/80,
 [data-theme="dark"] .wallpaper-enabled .bg-slate-50,
 [data-theme="dark"] .wallpaper-enabled .bg-slate-50\/80,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-100 {
+[data-theme="dark"] .wallpaper-enabled .bg-slate-50\/70,
+[data-theme="dark"] .wallpaper-enabled .bg-slate-100,
+[data-theme="dark"] .wallpaper-enabled [class*="bg-white/"],
+[data-theme="dark"] .wallpaper-enabled [class*="bg-slate-50/"],
+[data-theme="dark"] .wallpaper-enabled [class*="bg-slate-100/"] {
   background-color: rgba(15, 23, 42, 0.6) !important;
 }
 

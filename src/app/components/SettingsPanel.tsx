@@ -145,7 +145,9 @@ export function SettingsPanel(props: {
       <section
         className={cn(
           "min-h-0 p-3",
-          settingsSection === "diagnostics" ? "overflow-hidden" : "overflow-auto",
+          settingsSection === "diagnostics"
+            ? "grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
+            : "overflow-auto",
         )}
       >
         <div className="mb-3 border-b border-slate-200 pb-3">

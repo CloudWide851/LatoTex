@@ -281,7 +281,7 @@ pub fn library_zotero_sync(
 }
 
 #[tauri::command]
-pub fn library_translate_document(
+pub async fn library_translate_document(
     state: State<'_, AppState>,
     input: LibraryTranslateInput,
 ) -> Result<LibraryTranslateResponse, String> {
@@ -294,14 +294,26 @@ pub fn library_translate_document(
             input.target_language.as_deref().unwrap_or("-")
         ),
     );
-    storage::translate_library_document(
-        &state.db_path,
-        &state.runtime_root,
-        &input.project_id,
-        &input.relative_path,
-        input.target_language.as_deref(),
-        input.model_override.as_deref(),
-    )
+
+    let db_path = state.db_path.clone();
+    let runtime_root = state.runtime_root.clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+    let target_language = input.target_language;
+    let model_override = input.model_override;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        storage::translate_library_document(
+            &db_path,
+            &runtime_root,
+            &project_id,
+            &relative_path,
+            target_language.as_deref(),
+            model_override.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

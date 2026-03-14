@@ -12,11 +12,12 @@ export function AnalysisPromptOverlay(props: {
   running: boolean;
   busy: boolean;
   candidateFiles: string[];
+  embedded?: boolean;
   onPromptChange: (value: string) => void;
   onRun: () => void;
   t: TranslationFn;
 }) {
-  const { prompt, canRun, running, busy, candidateFiles, onPromptChange, onRun, t } = props;
+  const { prompt, canRun, running, busy, candidateFiles, embedded = false, onPromptChange, onRun, t } = props;
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [suggestionPlacement, setSuggestionPlacement] = useState<"above" | "below">("above");
@@ -90,8 +91,17 @@ export function AnalysisPromptOverlay(props: {
   };
 
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center">
-      <div className="pointer-events-auto w-[min(920px,100%)] rounded-lg border border-slate-300 bg-white/95 p-3 shadow-soft motion-slide-up">
+    <div
+      className={embedded
+        ? "flex justify-center"
+        : "pointer-events-none absolute inset-x-3 bottom-3 z-20 flex justify-center"}
+    >
+      <div
+        className={cn(
+          "w-[min(920px,100%)] rounded-lg border border-slate-300 bg-white/95 p-3 shadow-soft motion-slide-up",
+          embedded ? "" : "pointer-events-auto",
+        )}
+      >
         <div className="relative">
           <textarea
             ref={textareaRef}

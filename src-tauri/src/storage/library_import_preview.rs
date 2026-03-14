@@ -474,6 +474,31 @@ fn cache_remote_pdf_file(cache_target: &Path, source_url: &str) -> Result<(), St
     fs::write(cache_target, bytes).map_err(|e| e.to_string())
 }
 
+fn to_library_relative_path_from_workspace(workspace_relative: &str) -> Option<String> {
+    let normalized = workspace_relative.trim().replace('\\', "/").trim_start_matches('/').to_string();
+    if normalized.is_empty() {
+        return None;
+    }
+    normalized
+        .strip_prefix(".latotex/papers/")
+        .map(|value| value.to_string())
+}
+
+fn resolve_translated_pdf_workspace_path(
+    project_root: &Path,
+    papers_root: &Path,
+    source_workspace_relative: &str,
+) -> Option<String> {
+    let source_library_relative = to_library_relative_path_from_workspace(source_workspace_relative)?;
+    let translated_relative = translation_pdf_relative_path(&source_library_relative);
+    let translated_abs = papers_root.join(Path::new(&translated_relative));
+    if !translated_abs.exists() || !translated_abs.is_file() {
+        return None;
+    }
+    to_workspace_relative(project_root, &translated_abs).ok()
+}
+
+
 pub fn library_resolve_pdf_preview(
     db_path: &Path,
     project_id: &str,
@@ -510,10 +535,17 @@ pub fn library_resolve_pdf_preview(
     };
 
     if let Some(local_pdf_path) = local_pdf {
+        let source_workspace_relative = to_workspace_relative(&project_root, &local_pdf_path)?;
+        let translated_relative_path = resolve_translated_pdf_workspace_path(
+            &project_root,
+            &papers_root,
+            &source_workspace_relative,
+        );
         return Ok(LibraryPdfPreviewResponse {
-            relative_path: Some(to_workspace_relative(&project_root, &local_pdf_path)?),
+            relative_path: Some(source_workspace_relative),
             source_url: None,
             cached: false,
+            translated_relative_path: translated_relative_path,
         });
     }
 
@@ -523,6 +555,7 @@ pub fn library_resolve_pdf_preview(
             relative_path: None,
             source_url: None,
             cached: false,
+            translated_relative_path: None,
         });
     };
 
@@ -534,10 +567,18 @@ pub fn library_resolve_pdf_preview(
         cache_remote_pdf_file(&cache_path, &source_url)?;
     }
 
+    let source_workspace_relative = to_workspace_relative(&project_root, &cache_path)?;
+    let translated_relative_path = resolve_translated_pdf_workspace_path(
+        &project_root,
+        &papers_root,
+        &source_workspace_relative,
+    );
+
     Ok(LibraryPdfPreviewResponse {
-        relative_path: Some(to_workspace_relative(&project_root, &cache_path)?),
+        relative_path: Some(source_workspace_relative),
         source_url: Some(source_url),
         cached: true,
+        translated_relative_path: translated_relative_path,
     })
 }
 

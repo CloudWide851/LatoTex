@@ -1,5 +1,4 @@
 import { translateLibraryDocument } from "../../../shared/api/desktop";
-import type { LibraryCitationSummary } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
@@ -17,31 +16,28 @@ export async function translateLibraryPaper(input: {
   projectId: string;
   selectedPath: string;
   translationModelId?: string | null;
-  citation: LibraryCitationSummary | null;
-  bibPreview: string;
   t: TranslationFn;
-}): Promise<{ relativePath: string; detail: string; targetLanguage: string }> {
-  const { projectId, selectedPath, translationModelId, citation, bibPreview, t } = input;
+}): Promise<{
+  translatedPdfRelativePath: string;
+  sourcePdfRelativePath: string;
+  detail: string;
+  targetLanguage: string;
+}> {
+  const { projectId, selectedPath, translationModelId, t } = input;
   const targetLanguage = resolveTranslationTargetLanguage(t);
-  const metadataHint = bibPreview.trim().length > 0
-    ? bibPreview
-    : [
-      `Title: ${citation?.title ?? "-"}`,
-      `Authors: ${(citation?.authors ?? []).join(", ")}`,
-      `DOI: ${citation?.doi ?? "-"}`,
-      `arXiv: ${citation?.arxivId ?? "-"}`,
-      `URLs: ${(citation?.urls ?? []).join(", ")}`,
-    ].join("\n");
+
   const result = await translateLibraryDocument({
     projectId,
     relativePath: selectedPath,
     targetLanguage,
     modelOverride: translationModelId ?? undefined,
   });
-  if (!result.relativePath?.trim()) {
-    throw new Error(t("library.viewer.translateFailed"));
-  }
-  if (!result.sourceKind && metadataHint.trim().length === 0) {
+
+  const translatedPdfRelativePath = String(
+    result.translatedPdfRelativePath || result.relativePath || "",
+  ).trim();
+  const sourcePdfRelativePath = String(result.sourcePdfRelativePath || "").trim();
+  if (!translatedPdfRelativePath || !sourcePdfRelativePath) {
     throw new Error(t("library.viewer.translateFailed"));
   }
 
@@ -54,7 +50,8 @@ export async function translateLibraryPaper(input: {
   ].filter((item) => item.length > 0);
 
   return {
-    relativePath: result.relativePath,
+    translatedPdfRelativePath,
+    sourcePdfRelativePath,
     detail: detailParts.join(" | "),
     targetLanguage,
   };

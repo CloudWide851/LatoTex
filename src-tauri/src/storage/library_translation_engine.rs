@@ -13,6 +13,59 @@ mod library_translation_translate;
 #[path = "library_translation/render.rs"]
 mod library_translation_render;
 
+const LIBRARY_WORKSPACE_PREFIX: &str = ".latotex/papers";
+
+fn to_library_workspace_relative(path: &str) -> String {
+    let normalized = path.trim().replace('\\', "/").trim_start_matches('/').to_string();
+    if normalized.is_empty() {
+        return LIBRARY_WORKSPACE_PREFIX.to_string();
+    }
+    if normalized == LIBRARY_WORKSPACE_PREFIX || normalized.starts_with(&format!("{LIBRARY_WORKSPACE_PREFIX}/")) {
+        return normalized;
+    }
+    format!("{LIBRARY_WORKSPACE_PREFIX}/{normalized}")
+}
+
+fn to_library_relative_from_workspace(path: &str) -> Result<String, String> {
+    let normalized = path.trim().replace('\\', "/").trim_start_matches('/').to_string();
+    if normalized == LIBRARY_WORKSPACE_PREFIX {
+        return Ok(String::new());
+    }
+    if let Some(stripped) = normalized.strip_prefix(&format!("{LIBRARY_WORKSPACE_PREFIX}/")) {
+        if stripped.trim().is_empty() {
+            return Err("translation.source_pdf_not_found".to_string());
+        }
+        return Ok(stripped.to_string());
+    }
+    if normalized.trim().is_empty() {
+        return Err("translation.source_pdf_not_found".to_string());
+    }
+    Ok(normalized)
+}
+
+fn resolve_translation_source_pdf_workspace(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<String, String> {
+    let preview = library_resolve_pdf_preview(db_path, project_id, relative_path)?;
+    preview
+        .relative_path
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| "translation.source_pdf_not_found".to_string())
+}
+
+pub(crate) fn translation_pdf_relative_path(source_pdf_relative: &str) -> String {
+    let normalized = source_pdf_relative.trim().replace('\\', "/").trim_start_matches('/').to_string();
+    let stem = Path::new(&normalized)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("paper");
+    let scoped = normalized.replace('/', "--");
+    let slug = slugify_name(&format!("{scoped}-{stem}"), "paper");
+    format!(".cache/translated/{slug}.translated.pdf")
+}
+
 fn persist_project_translation_glossary(
     project_root: &Path,
     source_relative_path: &str,
@@ -79,10 +132,14 @@ pub fn translate_library_document(
     let papers_root = library_root(&project_root);
     fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
 
+    let source_pdf_workspace_relative =
+        resolve_translation_source_pdf_workspace(db_path, project_id, relative_path)?;
+    let source_pdf_relative = to_library_relative_from_workspace(&source_pdf_workspace_relative)?;
+
     let extraction = library_translation_extract::extract_translation_source(
         &project_root,
         &papers_root,
-        relative_path,
+        &source_pdf_relative,
     )?;
     let layout_plan = library_translation_layout::build_layout_plan(&extraction);
 
@@ -115,6 +172,7 @@ pub fn translate_library_document(
         &extraction,
         &layout_plan,
         &translated,
+        &source_pdf_relative,
     )?;
 
     let _ = persist_project_translation_glossary(
@@ -128,14 +186,19 @@ pub fn translate_library_document(
     refresh_library_index(&project_root)?;
     touch_project_updated_at(db_path, project_id)?;
 
+    let translated_pdf_workspace_relative =
+        to_library_workspace_relative(&persist.primary_relative_path);
+
     Ok(crate::models::LibraryTranslateResponse {
-        relative_path: persist.primary_relative_path,
+        relative_path: translated_pdf_workspace_relative.clone(),
         source_kind: extraction.source_kind,
-        engine: "latotex.local.translation.pipeline.v3".to_string(),
-        artifact_paths: persist.artifact_paths,
+        engine: "latotex.local.translation.pipeline.v4.pdf".to_string(),
+        artifact_paths: Vec::new(),
         detected_language: extraction.detected_language,
         extraction_engine: extraction.extraction_engine,
         refined_by_search: translated.refined_by_search,
         glossary_count: translated.glossary.len() as u32,
+        translated_pdf_relative_path: translated_pdf_workspace_relative,
+        source_pdf_relative_path: source_pdf_workspace_relative,
     })
 }

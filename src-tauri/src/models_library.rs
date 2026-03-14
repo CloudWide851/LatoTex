@@ -39,6 +39,7 @@ pub struct LibraryPdfPreviewResponse {
     pub relative_path: Option<String>,
     pub source_url: Option<String>,
     pub cached: bool,
+    pub translated_relative_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,6 +87,8 @@ pub struct LibraryTranslateResponse {
     pub extraction_engine: Option<String>,
     pub refined_by_search: bool,
     pub glossary_count: u32,
+    pub translated_pdf_relative_path: String,
+    pub source_pdf_relative_path: String,
 }
 
 #[derive(Debug, Deserialize)]
