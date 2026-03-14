@@ -3,6 +3,8 @@ export const enUS_draw = {
   "draw.saved": "Drawing exported to project.",
   "draw.exporting": "Exporting from draw editor...",
   "draw.fileName": "File name",
+  "draw.newTab": "New Draw Tab",
+  "draw.noTabs": "No draw tabs yet. Click + to create one.",
   "draw.capture": "Capture",
   "draw.export": "Export",
   "draw.waiting": "Waiting for draw editor...",
@@ -11,3 +13,4 @@ export const enUS_draw = {
   "draw.pasted": "Image pasted into drawing.",
   "draw.startFailed": "Draw editor failed to start.",
 } as const;
+

@@ -1,14 +1,44 @@
-import type { ResourceNode } from "../../../shared/types/app";
+import type { FsAction, FsScope, ResourceNode } from "../../../shared/types/app";
 import { ExplorerTree } from "../ExplorerTree";
 import { LibraryUploadMenu } from "../LibraryUploadMenu";
 
 type TranslationFn = (key: any) => string;
+
+function filterPaperNodes(nodes: ResourceNode[]): ResourceNode[] {
+  const isPaperFile = (path: string) => /\.(pdf|bib)$/i.test(String(path ?? ""));
+  const walk = (node: ResourceNode): ResourceNode | null => {
+    if (node.kind === "file") {
+      return isPaperFile(node.relativePath) ? node : null;
+    }
+    const children = node.children
+      .map((child) => walk(child))
+      .filter((child): child is ResourceNode => Boolean(child));
+    if (children.length === 0) {
+      return null;
+    }
+    return {
+      ...node,
+      children,
+    };
+  };
+
+  return nodes
+    .map((node) => walk(node))
+    .filter((node): node is ResourceNode => Boolean(node));
+}
 
 export function LibraryExplorerPanel(props: {
   libraryTree: ResourceNode[];
   selectedLibraryPath: string | null;
   busy: boolean;
   onSelectLibraryPath: (path: string | null) => void;
+  onFsAction: (
+    scope: FsScope,
+    action: FsAction,
+    path: string,
+    targetPath?: string,
+    content?: string,
+  ) => Promise<void>;
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (link: string) => void;
@@ -20,6 +50,7 @@ export function LibraryExplorerPanel(props: {
     selectedLibraryPath,
     busy,
     onSelectLibraryPath,
+    onFsAction,
     onLibraryRescan,
     onLibraryImportPdf,
     onLibraryImportLink,
@@ -27,32 +58,41 @@ export function LibraryExplorerPanel(props: {
     t,
   } = props;
 
+  const filteredLibraryTree = filterPaperNodes(libraryTree);
+
   return (
     <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           {t("library.title")}
         </h2>
-        <LibraryUploadMenu
-          busy={busy}
-          onImportPdf={onLibraryImportPdf}
-          onImportLink={onLibraryImportLink}
-          onSyncZotero={onLibrarySyncZotero}
-          t={t}
-        />
+        <div className="flex items-center gap-1">
+          <button
+            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+            onClick={onLibraryRescan}
+            disabled={busy}
+          >
+            {t("explorer.action.rescan")}
+          </button>
+          <LibraryUploadMenu
+            busy={busy}
+            onImportPdf={onLibraryImportPdf}
+            onImportLink={onLibraryImportLink}
+            onSyncZotero={onLibrarySyncZotero}
+            t={t}
+          />
+        </div>
       </div>
       <div className="h-[calc(100%-32px)] overflow-auto pr-1">
         <ExplorerTree
-          mode="library"
-          tree={libraryTree}
+          mode="workspace"
+          tree={filteredLibraryTree}
           selectedPath={selectedLibraryPath}
-          allowRescan
           busy={busy}
           onSelect={onSelectLibraryPath}
-          onRescan={onLibraryRescan}
-          onImportPdf={onLibraryImportPdf}
-          onImportLink={onLibraryImportLink}
-          onAction={() => Promise.resolve()}
+          onAction={(action, path, targetPath, content) =>
+            onFsAction("library", action, path, targetPath, content)
+          }
           t={t}
         />
       </div>

@@ -250,7 +250,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return <section className="h-full min-h-0">{analysisPanel}</section>;
     }
     if (page === "draw") {
-      return <DrawWorkspace projectId={activeProjectId} t={t} />;
+      return <DrawWorkspace projectId={activeProjectId} selectedPath={selectedFile} onSelectPath={onSelectFile} t={t} />;
     }
     if (page === "library") {
       return renderNoProjectPanel();
@@ -267,9 +267,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
 
     return (
       <div className="grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
-        <div className="min-w-0 overflow-x-auto border-b border-slate-200 px-3 py-1.5 hide-scrollbar">
-          <div className="flex min-w-[420px] items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+        <div className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-1.5">
+          <div className="flex w-full min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}
@@ -293,7 +293,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               <MessageSquareMore className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onEditorUndo}
@@ -561,6 +561,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   selectedLibraryPath={selectedLibraryPath}
                   busy={busy}
                   onSelectLibraryPath={onSelectLibraryPath}
+                  onFsAction={onFsAction}
                   onLibraryRescan={onLibraryRescan}
                   onLibraryImportPdf={onLibraryImportPdf}
                   onLibraryImportLink={onLibraryImportLink}
@@ -592,3 +593,5 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
+
+

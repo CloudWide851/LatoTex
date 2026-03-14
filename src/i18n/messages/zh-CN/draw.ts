@@ -3,6 +3,8 @@ export const zhCN_draw = {
   "draw.saved": "绘图已导出到项目目录。",
   "draw.exporting": "正在从绘图编辑器导出...",
   "draw.fileName": "文件名",
+  "draw.newTab": "新建绘图标签",
+  "draw.noTabs": "暂无绘图标签，点击 + 新建。",
   "draw.capture": "捕获",
   "draw.export": "导出",
   "draw.waiting": "等待绘图编辑器启动...",
@@ -11,3 +13,4 @@ export const zhCN_draw = {
   "draw.pasted": "图片已粘贴到绘图中。",
   "draw.startFailed": "绘图编辑器启动失败。",
 } as const;
+

@@ -104,7 +104,7 @@ export function AnalysisWorkspace(props: {
         t={t}
       />
 
-      <div className="relative min-h-0 px-3 pb-32 pt-2">
+      <div className={`relative min-h-0 px-3 pt-2 ${tasks.length > 0 ? "pb-32" : "pb-3"}`}>
         {errorMessage ? (
           <div className="mb-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
             {errorMessage}
@@ -124,8 +124,10 @@ export function AnalysisWorkspace(props: {
             <span className="mt-1 text-xs">{t("analysis.emptyTaskHint")}</span>
           </button>
         ) : !activeRun ? (
-          <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
-            {running ? t("analysis.centerRunning") : t("analysis.blankHint")}
+          <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/70 p-4 motion-page-in">
+            <div className="flex h-[min(62vh,68%)] w-full max-w-4xl min-h-[220px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/90 text-sm text-slate-500 shadow-soft">
+              {running ? t("analysis.centerRunning") : t("analysis.blankHint")}
+            </div>
           </div>
         ) : (
           <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
@@ -220,3 +222,5 @@ export function AnalysisWorkspace(props: {
     </div>
   );
 }
+
+

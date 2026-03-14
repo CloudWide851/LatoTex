@@ -1,11 +1,17 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useMemo } from "react";
-import { Button } from "../../../components/ui/button";
-import { pickBackgroundImage, removeBackgroundImage } from "../../../shared/api/desktop";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/desktop";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
 import type { AppSettings } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
+
+type ThumbMenuState = {
+  path: string;
+  x: number;
+  y: number;
+} | null;
 
 function normalizeBackgroundPaths(settings: AppSettings): string[] {
   const fromList = (settings.uiPrefs?.backgroundImagePaths ?? [])
@@ -25,14 +31,24 @@ function clampBlur(value: number): number {
   return Math.max(4, Math.min(32, Math.round(value)));
 }
 
+function clampMenuPosition(x: number, y: number): { x: number; y: number } {
+  if (typeof window === "undefined") {
+    return { x, y };
+  }
+  return {
+    x: Math.max(8, Math.min(x, window.innerWidth - 180)),
+    y: Math.max(8, Math.min(y, window.innerHeight - 80)),
+  };
+}
+
 function BackgroundThumb(props: {
   path: string;
   active: boolean;
   onSelect: (path: string) => void;
-  onDelete: (path: string) => void;
+  onOpenMenu: (path: string, x: number, y: number) => void;
   t: TranslationFn;
 }) {
-  const { path, active, onSelect, onDelete, t } = props;
+  const { path, active, onSelect, onOpenMenu, t } = props;
   const previewUrl = useBackgroundImageObjectUrl(path);
   return (
     <button
@@ -45,7 +61,8 @@ function BackgroundThumb(props: {
       onClick={() => onSelect(path)}
       onContextMenu={(event) => {
         event.preventDefault();
-        onDelete(path);
+        const point = clampMenuPosition(event.clientX, event.clientY);
+        onOpenMenu(path, point.x, point.y);
       }}
       title={active ? t("settings.backgroundCurrent") : path}
       aria-label={active ? t("settings.backgroundCurrent") : path}
@@ -69,6 +86,22 @@ function BackgroundThumb(props: {
   );
 }
 
+function AddBackgroundCard(props: { onUpload: () => void; t: TranslationFn }) {
+  const { onUpload, t } = props;
+  return (
+    <button
+      type="button"
+      className="flex h-24 w-36 shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-slate-600 transition hover:border-primary-400 hover:bg-primary-50"
+      onClick={onUpload}
+      title={t("settings.backgroundUpload")}
+      aria-label={t("settings.backgroundUpload")}
+    >
+      <Plus className="h-5 w-5" />
+      <span className="mt-1 text-[11px]">{t("settings.backgroundUpload")}</span>
+    </button>
+  );
+}
+
 export function BackgroundImageCard(props: {
   settings: AppSettings;
   setSettings: Dispatch<SetStateAction<AppSettings | null>>;
@@ -78,10 +111,26 @@ export function BackgroundImageCard(props: {
   const paths = useMemo(() => normalizeBackgroundPaths(settings), [settings]);
   const activePath = String(settings.uiPrefs?.backgroundImagePath ?? "").trim() || paths[0] || "";
   const currentBlur = clampBlur(Number(settings.uiPrefs?.backgroundBlurPx ?? 18));
+  const [menuState, setMenuState] = useState<ThumbMenuState>(null);
 
   const setBackgroundState = (updater: (prev: AppSettings) => AppSettings) => {
     setSettings((prev) => (prev ? updater(prev) : prev));
   };
+
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      if (!menuState) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-bg-thumb-menu='true']")) {
+        return;
+      }
+      setMenuState(null);
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    return () => window.removeEventListener("mousedown", onMouseDown);
+  }, [menuState]);
 
   const handleUpload = async () => {
     try {
@@ -127,34 +176,31 @@ export function BackgroundImageCard(props: {
           },
         };
       });
+      setMenuState(null);
     })();
   };
 
   return (
     <div className="rounded-lg border border-slate-200 p-4">
-      <h3 className="mb-3 text-sm font-semibold text-slate-800">{t("settings.backgroundTitle")}</h3>
-      <div className="grid gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => void handleUpload()}>
-            {t("settings.backgroundUpload")}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() =>
-              setBackgroundState((prev) => ({
-                ...prev,
-                uiPrefs: {
-                  ...(prev.uiPrefs ?? {}),
-                  backgroundImagePath: "",
-                },
-              }))
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-800">{t("settings.backgroundTitle")}</h3>
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded border border-rose-300 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:opacity-40"
+          onClick={() => {
+            if (activePath) {
+              handleDelete(activePath);
             }
-          >
-            {t("settings.backgroundClear")}
-          </Button>
-        </div>
+          }}
+          disabled={!activePath}
+          title={t("settings.backgroundClear")}
+          aria-label={t("settings.backgroundClear")}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
 
+      <div className="grid gap-3">
         <div className="grid gap-2">
           <label className="text-xs font-medium text-slate-600">{t("settings.backgroundBlurTitle")}</label>
           <input
@@ -177,36 +223,51 @@ export function BackgroundImageCard(props: {
           <p className="text-xs text-slate-500">{t("settings.backgroundBlurHint").replace("{value}", String(currentBlur))}</p>
         </div>
 
-        {paths.length > 0 ? (
-          <div className="grid gap-2">
-            <p className="text-xs text-slate-500">{t("settings.backgroundGalleryHint")}</p>
-            <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
-              {paths.map((path) => (
-                <BackgroundThumb
-                  key={path}
-                  path={path}
-                  active={path === activePath}
-                  onSelect={(nextPath) =>
-                    setBackgroundState((prev) => ({
-                      ...prev,
-                      uiPrefs: {
-                        ...(prev.uiPrefs ?? {}),
-                        backgroundImagePath: nextPath,
-                      },
-                    }))
-                  }
-                  onDelete={handleDelete}
-                  t={t}
-                />
-              ))}
+        <div className="grid gap-2">
+          <p className="text-xs text-slate-500">{t("settings.backgroundGalleryHint")}</p>
+          <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+            {paths.map((path) => (
+              <BackgroundThumb
+                key={path}
+                path={path}
+                active={path === activePath}
+                onSelect={(nextPath) =>
+                  setBackgroundState((prev) => ({
+                    ...prev,
+                    uiPrefs: {
+                      ...(prev.uiPrefs ?? {}),
+                      backgroundImagePath: nextPath,
+                    },
+                  }))
+                }
+                onOpenMenu={(menuPath, x, y) => setMenuState({ path: menuPath, x, y })}
+                t={t}
+              />
+            ))}
+            <AddBackgroundCard onUpload={() => void handleUpload()} t={t} />
+          </div>
+          {paths.length === 0 ? (
+            <div className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500">
+              {t("settings.backgroundEmpty")}
             </div>
-          </div>
-        ) : (
-          <div className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500">
-            {t("settings.backgroundEmpty")}
-          </div>
-        )}
+          ) : null}
+        </div>
       </div>
+
+      {menuState ? (
+        <div
+          data-bg-thumb-menu="true"
+          className="fixed z-[220] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+          style={{ left: menuState.x, top: menuState.y }}
+        >
+          <button
+            className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
+            onClick={() => handleDelete(menuState.path)}
+          >
+            {t("settings.backgroundDelete")}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

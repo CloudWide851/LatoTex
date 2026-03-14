@@ -276,8 +276,8 @@ export function ExplorerTree(props: {
     return (
       <div
         ref={menuRef}
-        className="fixed z-50 min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
-        style={{ left: menu.x, top: menu.y }}
+        className="fixed z-[180] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+        style={{ left: Math.max(8, Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : menu.x) - 180)), top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 220)) }}
       >
         {items.map((item) => (
           <button
@@ -597,3 +597,4 @@ export function ExplorerTree(props: {
     </div>
   );
 }
+
