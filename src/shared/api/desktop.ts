@@ -8,6 +8,7 @@ import type {
   AgentRunStartAccepted,
   AgentModelBinding,
   AppBackgroundImage,
+  AppBackgroundImagePayload,
   AppSettings,
   BusyTexCacheInfo,
   CompileRecord,
@@ -413,6 +414,8 @@ export function updateSettings(input: {
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;
     backgroundImagePath?: string;
+    backgroundImagePaths?: string[];
+    backgroundBlurPx?: number;
   };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
@@ -421,6 +424,18 @@ export function updateSettings(input: {
 export function pickBackgroundImage(): Promise<AppBackgroundImage | null> {
   return invoke<AppBackgroundImage | null>("settings_pick_background_image");
 }
+
+export function readBackgroundImage(path: string): Promise<AppBackgroundImagePayload | null> {
+  return invoke<AppBackgroundImagePayload | null>("settings_read_background_image", {
+    input: { path },
+  });
+}
+export function removeBackgroundImage(path: string): Promise<Ack> {
+  return invoke<Ack>("settings_remove_background_image", {
+    input: { path },
+  });
+}
+
 
 export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> {
   return invoke<ProtocolHealth>("protocol_test", {

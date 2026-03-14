@@ -33,7 +33,7 @@ function normalizeTask(input: Partial<AnalysisTask>): AnalysisTask | null {
             : undefined;
           return {
             ...run,
-            reportHtml: typeof run.reportHtml === "string" ? run.reportHtml : undefined,
+            reportHtml: undefined,
             eventRunIds,
           };
         }) as any[]
@@ -121,3 +121,4 @@ export async function saveAnalysisTaskState(
   };
   await writeFile(projectId, TASK_STORE_PATH, `${JSON.stringify(lean, null, 2)}\n`);
 }
+

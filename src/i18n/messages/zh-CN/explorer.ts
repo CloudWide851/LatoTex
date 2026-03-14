@@ -1,0 +1,17 @@
+export const zhCN_explorer = {
+  "explorer.title": "资源管理器",
+  "explorer.action.newFile": "新建文件",
+  "explorer.action.newFolder": "新建文件夹",
+  "explorer.action.rename": "重命名",
+  "explorer.action.copy": "复制",
+  "explorer.action.move": "移动",
+  "explorer.action.delete": "移入回收站",
+  "explorer.action.revealInSystem": "在系统资源管理器中显示",
+  "explorer.action.openTerminal": "在终端中打开",
+  "explorer.action.rescan": "重新扫描",
+  "explorer.empty": "暂无文件。可右键或双击空白区域新建。",
+  "explorer.prompt.path": "路径",
+  "explorer.prompt.targetPath": "目标路径",
+  "explorer.deleteConfirmTitle": "确认移入回收站？",
+  "explorer.deleteDontAsk": "不再提示",
+} as const;

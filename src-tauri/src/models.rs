@@ -229,6 +229,20 @@ pub struct AppBackgroundImage {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BackgroundImageReadInput {
+    pub path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppBackgroundImagePayload {
+    pub path: String,
+    pub mime: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CompileRecordInput {
     pub project_id: String,
     pub main_file: String,
@@ -381,6 +395,8 @@ pub struct UiPrefs {
     pub feature_model_bindings: Option<FeatureModelBindings>,
     pub channels: Option<ChannelPrefs>,
     pub background_image_path: Option<String>,
+    pub background_image_paths: Option<Vec<String>>,
+    pub background_blur_px: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

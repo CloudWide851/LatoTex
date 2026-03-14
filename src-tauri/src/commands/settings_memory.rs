@@ -1,42 +1,30 @@
 use crate::models::RuntimeMemorySnapshot;
 use crate::state::AppState;
-use std::process::Command;
 use tauri::State;
+
 #[cfg(not(target_os = "windows"))]
 use std::fs;
 
 #[cfg(target_os = "windows")]
-fn sample_process_memory_bytes(process_id: u32) -> (u64, Option<u64>) {
-    let command = format!(
-        "Get-Process -Id {process_id} | Select-Object Id,WorkingSet64,PrivateMemorySize64 | ConvertTo-Json -Compress"
-    );
-    let output = Command::new("powershell")
-        .arg("-NoProfile")
-        .arg("-Command")
-        .arg(command)
-        .output();
-    let Ok(output) = output else {
-        return (0, None);
+fn sample_process_memory_bytes(_process_id: u32) -> (u64, Option<u64>) {
+    use windows_sys::Win32::System::ProcessStatus::{
+        K32GetProcessMemoryInfo,
+        PROCESS_MEMORY_COUNTERS_EX,
     };
-    if !output.status.success() {
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+    let mut counters: PROCESS_MEMORY_COUNTERS_EX = unsafe { std::mem::zeroed() };
+    let ok = unsafe {
+        K32GetProcessMemoryInfo(
+            GetCurrentProcess(),
+            &mut counters as *mut PROCESS_MEMORY_COUNTERS_EX as *mut _,
+            std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
+        )
+    };
+    if ok == 0 {
         return (0, None);
     }
-    let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if raw.is_empty() {
-        return (0, None);
-    }
-    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
-        Ok(value) => value,
-        Err(_) => return (0, None),
-    };
-    let rss = parsed
-        .get("WorkingSet64")
-        .and_then(|value| value.as_u64())
-        .unwrap_or(0);
-    let private = parsed
-        .get("PrivateMemorySize64")
-        .and_then(|value| value.as_u64());
-    (rss, private)
+    (counters.WorkingSetSize as u64, Some(counters.PrivateUsage as u64))
 }
 
 #[cfg(not(target_os = "windows"))]

@@ -1,0 +1,12 @@
+export const zhCN_topbar = {
+  "topbar.newProject": "新建项目",
+  "topbar.openFolder": "打开文件夹",
+  "topbar.selectProject": "选择项目",
+  "topbar.projectFilterPlaceholder": "筛选项目",
+  "topbar.noProjectMatches": "没有匹配的项目。",
+  "topbar.searchPlaceholder": "搜索项目内文件内容",
+  "topbar.searching": "正在搜索...",
+  "topbar.noSearchResults": "没有匹配结果。",
+  "topbar.clearSearch": "清空搜索",
+  "topbar.share": "共享",
+} as const;

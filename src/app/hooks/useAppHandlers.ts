@@ -40,6 +40,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     deleteIntent,
     deleteDontAskAgain,
     requestCloseBehaviorDecision,
+    setCloseDecisionBusy,
+    closeGuardUnlockedRef,
     setBusy,
     setTree,
     setLibraryTree,
@@ -115,22 +117,25 @@ export function useAppHandlers(params: UseAppHandlersParams) {
   const runWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {
     const appWindow = getCurrentWindow();
     if (behavior === "exit") {
-      await appWindow.close();
-      await runtimeLogWrite("INFO", "window closed");
+      closeGuardUnlockedRef.current = true;
+      try {
+        await appWindow.close();
+        await runtimeLogWrite("INFO", "window closed");
+      } catch (error) {
+        closeGuardUnlockedRef.current = false;
+        throw error;
+      }
       return;
     }
+    closeGuardUnlockedRef.current = false;
     await appWindow.hide();
     if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
       setToast({ type: "info", message: t("toast.minimizedToTray") });
     }
     await runtimeLogWrite("INFO", "window hidden to tray");
-  }, [setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
+  }, [closeGuardUnlockedRef, setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
 
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
-    if (!isTauriRuntime) {
-      setToast({ type: "error", message: t("toast.windowUnavailable") });
-      return;
-    }
     if (action === "toggle" && windowActionBusy) {
       return;
     }
@@ -177,7 +182,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setIsMaximized,
     setToast,
     setWindowActionBusy,
-    settings?.uiPrefs?.closeToTrayNoticeEnabled,
     t,
     windowActionBusy,
     requestCloseBehaviorDecision,
@@ -188,10 +192,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     behavior: "tray" | "exit",
     remember: boolean,
   ) => {
-    if (!isTauriRuntime) {
-      setToast({ type: "error", message: t("toast.windowUnavailable") });
-      return;
-    }
+    setCloseDecisionBusy(true);
     try {
       if (remember && settings) {
         const nextSettings: AppSettings = {
@@ -210,14 +211,19 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       await runWindowCloseBehavior(behavior);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      closeGuardUnlockedRef.current = false;
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       await runtimeLogWrite("ERROR", `window close decision failed: ${message}`);
+    } finally {
+      setCloseDecisionBusy(false);
     }
   }, [
+    closeGuardUnlockedRef,
     isTauriRuntime,
     locale,
     persistSettings,
     runWindowCloseBehavior,
+    setCloseDecisionBusy,
     setToast,
     settings,
     t,
@@ -576,3 +582,5 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
+
+

@@ -57,7 +57,11 @@ export function AppTopbar(props: {
   } = props;
 
   return (
-    <header className="app-topbar relative grid h-12 grid-cols-[minmax(0,1fr)_minmax(240px,clamp(300px,52vw,760px))_minmax(0,1fr)] items-center border-b px-3">
+    <header
+      className="app-topbar tauri-drag-region relative grid h-12 grid-cols-[minmax(0,1fr)_minmax(240px,clamp(300px,52vw,760px))_minmax(0,1fr)] items-center border-b px-3"
+      data-tauri-drag-region
+    >
+      <div className="absolute inset-x-0 top-0 h-2" data-tauri-drag-region />
       <div className="flex min-w-0 items-center gap-2 justify-self-start">
         <div
           className="brand-badge flex items-center gap-2 rounded-md px-2 py-1"
@@ -74,14 +78,17 @@ export function AppTopbar(props: {
       </div>
 
       <div className="mx-2 flex min-w-0 w-full items-center gap-2 justify-self-center">
-        <ProjectSwitcher
+        <div className="tauri-no-drag min-w-0">
+          <ProjectSwitcher
           projects={projects}
           activeProjectId={activeProjectId}
           disabled={projects.length === 0}
           onChange={onProjectChange}
           t={t}
         />
-        <ProjectSearch
+        </div>
+        <div className="tauri-no-drag min-w-0 flex-1">
+          <ProjectSearch
           query={projectSearchQuery}
           onQueryChange={onProjectSearchQueryChange}
           searching={projectSearchBusy}
@@ -93,8 +100,10 @@ export function AppTopbar(props: {
           disabled={!activeProjectId}
           t={t}
         />
+        </div>
         <button
-          className="app-topbar-field rounded p-1.5"
+          type="button"
+          className="app-topbar-field tauri-no-drag rounded p-1.5"
           onClick={onOpenFolder}
           disabled={busy}
           title={t("topbar.openFolder")}
@@ -106,16 +115,17 @@ export function AppTopbar(props: {
 
       <div className="flex items-center justify-self-end">
         <button
+          type="button"
           aria-label={t("window.minimize")}
-          className="app-topbar-btn flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
+          className="app-topbar-btn tauri-no-drag flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("minimize")}
-          disabled={!isTauriRuntime || windowActionBusy}
         >
           <Minus className="h-4 w-4" />
         </button>
         <button
+          type="button"
           aria-label={t("window.maximize")}
-          className="app-topbar-btn flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
+          className="app-topbar-btn tauri-no-drag flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("toggle")}
           disabled={!isTauriRuntime || windowActionBusy}
         >
@@ -126,10 +136,10 @@ export function AppTopbar(props: {
           )}
         </button>
         <button
+          type="button"
           aria-label={t("window.close")}
-          className="app-topbar-btn-close flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
+          className="app-topbar-btn-close tauri-no-drag flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("close")}
-          disabled={!isTauriRuntime || windowActionBusy}
         >
           <X className="h-4 w-4" />
         </button>

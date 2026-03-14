@@ -499,7 +499,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         prompt: normalizedPrompt,
         title: resultTitle,
         summary: resultSummary,
-        reportHtml: report.html,
         reportRelativePath: saved.reportRelativePath,
         assetRelativePaths: saved.assetRelativePaths,
         labels,
@@ -515,6 +514,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         createdAt: nowIso(),
         updatedAt: nowIso(),
       };
+      setActiveRunHtml(report.html);
       updateTaskById(task.id, (item) => ({
         ...upsertRun(item, runRecord),
         lastError: null,
@@ -593,3 +593,4 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+

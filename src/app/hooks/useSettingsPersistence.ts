@@ -76,6 +76,19 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
 
   const persistSettingsInternal = useCallback(
     async (nextSettings: AppSettings, draftApiKeys: Record<string, string>) => {
+      const normalizedBackgroundPaths = Array.from(
+        new Set(
+          (nextSettings.uiPrefs?.backgroundImagePaths ?? [])
+            .map((item) => String(item ?? "").trim())
+            .filter((item) => item.length > 0),
+        ),
+      );
+      const preferredBackgroundPath = String(nextSettings.uiPrefs?.backgroundImagePath ?? "").trim();
+      const normalizedBackgroundPath = preferredBackgroundPath || normalizedBackgroundPaths[0] || "";
+      const rawBackgroundBlur = Number(nextSettings.uiPrefs?.backgroundBlurPx ?? 18);
+      const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
+        ? Math.max(4, Math.min(32, rawBackgroundBlur))
+        : 18;
       const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
@@ -104,7 +117,9 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           panelLayout: nextSettings.uiPrefs?.panelLayout,
           featureModelBindings: nextSettings.uiPrefs?.featureModelBindings,
           channels: nextSettings.uiPrefs?.channels,
-          backgroundImagePath: nextSettings.uiPrefs?.backgroundImagePath,
+          backgroundImagePath: normalizedBackgroundPath,
+          backgroundImagePaths: normalizedBackgroundPaths,
+          backgroundBlurPx: normalizedBackgroundBlur,
         },
       });
 

@@ -5,7 +5,6 @@ import {
   Globe,
   Languages,
   Library,
-  MessageSquareMore,
   Palette,
   PenTool,
   SearchCode,
@@ -53,11 +52,10 @@ export const FIXED_AGENT_ROLES = [
 
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
-  key: "nav.latex" | "nav.chat" | "nav.analysis" | "nav.draw" | "nav.library" | "nav.git" | "nav.settings";
+  key: "nav.latex" | "nav.analysis" | "nav.draw" | "nav.library" | "nav.git" | "nav.settings";
   icon: typeof FileCode2;
 }> = [
   { id: "latex", key: "nav.latex", icon: FileCode2 },
-  { id: "chat", key: "nav.chat", icon: MessageSquareMore },
   { id: "analysis", key: "nav.analysis", icon: SearchCode },
   { id: "draw", key: "nav.draw", icon: PenTool },
   { id: "library", key: "nav.library", icon: Library },

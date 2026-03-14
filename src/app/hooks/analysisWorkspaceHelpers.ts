@@ -331,8 +331,21 @@ export function deriveSections(payload: AgentAnalysisPayload): Array<{ title: st
   return out;
 }
 
+function toLeanRun(run: AnalysisTaskRun): AnalysisTaskRun {
+  return {
+    ...run,
+    reportHtml: undefined,
+  };
+}
+
 export function upsertRun(task: AnalysisTask, run: AnalysisTaskRun): AnalysisTask {
-  const runs = [run, ...task.runs.filter((item) => item.id !== run.id)].slice(0, 40);
+  const leanRun = toLeanRun(run);
+  const runs = [
+    leanRun,
+    ...task.runs
+      .filter((item) => item.id !== run.id)
+      .map((item) => toLeanRun(item)),
+  ].slice(0, 40);
   return {
     ...task,
     activeRunId: run.id,
@@ -340,5 +353,4 @@ export function upsertRun(task: AnalysisTask, run: AnalysisTaskRun): AnalysisTas
     updatedAt: nowIso(),
   };
 }
-
 

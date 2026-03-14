@@ -94,6 +94,81 @@ body::before {
   animation: stars-twinkle 5.4s ease-in-out infinite;
 }
 
+.tauri-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.tauri-no-drag,
+.tauri-no-drag * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.wallpaper-enabled {
+  --wallpaper-blur: 18px;
+}
+
+.wallpaper-enabled::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(rgba(248, 250, 252, 0.18), rgba(248, 250, 252, 0.24));
+}
+
+[data-theme="dark"] .wallpaper-enabled::before {
+  background: linear-gradient(rgba(15, 23, 42, 0.34), rgba(2, 6, 23, 0.5));
+}
+
+.wallpaper-enabled .app-topbar {
+  background-color: rgba(15, 23, 42, 0.66);
+  border-color: rgba(148, 163, 184, 0.32);
+  backdrop-filter: blur(calc(var(--wallpaper-blur) + 4px));
+  -webkit-backdrop-filter: blur(calc(var(--wallpaper-blur) + 4px));
+}
+
+.wallpaper-enabled .app-topbar-field {
+  background-color: rgba(30, 41, 59, 0.56);
+  border-color: rgba(148, 163, 184, 0.34);
+  backdrop-filter: blur(var(--wallpaper-blur));
+  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
+}
+
+.wallpaper-enabled .brand-badge {
+  background-color: rgba(255, 255, 255, 0.76);
+  border-color: rgba(148, 163, 184, 0.34);
+  backdrop-filter: blur(var(--wallpaper-blur));
+  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
+}
+
+.wallpaper-enabled .bg-white,
+.wallpaper-enabled .bg-white\/95,
+.wallpaper-enabled .bg-white\/90,
+.wallpaper-enabled .bg-white\/80,
+.wallpaper-enabled .bg-slate-50,
+.wallpaper-enabled .bg-slate-50\/80,
+.wallpaper-enabled .bg-slate-100 {
+  background-color: rgba(248, 250, 252, 0.58) !important;
+  backdrop-filter: blur(var(--wallpaper-blur));
+  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
+}
+
+[data-theme="dark"] .wallpaper-enabled .bg-white,
+[data-theme="dark"] .wallpaper-enabled .bg-white\/95,
+[data-theme="dark"] .wallpaper-enabled .bg-white\/90,
+[data-theme="dark"] .wallpaper-enabled .bg-white\/80,
+[data-theme="dark"] .wallpaper-enabled .bg-slate-50,
+[data-theme="dark"] .wallpaper-enabled .bg-slate-50\/80,
+[data-theme="dark"] .wallpaper-enabled .bg-slate-100 {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+.wallpaper-enabled .border-slate-200,
+.wallpaper-enabled .border-slate-300 {
+  border-color: rgba(148, 163, 184, 0.34) !important;
+}
 .app-topbar {
   background-color: var(--topbar-bg);
   border-color: var(--topbar-border);

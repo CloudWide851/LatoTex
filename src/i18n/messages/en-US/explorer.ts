@@ -1,0 +1,17 @@
+export const enUS_explorer = {
+  "explorer.title": "Resources",
+  "explorer.action.newFile": "New File",
+  "explorer.action.newFolder": "New Folder",
+  "explorer.action.rename": "Rename",
+  "explorer.action.copy": "Copy",
+  "explorer.action.move": "Move",
+  "explorer.action.delete": "Delete to Recycle Bin",
+  "explorer.action.revealInSystem": "Show in File Explorer",
+  "explorer.action.openTerminal": "Open in Terminal",
+  "explorer.action.rescan": "Rescan",
+  "explorer.empty": "No files. Right-click or double-click blank area to create one.",
+  "explorer.prompt.path": "Path",
+  "explorer.prompt.targetPath": "Target path",
+  "explorer.deleteConfirmTitle": "Move to recycle bin?",
+  "explorer.deleteDontAsk": "Do not ask again",
+} as const;

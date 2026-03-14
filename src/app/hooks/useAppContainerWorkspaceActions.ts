@@ -80,14 +80,10 @@ export function useAppContainerWorkspaceActions(params: any) {
       "closeWindow",
       editorTabsRef.current.map((tab: any) => tab.path),
       async () => {
-        closeGuardUnlockedRef.current = true;
         await handleWindowControl("close");
-        window.setTimeout(() => {
-          closeGuardUnlockedRef.current = false;
-        }, 400);
       },
     );
-  }, [handleWindowControl, requestUnsavedGuard, editorTabsRef, closeGuardUnlockedRef]);
+  }, [handleWindowControl, requestUnsavedGuard, editorTabsRef]);
 
   const handleInitProjectFromFolderWithGuard = useCallback(() => {
     requestUnsavedGuard(
@@ -146,6 +142,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       return;
     }
     let unlisten: (() => void) | undefined;
+    let disposed = false;
     getCurrentWindow()
       .onCloseRequested((event) => {
         if (closeGuardUnlockedRef.current) {
@@ -159,15 +156,19 @@ export function useAppContainerWorkspaceActions(params: any) {
           return;
         }
         requestUnsavedGuard("closeWindow", candidatePaths, async () => {
-          closeGuardUnlockedRef.current = true;
           await handleWindowControl("close");
         });
       })
       .then((off) => {
+        if (disposed) {
+          off();
+          return;
+        }
         unlisten = off;
       })
       .catch(() => undefined);
     return () => {
+      disposed = true;
       unlisten?.();
     };
   }, [collectDirtyPaths, handleWindowControl, isTauriRuntime, requestUnsavedGuard, editorTabsRef, closeGuardUnlockedRef]);
@@ -569,3 +570,4 @@ export function useAppContainerWorkspaceActions(params: any) {
     handleModelModalSubmit,
   };
 }
+

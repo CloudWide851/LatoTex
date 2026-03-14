@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
@@ -134,6 +134,8 @@ export function WorkspaceShareControl(props: {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [copyDone, setCopyDone] = useState(false);
   const [passwordCopyDone, setPasswordCopyDone] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const lastWidthRef = useRef<number>(0);
   const isTexSelected = Boolean(selectedFile && selectedFile.toLowerCase().endsWith(".tex"));
   const sessionExists = Boolean(shareSession?.sessionId);
   const activeMode = normalizeMode(shareSession?.mode, shareMode);
@@ -177,6 +179,29 @@ export function WorkspaceShareControl(props: {
     return () => window.clearTimeout(timer);
   }, [copyDone]);
   useEffect(() => {
+    const node = rootRef.current;
+    if (!node) {
+      return;
+    }
+    lastWidthRef.current = node.getBoundingClientRect().width;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      const width = entry.contentRect.width;
+      if (Math.abs(width - lastWidthRef.current) > 2) {
+        lastWidthRef.current = width;
+        if (panelOpen) {
+          setPanelOpen(false);
+        }
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [panelOpen]);
+
+  useEffect(() => {
     if (!passwordCopyDone) {
       return;
     }
@@ -203,7 +228,7 @@ export function WorkspaceShareControl(props: {
       : "bg-slate-400";
 
   return (
-    <div className="relative">
+    <div ref={rootRef} className="relative">
       <button
         className={`relative rounded border px-2 py-1.5 text-xs transition disabled:opacity-60 ${
           sessionExists

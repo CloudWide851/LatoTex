@@ -111,6 +111,8 @@ export function SettingsPanel(props: {
       busytexCachePolicy: "install-first",
       previewDefaultZoom: 1,
       panelLayout: DEFAULT_PANEL_LAYOUT,
+      backgroundImagePaths: [],
+      backgroundBlurPx: 18,
     },
   };
 

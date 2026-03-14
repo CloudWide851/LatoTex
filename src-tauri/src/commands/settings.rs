@@ -1,5 +1,5 @@
 use crate::models::{
-    Ack, AppBackgroundImage, AppSettings, ModelApiKeyGetInput, ModelApiKeySetInput, ModelApiKeyValue,
+    Ack, AppSettings, ModelApiKeyGetInput, ModelApiKeySetInput, ModelApiKeyValue,
     ModelDraftTestInput, ModelTestInput, ModelTestResult, ProtocolHealth, ProtocolTestInput,
     RuntimeLogClearInput, RuntimeLogEntry, RuntimeLogInfo, RuntimeLogReadInput,
     RuntimeLogReadResponse, RuntimeLogWriteInput, SettingsUpdateInput,
@@ -13,14 +13,19 @@ use reqwest::StatusCode;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
 use std::time::Duration;
 use tauri::State;
-use rfd::FileDialog;
 mod settings_keysave;
+#[path = "settings_background.rs"]
+mod settings_background;
 #[path = "settings_memory.rs"]
 mod settings_memory;
 pub use settings_keysave::model_api_key_save_verified;
+pub use settings_background::{
+    settings_pick_background_image,
+    settings_read_background_image,
+    settings_remove_background_image,
+};
 pub use settings_memory::runtime_memory_snapshot;
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
@@ -34,43 +39,6 @@ pub fn settings_update(
 ) -> Result<AppSettings, String> {
     state.log("INFO", "settings_update");
     storage::update_settings(&state.db_path, &state.runtime_root, input)
-}
-fn normalized_image_extension(path: &Path) -> &'static str {
-    match path
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .unwrap_or_default()
-        .to_ascii_lowercase()
-        .as_str()
-    {
-        "jpg" | "jpeg" => "jpg",
-        "webp" => "webp",
-        "bmp" => "bmp",
-        _ => "png",
-    }
-}
-#[tauri::command]
-pub fn settings_pick_background_image(
-    state: State<'_, AppState>,
-) -> Result<Option<AppBackgroundImage>, String> {
-    let selected = FileDialog::new()
-        .add_filter("Image", &["png", "jpg", "jpeg", "webp", "bmp"])
-        .pick_file();
-    let Some(source) = selected else {
-        return Ok(None);
-    };
-    let wallpapers_dir = state.app_data_dir.join("wallpapers");
-    fs::create_dir_all(&wallpapers_dir).map_err(|e| e.to_string())?;
-    let ext = normalized_image_extension(&source);
-    let target = wallpapers_dir.join(format!("wallpaper-{}.{}", uuid::Uuid::new_v4(), ext));
-    fs::copy(&source, &target).map_err(|e| e.to_string())?;
-    state.log(
-        "INFO",
-        &format!("settings_pick_background_image: {}", target.to_string_lossy()),
-    );
-    Ok(Some(AppBackgroundImage {
-        path: target.to_string_lossy().to_string(),
-    }))
 }
 #[tauri::command]
 pub fn protocol_test(
@@ -572,3 +540,9 @@ pub fn runtime_log_clear_current_session(
         message: "cleared".to_string(),
     })
 }
+
+
+
+
+
+

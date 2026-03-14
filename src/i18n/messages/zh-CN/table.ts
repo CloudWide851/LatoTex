@@ -1,0 +1,15 @@
+export const zhCN_table = {
+  "table.csv.addRow": "新增行",
+  "table.csv.addColumn": "新增列",
+  "table.csv.parseError": "CSV 解析提示",
+  "table.excel.loading": "正在加载工作簿...",
+  "table.excel.loadError": "工作簿加载失败",
+  "table.excel.save": "保存工作簿",
+  "table.excel.saving": "保存中...",
+  "table.excel.saved": "工作簿已保存。",
+  "table.excel.saveError": "工作簿保存失败",
+  "table.excel.readonlyXls": "旧版 .xls 仅支持预览，请先另存为 .xlsx 再编辑。",
+  "table.excel.noSheets": "未检测到工作表。",
+  "table.excel.usePreviewSave": "请在预览面板点击“保存工作簿”保存 Excel 修改。",
+  "table.excel.truncated": "检测到超大工作表，预览为性能原因已限制显示范围。",
+} as const;

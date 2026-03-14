@@ -1,9 +1,9 @@
-import { Suspense, lazy } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { Suspense, lazy, type CSSProperties } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
+import { useBackgroundImageObjectUrl } from "../hooks/useBackgroundImageObjectUrl";
 
 const AppWorkspaceShell = lazy(async () => {
   const module = await import("./AppWorkspaceShell");
@@ -149,6 +149,7 @@ export function AppContainerView(props: any) {
     handleUnsavedDialogCancel,
     closeBehaviorDialogOpen,
     closeBehaviorRememberChoice,
+    closeBehaviorDialogBusy,
     setCloseBehaviorRememberChoice,
     handleCloseBehaviorDialogCancel,
     handleCloseBehaviorDialogResolve,
@@ -163,27 +164,34 @@ export function AppContainerView(props: any) {
     || settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "task")
       ?.modelId
     || null;
-  const backgroundPath = String(settings?.uiPrefs?.backgroundImagePath ?? "").trim();
-  const backgroundUrl = backgroundPath
-    ? (() => {
-        try {
-          return convertFileSrc(backgroundPath);
-        } catch {
-          return backgroundPath;
-        }
-      })()
-    : "";
+  const rawBackgroundPaths: string[] = Array.isArray(settings?.uiPrefs?.backgroundImagePaths)
+    ? (settings.uiPrefs.backgroundImagePaths as string[])
+    : [];
+  const normalizedBackgroundPaths: string[] = Array.from(
+    new Set(
+      rawBackgroundPaths
+        .map((item: string) => String(item ?? "").trim())
+        .filter((item: string) => item.length > 0),
+    ),
+  );
+  const selectedBackgroundPath = String(settings?.uiPrefs?.backgroundImagePath ?? "").trim();
+  const backgroundPath = selectedBackgroundPath || normalizedBackgroundPaths[0] || "";
+  const backgroundUrl = useBackgroundImageObjectUrl(backgroundPath);
+  const rawBlur = Number(settings?.uiPrefs?.backgroundBlurPx ?? 18);
+  const backgroundBlurPx = Number.isFinite(rawBlur) ? Math.max(4, Math.min(32, rawBlur)) : 18;
   const appBackgroundStyle = backgroundUrl
-    ? {
-        backgroundImage: `linear-gradient(rgba(248,250,252,0.88), rgba(248,250,252,0.88)), url("${backgroundUrl}")`,
+    ? ({
+        backgroundImage: `url("${backgroundUrl}")`,
         backgroundSize: "cover",
         backgroundPosition: "center",
-      }
+        backgroundRepeat: "no-repeat",
+        ["--wallpaper-blur" as string]: `${backgroundBlurPx}px`,
+      } as CSSProperties)
     : undefined;
 
   return (
     <div
-      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""}`}
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
       style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">
@@ -364,7 +372,7 @@ export function AppContainerView(props: any) {
         onIntegrityRepair={handleIntegrityRepair}
         closeBehaviorDialogOpen={closeBehaviorDialogOpen}
         closeBehaviorRemember={closeBehaviorRememberChoice}
-        closeBehaviorDialogBusy={windowActionBusy}
+        closeBehaviorDialogBusy={closeBehaviorDialogBusy}
         onCloseBehaviorRememberChange={setCloseBehaviorRememberChoice}
         onCloseBehaviorCancel={handleCloseBehaviorDialogCancel}
         onCloseBehaviorConfirm={handleCloseBehaviorDialogResolve}
@@ -388,3 +396,4 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+

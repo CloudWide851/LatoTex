@@ -22,12 +22,14 @@ import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hook
 import { useShareSession } from "./hooks/useShareSession";
 import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
 import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
+import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
   const [integrityIssue, setIntegrityIssue] = useState<ProjectIntegrityIssue | null>(null);
   const [closeBehaviorDialogOpen, setCloseBehaviorDialogOpen] = useState(false);
   const [closeBehaviorRememberChoice, setCloseBehaviorRememberChoice] = useState(false);
+  const [closeDecisionBusy, setCloseDecisionBusy] = useState(false);
   const s = useAppContainerState(t);
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
@@ -53,7 +55,6 @@ export function AppContainer() {
     lastLoadedProjectIdRef: s.lastLoadedProjectIdRef,
     setIntegrityIssue,
     setGitAvailability: s.setGitAvailability,
-    setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
     setGitStatusState: s.setGitStatusState,
     setGitBranchesState: s.setGitBranchesState,
     setGitCommits: s.setGitCommits,
@@ -61,6 +62,7 @@ export function AppContainer() {
     setSelectedFile: s.setSelectedFile,
     setLibraryTree: s.setLibraryTree,
     setSelectedLibraryPath: s.setSelectedLibraryPath,
+    setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
   });
 
   const { persistSettings, savePanelLayout, cancelPendingAutoSave } = useSettingsPersistence({
@@ -130,8 +132,11 @@ export function AppContainer() {
     deleteDontAskAgain: s.deleteDontAskAgain,
     requestCloseBehaviorDecision: () => {
       setCloseBehaviorRememberChoice(false);
+      setCloseDecisionBusy(false);
       setCloseBehaviorDialogOpen(true);
     },
+    setCloseDecisionBusy,
+    closeGuardUnlockedRef: s.closeGuardUnlockedRef,
     setBusy: s.setBusy,
     setTree: s.setTree,
     setLibraryTree: s.setLibraryTree,
@@ -211,8 +216,6 @@ export function AppContainer() {
     toast: s.toast,
     gitDownloadTaskId: s.gitDownloadTaskId,
     gitInstallerLaunched: s.gitInstallerLaunched,
-    suppressAutoGitInstall: s.suppressAutoGitInstall,
-    gitAvailabilityInstalled: s.gitAvailability?.installed,
     settingsTheme: s.settings?.uiPrefs?.theme as ThemeMode | undefined,
     busytexCachePolicy: s.settings?.uiPrefs?.busytexCachePolicy as
       | "install-first"
@@ -221,7 +224,6 @@ export function AppContainer() {
     loadProjectData,
     refreshGitWorkspace,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
-    handleGitInstallerDownloadStart: handlers.handleGitInstallerDownloadStart,
     setStatus: s.setStatus,
     setProjects: s.setProjects,
     setSettings: s.setSettings,
@@ -247,9 +249,13 @@ export function AppContainer() {
     setPendingRevealLine: s.setPendingRevealLine,
     setGitDownloadState: s.setGitDownloadState,
     setGitDownloadTaskId: s.setGitDownloadTaskId,
-    setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
     getCachedTextContent,
     onTextFileLoaded: handleTextFileLoaded,
+  });
+
+  useRuntimeMemoryGuard({
+    isTauriRuntime,
+    setEvents: s.setEvents,
   });
 
   useEditorDirtySyncEffect({
@@ -385,7 +391,6 @@ export function AppContainer() {
     handleGenerateGitSummary: workspaceActions.handleGenerateGitSummary,
     setBusy: s.setBusy,
     setGitInitProgress: s.setGitInitProgress,
-    handleGitInstallerDownloadStart: handlers.handleGitInstallerDownloadStart,
     handleGitInstallerCancel: handlers.handleGitInstallerCancel,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
     openWorkspaceFile: workspaceActions.openWorkspaceFile,
@@ -400,13 +405,17 @@ export function AppContainer() {
 
   const handleCloseBehaviorDialogCancel = useCallback(() => {
     setCloseBehaviorDialogOpen(false);
+    setCloseDecisionBusy(false);
     setCloseBehaviorRememberChoice(false);
   }, []);
 
   const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
+    if (closeDecisionBusy) {
+      return;
+    }
     setCloseBehaviorDialogOpen(false);
     void handlers.handleWindowCloseDecision(behavior, closeBehaviorRememberChoice);
-  }, [closeBehaviorRememberChoice, handlers]);
+  }, [closeBehaviorRememberChoice, closeDecisionBusy, handlers]);
 
   return (
     <AppContainerView
@@ -548,9 +557,14 @@ export function AppContainer() {
       handleUnsavedDialogCancel={unsaved.handleUnsavedDialogCancel}
       closeBehaviorDialogOpen={closeBehaviorDialogOpen}
       closeBehaviorRememberChoice={closeBehaviorRememberChoice}
+      closeBehaviorDialogBusy={closeDecisionBusy}
       setCloseBehaviorRememberChoice={setCloseBehaviorRememberChoice}
       handleCloseBehaviorDialogCancel={handleCloseBehaviorDialogCancel}
       handleCloseBehaviorDialogResolve={handleCloseBehaviorDialogResolve}
     />
   );
 }
+
+
+
+

@@ -1,4 +1,4 @@
-export type WorkspacePage = "latex" | "chat" | "analysis" | "draw" | "library" | "git" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -214,6 +214,8 @@ export type AppSettings = {
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;
     backgroundImagePath?: string;
+    backgroundImagePaths?: string[];
+    backgroundBlurPx?: number;
   };
 };
 
@@ -286,6 +288,12 @@ export type RuntimeLogReadResponse = {
 
 export type AppBackgroundImage = {
   path: string;
+};
+
+export type AppBackgroundImagePayload = {
+  path: string;
+  mime: string;
+  bytes: number[];
 };
 
 export type RuntimeLogReadFilters = {

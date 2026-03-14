@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState } from "react";
-import { enUS, type MessageKey } from "./messages/en-US";
-import { zhCN } from "./messages/zh-CN";
+import { enUS, type MessageKey } from "./messages/en-US/index";
+import { zhCN } from "./messages/zh-CN/index";
 
 export type Locale = "en-US" | "zh-CN";
 

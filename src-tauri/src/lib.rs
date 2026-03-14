@@ -30,7 +30,7 @@ use commands::projects::{
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test, model_test_draft, protocol_test, runtime_log_clear_current_session,
-    runtime_log_info, runtime_log_read, runtime_log_write, runtime_memory_snapshot, settings_get, settings_pick_background_image, settings_update,
+    runtime_log_info, runtime_log_read, runtime_log_write, runtime_memory_snapshot, settings_get, settings_pick_background_image, settings_read_background_image, settings_remove_background_image, settings_update,
 };
 use commands::swarm::{agent_run, agent_run_cancel, agent_run_start, events_subscribe, latex_compile_record};
 use tauri::{
@@ -140,6 +140,8 @@ pub fn run() {
             settings_get,
             settings_update,
             settings_pick_background_image,
+            settings_read_background_image,
+            settings_remove_background_image,
             protocol_test,
             model_test,
             model_test_draft,

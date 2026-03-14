@@ -6,7 +6,6 @@ import {
   getEvents,
   getHealthCheck,
   getSettings,
-  gitDownloadStatus,
   listProjects,
   readFile,
   readFileBinary,
@@ -25,6 +24,8 @@ import {
   normalizeAgentBindings,
   type ThemeMode,
 } from "../app-config";
+import { appendEventsWithBudget } from "./eventMemoryBudget";
+import { useGitRuntimeEffects } from "./useGitRuntimeEffects";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -43,14 +44,11 @@ export function useAppEffects(params: {
   toast: { type: "info" | "error"; message: string } | null;
   gitDownloadTaskId: string | null;
   gitInstallerLaunched: boolean;
-  suppressAutoGitInstall: boolean;
-  gitAvailabilityInstalled: boolean | null | undefined;
   settingsTheme: ThemeMode | undefined;
   busytexCachePolicy: "install-first" | "appdata-only" | undefined;
   loadProjectData: (projectId: string) => Promise<void>;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   handleGitRunInstaller: () => Promise<void>;
-  handleGitInstallerDownloadStart: () => Promise<void>;
   setStatus: (value: "ready" | "offline") => void;
   setProjects: (value: any) => void;
   setSettings: (value: any) => void;
@@ -76,7 +74,6 @@ export function useAppEffects(params: {
   setPendingRevealLine: (value: number | null) => void;
   setGitDownloadState: (value: any) => void;
   setGitDownloadTaskId: (value: string | null) => void;
-  setSuppressAutoGitInstall: (value: boolean) => void;
   getCachedTextContent?: (relativePath: string) => string | null;
   onTextFileLoaded?: (relativePath: string, content: string) => void;
 }) {
@@ -93,14 +90,11 @@ export function useAppEffects(params: {
     toast,
     gitDownloadTaskId,
     gitInstallerLaunched,
-    suppressAutoGitInstall,
-    gitAvailabilityInstalled,
     settingsTheme,
     busytexCachePolicy,
     loadProjectData,
     refreshGitWorkspace,
     handleGitRunInstaller,
-    handleGitInstallerDownloadStart,
     setStatus,
     setProjects,
     setSettings,
@@ -126,7 +120,6 @@ export function useAppEffects(params: {
     setPendingRevealLine,
     setGitDownloadState,
     setGitDownloadTaskId,
-    setSuppressAutoGitInstall,
     getCachedTextContent,
     onTextFileLoaded,
   } = params;
@@ -168,6 +161,22 @@ export function useAppEffects(params: {
         runtimeLogInfo(),
       ]);
       setProjects(projectList);
+      const backgroundList = Array.from(
+        new Set(
+          (appSettings.uiPrefs?.backgroundImagePaths ?? [])
+            .map((item) => String(item ?? "").trim())
+            .filter((item) => item.length > 0),
+        ),
+      );
+      const legacyBackground = String(appSettings.uiPrefs?.backgroundImagePath ?? "").trim();
+      if (legacyBackground && !backgroundList.includes(legacyBackground)) {
+        backgroundList.unshift(legacyBackground);
+      }
+      const activeBackgroundPath = legacyBackground || backgroundList[0] || "";
+      const rawBackgroundBlur = Number(appSettings.uiPrefs?.backgroundBlurPx ?? 18);
+      const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
+        ? Math.max(4, Math.min(32, rawBackgroundBlur))
+        : 18;
       const normalizedSettings: AppSettings = {
         ...appSettings,
         agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
@@ -181,6 +190,9 @@ export function useAppEffects(params: {
             appSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
           busytexCacheDir: appSettings.uiPrefs?.busytexCacheDir,
           previewDefaultZoom: appSettings.uiPrefs?.previewDefaultZoom ?? 1,
+          backgroundImagePath: activeBackgroundPath,
+          backgroundImagePaths: backgroundList,
+          backgroundBlurPx: normalizedBackgroundBlur,
           panelLayout: {
             ...DEFAULT_PANEL_LAYOUT,
             ...(appSettings.uiPrefs?.panelLayout ?? {}),
@@ -375,8 +387,8 @@ export function useAppEffects(params: {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     const hasLiveRun = Boolean(agentRunId) || analysisRunning;
-    const needsWarmPolling = page === "analysis" || page === "latex" || page === "chat";
-    const shouldStoreEvents = hasLiveRun || page === "latex" || page === "analysis" || page === "chat";
+    const needsWarmPolling = page === "analysis" || page === "latex";
+    const shouldStoreEvents = hasLiveRun || page === "latex" || page === "analysis";
 
     const schedule = (delay: number) => {
       if (cancelled) {
@@ -416,7 +428,7 @@ export function useAppEffects(params: {
         );
         if (batch.events.length > 0) {
           if (shouldStoreEvents) {
-            setEvents((prev: SwarmEvent[]) => [...prev.slice(-220), ...batch.events]);
+            setEvents((prev: SwarmEvent[]) => appendEventsWithBudget(prev, batch.events));
           }
           cursorRef.current = batch.nextCursor;
           setCursor(batch.nextCursor);
@@ -462,12 +474,17 @@ export function useAppEffects(params: {
     }
     let unlisten: (() => void) | null = null;
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
     const syncWindowState = async () => {
       const appWindow = getCurrentWindow();
       const initialMaximized = await appWindow.isMaximized();
+      if (disposed) {
+        return;
+      }
       isMaximizedRef.current = initialMaximized;
       setIsMaximized(initialMaximized);
-      unlisten = await appWindow.onResized(async () => {
+      const off = await appWindow.onResized(async () => {
         if (resizeTimer) {
           clearTimeout(resizeTimer);
         }
@@ -480,10 +497,16 @@ export function useAppEffects(params: {
           }
         }, 90);
       });
+      if (disposed) {
+        off();
+        return;
+      }
+      unlisten = off;
     };
 
     syncWindowState().catch(() => undefined);
     return () => {
+      disposed = true;
       if (resizeTimer) {
         clearTimeout(resizeTimer);
       }
@@ -539,89 +562,18 @@ export function useAppEffects(params: {
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
   }, []);
-
-  useEffect(() => {
-    if (page !== "git" || !activeProjectId) {
-      return;
-    }
-    refreshGitWorkspace(activeProjectId).catch(() => undefined);
-  }, [activeProjectId, page, refreshGitWorkspace]);
-
-  useEffect(() => {
-    if (!gitDownloadTaskId) {
-      return;
-    }
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let cancelled = false;
-    let inFlight = false;
-    const schedule = (ms: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => {
-        void poll();
-      }, ms);
-    };
-    const poll = async () => {
-      if (cancelled || inFlight) {
-        schedule(1100);
-        return;
-      }
-      inFlight = true;
-      try {
-        const nextState = await gitDownloadStatus(gitDownloadTaskId);
-        setGitDownloadState(nextState);
-        if (nextState.status === "completed" && !gitInstallerLaunched) {
-          handleGitRunInstaller().catch(() => undefined);
-        }
-        if (nextState.status === "failed" || nextState.status === "cancelled") {
-          setGitDownloadTaskId(null);
-          setSuppressAutoGitInstall(true);
-          return;
-        }
-        if (nextState.status === "completed" && gitInstallerLaunched) {
-          setGitDownloadTaskId(null);
-          return;
-        }
-        const hidden = typeof document !== "undefined" && document.hidden;
-        schedule(hidden ? 1800 : 900);
-      } catch {
-        schedule(1600);
-      } finally {
-        inFlight = false;
-      }
-    };
-    schedule(600);
-    return () => {
-      cancelled = true;
-      if (timer) {
-        clearTimeout(timer);
-      }
-    };
-  }, [
+  useGitRuntimeEffects({
+    page,
+    activeProjectId,
+    refreshGitWorkspace,
     gitDownloadTaskId,
     gitInstallerLaunched,
     handleGitRunInstaller,
     setGitDownloadState,
     setGitDownloadTaskId,
-    setSuppressAutoGitInstall,
-  ]);
-
-  useEffect(() => {
-    if (
-      page !== "git" ||
-      !activeProjectId ||
-      gitAvailabilityInstalled !== false ||
-      gitDownloadTaskId ||
-      suppressAutoGitInstall
-    ) {
-      return;
-    }
-    handleGitInstallerDownloadStart().catch(() => undefined);
-  }, [
-    activeProjectId,
-    gitAvailabilityInstalled,
-    gitDownloadTaskId,
-    handleGitInstallerDownloadStart,
-    page,
-    suppressAutoGitInstall,
-  ]);
+  });
 }
+
+
+
+

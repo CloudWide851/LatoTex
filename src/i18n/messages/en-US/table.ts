@@ -1,0 +1,15 @@
+export const enUS_table = {
+  "table.csv.addRow": "Add Row",
+  "table.csv.addColumn": "Add Column",
+  "table.csv.parseError": "CSV parse warning",
+  "table.excel.loading": "Loading workbook...",
+  "table.excel.loadError": "Failed to load workbook",
+  "table.excel.save": "Save Workbook",
+  "table.excel.saving": "Saving...",
+  "table.excel.saved": "Workbook saved.",
+  "table.excel.saveError": "Failed to save workbook",
+  "table.excel.readonlyXls": "Legacy .xls files are preview-only. Please save as .xlsx to edit.",
+  "table.excel.noSheets": "No worksheet available.",
+  "table.excel.usePreviewSave": "Use Preview > Save Workbook to save Excel changes.",
+  "table.excel.truncated": "Large sheet detected. Preview is limited for performance.",
+} as const;

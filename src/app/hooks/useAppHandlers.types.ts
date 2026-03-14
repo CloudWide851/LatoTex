@@ -32,6 +32,8 @@ export type UseAppHandlersParams = {
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
   requestCloseBehaviorDecision: () => void;
+  setCloseDecisionBusy: (value: boolean) => void;
+  closeGuardUnlockedRef: React.MutableRefObject<boolean>;
   setBusy: (value: boolean) => void;
   setTree: (value: ResourceNode[]) => void;
   setLibraryTree: (value: ResourceNode[]) => void;
@@ -80,3 +82,4 @@ export type UseAppHandlersParams = {
   upsertProject: (projects: any[], snapshot: any) => any[];
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
 };
+
