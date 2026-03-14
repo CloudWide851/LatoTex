@@ -44,6 +44,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     onTextBoxesChange: (next: AnnotationTextBox[]) => void;
     onVisiblePageChange: (page: number) => void;
     onPageCountChange: (count: number) => void;
+    onRequestToolConfig?: () => void;
     t: TranslationFn;
   }
 >(function LibraryPdfScrollViewer(props, ref) {
@@ -63,6 +64,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     onTextBoxesChange,
     onVisiblePageChange,
     onPageCountChange,
+    onRequestToolConfig,
     t,
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -171,7 +173,14 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [pages, visiblePage]);
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7">
+    <div
+      ref={scrollRef}
+      className="h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onRequestToolConfig?.();
+      }}
+    >
       <Document
         file={pdfUrl}
         loading={

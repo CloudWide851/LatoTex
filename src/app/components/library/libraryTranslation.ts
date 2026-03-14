@@ -3,7 +3,7 @@ import type { LibraryCitationSummary } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
-function resolveTargetLanguage(t: TranslationFn): string {
+export function resolveTranslationTargetLanguage(t: TranslationFn): string {
   if (typeof window === "undefined") {
     return t("library.translation.target.enUS");
   }
@@ -20,9 +20,9 @@ export async function translateLibraryPaper(input: {
   citation: LibraryCitationSummary | null;
   bibPreview: string;
   t: TranslationFn;
-}): Promise<{ relativePath: string; detail: string }> {
+}): Promise<{ relativePath: string; detail: string; targetLanguage: string }> {
   const { projectId, selectedPath, translationModelId, citation, bibPreview, t } = input;
-  const targetLanguage = resolveTargetLanguage(t);
+  const targetLanguage = resolveTranslationTargetLanguage(t);
   const metadataHint = bibPreview.trim().length > 0
     ? bibPreview
     : [
@@ -56,5 +56,6 @@ export async function translateLibraryPaper(input: {
   return {
     relativePath: result.relativePath,
     detail: detailParts.join(" | "),
+    targetLanguage,
   };
 }

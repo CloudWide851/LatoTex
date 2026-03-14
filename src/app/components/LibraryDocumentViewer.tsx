@@ -1,4 +1,13 @@
-import { Check, Copy, ExternalLink, FileSearch, FileText, FileUp, Languages } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  FileSearch,
+  FileText,
+  FileUp,
+  Languages,
+  RotateCcw,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   libraryCitationSummary,
@@ -24,11 +33,16 @@ import {
   type AnnotationTextStylePreset,
   type AnnotationTextBox,
 } from "./library/annotationModel";
-import { filenameFromPath } from "./library/viewerUtils";
+import { resolveTranslationTargetLanguage } from "./library/libraryTranslation";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
-import { translateLibraryPaper } from "./library/libraryTranslation";
+import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
+import { filenameFromPath } from "./library/viewerUtils";
+import { LibraryCitationMetaPanel } from "./library/LibraryCitationMetaPanel";
+
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
+type ViewMode = "bib" | "pdf" | "translated";
+
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
   selectedPath: string | null;
@@ -42,12 +56,11 @@ export function LibraryDocumentViewer(props: {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
-  const [translationBusy, setTranslationBusy] = useState(false);
   const [citation, setCitation] = useState<LibraryCitationSummary | null>(null);
   const [bibPreview, setBibPreview] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [resolvedLink, setResolvedLink] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"bib" | "pdf">("bib");
+  const [viewMode, setViewMode] = useState<ViewMode>("bib");
   const [annotationMode, setAnnotationMode] = useState<ToolMode>("select");
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0]);
   const [highlightWidth, setHighlightWidth] = useState<number>(16);
@@ -61,10 +74,33 @@ export function LibraryDocumentViewer(props: {
   const [pageCount, setPageCount] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [pdfZoom, setPdfZoom] = useState(1);
+  const [toolConfigSignal, setToolConfigSignal] = useState(0);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
   const lastAnnotationPayloadRef = useRef<string>("");
   const hasPdf = Boolean(pdfUrl);
-  const hasBib = bibPreview.trim().length > 0;
+  const targetLanguage = resolveTranslationTargetLanguage(t);
+
+  const {
+    translationBusy,
+    translationNotice,
+    translationDetail,
+    translatedRelativePath,
+    translatedContent,
+    hasTranslated,
+    setTranslationNotice,
+    resetTranslationState,
+    loadTranslatedFromCache,
+    runTranslation,
+  } = useLibraryTranslationPanel({
+    projectId,
+    selectedPath,
+    targetLanguage,
+    translationModelId,
+    citation,
+    bibPreview,
+    t,
+  });
+
   const activeLink = useMemo(
     () => resolvedLink ?? citation?.urls?.[0] ?? null,
     [citation?.urls, resolvedLink],
@@ -81,6 +117,7 @@ export function LibraryDocumentViewer(props: {
     () => annotationTextBoxes.filter((item) => item.page === currentPage).length,
     [annotationTextBoxes, currentPage],
   );
+
   useEffect(() => {
     return () => {
       if (pdfUrl) {
@@ -88,6 +125,7 @@ export function LibraryDocumentViewer(props: {
       }
     };
   }, [pdfUrl]);
+
   useEffect(() => {
     let cancelled = false;
     if (!projectId || !selectedPath) {
@@ -109,6 +147,8 @@ export function LibraryDocumentViewer(props: {
       setHighlightWidth(16);
       setHighlightOpacity(0.65);
       setTextBoxStylePreset("minimal");
+      setTranslationNotice(null);
+      resetTranslationState();
       setPdfUrl((prev) => {
         if (prev) {
           URL.revokeObjectURL(prev);
@@ -117,6 +157,7 @@ export function LibraryDocumentViewer(props: {
       });
       return;
     }
+
     setLoading(true);
     setLoadError(null);
     setLinkError(null);
@@ -130,6 +171,7 @@ export function LibraryDocumentViewer(props: {
     setHighlightWidth(16);
     setHighlightOpacity(0.65);
     setTextBoxStylePreset("minimal");
+
     const load = async () => {
       const summary = await libraryCitationSummary(projectId, selectedPath);
       if (cancelled) {
@@ -160,9 +202,7 @@ export function LibraryDocumentViewer(props: {
           return;
         }
         const bytes = Uint8Array.from(binary.bytes);
-        const nextUrl = URL.createObjectURL(
-          new Blob([bytes], { type: "application/pdf" }),
-        );
+        const nextUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
         setPdfUrl((prev) => {
           if (prev) {
             URL.revokeObjectURL(prev);
@@ -178,7 +218,9 @@ export function LibraryDocumentViewer(props: {
           return null;
         });
       }
+      await loadTranslatedFromCache();
     };
+
     load()
       .catch((error) => {
         if (!cancelled) {
@@ -193,7 +235,8 @@ export function LibraryDocumentViewer(props: {
     return () => {
       cancelled = true;
     };
-  }, [projectId, selectedPath]);
+  }, [loadTranslatedFromCache, projectId, resetTranslationState, selectedPath, setTranslationNotice]);
+
   useEffect(() => {
     let disposed = false;
     if (!projectId || !annotationPath) {
@@ -236,6 +279,7 @@ export function LibraryDocumentViewer(props: {
       disposed = true;
     };
   }, [annotationPath, projectId]);
+
   useEffect(() => {
     if (!annotationLoaded || !projectId || !annotationPath) {
       return;
@@ -257,11 +301,13 @@ export function LibraryDocumentViewer(props: {
       window.clearTimeout(timer);
     };
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
+
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
       setAnnotationMode("select");
     }
   }, [hasPdf, viewMode]);
+
   useEffect(() => {
     if (currentPage <= pageCount) {
       return;
@@ -270,12 +316,14 @@ export function LibraryDocumentViewer(props: {
     setCurrentPage(next);
     setPageInput(String(next));
   }, [currentPage, pageCount]);
+
   const jumpToPage = useCallback((next: number) => {
     const normalized = Math.max(1, Math.min(pageCount || 1, Math.floor(next)));
     setCurrentPage(normalized);
     setPageInput(String(normalized));
     viewerRef.current?.scrollToPage(normalized);
   }, [pageCount]);
+
   const handleUndoCurrentPage = useCallback(() => {
     setAnnotationStrokes((items) => {
       const pageItems = items.filter((item) => item.page === currentPage);
@@ -286,10 +334,12 @@ export function LibraryDocumentViewer(props: {
       return items.filter((item) => item.id !== lastId);
     });
   }, [currentPage]);
+
   const handleClearCurrentPage = useCallback(() => {
     setAnnotationStrokes((items) => items.filter((item) => item.page !== currentPage));
     setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
   }, [currentPage]);
+
   useLibraryPdfShortcuts({
     enabled: viewMode === "pdf" && hasPdf,
     currentPage,
@@ -298,6 +348,7 @@ export function LibraryDocumentViewer(props: {
     onUndo: handleUndoCurrentPage,
     setZoom: setPdfZoom,
   });
+
   const handleOpenLink = async () => {
     if (!activeLink) {
       return;
@@ -309,6 +360,7 @@ export function LibraryDocumentViewer(props: {
       setLinkError(t("library.viewer.linkOpenFailed"));
     }
   };
+
   const handleCopyLink = async () => {
     if (!activeLink || typeof navigator === "undefined" || !navigator.clipboard) {
       return;
@@ -321,28 +373,7 @@ export function LibraryDocumentViewer(props: {
       setLinkError(t("library.viewer.linkOpenFailed"));
     }
   };
-  const handleTranslatePaper = async () => {
-    if (!projectId || !selectedPath || translationBusy) {
-      return;
-    }
-    setLinkError(null);
-    setTranslationBusy(true);
-    try {
-      await translateLibraryPaper({
-        projectId,
-        selectedPath,
-        translationModelId,
-        citation,
-        bibPreview,
-        t,
-      });
-      setLinkError(t("library.viewer.translateSaved"));
-    } catch (error) {
-      setLinkError(String(error));
-    } finally {
-      setTranslationBusy(false);
-    }
-  };
+
   if (!selectedPath) {
     return (
       <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
@@ -350,6 +381,9 @@ export function LibraryDocumentViewer(props: {
       </div>
     );
   }
+
+  const actionBtnClass = "inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
+
   return (
     <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
       <section className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3">
@@ -382,63 +416,71 @@ export function LibraryDocumentViewer(props: {
             {t("library.viewer.showPdf")}
           </button>
           <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            onClick={() => {
-              if (selectedPath) {
-                onAnalyzePaper(selectedPath);
-              }
-            }}
+            className={`rounded border px-2 py-1 text-[11px] ${
+              viewMode === "translated"
+                ? "border-primary-300 bg-primary-50 text-primary-900"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+            onClick={() => setViewMode("translated")}
+            title={t("library.viewer.translatePaper")}
+            disabled={!hasTranslated}
+          >
+            {t("library.viewer.translatePaper")}
+          </button>
+
+          <button
+            className={actionBtnClass}
+            onClick={() => selectedPath && onAnalyzePaper(selectedPath)}
             title={t("library.viewer.analyzePaper")}
             disabled={!selectedPath || loading || analysisRunning}
           >
             <FileSearch className="h-3.5 w-3.5" />
-            {t("library.viewer.analyzePaper")}
           </button>
+
           <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            onClick={() => {
-              void handleTranslatePaper();
-            }}
-            title={t("library.viewer.translatePaper")}
+            className={actionBtnClass}
+            onClick={() => runTranslation(() => setViewMode("translated"), false)}
+            title={translationBusy ? t("library.viewer.translating") : t("library.viewer.translatePaper")}
             disabled={!selectedPath || loading || translationBusy}
           >
-            <Languages className="h-3.5 w-3.5" />
-            {translationBusy ? t("library.viewer.translating") : t("library.viewer.translatePaper")}
+            <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
           </button>
+
           {viewMode === "pdf" ? (
             <>
               <button
-                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                className={actionBtnClass}
                 onClick={() => void handleOpenLink()}
                 disabled={!activeLink}
                 title={t("library.viewer.openLink")}
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                <span>{t("library.viewer.openLink")}</span>
               </button>
               <button
-                className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                className={actionBtnClass}
                 onClick={() => void handleCopyLink()}
                 disabled={!activeLink}
                 title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
               >
                 {copyState ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                <span>{copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}</span>
               </button>
             </>
           ) : null}
         </div>
       </section>
+
+      {translationNotice ? (
+        <div className={`rounded border px-3 py-2 text-xs ${translationNotice.type === "info" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+          {translationNotice.message}
+        </div>
+      ) : null}
+
       {viewMode === "pdf" ? (
         <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2">
           {loading ? (
-            <div className="flex h-full items-center justify-center text-xs text-slate-500">
-              {t("library.viewer.loading")}
-            </div>
+            <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
           ) : loadError ? (
-            <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-              {t("library.viewer.error")} {loadError}
-            </div>
+            <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
           ) : hasPdf && pdfUrl ? (
             <div className="grid h-full min-h-0 grid-cols-[56px_minmax(0,1fr)] gap-3">
               <LibraryPdfToolSidebar
@@ -475,6 +517,7 @@ export function LibraryDocumentViewer(props: {
                 pdfZoom={pdfZoom}
                 onZoomOut={() => setPdfZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}
                 onZoomIn={() => setPdfZoom((prev) => Math.min(2.4, Number((prev + 0.1).toFixed(2))))}
+                openConfigSignal={toolConfigSignal}
               />
               <LibraryPdfScrollViewer
                 ref={viewerRef}
@@ -496,6 +539,7 @@ export function LibraryDocumentViewer(props: {
                   setPageInput(String(page));
                 }}
                 onPageCountChange={setPageCount}
+                onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
                 t={t}
               />
             </div>
@@ -506,18 +550,36 @@ export function LibraryDocumentViewer(props: {
             </div>
           )}
         </section>
+      ) : viewMode === "translated" ? (
+        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs text-slate-500">{translationDetail || t("library.viewer.translatePaper")}</div>
+            <button
+              className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              onClick={() => runTranslation(() => setViewMode("translated"), true)}
+              disabled={translationBusy || !selectedPath}
+              title={t("library.viewer.translatePaper")}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              {t("library.viewer.translatePaper")}
+            </button>
+          </div>
+          <div className="min-h-0 overflow-auto rounded border border-slate-200 bg-slate-50 p-3">
+            {translatedRelativePath && translatedContent ? (
+              <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-5 text-slate-700">{translatedContent}</pre>
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.translateFailed")}</div>
+            )}
+          </div>
+        </section>
       ) : (
         <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(210px,0.95fr)] gap-2">
           <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
             {loading ? (
-              <div className="flex h-full items-center justify-center text-xs text-slate-500">
-                {t("library.viewer.loading")}
-              </div>
+              <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
             ) : loadError ? (
-              <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                {t("library.viewer.error")} {loadError}
-              </div>
-            ) : hasBib ? (
+              <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
+            ) : bibPreview.trim().length > 0 ? (
               <pre className="min-h-full whitespace-pre-wrap break-words rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700">
                 {bibPreview}
               </pre>
@@ -527,65 +589,9 @@ export function LibraryDocumentViewer(props: {
               </div>
             )}
           </section>
-          <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("library.viewer.metadataTab")}
-            </h3>
-            <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3 text-xs">
-              {citation?.title ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.fieldTitle")}: {citation.title}
-                </p>
-              ) : null}
-              {(citation?.authors.length ?? 0) > 0 ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.fieldAuthors")}: {citation?.authors.join(", ")}
-                </p>
-              ) : null}
-              {citation?.publishedAt ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.fieldPublishedAt")}: {citation.publishedAt}
-                </p>
-              ) : null}
-              {citation?.citationKey ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.key")}: <span className="font-mono">{citation.citationKey}</span>
-                </p>
-              ) : null}
-              {citation?.doi ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.fieldDoi")}: {citation.doi}
-                </p>
-              ) : null}
-              {citation?.arxivId ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.fieldArxiv")}: {citation.arxivId}
-                </p>
-              ) : null}
-              {citation?.source ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.fieldSource")}: {citation.source}
-                </p>
-              ) : null}
-              {activeLink ? (
-                <p className="break-words text-slate-700">
-                  {t("library.citation.urls")}: {activeLink}
-                </p>
-              ) : (
-                <p className="text-slate-500">{t("library.citation.urls")}: -</p>
-              )}
-              {linkError ? (
-                <div className="rounded border border-amber-300 bg-amber-50 p-2 text-amber-700">
-                  <p>{t("library.viewer.linkFallback")}</p>
-                  {activeLink ? <p className="mt-1 break-words font-mono">{activeLink}</p> : null}
-                </div>
-              ) : null}
-            </div>
-          </section>
+          <LibraryCitationMetaPanel citation={citation} linkError={linkError} t={t} />
         </div>
       )}
     </div>
   );
 }
-
-

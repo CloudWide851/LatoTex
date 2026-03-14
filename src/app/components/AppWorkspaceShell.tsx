@@ -15,6 +15,7 @@ import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
 import { ChatWorkspace } from "./chat/ChatWorkspace";
+import { ChatTabMenuContent } from "./chat/ChatTabMenuContent";
 import { DrawWorkspace } from "./draw/DrawWorkspace";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "./workspace/workspaceShellUtils";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
@@ -117,6 +118,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const [previewFocusRequest, setPreviewFocusRequest] = useState<{ page: number; token: number } | null>(null);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
+  const [chatTabOpen, setChatTabOpen] = useState(false);
+  const [chatTabActive, setChatTabActive] = useState(false);
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
   useEffect(() => {
     setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
@@ -135,6 +138,18 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       setCompileAssistDismissedFor("");
     }
   }, [compileErrorLine]);
+  useEffect(() => {
+    if (!activeProjectId) {
+      setChatTabOpen(false);
+      setChatTabActive(false);
+    }
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    if (page !== "latex") {
+      setChatTabActive(false);
+    }
+  }, [page]);
   const selectedIsPdf = isPdfPath(selectedFile);
   const selectedIsMarkdown = isMarkdownPath(selectedFile);
   const selectedIsSvg = isSvgPath(selectedFile);
@@ -165,6 +180,23 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     .slice(0, 8)
     .join(" ; ")
     .slice(0, 1800)}`;
+  const showChatWorkspace = chatTabOpen && chatTabActive;
+  const handleOpenChatTab = () => {
+    setChatTabOpen(true);
+    setChatTabActive(true);
+  };
+  const handleCloseChatTab = () => {
+    setChatTabOpen(false);
+    setChatTabActive(false);
+  };
+  const handleSelectEditorTab = (tabId: string) => {
+    setChatTabActive(false);
+    onTabSelect(tabId);
+  };
+  const handleSelectWorkspaceFile = (path: string | null) => {
+    setChatTabActive(false);
+    onSelectFile(path);
+  };
   const renderNoProjectPanel = () => (
     <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
       <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
@@ -217,16 +249,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     if (page === "analysis") {
       return <section className="h-full min-h-0">{analysisPanel}</section>;
     }
-    if (page === "chat") {
-      return (
-        <ChatWorkspace
-          projectId={activeProjectId}
-          modelOverride={completionModelId}
-          channelPrefs={channelPrefs}
-          t={t}
-        />
-      );
-    }
     if (page === "draw") {
       return <DrawWorkspace projectId={activeProjectId} t={t} />;
     }
@@ -244,8 +266,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     }
 
     return (
-      <div className="grid h-full grid-rows-[44px_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
-        <div className="flex items-center justify-between border-b border-slate-200 px-3">
+      <div className="grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
+        <div className="min-w-0 overflow-x-auto border-b border-slate-200 px-3 py-1.5 hide-scrollbar">
+          <div className="flex min-w-[420px] items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <WorkspaceShareControl
               selectedFile={selectedFile}
@@ -265,12 +288,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100"
               title={t("nav.chat")}
               aria-label={t("nav.chat")}
-              onClick={() => onPageChange("chat")}
+              onClick={handleOpenChatTab}
             >
               <MessageSquareMore className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="shrink-0 flex items-center gap-2">
             <button
               className="rounded border border-slate-300 bg-white p-1.5 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onEditorUndo}
@@ -327,13 +350,30 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             </div>
           </div>
         </div>
+      </div>
 
         <EditorTabsBar
           tabs={editorTabs}
-          activeTabId={activeTabId}
+          activeTabId={showChatWorkspace ? null : activeTabId}
           dirtyByPath={dirtyByPath}
           busy={busy}
-          onSelect={onTabSelect}
+          extraTabs={chatTabOpen ? [{
+            id: "editor-chat-tab",
+            title: t("nav.chat"),
+            active: showChatWorkspace,
+            onSelect: () => setChatTabActive(true),
+            onClose: handleCloseChatTab,
+            menuLabel: t("chat.session.select"),
+            renderMenu: (closeMenu) => (
+              <ChatTabMenuContent
+                projectId={activeProjectId}
+                onActivateChat={handleOpenChatTab}
+                onCloseMenu={closeMenu}
+                t={t}
+              />
+            ),
+          }] : []}
+          onSelect={handleSelectEditorTab}
           onClose={onTabClose}
           onCloseAction={onTabCloseAction}
           onPin={onTabPin}
@@ -350,7 +390,14 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               t={t}
             />
           ) : null}
-          {selectedIsExcel ? (
+          {showChatWorkspace ? (
+            <ChatWorkspace
+              projectId={activeProjectId}
+              modelOverride={completionModelId}
+              channelPrefs={channelPrefs}
+              t={t}
+            />
+          ) : selectedIsExcel ? (
             <div className="flex h-full items-center justify-center rounded-md bg-slate-50 text-xs text-slate-500">
               {t("editor.excelPreviewOnly")}
             </div>
@@ -446,7 +493,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("latex", layout)}
             >
-              <Panel id={`latex-explorer-${activeProjectId}`} order={1} defaultSize={latexLayout[0]} minSize={16}>
+              <Panel className="min-w-0" id={`latex-explorer-${activeProjectId}`} order={1} defaultSize={latexLayout[0]} minSize={16}>
                 <WorkspaceExplorerPanel
                   activeProjectId={activeProjectId}
                   tree={tree}
@@ -454,7 +501,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   dirtyByPath={dirtyByPath}
                   explorerGitDecorations={explorerGitDecorations}
                   busy={busy}
-                  onSelectFile={onSelectFile}
+                  onSelectFile={handleSelectWorkspaceFile}
                   onFsAction={onFsAction}
                   onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
                   onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
@@ -462,13 +509,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 />
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
-                <section className="h-full min-h-0 motion-page-in">
+              <Panel className="min-w-0" id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
+                <section className="h-full min-h-0 min-w-0 motion-page-in">
                   {renderMainPanel()}
                 </section>
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel id={`latex-preview-${activeProjectId}`} order={3} defaultSize={latexLayout[2]} minSize={20}>
+              <Panel className="min-w-0" id={`latex-preview-${activeProjectId}`} order={3} defaultSize={latexLayout[2]} minSize={20}>
                 {renderPdfPreviewPanel()}
               </Panel>
             </PanelGroup>
@@ -479,7 +526,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("analysis", layout)}
             >
-              <Panel id={`analysis-explorer-${activeProjectId ?? "none"}`} order={1} defaultSize={analysisLayout[0]} minSize={18}>
+              <Panel className="min-w-0" id={`analysis-explorer-${activeProjectId ?? "none"}`} order={1} defaultSize={analysisLayout[0]} minSize={18}>
                 <WorkspaceExplorerPanel
                   activeProjectId={activeProjectId}
                   tree={tree}
@@ -487,7 +534,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   dirtyByPath={dirtyByPath}
                   explorerGitDecorations={explorerGitDecorations}
                   busy={busy}
-                  onSelectFile={onSelectFile}
+                  onSelectFile={handleSelectWorkspaceFile}
                   onFsAction={onFsAction}
                   onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
                   onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
@@ -495,8 +542,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 />
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
-                <section className="h-full min-h-0 motion-page-in">
+              <Panel className="min-w-0" id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
+                <section className="h-full min-h-0 min-w-0 motion-page-in">
                   {renderMainPanel()}
                 </section>
               </Panel>
@@ -508,7 +555,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               className="h-full gap-px"
               onLayout={(layout) => onSavePanelLayout("library", layout)}
             >
-              <Panel id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
+              <Panel className="min-w-0" id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
                 <LibraryExplorerPanel
                   libraryTree={libraryTree}
                   selectedLibraryPath={selectedLibraryPath}
@@ -522,8 +569,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 />
               </Panel>
               <PanelResizeHandle className="resizable-handle" />
-              <Panel id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
-                <section className="h-full min-h-0 motion-page-in">
+              <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
+                <section className="h-full min-h-0 min-w-0 motion-page-in">
                   <LibraryDocumentViewer
                     projectId={activeProjectId}
                     selectedPath={selectedLibraryPath}
@@ -536,7 +583,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               </Panel>
             </PanelGroup>
           ) : (
-            <section className="h-full min-h-0 motion-page-in">
+            <section className="h-full min-h-0 min-w-0 motion-page-in">
               {renderMainPanel()}
             </section>
           )}

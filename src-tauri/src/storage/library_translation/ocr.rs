@@ -1,6 +1,11 @@
 use std::cmp::Ordering;
 use std::path::Path;
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 pub(super) struct OcrExtractionCandidate {
     pub text: String,
@@ -84,7 +89,12 @@ fn build_command_line(template: &str, pdf_path: &Path) -> String {
 
 fn run_shell_command_line(command_line: &str) -> Option<String> {
     let output = if cfg!(target_os = "windows") {
-        Command::new("cmd").args(["/C", command_line]).output().ok()?
+        let mut command = Command::new("cmd");
+        #[cfg(target_os = "windows")]
+        {
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        command.args(["/C", command_line]).output().ok()?
     } else {
         Command::new("sh").args(["-lc", command_line]).output().ok()?
     };
@@ -385,3 +395,6 @@ pub(super) fn extract_pdf_text_with_local_ocr(
 
     None
 }
+
+
+

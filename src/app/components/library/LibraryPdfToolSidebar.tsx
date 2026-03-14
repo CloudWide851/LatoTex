@@ -8,7 +8,6 @@ import {
   Minus,
   MousePointer2,
   Plus,
-  SlidersHorizontal,
   Type,
   Undo2,
 } from "lucide-react";
@@ -85,6 +84,7 @@ export function LibraryPdfToolSidebar(props: {
   pdfZoom: number;
   onZoomOut: () => void;
   onZoomIn: () => void;
+  openConfigSignal?: number;
 }) {
   const {
     t,
@@ -113,6 +113,7 @@ export function LibraryPdfToolSidebar(props: {
     pdfZoom,
     onZoomOut,
     onZoomIn,
+    openConfigSignal,
   } = props;
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -148,6 +149,14 @@ export function LibraryPdfToolSidebar(props: {
     };
   }, [panelOpen]);
 
+  useEffect(() => {
+    if (!hasPdf || !openConfigSignal) {
+      return;
+    }
+    setPanelKind(mode === "textbox" ? "textbox" : "highlight");
+    setPanelOpen(true);
+  }, [hasPdf, mode, openConfigSignal]);
+
   const activePanelTitle = useMemo(
     () =>
       panelKind === "highlight"
@@ -155,14 +164,6 @@ export function LibraryPdfToolSidebar(props: {
         : t("library.viewer.menu.textboxTitle"),
     [panelKind, t],
   );
-
-  const openConfig = (kind: PanelKind) => {
-    if (!hasPdf) {
-      return;
-    }
-    setPanelKind(kind);
-    setPanelOpen(true);
-  };
 
   return (
     <div ref={containerRef} className="relative flex h-full">
@@ -213,20 +214,6 @@ export function LibraryPdfToolSidebar(props: {
           disabled={!hasPdf}
         >
           <Eraser className="h-4 w-4" />
-        </button>
-
-        <button
-          className={toolButtonClass(false)}
-          title={t("library.viewer.configureHint")}
-          aria-label={t("library.viewer.configureHint")}
-          onClick={() => openConfig(mode === "textbox" ? "textbox" : "highlight")}
-          onContextMenu={(event) => {
-            event.preventDefault();
-            openConfig(mode === "textbox" ? "textbox" : "highlight");
-          }}
-          disabled={!hasPdf}
-        >
-          <SlidersHorizontal className="h-4 w-4" />
         </button>
 
         <div className="my-0.5 h-px w-8 bg-slate-200" />

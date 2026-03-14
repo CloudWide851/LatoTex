@@ -1,4 +1,4 @@
-import { Check, Edit3, Loader2, MessageSquarePlus, Send, Trash2, X } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   channelsTelegramPoll,
@@ -14,6 +14,7 @@ import {
   loadChatStore,
   newChatSession,
   saveChatStore,
+  type ChatStoreChangeDetail,
   type ChatMessage,
   type ChatSession,
 } from "../../hooks/chatSessionStore";
@@ -50,7 +51,7 @@ function ensureTelegramSession(
   const next = newChatSession(fallbackTitle);
   next.title = title;
   return {
-    sessions: [next, ...sessions],
+    sessions: [next, ...sessions].slice(0, 80),
     sessionId: next.id,
   };
 }
@@ -67,8 +68,6 @@ export function ChatWorkspace(props: {
   const [draft, setDraft] = useState("");
   const [running, setRunning] = useState(false);
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
-  const [renameMode, setRenameMode] = useState(false);
-  const [renameDraft, setRenameDraft] = useState("");
   const [lastError, setLastError] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
   const sessionsRef = useRef<ChatSession[]>([]);
@@ -95,6 +94,24 @@ export function ChatWorkspace(props: {
   }, [activeSessionId, projectId, sessions]);
 
   useEffect(() => {
+    if (!projectId || typeof window === "undefined") {
+      return;
+    }
+    const handleStoreChanged = (event: Event) => {
+      const custom = event as CustomEvent<ChatStoreChangeDetail>;
+      if (!custom.detail || custom.detail.projectId !== projectId) {
+        return;
+      }
+      setSessions(custom.detail.sessions);
+      setActiveSessionId(custom.detail.activeSessionId);
+    };
+    window.addEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
+    return () => {
+      window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
+    };
+  }, [projectId]);
+
+  useEffect(() => {
     if (!listRef.current) {
       return;
     }
@@ -115,7 +132,7 @@ export function ChatWorkspace(props: {
       return activeSessionId;
     }
     const session = newChatSession(t("chat.sessionNew"));
-    setSessions((prev) => [session, ...prev]);
+    setSessions((prev) => [session, ...prev].slice(0, 80));
     setActiveSessionId(session.id);
     return session.id;
   }, [activeSessionId, sessions, t]);
@@ -171,7 +188,7 @@ export function ChatWorkspace(props: {
     if (parsed.kind === "command" && parsed.command === "new") {
       const title = parsed.args.trim().slice(0, 80) || t("chat.sessionNew");
       const next = newChatSession(title);
-      setSessions((prev) => [next, ...prev]);
+      setSessions((prev) => [next, ...prev].slice(0, 80));
       setActiveSessionId(next.id);
       setDraft("");
       if (options?.telegramChatId) {
@@ -416,30 +433,6 @@ export function ChatWorkspace(props: {
     }
   };
 
-  const createSession = () => {
-    const next = newChatSession(t("chat.sessionNew"));
-    setSessions((prev) => [next, ...prev]);
-    setActiveSessionId(next.id);
-    setRenameMode(false);
-    setRenameDraft("");
-  };
-
-  const deleteSession = (sessionId: string) => {
-    const next = sessions.filter((item) => item.id !== sessionId);
-    if (next.length === 0) {
-      const fallback = newChatSession(t("chat.sessionNew"));
-      setSessions([fallback]);
-      setActiveSessionId(fallback.id);
-      return;
-    }
-    setSessions(next);
-    if (activeSessionId === sessionId) {
-      setActiveSessionId(next[0]!.id);
-    }
-  };
-
-  const activeTitle = activeSession?.title ?? t("chat.sessionNew");
-
   if (!projectId) {
     return (
       <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
@@ -449,84 +442,10 @@ export function ChatWorkspace(props: {
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[44px_minmax(0,1fr)_120px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
-      <div className="flex items-center gap-2 border-b border-slate-200 px-3">
-        <select
-          value={activeSessionId ?? ""}
-          onChange={(event) => setActiveSessionId(event.target.value)}
-          className="max-w-[280px] rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-        >
-          {sessions.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.title}
-            </option>
-          ))}
-        </select>
-        {!renameMode ? (
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-            onClick={() => {
-              setRenameMode(true);
-              setRenameDraft(activeTitle);
-            }}
-            title={t("chat.rename")}
-          >
-            <Edit3 className="h-3.5 w-3.5" />
-          </button>
-        ) : (
-          <div className="flex items-center gap-1">
-            <input
-              value={renameDraft}
-              onChange={(event) => setRenameDraft(event.target.value)}
-              maxLength={80}
-              className="w-44 rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-            />
-            <button
-              className="rounded border border-emerald-600 bg-emerald-600 p-1 text-white"
-              onClick={() => {
-                const next = renameDraft.trim().slice(0, 80);
-                if (activeSessionId && next) {
-                  setSessions((prev) =>
-                    updateSession(prev, activeSessionId, (item) => ({ ...item, title: next })),
-                  );
-                }
-                setRenameMode(false);
-              }}
-              title={t("common.confirm")}
-            >
-              <Check className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="rounded border border-slate-300 bg-white p-1 text-slate-600"
-              onClick={() => setRenameMode(false)}
-              title={t("common.cancel")}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100"
-            onClick={createSession}
-            title={t("chat.newSession")}
-          >
-            <MessageSquarePlus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="rounded border border-rose-300 bg-white p-1.5 text-rose-600 hover:bg-rose-50"
-            onClick={() => activeSessionId && deleteSession(activeSessionId)}
-            title={t("chat.deleteSession")}
-            disabled={!activeSessionId}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-
+    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_120px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <div ref={listRef} className="min-h-0 overflow-auto px-3 py-2">
         {!activeSession || activeSession.messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-500">{t("chat.emptyHint")}</div>
+          <div className="h-full" />
         ) : (
           <div className="space-y-2">
             {activeSession.messages.map((item) => (

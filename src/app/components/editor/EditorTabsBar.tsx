@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronLeft, ChevronRight, Circle, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import type { CloseTabsAction, EditorTab } from "../../../shared/types/app";
 import { EditorTabContextMenu } from "./EditorTabContextMenu";
@@ -12,18 +12,38 @@ type ContextMenuState = {
   tabId: string;
 } | null;
 
+type ExtraTabMenuState = {
+  tabId: string;
+  x: number;
+  y: number;
+} | null;
+
+type ExtraEditorTab = {
+  id: string;
+  title: string;
+  active: boolean;
+  dirty?: boolean;
+  tooltip?: string;
+  closeLabel?: string;
+  onSelect: () => void;
+  onClose?: () => void;
+  renderMenu?: (close: () => void) => ReactNode;
+  menuLabel?: string;
+};
+
 export function EditorTabsBar(props: {
   tabs: EditorTab[];
   activeTabId: string | null;
   dirtyByPath: Record<string, boolean>;
   busy?: boolean;
+  extraTabs?: ExtraEditorTab[];
   onSelect: (tabId: string) => void;
   onClose: (tabId: string) => void;
   onCloseAction: (action: CloseTabsAction, tabId: string) => void;
   onPin: (tabId: string) => void;
   t: TranslationFn;
 }) {
-  const { tabs, activeTabId, dirtyByPath, busy, onSelect, onClose, onCloseAction, onPin, t } = props;
+  const { tabs, activeTabId, dirtyByPath, busy, extraTabs = [], onSelect, onClose, onCloseAction, onPin, t } = props;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -31,6 +51,14 @@ export function EditorTabsBar(props: {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [menu, setMenu] = useState<ContextMenuState>(null);
+  const [extraTabMenu, setExtraTabMenu] = useState<ExtraTabMenuState>(null);
+
+  const activeExtraId = useMemo(() => extraTabs.find((item) => item.active)?.id ?? null, [extraTabs]);
+  const activeDomTabId = activeTabId ?? activeExtraId;
+  const activeExtraTab = useMemo(
+    () => (extraTabMenu ? extraTabs.find((item) => item.id === extraTabMenu.tabId) ?? null : null),
+    [extraTabMenu, extraTabs],
+  );
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -47,24 +75,24 @@ export function EditorTabsBar(props: {
     const observer = new ResizeObserver(refreshOverflow);
     observer.observe(element);
     element.addEventListener("scroll", refreshOverflow, { passive: true });
-    let raf = window.requestAnimationFrame(refreshOverflow);
+    const raf = window.requestAnimationFrame(refreshOverflow);
     return () => {
       observer.disconnect();
       element.removeEventListener("scroll", refreshOverflow);
       window.cancelAnimationFrame(raf);
     };
-  }, [tabs]);
+  }, [tabs, extraTabs]);
 
   useEffect(() => {
-    if (!activeTabId || !rootRef.current) {
+    if (!activeDomTabId || !rootRef.current) {
       return;
     }
-    const target = rootRef.current.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`);
+    const target = rootRef.current.querySelector<HTMLElement>(`[data-tab-id="${activeDomTabId}"]`);
     if (!target) {
       return;
     }
     target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-  }, [activeTabId, tabs]);
+  }, [activeDomTabId, tabs, extraTabs]);
 
   useEffect(() => {
     const closeAll = (event: MouseEvent) => {
@@ -74,10 +102,12 @@ export function EditorTabsBar(props: {
       }
       setOverflowOpen(false);
       setMenu(null);
+      setExtraTabMenu(null);
     };
     const closeOnBlur = () => {
       setOverflowOpen(false);
       setMenu(null);
+      setExtraTabMenu(null);
     };
     window.addEventListener("blur", closeOnBlur);
     window.addEventListener("mousedown", closeAll);
@@ -87,10 +117,25 @@ export function EditorTabsBar(props: {
     };
   }, []);
 
-  const sortedOverflowTabs = useMemo(
-    () => [...tabs].sort((a, b) => b.lastAccessed - a.lastAccessed),
-    [tabs],
-  );
+  const overflowItems = useMemo(() => {
+    const fileItems = [...tabs]
+      .sort((a, b) => b.lastAccessed - a.lastAccessed)
+      .map((tab) => ({
+        id: tab.id,
+        title: tab.title,
+        active: tab.id === activeTabId,
+        dirty: Boolean(dirtyByPath[tab.path]),
+        onClick: () => onSelect(tab.id),
+      }));
+    const extItems = extraTabs.map((tab) => ({
+      id: tab.id,
+      title: tab.title,
+      active: tab.active,
+      dirty: Boolean(tab.dirty),
+      onClick: tab.onSelect,
+    }));
+    return [...extItems, ...fileItems];
+  }, [activeTabId, dirtyByPath, extraTabs, onSelect, tabs]);
 
   return (
     <div ref={rootRef} className="relative flex h-full items-center gap-1 border-b border-slate-200 bg-slate-50/80 px-1.5">
@@ -148,6 +193,60 @@ export function EditorTabsBar(props: {
               </div>
             );
           })}
+
+          {extraTabs.map((tab) => (
+            <div
+              key={tab.id}
+              data-tab-id={tab.id}
+              className={cn(
+                "group inline-flex h-7 max-w-[320px] items-center gap-1 rounded-md border px-2 text-xs transition",
+                tab.active
+                  ? "border-primary-500 bg-primary-50 text-primary-900"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                tab.onSelect();
+              }}
+              title={tab.tooltip ?? tab.title}
+            >
+              <span className="truncate">{tab.title}</span>
+              {tab.dirty && <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />}
+              {tab.renderMenu ? (
+                <button
+                  className="rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                    setExtraTabMenu((prev) =>
+                      prev && prev.tabId === tab.id
+                        ? null
+                        : { tabId: tab.id, x: rect.left, y: rect.bottom + 4 },
+                    );
+                  }}
+                  disabled={busy}
+                  title={tab.menuLabel ?? t("editor.tab.more")}
+                  aria-label={tab.menuLabel ?? t("editor.tab.more")}
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              ) : null}
+              {tab.onClose ? (
+                <button
+                  className="rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    tab.onClose?.();
+                  }}
+                  disabled={busy}
+                  title={tab.closeLabel ?? t("editor.tab.close")}
+                  aria-label={tab.closeLabel ?? t("editor.tab.close")}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              ) : null}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -197,22 +296,22 @@ export function EditorTabsBar(props: {
             </button>
             {overflowOpen && (
               <div className="absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
-                {sortedOverflowTabs.map((tab) => (
+                {overflowItems.map((item) => (
                   <button
-                    key={tab.id}
+                    key={item.id}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
-                      tab.id === activeTabId
+                      item.active
                         ? "bg-primary-50 text-primary-900"
                         : "text-slate-700 hover:bg-slate-100",
                     )}
                     onClick={() => {
                       setOverflowOpen(false);
-                      onSelect(tab.id);
+                      item.onClick();
                     }}
                   >
-                    <span className="truncate">{tab.title}</span>
-                    {dirtyByPath[tab.path] && (
+                    <span className="truncate">{item.title}</span>
+                    {item.dirty && (
                       <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
                     )}
                   </button>
@@ -233,6 +332,16 @@ export function EditorTabsBar(props: {
           t={t}
         />
       )}
+
+      {extraTabMenu && activeExtraTab?.renderMenu ? (
+        <div
+          className="fixed z-[72] min-w-56 max-w-[320px] overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+          style={{ left: extraTabMenu.x, top: extraTabMenu.y }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {activeExtraTab.renderMenu(() => setExtraTabMenu(null))}
+        </div>
+      ) : null}
     </div>
   );
 }

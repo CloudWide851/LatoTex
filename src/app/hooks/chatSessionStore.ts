@@ -18,12 +18,35 @@ type ChatStorePayload = {
   activeSessionId: string | null;
 };
 
+export type ChatStoreChangeDetail = {
+  projectId: string;
+  sessions: ChatSession[];
+  activeSessionId: string | null;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
 
 function sessionStorageKey(projectId: string) {
   return `latotex.chat.sessions.${projectId}`;
+}
+
+export function createChatStoreChangedEvent(
+  detail: ChatStoreChangeDetail,
+): CustomEvent<ChatStoreChangeDetail> | null {
+  if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
+    return null;
+  }
+  return new CustomEvent<ChatStoreChangeDetail>("latotex.chat.store.changed", { detail });
+}
+
+function emitChatStoreChanged(detail: ChatStoreChangeDetail) {
+  const event = createChatStoreChangedEvent(detail);
+  if (!event || typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(event);
 }
 
 export function newChatSession(title?: string): ChatSession {
@@ -115,5 +138,52 @@ export function saveChatStore(
     activeSessionId,
   };
   window.localStorage.setItem(sessionStorageKey(projectId), JSON.stringify(payload));
+  emitChatStoreChanged({ projectId, sessions: payload.sessions, activeSessionId });
 }
 
+export function createChatSessionInStore(projectId: string, title?: string): ChatStorePayload {
+  const loaded = loadChatStore(projectId);
+  const next = newChatSession(title);
+  const sessions = [next, ...loaded.sessions].slice(0, 80);
+  saveChatStore(projectId, sessions, next.id);
+  return { sessions, activeSessionId: next.id };
+}
+
+export function setActiveChatSessionInStore(projectId: string, sessionId: string): ChatStorePayload {
+  const loaded = loadChatStore(projectId);
+  const exists = loaded.sessions.some((item) => item.id === sessionId);
+  const activeSessionId = exists ? sessionId : loaded.activeSessionId;
+  saveChatStore(projectId, loaded.sessions, activeSessionId);
+  return { sessions: loaded.sessions, activeSessionId };
+}
+
+export function renameChatSessionInStore(
+  projectId: string,
+  sessionId: string,
+  title: string,
+): ChatStorePayload {
+  const loaded = loadChatStore(projectId);
+  const trimmed = title.trim().slice(0, 80);
+  const sessions = loaded.sessions.map((item) =>
+    item.id === sessionId && trimmed
+      ? { ...item, title: trimmed, updatedAt: nowIso() }
+      : item
+  );
+  saveChatStore(projectId, sessions, loaded.activeSessionId);
+  return { sessions, activeSessionId: loaded.activeSessionId };
+}
+
+export function deleteChatSessionInStore(projectId: string, sessionId: string): ChatStorePayload {
+  const loaded = loadChatStore(projectId);
+  const sessions = loaded.sessions.filter((item) => item.id !== sessionId);
+  if (sessions.length === 0) {
+    const fallback = newChatSession();
+    saveChatStore(projectId, [fallback], fallback.id);
+    return { sessions: [fallback], activeSessionId: fallback.id };
+  }
+  const activeSessionId = loaded.activeSessionId === sessionId
+    ? sessions[0]!.id
+    : loaded.activeSessionId;
+  saveChatStore(projectId, sessions, activeSessionId);
+  return { sessions, activeSessionId };
+}
