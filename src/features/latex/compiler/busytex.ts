@@ -1,6 +1,7 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { BusyTexRunner, XeLatex } from "texlyre-busytex";
 import { busytexCachePrepare } from "../../../shared/api/desktop";
+import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
 
 type BusyTexCompileResponse = {
   success?: boolean;
@@ -59,7 +60,7 @@ async function resolveCacheBasePath(): Promise<string | null> {
         window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
       }
       const normalizedActualDir = info.actualDir.replace(/\\/g, "/");
-      preparedCacheBasePath = convertFileSrc(normalizedActualDir).replace(/\/+$/, "");
+      preparedCacheBasePath = normalizeAssetBasePath(convertFileSrc(normalizedActualDir));
       return preparedCacheBasePath;
     } catch {
       return null;
@@ -91,17 +92,7 @@ async function buildBasePathCandidates(): Promise<string[]> {
   );
 }
 
-function normalizePath(path: string): string {
-  const withForwardSlash = path
-    .replace(/%5C/gi, "/")
-    .replace(/%3A/gi, ":")
-    .replace(/\\/g, "/");
-  const protocolMatch = withForwardSlash.match(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//);
-  const protocolPrefix = protocolMatch?.[0] ?? "";
-  const tail = protocolPrefix ? withForwardSlash.slice(protocolPrefix.length) : withForwardSlash;
-  const normalizedTail = tail.replace(/\/{2,}/g, "/");
-  return `${protocolPrefix}${normalizedTail}`.replace(/^(\.)\/+/, "./");
-}
+
 
 async function checkAssetReachable(url: string): Promise<boolean> {
   try {
@@ -162,7 +153,7 @@ async function resolveBusyTexBasePath(): Promise<string> {
   if (resolvedBasePath) {
     return resolvedBasePath;
   }
-  const candidates = (await buildBasePathCandidates()).map(normalizePath);
+  const candidates = (await buildBasePathCandidates()).map(normalizeAssetBasePath);
   for (const candidate of candidates) {
     if (await hasRequiredBusyTexAssets(candidate)) {
       resolvedBasePath = candidate;

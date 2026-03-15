@@ -104,7 +104,7 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.join(" ")).toContain("BusyTeX assets missing");
   });
 
-  it("normalizes encoded windows asset paths from tauri cache", async () => {
+  it("normalizes encoded windows asset paths (including %2F) from tauri cache", async () => {
     mockCompilePayload = {
       success: true,
       pdf: [1, 2, 3],
@@ -115,7 +115,7 @@ describe("BusyTeX compile adapter", () => {
     vi.stubGlobal("fetch", fetchSpy);
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: () => "http://asset.localhost/F%3A%5CLatoTex%5Cbusytex-cache",
+      convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fbusytex-cache",
     }));
     vi.doMock("../../../shared/api/desktop", () => ({
       busytexCachePrepare: vi.fn(async () => ({

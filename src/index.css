@@ -624,9 +624,18 @@ body::before {
 }
 
 .app-topbar-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: var(--topbar-field-height);
   width: var(--topbar-field-height);
   padding: 0;
+  line-height: 1;
+}
+
+.app-topbar-action-btn svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .app-topbar-window-group {
@@ -648,14 +657,20 @@ body::before {
 }
 
 .panel-topbar .panel-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: var(--panel-topbar-btn-size);
   height: var(--panel-topbar-btn-size);
   padding: 0;
+  line-height: 1;
 }
 
 .panel-topbar .panel-topbar-btn svg {
   width: var(--panel-topbar-icon-size);
   height: var(--panel-topbar-icon-size);
+  display: block;
+  flex-shrink: 0;
 }
 
 .panel-topbar .panel-topbar-text {

@@ -12,8 +12,8 @@ use tauri::State;
 const REQUIRED_BUSYTEX_ASSETS: [&str; 4] =
     ["busytex.js", "busytex.wasm", "busytex_worker.js", "texlive-basic.js"];
 
-const REQUIRED_PYODIDE_ASSETS: [&str; 3] =
-    ["pyodide.mjs", "pyodide.asm.wasm", "python_stdlib.zip"];
+const REQUIRED_PYODIDE_ASSETS: [&str; 5] =
+    ["pyodide.mjs", "pyodide.asm.js", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"];
 
 struct CachePrepareResult {
     policy: String,

@@ -14,6 +14,7 @@ import {
   bringBoxToFront,
   clampPoint,
   distanceToStroke,
+  ERASER_CURSOR,
   HIGHLIGHT_CURSOR,
   nextTextBoxZ,
   resolveDraggedBox,
@@ -321,7 +322,7 @@ export function PdfAnnotationLayer(props: {
             mode === "highlight"
               ? HIGHLIGHT_CURSOR
               : mode === "eraser"
-                ? "cell"
+                ? ERASER_CURSOR
                 : mode === "textbox"
                   ? "text"
                   : "default",

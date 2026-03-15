@@ -1,6 +1,7 @@
 import { analysisPyodidePrepare } from "../../../shared/api/desktop";
 import type { AnalysisPyodideCacheInfo } from "../../../shared/types/app";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
 
 export type PyodideSourceConfig = {
   moduleUrl: string;
@@ -19,7 +20,7 @@ let cachedCandidatesPromise: Promise<PyodideSourceCandidate[]> | null = null;
 
 function toLocalSource(info: AnalysisPyodideCacheInfo): PyodideSourceConfig {
   const normalizedDir = info.actualDir.replace(/\\/g, "/").replace(/\/+$/, "");
-  const localBase = convertFileSrc(normalizedDir).replace(/\/+$/, "");
+  const localBase = normalizeAssetBasePath(convertFileSrc(normalizedDir));
   return {
     moduleUrl: `${localBase}/pyodide.mjs`,
     indexURL: `${localBase}/`,

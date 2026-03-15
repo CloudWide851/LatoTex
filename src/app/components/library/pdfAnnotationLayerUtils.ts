@@ -25,6 +25,8 @@ export type DragPreview = {
 
 export const HIGHLIGHT_CURSOR = `url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Crect x='2' y='2' width='10' height='22' rx='3' fill='%23facc15' stroke='%23b45309' stroke-width='1.4'/%3E%3Crect x='12' y='17' width='12' height='7' rx='2' fill='%23fef3c7' stroke='%23b45309' stroke-width='1.2'/%3E%3C/svg%3E") 4 22, crosshair`;
 
+export const ERASER_CURSOR = `url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 26 26'%3E%3Crect x='4' y='11' width='16' height='10' rx='2.2' transform='rotate(-28 12 16)' fill='%23f8fafc' stroke='%23475569' stroke-width='1.4'/%3E%3Cpath d='M7 20h12' stroke='%23e2e8f0' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E") 6 20, auto`;
+
 export function toNormalizedPoint(
   event: { clientX: number; clientY: number },
   rect: DOMRect,
