@@ -53,7 +53,7 @@ export function ProjectSearch(props: {
   }, [searching, searched, query]);
 
   return (
-    <div className="relative w-full min-w-[180px] max-w-[min(42vw,460px)]" ref={rootRef}>
+    <div className="relative min-w-0 w-full" ref={rootRef}>
       <div className="app-topbar-field flex h-9 items-center gap-2 rounded-md px-2">
         <Search className="h-4 w-4 shrink-0 text-slate-400 dark:text-zinc-400" />
         <input

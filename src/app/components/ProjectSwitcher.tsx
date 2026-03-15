@@ -43,7 +43,7 @@ export function ProjectSwitcher(props: {
   );
 
   return (
-    <div className="relative min-w-[170px] max-w-[248px]" ref={rootRef}>
+    <div className="relative min-w-0 w-full" ref={rootRef}>
       <button
         type="button"
         aria-label={t("topbar.selectProject")}

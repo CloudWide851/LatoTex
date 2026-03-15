@@ -308,7 +308,7 @@ export function GitWorkspace(props: {
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[44px_auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+      <div className="panel-topbar flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <GitBranch className="h-4 w-4" />
           <span>{status.branch}</span>
@@ -322,28 +322,28 @@ export function GitWorkspace(props: {
         </div>
         <div className="flex items-center gap-1">
           <button
-            className="rounded border border-slate-300 p-1.5 hover:bg-slate-100"
+            className="panel-topbar-btn rounded border border-slate-300 hover:bg-slate-100"
             title={t("git.refresh")}
             onClick={onRefresh}
           >
             <RefreshCcw className="h-3.5 w-3.5" />
           </button>
           <button
-            className="rounded border border-slate-300 p-1.5 hover:bg-slate-100"
+            className="panel-topbar-btn rounded border border-slate-300 hover:bg-slate-100"
             title={t("git.fetch")}
             onClick={onFetch}
           >
             <Download className="h-3.5 w-3.5" />
           </button>
           <button
-            className="rounded border border-slate-300 p-1.5 hover:bg-slate-100"
+            className="panel-topbar-btn rounded border border-slate-300 hover:bg-slate-100"
             title={t("git.pull")}
             onClick={onPull}
           >
             <Download className="h-3.5 w-3.5" />
           </button>
           <button
-            className="rounded border border-slate-300 p-1.5 hover:bg-slate-100"
+            className="panel-topbar-btn rounded border border-slate-300 hover:bg-slate-100"
             title={t("git.push")}
             onClick={onPush}
           >

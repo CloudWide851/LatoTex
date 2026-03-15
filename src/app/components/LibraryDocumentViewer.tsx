@@ -436,18 +436,18 @@ export function LibraryDocumentViewer(props: {
     );
   }
 
-  const actionBtnClass = "inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
+  const actionBtnClass = "panel-topbar-btn inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
-      <section className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3">
+      <section className="panel-topbar flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3">
         <div className="flex min-w-0 items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-slate-500" />
-          <span className="truncate text-sm font-medium text-slate-700">{filenameFromPath(selectedPath)}</span>
+          <span className="panel-topbar-text truncate text-sm font-medium text-slate-700">{filenameFromPath(selectedPath)}</span>
         </div>
         <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto py-1">
           <button
-            className={`rounded border px-2 py-1 text-[11px] ${
+            className={`panel-topbar-text rounded border px-2 py-1 text-[11px] ${
               viewMode === "bib"
                 ? "border-primary-300 bg-primary-50 text-primary-900"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
@@ -458,7 +458,7 @@ export function LibraryDocumentViewer(props: {
             {t("library.viewer.showBib")}
           </button>
           <button
-            className={`rounded border px-2 py-1 text-[11px] ${
+            className={`panel-topbar-text rounded border px-2 py-1 text-[11px] ${
               viewMode === "pdf"
                 ? "border-primary-300 bg-primary-50 text-primary-900"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"

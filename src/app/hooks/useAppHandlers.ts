@@ -136,8 +136,15 @@ export function useAppHandlers(params: UseAppHandlersParams) {
   }, [closeGuardUnlockedRef, setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
 
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
-    if (action === "toggle" && windowActionBusy) {
+    if (!isTauriRuntime) {
       return;
+    }
+    if ((action === "toggle" || action === "close") && windowActionBusy) {
+      return;
+    }
+    const shouldTrackBusy = action === "toggle" || action === "close";
+    if (shouldTrackBusy) {
+      setWindowActionBusy(true);
     }
     try {
       const appWindow = getCurrentWindow();
@@ -146,7 +153,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         return;
       }
       if (action === "toggle") {
-        setWindowActionBusy(true);
         const current = await appWindow.isMaximized();
         if (current) {
           await appWindow.unmaximize();
@@ -170,14 +176,16 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       await runtimeLogWrite("INFO", "window close decision requested");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      closeGuardUnlockedRef.current = false;
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       await runtimeLogWrite("ERROR", `window action failed: ${message}`);
     } finally {
-      if (action === "toggle") {
+      if (shouldTrackBusy) {
         setWindowActionBusy(false);
       }
     }
   }, [
+    closeGuardUnlockedRef,
     isTauriRuntime,
     setIsMaximized,
     setToast,
@@ -582,5 +590,3 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
-
-

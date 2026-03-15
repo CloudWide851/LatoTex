@@ -1,4 +1,5 @@
 import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon } from "lucide-react";
+import { useCallback } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import telegramIcon from "../../assets/brands/telegram.svg";
@@ -116,6 +117,23 @@ export function SettingsPanel(props: {
     },
   };
 
+  const deleteConfirmEnabled = !(localSettings.uiPrefs?.skipDeleteConfirm ?? false);
+  const closeToTrayNoticeEnabled = localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true;
+
+  const updateGeneralUiPrefs = useCallback((patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
+    setSettings((prev) => {
+      const base = prev ?? localSettings;
+      return {
+        ...base,
+        uiPrefs: {
+          ...(base.uiPrefs ?? {}),
+          language: base.uiPrefs?.language ?? locale,
+          panelLayout: base.uiPrefs?.panelLayout ?? DEFAULT_PANEL_LAYOUT,
+          ...patch,
+        },
+      };
+    });
+  }, [locale, localSettings, setSettings]);
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
@@ -184,39 +202,35 @@ export function SettingsPanel(props: {
                 </p>
               </div>
             </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <label className="flex items-center justify-between text-sm text-slate-700">
+            <div
+              className="rounded-lg border border-slate-200 p-4"
+              onClick={() => updateGeneralUiPrefs({ skipDeleteConfirm: deleteConfirmEnabled })}
+            >
+              <div className="flex cursor-pointer items-center justify-between text-sm text-slate-700">
                 <span>{t("settings.deleteConfirm")}</span>
                 <Checkbox
-                  checked={!(localSettings.uiPrefs?.skipDeleteConfirm ?? false)}
+                  checked={deleteConfirmEnabled}
+                  onClick={(event) => event.stopPropagation()}
                   onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            uiPrefs: {
-                              ...(prev.uiPrefs ?? {}),
-                              language: prev.uiPrefs?.language ?? locale,
-                              skipDeleteConfirm: !event.target.checked,
-                              panelLayout: prev.uiPrefs?.panelLayout,
-                            },
-                          }
-                        : prev,
-                    )
+                    updateGeneralUiPrefs({ skipDeleteConfirm: !event.target.checked })
                   }
                 />
-              </label>
+              </div>
             </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <label className="flex items-center justify-between text-sm text-slate-700">
+            <div
+              className="rounded-lg border border-slate-200 p-4"
+              onClick={() => updateGeneralUiPrefs({ closeToTrayNoticeEnabled: !closeToTrayNoticeEnabled })}
+            >
+              <div className="flex cursor-pointer items-center justify-between text-sm text-slate-700">
                 <span>{t("settings.closeToTrayNotice")}</span>
                 <Checkbox
-                  checked={localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true}
-                  onChange={(event) => setSettings((prev) => (prev
-                    ? { ...prev, uiPrefs: { ...(prev.uiPrefs ?? {}), closeToTrayNoticeEnabled: event.target.checked } }
-                    : prev))}
+                  checked={closeToTrayNoticeEnabled}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) =>
+                    updateGeneralUiPrefs({ closeToTrayNoticeEnabled: event.target.checked })
+                  }
                 />
-              </label>
+              </div>
             </div>
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
             <div className="rounded-lg border border-slate-200 p-4">

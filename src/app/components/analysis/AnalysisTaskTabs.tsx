@@ -34,7 +34,7 @@ export function AnalysisTaskTabs(props: {
   };
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/70 px-2 py-1.5">
+    <div className="panel-topbar flex items-center gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/70 px-2 py-1.5">
       {tasks.map((task) => {
         const active = task.id === activeTaskId;
         const editing = task.id === editingTaskId;
@@ -105,7 +105,7 @@ export function AnalysisTaskTabs(props: {
       })}
       <button
         type="button"
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        className="panel-topbar-btn inline-flex shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
         onClick={onCreateTask}
         title={t("analysis.newTask")}
         disabled={running}
