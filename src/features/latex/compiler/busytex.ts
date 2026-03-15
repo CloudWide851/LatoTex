@@ -23,23 +23,43 @@ const BUSYTEX_ASSET_HINT =
 
 let runner: BusyTexRunner | null = null;
 let resolvedBasePath: string | null = null;
-let preparedCacheBasePath: string | null = null;
-let preparingCachePromise: Promise<string | null> | null = null;
+let preparedCacheBasePaths: string[] | null = null;
+let preparingCachePromise: Promise<string[]> | null = null;
+
+function normalizeTrailingSlash(input: string): string {
+  return String(input || "").trim().replace(/\/+$/, "");
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
+}
+
+function appendCandidateVariants(target: string[], candidate: string) {
+  if (!candidate) {
+    return;
+  }
+  const base = normalizeTrailingSlash(candidate);
+  if (!base) {
+    return;
+  }
+  target.push(base);
+  target.push(normalizeTrailingSlash(normalizeAssetBasePath(base)));
+}
 
 function resetBusyTexRuntime(resetCacheBase = false) {
   runner = null;
   resolvedBasePath = null;
   if (resetCacheBase) {
-    preparedCacheBasePath = null;
+    preparedCacheBasePaths = null;
   }
 }
 
-async function resolveCacheBasePath(): Promise<string | null> {
-  if (preparedCacheBasePath) {
-    return preparedCacheBasePath;
+async function resolveCacheBasePaths(): Promise<string[]> {
+  if (preparedCacheBasePaths) {
+    return preparedCacheBasePaths;
   }
   if (!isTauri()) {
-    return null;
+    return [];
   }
   if (preparingCachePromise) {
     return preparingCachePromise;
@@ -59,11 +79,21 @@ async function resolveCacheBasePath(): Promise<string | null> {
         window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
         window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
       }
-      const normalizedActualDir = info.actualDir.replace(/\\/g, "/");
-      preparedCacheBasePath = normalizeAssetBasePath(convertFileSrc(normalizedActualDir));
-      return preparedCacheBasePath;
+
+      const originalDir = String(info.actualDir || "").trim();
+      const slashDir = originalDir.replace(/\\/g, "/");
+      const originalConverted = convertFileSrc(originalDir);
+      const slashConverted = convertFileSrc(slashDir);
+
+      preparedCacheBasePaths = uniqueValues([
+        normalizeAssetBasePath(originalConverted),
+        normalizeAssetBasePath(slashConverted),
+        originalConverted,
+        slashConverted,
+      ]);
+      return preparedCacheBasePaths;
     } catch {
-      return null;
+      return [];
     }
   })();
 
@@ -80,19 +110,20 @@ async function buildBasePathCandidates(): Promise<string[]> {
       ? import.meta.env.BASE_URL
       : "/";
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const cachePath = await resolveCacheBasePath();
-  return Array.from(
-    new Set([
-      cachePath ? `${cachePath}` : "",
-      `${normalizedBase}core/busytex`,
-      "/core/busytex",
-      "./core/busytex",
-      "core/busytex",
-    ].filter((value) => value.length > 0)),
-  );
+  const cachePaths = await resolveCacheBasePaths();
+  const withVariants: string[] = [];
+
+  for (const path of cachePaths) {
+    appendCandidateVariants(withVariants, path);
+  }
+
+  appendCandidateVariants(withVariants, `${normalizedBase}core/busytex`);
+  appendCandidateVariants(withVariants, "/core/busytex");
+  appendCandidateVariants(withVariants, "./core/busytex");
+  appendCandidateVariants(withVariants, "core/busytex");
+
+  return uniqueValues(withVariants);
 }
-
-
 
 async function checkAssetReachable(url: string): Promise<boolean> {
   try {
@@ -108,10 +139,7 @@ async function checkAssetReachable(url: string): Promise<boolean> {
   }
 
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: { Range: "bytes=0-32" },
-    });
+    const response = await fetch(url, { method: "GET", cache: "no-store" });
     if (!response.ok) {
       return false;
     }
@@ -153,7 +181,7 @@ async function resolveBusyTexBasePath(): Promise<string> {
   if (resolvedBasePath) {
     return resolvedBasePath;
   }
-  const candidates = (await buildBasePathCandidates()).map(normalizeAssetBasePath);
+  const candidates = await buildBasePathCandidates();
   for (const candidate of candidates) {
     if (await hasRequiredBusyTexAssets(candidate)) {
       resolvedBasePath = candidate;
@@ -268,7 +296,7 @@ async function compileInternal(
 
     if (allowRetry && isRecoverableAssetError(message)) {
       resetBusyTexRuntime(true);
-      await resolveCacheBasePath().catch(() => null);
+      await resolveCacheBasePaths().catch(() => []);
       return compileInternal(mainSource, files, mainFilePath, false, startAt);
     }
 

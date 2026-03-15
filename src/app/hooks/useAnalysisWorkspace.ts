@@ -11,7 +11,8 @@ import {
   type AnalysisSourceSnapshot,
 } from "./analysisDataSources";
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
-import { resolvePromptInputFiles } from "./analysisPromptRefs";
+import { appendPromptRefs, resolveDroppedPromptRefs } from "./analysisDropRefs";
+import { applyPromptRefSuggestion, resolvePromptInputFiles } from "./analysisPromptRefs";
 import { buildPyodideAnalysisProfile } from "../../features/analysis/pyodide/profile";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
@@ -178,6 +179,33 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
     setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
+  const onDropPromptPaths = useCallback((paths: string[]) => {
+    const resolvedPaths = resolveDroppedPromptRefs(paths, candidateFiles);
+    if (resolvedPaths.length === 0) {
+      return;
+    }
+
+    let targetTaskId = activeTaskId;
+    if (!targetTaskId) {
+      targetTaskId = tasksRef.current[0]?.id ?? null;
+    }
+
+    if (!targetTaskId) {
+      const task = createAnalysisTask({
+        defaultName: t("analysis.defaultTaskName"),
+        sourceType: "data",
+      });
+      setTasks((prev) => [task, ...prev]);
+      setActiveTaskId(task.id);
+      targetTaskId = task.id;
+    }
+
+    updateTaskById(targetTaskId, (task) => ({
+      ...task,
+      draftPrompt: appendPromptRefs(task.draftPrompt ?? "", resolvedPaths, applyPromptRefSuggestion),
+      updatedAt: nowIso(),
+    }));
+  }, [activeTaskId, candidateFiles, t, updateTaskById]);
   const setPrompt = useCallback((value: string) => {
     if (!activeTaskId) {
       return;
@@ -558,6 +586,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-  return { prompt, setPrompt, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
+  return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+
+
 

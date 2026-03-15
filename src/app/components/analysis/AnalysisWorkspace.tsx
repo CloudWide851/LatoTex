@@ -1,10 +1,31 @@
 import { Download, FolderOpen, Plus } from "lucide-react";
+import { useState, type DragEvent } from "react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
 import { AnalysisTaskTabs } from "./AnalysisTaskTabs";
 
 type TranslationFn = (key: any) => string;
+
+function canAcceptDrop(event: DragEvent): boolean {
+  const types = Array.from(event.dataTransfer?.types ?? []);
+  return types.includes("application/x-latotex-path") || types.includes("text/plain");
+}
+
+function parseDroppedPaths(event: DragEvent): string[] {
+  const dataTransfer = event.dataTransfer;
+  const customRaw = dataTransfer.getData("application/x-latotex-path");
+  const customPaths = customRaw
+    .split(/\r?\n/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const plainRaw = dataTransfer.getData("text/plain");
+  const plainPaths = plainRaw
+    .split(/\r?\n/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return Array.from(new Set([...customPaths, ...plainPaths]));
+}
 
 function renderArtifacts(
   paths: string[],
@@ -57,6 +78,7 @@ export function AnalysisWorkspace(props: {
   timelineCards: AnalysisTimelineCard[];
   candidateFiles: string[];
   onPromptChange: (value: string) => void;
+  onDropPaths: (paths: string[]) => void;
   onRun: () => void;
   onSelectTask: (taskId: string) => void;
   onCreateTask: () => void;
@@ -80,6 +102,7 @@ export function AnalysisWorkspace(props: {
     timelineCards,
     candidateFiles,
     onPromptChange,
+    onDropPaths,
     onRun,
     onSelectTask,
     onCreateTask,
@@ -90,6 +113,7 @@ export function AnalysisWorkspace(props: {
     onRevealArtifact,
     t,
   } = props;
+  const [dragActive, setDragActive] = useState(false);
 
   return (
     <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
@@ -105,7 +129,25 @@ export function AnalysisWorkspace(props: {
       />
 
       <div
-        className={`grid min-h-0 px-3 pt-2 pb-3 ${tasks.length > 0 ? "grid-rows-[minmax(0,1fr)_auto]" : "grid-rows-[minmax(0,1fr)]"}`}
+        className={`grid min-h-0 px-3 pt-2 pb-3 ${tasks.length > 0 ? "grid-rows-[minmax(0,1fr)_auto]" : "grid-rows-[minmax(0,1fr)]"} ${dragActive ? "rounded-b-lg border border-primary-300 bg-primary-50/30" : ""}`}
+        onDragOver={(event) => {
+          if (!canAcceptDrop(event)) {
+            return;
+          }
+          event.preventDefault();
+          if (!dragActive) {
+            setDragActive(true);
+          }
+        }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={(event) => {
+          if (!canAcceptDrop(event)) {
+            return;
+          }
+          event.preventDefault();
+          setDragActive(false);
+          onDropPaths(parseDroppedPaths(event));
+        }}
       >
         <div className="relative min-h-0">
           {errorMessage ? (
@@ -220,6 +262,7 @@ export function AnalysisWorkspace(props: {
               busy={busy}
               candidateFiles={candidateFiles}
               onPromptChange={onPromptChange}
+              onDropPaths={onDropPaths}
               onRun={onRun}
               t={t}
             />

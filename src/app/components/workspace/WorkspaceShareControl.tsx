@@ -230,7 +230,7 @@ export function WorkspaceShareControl(props: {
   return (
     <div ref={rootRef} className="relative">
       <button
-        className={`relative rounded border px-2 py-1.5 text-xs transition disabled:opacity-60 ${
+        className={`panel-topbar-btn relative rounded border transition disabled:opacity-60 ${
           sessionExists
             ? "border-primary-600 bg-primary-50 text-primary-700 hover:bg-primary-100"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
@@ -240,7 +240,7 @@ export function WorkspaceShareControl(props: {
         title={t("share.openPanel")}
         aria-label={t("share.openPanel")}
       >
-        <Share2 className="inline h-3.5 w-3.5" />
+        <Share2 className="h-4 w-4" />
         {sessionExists ? (
           <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white ${dotClass}`} />
         ) : null}
@@ -417,3 +417,4 @@ export function WorkspaceShareControl(props: {
     </div>
   );
 }
+

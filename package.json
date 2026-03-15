@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/ensure-busytex-assets.mjs && node scripts/ensure-pyodide-assets.mjs && tsc && vite build",
+    "build": "node scripts/ensure-busytex-assets.mjs && node scripts/ensure-pyodide-assets.mjs && node scripts/ensure-drawio-assets.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -61,3 +61,4 @@
     "pyodide": "0.27.2"
   }
 }
+

@@ -136,6 +136,7 @@ export function useAppPanelNodes(params: any) {
       timelineCards={analysisWorkspace.timelineCards}
       candidateFiles={analysisWorkspace.candidateFiles}
       onPromptChange={analysisWorkspace.setPrompt}
+      onDropPaths={analysisWorkspace.onDropPromptPaths}
       onRun={() => {
         void analysisWorkspace.runAnalysis();
       }}
@@ -318,3 +319,5 @@ export function useAppPanelNodes(params: any) {
     recoverWorkspaceLayout,
   };
 }
+
+

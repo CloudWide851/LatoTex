@@ -3,6 +3,8 @@ use crate::models::{
     AnalysisPyodidePrepareInput,
     BusyTexCacheInfo,
     BusyTexCachePrepareInput,
+    DrawioCacheInfo,
+    DrawioCachePrepareInput,
 };
 use crate::state::AppState;
 use std::fs;
@@ -14,6 +16,9 @@ const REQUIRED_BUSYTEX_ASSETS: [&str; 4] =
 
 const REQUIRED_PYODIDE_ASSETS: [&str; 5] =
     ["pyodide.mjs", "pyodide.asm.js", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"];
+
+const REQUIRED_DRAWIO_ASSETS: [&str; 6] =
+    ["index.html", "app.html", "js/app.min.js", "js/bootstrap.js", "js/main.js", "styles/grapheditor.css"];
 
 struct CachePrepareResult {
     policy: String,
@@ -201,3 +206,26 @@ pub fn analysis_pyodide_prepare(
     })
 }
 
+#[tauri::command]
+pub fn drawio_cache_prepare(
+    state: State<'_, AppState>,
+    input: DrawioCachePrepareInput,
+) -> Result<DrawioCacheInfo, String> {
+    let policy = input.policy.trim();
+    let prepared = prepare_cache(
+        &state,
+        policy,
+        "drawio-cache",
+        "drawio",
+        &REQUIRED_DRAWIO_ASSETS,
+        "Drawio source assets were not found in app resources",
+    )?;
+
+    Ok(DrawioCacheInfo {
+        policy: prepared.policy,
+        requested_dir: prepared.requested_dir,
+        actual_dir: prepared.actual_dir,
+        install_dir_writable: prepared.install_dir_writable,
+        using_fallback: prepared.using_fallback,
+    })
+}

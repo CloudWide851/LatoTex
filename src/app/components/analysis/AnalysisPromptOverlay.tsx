@@ -1,10 +1,25 @@
 import { Play } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { cn } from "../../../lib/utils";
 import { SvgSpinner } from "../../../components/ui/svg-spinner";
 import { applyPromptRefSuggestion, suggestPromptRefs } from "../../hooks/analysisPromptRefs";
 
 type TranslationFn = (key: any) => string;
+
+function parseDroppedPaths(event: DragEvent): string[] {
+  const dataTransfer = event.dataTransfer;
+  const customRaw = dataTransfer.getData("application/x-latotex-path");
+  const customPaths = customRaw
+    .split(/\r?\n/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const plainRaw = dataTransfer.getData("text/plain");
+  const plainPaths = plainRaw
+    .split(/\r?\n/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return Array.from(new Set([...customPaths, ...plainPaths]));
+}
 
 export function AnalysisPromptOverlay(props: {
   prompt: string;
@@ -14,10 +29,11 @@ export function AnalysisPromptOverlay(props: {
   candidateFiles: string[];
   embedded?: boolean;
   onPromptChange: (value: string) => void;
+  onDropPaths: (paths: string[]) => void;
   onRun: () => void;
   t: TranslationFn;
 }) {
-  const { prompt, canRun, running, busy, candidateFiles, embedded = false, onPromptChange, onRun, t } = props;
+  const { prompt, canRun, running, busy, candidateFiles, embedded = false, onPromptChange, onDropPaths, onRun, t } = props;
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [suggestionPlacement, setSuggestionPlacement] = useState<"above" | "below">("above");
@@ -72,24 +88,6 @@ export function AnalysisPromptOverlay(props: {
     setSuggestionIndex(0);
   };
 
-  const appendDroppedPaths = (paths: string[]) => {
-    if (paths.length === 0) {
-      return;
-    }
-    const normalizedSet = new Set(candidateFiles.map((item) => item.replace(/\\/g, "/")));
-    let next = prompt;
-    for (const path of paths) {
-      const normalized = path.replace(/\\/g, "/").trim();
-      if (!normalizedSet.has(normalized)) {
-        continue;
-      }
-      next = applyPromptRefSuggestion(next, normalized);
-    }
-    if (next !== prompt) {
-      onPromptChange(next);
-    }
-  };
-
   return (
     <div
       className={embedded
@@ -126,18 +124,7 @@ export function AnalysisPromptOverlay(props: {
             onDrop={(event) => {
               event.preventDefault();
               setDragActive(false);
-              const dataTransfer = event.dataTransfer;
-              const customRaw = dataTransfer.getData("application/x-latotex-path");
-              const customPaths = customRaw
-                .split(/\r?\n/g)
-                .map((item) => item.trim())
-                .filter((item) => item.length > 0);
-              const plainRaw = dataTransfer.getData("text/plain");
-              const plainPaths = plainRaw
-                .split(/\r?\n/g)
-                .map((item) => item.trim())
-                .filter((item) => item.length > 0);
-              appendDroppedPaths([...customPaths, ...plainPaths]);
+              onDropPaths(parseDroppedPaths(event));
             }}
             onKeyDown={(event) => {
               if (suggestions.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
@@ -209,3 +196,4 @@ export function AnalysisPromptOverlay(props: {
     </div>
   );
 }
+

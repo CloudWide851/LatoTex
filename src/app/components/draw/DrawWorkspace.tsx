@@ -1,6 +1,8 @@
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
+import { drawioCachePrepare, readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
+import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
 
 type TranslationFn = (key: any) => string;
 
@@ -17,6 +19,7 @@ type DrawMessage = {
 const DRAWIO_HOST_URL = "/drawio/index.html";
 const DRAWIO_EMBED_FALLBACK_URL = "https://embed.diagrams.net/?embed=1&ui=min&spin=1&proto=json&configure=1&saveAndExit=0";
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
+const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 
 const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net">
@@ -87,6 +90,73 @@ function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
   }
 }
 
+
+function toDrawioHostCandidates(actualDir: string): string[] {
+  const originalDir = String(actualDir || "").trim();
+  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const originalConverted = convertFileSrc(originalDir);
+  const slashConverted = convertFileSrc(slashDir);
+  const bases = Array.from(
+    new Set([
+      normalizeAssetBasePath(originalConverted),
+      normalizeAssetBasePath(slashConverted),
+      originalConverted,
+      slashConverted,
+    ].map((item) => String(item || "").trim().replace(/\/+$/, "")).filter((item) => item.length > 0)),
+  );
+  return bases.map((base) => `${base}/index.html`);
+}
+
+async function checkFrameSource(url: string): Promise<boolean> {
+  try {
+    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (head.ok) {
+      return true;
+    }
+    if (head.status !== 405 && head.status !== 501) {
+      return false;
+    }
+  } catch {
+    // fallback to GET check below
+  }
+
+  try {
+    const get = await fetch(url, { method: "GET", cache: "no-store" });
+    if (!get.ok) {
+      return false;
+    }
+    await get.body?.cancel().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveDrawioHostFrameSrc(): Promise<string> {
+  if (!isTauri()) {
+    return DRAWIO_HOST_URL;
+  }
+
+  try {
+    const policy = typeof window !== "undefined"
+      ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
+      : null;
+    const info = await drawioCachePrepare(policy ?? "install-first");
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
+    }
+    const candidates = toDrawioHostCandidates(info.actualDir);
+    for (const candidate of candidates) {
+      if (await checkFrameSource(candidate)) {
+        return candidate;
+      }
+    }
+  } catch {
+    // fallback below
+  }
+
+  return DRAWIO_HOST_URL;
+}
 function parseDrawMessage(payload: unknown): DrawMessage | null {
   if (!payload) {
     return null;
@@ -174,6 +244,27 @@ export function DrawWorkspace(props: {
   const [frameSrc, setFrameSrc] = useState(DRAWIO_HOST_URL);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    resolveDrawioHostFrameSrc()
+      .then((nextSrc) => {
+        if (cancelled) {
+          return;
+        }
+        setReady(false);
+        setFrameSrc(nextSrc || DRAWIO_HOST_URL);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setReady(false);
+          setFrameSrc(DRAWIO_HOST_URL);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   const postToFrame = useCallback((payload: Record<string, unknown>) => {
     const frame = frameRef.current?.contentWindow;
@@ -396,7 +487,8 @@ export function DrawWorkspace(props: {
   useEffect(() => {
     initTimerRef.current = window.setTimeout(() => {
       if (!ready) {
-        if (frameSrc === DRAWIO_HOST_URL) {
+        if (frameSrc !== DRAWIO_EMBED_FALLBACK_URL) {
+          setReady(false);
           setFrameSrc(DRAWIO_EMBED_FALLBACK_URL);
           setStatus(t("draw.waiting"));
           return;
@@ -486,3 +578,8 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
+
+
+
+
+

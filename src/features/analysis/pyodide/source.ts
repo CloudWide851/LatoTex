@@ -18,13 +18,31 @@ const CDN_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${CDN_VERSION}/full/`;
 
 let cachedCandidatesPromise: Promise<PyodideSourceCandidate[]> | null = null;
 
-function toLocalSource(info: AnalysisPyodideCacheInfo): PyodideSourceConfig {
-  const normalizedDir = info.actualDir.replace(/\\/g, "/").replace(/\/+$/, "");
-  const localBase = normalizeAssetBasePath(convertFileSrc(normalizedDir));
-  return {
+function normalizeBasePath(base: string): string {
+  return String(base || "").trim().replace(/\/+$/, "");
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.map((item) => normalizeBasePath(item)).filter((item) => item.length > 0)));
+}
+
+function toLocalSourceConfigs(info: AnalysisPyodideCacheInfo): PyodideSourceConfig[] {
+  const originalDir = String(info.actualDir || "").trim();
+  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const originalConverted = convertFileSrc(originalDir);
+  const slashConverted = convertFileSrc(slashDir);
+
+  const basePaths = uniqueValues([
+    normalizeAssetBasePath(originalConverted),
+    normalizeAssetBasePath(slashConverted),
+    originalConverted,
+    slashConverted,
+  ]);
+
+  return basePaths.map((localBase) => ({
     moduleUrl: `${localBase}/pyodide.mjs`,
     indexURL: `${localBase}/`,
-  };
+  }));
 }
 
 function buildCdnSource(): PyodideSourceConfig {
@@ -51,10 +69,13 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
           window.localStorage.setItem("latotex.pyodide.cacheDir", info.actualDir);
           window.localStorage.setItem("latotex.pyodide.cachePolicy", info.policy);
         }
-        candidates.push({
-          name: "local-cache",
-          source: toLocalSource(info),
-        });
+        const localSources = toLocalSourceConfigs(info);
+        for (const source of localSources) {
+          candidates.push({
+            name: "local-cache",
+            source,
+          });
+        }
       } catch {
         // fallback to CDN candidate below
       }
@@ -69,3 +90,4 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
 
   return cachedCandidatesPromise;
 }
+

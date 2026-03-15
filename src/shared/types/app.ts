@@ -546,6 +546,14 @@ export type BusyTexCacheInfo = {
   usingFallback: boolean;
 };
 
+export type DrawioCacheInfo = {
+  policy: string;
+  requestedDir: string;
+  actualDir: string;
+  installDirWritable: boolean;
+  usingFallback: boolean;
+};
+
 export type Ack = {
   ok: boolean;
   message: string;
@@ -555,4 +563,7 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
+
+
 

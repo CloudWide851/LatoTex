@@ -11,6 +11,7 @@ import type {
   AppBackgroundImagePayload,
   AppSettings,
   AnalysisPyodideCacheInfo,
+  DrawioCacheInfo,
   BusyTexCacheInfo,
   CompileRecord,
   CredentialSaveResult,
@@ -595,4 +596,10 @@ export function busytexCachePrepare(policy: "install-first" | "appdata-only"): P
 export function analysisPyodidePrepare(policy: "install-first" | "appdata-only"): Promise<AnalysisPyodideCacheInfo> {
   return invoke<AnalysisPyodideCacheInfo>("analysis_pyodide_prepare", { input: { policy } });
 }
+
+export function drawioCachePrepare(policy: "install-first" | "appdata-only"): Promise<DrawioCacheInfo> {
+  return invoke<DrawioCacheInfo>("drawio_cache_prepare", { input: { policy } });
+}
+
+
 
