@@ -526,6 +526,7 @@ export function AppContainer() {
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
       savePanelLayout={savePanelLayout}
       requestFsAction={handlers.requestFsAction}
+      runFsAction={handlers.runFsAction}
       overlay={s.overlay}
       logsTab={s.logsTab}
       events={s.events}
@@ -564,6 +565,8 @@ export function AppContainer() {
     />
   );
 }
+
+
 
 
 

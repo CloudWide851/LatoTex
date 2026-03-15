@@ -22,7 +22,6 @@ const BUSYTEX_ASSET_HINT =
   "BusyTeX assets missing. Run `pnpm run busytex:assets` to prepare src-tauri/resources/core/busytex.";
 
 let runner: BusyTexRunner | null = null;
-let resolvedBasePath: string | null = null;
 let preparedCacheBasePaths: string[] | null = null;
 let preparingCachePromise: Promise<string[]> | null = null;
 
@@ -48,7 +47,6 @@ function appendCandidateVariants(target: string[], candidate: string) {
 
 function resetBusyTexRuntime(resetCacheBase = false) {
   runner = null;
-  resolvedBasePath = null;
   if (resetCacheBase) {
     preparedCacheBasePaths = null;
   }
@@ -125,72 +123,38 @@ async function buildBasePathCandidates(): Promise<string[]> {
   return uniqueValues(withVariants);
 }
 
-async function checkAssetReachable(url: string): Promise<boolean> {
-  try {
-    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
-    if (head.ok) {
-      return true;
-    }
-    if (head.status !== 405 && head.status !== 501) {
-      return false;
-    }
-  } catch {
-    // fallback to GET check
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
   }
-
-  try {
-    const response = await fetch(url, { method: "GET", cache: "no-store" });
-    if (!response.ok) {
-      return false;
-    }
-    await response.body?.cancel().catch(() => undefined);
-    return true;
-  } catch {
-    return false;
-  }
+  return String(error);
 }
 
-async function hasValidWorkerAsset(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) {
-      return false;
-    }
-    const source = (await response.text()).trimStart();
-    return !source.startsWith("<");
-  } catch {
-    return false;
-  }
-}
-
-async function hasRequiredBusyTexAssets(basePath: string): Promise<boolean> {
-  const workerUrl = `${basePath}/busytex_worker.js`;
-  if (!(await hasValidWorkerAsset(workerUrl))) {
-    return false;
-  }
-
-  const assetChecks = await Promise.all([
-    checkAssetReachable(`${basePath}/busytex.js`),
-    checkAssetReachable(`${basePath}/busytex.wasm`),
-    checkAssetReachable(`${basePath}/texlive-basic.js`),
-  ]);
-  return assetChecks.every(Boolean);
-}
-
-async function resolveBusyTexBasePath(): Promise<string> {
-  if (resolvedBasePath) {
-    return resolvedBasePath;
-  }
-  const candidates = await buildBasePathCandidates();
-  for (const candidate of candidates) {
-    if (await hasRequiredBusyTexAssets(candidate)) {
-      resolvedBasePath = candidate;
-      return candidate;
-    }
-  }
-  throw new Error(
-    `BusyTeX worker asset not found. Tried: ${candidates.join(", ")}. ${BUSYTEX_ASSET_HINT}`,
+function buildMissingAssetsError(candidates: string[], reasons: string[]): Error {
+  const lastReason = reasons.length > 0 ? ` Last error: ${reasons[reasons.length - 1]}.` : "";
+  return new Error(
+    `BusyTeX worker asset not found. Tried: ${candidates.join(", ")}. ${BUSYTEX_ASSET_HINT}${lastReason}`,
   );
+}
+
+async function initializeRunnerFromCandidates(candidates: string[]): Promise<BusyTexRunner> {
+  const reasons: string[] = [];
+
+  for (const candidate of candidates) {
+    const candidateRunner = new BusyTexRunner({
+      busytexBasePath: candidate,
+    });
+    try {
+      if (!candidateRunner.isInitialized()) {
+        await candidateRunner.initialize(true);
+      }
+      return candidateRunner;
+    } catch (error) {
+      reasons.push(toErrorMessage(error));
+    }
+  }
+
+  throw buildMissingAssetsError(candidates, reasons);
 }
 
 function normalizeToUint8Array(input: unknown): Uint8Array | null {
@@ -236,15 +200,19 @@ function isRecoverableAssetError(message: string): boolean {
 }
 
 async function getRunner(): Promise<BusyTexRunner> {
-  if (!runner) {
-    const basePath = await resolveBusyTexBasePath();
-    runner = new BusyTexRunner({
-      busytexBasePath: basePath,
-    });
+  if (runner) {
+    try {
+      if (!runner.isInitialized()) {
+        await runner.initialize(true);
+      }
+      return runner;
+    } catch {
+      resetBusyTexRuntime(false);
+    }
   }
-  if (!runner.isInitialized()) {
-    await runner.initialize(true);
-  }
+
+  const candidates = await buildBasePathCandidates();
+  runner = await initializeRunnerFromCandidates(candidates);
   return runner;
 }
 
@@ -292,7 +260,7 @@ async function compileInternal(
       durationMs: Math.round(performance.now() - startAt),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = toErrorMessage(error);
 
     if (allowRetry && isRecoverableAssetError(message)) {
       resetBusyTexRuntime(true);
@@ -300,7 +268,8 @@ async function compileInternal(
       return compileInternal(mainSource, files, mainFilePath, false, startAt);
     }
 
-    const hint = isRecoverableAssetError(message) ? [BUSYTEX_ASSET_HINT] : [];
+    const needsHint = isRecoverableAssetError(message) && !message.includes(BUSYTEX_ASSET_HINT);
+    const hint = needsHint ? [BUSYTEX_ASSET_HINT] : [];
     return {
       status: "error",
       diagnostics: [message, ...hint],
@@ -317,3 +286,4 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+

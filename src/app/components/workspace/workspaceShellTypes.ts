@@ -120,5 +120,15 @@ export type AppWorkspaceShellProps = {
     targetPath?: string,
     content?: string,
   ) => Promise<void>;
+  onRunFsAction: (
+    scope: FsScope,
+    action: FsAction,
+    path: string,
+    targetPath?: string,
+    content?: string,
+  ) => Promise<boolean>;
   t: TranslationFn;
 };
+
+
+

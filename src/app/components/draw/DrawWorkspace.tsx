@@ -1,24 +1,27 @@
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { Plus, X } from "lucide-react";
+import { isTauri } from "@tauri-apps/api/core";
+import { Download, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drawioCachePrepare, readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
-import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+import type { FsAction, FsScope } from "../../../shared/types/app";
+import {
+  buildRenamedDrawPath,
+  decodeDataUrl,
+  inferExportExtension,
+  isDrawPath,
+  loadPersistedTabs,
+  normalizePath,
+  parseDrawMessage,
+  savePersistedTabs,
+  tabTitleFromPath,
+  toDrawExportTarget,
+  toDrawioHostCandidates,
+  toTextIfPossible,
+} from "./drawWorkspaceUtils";
 
 type TranslationFn = (key: any) => string;
 
-type DrawMessage = {
-  event?: string;
-  xml?: string;
-  data?: string;
-  format?: string;
-  mime?: string;
-  error?: string;
-  [key: string]: unknown;
-};
-
 const DRAWIO_HOST_URL = "/drawio/index.html";
 const DRAWIO_EMBED_FALLBACK_URL = "https://embed.diagrams.net/?embed=1&ui=min&spin=1&proto=json&configure=1&saveAndExit=0";
-const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
 const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 
 const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
@@ -32,80 +35,6 @@ const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
     </mxGraphModel>
   </diagram>
 </mxfile>`;
-
-type PersistedDrawTabs = {
-  paths: string[];
-  activePath: string | null;
-};
-
-function normalizePath(value: string | null | undefined): string {
-  return String(value ?? "").trim().replace(/\\/g, "/");
-}
-
-function isDrawPath(value: string | null | undefined): boolean {
-  return /\.drawio$/i.test(normalizePath(value));
-}
-
-function tabTitleFromPath(path: string): string {
-  const normalized = normalizePath(path);
-  const parts = normalized.split("/");
-  return parts[parts.length - 1] || normalized;
-}
-
-function drawTabsStorageKey(projectId: string): string {
-  return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
-}
-
-function loadPersistedTabs(projectId: string): PersistedDrawTabs {
-  if (typeof window === "undefined") {
-    return { paths: [], activePath: null };
-  }
-  try {
-    const raw = window.localStorage.getItem(drawTabsStorageKey(projectId));
-    if (!raw) {
-      return { paths: [], activePath: null };
-    }
-    const parsed = JSON.parse(raw) as PersistedDrawTabs;
-    const paths = Array.isArray(parsed?.paths)
-      ? parsed.paths.map((item) => normalizePath(item)).filter((item) => isDrawPath(item))
-      : [];
-    const activePath = isDrawPath(parsed?.activePath) ? normalizePath(parsed.activePath) : null;
-    return {
-      paths: Array.from(new Set(paths)),
-      activePath,
-    };
-  } catch {
-    return { paths: [], activePath: null };
-  }
-}
-
-function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
-  if (typeof window === "undefined") {
-    return;
-  }
-  try {
-    window.localStorage.setItem(drawTabsStorageKey(projectId), JSON.stringify(state));
-  } catch {
-    // ignore storage quota errors
-  }
-}
-
-
-function toDrawioHostCandidates(actualDir: string): string[] {
-  const originalDir = String(actualDir || "").trim();
-  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
-  const originalConverted = convertFileSrc(originalDir);
-  const slashConverted = convertFileSrc(slashDir);
-  const bases = Array.from(
-    new Set([
-      normalizeAssetBasePath(originalConverted),
-      normalizeAssetBasePath(slashConverted),
-      originalConverted,
-      slashConverted,
-    ].map((item) => String(item || "").trim().replace(/\/+$/, "")).filter((item) => item.length > 0)),
-  );
-  return bases.map((base) => `${base}/index.html`);
-}
 
 async function checkFrameSource(url: string): Promise<boolean> {
   try {
@@ -157,86 +86,25 @@ async function resolveDrawioHostFrameSrc(): Promise<string> {
 
   return DRAWIO_HOST_URL;
 }
-function parseDrawMessage(payload: unknown): DrawMessage | null {
-  if (!payload) {
-    return null;
-  }
-  if (typeof payload === "string") {
-    try {
-      return JSON.parse(payload) as DrawMessage;
-    } catch {
-      return null;
-    }
-  }
-  if (typeof payload === "object") {
-    return payload as DrawMessage;
-  }
-  return null;
-}
-
-function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {
-  const [prefix, payload] = dataUrl.split(",", 2);
-  const mime = /^data:([^;]+);base64$/i.exec(prefix || "")?.[1] || "application/octet-stream";
-  const raw = atob(payload || "");
-  const bytes = new Uint8Array(raw.length);
-  for (let index = 0; index < raw.length; index += 1) {
-    bytes[index] = raw.charCodeAt(index);
-  }
-  return { mime, bytes };
-}
-
-function mimeSubtype(mime: string): string {
-  const normalized = String(mime || "").toLowerCase();
-  if (!normalized.includes("/")) {
-    return "bin";
-  }
-  const sub = normalized.split("/")[1] || "bin";
-  return sub.replace(/[^a-z0-9.+-]/g, "") || "bin";
-}
-
-function inferExportExtension(message: DrawMessage, dataMime?: string): string {
-  const format = String(message.format ?? "").trim().toLowerCase();
-  if (format) {
-    return format.replace(/[^a-z0-9.+-]/g, "") || "bin";
-  }
-  const mime = String(message.mime ?? dataMime ?? "").trim().toLowerCase();
-  if (mime) {
-    if (mime === "image/svg+xml") {
-      return "svg";
-    }
-    return mimeSubtype(mime);
-  }
-  return "bin";
-}
-
-function toTextIfPossible(ext: string, bytes: Uint8Array): string | null {
-  if (!["svg", "xml", "drawio", "txt", "html", "json", "md", "csv", "tsv"].includes(ext)) {
-    return null;
-  }
-  try {
-    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-  } catch {
-    return null;
-  }
-}
-
-function toDrawExportTarget(activePath: string, extension: string): string {
-  const title = tabTitleFromPath(activePath);
-  const stem = title.replace(/\.drawio$/i, "") || "diagram";
-  const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
-  return `drawings/${safeStem}.${extension}`;
-}
 
 export function DrawWorkspace(props: {
   projectId: string | null;
   selectedPath: string | null;
   onSelectPath: (path: string | null) => void;
+  onRunFsAction: (
+    scope: FsScope,
+    action: FsAction,
+    path: string,
+    targetPath?: string,
+    content?: string,
+  ) => Promise<boolean>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onSelectPath, t } = props;
+  const { projectId, selectedPath, onSelectPath, onRunFsAction, t } = props;
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
   const xmlByPathRef = useRef<Record<string, string>>({});
+  const renameCommittingPathRef = useRef<string | null>(null);
 
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -244,6 +112,9 @@ export function DrawWorkspace(props: {
   const [frameSrc, setFrameSrc] = useState(DRAWIO_HOST_URL);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
+  const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+
   useEffect(() => {
     let cancelled = false;
     resolveDrawioHostFrameSrc()
@@ -294,11 +165,37 @@ export function DrawWorkspace(props: {
     }
   }, [onSelectPath]);
 
+  const replaceTabPath = useCallback((fromPath: string, toPath: string) => {
+    setTabPaths((prev) => prev.map((item) => (item === fromPath ? toPath : item)));
+    setActivePath((prev) => {
+      if (prev !== fromPath) {
+        return prev;
+      }
+      onSelectPath(toPath);
+      return toPath;
+    });
+    if (normalizePath(selectedPath) === fromPath) {
+      onSelectPath(toPath);
+    }
+
+    const cached = xmlByPathRef.current[fromPath];
+    if (typeof cached === "string") {
+      xmlByPathRef.current[toPath] = cached;
+    }
+    delete xmlByPathRef.current[fromPath];
+  }, [onSelectPath, selectedPath]);
+
   const removeTabPath = useCallback((path: string) => {
+    delete xmlByPathRef.current[path];
+    setRenamingPath((prev) => (prev === path ? null : prev));
     setTabPaths((prev) => {
+      const removedIndex = prev.indexOf(path);
+      if (removedIndex < 0) {
+        return prev;
+      }
       const next = prev.filter((item) => item !== path);
       if (activePath === path) {
-        const nextActive = next[0] ?? null;
+        const nextActive = next[removedIndex] ?? next[removedIndex - 1] ?? null;
         setActivePath(nextActive);
         onSelectPath(nextActive);
       }
@@ -349,12 +246,87 @@ export function DrawWorkspace(props: {
     }
   }, [ensureTabPath, projectId, t, tabPaths]);
 
+  const requestDrawExport = useCallback(() => {
+    if (!ready || !activePath || busy) {
+      return;
+    }
+    setStatus(t("draw.exporting"));
+    postToFrame({ action: "export", format: "png" });
+  }, [activePath, busy, postToFrame, ready, t]);
+
+  const startRename = useCallback((path: string) => {
+    const title = tabTitleFromPath(path).replace(/\.drawio$/i, "");
+    setRenamingPath(path);
+    setRenameInput(title);
+  }, []);
+
+  const commitRename = useCallback(async (path: string) => {
+    if (!projectId) {
+      return;
+    }
+    if (renameCommittingPathRef.current === path) {
+      return;
+    }
+    const trimmed = renameInput.trim();
+    if (!trimmed) {
+      setRenamingPath(null);
+      return;
+    }
+    const nextPath = buildRenamedDrawPath(path, trimmed);
+    if (!isDrawPath(nextPath)) {
+      setRenamingPath(null);
+      return;
+    }
+    if (nextPath === path) {
+      setRenamingPath(null);
+      return;
+    }
+    if (tabPaths.includes(nextPath)) {
+      setStatus(t("draw.renameExists"));
+      return;
+    }
+
+    renameCommittingPathRef.current = path;
+    setBusy(true);
+    try {
+      const ok = await onRunFsAction("workspace", "rename", path, nextPath);
+      if (!ok) {
+        return;
+      }
+      replaceTabPath(path, nextPath);
+      setRenamingPath(null);
+      setStatus(t("toast.fsUpdated"));
+    } finally {
+      renameCommittingPathRef.current = null;
+      setBusy(false);
+    }
+  }, [onRunFsAction, projectId, renameInput, replaceTabPath, t, tabPaths]);
+
+  const deleteTabAndFile = useCallback(async (path: string) => {
+    if (!projectId || busy) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const ok = await onRunFsAction("workspace", "delete", path);
+      if (!ok) {
+        return;
+      }
+      removeTabPath(path);
+      setStatus(t("toast.fsUpdated"));
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, onRunFsAction, projectId, removeTabPath, t]);
+
   useEffect(() => {
     if (!projectId) {
       setTabPaths([]);
       setActivePath(null);
       setReady(false);
       setStatus("");
+      setRenamingPath(null);
+      setRenameInput("");
       xmlByPathRef.current = {};
       return;
     }
@@ -421,7 +393,7 @@ export function DrawWorkspace(props: {
         setStatus(t("draw.ready"));
         return;
       }
-      if (message.event === "save" && typeof message.xml === "string") {
+      if ((message.event === "save" || message.event === "autosave") && typeof message.xml === "string") {
         if (!projectId || !activePath) {
           return;
         }
@@ -518,6 +490,7 @@ export function DrawWorkspace(props: {
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1 hide-scrollbar">
           {tabPaths.map((path) => {
             const active = path === activePath;
+            const editing = path === renamingPath;
             return (
               <div
                 key={path}
@@ -527,19 +500,49 @@ export function DrawWorkspace(props: {
                     : "border-slate-300 bg-white text-slate-700"
                 }`}
               >
-                <button
-                  className="truncate"
-                  onClick={() => {
-                    setActivePath(path);
-                    onSelectPath(path);
-                  }}
-                  title={path}
-                >
-                  {tabTitleFromPath(path)}
-                </button>
+                {editing ? (
+                  <input
+                    className="h-5 min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 text-xs text-slate-700"
+                    value={renameInput}
+                    autoFocus
+                    onChange={(event) => setRenameInput(event.target.value)}
+                    onBlur={() => {
+                      void commitRename(path);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void commitRename(path);
+                        return;
+                      }
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setRenamingPath(null);
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    className="truncate"
+                    onClick={() => {
+                      setActivePath(path);
+                      onSelectPath(path);
+                    }}
+                    onDoubleClick={() => startRename(path)}
+                    title={path}
+                  >
+                    {tabTitleFromPath(path)}
+                  </button>
+                )}
                 <button
                   className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  onClick={() => removeTabPath(path)}
+                  onClick={() => {
+                    if (editing) {
+                      setRenamingPath(null);
+                      return;
+                    }
+                    void deleteTabAndFile(path);
+                  }}
                   title={t("common.close")}
                   aria-label={t("common.close")}
                 >
@@ -558,6 +561,15 @@ export function DrawWorkspace(props: {
             aria-label={t("draw.newTab")}
           >
             <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            className="panel-topbar-btn inline-flex shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            onClick={requestDrawExport}
+            disabled={busy || !ready || !activePath}
+            title={t("draw.export")}
+            aria-label={t("draw.export")}
+          >
+            <Download className="h-3.5 w-3.5" />
           </button>
         </div>
         <div className="panel-topbar-text max-w-[40%] truncate text-[11px] text-slate-500">{status || t("draw.waiting")}</div>
@@ -578,8 +590,6 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
-
-
 
 
 

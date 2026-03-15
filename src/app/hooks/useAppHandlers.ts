@@ -479,9 +479,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     path: string,
     targetPath?: string,
     content?: string,
-  ) => {
+  ): Promise<boolean> => {
     if (!activeProjectId) {
-      return;
+      return false;
     }
     setBusy(true);
     try {
@@ -502,8 +502,10 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         setLibraryTree(nextTree);
       }
       setToast({ type: "info", message: t("toast.fsUpdated") });
+      return true;
     } catch (error) {
       setToast({ type: "error", message: String(error) });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -590,3 +592,4 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
+

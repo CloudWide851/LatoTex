@@ -283,11 +283,17 @@ export function useAppContainerWorkspaceActions(params: any) {
   }, [closeTabsNow, requestUnsavedGuard, editorTabsRef, dirtyByPathRef]);
 
   const handleSelectWorkspacePath = useCallback((path: string | null) => {
-    if (!path) {
+    const normalized = String(path ?? "").trim();
+    if (!normalized) {
+      setSelectedFile(null);
+      setPreferCompiledPreview(false);
       return;
     }
-    openWorkspaceFile(path, "pinned");
-  }, [openWorkspaceFile]);
+    openWorkspaceFile(normalized, "pinned");
+    if (selectedFile !== normalized) {
+      setSelectedFile(normalized);
+    }
+  }, [openWorkspaceFile, selectedFile, setPreferCompiledPreview, setSelectedFile]);
 
   useEffect(() => {
     if (!selectedFile || !fileSet.has(selectedFile)) {
@@ -570,4 +576,5 @@ export function useAppContainerWorkspaceActions(params: any) {
     handleModelModalSubmit,
   };
 }
+
 

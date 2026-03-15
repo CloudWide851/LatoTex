@@ -9,19 +9,33 @@ type CompilePayload = {
 };
 
 let mockCompilePayload: CompilePayload = {};
-let mockInitialized = false;
+let initializedBasePaths = new Set<string>();
+let runnerInitCalls: string[] = [];
+let runnerInitFailureResolver: (basePath: string, attempt: number) => string | null = () => null;
+let runnerInitAttemptsByPath = new Map<string, number>();
 
 vi.mock("texlyre-busytex", () => {
   class MockBusyTexRunner {
-    constructor(_: unknown) {}
+    private readonly basePath: string;
+
+    constructor(input: { busytexBasePath: string }) {
+      this.basePath = String(input?.busytexBasePath ?? "");
+    }
 
     initialize() {
-      mockInitialized = true;
+      const currentAttempt = (runnerInitAttemptsByPath.get(this.basePath) ?? 0) + 1;
+      runnerInitAttemptsByPath.set(this.basePath, currentAttempt);
+      runnerInitCalls.push(this.basePath);
+      const failure = runnerInitFailureResolver(this.basePath, currentAttempt);
+      if (failure) {
+        return Promise.reject(new Error(failure));
+      }
+      initializedBasePaths.add(this.basePath);
       return Promise.resolve();
     }
 
     isInitialized() {
-      return mockInitialized;
+      return initializedBasePaths.has(this.basePath);
     }
   }
 
@@ -41,12 +55,11 @@ vi.mock("texlyre-busytex", () => {
 
 describe("BusyTeX compile adapter", () => {
   beforeEach(() => {
-    mockInitialized = false;
     mockCompilePayload = {};
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("self.onmessage = () => {}", { status: 200 })),
-    );
+    initializedBasePaths = new Set<string>();
+    runnerInitCalls = [];
+    runnerInitAttemptsByPath = new Map<string, number>();
+    runnerInitFailureResolver = () => null;
   });
 
   afterEach(() => {
@@ -73,6 +86,7 @@ describe("BusyTeX compile adapter", () => {
     expect(result.pdfBytes).toBeInstanceOf(Uint8Array);
     expect(result.pdfBytes?.length).toBe(4);
     expect(result.diagnostics).toContain("done");
+    expect(runnerInitCalls.length).toBeGreaterThan(0);
   });
 
   it("maps unsuccessful compile output to an error result", async () => {
@@ -90,11 +104,8 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.join(" ")).toContain("latex error");
   });
 
-  it("returns actionable diagnostics when worker asset resolves to html", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("<!doctype html><html></html>", { status: 200 })),
-    );
+  it("returns actionable diagnostics when all runner candidates fail to initialize", async () => {
+    runnerInitFailureResolver = () => "busytex_worker.js not found";
     vi.resetModules();
     const { compileWithBusyTeX } = await import("./busytex");
 
@@ -111,8 +122,16 @@ describe("BusyTeX compile adapter", () => {
       logs: [],
       exitCode: 0,
     };
-    const fetchSpy = vi.fn(async () => new Response("self.onmessage = () => {}", { status: 200 }));
-    vi.stubGlobal("fetch", fetchSpy);
+    runnerInitFailureResolver = (basePath) => {
+      if (basePath.includes("F:/LatoTex/busytex-cache")) {
+        return null;
+      }
+      if (basePath.includes("F%3A%2FLatoTex%2Fbusytex-cache")) {
+        return "failed to fetch";
+      }
+      return null;
+    };
+
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
       convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fbusytex-cache",
@@ -132,9 +151,49 @@ describe("BusyTeX compile adapter", () => {
     const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
 
     expect(result.status).toBe("success");
-    expect(
-      fetchSpy.mock.calls.some((call) => String((call as unknown[])[0]).includes("F:/LatoTex/busytex-cache/busytex_worker.js")),
-    ).toBe(true);
+    expect(runnerInitCalls.some((basePath) => basePath.includes("F:/LatoTex/busytex-cache"))).toBe(true);
+  });
+
+  it("re-prepares cache and retries once for recoverable asset errors", async () => {
+    mockCompilePayload = {
+      success: true,
+      pdf: [1, 2, 3],
+      logs: [],
+      exitCode: 0,
+    };
+    let cachePrepareCount = 0;
+
+    runnerInitFailureResolver = (basePath) => {
+      if (basePath.includes("good-cache")) {
+        return null;
+      }
+      return "busytex_worker.js not found";
+    };
+
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+      convertFileSrc: (value: string) => `http://asset.localhost/${value.replace(/\\/g, "/")}`,
+    }));
+    vi.doMock("../../../shared/api/desktop", () => ({
+      busytexCachePrepare: vi.fn(async () => {
+        cachePrepareCount += 1;
+        const dir = cachePrepareCount === 1 ? "F:\\bad-cache" : "F:\\good-cache";
+        return {
+          policy: "install-first",
+          requestedDir: dir,
+          actualDir: dir,
+          installDirWritable: true,
+          usingFallback: false,
+        };
+      }),
+    }));
+
+    vi.resetModules();
+    const { compileWithBusyTeX } = await import("./busytex");
+    const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
+
+    expect(result.status).toBe("success");
+    expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
+    expect(runnerInitCalls.some((basePath) => basePath.includes("good-cache"))).toBe(true);
   });
 });
-

@@ -12,5 +12,8 @@ export const enUS_draw = {
   "draw.pasteNoImage": "No image found in clipboard.",
   "draw.pasted": "Image pasted into drawing.",
   "draw.startFailed": "Draw editor failed to start.",
+  "draw.renameExists": "A draw tab with this name already exists.",
 } as const;
+
+
 

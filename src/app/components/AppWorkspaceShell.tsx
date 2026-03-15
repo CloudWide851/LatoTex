@@ -113,6 +113,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     completionModelId,
     translationModelId,
     onFsAction,
+    onRunFsAction,
     t,
   } = props;
   const [previewZoom, setPreviewZoom] = useState(1);
@@ -248,7 +249,15 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return <section className="h-full min-h-0">{analysisPanel}</section>;
     }
     if (page === "draw") {
-      return <DrawWorkspace projectId={activeProjectId} selectedPath={selectedFile} onSelectPath={onSelectFile} t={t} />;
+      return (
+        <DrawWorkspace
+          projectId={activeProjectId}
+          selectedPath={selectedFile}
+          onSelectPath={onSelectFile}
+          onRunFsAction={onRunFsAction}
+          t={t}
+        />
+      );
     }
     if (page === "library") {
       return renderNoProjectPanel();
@@ -585,3 +594,5 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
+
+

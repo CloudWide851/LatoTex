@@ -119,6 +119,7 @@ export function AppContainerView(props: any) {
     handleWorkspaceOpenTerminal,
     savePanelLayout,
     requestFsAction,
+    runFsAction,
     overlay,
     logsTab,
     events,
@@ -336,6 +337,9 @@ export function AppContainerView(props: any) {
               onFsAction={(scope, action, path, targetPath, content) =>
                 requestFsAction(scope, action, path, targetPath, content)
               }
+              onRunFsAction={(scope, action, path, targetPath, content) =>
+                runFsAction(scope, action, path, targetPath, content)
+              }
               t={t}
             />
           </Suspense>
@@ -396,4 +400,6 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
+
 

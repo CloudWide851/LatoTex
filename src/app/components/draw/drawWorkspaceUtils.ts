@@ -1,0 +1,175 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
+import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+
+export type DrawMessage = {
+  event?: string;
+  xml?: string;
+  data?: string;
+  format?: string;
+  mime?: string;
+  error?: string;
+  [key: string]: unknown;
+};
+
+type PersistedDrawTabs = {
+  paths: string[];
+  activePath: string | null;
+};
+
+const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
+
+function drawTabsStorageKey(projectId: string): string {
+  return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
+}
+
+function normalizeTrailingSlash(input: string): string {
+  return String(input || "").trim().replace(/\/+$/, "");
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
+}
+
+export function normalizePath(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/\\/g, "/");
+}
+
+export function isDrawPath(value: string | null | undefined): boolean {
+  return /\.drawio$/i.test(normalizePath(value));
+}
+
+export function tabTitleFromPath(path: string): string {
+  const normalized = normalizePath(path);
+  const parts = normalized.split("/");
+  return parts[parts.length - 1] || normalized;
+}
+
+export function loadPersistedTabs(projectId: string): PersistedDrawTabs {
+  if (typeof window === "undefined") {
+    return { paths: [], activePath: null };
+  }
+  try {
+    const raw = window.localStorage.getItem(drawTabsStorageKey(projectId));
+    if (!raw) {
+      return { paths: [], activePath: null };
+    }
+    const parsed = JSON.parse(raw) as PersistedDrawTabs;
+    const paths = Array.isArray(parsed?.paths)
+      ? parsed.paths.map((item) => normalizePath(item)).filter((item) => isDrawPath(item))
+      : [];
+    const activePath = isDrawPath(parsed?.activePath) ? normalizePath(parsed.activePath) : null;
+    return {
+      paths: Array.from(new Set(paths)),
+      activePath,
+    };
+  } catch {
+    return { paths: [], activePath: null };
+  }
+}
+
+export function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(drawTabsStorageKey(projectId), JSON.stringify(state));
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+export function toDrawioHostCandidates(actualDir: string): string[] {
+  const originalDir = String(actualDir || "").trim();
+  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const originalConverted = convertFileSrc(originalDir);
+  const slashConverted = convertFileSrc(slashDir);
+  const bases = uniqueValues([
+    normalizeAssetBasePath(originalConverted),
+    normalizeAssetBasePath(slashConverted),
+    originalConverted,
+    slashConverted,
+  ]);
+  return bases.map((base) => `${base}/index.html`);
+}
+
+export function parseDrawMessage(payload: unknown): DrawMessage | null {
+  if (!payload) {
+    return null;
+  }
+  if (typeof payload === "string") {
+    try {
+      return JSON.parse(payload) as DrawMessage;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof payload === "object") {
+    return payload as DrawMessage;
+  }
+  return null;
+}
+
+export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {
+  const [prefix, payload] = dataUrl.split(",", 2);
+  const mime = /^data:([^;]+);base64$/i.exec(prefix || "")?.[1] || "application/octet-stream";
+  const raw = atob(payload || "");
+  const bytes = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) {
+    bytes[index] = raw.charCodeAt(index);
+  }
+  return { mime, bytes };
+}
+
+function mimeSubtype(mime: string): string {
+  const normalized = String(mime || "").toLowerCase();
+  if (!normalized.includes("/")) {
+    return "bin";
+  }
+  const sub = normalized.split("/")[1] || "bin";
+  return sub.replace(/[^a-z0-9.+-]/g, "") || "bin";
+}
+
+export function inferExportExtension(message: DrawMessage, dataMime?: string): string {
+  const format = String(message.format ?? "").trim().toLowerCase();
+  if (format) {
+    return format.replace(/[^a-z0-9.+-]/g, "") || "bin";
+  }
+  const mime = String(message.mime ?? dataMime ?? "").trim().toLowerCase();
+  if (mime) {
+    if (mime === "image/svg+xml") {
+      return "svg";
+    }
+    return mimeSubtype(mime);
+  }
+  return "bin";
+}
+
+export function toTextIfPossible(ext: string, bytes: Uint8Array): string | null {
+  if (!["svg", "xml", "drawio", "txt", "html", "json", "md", "csv", "tsv"].includes(ext)) {
+    return null;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+export function toDrawExportTarget(activePath: string, extension: string): string {
+  const normalizedPath = normalizePath(activePath);
+  const slashIndex = normalizedPath.lastIndexOf("/");
+  const parentDir = slashIndex >= 0 ? normalizedPath.slice(0, slashIndex) : "";
+  const title = tabTitleFromPath(activePath);
+  const stem = title.replace(/\.drawio$/i, "") || "diagram";
+  const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
+  return parentDir ? `${parentDir}/${safeStem}.${extension}` : `${safeStem}.${extension}`;
+}
+
+export function buildRenamedDrawPath(currentPath: string, nextInput: string): string {
+  const normalizedPath = normalizePath(currentPath);
+  const slashIndex = normalizedPath.lastIndexOf("/");
+  const parentDir = slashIndex >= 0 ? normalizedPath.slice(0, slashIndex) : "";
+  const trimmed = String(nextInput || "").trim();
+  const fileName = /\.drawio$/i.test(trimmed) ? trimmed : `${trimmed}.drawio`;
+  return normalizePath(parentDir ? `${parentDir}/${fileName}` : fileName);
+}
