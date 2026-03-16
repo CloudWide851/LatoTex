@@ -418,6 +418,22 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
   }, [activeProjectId, setToast]);
 
+  const handleWorkspaceRescan = useCallback(async () => {
+    if (!activeProjectId) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const snapshot = await openProject(activeProjectId);
+      setTree(snapshot.tree);
+      await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+    } finally {
+      setBusy(false);
+    }
+  }, [activeProjectId, refreshGitWorkspace, setBusy, setToast, setTree]);
+
   const handleProjectSearch = useCallback(async () => {
     if (!activeProjectId || !projectSearchQuery.trim()) {
       setProjectSearchResults([]);
@@ -579,6 +595,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleProtocolPing,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,
+    handleWorkspaceRescan,
     runFsAction,
     requestFsAction,
     confirmDelete,

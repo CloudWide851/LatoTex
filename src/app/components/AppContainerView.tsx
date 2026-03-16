@@ -119,6 +119,7 @@ export function AppContainerView(props: any) {
     analysisRunning,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,
+    handleWorkspaceRescan,
     savePanelLayout,
     requestFsAction,
     runFsAction,
@@ -337,6 +338,7 @@ export function AppContainerView(props: any) {
               analysisRunning={analysisRunning}
               onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
               onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
+              onWorkspaceRescan={handleWorkspaceRescan}
               onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
               onFsAction={(scope, action, path, targetPath, content) =>
                 requestFsAction(scope, action, path, targetPath, content)

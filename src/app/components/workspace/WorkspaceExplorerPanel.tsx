@@ -1,3 +1,4 @@
+import { RefreshCcw } from "lucide-react";
 import type { FsAction, FsScope, ResourceNode } from "../../../shared/types/app";
 import { ExplorerTree } from "../ExplorerTree";
 
@@ -23,6 +24,7 @@ export function WorkspaceExplorerPanel(props: {
   ) => Promise<void>;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
+  onWorkspaceRescan: () => void | Promise<void>;
   t: TranslationFn;
 }) {
   const {
@@ -36,14 +38,25 @@ export function WorkspaceExplorerPanel(props: {
     onFsAction,
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
+    onWorkspaceRescan,
     t,
   } = props;
 
   return (
     <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {t("explorer.title")}
-      </h2>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("explorer.title")}</h2>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => void onWorkspaceRescan()}
+          disabled={busy || !activeProjectId}
+          title={t("explorer.action.rescan")}
+          aria-label={t("explorer.action.rescan")}
+        >
+          <RefreshCcw className="h-3.5 w-3.5" />
+        </button>
+      </div>
       <div className="h-[calc(100%-24px)] overflow-auto pr-1">
         {activeProjectId ? (
           <ExplorerTree
@@ -51,6 +64,7 @@ export function WorkspaceExplorerPanel(props: {
             selectedPath={selectedFile}
             dirtyByPath={dirtyByPath}
             gitDecorations={explorerGitDecorations}
+            allowRescan
             busy={busy}
             onSelect={onSelectFile}
             onAction={(action, path, targetPath, content) =>
@@ -58,6 +72,7 @@ export function WorkspaceExplorerPanel(props: {
             }
             onRevealInSystem={onWorkspaceRevealInSystem}
             onOpenTerminal={onWorkspaceOpenTerminal}
+            onRescan={onWorkspaceRescan}
             t={t}
           />
         ) : (

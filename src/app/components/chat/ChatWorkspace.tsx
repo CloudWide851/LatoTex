@@ -442,8 +442,8 @@ export function ChatWorkspace(props: {
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_120px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
-      <div ref={listRef} className="min-h-0 overflow-auto px-3 py-2">
+    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_132px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+      <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="h-full" />
         ) : (
@@ -468,21 +468,21 @@ export function ChatWorkspace(props: {
         )}
       </div>
 
-      <div className="border-t border-slate-200 p-2">
-        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-500">
+      <div className="border-t border-slate-200 px-3 pb-3 pt-2">
+        <div className="mb-2 flex items-center justify-between text-[11px] text-slate-500">
           <span>{running ? t("chat.running") : t("chat.idle")}</span>
           {lastError ? <span className="truncate text-rose-600">{lastError}</span> : null}
         </div>
-        <div className="flex h-[86px] items-end gap-2">
+        <div className="flex h-[80px] items-end gap-2">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={t("chat.inputPlaceholder")}
-            className="h-full min-w-0 flex-1 resize-none rounded border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500"
+            className="h-full min-w-0 flex-1 resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 outline-none focus:border-primary-500"
           />
           {running ? (
             <button
-              className="inline-flex h-10 items-center gap-1 rounded border border-amber-400 bg-amber-50 px-3 text-xs text-amber-700 hover:bg-amber-100"
+              className="inline-flex h-8 items-center gap-1 rounded border border-amber-400 bg-amber-50 px-2.5 text-[11px] text-amber-700 hover:bg-amber-100"
               onClick={() => void stopRun()}
             >
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -490,7 +490,7 @@ export function ChatWorkspace(props: {
             </button>
           ) : (
             <button
-              className="inline-flex h-10 items-center gap-1 rounded border border-primary-600 bg-primary-600 px-3 text-xs text-white hover:bg-primary-700 disabled:opacity-50"
+              className="inline-flex h-8 items-center gap-1 rounded border border-primary-600 bg-primary-600 px-2.5 text-[11px] text-white hover:bg-primary-700 disabled:opacity-50"
               onClick={() => void sendMessage()}
               disabled={!draft.trim()}
             >

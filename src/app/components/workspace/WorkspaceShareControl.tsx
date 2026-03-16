@@ -135,7 +135,6 @@ export function WorkspaceShareControl(props: {
   const [copyDone, setCopyDone] = useState(false);
   const [passwordCopyDone, setPasswordCopyDone] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const lastWidthRef = useRef<number>(0);
   const isTexSelected = Boolean(selectedFile && selectedFile.toLowerCase().endsWith(".tex"));
   const sessionExists = Boolean(shareSession?.sessionId);
   const activeMode = normalizeMode(shareSession?.mode, shareMode);
@@ -178,29 +177,6 @@ export function WorkspaceShareControl(props: {
     const timer = window.setTimeout(() => setCopyDone(false), 1500);
     return () => window.clearTimeout(timer);
   }, [copyDone]);
-  useEffect(() => {
-    const node = rootRef.current;
-    if (!node) {
-      return;
-    }
-    lastWidthRef.current = node.getBoundingClientRect().width;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
-        return;
-      }
-      const width = entry.contentRect.width;
-      if (Math.abs(width - lastWidthRef.current) > 2) {
-        lastWidthRef.current = width;
-        if (panelOpen) {
-          setPanelOpen(false);
-        }
-      }
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [panelOpen]);
-
   useEffect(() => {
     if (!passwordCopyDone) {
       return;
@@ -247,7 +223,7 @@ export function WorkspaceShareControl(props: {
       </button>
 
       {!panelOpen && sessionExists ? (
-        <div className="absolute left-0 top-[calc(100%+10px)] z-30 w-[min(240px,68vw)]">
+        <div className="absolute left-0 top-[calc(100%+10px)] z-[220] w-[min(240px,68vw)]">
           <div className="ml-3 h-2.5 w-2.5 rotate-45 border-l border-t border-slate-300 bg-white" />
           <div className="rounded-lg border border-slate-300 bg-white/95 px-2 py-2 shadow-soft backdrop-blur-sm">
             <div className="mb-1 text-[11px] font-semibold text-slate-700">{statusText}</div>
@@ -257,7 +233,7 @@ export function WorkspaceShareControl(props: {
       ) : null}
 
       {panelOpen ? (
-        <section className="absolute left-0 top-[calc(100%+8px)] z-40 w-[min(430px,86vw)] rounded-lg border border-slate-300 bg-white p-3 shadow-soft">
+        <section className="absolute left-0 top-[calc(100%+8px)] z-[230] w-[min(430px,86vw)] rounded-lg border border-slate-300 bg-white p-3 shadow-soft">
           <div className="mb-2 flex items-center justify-between">
             <div className="min-w-0">
               <h3 className="truncate text-sm font-semibold text-slate-800">{t("share.panelTitle")}</h3>

@@ -533,6 +533,7 @@ export function AppContainer() {
       analysisRunning={analysisWorkspace.running}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
+      handleWorkspaceRescan={handlers.handleWorkspaceRescan}
       savePanelLayout={savePanelLayout}
       requestFsAction={handlers.requestFsAction}
       runFsAction={handlers.runFsAction}

@@ -111,6 +111,7 @@ export type AppWorkspaceShellProps = {
   analysisRunning: boolean;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
+  onWorkspaceRescan: () => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
   previewDefaultZoom: number;
   completionModelId: string | null;

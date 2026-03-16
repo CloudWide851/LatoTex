@@ -1,5 +1,6 @@
 import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { FsAction, ResourceNode } from "../../shared/types/app";
 import {
@@ -273,10 +274,10 @@ export function ExplorerTree(props: {
       );
     }
 
-    return (
+    const menuContent = (
       <div
         ref={menuRef}
-        className="fixed z-[180] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+        className="fixed z-[260] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
         style={{ left: Math.max(8, Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : menu.x) - 180)), top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 220)) }}
       >
         {items.map((item) => (
@@ -294,6 +295,10 @@ export function ExplorerTree(props: {
         ))}
       </div>
     );
+    if (typeof document === "undefined") {
+      return menuContent;
+    }
+    return createPortal(menuContent, document.body);
   };
 
   const renderCreateEditor = (parentPath: string) => {

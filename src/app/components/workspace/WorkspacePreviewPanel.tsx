@@ -72,17 +72,17 @@ export function WorkspacePreviewPanel(props: {
         <div className="flex items-center gap-1">
           <button
             className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-            title={t("preview.diagnostics")}
-            onClick={() => onOpenLogs("status")}
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
             title={t("preview.events")}
             onClick={() => onOpenLogs("events")}
           >
             <ListChecks className="h-3.5 w-3.5" />
+          </button>
+          <button
+            className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+            title={t("preview.diagnostics")}
+            onClick={() => onOpenLogs("status")}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
           </button>
           {!selectedIsTabular ? (
             <>

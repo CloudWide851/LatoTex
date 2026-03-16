@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { FolderOpen, MessageSquareMore, Play, Redo2, Save, Undo2 } from "lucide-react";
+import { FolderOpen, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay } from "./AgentChatOverlay";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
@@ -16,7 +16,7 @@ import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
 import { ChatWorkspace } from "./chat/ChatWorkspace";
-import { ChatTabMenuContent } from "./chat/ChatTabMenuContent";
+import { ChatTopbarSessionControl } from "./chat/ChatTopbarSessionControl";
 import { DrawWorkspace } from "./draw/DrawWorkspace";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "./workspace/workspaceShellUtils";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
@@ -110,6 +110,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     analysisRunning,
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
+    onWorkspaceRescan,
     onSavePanelLayout,
     previewDefaultZoom,
     completionModelId,
@@ -282,9 +283,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
 
     return (
       <div className="grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
-        <div className="min-w-0 overflow-hidden border-b border-slate-200 px-3 py-1.5">
+        <div className="min-w-0 overflow-visible border-b border-slate-200 px-3 py-1.5">
           <div className="panel-topbar flex w-full min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}
@@ -299,14 +300,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               onShareRefresh={onShareRefresh}
               t={t}
             />
-            <button
-              className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
-              title={t("nav.chat")}
-              aria-label={t("nav.chat")}
-              onClick={handleOpenChatTab}
-            >
-              <MessageSquareMore className="h-3.5 w-3.5" />
-            </button>
+            <ChatTopbarSessionControl activeProjectId={activeProjectId} onOpenChatTab={handleOpenChatTab} t={t} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -372,15 +366,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             active: showChatWorkspace,
             onSelect: () => setChatTabActive(true),
             onClose: handleCloseChatTab,
-            menuLabel: t("chat.session.select"),
-            renderMenu: (closeMenu) => (
-              <ChatTabMenuContent
-                projectId={activeProjectId}
-                onActivateChat={handleOpenChatTab}
-                onCloseMenu={closeMenu}
-                t={t}
-              />
-            ),
           }] : []}
           onSelect={handleSelectEditorTab}
           onClose={onTabClose}
@@ -436,6 +421,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               }}
             />
           )}
+          {showChatWorkspace ? null : (
           <AgentChatOverlay
             collapsed={agentCollapsed}
             phase={agentPhase}
@@ -483,6 +469,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             pendingActionYesLabel={t("agent.autoCommit.yes")}
             pendingActionNoLabel={t("agent.autoCommit.no")}
           />
+          )}
         </div>
       </div>
     );
@@ -514,6 +501,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   onFsAction={onFsAction}
                   onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
                   onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
+                  onWorkspaceRescan={onWorkspaceRescan}
                   t={t}
                 />
               </Panel>
@@ -547,6 +535,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   onFsAction={onFsAction}
                   onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
                   onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
+                  onWorkspaceRescan={onWorkspaceRescan}
                   t={t}
                 />
               </Panel>
