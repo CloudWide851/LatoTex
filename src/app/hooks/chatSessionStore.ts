@@ -97,22 +97,19 @@ function sanitizeSession(raw: unknown): ChatSession | null {
 
 export function loadChatStore(projectId: string): ChatStorePayload {
   if (typeof window === "undefined") {
-    const session = newChatSession();
-    return { sessions: [session], activeSessionId: session.id };
+    return { sessions: [], activeSessionId: null };
   }
   try {
     const raw = window.localStorage.getItem(sessionStorageKey(projectId));
     if (!raw) {
-      const session = newChatSession();
-      return { sessions: [session], activeSessionId: session.id };
+      return { sessions: [], activeSessionId: null };
     }
     const parsed = JSON.parse(raw) as Partial<ChatStorePayload>;
     const sessions = Array.isArray(parsed.sessions)
       ? parsed.sessions.map(sanitizeSession).filter((item): item is ChatSession => Boolean(item)).slice(-80)
       : [];
     if (sessions.length === 0) {
-      const session = newChatSession();
-      return { sessions: [session], activeSessionId: session.id };
+      return { sessions: [], activeSessionId: null };
     }
     const activeSessionId = typeof parsed.activeSessionId === "string"
       && sessions.some((item) => item.id === parsed.activeSessionId)
@@ -120,8 +117,7 @@ export function loadChatStore(projectId: string): ChatStorePayload {
       : sessions[0]!.id;
     return { sessions, activeSessionId };
   } catch {
-    const session = newChatSession();
-    return { sessions: [session], activeSessionId: session.id };
+    return { sessions: [], activeSessionId: null };
   }
 }
 
@@ -152,7 +148,7 @@ export function createChatSessionInStore(projectId: string, title?: string): Cha
 export function setActiveChatSessionInStore(projectId: string, sessionId: string): ChatStorePayload {
   const loaded = loadChatStore(projectId);
   const exists = loaded.sessions.some((item) => item.id === sessionId);
-  const activeSessionId = exists ? sessionId : loaded.activeSessionId;
+  const activeSessionId = exists ? sessionId : (loaded.sessions[0]?.id ?? null);
   saveChatStore(projectId, loaded.sessions, activeSessionId);
   return { sessions: loaded.sessions, activeSessionId };
 }
@@ -177,9 +173,8 @@ export function deleteChatSessionInStore(projectId: string, sessionId: string): 
   const loaded = loadChatStore(projectId);
   const sessions = loaded.sessions.filter((item) => item.id !== sessionId);
   if (sessions.length === 0) {
-    const fallback = newChatSession();
-    saveChatStore(projectId, [fallback], fallback.id);
-    return { sessions: [fallback], activeSessionId: fallback.id };
+    saveChatStore(projectId, [], null);
+    return { sessions: [], activeSessionId: null };
   }
   const activeSessionId = loaded.activeSessionId === sessionId
     ? sessions[0]!.id

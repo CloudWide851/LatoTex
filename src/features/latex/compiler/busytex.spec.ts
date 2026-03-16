@@ -8,11 +8,16 @@ type CompilePayload = {
   exitCode?: number;
 };
 
+type InitCall = {
+  basePath: string;
+  useWorker: boolean;
+};
+
 let mockCompilePayload: CompilePayload = {};
-let initializedBasePaths = new Set<string>();
-let runnerInitCalls: string[] = [];
-let runnerInitFailureResolver: (basePath: string, attempt: number) => string | null = () => null;
-let runnerInitAttemptsByPath = new Map<string, number>();
+let initializedByMode = new Set<string>();
+let runnerInitCalls: InitCall[] = [];
+let runnerInitFailureResolver: (basePath: string, attempt: number, useWorker: boolean) => string | null = () => null;
+let runnerInitAttemptsByPathAndMode = new Map<string, number>();
 
 vi.mock("texlyre-busytex", () => {
   class MockBusyTexRunner {
@@ -22,20 +27,21 @@ vi.mock("texlyre-busytex", () => {
       this.basePath = String(input?.busytexBasePath ?? "");
     }
 
-    initialize() {
-      const currentAttempt = (runnerInitAttemptsByPath.get(this.basePath) ?? 0) + 1;
-      runnerInitAttemptsByPath.set(this.basePath, currentAttempt);
-      runnerInitCalls.push(this.basePath);
-      const failure = runnerInitFailureResolver(this.basePath, currentAttempt);
+    initialize(useWorker = true) {
+      const key = `${this.basePath}::${useWorker ? "worker" : "direct"}`;
+      const currentAttempt = (runnerInitAttemptsByPathAndMode.get(key) ?? 0) + 1;
+      runnerInitAttemptsByPathAndMode.set(key, currentAttempt);
+      runnerInitCalls.push({ basePath: this.basePath, useWorker });
+      const failure = runnerInitFailureResolver(this.basePath, currentAttempt, useWorker);
       if (failure) {
         return Promise.reject(new Error(failure));
       }
-      initializedBasePaths.add(this.basePath);
+      initializedByMode.add(key);
       return Promise.resolve();
     }
 
     isInitialized() {
-      return initializedBasePaths.has(this.basePath);
+      return initializedByMode.has(`${this.basePath}::worker`) || initializedByMode.has(`${this.basePath}::direct`);
     }
   }
 
@@ -56,9 +62,9 @@ vi.mock("texlyre-busytex", () => {
 describe("BusyTeX compile adapter", () => {
   beforeEach(() => {
     mockCompilePayload = {};
-    initializedBasePaths = new Set<string>();
+    initializedByMode = new Set<string>();
     runnerInitCalls = [];
-    runnerInitAttemptsByPath = new Map<string, number>();
+    runnerInitAttemptsByPathAndMode = new Map<string, number>();
     runnerInitFailureResolver = () => null;
   });
 
@@ -115,21 +121,24 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.join(" ")).toContain("BusyTeX assets missing");
   });
 
-  it("normalizes encoded windows asset paths (including %2F) from tauri cache", async () => {
+  it("normalizes encoded windows paths and avoids worker for cross-origin asset.localhost candidates", async () => {
     mockCompilePayload = {
       success: true,
       pdf: [1, 2, 3],
       logs: [],
       exitCode: 0,
     };
-    runnerInitFailureResolver = (basePath) => {
-      if (basePath.includes("F:/LatoTex/busytex-cache")) {
-        return null;
-      }
+    runnerInitFailureResolver = (basePath, _attempt, useWorker) => {
       if (basePath.includes("F%3A%2FLatoTex%2Fbusytex-cache")) {
         return "failed to fetch";
       }
-      return null;
+      if (basePath.includes("F:/LatoTex/busytex-cache")) {
+        if (useWorker) {
+          return "Failed to construct 'Worker': Script cannot be accessed from origin";
+        }
+        return null;
+      }
+      return "Worker error: Uncaught SyntaxError: Unexpected token <";
     };
 
     vi.doMock("@tauri-apps/api/core", () => ({
@@ -151,7 +160,12 @@ describe("BusyTeX compile adapter", () => {
     const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
 
     expect(result.status).toBe("success");
-    expect(runnerInitCalls.some((basePath) => basePath.includes("F:/LatoTex/busytex-cache"))).toBe(true);
+    expect(runnerInitCalls.some((call) => call.basePath.includes("F:/LatoTex/busytex-cache"))).toBe(true);
+    expect(
+      runnerInitCalls
+        .filter((call) => call.basePath.includes("F:/LatoTex/busytex-cache"))
+        .every((call) => call.useWorker === false),
+    ).toBe(true);
   });
 
   it("re-prepares cache and retries once for recoverable asset errors", async () => {
@@ -194,7 +208,7 @@ describe("BusyTeX compile adapter", () => {
 
     expect(result.status).toBe("success");
     expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
-    expect(runnerInitCalls.some((basePath) => basePath.includes("good-cache"))).toBe(true);
+    expect(runnerInitCalls.some((call) => call.basePath.includes("good-cache"))).toBe(true);
   });
 
   it("retries once when worker returns unexpected token syntax error", async () => {
@@ -238,7 +252,4 @@ describe("BusyTeX compile adapter", () => {
     expect(result.status).toBe("success");
     expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
   });
-
 });
-
-

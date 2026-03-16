@@ -10,6 +10,15 @@ function detectMissingPackage(diagnostics: string[]): string | null {
   return null;
 }
 
+function hasBusytexWorkerOriginIssue(diagnostics: string[]): boolean {
+  const joined = diagnostics.join("\n").toLowerCase();
+  return (
+    joined.includes("cannot be accessed from origin")
+    || joined.includes("failed to construct 'worker'")
+    || joined.includes("unexpected token <")
+  );
+}
+
 export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn): string {
   const lines: string[] = [];
   const normalized = diagnostics
@@ -29,6 +38,11 @@ export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn):
   } else if (missingPackage) {
     lines.push("");
     lines.push(t("workspace.compileAssist.hintMissingPackage").replace("{package}", missingPackage));
+  }
+
+  if (hasBusytexWorkerOriginIssue(normalized)) {
+    lines.push("");
+    lines.push(t("workspace.compileAssist.hintBusytexWorkerOrigin"));
   }
 
   lines.push("");

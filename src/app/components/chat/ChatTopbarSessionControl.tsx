@@ -28,30 +28,37 @@ export function ChatTopbarSessionControl(props: {
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!activeProjectId) {
+      setMenuOpen(false);
+    }
+  }, [activeProjectId]);
+
   return (
-    <div ref={rootRef} className="relative flex items-center gap-1">
-      <button
-        className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
-        title={t("nav.chat")}
-        aria-label={t("nav.chat")}
-        onClick={onOpenChatTab}
-      >
-        <MessageSquareMore className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
-        title={t("chat.session.select")}
-        aria-label={t("chat.session.select")}
-        onClick={() => {
-          onOpenChatTab();
-          setMenuOpen((prev) => !prev);
-        }}
-        disabled={!activeProjectId}
-      >
-        <ChevronDown className="h-3.5 w-3.5" />
-      </button>
+    <div ref={rootRef} className="relative">
+      <div className="inline-flex overflow-hidden rounded border border-slate-300 bg-white">
+        <button
+          className="panel-topbar-btn rounded-none border-r border-slate-300 text-slate-700 transition hover:bg-slate-100"
+          title={t("nav.chat")}
+          aria-label={t("nav.chat")}
+          onClick={onOpenChatTab}
+        >
+          <MessageSquareMore className="h-3.5 w-3.5" />
+        </button>
+        <button
+          className="panel-topbar-btn !w-7 rounded-none text-slate-700 transition hover:bg-slate-100"
+          title={t("chat.session.select")}
+          aria-label={t("chat.session.select")}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((prev) => !prev)}
+          disabled={!activeProjectId}
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </div>
       {menuOpen ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-[240] w-[300px] max-w-[80vw] rounded-md border border-slate-300 bg-white shadow-soft">
+        <div className="absolute left-0 top-[calc(100%+8px)] z-[240] w-[320px] max-w-[80vw] rounded-md border border-slate-300 bg-white shadow-soft">
           <ChatTabMenuContent
             projectId={activeProjectId}
             onActivateChat={onOpenChatTab}

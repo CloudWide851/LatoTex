@@ -13,6 +13,7 @@ export const zhCN_chat = {
   "chat.command.memory.empty": "当前项目还没有可读取的 MEMORY.md 内容。",
   "chat.newChatTitle": "新对话",
   "chat.session.select": "对话会话",
+  "chat.session.emptyHistory": "暂无历史对话记录。",
   "chat.session.create": "新建会话",
   "chat.session.rename": "重命名",
   "chat.session.delete": "删除",

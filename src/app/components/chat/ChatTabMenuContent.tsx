@@ -1,7 +1,6 @@
-import { Check, MessageSquarePlus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
-  createChatSessionInStore,
   deleteChatSessionInStore,
   loadChatStore,
   renameChatSessionInStore,
@@ -21,13 +20,15 @@ export function ChatTabMenuContent(props: {
   const { projectId, onActivateChat, onCloseMenu, t } = props;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [renameDraft, setRenameDraft] = useState("");
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState("");
 
   useEffect(() => {
     if (!projectId) {
       setSessions([]);
       setActiveSessionId(null);
-      setRenameDraft("");
+      setEditingSessionId(null);
+      setEditingDraft("");
       return;
     }
     const loaded = loadChatStore(projectId);
@@ -46,21 +47,16 @@ export function ChatTabMenuContent(props: {
       }
       setSessions(custom.detail.sessions);
       setActiveSessionId(custom.detail.activeSessionId);
+      if (editingSessionId && !custom.detail.sessions.some((item) => item.id === editingSessionId)) {
+        setEditingSessionId(null);
+        setEditingDraft("");
+      }
     };
     window.addEventListener("latotex.chat.store.changed", onStoreChanged as EventListener);
     return () => {
       window.removeEventListener("latotex.chat.store.changed", onStoreChanged as EventListener);
     };
-  }, [projectId]);
-
-  const activeSession = useMemo(
-    () => sessions.find((item) => item.id === activeSessionId) ?? null,
-    [activeSessionId, sessions],
-  );
-
-  useEffect(() => {
-    setRenameDraft(activeSession?.title ?? "");
-  }, [activeSession?.title]);
+  }, [editingSessionId, projectId]);
 
   const handleSelectSession = (sessionId: string) => {
     if (!projectId) {
@@ -69,95 +65,146 @@ export function ChatTabMenuContent(props: {
     const next = setActiveChatSessionInStore(projectId, sessionId);
     setSessions(next.sessions);
     setActiveSessionId(next.activeSessionId);
+    setEditingSessionId(null);
+    setEditingDraft("");
     onActivateChat();
+    onCloseMenu();
   };
 
-  const handleCreate = () => {
-    if (!projectId) {
-      return;
-    }
-    const next = createChatSessionInStore(projectId, t("chat.sessionNew"));
-    setSessions(next.sessions);
-    setActiveSessionId(next.activeSessionId);
-    onActivateChat();
+  const handleStartRename = (session: ChatSession) => {
+    setEditingSessionId(session.id);
+    setEditingDraft(session.title);
   };
 
-  const handleRename = () => {
-    if (!projectId || !activeSessionId) {
+  const handleCommitRename = () => {
+    if (!projectId || !editingSessionId) {
       return;
     }
-    const nextTitle = renameDraft.trim().slice(0, 80);
+    const nextTitle = editingDraft.trim().slice(0, 80);
     if (!nextTitle) {
       return;
     }
-    const next = renameChatSessionInStore(projectId, activeSessionId, nextTitle);
+    const next = renameChatSessionInStore(projectId, editingSessionId, nextTitle);
     setSessions(next.sessions);
     setActiveSessionId(next.activeSessionId);
+    setEditingSessionId(null);
+    setEditingDraft("");
   };
 
-  const handleDelete = () => {
-    if (!projectId || !activeSessionId) {
+  const handleDelete = (sessionId: string) => {
+    if (!projectId) {
       return;
     }
-    const next = deleteChatSessionInStore(projectId, activeSessionId);
+    const next = deleteChatSessionInStore(projectId, sessionId);
     setSessions(next.sessions);
     setActiveSessionId(next.activeSessionId);
+    if (editingSessionId === sessionId) {
+      setEditingSessionId(null);
+      setEditingDraft("");
+    }
     onActivateChat();
   };
 
+  if (!projectId) {
+    return null;
+  }
+
   return (
-    <div className="space-y-2 p-2">
-      <select
-        value={activeSessionId ?? ""}
-        onChange={(event) => handleSelectSession(event.target.value)}
-        className="h-8 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-700"
-      >
-        {sessions.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.title}
-          </option>
-        ))}
-      </select>
-      <div className="flex items-center gap-1">
-        <input
-          value={renameDraft}
-          onChange={(event) => setRenameDraft(event.target.value)}
-          maxLength={80}
-          className="h-8 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700"
-          placeholder={t("chat.rename")}
-        />
-        <button
-          className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
-          onClick={handleRename}
-          title={t("chat.rename")}
-          disabled={!activeSessionId || !renameDraft.trim()}
-        >
-          <Check className="h-3.5 w-3.5" />
-        </button>
-        <button
-          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
-          onClick={handleCreate}
-          title={t("chat.newSession")}
-        >
-          <MessageSquarePlus className="h-3.5 w-3.5" />
-        </button>
-        <button
-          className="inline-flex h-8 w-8 items-center justify-center rounded border border-rose-300 bg-white text-rose-600 hover:bg-rose-50 disabled:opacity-40"
-          onClick={handleDelete}
-          title={t("chat.deleteSession")}
-          disabled={!activeSessionId}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="flex justify-end">
-        <button
-          className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
-          onClick={onCloseMenu}
-        >
-          {t("common.close")}
-        </button>
-      </div>
+    <div className="max-h-[320px] overflow-auto p-2">
+      {sessions.length === 0 ? (
+        <div className="rounded border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-500">
+          {t("chat.session.emptyHistory")}
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {sessions.map((session) => {
+            const selected = session.id === activeSessionId;
+            const editing = session.id === editingSessionId;
+            return (
+              <div
+                key={session.id}
+                className={`group flex items-center gap-1 rounded border px-1 py-1 ${
+                  selected ? "border-primary-500 bg-primary-50" : "border-slate-200 bg-white"
+                }`}
+              >
+                {editing ? (
+                  <>
+                    <input
+                      value={editingDraft}
+                      onChange={(event) => setEditingDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleCommitRename();
+                        }
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          setEditingSessionId(null);
+                          setEditingDraft("");
+                        }
+                      }}
+                      maxLength={80}
+                      className="h-7 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700"
+                      placeholder={t("chat.rename")}
+                      autoFocus
+                    />
+                    <button
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={handleCommitRename}
+                      title={t("common.confirm")}
+                      disabled={!editingDraft.trim()}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                      onClick={() => {
+                        setEditingSessionId(null);
+                        setEditingDraft("");
+                      }}
+                      title={t("common.cancel")}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="min-w-0 flex-1 truncate rounded px-1.5 py-1 text-left text-xs text-slate-700 hover:bg-slate-100"
+                      onClick={() => handleSelectSession(session.id)}
+                      title={session.title}
+                    >
+                      {session.title}
+                    </button>
+                    <button
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleStartRename(session);
+                      }}
+                      title={t("chat.session.rename")}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-rose-300 bg-white text-rose-600 hover:bg-rose-50"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleDelete(session.id);
+                      }}
+                      title={t("chat.session.delete")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

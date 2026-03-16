@@ -19,6 +19,7 @@ export const enUS_workspace = {
   "workspace.compileAssist.hintTitle": "Compile Repair Hint",
   "workspace.compileAssist.hintMissingPackage": "Missing package detected: {package}. Remove that dependency or switch to BusyTeX-compatible syntax.",
   "workspace.compileAssist.hintMissingCtex": "ctex.sty is missing. Avoid ctex-specific packages and use base article + UTF-8 text.",
+  "workspace.compileAssist.hintBusytexWorkerOrigin": "BusyTeX Worker failed due asset origin mismatch. Use packaged/local BusyTeX assets first and avoid HTML fallback paths (Unexpected token '<').",
   "workspace.compileAssist.hintGeneric": "Fix missing package/syntax errors first, then recompile. Start from the first ERROR line.",
   "workspace.undo": "Undo",
   "workspace.redo": "Redo",

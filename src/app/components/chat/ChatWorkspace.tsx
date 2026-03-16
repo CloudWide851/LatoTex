@@ -1,4 +1,4 @@
-import { Loader2, Send } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   channelsTelegramPoll,
@@ -445,7 +445,7 @@ export function ChatWorkspace(props: {
     <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_132px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
-          <div className="h-full" />
+          <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
         ) : (
           <div className="space-y-2">
             {activeSession.messages.map((item) => (
@@ -469,37 +469,36 @@ export function ChatWorkspace(props: {
       </div>
 
       <div className="border-t border-slate-200 px-3 pb-3 pt-2">
-        <div className="mb-2 flex items-center justify-between text-[11px] text-slate-500">
-          <span>{running ? t("chat.running") : t("chat.idle")}</span>
-          {lastError ? <span className="truncate text-rose-600">{lastError}</span> : null}
-        </div>
-        <div className="flex h-[80px] items-end gap-2">
+        <div className="relative h-[88px]">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={t("chat.inputPlaceholder")}
-            className="h-full min-w-0 flex-1 resize-none rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 outline-none focus:border-primary-500"
+            className="h-full w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
           />
-          {running ? (
-            <button
-              className="inline-flex h-8 items-center gap-1 rounded border border-amber-400 bg-amber-50 px-2.5 text-[11px] text-amber-700 hover:bg-amber-100"
-              onClick={() => void stopRun()}
-            >
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {t("agent.run.cancel")}
-            </button>
-          ) : (
-            <button
-              className="inline-flex h-8 items-center gap-1 rounded border border-primary-600 bg-primary-600 px-2.5 text-[11px] text-white hover:bg-primary-700 disabled:opacity-50"
-              onClick={() => void sendMessage()}
-              disabled={!draft.trim()}
-            >
-              <Send className="h-3.5 w-3.5" />
-              {t("chat.send")}
-            </button>
-          )}
+          <button
+            className={`absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
+              running
+                ? "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                : "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+            }`}
+            onClick={() => {
+              if (running) {
+                void stopRun();
+                return;
+              }
+              void sendMessage();
+            }}
+            disabled={!running && !draft.trim()}
+            title={running ? t("agent.run.cancel") : t("chat.send")}
+            aria-label={running ? t("agent.run.cancel") : t("chat.send")}
+          >
+            {running ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+          </button>
         </div>
+        {lastError ? <div className="mt-1 truncate text-[11px] text-rose-600">{lastError}</div> : null}
       </div>
     </section>
   );
 }
+

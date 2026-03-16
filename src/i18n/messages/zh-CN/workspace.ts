@@ -19,6 +19,7 @@ export const zhCN_workspace = {
   "workspace.compileAssist.hintTitle": "编译修复建议",
   "workspace.compileAssist.hintMissingPackage": "检测到缺少宏包 {package}，请移除相关依赖或替换为 BusyTeX 支持的写法。",
   "workspace.compileAssist.hintMissingCtex": "检测到 ctex.sty 缺失：请避免使用 ctex 相关宏包，改为基础 article + UTF-8 文本。",
+  "workspace.compileAssist.hintBusytexWorkerOrigin": "检测到 BusyTeX Worker 同源受限：请优先使用应用内置/本地 BusyTeX 资源，避免命中 HTML 回退路径（Unexpected token '<'）。",
   "workspace.compileAssist.hintGeneric": "请先修复缺包/语法报错，再重新编译；建议逐条处理日志中的首个 ERROR。",
   "workspace.undo": "撤销",
   "workspace.redo": "重做",

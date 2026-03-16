@@ -13,6 +13,7 @@ export const enUS_chat = {
   "chat.command.memory.empty": "No MEMORY.md content found in this project yet.",
   "chat.newChatTitle": "New Chat",
   "chat.session.select": "Conversation session",
+  "chat.session.emptyHistory": "No conversation history yet.",
   "chat.session.create": "New Session",
   "chat.session.rename": "Rename",
   "chat.session.delete": "Delete",
