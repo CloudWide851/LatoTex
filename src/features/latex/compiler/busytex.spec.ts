@@ -121,24 +121,18 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.join(" ")).toContain("BusyTeX assets missing");
   });
 
-  it("normalizes encoded windows paths and avoids worker for cross-origin asset.localhost candidates", async () => {
+  it("prefers same-origin /core candidates before cross-origin cache paths", async () => {
     mockCompilePayload = {
       success: true,
       pdf: [1, 2, 3],
       logs: [],
       exitCode: 0,
     };
-    runnerInitFailureResolver = (basePath, _attempt, useWorker) => {
-      if (basePath.includes("F%3A%2FLatoTex%2Fbusytex-cache")) {
-        return "failed to fetch";
-      }
-      if (basePath.includes("F:/LatoTex/busytex-cache")) {
-        if (useWorker) {
-          return "Failed to construct 'Worker': Script cannot be accessed from origin";
-        }
+    runnerInitFailureResolver = (basePath) => {
+      if (basePath.includes("/core/busytex")) {
         return null;
       }
-      return "Worker error: Uncaught SyntaxError: Unexpected token <";
+      return "failed to fetch";
     };
 
     vi.doMock("@tauri-apps/api/core", () => ({
@@ -160,12 +154,9 @@ describe("BusyTeX compile adapter", () => {
     const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
 
     expect(result.status).toBe("success");
-    expect(runnerInitCalls.some((call) => call.basePath.includes("F:/LatoTex/busytex-cache"))).toBe(true);
-    expect(
-      runnerInitCalls
-        .filter((call) => call.basePath.includes("F:/LatoTex/busytex-cache"))
-        .every((call) => call.useWorker === false),
-    ).toBe(true);
+    expect(runnerInitCalls.some((call) => call.basePath.includes("/core/busytex"))).toBe(true);
+    expect(runnerInitCalls.some((call) => call.basePath.includes("asset.localhost"))).toBe(false);
+    expect(runnerInitCalls.every((call) => call.useWorker)).toBe(true);
   });
 
   it("re-prepares cache and retries once for recoverable asset errors", async () => {
@@ -253,3 +244,4 @@ describe("BusyTeX compile adapter", () => {
     expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
   });
 });
+

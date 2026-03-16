@@ -214,10 +214,12 @@ export function AppOverlays(props: {
           <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
             <h3 className="text-sm font-semibold text-slate-800">{t("explorer.deleteConfirmTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{deleteIntent.path}</p>
-            <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
-              <Checkbox
+            <label className="mt-3 flex cursor-pointer select-none items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
                 checked={deleteDontAskAgain}
                 onChange={(event) => onDeleteDontAskChange(event.target.checked)}
+                className="h-4 w-4 rounded border border-slate-300 text-primary-600 accent-primary-600"
               />
               {t("explorer.deleteDontAsk")}
             </label>
@@ -337,3 +339,4 @@ export function AppOverlays(props: {
     </>
   );
 }
+

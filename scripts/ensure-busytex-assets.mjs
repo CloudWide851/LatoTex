@@ -3,8 +3,8 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const sideLoadRoot = "src-tauri/resources/core";
-const sideLoadBusytexDir = path.join(sideLoadRoot, "busytex");
-const legacyPublicBusytexDir = "public/core/busytex";
+const sideLoadBusytexDir = path.resolve(sideLoadRoot, "busytex");
+const publicBusytexDir = path.resolve("public/core/busytex");
 
 const requiredFiles = [
   path.join(sideLoadBusytexDir, "busytex.js"),
@@ -14,17 +14,35 @@ const requiredFiles = [
   path.join(sideLoadBusytexDir, "texlive-basic.js"),
 ];
 
+function copyDirectory(sourceDir, targetDir) {
+  fs.mkdirSync(targetDir, { recursive: true });
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectory(sourcePath, targetPath);
+      continue;
+    }
+    if (entry.isFile()) {
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+  }
+}
+
+function mirrorToPublicBusytex() {
+  fs.rmSync(publicBusytexDir, { recursive: true, force: true });
+  copyDirectory(sideLoadBusytexDir, publicBusytexDir);
+}
+
 const missing = requiredFiles.filter((file) => !fs.existsSync(file));
 if (missing.length === 0) {
-  console.log("BusyTeX side-load assets ready");
-  if (fs.existsSync(legacyPublicBusytexDir)) {
-    fs.rmSync(legacyPublicBusytexDir, { recursive: true, force: true });
-  }
+  mirrorToPublicBusytex();
+  console.log("BusyTeX side-load assets ready (mirrored to public/core/busytex)");
   process.exit(0);
 }
 
 console.log("BusyTeX side-load assets missing, downloading...");
-fs.mkdirSync(sideLoadRoot, { recursive: true });
+fs.mkdirSync(path.resolve(sideLoadRoot), { recursive: true });
 const result = spawnSync("pnpm", ["exec", "texlyre-busytex", "download-assets", `./${sideLoadRoot}`], {
   stdio: "inherit",
   shell: process.platform === "win32",
@@ -46,8 +64,5 @@ if (unresolved.length > 0) {
   process.exit(0);
 }
 
-if (fs.existsSync(legacyPublicBusytexDir)) {
-  fs.rmSync(legacyPublicBusytexDir, { recursive: true, force: true });
-}
-
-console.log("BusyTeX side-load assets downloaded and verified");
+mirrorToPublicBusytex();
+console.log("BusyTeX side-load assets downloaded, verified, and mirrored to public/core/busytex");

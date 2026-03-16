@@ -125,6 +125,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
   const [chatTabOpen, setChatTabOpen] = useState(false);
   const [chatTabActive, setChatTabActive] = useState(false);
+  const [chatTabTitle, setChatTabTitle] = useState<string | null>(null);
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
   useEffect(() => {
     setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1));
@@ -144,6 +145,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     }
   }, [compileErrorLine]);
   useEffect(() => {
+    setChatTabTitle(null);
     if (!activeProjectId) {
       setChatTabOpen(false);
       setChatTabActive(false);
@@ -300,7 +302,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               onShareRefresh={onShareRefresh}
               t={t}
             />
-            <ChatTopbarSessionControl activeProjectId={activeProjectId} onOpenChatTab={handleOpenChatTab} t={t} />
+            <ChatTopbarSessionControl activeProjectId={activeProjectId} onOpenChatTab={handleOpenChatTab} onSessionStateChanged={setChatTabTitle} t={t} />
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -362,7 +364,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
           busy={busy}
           extraTabs={chatTabOpen ? [{
             id: "editor-chat-tab",
-            title: t("nav.chat"),
+            title: chatTabTitle?.trim() ? chatTabTitle : t("nav.chat"),
             active: showChatWorkspace,
             onSelect: () => setChatTabActive(true),
             onClose: handleCloseChatTab,
@@ -591,5 +593,4 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-
 

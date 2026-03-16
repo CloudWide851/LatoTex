@@ -81,7 +81,9 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
             copy_recursively(&path, &target)?;
         }
         "delete" => {
-            trash::delete(&path).map_err(|e| e.to_string())?;
+            if path.exists() {
+                trash::delete(&path).map_err(|e| e.to_string())?;
+            }
         }
         _ => return Err("Unsupported file action".to_string()),
     }
@@ -133,3 +135,4 @@ pub fn record_compile(db_path: &Path, input: CompileRecordInput) -> Result<Compi
         created_at: now,
     })
 }
+

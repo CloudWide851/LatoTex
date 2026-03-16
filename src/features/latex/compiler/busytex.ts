@@ -13,7 +13,6 @@ type BusyTexCompileResponse = {
 
 type BusyTexInitCandidate = {
   basePath: string;
-  useWorker: boolean;
 };
 
 export type BusyTeXCompileResult = {
@@ -27,7 +26,6 @@ const BUSYTEX_ASSET_HINT =
   "BusyTeX assets missing. Run `pnpm run busytex:assets` to prepare src-tauri/resources/core/busytex.";
 
 let runner: BusyTexRunner | null = null;
-let runnerUseWorker = true;
 let preparedCacheBasePaths: string[] | null = null;
 let preparingCachePromise: Promise<string[]> | null = null;
 
@@ -90,25 +88,11 @@ function buildInitCandidates(basePaths: string[]): BusyTexInitCandidate[] {
     }
   }
 
-  const orderedBasePaths = [...sameOrigin, ...crossOrigin];
-  const candidates: BusyTexInitCandidate[] = [];
-
-  for (const basePath of orderedBasePaths) {
-    if (isSameOriginBasePath(basePath)) {
-      candidates.push({ basePath, useWorker: true });
-      candidates.push({ basePath, useWorker: false });
-      continue;
-    }
-    // asset.localhost and other cross-origin paths cannot construct Worker from tauri.localhost.
-    candidates.push({ basePath, useWorker: false });
-  }
-
-  return candidates;
+  return [...sameOrigin, ...crossOrigin].map((basePath) => ({ basePath }));
 }
 
 function resetBusyTexRuntime(resetCacheBase = false) {
   runner = null;
-  runnerUseWorker = true;
   if (resetCacheBase) {
     preparedCacheBasePaths = null;
   }
@@ -173,14 +157,14 @@ async function buildBasePathCandidates(): Promise<string[]> {
   const cachePaths = await resolveCacheBasePaths();
   const withVariants: string[] = [];
 
-  for (const path of cachePaths) {
-    appendCandidateVariants(withVariants, path);
-  }
-
   appendCandidateVariants(withVariants, `${normalizedBase}core/busytex`);
   appendCandidateVariants(withVariants, "/core/busytex");
   appendCandidateVariants(withVariants, "./core/busytex");
   appendCandidateVariants(withVariants, "core/busytex");
+
+  for (const path of cachePaths) {
+    appendCandidateVariants(withVariants, path);
+  }
 
   return uniqueValues(withVariants);
 }
@@ -193,16 +177,14 @@ function toErrorMessage(error: unknown): string {
 }
 
 function buildMissingAssetsError(candidates: BusyTexInitCandidate[], reasons: string[]): Error {
-  const labels = candidates.map((candidate) => `${candidate.basePath} (${candidate.useWorker ? "worker" : "direct"})`);
+  const labels = candidates.map((candidate) => candidate.basePath);
   const details = reasons.length > 0 ? ` Reasons: ${reasons.join(" | ")}.` : "";
   return new Error(
     `BusyTeX worker asset not found. Tried: ${labels.join(", ")}. ${BUSYTEX_ASSET_HINT}${details}`,
   );
 }
 
-async function initializeRunnerFromCandidates(
-  candidates: BusyTexInitCandidate[],
-): Promise<{ runner: BusyTexRunner; useWorker: boolean }> {
+async function initializeRunnerFromCandidates(candidates: BusyTexInitCandidate[]): Promise<BusyTexRunner> {
   const reasons: string[] = [];
 
   for (const candidate of candidates) {
@@ -211,15 +193,11 @@ async function initializeRunnerFromCandidates(
     });
     try {
       if (!candidateRunner.isInitialized()) {
-        await candidateRunner.initialize(candidate.useWorker);
+        await candidateRunner.initialize(true);
       }
-      return {
-        runner: candidateRunner,
-        useWorker: candidate.useWorker,
-      };
+      return candidateRunner;
     } catch (error) {
-      const mode = candidate.useWorker ? "worker" : "direct";
-      reasons.push(`${candidate.basePath} (${mode}): ${toErrorMessage(error)}`);
+      reasons.push(`${candidate.basePath}: ${toErrorMessage(error)}`);
     }
   }
 
@@ -271,6 +249,7 @@ function isRecoverableAssetError(message: string): boolean {
     || normalized.includes("unexpected token <")
     || normalized.includes("syntaxerror")
     || normalized.includes("not found")
+    || normalized.includes("scriptloaderdocument")
   );
 }
 
@@ -278,7 +257,7 @@ async function getRunner(): Promise<BusyTexRunner> {
   if (runner) {
     try {
       if (!runner.isInitialized()) {
-        await runner.initialize(runnerUseWorker);
+        await runner.initialize(true);
       }
       return runner;
     } catch {
@@ -288,9 +267,7 @@ async function getRunner(): Promise<BusyTexRunner> {
 
   const basePaths = await buildBasePathCandidates();
   const candidates = buildInitCandidates(basePaths);
-  const initialized = await initializeRunnerFromCandidates(candidates);
-  runner = initialized.runner;
-  runnerUseWorker = initialized.useWorker;
+  runner = await initializeRunnerFromCandidates(candidates);
   return runner;
 }
 

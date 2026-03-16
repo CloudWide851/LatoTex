@@ -11,13 +11,21 @@ import {
 
 type TranslationFn = (key: any) => string;
 
+function activeSessionTitle(sessions: ChatSession[], activeSessionId: string | null): string | null {
+  if (!activeSessionId) {
+    return null;
+  }
+  return sessions.find((item) => item.id === activeSessionId)?.title ?? null;
+}
+
 export function ChatTabMenuContent(props: {
   projectId: string | null;
   onActivateChat: () => void;
   onCloseMenu: () => void;
+  onSessionStateChanged?: (activeTitle: string | null) => void;
   t: TranslationFn;
 }) {
-  const { projectId, onActivateChat, onCloseMenu, t } = props;
+  const { projectId, onActivateChat, onCloseMenu, onSessionStateChanged, t } = props;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -29,12 +37,14 @@ export function ChatTabMenuContent(props: {
       setActiveSessionId(null);
       setEditingSessionId(null);
       setEditingDraft("");
+      onSessionStateChanged?.(null);
       return;
     }
     const loaded = loadChatStore(projectId);
     setSessions(loaded.sessions);
     setActiveSessionId(loaded.activeSessionId);
-  }, [projectId]);
+    onSessionStateChanged?.(activeSessionTitle(loaded.sessions, loaded.activeSessionId));
+  }, [onSessionStateChanged, projectId]);
 
   useEffect(() => {
     if (!projectId || typeof window === "undefined") {
@@ -47,6 +57,7 @@ export function ChatTabMenuContent(props: {
       }
       setSessions(custom.detail.sessions);
       setActiveSessionId(custom.detail.activeSessionId);
+      onSessionStateChanged?.(activeSessionTitle(custom.detail.sessions, custom.detail.activeSessionId));
       if (editingSessionId && !custom.detail.sessions.some((item) => item.id === editingSessionId)) {
         setEditingSessionId(null);
         setEditingDraft("");
@@ -56,7 +67,7 @@ export function ChatTabMenuContent(props: {
     return () => {
       window.removeEventListener("latotex.chat.store.changed", onStoreChanged as EventListener);
     };
-  }, [editingSessionId, projectId]);
+  }, [editingSessionId, onSessionStateChanged, projectId]);
 
   const handleSelectSession = (sessionId: string) => {
     if (!projectId) {
@@ -65,6 +76,7 @@ export function ChatTabMenuContent(props: {
     const next = setActiveChatSessionInStore(projectId, sessionId);
     setSessions(next.sessions);
     setActiveSessionId(next.activeSessionId);
+    onSessionStateChanged?.(activeSessionTitle(next.sessions, next.activeSessionId));
     setEditingSessionId(null);
     setEditingDraft("");
     onActivateChat();
@@ -87,6 +99,7 @@ export function ChatTabMenuContent(props: {
     const next = renameChatSessionInStore(projectId, editingSessionId, nextTitle);
     setSessions(next.sessions);
     setActiveSessionId(next.activeSessionId);
+    onSessionStateChanged?.(activeSessionTitle(next.sessions, next.activeSessionId));
     setEditingSessionId(null);
     setEditingDraft("");
   };
@@ -98,6 +111,7 @@ export function ChatTabMenuContent(props: {
     const next = deleteChatSessionInStore(projectId, sessionId);
     setSessions(next.sessions);
     setActiveSessionId(next.activeSessionId);
+    onSessionStateChanged?.(activeSessionTitle(next.sessions, next.activeSessionId));
     if (editingSessionId === sessionId) {
       setEditingSessionId(null);
       setEditingDraft("");

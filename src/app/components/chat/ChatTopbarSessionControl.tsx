@@ -1,15 +1,25 @@
 import { ChevronDown, MessageSquareMore } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { loadChatStore, type ChatStoreChangeDetail } from "../../hooks/chatSessionStore";
 import { ChatTabMenuContent } from "./ChatTabMenuContent";
 
 type TranslationFn = (key: any) => string;
 
+function resolveActiveSessionTitle(projectId: string): string | null {
+  const store = loadChatStore(projectId);
+  if (!store.activeSessionId) {
+    return null;
+  }
+  return store.sessions.find((item) => item.id === store.activeSessionId)?.title ?? null;
+}
+
 export function ChatTopbarSessionControl(props: {
   activeProjectId: string | null;
   onOpenChatTab: () => void;
+  onSessionStateChanged?: (activeTitle: string | null) => void;
   t: TranslationFn;
 }) {
-  const { activeProjectId, onOpenChatTab, t } = props;
+  const { activeProjectId, onOpenChatTab, onSessionStateChanged, t } = props;
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -33,6 +43,36 @@ export function ChatTopbarSessionControl(props: {
       setMenuOpen(false);
     }
   }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!onSessionStateChanged) {
+      return;
+    }
+    if (!activeProjectId) {
+      onSessionStateChanged(null);
+      return;
+    }
+
+    onSessionStateChanged(resolveActiveSessionTitle(activeProjectId));
+
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleStoreChanged = (event: Event) => {
+      const custom = event as CustomEvent<ChatStoreChangeDetail>;
+      if (!custom.detail || custom.detail.projectId !== activeProjectId) {
+        return;
+      }
+      const title = custom.detail.activeSessionId
+        ? custom.detail.sessions.find((item) => item.id === custom.detail.activeSessionId)?.title ?? null
+        : null;
+      onSessionStateChanged(title);
+    };
+    window.addEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
+    return () => {
+      window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
+    };
+  }, [activeProjectId, onSessionStateChanged]);
 
   return (
     <div ref={rootRef} className="relative">
@@ -63,6 +103,7 @@ export function ChatTopbarSessionControl(props: {
             projectId={activeProjectId}
             onActivateChat={onOpenChatTab}
             onCloseMenu={() => setMenuOpen(false)}
+            onSessionStateChanged={onSessionStateChanged}
             t={t}
           />
         </div>
