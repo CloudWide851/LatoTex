@@ -7,6 +7,9 @@ export type DrawMessage = {
   data?: string;
   format?: string;
   mime?: string;
+  filename?: string;
+  base64?: boolean;
+  source?: string;
   error?: string;
   [key: string]: unknown;
 };
@@ -155,14 +158,32 @@ export function toTextIfPossible(ext: string, bytes: Uint8Array): string | null 
   }
 }
 
-export function toDrawExportTarget(activePath: string, extension: string): string {
+function sanitizeExportFileName(filename: string): string {
+  const base = String(filename || "")
+    .trim()
+    .split(/[\\/]/)
+    .pop() || "";
+  return base
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+    .replace(/^\.+$/, "")
+    .trim();
+}
+
+export function toDrawExportTarget(activePath: string, extension: string, filenameHint?: string): string {
   const normalizedPath = normalizePath(activePath);
   const slashIndex = normalizedPath.lastIndexOf("/");
   const parentDir = slashIndex >= 0 ? normalizedPath.slice(0, slashIndex) : "";
   const title = tabTitleFromPath(activePath);
   const stem = title.replace(/\.drawio$/i, "") || "diagram";
   const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
-  return parentDir ? `${parentDir}/${safeStem}.${extension}` : `${safeStem}.${extension}`;
+
+  const hintedBase = sanitizeExportFileName(filenameHint ?? "");
+  const normalizedExtension = String(extension || "bin").replace(/[^a-z0-9.+-]/gi, "") || "bin";
+  const fileName = hintedBase
+    ? (/\.[a-z0-9.+-]+$/i.test(hintedBase) ? hintedBase : `${hintedBase}.${normalizedExtension}`)
+    : `${safeStem}.${normalizedExtension}`;
+
+  return parentDir ? `${parentDir}/${fileName}` : fileName;
 }
 
 export function buildRenamedDrawPath(currentPath: string, nextInput: string): string {

@@ -7,13 +7,10 @@ import {
   getHealthCheck,
   getSettings,
   listProjects,
-  readFile,
-  readFileBinary,
   runtimeLogInfo,
   runtimeLogWrite,
   windowSyncIcon,
 } from "../../shared/api/desktop";
-import { isExcelPath, isPdfPath } from "../../shared/utils/fileKind";
 import type {
   AppSettings,
   SwarmEvent,
@@ -26,6 +23,7 @@ import {
 } from "../app-config";
 import { appendEventsWithBudget } from "./eventMemoryBudget";
 import { useGitRuntimeEffects } from "./useGitRuntimeEffects";
+import { useSelectedFilePreviewEffects } from "./useSelectedFilePreviewEffects";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -61,6 +59,9 @@ export function useAppEffects(params: {
   setSelectedLibraryPath: (value: string | null) => void;
   setEditorContent: (value: string) => void;
   setSelectedFilePdfUrl: (value: string | null) => void;
+  setSelectedImagePreviewUrl: (value: string | null) => void;
+  setPreviewOverridePath: (value: string | null) => void;
+  previewOverridePath: string | null;
   setToast: ToastSetter;
   setProjectSearchQuery: (value: string) => void;
   setProjectSearchResults: (value: any) => void;
@@ -107,6 +108,9 @@ export function useAppEffects(params: {
     setSelectedLibraryPath,
     setEditorContent,
     setSelectedFilePdfUrl,
+    setSelectedImagePreviewUrl,
+    setPreviewOverridePath,
+    previewOverridePath,
     setToast,
     setProjectSearchQuery,
     setProjectSearchResults,
@@ -128,7 +132,6 @@ export function useAppEffects(params: {
   const tRef = useRef(t);
   const cursorRef = useRef(cursor);
   const isMaximizedRef = useRef(false);
-  const selectedFilePdfObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     tRef.current = t;
@@ -254,105 +257,26 @@ export function useAppEffects(params: {
       setSelectedLibraryPath(null);
       setEditorContent("");
       setSelectedFilePdfUrl(null);
+      setSelectedImagePreviewUrl(null);
+      setPreviewOverridePath(null);
       return;
     }
     loadProjectData(activeProjectId).catch((error) => {
       setToast({ type: "error", message: String(error) });
     });
-  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setSelectedFile, setSelectedFilePdfUrl, setSelectedLibraryPath, setToast, setTree]);
+  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setToast, setTree]);
 
-  useEffect(() => {
-    if (!activeProjectId || !selectedFile) {
-      if (selectedFilePdfObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
-        selectedFilePdfObjectUrlRef.current = null;
-      }
-      setSelectedFilePdfUrl(null);
-      return;
-    }
-    let cancelled = false;
-    if (isPdfPath(selectedFile)) {
-      readFileBinary(activeProjectId, selectedFile)
-        .then((result) => {
-          if (cancelled) {
-            return;
-          }
-          const url = URL.createObjectURL(
-            new Blob([Uint8Array.from(result.bytes)], { type: "application/pdf" }),
-          );
-          const prev = selectedFilePdfObjectUrlRef.current;
-          if (prev && prev !== url) {
-            URL.revokeObjectURL(prev);
-          }
-          selectedFilePdfObjectUrlRef.current = url;
-          setSelectedFilePdfUrl(url);
-          setEditorContent("");
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setToast({ type: "error", message: String(error) });
-          }
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (isExcelPath(selectedFile)) {
-      if (selectedFilePdfObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
-        selectedFilePdfObjectUrlRef.current = null;
-      }
-      setSelectedFilePdfUrl(null);
-      setEditorContent("");
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (selectedFilePdfObjectUrlRef.current) {
-      URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
-      selectedFilePdfObjectUrlRef.current = null;
-    }
-    setSelectedFilePdfUrl(null);
-    const cached = getCachedTextContent?.(selectedFile);
-    if (typeof cached === "string") {
-      setEditorContent(cached);
-      return () => {
-        cancelled = true;
-      };
-    }
-    readFile(activeProjectId, selectedFile)
-      .then((result) => {
-        if (!cancelled) {
-          setEditorContent(result.content);
-          onTextFileLoaded?.(selectedFile, result.content);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setToast({ type: "error", message: String(error) });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [
+  useSelectedFilePreviewEffects({
     activeProjectId,
-    getCachedTextContent,
-    onTextFileLoaded,
     selectedFile,
+    previewOverridePath,
     setEditorContent,
     setSelectedFilePdfUrl,
+    setSelectedImagePreviewUrl,
     setToast,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      if (selectedFilePdfObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
-        selectedFilePdfObjectUrlRef.current = null;
-      }
-    };
-  }, []);
+    getCachedTextContent,
+    onTextFileLoaded,
+  });
 
   useEffect(() => {
     if (!pendingRevealLine || !editorRef.current) {
@@ -573,7 +497,5 @@ export function useAppEffects(params: {
     setGitDownloadTaskId,
   });
 }
-
-
 
 

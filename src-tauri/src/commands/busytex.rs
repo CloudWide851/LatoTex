@@ -11,8 +11,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 
-const REQUIRED_BUSYTEX_ASSETS: [&str; 4] =
-    ["busytex.js", "busytex.wasm", "busytex_worker.js", "texlive-basic.js"];
+const REQUIRED_BUSYTEX_ASSETS: [&str; 5] =
+    ["busytex.js", "busytex.wasm", "busytex_worker.js", "busytex_pipeline.js", "texlive-basic.js"];
 
 const REQUIRED_PYODIDE_ASSETS: [&str; 5] =
     ["pyodide.mjs", "pyodide.asm.js", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"];
@@ -26,6 +26,7 @@ struct CachePrepareResult {
     actual_dir: String,
     install_dir_writable: bool,
     using_fallback: bool,
+    source_dir: PathBuf,
 }
 
 fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
@@ -79,6 +80,21 @@ fn ensure_cache_dir(cache_dir: &Path, source_dir: &Path, required_assets: &[&str
         fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
     }
     copy_recursively(source_dir, cache_dir)?;
+    Ok(())
+}
+
+fn sync_cache_files(cache_dir: &Path, source_dir: &Path, files: &[&str]) -> Result<(), String> {
+    for relative in files {
+        let source = source_dir.join(relative);
+        if !source.exists() {
+            continue;
+        }
+        let target = cache_dir.join(relative);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::copy(&source, &target).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -155,6 +171,7 @@ fn prepare_cache(
         actual_dir: actual_dir.to_string_lossy().to_string(),
         install_dir_writable,
         using_fallback,
+        source_dir,
     })
 }
 
@@ -219,6 +236,12 @@ pub fn drawio_cache_prepare(
         "drawio",
         &REQUIRED_DRAWIO_ASSETS,
         "Drawio source assets were not found in app resources",
+    )?;
+
+    sync_cache_files(
+        Path::new(&prepared.actual_dir),
+        &prepared.source_dir,
+        &["index.html"],
     )?;
 
     Ok(DrawioCacheInfo {

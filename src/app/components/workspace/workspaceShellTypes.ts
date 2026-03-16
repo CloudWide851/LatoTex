@@ -40,6 +40,8 @@ export type AppWorkspaceShellProps = {
   compiledPdfUrl: string | null;
   preferCompiledPreview: boolean;
   selectedFilePdfUrl: string | null;
+  selectedImagePreviewUrl: string | null;
+  previewOverridePath: string | null;
   compileErrorLine: string | null;
   compileDiagnostics: string[];
   agentCollapsed: boolean;

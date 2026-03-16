@@ -109,6 +109,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [compiledPdfBytes, setCompiledPdfBytes] = useState<Uint8Array | null>(null);
   const [preferCompiledPreview, setPreferCompiledPreview] = useState(false);
   const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
+  const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
+  const [previewOverridePath, setPreviewOverridePath] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [draftModelApiKeys, setDraftModelApiKeys] = useState<Record<string, string>>({});
@@ -276,6 +278,10 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setPreferCompiledPreview,
     selectedFilePdfUrl,
     setSelectedFilePdfUrl,
+    selectedImagePreviewUrl,
+    setSelectedImagePreviewUrl,
+    previewOverridePath,
+    setPreviewOverridePath,
     settings,
     setSettings,
     settingsSection,

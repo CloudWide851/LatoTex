@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
 import { getModelApiKey, getSettings, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel, windowSyncIcon } from "../../shared/api/desktop";
-import { isPdfPath } from "../../shared/utils/fileKind";
+import { isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
 import {
   resolveCredentialSaveErrorMessage,
@@ -42,6 +42,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     setActiveTabId,
     buildEditorTab,
     setSelectedFile,
+    setPreviewOverridePath,
     activeProjectIdRef,
     integrityCheckedRef,
     integrityIssue,
@@ -183,6 +184,7 @@ export function useAppContainerWorkspaceActions(params: any) {
     );
     setActiveTabId(tabId);
     setPreferCompiledPreview(false);
+    setPreviewOverridePath(null);
     setSelectedFile(target.path);
   }, [editorTabsRef, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setSelectedFile]);
 
@@ -228,6 +230,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       setEditorTabs([...nextTabs, newTab]);
       setActiveTabId(newTab.id);
       setPreferCompiledPreview(false);
+      setPreviewOverridePath(null);
       setSelectedFile(path);
       setPreviewTabId(mode === "preview" ? newTab.id : previewTabIdRef.current);
     };
@@ -286,14 +289,21 @@ export function useAppContainerWorkspaceActions(params: any) {
     const normalized = String(path ?? "").trim();
     if (!normalized) {
       setSelectedFile(null);
+      setPreviewOverridePath(null);
       setPreferCompiledPreview(false);
       return;
     }
+    if (isImagePath(normalized)) {
+      setPreviewOverridePath(normalized);
+      setPreferCompiledPreview(false);
+      return;
+    }
+    setPreviewOverridePath(null);
     openWorkspaceFile(normalized, "pinned");
     if (selectedFile !== normalized) {
       setSelectedFile(normalized);
     }
-  }, [openWorkspaceFile, selectedFile, setPreferCompiledPreview, setSelectedFile]);
+  }, [openWorkspaceFile, selectedFile, setPreferCompiledPreview, setPreviewOverridePath, setSelectedFile]);
 
   useEffect(() => {
     if (!selectedFile || !fileSet.has(selectedFile)) {
@@ -316,6 +326,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       if (!projectId) {
         setIntegrityIssue(null);
         resetEditorSession();
+        setPreviewOverridePath(null);
         setActiveProjectId(null);
         return;
       }
@@ -340,6 +351,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       }
       setIntegrityIssue(null);
       resetEditorSession();
+      setPreviewOverridePath(null);
       setActiveProjectId(projectId);
     };
 

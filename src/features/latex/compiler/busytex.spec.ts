@@ -196,4 +196,49 @@ describe("BusyTeX compile adapter", () => {
     expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
     expect(runnerInitCalls.some((basePath) => basePath.includes("good-cache"))).toBe(true);
   });
+
+  it("retries once when worker returns unexpected token syntax error", async () => {
+    mockCompilePayload = {
+      success: true,
+      pdf: [7, 8, 9],
+      logs: [],
+      exitCode: 0,
+    };
+    let cachePrepareCount = 0;
+
+    runnerInitFailureResolver = (basePath) => {
+      if (basePath.includes("good-cache")) {
+        return null;
+      }
+      return "Worker error: Uncaught SyntaxError: Unexpected token <";
+    };
+
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+      convertFileSrc: (value: string) => "http://asset.localhost/" + value.replace(/\\/g, "/"),
+    }));
+    vi.doMock("../../../shared/api/desktop", () => ({
+      busytexCachePrepare: vi.fn(async () => {
+        cachePrepareCount += 1;
+        const dir = cachePrepareCount === 1 ? "F:\\bad-cache" : "F:\\good-cache";
+        return {
+          policy: "install-first",
+          requestedDir: dir,
+          actualDir: dir,
+          installDirWritable: true,
+          usingFallback: false,
+        };
+      }),
+    }));
+
+    vi.resetModules();
+    const { compileWithBusyTeX } = await import("./busytex");
+    const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
+
+    expect(result.status).toBe("success");
+    expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
+  });
+
 });
+
+

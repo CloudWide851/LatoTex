@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { Download, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drawioCachePrepare, readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
 import type { FsAction, FsScope } from "../../../shared/types/app";
@@ -21,7 +21,6 @@ import {
 type TranslationFn = (key: any) => string;
 
 const DRAWIO_HOST_URL = "/drawio/index.html";
-const DRAWIO_EMBED_FALLBACK_URL = "https://embed.diagrams.net/?embed=1&ui=min&spin=1&proto=json&configure=1&saveAndExit=0";
 const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 
 const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
@@ -61,7 +60,7 @@ async function checkFrameSource(url: string): Promise<boolean> {
   }
 }
 
-async function resolveDrawioHostFrameSrc(): Promise<string> {
+async function resolveDrawioHostFrameSrc(): Promise<string | null> {
   if (!isTauri()) {
     return DRAWIO_HOST_URL;
   }
@@ -81,10 +80,10 @@ async function resolveDrawioHostFrameSrc(): Promise<string> {
       }
     }
   } catch {
-    // fallback below
+    return null;
   }
 
-  return DRAWIO_HOST_URL;
+  return null;
 }
 
 export function DrawWorkspace(props: {
@@ -105,11 +104,12 @@ export function DrawWorkspace(props: {
   const initTimerRef = useRef<number | null>(null);
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
+  const activePathRef = useRef<string | null>(null);
 
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [frameSrc, setFrameSrc] = useState(DRAWIO_HOST_URL);
+  const [frameSrc, setFrameSrc] = useState<string | null>(DRAWIO_HOST_URL);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -123,19 +123,27 @@ export function DrawWorkspace(props: {
           return;
         }
         setReady(false);
-        setFrameSrc(nextSrc || DRAWIO_HOST_URL);
+        setFrameSrc(nextSrc);
+        if (!nextSrc) {
+          setStatus(t("draw.startFailed"));
+        }
       })
       .catch(() => {
         if (!cancelled) {
           setReady(false);
-          setFrameSrc(DRAWIO_HOST_URL);
+          setFrameSrc(null);
+          setStatus(t("draw.startFailed"));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [projectId, t]);
+
+  useEffect(() => {
+    activePathRef.current = activePath;
+  }, [activePath]);
 
   const postToFrame = useCallback((payload: Record<string, unknown>) => {
     const frame = frameRef.current?.contentWindow;
@@ -245,14 +253,6 @@ export function DrawWorkspace(props: {
       setBusy(false);
     }
   }, [ensureTabPath, projectId, t, tabPaths]);
-
-  const requestDrawExport = useCallback(() => {
-    if (!ready || !activePath || busy) {
-      return;
-    }
-    setStatus(t("draw.exporting"));
-    postToFrame({ action: "export", format: "png" });
-  }, [activePath, busy, postToFrame, ready, t]);
 
   const startRename = useCallback((path: string) => {
     const title = tabTitleFromPath(path).replace(/\.drawio$/i, "");
@@ -394,12 +394,16 @@ export function DrawWorkspace(props: {
         return;
       }
       if ((message.event === "save" || message.event === "autosave") && typeof message.xml === "string") {
-        if (!projectId || !activePath) {
+        const currentActivePath = activePathRef.current;
+        if (!projectId || !currentActivePath) {
+          return;
+        }
+        if (renameCommittingPathRef.current && currentActivePath === renameCommittingPathRef.current) {
           return;
         }
         const nextXml = message.xml;
-        xmlByPathRef.current[activePath] = nextXml;
-        const targetPath = activePath;
+        xmlByPathRef.current[currentActivePath] = nextXml;
+        const targetPath = currentActivePath;
         void (async () => {
           setBusy(true);
           try {
@@ -414,7 +418,8 @@ export function DrawWorkspace(props: {
         return;
       }
       if (message.event === "export" && typeof message.data === "string") {
-        if (!projectId || !activePath) {
+        const currentActivePath = activePathRef.current;
+        if (!projectId || !currentActivePath) {
           return;
         }
         const exportData = message.data;
@@ -426,7 +431,7 @@ export function DrawWorkspace(props: {
               const parsed = decodeDataUrl(exportData);
               extension = inferExportExtension(message, parsed.mime);
               const text = toTextIfPossible(extension, parsed.bytes);
-              const targetPath = toDrawExportTarget(activePath, extension || "bin");
+              const targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
               if (text !== null) {
                 await writeFile(projectId, targetPath, text);
               } else {
@@ -434,8 +439,17 @@ export function DrawWorkspace(props: {
               }
             } else {
               extension = inferExportExtension(message);
-              const targetPath = toDrawExportTarget(activePath, extension || "bin");
-              await writeFile(projectId, targetPath, exportData);
+              const targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
+              if (message.base64) {
+                const raw = atob(exportData);
+                const bytes = new Uint8Array(raw.length);
+                for (let index = 0; index < raw.length; index += 1) {
+                  bytes[index] = raw.charCodeAt(index);
+                }
+                await writeFileBinary(projectId, targetPath, bytes);
+              } else {
+                await writeFile(projectId, targetPath, exportData);
+              }
             }
             setStatus(t("draw.saved"));
           } catch (error) {
@@ -454,17 +468,14 @@ export function DrawWorkspace(props: {
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [activePath, loadActiveToFrame, postToFrame, projectId, t]);
+  }, [loadActiveToFrame, postToFrame, projectId, t]);
 
   useEffect(() => {
+    if (!frameSrc) {
+      return;
+    }
     initTimerRef.current = window.setTimeout(() => {
       if (!ready) {
-        if (frameSrc !== DRAWIO_EMBED_FALLBACK_URL) {
-          setReady(false);
-          setFrameSrc(DRAWIO_EMBED_FALLBACK_URL);
-          setStatus(t("draw.waiting"));
-          return;
-        }
         setStatus(t("draw.startFailed"));
       }
     }, 12_000);
@@ -562,27 +573,22 @@ export function DrawWorkspace(props: {
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
-          <button
-            className="panel-topbar-btn inline-flex shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            onClick={requestDrawExport}
-            disabled={busy || !ready || !activePath}
-            title={t("draw.export")}
-            aria-label={t("draw.export")}
-          >
-            <Download className="h-3.5 w-3.5" />
-          </button>
         </div>
         <div className="panel-topbar-text max-w-[40%] truncate text-[11px] text-slate-500">{status || t("draw.waiting")}</div>
       </header>
 
       <div className="min-h-0">
         {activePath ? (
-          <iframe
-            ref={frameRef}
-            src={frameSrc}
-            title="drawio"
-            className="h-full w-full border-0"
-          />
+          frameSrc ? (
+            <iframe
+              ref={frameRef}
+              src={frameSrc}
+              title="drawio"
+              className="h-full w-full border-0"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("draw.startFailed")}</div>
+          )
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("draw.noTabs")}</div>
         )}

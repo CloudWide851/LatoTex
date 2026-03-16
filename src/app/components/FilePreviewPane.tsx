@@ -75,8 +75,9 @@ const LENS_SIZE = 220;
 const PDF_VIRTUAL_PADDING_PAGES = 2;
 
 export function FilePreviewPane(props: {
-  mode: "pdf" | "markdown" | "svg" | "empty";
+  mode: "pdf" | "image" | "markdown" | "svg" | "empty";
   pdfUrl: string | null;
+  imageUrl: string | null;
   markdownContent: string;
   svgContent: string;
   title: string;
@@ -88,6 +89,7 @@ export function FilePreviewPane(props: {
   const {
     mode,
     pdfUrl,
+    imageUrl,
     markdownContent,
     svgContent,
     title,
@@ -443,6 +445,22 @@ export function FilePreviewPane(props: {
             />
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (mode === "image") {
+    return imageUrl ? (
+      <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+        <img
+          src={imageUrl}
+          alt={title}
+          className="max-h-full max-w-full rounded border border-slate-200 bg-white shadow-sm"
+        />
+      </div>
+    ) : (
+      <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
+        {emptyText}
       </div>
     );
   }

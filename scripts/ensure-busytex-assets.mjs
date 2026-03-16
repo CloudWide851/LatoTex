@@ -10,6 +10,7 @@ const requiredFiles = [
   path.join(sideLoadBusytexDir, "busytex.js"),
   path.join(sideLoadBusytexDir, "busytex.wasm"),
   path.join(sideLoadBusytexDir, "busytex_worker.js"),
+  path.join(sideLoadBusytexDir, "busytex_pipeline.js"),
   path.join(sideLoadBusytexDir, "texlive-basic.js"),
 ];
 

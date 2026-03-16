@@ -88,8 +88,11 @@ export function AppContainer() {
       if (s.selectedFilePdfUrl) {
         URL.revokeObjectURL(s.selectedFilePdfUrl);
       }
+      if (s.selectedImagePreviewUrl) {
+        URL.revokeObjectURL(s.selectedImagePreviewUrl);
+      }
     },
-    [s.pdfUrl, s.selectedFilePdfUrl],
+    [s.pdfUrl, s.selectedFilePdfUrl, s.selectedImagePreviewUrl],
   );
 
   useTrayLabelSync({ isTauriRuntime, locale, t });
@@ -236,6 +239,9 @@ export function AppContainer() {
     setSelectedLibraryPath: s.setSelectedLibraryPath,
     setEditorContent: s.setEditorContent,
     setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
+    setSelectedImagePreviewUrl: s.setSelectedImagePreviewUrl,
+    setPreviewOverridePath: s.setPreviewOverridePath,
+    previewOverridePath: s.previewOverridePath,
     setToast: s.setToast,
     setProjectSearchQuery: s.setProjectSearchQuery,
     setProjectSearchResults: s.setProjectSearchResults,
@@ -294,6 +300,7 @@ export function AppContainer() {
     setActiveTabId: s.setActiveTabId,
     buildEditorTab,
     setSelectedFile: s.setSelectedFile,
+    setPreviewOverridePath: s.setPreviewOverridePath,
     activeProjectIdRef: s.activeProjectIdRef,
     integrityCheckedRef: s.integrityCheckedRef,
     integrityIssue,
@@ -471,6 +478,8 @@ export function AppContainer() {
       pdfUrl={s.pdfUrl}
       preferCompiledPreview={s.preferCompiledPreview}
       selectedFilePdfUrl={s.selectedFilePdfUrl}
+      selectedImagePreviewUrl={s.selectedImagePreviewUrl}
+      previewOverridePath={s.previewOverridePath}
       compileErrorLine={panels.compileErrorLine}
       compileDiagnostics={s.compileDiagnostics}
       agentCollapsed={s.agentCollapsed}
@@ -565,9 +574,5 @@ export function AppContainer() {
     />
   );
 }
-
-
-
-
 
 

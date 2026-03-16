@@ -64,6 +64,8 @@ export function AppContainerView(props: any) {
     pdfUrl,
     preferCompiledPreview,
     selectedFilePdfUrl,
+    selectedImagePreviewUrl,
+    previewOverridePath,
     compileErrorLine,
     compileDiagnostics,
     agentCollapsed,
@@ -260,6 +262,8 @@ export function AppContainerView(props: any) {
               compiledPdfUrl={pdfUrl}
               preferCompiledPreview={preferCompiledPreview}
               selectedFilePdfUrl={selectedFilePdfUrl}
+              selectedImagePreviewUrl={selectedImagePreviewUrl}
+              previewOverridePath={previewOverridePath}
               compileErrorLine={compileErrorLine}
               compileDiagnostics={compileDiagnostics}
               agentCollapsed={agentCollapsed}

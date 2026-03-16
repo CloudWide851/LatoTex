@@ -5,7 +5,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay } from "./AgentChatOverlay";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { PageRail } from "./PageRail";
-import { isCsvPath, isExcelPath, isMarkdownPath, isPdfPath, isSvgPath, isTabularPath } from "../../shared/utils/fileKind";
+import { isCsvPath, isExcelPath, isImagePath, isMarkdownPath, isPdfPath, isSvgPath, isTabularPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
@@ -42,6 +42,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     compiledPdfUrl,
     preferCompiledPreview,
     selectedFilePdfUrl,
+    selectedImagePreviewUrl,
+    previewOverridePath,
     compileErrorLine,
     compileDiagnostics,
     agentCollapsed,
@@ -152,25 +154,29 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       setChatTabActive(false);
     }
   }, [page]);
-  const selectedIsPdf = isPdfPath(selectedFile);
-  const selectedIsMarkdown = isMarkdownPath(selectedFile);
-  const selectedIsSvg = isSvgPath(selectedFile);
-  const selectedIsCsv = isCsvPath(selectedFile);
-  const selectedIsExcel = isExcelPath(selectedFile);
-  const selectedIsTabular = isTabularPath(selectedFile);
-  const previewMode: "pdf" | "markdown" | "svg" | "empty" = selectedIsPdf
-    ? (selectedFilePdfUrl ? "pdf" : "empty")
-    : selectedIsTabular
-      ? "empty"
-      : selectedIsSvg
-        ? "svg"
-        : preferCompiledPreview && compiledPdfUrl
-          ? "pdf"
-          : selectedIsMarkdown
-            ? "markdown"
-            : compiledPdfUrl
-              ? "pdf"
-              : "empty";
+  const previewSelectedPath = previewOverridePath || selectedFile;
+  const selectedIsPdf = isPdfPath(previewSelectedPath);
+  const selectedIsExcel = isExcelPath(previewSelectedPath);
+  const selectedIsImage = isImagePath(previewSelectedPath);
+  const selectedIsMarkdown = isMarkdownPath(previewSelectedPath);
+  const selectedIsSvg = isSvgPath(previewSelectedPath);
+  const selectedIsCsv = isCsvPath(previewSelectedPath);
+  const selectedIsTabular = isTabularPath(previewSelectedPath);
+  const previewMode: "pdf" | "image" | "markdown" | "svg" | "empty" = selectedIsImage
+    ? (selectedImagePreviewUrl ? "image" : "empty")
+    : selectedIsPdf
+      ? (selectedFilePdfUrl ? "pdf" : "empty")
+      : selectedIsTabular
+        ? "empty"
+        : selectedIsSvg
+          ? "svg"
+          : preferCompiledPreview && compiledPdfUrl
+            ? "pdf"
+            : selectedIsMarkdown
+              ? "markdown"
+              : compiledPdfUrl
+                ? "pdf"
+                : "empty";
   const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
   const agentCommandItems = buildAgentCommandItems(t);
@@ -214,15 +220,17 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const renderPdfPreviewPanel = () => (
     <WorkspacePreviewPanel
       activeProjectId={activeProjectId}
-      selectedFile={selectedFile}
+      selectedFile={previewSelectedPath}
       selectedIsCsv={selectedIsCsv}
       selectedIsMarkdown={selectedIsMarkdown}
+      selectedIsImage={selectedIsImage}
       selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}
       editorContent={editorContent}
       compiledPdfUrl={compiledPdfUrl}
       previewMode={previewMode}
       previewPdfUrl={previewPdfUrl ?? null}
+      imagePreviewUrl={selectedImagePreviewUrl}
       canZoomPreview={canZoomPreview}
       previewZoom={previewZoom}
       compileErrorLine={compileErrorLine}

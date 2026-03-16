@@ -131,9 +131,9 @@ function toErrorMessage(error: unknown): string {
 }
 
 function buildMissingAssetsError(candidates: string[], reasons: string[]): Error {
-  const lastReason = reasons.length > 0 ? ` Last error: ${reasons[reasons.length - 1]}.` : "";
+  const details = reasons.length > 0 ? ` Reasons: ${reasons.join(" | ")}.` : "";
   return new Error(
-    `BusyTeX worker asset not found. Tried: ${candidates.join(", ")}. ${BUSYTEX_ASSET_HINT}${lastReason}`,
+    `BusyTeX worker asset not found. Tried: ${candidates.join(", ")}. ${BUSYTEX_ASSET_HINT}${details}`,
   );
 }
 
@@ -150,7 +150,7 @@ async function initializeRunnerFromCandidates(candidates: string[]): Promise<Bus
       }
       return candidateRunner;
     } catch (error) {
-      reasons.push(toErrorMessage(error));
+      reasons.push(`${candidate}: ${toErrorMessage(error)}`);
     }
   }
 
@@ -194,7 +194,11 @@ function isRecoverableAssetError(message: string): boolean {
     normalized.includes("busytex")
     || normalized.includes("busytex_worker.js")
     || normalized.includes("failed to fetch")
+    || normalized.includes("busytex_pipeline.js")
     || normalized.includes("texlive-basic")
+    || normalized.includes("worker error")
+    || normalized.includes("unexpected token <")
+    || normalized.includes("syntaxerror")
     || normalized.includes("not found")
   );
 }

@@ -11,12 +11,14 @@ export function WorkspacePreviewPanel(props: {
   selectedFile: string | null;
   selectedIsCsv: boolean;
   selectedIsMarkdown: boolean;
+  selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
   editorContent: string;
   compiledPdfUrl: string | null;
-  previewMode: "pdf" | "markdown" | "svg" | "empty";
+  previewMode: "pdf" | "image" | "markdown" | "svg" | "empty";
   previewPdfUrl: string | null;
+  imagePreviewUrl: string | null;
   canZoomPreview: boolean;
   previewZoom: number;
   compileErrorLine: string | null;
@@ -37,12 +39,14 @@ export function WorkspacePreviewPanel(props: {
     selectedFile,
     selectedIsCsv,
     selectedIsMarkdown,
+    selectedIsImage,
     selectedIsSvg,
     selectedIsTabular,
     editorContent,
     compiledPdfUrl,
     previewMode,
     previewPdfUrl,
+    imagePreviewUrl,
     canZoomPreview,
     previewZoom,
     compileErrorLine,
@@ -144,10 +148,11 @@ export function WorkspacePreviewPanel(props: {
           <FilePreviewPane
             mode={previewMode}
             pdfUrl={previewPdfUrl ?? null}
+            imageUrl={imagePreviewUrl ?? null}
             markdownContent={selectedIsMarkdown ? editorContent : ""}
             svgContent={selectedIsSvg ? editorContent : ""}
             title={t("preview.title")}
-            emptyText={selectedIsMarkdown || selectedIsSvg ? t("preview.markdownEmpty") : t("preview.empty")}
+            emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage ? t("preview.markdownEmpty") : t("preview.empty")}
             pdfZoom={previewZoom}
             onPdfZoomChange={onPreviewZoomChange}
             focusRequest={previewFocusRequest}

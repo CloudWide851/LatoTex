@@ -6,6 +6,7 @@ const requiredFiles = [
   `${sideLoadBusytexDir}/busytex.js`,
   `${sideLoadBusytexDir}/busytex.wasm`,
   `${sideLoadBusytexDir}/busytex_worker.js`,
+  `${sideLoadBusytexDir}/busytex_pipeline.js`,
   `${sideLoadBusytexDir}/texlive-basic.js`,
 ];
 
