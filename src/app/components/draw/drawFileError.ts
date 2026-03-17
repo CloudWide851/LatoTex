@@ -34,8 +34,11 @@ export function isMissingFileReadError(error: unknown): boolean {
     "cannot find the file",
     "does not exist",
     "system cannot find the file",
+    "path does not exist",
+    "path not found",
     "系统找不到指定的文件",
     "找不到指定的文件",
     "os error 2",
   ].some((needle) => message.includes(needle));
 }
+

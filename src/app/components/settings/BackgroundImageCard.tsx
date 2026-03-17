@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Trash2 } from "lucide-react";
 import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/desktop";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
@@ -9,6 +10,8 @@ type TranslationFn = (key: any) => string;
 
 type ThumbMenuState = {
   path: string;
+  anchorX: number;
+  anchorY: number;
   x: number;
   y: number;
 } | null;
@@ -31,13 +34,21 @@ function clampBlur(value: number): number {
   return Math.max(4, Math.min(32, Math.round(value)));
 }
 
-function clampMenuPosition(x: number, y: number): { x: number; y: number } {
+function clampMenuPosition(
+  x: number,
+  y: number,
+  width = 180,
+  height = 80,
+): { x: number; y: number } {
   if (typeof window === "undefined") {
     return { x, y };
   }
+  const padding = 8;
+  const maxX = Math.max(padding, window.innerWidth - width - padding);
+  const maxY = Math.max(padding, window.innerHeight - height - padding);
   return {
-    x: Math.max(8, Math.min(x, window.innerWidth - 180)),
-    y: Math.max(8, Math.min(y, window.innerHeight - 80)),
+    x: Math.max(padding, Math.min(x, maxX)),
+    y: Math.max(padding, Math.min(y, maxY)),
   };
 }
 
@@ -61,8 +72,7 @@ function BackgroundThumb(props: {
       onClick={() => onSelect(path)}
       onContextMenu={(event) => {
         event.preventDefault();
-        const point = clampMenuPosition(event.clientX, event.clientY);
-        onOpenMenu(path, point.x, point.y);
+        onOpenMenu(path, event.clientX, event.clientY);
       }}
       title={active ? t("settings.backgroundCurrent") : path}
       aria-label={active ? t("settings.backgroundCurrent") : path}
@@ -112,6 +122,7 @@ export function BackgroundImageCard(props: {
   const activePath = String(settings.uiPrefs?.backgroundImagePath ?? "").trim() || paths[0] || "";
   const currentBlur = clampBlur(Number(settings.uiPrefs?.backgroundBlurPx ?? 18));
   const [menuState, setMenuState] = useState<ThumbMenuState>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const setBackgroundState = (updater: (prev: AppSettings) => AppSettings) => {
     setSettings((prev) => (prev ? updater(prev) : prev));
@@ -128,8 +139,46 @@ export function BackgroundImageCard(props: {
       }
       setMenuState(null);
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuState(null);
+      }
+    };
     window.addEventListener("mousedown", onMouseDown);
-    return () => window.removeEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuState]);
+
+  useEffect(() => {
+    if (!menuState) {
+      return;
+    }
+    const recalc = () => {
+      setMenuState((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const rect = menuRef.current?.getBoundingClientRect();
+        const point = clampMenuPosition(prev.anchorX, prev.anchorY, rect?.width ?? 180, rect?.height ?? 80);
+        if (point.x === prev.x && point.y === prev.y) {
+          return prev;
+        }
+        return {
+          ...prev,
+          x: point.x,
+          y: point.y,
+        };
+      });
+    };
+    const raf = window.requestAnimationFrame(recalc);
+    window.addEventListener("resize", recalc);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", recalc);
+    };
   }, [menuState]);
 
   const handleUpload = async () => {
@@ -209,6 +258,16 @@ export function BackgroundImageCard(props: {
             max={32}
             step={1}
             value={currentBlur}
+            onInput={(event) => {
+              const value = clampBlur(Number((event.target as HTMLInputElement).value));
+              setBackgroundState((prev) => ({
+                ...prev,
+                uiPrefs: {
+                  ...(prev.uiPrefs ?? {}),
+                  backgroundBlurPx: value,
+                },
+              }));
+            }}
             onChange={(event) => {
               const value = clampBlur(Number(event.target.value));
               setBackgroundState((prev) => ({
@@ -240,7 +299,16 @@ export function BackgroundImageCard(props: {
                     },
                   }))
                 }
-                onOpenMenu={(menuPath, x, y) => setMenuState({ path: menuPath, x, y })}
+                onOpenMenu={(menuPath, x, y) => {
+                  const point = clampMenuPosition(x, y);
+                  setMenuState({
+                    path: menuPath,
+                    anchorX: x,
+                    anchorY: y,
+                    x: point.x,
+                    y: point.y,
+                  });
+                }}
                 t={t}
               />
             ))}
@@ -254,20 +322,41 @@ export function BackgroundImageCard(props: {
         </div>
       </div>
 
-      {menuState ? (
-        <div
-          data-bg-thumb-menu="true"
-          className="fixed z-[220] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
-          style={{ left: menuState.x, top: menuState.y }}
-        >
-          <button
-            className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
-            onClick={() => handleDelete(menuState.path)}
-          >
-            {t("settings.backgroundDelete")}
-          </button>
-        </div>
-      ) : null}
+      {menuState
+        ? (typeof document !== "undefined"
+          ? createPortal(
+            <div
+              ref={menuRef}
+              data-bg-thumb-menu="true"
+              className="fixed z-[260] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+              style={{ left: menuState.x, top: menuState.y }}
+            >
+              <button
+                className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
+                onClick={() => handleDelete(menuState.path)}
+              >
+                {t("settings.backgroundDelete")}
+              </button>
+            </div>,
+            document.body,
+          )
+          : (
+            <div
+              ref={menuRef}
+              data-bg-thumb-menu="true"
+              className="fixed z-[260] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+              style={{ left: menuState.x, top: menuState.y }}
+            >
+              <button
+                className="block w-full px-3 py-1.5 text-left text-xs text-rose-700 hover:bg-rose-50"
+                onClick={() => handleDelete(menuState.path)}
+              >
+                {t("settings.backgroundDelete")}
+              </button>
+            </div>
+          ))
+        : null}
     </div>
   );
 }
+

@@ -11,6 +11,11 @@ describe("isMissingFileReadError", () => {
     expect(isMissingFileReadError("系统找不到指定的文件")).toBe(true);
   });
 
+  it("returns true for missing-path text", () => {
+    expect(isMissingFileReadError("Path does not exist")).toBe(true);
+    expect(isMissingFileReadError("path not found")).toBe(true);
+  });
+
   it("returns true for error objects with missing-file message", () => {
     expect(isMissingFileReadError(new Error("target file not found"))).toBe(true);
   });

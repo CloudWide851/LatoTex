@@ -177,6 +177,24 @@ body::before {
 .wallpaper-enabled .border-slate-300 {
   border-color: rgba(148, 163, 184, 0.34) !important;
 }
+
+.wallpaper-enabled .app-topbar,
+.wallpaper-enabled .app-topbar-field,
+.wallpaper-enabled .brand-badge,
+.wallpaper-enabled .bg-white,
+.wallpaper-enabled .bg-white\/95,
+.wallpaper-enabled .bg-white\/90,
+.wallpaper-enabled .bg-white\/80,
+.wallpaper-enabled .bg-slate-50,
+.wallpaper-enabled .bg-slate-50\/80,
+.wallpaper-enabled .bg-slate-50\/70,
+.wallpaper-enabled .bg-slate-100,
+.wallpaper-enabled [class*="bg-white/"],
+.wallpaper-enabled [class*="bg-slate-50/"],
+.wallpaper-enabled [class*="bg-slate-100/"] {
+  transition: backdrop-filter 120ms linear, -webkit-backdrop-filter 120ms linear, background-color 120ms linear;
+}
+
 .app-topbar {
   background-color: var(--topbar-bg);
   border-color: var(--topbar-border);
@@ -682,3 +700,5 @@ body::before {
     display: none;
   }
 }
+
+

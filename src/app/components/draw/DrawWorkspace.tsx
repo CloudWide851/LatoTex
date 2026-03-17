@@ -118,6 +118,7 @@ export function DrawWorkspace(props: {
     }
     setTabPaths((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
     if (makeActive) {
+      activePathRef.current = normalized;
       setActivePath(normalized);
       onSelectPath(normalized);
     }
@@ -129,9 +130,13 @@ export function DrawWorkspace(props: {
       if (prev !== fromPath) {
         return prev;
       }
+      activePathRef.current = toPath;
       onSelectPath(toPath);
       return toPath;
     });
+    if (activePathRef.current === fromPath) {
+      activePathRef.current = toPath;
+    }
     if (normalizePath(selectedPath) === fromPath) {
       onSelectPath(toPath);
     }
@@ -152,14 +157,15 @@ export function DrawWorkspace(props: {
         return prev;
       }
       const next = prev.filter((item) => item !== path);
-      if (activePath === path) {
+      if (activePathRef.current === path) {
         const nextActive = next[removedIndex] ?? next[removedIndex - 1] ?? null;
+        activePathRef.current = nextActive;
         setActivePath(nextActive);
         onSelectPath(nextActive);
       }
       return next;
     });
-  }, [activePath, onSelectPath]);
+  }, [onSelectPath]);
 
   const openPathContent = useCallback(async (path: string) => {
     if (!projectId || !path) {
@@ -248,6 +254,9 @@ export function DrawWorkspace(props: {
       if (!ok) {
         return;
       }
+      if (activePathRef.current === path) {
+        activePathRef.current = nextPath;
+      }
       replaceTabPath(path, nextPath);
       setRenamingPath(null);
       setStatus(t("toast.fsUpdated"));
@@ -278,6 +287,7 @@ export function DrawWorkspace(props: {
     if (!projectId) {
       setTabPaths([]);
       setActivePath(null);
+      activePathRef.current = null;
       setReady(false);
       setStatus("");
       setRenamingPath(null);
@@ -297,7 +307,8 @@ export function DrawWorkspace(props: {
       : (persisted.activePath && paths.includes(persisted.activePath) ? persisted.activePath : paths[0] ?? null);
     setTabPaths(paths);
     setActivePath(resolvedActive);
-  }, [projectId, selectedPath]);
+    activePathRef.current = resolvedActive;
+  }, [projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -491,6 +502,7 @@ export function DrawWorkspace(props: {
                   <button
                     className="truncate"
                     onClick={() => {
+                      activePathRef.current = path;
                       setActivePath(path);
                       onSelectPath(path);
                     }}
@@ -551,11 +563,4 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
-
-
-
-
-
-
-
 
