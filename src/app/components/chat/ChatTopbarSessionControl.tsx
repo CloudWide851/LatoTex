@@ -2,6 +2,7 @@ import { ChevronDown, MessageSquareMore } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { loadChatStore, type ChatStoreChangeDetail } from "../../hooks/chatSessionStore";
 import { ChatTabMenuContent } from "./ChatTabMenuContent";
+import { dropdownSurfaceClassName, useDropdownDismiss } from "../../../components/ui/dropdown";
 
 type TranslationFn = (key: any) => string;
 
@@ -23,20 +24,7 @@ export function ChatTopbarSessionControl(props: {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (rootRef.current && target && rootRef.current.contains(target)) {
-        return;
-      }
-      setMenuOpen(false);
-    };
-    window.addEventListener("mousedown", handleOutsideClick);
-    return () => window.removeEventListener("mousedown", handleOutsideClick);
-  }, [menuOpen]);
+  useDropdownDismiss({ open: menuOpen, rootRef, onClose: () => setMenuOpen(false) });
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -98,7 +86,7 @@ export function ChatTopbarSessionControl(props: {
         </button>
       </div>
       {menuOpen ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-[240] w-[320px] max-w-[80vw] rounded-md border border-slate-300 bg-white shadow-soft">
+        <div className={dropdownSurfaceClassName("absolute left-0 top-[calc(100%+8px)] w-[320px] max-w-[80vw]")}>
           <ChatTabMenuContent
             projectId={activeProjectId}
             onActivateChat={onOpenChatTab}

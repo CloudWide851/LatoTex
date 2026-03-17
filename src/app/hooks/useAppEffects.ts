@@ -77,6 +77,7 @@ export function useAppEffects(params: {
   setGitDownloadTaskId: (value: string | null) => void;
   getCachedTextContent?: (relativePath: string) => string | null;
   onTextFileLoaded?: (relativePath: string, content: string) => void;
+  suspended?: boolean;
 }) {
   const {
     t,
@@ -126,6 +127,7 @@ export function useAppEffects(params: {
     setGitDownloadTaskId,
     getCachedTextContent,
     onTextFileLoaded,
+    suspended = false,
   } = params;
 
   const initDoneRef = useRef(false);
@@ -307,6 +309,9 @@ export function useAppEffects(params: {
   }, [settingsTheme]);
 
   useEffect(() => {
+    if (suspended) {
+      return;
+    }
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
@@ -374,7 +379,7 @@ export function useAppEffects(params: {
         clearTimeout(timer);
       }
     };
-  }, [agentRunId, analysisRunning, page, setCursor, setEvents]);
+  }, [agentRunId, analysisRunning, page, setCursor, setEvents, suspended]);
 
   useEffect(() => {
     const policy = busytexCachePolicy ?? null;
@@ -495,7 +500,11 @@ export function useAppEffects(params: {
     handleGitRunInstaller,
     setGitDownloadState,
     setGitDownloadTaskId,
+    suspended,
   });
 }
+
+
+
 
 

@@ -1,4 +1,5 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+import { drawioCachePrepare } from "../../../shared/api/desktop";
 import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
 
 export type DrawMessage = {
@@ -20,6 +21,8 @@ type PersistedDrawTabs = {
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
+const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
+export const DRAWIO_HOST_URL = "/drawio/index.html";
 
 function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
@@ -31,6 +34,57 @@ function normalizeTrailingSlash(input: string): string {
 
 function uniqueValues(values: string[]): string[] {
   return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
+}
+
+async function checkFrameSource(url: string): Promise<boolean> {
+  try {
+    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (head.ok) {
+      return true;
+    }
+    if (head.status !== 405 && head.status !== 501) {
+      return false;
+    }
+  } catch {
+    // fallback to GET check below
+  }
+
+  try {
+    const get = await fetch(url, { method: "GET", cache: "no-store" });
+    if (!get.ok) {
+      return false;
+    }
+    await get.body?.cancel().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
+  if (!isTauri()) {
+    return DRAWIO_HOST_URL;
+  }
+
+  try {
+    const policy = typeof window !== "undefined"
+      ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
+      : null;
+    const info = await drawioCachePrepare(policy ?? "install-first");
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
+    }
+    const candidates = toDrawioHostCandidates(info.actualDir);
+    for (const candidate of candidates) {
+      if (await checkFrameSource(candidate)) {
+        return candidate;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 export function normalizePath(value: string | null | undefined): string {
@@ -194,3 +248,4 @@ export function buildRenamedDrawPath(currentPath: string, nextInput: string): st
   const fileName = /\.drawio$/i.test(trimmed) ? trimmed : `${trimmed}.drawio`;
   return normalizePath(parentDir ? `${parentDir}/${fileName}` : fileName);
 }
+

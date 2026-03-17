@@ -1,7 +1,12 @@
 import { ChevronDown, Link2, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import zoteroIcon from "../../assets/brands/zotero.svg";
+import {
+  dropdownItemClassName,
+  dropdownSurfaceClassName,
+  useDropdownDismiss,
+} from "../../components/ui/dropdown";
 
 type TranslationFn = (key: any) => string;
 
@@ -22,20 +27,14 @@ export function LibraryUploadMenu(props: {
   const [zoteroScope, setZoteroScope] = useState<"users" | "groups">("users");
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const onDocumentMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (rootRef.current && target && rootRef.current.contains(target)) {
-        return;
-      }
+  useDropdownDismiss({
+    open: menuOpen || linkOpen,
+    rootRef,
+    onClose: () => {
       setMenuOpen(false);
       setLinkOpen(false);
-    };
-    window.addEventListener("mousedown", onDocumentMouseDown);
-    return () => {
-      window.removeEventListener("mousedown", onDocumentMouseDown);
-    };
-  }, []);
+    },
+  });
 
   return (
     <div ref={rootRef} className="relative">
@@ -51,9 +50,9 @@ export function LibraryUploadMenu(props: {
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 z-20 mt-1 min-w-36 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg">
+        <div className={dropdownSurfaceClassName("absolute right-0 mt-1 min-w-40 py-1.5 px-1.5")}>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+            className={dropdownItemClassName()}
             onClick={() => {
               setMenuOpen(false);
               onImportPdf();
@@ -63,7 +62,7 @@ export function LibraryUploadMenu(props: {
             <span>{t("library.uploadPdf")}</span>
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+            className={dropdownItemClassName()}
             onClick={() => {
               setLinkKind("link");
               setLinkOpen(true);
@@ -74,7 +73,7 @@ export function LibraryUploadMenu(props: {
             <span>{t("library.addLink")}</span>
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+            className={dropdownItemClassName()}
             onClick={() => {
               setLinkKind("zotero");
               setLinkOpen(true);
@@ -85,7 +84,7 @@ export function LibraryUploadMenu(props: {
             <span>{t("library.importZotero")}</span>
           </button>
           <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+            className={dropdownItemClassName()}
             onClick={() => {
               setLinkKind("zotero-sync");
               setLinkOpen(true);
@@ -99,7 +98,7 @@ export function LibraryUploadMenu(props: {
       )}
 
       {linkOpen && (
-        <div className="absolute right-0 z-30 mt-1 w-72 rounded-md border border-slate-300 bg-white p-2 shadow-lg">
+        <div className={dropdownSurfaceClassName("absolute right-0 mt-1 w-72 p-2") }>
           {linkKind === "zotero-sync" ? (
             <div className="space-y-2">
               <select

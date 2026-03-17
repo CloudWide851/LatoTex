@@ -10,6 +10,7 @@ export function useGitRuntimeEffects(params: {
   handleGitRunInstaller: () => Promise<void>;
   setGitDownloadState: (value: any) => void;
   setGitDownloadTaskId: (value: string | null) => void;
+  suspended?: boolean;
 }) {
   const {
     page,
@@ -20,17 +21,18 @@ export function useGitRuntimeEffects(params: {
     handleGitRunInstaller,
     setGitDownloadState,
     setGitDownloadTaskId,
+    suspended = false,
   } = params;
 
   useEffect(() => {
-    if (page !== "git" || !activeProjectId) {
+    if (suspended || page !== "git" || !activeProjectId) {
       return;
     }
     refreshGitWorkspace(activeProjectId).catch(() => undefined);
-  }, [activeProjectId, page, refreshGitWorkspace]);
+  }, [activeProjectId, page, refreshGitWorkspace, suspended]);
 
   useEffect(() => {
-    if (!gitDownloadTaskId) {
+    if (suspended || !gitDownloadTaskId) {
       return;
     }
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -87,5 +89,6 @@ export function useGitRuntimeEffects(params: {
     handleGitRunInstaller,
     setGitDownloadState,
     setGitDownloadTaskId,
+    suspended,
   ]);
 }

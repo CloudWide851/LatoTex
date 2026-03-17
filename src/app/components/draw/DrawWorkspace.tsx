@@ -1,9 +1,9 @@
-import { isTauri } from "@tauri-apps/api/core";
 import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { drawioCachePrepare, readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
+import { readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
+  DRAWIO_HOST_URL,
   buildRenamedDrawPath,
   decodeDataUrl,
   inferExportExtension,
@@ -11,17 +11,16 @@ import {
   loadPersistedTabs,
   normalizePath,
   parseDrawMessage,
+  resolveDrawioHostFrameSrc,
   savePersistedTabs,
   tabTitleFromPath,
   toDrawExportTarget,
-  toDrawioHostCandidates,
   toTextIfPossible,
 } from "./drawWorkspaceUtils";
+import { isMissingFileReadError } from "./drawFileError";
+
 
 type TranslationFn = (key: any) => string;
-
-const DRAWIO_HOST_URL = "/drawio/index.html";
-const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 
 const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net">
@@ -35,56 +34,7 @@ const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
   </diagram>
 </mxfile>`;
 
-async function checkFrameSource(url: string): Promise<boolean> {
-  try {
-    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
-    if (head.ok) {
-      return true;
-    }
-    if (head.status !== 405 && head.status !== 501) {
-      return false;
-    }
-  } catch {
-    // fallback to GET check below
-  }
 
-  try {
-    const get = await fetch(url, { method: "GET", cache: "no-store" });
-    if (!get.ok) {
-      return false;
-    }
-    await get.body?.cancel().catch(() => undefined);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveDrawioHostFrameSrc(): Promise<string | null> {
-  if (!isTauri()) {
-    return DRAWIO_HOST_URL;
-  }
-
-  try {
-    const policy = typeof window !== "undefined"
-      ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
-      : null;
-    const info = await drawioCachePrepare(policy ?? "install-first");
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
-    }
-    const candidates = toDrawioHostCandidates(info.actualDir);
-    for (const candidate of candidates) {
-      if (await checkFrameSource(candidate)) {
-        return candidate;
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
 
 export function DrawWorkspace(props: {
   projectId: string | null;
@@ -223,12 +173,17 @@ export function DrawWorkspace(props: {
       const file = await readFile(projectId, path);
       xmlByPathRef.current[path] = (file.content || "").trim().length > 0 ? file.content : EMPTY_DIAGRAM;
       loadActiveToFrame(xmlByPathRef.current[path]);
-    } catch {
+    } catch (error) {
+      if (isMissingFileReadError(error)) {
+        removeTabPath(path);
+        setStatus(t("draw.fileMissingRemoved"));
+        return;
+      }
       xmlByPathRef.current[path] = EMPTY_DIAGRAM;
       loadActiveToFrame(EMPTY_DIAGRAM);
       setStatus(t("draw.startFailed"));
     }
-  }, [loadActiveToFrame, projectId, t]);
+  }, [loadActiveToFrame, projectId, removeTabPath, t]);
 
   const createNewTab = useCallback(async () => {
     if (!projectId) {
@@ -596,4 +551,11 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
+
+
+
+
+
+
+
 

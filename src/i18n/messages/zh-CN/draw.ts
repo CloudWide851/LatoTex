@@ -13,7 +13,5 @@ export const zhCN_draw = {
   "draw.pasted": "图片已粘贴到绘图中。",
   "draw.startFailed": "绘图编辑器启动失败。",
   "draw.renameExists": "已存在同名绘图标签。",
+  "draw.fileMissingRemoved": "源文件不存在，已自动清理失效绘图标签。",
 } as const;
-
-
-

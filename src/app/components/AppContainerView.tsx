@@ -2,6 +2,7 @@ import { Suspense, lazy, type CSSProperties } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
+import { SleepWakeScreen } from "./SleepWakeScreen";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
 import { useBackgroundImageObjectUrl } from "../hooks/useBackgroundImageObjectUrl";
 
@@ -14,6 +15,8 @@ export function AppContainerView(props: any) {
   const {
     windowActionBusy,
     status,
+    sleeping,
+    onWakeFromSleep,
     logoMark,
     projects,
     activeProjectId,
@@ -192,6 +195,10 @@ export function AppContainerView(props: any) {
         ["--wallpaper-blur" as string]: `${backgroundBlurPx}px`,
       } as CSSProperties)
     : undefined;
+
+  if (sleeping) {
+    return <SleepWakeScreen logoMark={logoMark} t={t} onWake={onWakeFromSleep} />;
+  }
 
   return (
     <div
@@ -406,6 +413,11 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
+
+
+
+
 
 
 

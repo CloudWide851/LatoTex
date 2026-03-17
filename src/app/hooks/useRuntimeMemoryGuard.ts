@@ -13,13 +13,14 @@ type MemoryLevel = "normal" | "high" | "critical";
 export function useRuntimeMemoryGuard(params: {
   isTauriRuntime: boolean;
   setEvents: React.Dispatch<React.SetStateAction<SwarmEvent[]>>;
+  suspended?: boolean;
 }) {
-  const { isTauriRuntime, setEvents } = params;
+  const { isTauriRuntime, setEvents, suspended = false } = params;
   const levelRef = useRef<MemoryLevel>("normal");
   const lastLoggedAtRef = useRef(0);
 
   useEffect(() => {
-    if (!isTauriRuntime) {
+    if (!isTauriRuntime || suspended) {
       return;
     }
     let cancelled = false;
@@ -113,5 +114,5 @@ export function useRuntimeMemoryGuard(params: {
         clearTimeout(timer);
       }
     };
-  }, [isTauriRuntime, setEvents]);
+  }, [isTauriRuntime, setEvents, suspended]);
 }

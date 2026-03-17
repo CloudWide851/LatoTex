@@ -23,6 +23,7 @@ import { useShareSession } from "./hooks/useShareSession";
 import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
 import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
 import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
+import { useIdleSleep } from "./hooks/useIdleSleep";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
@@ -206,6 +207,12 @@ export function AppContainer() {
     dirtyByPathRef: s.dirtyByPathRef,
   });
 
+  const runtimeBusy = s.busy || Boolean(s.agentRunId) || analysisWorkspace.running || Boolean(s.gitDownloadTaskId);
+  const idleSleep = useIdleSleep({
+    blocked: runtimeBusy,
+    timeoutMs: 60 * 60 * 1000,
+  });
+
   useAppEffects({
     t,
     isTauriRuntime,
@@ -257,11 +264,13 @@ export function AppContainer() {
     setGitDownloadTaskId: s.setGitDownloadTaskId,
     getCachedTextContent,
     onTextFileLoaded: handleTextFileLoaded,
+    suspended: idleSleep.sleeping,
   });
 
   useRuntimeMemoryGuard({
     isTauriRuntime,
     setEvents: s.setEvents,
+    suspended: idleSleep.sleeping,
   });
 
   useEditorDirtySyncEffect({
@@ -428,6 +437,8 @@ export function AppContainer() {
     <AppContainerView
       windowActionBusy={s.windowActionBusy}
       status={s.status}
+      sleeping={idleSleep.sleeping}
+      onWakeFromSleep={idleSleep.wake}
       logoMark={logoMark}
       projects={s.projects}
       activeProjectId={s.activeProjectId}
@@ -575,5 +586,7 @@ export function AppContainer() {
     />
   );
 }
+
+
 
 
