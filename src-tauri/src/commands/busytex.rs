@@ -241,7 +241,7 @@ pub fn drawio_cache_prepare(
     sync_cache_files(
         Path::new(&prepared.actual_dir),
         &prepared.source_dir,
-        &["index.html"],
+        &REQUIRED_DRAWIO_ASSETS,
     )?;
 
     Ok(DrawioCacheInfo {
@@ -252,3 +252,4 @@ pub fn drawio_cache_prepare(
         using_fallback: prepared.using_fallback,
     })
 }
+

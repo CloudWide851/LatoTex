@@ -220,19 +220,129 @@ function normalizeToUint8Array(input: unknown): Uint8Array | null {
   return null;
 }
 
-function flattenLogs(raw: unknown): string[] {
-  if (!raw) {
+function splitLogLines(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+function flattenLogEntry(entry: unknown): string[] {
+  if (entry == null) {
     return [];
   }
-  if (typeof raw === "string") {
-    return raw.trim() ? [raw] : [];
+  if (typeof entry === "string") {
+    return splitLogLines(entry);
   }
-  if (Array.isArray(raw)) {
-    return raw
-      .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
-      .filter((line) => line.trim().length > 0);
+  if (Array.isArray(entry)) {
+    return entry.flatMap((item) => flattenLogEntry(item));
   }
-  return [JSON.stringify(raw)];
+  if (typeof entry === "object") {
+    const record = entry as Record<string, unknown>;
+    const preferredKeys = ["message", "error", "stderr", "stdout", "log", "logs"];
+    const ignoredKeys = new Set(["cmd", "texmflog", "missfontlog", "aux", "exit_code", "exitCode"]);
+    const extracted: string[] = [];
+
+    for (const key of preferredKeys) {
+      if (!(key in record)) {
+        continue;
+      }
+      extracted.push(...flattenLogEntry(record[key]));
+    }
+
+    if (extracted.length > 0) {
+      return extracted;
+    }
+
+    for (const [key, value] of Object.entries(record)) {
+      if (ignoredKeys.has(key)) {
+        continue;
+      }
+      extracted.push(...flattenLogEntry(value));
+    }
+
+    if (extracted.length > 0) {
+      return extracted;
+    }
+
+    try {
+      return splitLogLines(JSON.stringify(record));
+    } catch {
+      return [];
+    }
+  }
+  return splitLogLines(String(entry));
+}
+
+function flattenLogs(raw: unknown): string[] {
+  return flattenLogEntry(raw);
+}
+
+const DIAGNOSTIC_NOISE_PATTERNS: RegExp[] = [
+  /^\$\s*(xelatex|xdvipdfmx)\b/i,
+  /^exitcode:/i,
+  /^texmflog:/i,
+  /^missfontlog:/i,
+  /^log:/i,
+  /^stdout:/i,
+  /^stderr:/i,
+  /^==+$/,
+  /^this is xetex, version/i,
+  /^entering extended mode$/i,
+  /^\*\*main\.tex$/i,
+  /keepruntimealive\(\)/i,
+  /tex live \d+_texlyre_busytexwasm/i,
+];
+
+const DIAGNOSTIC_ERROR_PATTERNS: RegExp[] = [
+  /latex error/i,
+  /fatal:/i,
+  /emergency stop/i,
+  /no output pdf file written/i,
+  /cannot \\read from terminal/i,
+  /not found/i,
+  /failed/i,
+  /error:/i,
+];
+
+function isLikelyCompileErrorLine(line: string): boolean {
+  return DIAGNOSTIC_ERROR_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function isNoiseLine(line: string): boolean {
+  return DIAGNOSTIC_NOISE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+function sanitizeDiagnostics(lines: string[]): string[] {
+  const cleaned: string[] = [];
+  const seen = new Set<string>();
+
+  for (const chunk of lines) {
+    const source = String(chunk || "");
+    if (!source.trim()) {
+      continue;
+    }
+    for (const rawLine of splitLogLines(source)) {
+      if (isNoiseLine(rawLine)) {
+        continue;
+      }
+      const compact = rawLine.length > 420 ? `${rawLine.slice(0, 417)}...` : rawLine;
+      if (seen.has(compact)) {
+        continue;
+      }
+      seen.add(compact);
+      cleaned.push(compact);
+    }
+  }
+
+  const errorFirst = cleaned.filter((line) => isLikelyCompileErrorLine(line));
+  const context = cleaned.filter((line) => /^!\s+/.test(line) || /^l\.\d+/.test(line));
+
+  if (errorFirst.length > 0) {
+    return [...errorFirst, ...context].slice(0, 10);
+  }
+
+  return cleaned.slice(0, 8);
 }
 
 function isRecoverableAssetError(message: string): boolean {
@@ -290,17 +400,17 @@ async function compileInternal(
       additionalFiles,
     })) as BusyTexCompileResponse;
 
-    const diagnostics = [
+    const diagnostics = sanitizeDiagnostics([
       ...flattenLogs(rawResult.logs),
       ...(rawResult.log ? [rawResult.log] : []),
-    ];
+    ]);
 
     const pdfBytes = normalizeToUint8Array(rawResult.pdf);
     if (!rawResult.success || !pdfBytes) {
       const finalDiagnostics =
         diagnostics.length > 0
           ? diagnostics
-          : [`BusyTeX compilation failed with exit code ${rawResult.exitCode ?? -1}.`];
+          : sanitizeDiagnostics([`BusyTeX compilation failed with exit code ${rawResult.exitCode ?? -1}.`]);
       return {
         status: "error",
         diagnostics: finalDiagnostics,
@@ -325,9 +435,10 @@ async function compileInternal(
 
     const needsHint = isRecoverableAssetError(message) && !message.includes(BUSYTEX_ASSET_HINT);
     const hint = needsHint ? [BUSYTEX_ASSET_HINT] : [];
+    const diagnostics = sanitizeDiagnostics([message, ...hint]);
     return {
       status: "error",
-      diagnostics: [message, ...hint],
+      diagnostics: diagnostics.length > 0 ? diagnostics : [message, ...hint],
       durationMs: Math.round(performance.now() - startAt),
     };
   }
@@ -341,3 +452,4 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+

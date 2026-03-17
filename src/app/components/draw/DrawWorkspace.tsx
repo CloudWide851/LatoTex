@@ -55,6 +55,7 @@ export function DrawWorkspace(props: {
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
+  const frameSrcRef = useRef<string | null>(DRAWIO_HOST_URL);
 
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,16 +73,30 @@ export function DrawWorkspace(props: {
         if (cancelled) {
           return;
         }
-        setReady(false);
-        setFrameSrc(nextSrc);
-        if (!nextSrc) {
-          setStatus(t("draw.startFailed"));
+        const resolved = nextSrc ?? null;
+        const previous = frameSrcRef.current;
+
+        if (!resolved) {
+          if (!previous) {
+            setReady(false);
+            setFrameSrc(null);
+            frameSrcRef.current = null;
+            setStatus(t("draw.startFailed"));
+          }
+          return;
+        }
+
+        if (resolved !== previous) {
+          setReady(false);
+          setFrameSrc(resolved);
+          frameSrcRef.current = resolved;
         }
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !frameSrcRef.current) {
           setReady(false);
           setFrameSrc(null);
+          frameSrcRef.current = null;
           setStatus(t("draw.startFailed"));
         }
       });
@@ -94,6 +109,10 @@ export function DrawWorkspace(props: {
   useEffect(() => {
     activePathRef.current = activePath;
   }, [activePath]);
+
+  useEffect(() => {
+    frameSrcRef.current = frameSrc;
+  }, [frameSrc]);
 
   const postToFrame = useCallback((payload: Record<string, unknown>) => {
     const frame = frameRef.current?.contentWindow;
@@ -334,6 +353,10 @@ export function DrawWorkspace(props: {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      const frameWindow = frameRef.current?.contentWindow;
+      if (!frameWindow || event.source !== frameWindow) {
+        return;
+      }
       const message = parseDrawMessage(event.data);
       if (!message) {
         return;
@@ -427,8 +450,10 @@ export function DrawWorkspace(props: {
         return;
       }
       if (message.event === "error") {
-        const err = typeof message.error === "string" ? message.error : t("draw.startFailed");
-        setStatus(err);
+        const err = typeof message.error === "string" ? message.error.trim() : "";
+        if (err) {
+          setStatus(err);
+        }
       }
     };
 

@@ -243,5 +243,28 @@ describe("BusyTeX compile adapter", () => {
     expect(result.status).toBe("success");
     expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
   });
+  it("filters noisy busytex command logs and keeps actionable latex diagnostics", async () => {
+    mockCompilePayload = {
+      success: false,
+      exitCode: 1,
+      logs: {
+        cmd: "xelatex --no-shell-escape --interaction=batchmode main.tex",
+        log: "This is XeTeX, Version 3.141592653\n! LaTeX Error: File `ctex.sty' not found.\n! Emergency stop.\nl.10",
+        stderr:
+          "program exited (with status: 1), but keepRuntimeAlive() is set (counter=0) due to an async operation",
+      },
+    };
+
+    vi.resetModules();
+    const { compileWithBusyTeX } = await import("./busytex");
+    const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
+
+    expect(result.status).toBe("error");
+    expect(result.diagnostics.some((line) => /ctex\.sty/i.test(line))).toBe(true);
+    expect(result.diagnostics.some((line) => /Emergency stop/i.test(line))).toBe(true);
+    expect(result.diagnostics.some((line) => /xelatex --no-shell-escape/i.test(line))).toBe(false);
+    expect(result.diagnostics.some((line) => /keepRuntimeAlive/i.test(line))).toBe(false);
+  });
 });
+
 

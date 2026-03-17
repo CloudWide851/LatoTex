@@ -442,7 +442,7 @@ export function ChatWorkspace(props: {
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_132px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_128px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
@@ -468,8 +468,8 @@ export function ChatWorkspace(props: {
         )}
       </div>
 
-      <div className="border-t border-slate-200 px-3 pb-3 pt-2">
-        <div className="relative h-[88px]">
+      <div className="flex h-full min-h-0 flex-col border-t border-slate-200 px-2 pb-2 pt-1.5">
+        <div className="relative min-h-0 flex-1">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
