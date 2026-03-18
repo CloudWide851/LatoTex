@@ -1,6 +1,7 @@
 export const zhCN_chat = {
   "chat.sessionNew": "新会话",
   "chat.runFailed": "运行失败，请检查诊断后重试。",
+  "chat.runFailedWithReason": "运行失败：{reason}",
   "chat.rename": "重命名会话",
   "chat.newSession": "新建会话",
   "chat.deleteSession": "删除会话",

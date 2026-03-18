@@ -471,6 +471,7 @@ pub fn resolve_model_test_connection(
     let api_key = secure::get_model_api_key(&secure_context, trimmed_model_id)?.api_key;
     Ok((protocol_id, base_url, model_name, api_key))
 }
+#[allow(dead_code)]
 fn heuristic_reasoning_model(model_name: &str) -> bool {
     let lower = model_name.to_ascii_lowercase();
     lower.contains("think")
@@ -480,6 +481,7 @@ fn heuristic_reasoning_model(model_name: &str) -> bool {
         || lower.contains("r1")
         || lower.contains("qwq")
 }
+#[allow(dead_code)]
 pub fn model_supports_reasoning(
     db_path: &Path,
     role: &str,
@@ -559,3 +561,6 @@ mod tests {
         assert_eq!(review.map(|item| item.model_id.as_str()), Some(""));
     }
 }
+
+
+

@@ -233,142 +233,9 @@ fn run_agent_pipeline_async(
     }
 
     let request_queries = derive_tool_search_queries(&input.prompt);
-    let reasoning_enabled = storage::model_supports_reasoning(
-        &db_path,
-        "plan",
-        input.model_override.as_deref(),
-    );
-    let plan_prompt = if reasoning_enabled {
-        [
-            "You are a planning agent.",
-            "Model capability check: reasoning is available. Think deeply before final output.",
-            "Generate concise execution steps for the user request.",
-            "Return markdown with sections: Goal, Steps, Risks.",
-            "",
-            "User request:",
-            input.prompt.as_str(),
-        ]
-        .join("\n")
-    } else {
-        [
-            "You are a planning agent.",
-            "Model capability check: reasoning is unavailable. Do not use think-only parameters.",
-            "Generate concise execution steps for the user request.",
-            "Return markdown with sections: Goal, Steps, Risks.",
-            "",
-            "User request:",
-            input.prompt.as_str(),
-        ]
-        .join("\n")
-    };
-    let plan_output = super::swarm_tool_search::run_stage_tool_search(
-        &db_path,
-        &runtime_root,
-        &run_id,
-        &input.project_id,
-        "plan",
-        "plan",
-        "planner",
-        "Plan",
-        &with_tool_search_queries(&plan_prompt, &request_queries),
-        &input.context_refs,
-        &cancel_flag,
-        None,
-        bypass_cache,
-    )?;
+    let task_prompt = with_tool_search_queries(&input.prompt, &request_queries);
 
-    let explore_prompt_a = format!(
-        "Explore subtask A. Focus on LaTeX file impact and safe edit boundaries.\n\nPlan:\n{}",
-        plan_output
-    );
-    let explore_prompt_b = format!(
-        "Explore subtask B. Use structured web-search style notes and references.\n\nPlan:\n{}",
-        plan_output
-    );
-
-    let db_a = db_path.clone();
-    let runtime_a = runtime_root.clone();
-    let run_a = run_id.clone();
-    let project_a = input.project_id.clone();
-    let context_a = input.context_refs.clone();
-    let cancel_a = cancel_flag.clone();
-    let queries_a = request_queries.clone();
-    let handle_a = thread::spawn(move || {
-        super::swarm_tool_search::run_stage_tool_search(
-            &db_a,
-            &runtime_a,
-            &run_a,
-            &project_a,
-            "explore",
-            "explore",
-            "explorer",
-            "Explore · LaTeX",
-            &with_tool_search_queries(&explore_prompt_a, &queries_a),
-            &context_a,
-            &cancel_a,
-            None,
-            bypass_cache,
-        )
-    });
-
-    let db_b = db_path.clone();
-    let runtime_b = runtime_root.clone();
-    let run_b = run_id.clone();
-    let project_b = input.project_id.clone();
-    let context_b = input.context_refs.clone();
-    let cancel_b = cancel_flag.clone();
-    let queries_b = request_queries.clone();
-    let handle_b = thread::spawn(move || {
-        super::swarm_tool_search::run_stage_tool_search(
-            &db_b,
-            &runtime_b,
-            &run_b,
-            &project_b,
-            "explore",
-            "web_search",
-            "explorer",
-            "Explore · Web",
-            &with_tool_search_queries(&explore_prompt_b, &queries_b),
-            &context_b,
-            &cancel_b,
-            None,
-            bypass_cache,
-        )
-    });
-
-    let explore_a = handle_a
-        .join()
-        .map_err(|_| "explore subtask A panicked".to_string())??;
-    let explore_b = handle_b
-        .join()
-        .map_err(|_| "explore subtask B panicked".to_string())??;
-
-    let refine_prompt = format!(
-        "Refine the execution plan using exploration results.\n\nOriginal Plan:\n{}\n\nExplore A:\n{}\n\nExplore B:\n{}",
-        plan_output, explore_a, explore_b
-    );
-    let refined_plan = super::swarm_tool_search::run_stage_tool_search(
-        &db_path,
-        &runtime_root,
-        &run_id,
-        &input.project_id,
-        "plan_refine",
-        "plan",
-        "planner",
-        "Plan Refine",
-        &with_tool_search_queries(&refine_prompt, &request_queries),
-        &input.context_refs,
-        &cancel_flag,
-        None,
-        bypass_cache,
-    )?;
-
-    let task_prompt_base = format!(
-        "Execute the refined plan.\nReturn ONLY IDE-style SEARCH/REPLACE edits in ```edit fences.\nDo not return prose-only explanations.\nEach edit block must include:\n- path: <relative path>\n- <<<<<<< SEARCH\n- =======\n- >>>>>>> REPLACE\nPrefer minimal partial edits and avoid full-file output unless absolutely necessary.\n\nRefined Plan:\n{}\n\nUser request:\n{}",
-        refined_plan, input.prompt
-    );
-    let task_prompt = with_tool_search_queries(&task_prompt_base, &request_queries);
-    let mut final_output = super::swarm_tool_search::run_stage_tool_search(
+    super::swarm_tool_search::run_stage_tool_search(
         &db_path,
         &runtime_root,
         &run_id,
@@ -382,31 +249,7 @@ fn run_agent_pipeline_async(
         &cancel_flag,
         input.model_override.as_deref(),
         bypass_cache,
-    )?;
-
-    if final_output.trim().is_empty() {
-        let review_prompt = format!(
-            "Task output was empty. Produce a usable final result.\n\nUser request:\n{}",
-            input.prompt
-        );
-        final_output = super::swarm_tool_search::run_stage_tool_search(
-            &db_path,
-            &runtime_root,
-            &run_id,
-            &input.project_id,
-            "review",
-            "review",
-            "reviewer",
-            "Review",
-            &with_tool_search_queries(&review_prompt, &request_queries),
-            &input.context_refs,
-            &cancel_flag,
-            None,
-            bypass_cache,
-        )?;
-    }
-
-    Ok(final_output)
+    )
 }
 
 pub fn agent_run_start(
@@ -562,3 +405,4 @@ pub fn agent_run_start(
         status: "accepted".to_string(),
     })
 }
+

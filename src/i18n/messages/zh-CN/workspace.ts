@@ -21,6 +21,10 @@ export const zhCN_workspace = {
   "workspace.compileAssist.hintMissingCtex": "检测到 ctex.sty 缺失：请避免使用 ctex 相关宏包，改为基础 article + UTF-8 文本。",
   "workspace.compileAssist.hintBusytexWorkerOrigin": "检测到 BusyTeX Worker 同源受限：请优先使用应用内置/本地 BusyTeX 资源，避免命中 HTML 回退路径（Unexpected token '<'）。",
   "workspace.compileAssist.hintGeneric": "请先修复缺包/语法报错，再重新编译；建议逐条处理日志中的首个 ERROR。",
+  "workspace.compileAssist.busytexDownloadStart": "BusyTeX 正在下载缺失宏包：{package}。",
+  "workspace.compileAssist.busytexDownloadSuccess": "BusyTeX 已下载 {package}，来源：{source}。",
+  "workspace.compileAssist.busytexDownloadNoFiles": "BusyTeX 已下载 {package}，但未返回可用文件。",
+  "workspace.compileAssist.busytexDownloadFailed": "BusyTeX 下载 {package} 失败：{reason}",
   "workspace.undo": "撤销",
   "workspace.redo": "重做",
   "workspace.messagePlaceholder": "对话",
@@ -33,3 +37,4 @@ export const zhCN_workspace = {
   "workspace.integrityHint": "检测到必要工作区文件缺失，请先修复后再打开项目。",
   "workspace.integrityRepair": "修复缺失文件",
 } as const;
+

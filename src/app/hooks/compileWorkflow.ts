@@ -102,6 +102,18 @@ function mergeDiagnostics(base: string[], extra: string[]): string[] {
   return merged.slice(0, 16);
 }
 
+function formatMessage(
+  t: (key: any) => string,
+  key: string,
+  replacements: Record<string, string>,
+): string {
+  let template = String(t(key));
+  for (const [token, value] of Object.entries(replacements)) {
+    template = template.replace(new RegExp(`\\{${token}\\}`, "g"), value);
+  }
+  return template;
+}
+
 async function buildCompileFileMap(
   projectId: string,
   mainPath: string,
@@ -162,6 +174,11 @@ export async function runCompilePass(params: {
   const attemptedPackages = new Set<string>();
   let result = await compileWithBusyTeX(mainContent, baseFileMap, mainPath);
 
+  const emitInstallProgress = (line: string) => {
+    installNotes.push(line);
+    setCompileDiagnostics(mergeDiagnostics(result.diagnostics, installNotes));
+  };
+
   for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
     const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
       (style) => !attemptedPackages.has(style.toLowerCase()),
@@ -173,13 +190,22 @@ export async function runCompilePass(params: {
     let installedAny = false;
     for (const missingStyle of missingStyles) {
       attemptedPackages.add(missingStyle.toLowerCase());
+      emitInstallProgress(
+        formatMessage(t, "workspace.compileAssist.busytexDownloadStart", {
+          package: missingStyle,
+        }),
+      );
       try {
         const install = await busytexInstallMissingPackage({
           styleFile: missingStyle,
           policy: getBusyTexCachePolicy(),
         });
         if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
-          installNotes.push(`BusyTeX auto install did not provide files for ${missingStyle}.`);
+          emitInstallProgress(
+            formatMessage(t, "workspace.compileAssist.busytexDownloadNoFiles", {
+              package: missingStyle,
+            }),
+          );
           continue;
         }
         for (const file of install.overlayFiles) {
@@ -190,9 +216,19 @@ export async function runCompilePass(params: {
           overlayFileMap[relativePath] = String(file.content || "");
         }
         installedAny = true;
-        installNotes.push(`BusyTeX auto installed ${missingStyle} from ${install.sourceUrl || "cache"}.`);
+        emitInstallProgress(
+          formatMessage(t, "workspace.compileAssist.busytexDownloadSuccess", {
+            package: missingStyle,
+            source: install.sourceUrl || "cache",
+          }),
+        );
       } catch (error) {
-        installNotes.push(`BusyTeX auto install failed for ${missingStyle}: ${String(error)}`);
+        emitInstallProgress(
+          formatMessage(t, "workspace.compileAssist.busytexDownloadFailed", {
+            package: missingStyle,
+            reason: String(error),
+          }),
+        );
       }
     }
 
@@ -242,5 +278,3 @@ export async function runCompilePass(params: {
   }
   return result;
 }
-
-

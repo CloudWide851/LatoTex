@@ -26,6 +26,45 @@ impl ProviderError {
     }
 }
 
+fn compact_body_preview(body: &str) -> String {
+    body.replace('\n', " ")
+        .replace('\r', " ")
+        .chars()
+        .take(260)
+        .collect::<String>()
+}
+
+fn parse_sse_json_body(trimmed: &str) -> Option<serde_json::Value> {
+    let mut last_json: Option<serde_json::Value> = None;
+    for line in trimmed.lines() {
+        let text = line.trim();
+        if !text.starts_with("data:") {
+            continue;
+        }
+        let payload = text.trim_start_matches("data:").trim();
+        if payload.is_empty() || payload == "[DONE]" {
+            continue;
+        }
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(payload) {
+            last_json = Some(parsed);
+        }
+    }
+    last_json
+}
+
+fn parse_line_delimited_json(trimmed: &str) -> Option<serde_json::Value> {
+    for line in trimmed.lines().rev() {
+        let text = line.trim();
+        if text.is_empty() {
+            continue;
+        }
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
+            return Some(parsed);
+        }
+    }
+    None
+}
+
 fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, ProviderError> {
     let trimmed = body.trim();
     if trimmed.is_empty() {
@@ -36,33 +75,41 @@ fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, 
             auto_repairable: true,
         });
     }
-    serde_json::from_str(trimmed).map_err(|error| {
-        let error_text = error.to_string();
-        let compact_preview = trimmed
-            .replace('\n', " ")
-            .replace('\r', " ")
-            .chars()
-            .take(260)
-            .collect::<String>();
-        let parse_eof = error_text.contains("EOF while parsing")
-            || error_text.contains("expected value at line 1 column 1")
-            || error_text.contains("expected value at line 1 column 0");
-        let html_body = compact_preview.starts_with("<!DOCTYPE")
-            || compact_preview.starts_with("<html")
-            || compact_preview.starts_with("{\"error\":\"<!DOCTYPE");
-        ProviderError {
-            code: if parse_eof {
-                "provider.parse_eof"
-            } else {
-                "provider.parse_invalid_json"
-            },
-            message: format!(
-                "{provider} response parse error: {error_text}; body_preview={compact_preview}"
-            ),
-            retryable: parse_eof || html_body,
-            auto_repairable: parse_eof || html_body,
+
+    if let Some(parsed) = parse_sse_json_body(trimmed) {
+        return Ok(parsed);
+    }
+
+    match serde_json::from_str(trimmed) {
+        Ok(parsed) => Ok(parsed),
+        Err(error) => {
+            if let Some(parsed) = parse_line_delimited_json(trimmed) {
+                return Ok(parsed);
+            }
+            let error_text = error.to_string();
+            let compact_preview = compact_body_preview(trimmed);
+            let parse_eof = error_text.contains("EOF while parsing")
+                || error_text.contains("expected value at line 1 column 1")
+                || error_text.contains("expected value at line 1 column 0");
+            let html_body = compact_preview.starts_with("<!DOCTYPE")
+                || compact_preview.starts_with("<html")
+                || compact_preview.starts_with("{\"error\":\"<!DOCTYPE");
+            let sse_body = trimmed.starts_with("data:") || trimmed.contains("\ndata:");
+            let line_delimited = trimmed.lines().count() > 1;
+            Err(ProviderError {
+                code: if parse_eof {
+                    "provider.parse_eof"
+                } else {
+                    "provider.parse_invalid_json"
+                },
+                message: format!(
+                    "{provider} response parse error: {error_text}; body_preview={compact_preview}"
+                ),
+                retryable: parse_eof || html_body || sse_body || line_delimited,
+                auto_repairable: parse_eof || html_body || sse_body || line_delimited,
+            })
         }
-    })
+    }
 }
 
 fn should_retry(status: StatusCode) -> bool {
@@ -587,6 +634,7 @@ pub(crate) fn call_provider_with_retry(
     }
     Err(last_error)
 }
+
 
 
 

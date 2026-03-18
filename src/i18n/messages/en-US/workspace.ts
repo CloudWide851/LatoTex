@@ -21,6 +21,10 @@ export const enUS_workspace = {
   "workspace.compileAssist.hintMissingCtex": "ctex.sty is missing. Avoid ctex-specific packages and use base article + UTF-8 text.",
   "workspace.compileAssist.hintBusytexWorkerOrigin": "BusyTeX Worker failed due asset origin mismatch. Use packaged/local BusyTeX assets first and avoid HTML fallback paths (Unexpected token '<').",
   "workspace.compileAssist.hintGeneric": "Fix missing package/syntax errors first, then recompile. Start from the first ERROR line.",
+  "workspace.compileAssist.busytexDownloadStart": "BusyTeX downloading missing package: {package}.",
+  "workspace.compileAssist.busytexDownloadSuccess": "BusyTeX downloaded {package} from {source}.",
+  "workspace.compileAssist.busytexDownloadNoFiles": "BusyTeX downloaded {package} but no usable files were returned.",
+  "workspace.compileAssist.busytexDownloadFailed": "BusyTeX failed to download {package}: {reason}",
   "workspace.undo": "Undo",
   "workspace.redo": "Redo",
   "workspace.messagePlaceholder": "Conversation",
@@ -33,3 +37,4 @@ export const enUS_workspace = {
   "workspace.integrityHint": "Required workspace files are missing. Repair before opening this project.",
   "workspace.integrityRepair": "Repair Missing Files",
 } as const;
+

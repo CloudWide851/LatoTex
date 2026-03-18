@@ -1,6 +1,7 @@
 export const enUS_chat = {
   "chat.sessionNew": "New Chat",
   "chat.runFailed": "Run failed. Check diagnostics and try again.",
+  "chat.runFailedWithReason": "Run failed: {reason}",
   "chat.rename": "Rename session",
   "chat.newSession": "New session",
   "chat.deleteSession": "Delete session",

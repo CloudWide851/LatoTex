@@ -12,13 +12,8 @@ pub(super) fn envelope(
     card_key: &str,
 ) -> serde_json::Value {
     json!({
-        "protocol": "ison",
-        "schema": "ison-agent-envelope.v1",
-        "a2ui": {
-            "version": "google-a2ui",
-            "layout": "timeline-card",
-            "collapsible": true
-        },
+        "protocol": "json",
+        "schema": "json-agent-envelope.v1",
         "runId": run_id,
         "source": source,
         "stage": stage,
@@ -157,3 +152,4 @@ pub(super) fn emit_response_event(
     )?;
     Ok(())
 }
+

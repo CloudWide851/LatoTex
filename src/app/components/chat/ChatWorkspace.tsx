@@ -33,6 +33,13 @@ type ChatAutoFixRequest = {
   requestId?: string;
 };
 
+function renderRunFailureMessage(t: TranslationFn, error: unknown): string {
+  const detail = String(error ?? "").trim();
+  if (!detail) {
+    return t("chat.runFailed");
+  }
+  return t("chat.runFailedWithReason").replace("{reason}", detail);
+}
 function titleFromPrompt(prompt: string, fallback: string) {
   const firstLine = prompt.replace(/\s+/g, " ").trim().slice(0, 42);
   return firstLine || fallback;
@@ -335,12 +342,13 @@ export function ChatWorkspace(props: {
       }
       throw new Error("agent.run.timeout.total");
     } catch (error) {
-      setLastError(String(error));
-      updateMessageText(sessionId, assistantMessageId, t("chat.runFailed"));
+      const failureText = renderRunFailureMessage(t, error);
+      setLastError(failureText);
+      updateMessageText(sessionId, assistantMessageId, failureText);
       if (options?.telegramChatId) {
         await channelsTelegramSend({
           chatId: options.telegramChatId,
-          text: t("chat.runFailed"),
+          text: failureText.slice(0, 3900),
           replyToMessageId: options.telegramMessageId,
         }).catch(() => undefined);
       }
@@ -604,4 +612,6 @@ export function ChatWorkspace(props: {
     </section>
   );
 }
+
+
 
