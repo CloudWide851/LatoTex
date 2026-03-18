@@ -384,17 +384,25 @@ pub(super) fn extract_pdf_text_with_local_ocr(
     });
 
     for (text, engine, confidence) in candidates {
-        if text.trim().chars().count() >= 80 && text_quality_score(&text) >= 0.12 {
+        let trimmed_len = text.trim().chars().count();
+        let quality = text_quality_score(&text);
+        if trimmed_len >= 80 && quality >= 0.12 {
             return Some(OcrExtractionCandidate {
                 text,
                 engine: engine.to_string(),
                 confidence,
             });
         }
+        if trimmed_len >= 24 {
+            return Some(OcrExtractionCandidate {
+                text,
+                engine: format!("{}.fallback", engine),
+                confidence: confidence.min(0.42),
+            });
+        }
     }
 
     None
 }
-
 
 

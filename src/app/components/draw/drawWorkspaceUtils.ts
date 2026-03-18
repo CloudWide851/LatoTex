@@ -249,7 +249,6 @@ export function buildRenamedDrawPath(currentPath: string, nextInput: string): st
   return normalizePath(parentDir ? `${parentDir}/${fileName}` : fileName);
 }
 
-
 export const EXPORT_RETRY_DELAYS_MS = [120, 260, 420] as const;
 
 export function isPermissionDeniedWriteError(error: unknown): boolean {
@@ -268,4 +267,89 @@ export function withExportRetrySuffix(path: string): string {
   const ext = hasExt ? fileName.slice(dot) : "";
   const nextName = `${stem}-export-${Date.now().toString(36)}${ext}`;
   return dir ? `${dir}/${nextName}` : nextName;
+}
+
+export async function persistDrawExportToWorkspace(params: {
+  activePath: string;
+  message: DrawMessage;
+  writeText: (path: string, content: string) => Promise<unknown>;
+  writeBinary: (path: string, bytes: Uint8Array) => Promise<unknown>;
+  onAfterSave?: (savedPath: string) => Promise<void> | void;
+}): Promise<string> {
+  const { activePath, message, writeText, writeBinary, onAfterSave } = params;
+  const exportData = String(message.data || "");
+  if (!exportData) {
+    throw new Error("draw.export.empty_payload");
+  }
+
+  let extension = "bin";
+  let targetPath = "";
+  let textPayload: string | null = null;
+  let binaryPayload: Uint8Array | null = null;
+
+  if (exportData.startsWith("data:")) {
+    const parsed = decodeDataUrl(exportData);
+    extension = inferExportExtension(message, parsed.mime);
+    targetPath = toDrawExportTarget(activePath, extension || "bin", message.filename);
+    textPayload = toTextIfPossible(extension, parsed.bytes);
+    if (textPayload === null) {
+      binaryPayload = parsed.bytes;
+    }
+  } else {
+    extension = inferExportExtension(message);
+    targetPath = toDrawExportTarget(activePath, extension || "bin", message.filename);
+    if (message.base64) {
+      const raw = atob(exportData);
+      const bytes = new Uint8Array(raw.length);
+      for (let index = 0; index < raw.length; index += 1) {
+        bytes[index] = raw.charCodeAt(index);
+      }
+      binaryPayload = bytes;
+    } else {
+      textPayload = exportData;
+    }
+  }
+
+  const writePayload = async (path: string) => {
+    if (textPayload !== null) {
+      await writeText(path, textPayload);
+      return;
+    }
+    if (binaryPayload) {
+      await writeBinary(path, binaryPayload);
+      return;
+    }
+    await writeText(path, exportData);
+  };
+
+  const writeWithRetry = async (path: string) => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= EXPORT_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        await writePayload(path);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isPermissionDeniedWriteError(error) || attempt >= EXPORT_RETRY_DELAYS_MS.length) {
+          throw error;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, EXPORT_RETRY_DELAYS_MS[attempt]));
+      }
+    }
+    throw lastError ?? new Error("write failed");
+  };
+
+  let savedPath = targetPath;
+  try {
+    await writeWithRetry(savedPath);
+  } catch (error) {
+    if (!isPermissionDeniedWriteError(error)) {
+      throw error;
+    }
+    savedPath = withExportRetrySuffix(targetPath);
+    await writeWithRetry(savedPath);
+  }
+
+  await onAfterSave?.(savedPath);
+  return savedPath;
 }

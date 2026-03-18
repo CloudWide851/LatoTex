@@ -7,6 +7,7 @@ import {
   getHealthCheck,
   getSettings,
   listProjects,
+  openProject,
   runtimeLogInfo,
   runtimeLogWrite,
   windowSyncIcon,
@@ -145,6 +146,31 @@ export function useAppEffects(params: {
     cursorRef.current = cursor;
   }, [cursor]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || suspended) {
+      return;
+    }
+
+    const handler = () => {
+      if (!activeProjectId) {
+        return;
+      }
+      void (async () => {
+        try {
+          const snapshot = await openProject(activeProjectId);
+          setTree(snapshot.tree);
+          await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+        } catch {
+          // ignore best-effort rescan failures for draw export refresh
+        }
+      })();
+    };
+
+    window.addEventListener("latotex.workspace.rescan", handler as EventListener);
+    return () => {
+      window.removeEventListener("latotex.workspace.rescan", handler as EventListener);
+    };
+  }, [activeProjectId, refreshGitWorkspace, setTree, suspended]);
   useEffect(() => {
     if (initDoneRef.current) {
       return;
@@ -523,4 +549,3 @@ export function useAppEffects(params: {
     suspended,
   });
 }
-

@@ -5,8 +5,6 @@ import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
   DRAWIO_HOST_URL,
   buildRenamedDrawPath,
-  decodeDataUrl,
-  inferExportExtension,
   isDrawPath,
   loadPersistedTabs,
   normalizePath,
@@ -14,11 +12,7 @@ import {
   resolveDrawioHostFrameSrc,
   savePersistedTabs,
   tabTitleFromPath,
-  toDrawExportTarget,
-  toTextIfPossible,
-  EXPORT_RETRY_DELAYS_MS,
-  isPermissionDeniedWriteError,
-  withExportRetrySuffix,
+  persistDrawExportToWorkspace,
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
 
@@ -416,79 +410,19 @@ export function DrawWorkspace(props: {
         if (!projectId || !currentActivePath) {
           return;
         }
-        const exportData = message.data;
         void (async () => {
           setBusy(true);
           try {
-            let extension = "bin";
-            let targetPath = "";
-            let textPayload: string | null = null;
-            let binaryPayload: Uint8Array | null = null;
-
-            if (exportData.startsWith("data:")) {
-              const parsed = decodeDataUrl(exportData);
-              extension = inferExportExtension(message, parsed.mime);
-              targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
-              textPayload = toTextIfPossible(extension, parsed.bytes);
-              if (textPayload === null) {
-                binaryPayload = parsed.bytes;
-              }
-            } else {
-              extension = inferExportExtension(message);
-              targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
-              if (message.base64) {
-                const raw = atob(exportData);
-                const bytes = new Uint8Array(raw.length);
-                for (let index = 0; index < raw.length; index += 1) {
-                  bytes[index] = raw.charCodeAt(index);
-                }
-                binaryPayload = bytes;
-              } else {
-                textPayload = exportData;
-              }
-            }
-
-            const writePayload = async (path: string) => {
-              if (textPayload !== null) {
-                await writeFile(projectId, path, textPayload);
-                return;
-              }
-              if (binaryPayload) {
-                await writeFileBinary(projectId, path, binaryPayload);
-                return;
-              }
-              await writeFile(projectId, path, exportData);
-            };
-
-            const writeWithRetry = async (path: string) => {
-              let lastError: unknown;
-              for (let attempt = 0; attempt <= EXPORT_RETRY_DELAYS_MS.length; attempt += 1) {
-                try {
-                  await writePayload(path);
-                  return;
-                } catch (error) {
-                  lastError = error;
-                  if (!isPermissionDeniedWriteError(error) || attempt >= EXPORT_RETRY_DELAYS_MS.length) {
-                    throw error;
-                  }
-                  await new Promise((resolve) => window.setTimeout(resolve, EXPORT_RETRY_DELAYS_MS[attempt]));
-                }
-              }
-              throw lastError ?? new Error("write failed");
-            };
-
-            let savedPath = targetPath;
-            try {
-              await writeWithRetry(savedPath);
-            } catch (error) {
-              if (!isPermissionDeniedWriteError(error)) {
-                throw error;
-              }
-              savedPath = withExportRetrySuffix(targetPath);
-              await writeWithRetry(savedPath);
-            }
-
-            setStatus(savedPath === targetPath ? t("draw.saved") : `${t("draw.saved")} ${savedPath}`);
+            const savedPath = await persistDrawExportToWorkspace({
+              activePath: currentActivePath,
+              message,
+              writeText: (path, content) => writeFile(projectId, path, content),
+              writeBinary: (path, bytes) => writeFileBinary(projectId, path, bytes),
+              onAfterSave: () => {
+                window.dispatchEvent(new CustomEvent("latotex.workspace.rescan"));
+              },
+            });
+            setStatus(`${t("draw.saved")} ${savedPath}`);
           } catch (error) {
             setStatus(String(error));
           } finally {
@@ -636,6 +570,3 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
-
-
-

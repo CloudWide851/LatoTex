@@ -15,6 +15,13 @@ mod library_translation_render;
 
 const LIBRARY_WORKSPACE_PREFIX: &str = ".latotex/papers";
 
+struct TranslationModelCandidate {
+    model_id: String,
+    protocol_id: String,
+    base_url: String,
+    model_name: String,
+}
+
 fn to_library_workspace_relative(path: &str) -> String {
     let normalized = path.trim().replace('\\', "/").trim_start_matches('/').to_string();
     if normalized.is_empty() {
@@ -103,7 +110,6 @@ fn persist_project_translation_glossary(
 
     existing.push_str(&lines.join("\n"));
 
-    // Bound file size to avoid long-session memory growth.
     let max_chars = 120_000;
     if existing.chars().count() > max_chars {
         let tail: String = existing
@@ -118,6 +124,88 @@ fn persist_project_translation_glossary(
     }
 
     fs::write(glossary_path, existing).map_err(|e| e.to_string())
+}
+
+fn push_translation_model_candidate(
+    conn: &Connection,
+    model_id: &str,
+    seen: &mut std::collections::HashSet<String>,
+    output: &mut Vec<TranslationModelCandidate>,
+) -> Result<(), String> {
+    let normalized = model_id.trim();
+    if normalized.is_empty() {
+        return Ok(());
+    }
+    if !seen.insert(normalized.to_string()) {
+        return Ok(());
+    }
+
+    let (protocol_id, model_name): (String, String) = conn
+        .query_row(
+            "SELECT protocol_id, request_name FROM model_catalog WHERE id = ?1",
+            params![normalized],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|_| format!("Configured model is missing from model catalog: {normalized}"))?;
+
+    let base_url = conn
+        .query_row(
+            "SELECT base_url FROM model_protocols WHERE id = ?1",
+            params![&protocol_id],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|_| format!("Protocol configuration not found for model: {normalized}"))?;
+
+    output.push(TranslationModelCandidate {
+        model_id: normalized.to_string(),
+        protocol_id,
+        base_url,
+        model_name,
+    });
+
+    Ok(())
+}
+
+fn resolve_translation_model_candidates(
+    db_path: &Path,
+    model_override: Option<&str>,
+) -> Result<Vec<TranslationModelCandidate>, String> {
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let mut output = Vec::<TranslationModelCandidate>::new();
+    let mut seen = std::collections::HashSet::<String>::new();
+
+    if let Some(override_id) = model_override.map(str::trim).filter(|value| !value.is_empty()) {
+        push_translation_model_candidate(&conn, override_id, &mut seen, &mut output)?;
+    }
+
+    let bound_model_id = conn
+        .query_row(
+            "SELECT model_id FROM agent_bindings WHERE role = ?1",
+            params!["task"],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if let Some(model_id) = bound_model_id {
+        push_translation_model_candidate(&conn, &model_id, &mut seen, &mut output)?;
+    }
+
+    let mut stmt = conn
+        .prepare("SELECT id FROM model_catalog ORDER BY protocol_id, display_name")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    for row in rows {
+        let model_id = row.map_err(|e| e.to_string())?;
+        let _ = push_translation_model_candidate(&conn, &model_id, &mut seen, &mut output);
+    }
+
+    if output.is_empty() {
+        return Err("No model binding configured for role: task".to_string());
+    }
+
+    Ok(output)
 }
 
 pub fn translate_library_document(
@@ -167,30 +255,82 @@ where
     )?;
     let layout_plan = library_translation_layout::build_layout_plan(&extraction);
 
-    let (protocol_id, base_url, model_name, model_id) =
-        resolve_agent_model(db_path, "task", model_override)?;
+    let target_lang = library_translation_extract::normalize_target_language(target_language);
+    let model_candidates = resolve_translation_model_candidates(db_path, model_override)?;
     let secure_context = secure::SecureStorageContext {
         db_path: db_path.to_path_buf(),
         runtime_root: runtime_root.to_path_buf(),
     };
-    let api_key = secure::get_model_api_key(&secure_context, &model_id)?
-        .api_key
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| "translation.model_api_key_missing".to_string())?;
-    let target_lang = library_translation_extract::normalize_target_language(target_language);
 
-    let translated = library_translation_translate::translate_layout_plan(
-        db_path,
-        project_id,
-        &protocol_id,
-        &base_url,
-        &api_key,
-        &model_name,
-        &target_lang,
-        &extraction,
-        &layout_plan,
-        |current, total, stage| on_progress(current, total, stage),
-    )?;
+    let mut translated_result = None;
+    let mut resolved_model: Option<TranslationModelCandidate> = None;
+    let mut errors = Vec::<String>::new();
+
+    for (index, candidate) in model_candidates.iter().enumerate() {
+        on_progress(
+            0,
+            0,
+            &format!(
+                "model:{} ({}/{})",
+                candidate.model_id,
+                index + 1,
+                model_candidates.len()
+            ),
+        );
+
+        let api_key = match secure::get_model_api_key(&secure_context, &candidate.model_id) {
+            Ok(value) => value
+                .api_key
+                .filter(|key| !key.trim().is_empty()),
+            Err(error) => {
+                errors.push(format!("{}: {}", candidate.model_id, error));
+                None
+            }
+        };
+
+        let Some(api_key) = api_key else {
+            errors.push(format!("{}: translation.model_api_key_missing", candidate.model_id));
+            continue;
+        };
+
+        match library_translation_translate::translate_layout_plan(
+            db_path,
+            project_id,
+            &candidate.protocol_id,
+            &candidate.base_url,
+            &api_key,
+            &candidate.model_name,
+            &target_lang,
+            &extraction,
+            &layout_plan,
+            |current, total, stage| on_progress(current, total, stage),
+        ) {
+            Ok(translated) => {
+                translated_result = Some(translated);
+                resolved_model = Some(TranslationModelCandidate {
+                    model_id: candidate.model_id.clone(),
+                    protocol_id: candidate.protocol_id.clone(),
+                    base_url: candidate.base_url.clone(),
+                    model_name: candidate.model_name.clone(),
+                });
+                break;
+            }
+            Err(error) => {
+                errors.push(format!("{}: {}", candidate.model_id, error));
+            }
+        }
+    }
+
+    let translated = translated_result.ok_or_else(|| {
+        format!(
+            "translation.failed_after_fallback: {}",
+            if errors.is_empty() {
+                "unknown".to_string()
+            } else {
+                errors.join(" | ")
+            }
+        )
+    })?;
 
     on_progress(0, 0, "rendering");
     let persist = library_translation_render::persist_translation_result(
@@ -214,12 +354,16 @@ where
 
     let translated_pdf_workspace_relative =
         to_library_workspace_relative(&persist.primary_relative_path);
+    let model_tag = resolved_model
+        .as_ref()
+        .map(|item| item.model_id.clone())
+        .unwrap_or_else(|| "unknown".to_string());
 
     on_progress(0, 0, "completed");
     Ok(crate::models::LibraryTranslateResponse {
         relative_path: translated_pdf_workspace_relative.clone(),
         source_kind: extraction.source_kind,
-        engine: "latotex.local.translation.pipeline.v4.pdf".to_string(),
+        engine: format!("latotex.local.translation.pipeline.v4.pdf+{model_tag}"),
         artifact_paths: Vec::new(),
         detected_language: extraction.detected_language,
         extraction_engine: extraction.extraction_engine,

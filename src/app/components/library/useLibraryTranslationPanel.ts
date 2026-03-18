@@ -18,6 +18,7 @@ export type LibraryTranslationProgress = {
 
 const POLL_INTERVAL_MS = 900;
 const MAX_POLL_ROUNDS = 800;
+const STATUS_QUERY_RETRY_DELAYS_MS = [240, 520, 960] as const;
 
 export function useLibraryTranslationPanel(params: {
   projectId: string | null;
@@ -119,7 +120,29 @@ export function useLibraryTranslationPanel(params: {
             return;
           }
 
-          const status = await queryLibraryTranslationTask(started.taskId);
+          let status: Awaited<ReturnType<typeof queryLibraryTranslationTask>> | null = null;
+          let queryError: unknown = null;
+          for (let retry = 0; retry <= STATUS_QUERY_RETRY_DELAYS_MS.length; retry += 1) {
+            try {
+              status = await queryLibraryTranslationTask(started.taskId);
+              queryError = null;
+              break;
+            } catch (error) {
+              queryError = error;
+              if (runTokenRef.current !== runToken) {
+                return;
+              }
+              if (retry >= STATUS_QUERY_RETRY_DELAYS_MS.length) {
+                break;
+              }
+              await new Promise((resolve) =>
+                window.setTimeout(resolve, STATUS_QUERY_RETRY_DELAYS_MS[retry]),
+              );
+            }
+          }
+          if (queryError || !status) {
+            throw queryError ?? new Error("library.translation.status_unavailable");
+          }
           if (runTokenRef.current !== runToken) {
             return;
           }
