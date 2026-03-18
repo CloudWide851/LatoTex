@@ -128,6 +128,29 @@ pub fn translate_library_document(
     target_language: Option<&str>,
     model_override: Option<&str>,
 ) -> Result<crate::models::LibraryTranslateResponse, String> {
+    translate_library_document_with_progress(
+        db_path,
+        runtime_root,
+        project_id,
+        relative_path,
+        target_language,
+        model_override,
+        |_current, _total, _stage| {},
+    )
+}
+
+pub fn translate_library_document_with_progress<F>(
+    db_path: &Path,
+    runtime_root: &Path,
+    project_id: &str,
+    relative_path: &str,
+    target_language: Option<&str>,
+    model_override: Option<&str>,
+    mut on_progress: F,
+) -> Result<crate::models::LibraryTranslateResponse, String>
+where
+    F: FnMut(u32, u32, &str),
+{
     let project_root = load_project_root(db_path, project_id)?;
     let papers_root = library_root(&project_root);
     fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
@@ -136,6 +159,7 @@ pub fn translate_library_document(
         resolve_translation_source_pdf_workspace(db_path, project_id, relative_path)?;
     let source_pdf_relative = to_library_relative_from_workspace(&source_pdf_workspace_relative)?;
 
+    on_progress(0, 0, "extracting");
     let extraction = library_translation_extract::extract_translation_source(
         &project_root,
         &papers_root,
@@ -165,8 +189,10 @@ pub fn translate_library_document(
         &target_lang,
         &extraction,
         &layout_plan,
+        |current, total, stage| on_progress(current, total, stage),
     )?;
 
+    on_progress(0, 0, "rendering");
     let persist = library_translation_render::persist_translation_result(
         &papers_root,
         &extraction,
@@ -189,6 +215,7 @@ pub fn translate_library_document(
     let translated_pdf_workspace_relative =
         to_library_workspace_relative(&persist.primary_relative_path);
 
+    on_progress(0, 0, "completed");
     Ok(crate::models::LibraryTranslateResponse {
         relative_path: translated_pdf_workspace_relative.clone(),
         source_kind: extraction.source_kind,

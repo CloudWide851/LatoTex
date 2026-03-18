@@ -8,6 +8,9 @@ use super::library_translation_types::{
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
+#[path = "translate_progress.rs"]
+mod library_translation_progress;
+
 struct ParsedPayload {
     sections: Vec<TranslationSectionResult>,
     glossary: Vec<TranslationGlossaryEntry>,
@@ -489,7 +492,7 @@ fn build_refine_prompt(
     lines.join("\n\n")
 }
 
-pub(super) fn translate_layout_plan(
+pub(super) fn translate_layout_plan<F>(
     db_path: &std::path::Path,
     project_id: &str,
     protocol_id: &str,
@@ -499,7 +502,11 @@ pub(super) fn translate_layout_plan(
     target_lang: &str,
     extraction: &TranslationExtraction,
     layout: &TranslationLayoutPlan,
-) -> Result<TranslationLayoutResult, String> {
+    mut on_progress: F,
+) -> Result<TranslationLayoutResult, String>
+where
+    F: FnMut(u32, u32, &str),
+{
     let block_by_id: HashMap<&str, &str> = extraction
         .blocks
         .iter()
@@ -511,43 +518,20 @@ pub(super) fn translate_layout_plan(
         .unwrap_or_default();
     let memory_block = memory_hits_to_prompt_block(&memory_hits);
 
-    let payload = serde_json::to_string_pretty(&sections_payload(extraction, layout, &block_by_id))
-        .map_err(|e| e.to_string())?;
-
-    let mut prompt_lines = vec![
-        format!("Translate each section into {target_lang}."),
-        "Preserve formulas, citations, code-like tokens, and references.".to_string(),
-        "Use consistent terminology across all sections and keep section ids unchanged.".to_string(),
-        "When uncertain, keep the source token and list it in uncertainTerms.".to_string(),
-        "Return strict JSON only with schema: {\"sections\":[{\"id\":\"s-1\",\"title\":\"...\",\"translatedText\":\"...\",\"confidence\":0.0}],\"glossary\":[{\"sourceTerm\":\"...\",\"targetTerm\":\"...\",\"confidence\":0.0}],\"uncertainTerms\":[\"...\"]}".to_string(),
-        format!("Source kind: {}", extraction.source_kind),
-        format!(
-            "Detected source language: {}",
-            extraction
-                .detected_language
-                .clone()
-                .unwrap_or_else(|| "unknown".to_string())
-        ),
-    ];
-    prompt_lines.extend(language_strategy_lines(target_lang));
-    if !memory_block.is_empty() {
-        prompt_lines.push(memory_block);
-    }
-    prompt_lines.push(String::new());
-    prompt_lines.push(payload);
-    let prompt = prompt_lines.join("\n");
-
-    let raw_output = crate::commands::swarm::call_provider_with_retry(
-        Some(db_path),
+    let (mut parsed, raw_output) = library_translation_progress::translate_sections_by_page(
+        db_path,
         protocol_id,
         base_url,
         api_key,
         model_name,
-        &prompt,
-        false,
+        target_lang,
+        extraction,
+        layout,
+        &block_by_id,
+        &memory_block,
+        &mut on_progress,
     )?;
 
-    let mut parsed = fill_missing_sections(parse_or_fallback(&raw_output, extraction, layout), extraction, layout);
     merge_uncertain_terms(&mut parsed, &source_text, target_lang);
     let mut refined_by_search = false;
 
@@ -591,4 +575,3 @@ pub(super) fn translate_layout_plan(
         refined_by_search,
     })
 }
-

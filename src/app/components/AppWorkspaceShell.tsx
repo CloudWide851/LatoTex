@@ -352,8 +352,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
                 onAutoFix={() => {
                   setCompileAssistDismissedFor(compileAssistKey);
+                  handleOpenChatTab();
                   const extra = compileDiagnostics.slice(0, 6).join("\n").trim();
-                  onAgentRun(extra ? "/review " + extra : "/review");
+                  onAgentRun(extra ? "/review " + extra : "/review", { forceNewSession: true });
                 }}
                 autoFixDisabled={busy || agentPhase === "running"}
                 t={t}
@@ -599,4 +600,5 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
+
 

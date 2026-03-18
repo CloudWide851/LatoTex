@@ -28,7 +28,7 @@ export function useAgentSessionController(params: {
   setPage: React.Dispatch<React.SetStateAction<any>>;
   setSelectedFile: React.Dispatch<React.SetStateAction<string | null>>;
   setToast: React.Dispatch<React.SetStateAction<{ type: "info" | "error"; message: string } | null>>;
-  runTaskAgent: () => Promise<void>;
+  runTaskAgent: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void>;
   t: (key: any) => string;
 }) {
   const {
@@ -175,7 +175,7 @@ export function useAgentSessionController(params: {
     t,
   ]);
 
-  const handleAgentRun = useCallback(async () => {
+  const handleAgentRun = useCallback(async (promptOverride?: string, options?: { forceNewSession?: boolean }) => {
     const projectId = activeProjectId;
     if (!projectId) {
       return;
@@ -194,9 +194,21 @@ export function useAgentSessionController(params: {
     }
     runLaunchLockRef.current = true;
     try {
-      const rawPrompt = agentPrompt.trim();
+      const rawPrompt = (promptOverride ?? agentPrompt).trim();
       if (!rawPrompt) {
         return;
+      }
+      if (options?.forceNewSession) {
+        if (!selectedFile) {
+          setToast({ type: "error", message: t("agent.command.requiresFile") });
+          return;
+        }
+        const next = await createNewFileSession(projectId, selectedFile);
+        setAgentSessions(next.sessions);
+        setAgentCurrentSessionId(next.currentSessionId);
+        setAgentMessages([]);
+        setAgentSessionPickerOpen(false);
+        setAgentRollbackVisible(false);
       }
       const parsed = parseAgentPrompt(rawPrompt);
       if (parsed.kind === "command" && parsed.command === "new") {
@@ -251,7 +263,7 @@ export function useAgentSessionController(params: {
         messages: agentMessages,
       });
       setAgentRollbackVisible(false);
-      await runTaskAgent();
+      await runTaskAgent(rawPrompt, options);
     } finally {
       runLaunchLockRef.current = false;
     }
@@ -290,3 +302,4 @@ export function useAgentSessionController(params: {
     handleAgentSessionConfirm,
   };
 }
+

@@ -33,6 +33,8 @@ export const enUS_library = {
   "library.viewer.compareTranslated": "Translated PDF",
   "library.viewer.compareUnavailable": "Translated PDF is not ready yet.",
   "library.viewer.translating": "Translating...",
+  "library.viewer.translateProgress": "Progress",
+  "library.viewer.translateTimeout": "Translation timed out. Please retry.",
   "library.viewer.translateSaved": "Translation saved to library folder.",
   "library.viewer.translateFailed": "Paper translation failed.",
   "library.translation.target.zhCN": "Chinese",
@@ -96,3 +98,4 @@ export const enUS_library = {
   "library.citation.fieldBibPath": "Bib Path",
   "library.citation.fieldSource": "Source",
 } as const;
+

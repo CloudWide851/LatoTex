@@ -88,7 +88,7 @@ export type AppWorkspaceShellProps = {
   onEditorMount: (editor: any, monaco: any) => void;
   onAgentPromptChange: (value: string) => void;
   onAgentToggle: () => void;
-  onAgentRun: (promptOverride?: string) => void;
+  onAgentRun: (promptOverride?: string, options?: { forceNewSession?: boolean }) => void;
   onAgentSessionPickerOpenChange: (value: boolean) => void;
   onAgentSessionPickerIndexChange: (value: number) => void;
   onAgentSessionConfirm: () => void;
@@ -132,6 +132,7 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
+
 
 
 

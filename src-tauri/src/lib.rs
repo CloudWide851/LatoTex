@@ -23,12 +23,14 @@ use commands::git::{
 use commands::health::{health_check, tray_set_labels, window_sync_icon};
 use commands::projects::{
     file_read, file_read_binary, file_write, file_write_binary, fs_operation, library_import_link, library_import_pdf,
-    library_translate_document,
     library_zotero_sync,
     open_external_link,
     library_citation_summary, library_rescan, library_resolve_pdf_preview, library_tree, project_create,
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list, project_open, project_search_content,
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
+};
+use commands::projects_translation::{
+    library_translate_document, library_translate_start, library_translate_status,
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::settings::{
@@ -126,6 +128,8 @@ pub fn run() {
             library_import_pdf,
             library_import_link,
             library_translate_document,
+            library_translate_start,
+            library_translate_status,
             library_zotero_sync,
             library_citation_summary,
             library_resolve_pdf_preview,
@@ -182,4 +186,9 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+
+
+
 

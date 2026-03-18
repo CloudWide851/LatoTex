@@ -80,6 +80,7 @@ export function LibraryDocumentViewer(props: {
     translationBusy,
     translationNotice,
     translationDetail,
+    translationProgress,
     sourcePdfRelativePath,
     translatedPdfRelativePath,
     hasTranslated,
@@ -111,6 +112,12 @@ export function LibraryDocumentViewer(props: {
     [annotationTextBoxes, currentPage],
   );
   const hasComparePair = Boolean(sourcePdfRelativePath && translatedPdfRelativePath && pdfUrl && translatedPdfUrl);
+  const translationPercent = useMemo(() => {
+    if (!translationProgress || translationProgress.totalPages <= 0) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, Math.round((translationProgress.currentPage / translationProgress.totalPages) * 100)));
+  }, [translationProgress]);
 
   useEffect(() => {
     return () => {
@@ -479,20 +486,34 @@ export function LibraryDocumentViewer(props: {
             <FileSearch className="h-3.5 w-3.5" />
           </button>
 
-          <button
-            className={actionBtnClass}
-            onClick={() => {
-              if (hasTranslated && translatedPdfUrl) {
-                setViewMode("compare");
-                return;
-              }
-              void runTranslation(() => setViewMode("compare"));
-            }}
-            title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
-            disabled={!selectedPath || loading || translationBusy}
-          >
-            <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
-          </button>
+          <div className="group/translation relative">
+            <button
+              className={actionBtnClass}
+              onClick={() => {
+                if (hasTranslated && translatedPdfUrl) {
+                  setViewMode("compare");
+                  return;
+                }
+                void runTranslation(() => setViewMode("compare"));
+              }}
+              title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
+              disabled={!selectedPath || loading || translationBusy}
+            >
+              <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
+            </button>
+            {translationBusy && translationProgress ? (
+              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1 hidden w-52 rounded border border-slate-300 bg-white px-2 py-2 text-[11px] text-slate-600 shadow-soft group-hover/translation:block">
+                <div className="flex items-center justify-between gap-2">
+                  <span>{t("library.viewer.translateProgress")}</span>
+                  <span>{translationProgress.currentPage}/{Math.max(translationProgress.totalPages, 0)}</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded bg-slate-200">
+                  <div className="h-full bg-primary-600 transition-all" style={{ width: `${translationPercent}%` }} />
+                </div>
+                <div className="mt-1 truncate text-[10px] text-slate-500">{translationProgress.message}</div>
+              </div>
+            ) : null}
+          </div>
 
           {viewMode === "pdf" ? (
             <>
@@ -575,3 +596,5 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
+
+

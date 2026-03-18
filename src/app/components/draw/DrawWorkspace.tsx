@@ -16,6 +16,9 @@ import {
   tabTitleFromPath,
   toDrawExportTarget,
   toTextIfPossible,
+  EXPORT_RETRY_DELAYS_MS,
+  isPermissionDeniedWriteError,
+  withExportRetrySuffix,
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
 
@@ -33,6 +36,8 @@ const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
     </mxGraphModel>
   </diagram>
 </mxfile>`;
+
+
 
 
 
@@ -416,31 +421,74 @@ export function DrawWorkspace(props: {
           setBusy(true);
           try {
             let extension = "bin";
+            let targetPath = "";
+            let textPayload: string | null = null;
+            let binaryPayload: Uint8Array | null = null;
+
             if (exportData.startsWith("data:")) {
               const parsed = decodeDataUrl(exportData);
               extension = inferExportExtension(message, parsed.mime);
-              const text = toTextIfPossible(extension, parsed.bytes);
-              const targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
-              if (text !== null) {
-                await writeFile(projectId, targetPath, text);
-              } else {
-                await writeFileBinary(projectId, targetPath, parsed.bytes);
+              targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
+              textPayload = toTextIfPossible(extension, parsed.bytes);
+              if (textPayload === null) {
+                binaryPayload = parsed.bytes;
               }
             } else {
               extension = inferExportExtension(message);
-              const targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
+              targetPath = toDrawExportTarget(currentActivePath, extension || "bin", message.filename);
               if (message.base64) {
                 const raw = atob(exportData);
                 const bytes = new Uint8Array(raw.length);
                 for (let index = 0; index < raw.length; index += 1) {
                   bytes[index] = raw.charCodeAt(index);
                 }
-                await writeFileBinary(projectId, targetPath, bytes);
+                binaryPayload = bytes;
               } else {
-                await writeFile(projectId, targetPath, exportData);
+                textPayload = exportData;
               }
             }
-            setStatus(t("draw.saved"));
+
+            const writePayload = async (path: string) => {
+              if (textPayload !== null) {
+                await writeFile(projectId, path, textPayload);
+                return;
+              }
+              if (binaryPayload) {
+                await writeFileBinary(projectId, path, binaryPayload);
+                return;
+              }
+              await writeFile(projectId, path, exportData);
+            };
+
+            const writeWithRetry = async (path: string) => {
+              let lastError: unknown;
+              for (let attempt = 0; attempt <= EXPORT_RETRY_DELAYS_MS.length; attempt += 1) {
+                try {
+                  await writePayload(path);
+                  return;
+                } catch (error) {
+                  lastError = error;
+                  if (!isPermissionDeniedWriteError(error) || attempt >= EXPORT_RETRY_DELAYS_MS.length) {
+                    throw error;
+                  }
+                  await new Promise((resolve) => window.setTimeout(resolve, EXPORT_RETRY_DELAYS_MS[attempt]));
+                }
+              }
+              throw lastError ?? new Error("write failed");
+            };
+
+            let savedPath = targetPath;
+            try {
+              await writeWithRetry(savedPath);
+            } catch (error) {
+              if (!isPermissionDeniedWriteError(error)) {
+                throw error;
+              }
+              savedPath = withExportRetrySuffix(targetPath);
+              await writeWithRetry(savedPath);
+            }
+
+            setStatus(savedPath === targetPath ? t("draw.saved") : `${t("draw.saved")} ${savedPath}`);
           } catch (error) {
             setStatus(String(error));
           } finally {
@@ -588,4 +636,6 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
+
+
 

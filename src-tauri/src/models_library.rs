@@ -75,7 +75,7 @@ pub struct LibraryTranslateInput {
     pub model_override: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryTranslateResponse {
     pub relative_path: String,
@@ -89,6 +89,30 @@ pub struct LibraryTranslateResponse {
     pub glossary_count: u32,
     pub translated_pdf_relative_path: String,
     pub source_pdf_relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTranslateStartResponse {
+    pub task_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTranslateStatusInput {
+    pub task_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryTranslateStatusResponse {
+    pub task_id: String,
+    pub status: String,
+    pub current_page: u32,
+    pub total_pages: u32,
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub result: Option<LibraryTranslateResponse>,
 }
 
 #[derive(Debug, Deserialize)]

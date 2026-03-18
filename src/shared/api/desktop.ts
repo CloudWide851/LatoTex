@@ -32,6 +32,8 @@ import type {
   LibraryCitationSummary,
   LibraryPdfPreview,
   LibraryTranslateResult,
+  LibraryTranslateStartResult,
+  LibraryTranslateStatus,
   LibraryZoteroSyncResult,
   ModelCatalogItemInput,
   ModelDraftTestInput,
@@ -290,6 +292,29 @@ export function translateLibraryDocument(input: {
       targetLanguage: input.targetLanguage,
       modelOverride: input.modelOverride,
     },
+  });
+}
+
+
+export function translateLibraryDocumentStart(input: {
+  projectId: string;
+  relativePath: string;
+  targetLanguage?: string;
+  modelOverride?: string;
+}): Promise<LibraryTranslateStartResult> {
+  return invoke<LibraryTranslateStartResult>("library_translate_start", {
+    input: {
+      projectId: input.projectId,
+      relativePath: input.relativePath,
+      targetLanguage: input.targetLanguage,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function translateLibraryDocumentStatus(taskId: string): Promise<LibraryTranslateStatus> {
+  return invoke<LibraryTranslateStatus>("library_translate_status", {
+    input: { taskId },
   });
 }
 
@@ -609,6 +634,8 @@ export function analysisPyodidePrepare(policy: "install-first" | "appdata-only")
 export function drawioCachePrepare(policy: "install-first" | "appdata-only"): Promise<DrawioCacheInfo> {
   return invoke<DrawioCacheInfo>("drawio_cache_prepare", { input: { policy } });
 }
+
+
 
 
 

@@ -1,8 +1,7 @@
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteBinaryInput,
     FileWriteInput,
-    FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput, LibraryTranslateInput,
-    LibraryTranslateResponse, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
+    FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
     LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
     OpenExternalLinkInput, ProjectPathActionInput,
     ProjectIntegrityStatus, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
@@ -281,42 +280,6 @@ pub fn library_zotero_sync(
 }
 
 #[tauri::command]
-pub async fn library_translate_document(
-    state: State<'_, AppState>,
-    input: LibraryTranslateInput,
-) -> Result<LibraryTranslateResponse, String> {
-    state.log(
-        "INFO",
-        &format!(
-            "library_translate_document: project={}, path={}, lang={}",
-            input.project_id,
-            input.relative_path,
-            input.target_language.as_deref().unwrap_or("-")
-        ),
-    );
-
-    let db_path = state.db_path.clone();
-    let runtime_root = state.runtime_root.clone();
-    let project_id = input.project_id;
-    let relative_path = input.relative_path;
-    let target_language = input.target_language;
-    let model_override = input.model_override;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        storage::translate_library_document(
-            &db_path,
-            &runtime_root,
-            &project_id,
-            &relative_path,
-            target_language.as_deref(),
-            model_override.as_deref(),
-        )
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
 pub fn library_citation_summary(
     state: State<'_, AppState>,
     input: LibraryCitationSummaryInput,
@@ -590,3 +553,6 @@ pub fn open_external_link(
         message: "External link opened".to_string(),
     })
 }
+
+
+

@@ -30,6 +30,14 @@ const REQUIRED_DRAWIO_ASSETS: [&str; 6] =
 const ALLOWED_TEX_EXTENSIONS: [&str; 7] = ["sty", "cls", "cfg", "def", "fd", "tex", "lua"];
 const DOWNLOAD_TIMEOUT_SECONDS: u64 = 45;
 const MAX_PACKAGE_BYTES: usize = 64 * 1024 * 1024;
+const BUSYTEX_PACKAGE_SOURCES: [(&str, &str); 6] = [
+    ("ctan-official", "https://mirrors.ctan.org"),
+    ("ctan-mirror-aliyun", "https://mirrors.aliyun.com/CTAN"),
+    ("ctan-mirror-tsinghua", "https://mirrors.tuna.tsinghua.edu.cn/CTAN"),
+    ("ctan-mirror-sjtug", "https://mirrors.sjtug.sjtu.edu.cn/ctan"),
+    ("ctan-mirror-princeton", "https://mirror.math.princeton.edu/pub/CTAN"),
+    ("ctan-mirror-fau", "https://ftp.fau.de/ctan"),
+];
 
 struct CachePrepareResult {
     policy: String,
@@ -202,13 +210,27 @@ fn package_name_from_style(style_file: &str) -> String {
         .unwrap_or_else(|| style_file.to_string())
 }
 
-fn package_candidate_urls(package_name: &str) -> Vec<String> {
-    vec![
-        format!("https://mirrors.ctan.org/install/macros/latex/contrib/{package_name}.tds.zip"),
-        format!("https://mirrors.ctan.org/macros/latex/contrib/{package_name}.zip"),
-        format!("https://mirrors.ctan.org/install/macros/generic/{package_name}.tds.zip"),
-        format!("https://mirrors.ctan.org/macros/generic/{package_name}.zip"),
-    ]
+fn package_candidate_urls(package_name: &str) -> Vec<(String, String)> {
+    let relative_paths = [
+        format!("install/macros/latex/contrib/{package_name}.tds.zip"),
+        format!("macros/latex/contrib/{package_name}.zip"),
+        format!("install/macros/generic/{package_name}.tds.zip"),
+        format!("macros/generic/{package_name}.zip"),
+    ];
+    let mut seen = HashSet::new();
+    let mut candidates = Vec::<(String, String)>::new();
+
+    for (label, base) in BUSYTEX_PACKAGE_SOURCES {
+        let normalized_base = base.trim_end_matches('/');
+        for relative in &relative_paths {
+            let url = format!("{normalized_base}/{relative}");
+            if seen.insert(url.clone()) {
+                candidates.push((label.to_string(), url));
+            }
+        }
+    }
+
+    candidates
 }
 
 fn has_allowed_tex_extension(path: &str) -> bool {
@@ -479,11 +501,11 @@ pub fn busytex_install_missing_package(
     }
 
     let mut reasons: Vec<String> = Vec::new();
-    for url in package_candidate_urls(&package_name) {
+    for (source, url) in package_candidate_urls(&package_name) {
         let archive = match download_archive(&url) {
             Ok(bytes) => bytes,
             Err(error) => {
-                reasons.push(format!("{url}: {error}"));
+                reasons.push(format!("[{source}] {url}: {error}"));
                 continue;
             }
         };
@@ -491,13 +513,15 @@ pub fn busytex_install_missing_package(
         let overlay_files = match extract_overlay_files_from_zip(&archive) {
             Ok(files) => files,
             Err(error) => {
-                reasons.push(format!("{url}: zip parse failed: {error}"));
+                reasons.push(format!("[{source}] {url}: zip parse failed: {error}"));
                 continue;
             }
         };
 
         if !has_required_style_file(&overlay_files, &style_file) {
-            reasons.push(format!("{url}: style file {style_file} not found in archive"));
+            reasons.push(format!(
+                "[{source}] {url}: style file {style_file} not found in archive"
+            ));
             continue;
         }
 
@@ -574,3 +598,4 @@ pub fn drawio_cache_prepare(
         using_fallback: prepared.using_fallback,
     })
 }
+

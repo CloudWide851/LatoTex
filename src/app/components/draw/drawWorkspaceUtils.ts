@@ -249,3 +249,23 @@ export function buildRenamedDrawPath(currentPath: string, nextInput: string): st
   return normalizePath(parentDir ? `${parentDir}/${fileName}` : fileName);
 }
 
+
+export const EXPORT_RETRY_DELAYS_MS = [120, 260, 420] as const;
+
+export function isPermissionDeniedWriteError(error: unknown): boolean {
+  const lower = String(error || "").toLowerCase();
+  return lower.includes("access is denied") || lower.includes("permission denied") || lower.includes("os error 5");
+}
+
+export function withExportRetrySuffix(path: string): string {
+  const normalized = normalizePath(path);
+  const slash = normalized.lastIndexOf("/");
+  const fileName = slash >= 0 ? normalized.slice(slash + 1) : normalized;
+  const dir = slash >= 0 ? normalized.slice(0, slash) : "";
+  const dot = fileName.lastIndexOf(".");
+  const hasExt = dot > 0;
+  const stem = hasExt ? fileName.slice(0, dot) : fileName;
+  const ext = hasExt ? fileName.slice(dot) : "";
+  const nextName = `${stem}-export-${Date.now().toString(36)}${ext}`;
+  return dir ? `${dir}/${nextName}` : nextName;
+}

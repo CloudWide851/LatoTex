@@ -33,6 +33,8 @@ export const zhCN_library = {
   "library.viewer.compareTranslated": "翻译 PDF",
   "library.viewer.compareUnavailable": "翻译 PDF 尚未就绪。",
   "library.viewer.translating": "翻译中...",
+  "library.viewer.translateProgress": "翻译进度",
+  "library.viewer.translateTimeout": "翻译超时，请重试。",
   "library.viewer.translateSaved": "翻译结果已保存到论文库目录。",
   "library.viewer.translateFailed": "论文翻译失败。",
   "library.translation.target.zhCN": "中文",
@@ -96,3 +98,4 @@ export const zhCN_library = {
   "library.citation.fieldBibPath": "Bib 路径",
   "library.citation.fieldSource": "来源",
 } as const;
+

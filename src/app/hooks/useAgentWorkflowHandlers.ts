@@ -126,7 +126,7 @@ export function useAgentWorkflowHandlers(params: {
     [currentProposal?.targetPath, selectedFile, setAgentProposalsByPath],
   );
 
-  const handleRunAgent = useCallback(async (promptOverride?: string) => {
+  const handleRunAgent = useCallback(async (promptOverride?: string, _options?: { forceNewSession?: boolean }) => {
     clearPendingDecision(false);
     const nextPrompt = (promptOverride ?? agentPrompt).trim();
     if (!activeProjectId || !nextPrompt) {
@@ -250,3 +250,4 @@ export function useAgentWorkflowHandlers(params: {
     handleResolveAgentPendingAction,
   };
 }
+

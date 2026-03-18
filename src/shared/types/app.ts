@@ -335,6 +335,19 @@ export type LibraryZoteroSyncResult = {
   totalResults?: number | null;
 };
 
+export type LibraryTranslateStartResult = {
+  taskId: string;
+};
+
+export type LibraryTranslateStatus = {
+  taskId: string;
+  status: string;
+  currentPage: number;
+  totalPages: number;
+  message?: string | null;
+  error?: string | null;
+  result?: LibraryTranslateResult | null;
+};
 export type LibraryTranslateResult = {
   relativePath: string;
   sourceKind: string;
@@ -578,6 +591,7 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
 
 
 

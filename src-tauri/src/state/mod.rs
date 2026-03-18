@@ -26,6 +26,18 @@ pub struct GitDownloadTask {
     pub error: Arc<Mutex<Option<String>>>,
 }
 
+
+#[derive(Clone)]
+pub struct LibraryTranslateTask {
+    pub id: String,
+    pub status: Arc<Mutex<String>>,
+    pub message: Arc<Mutex<Option<String>>>,
+    pub error: Arc<Mutex<Option<String>>>,
+    pub current_page: Arc<AtomicU64>,
+    pub total_pages: Arc<AtomicU64>,
+    pub result: Arc<Mutex<Option<crate::models::LibraryTranslateResponse>>>,
+}
+
 pub struct AppState {
     pub app_name: String,
     pub runtime_root: PathBuf,
@@ -38,6 +50,7 @@ pub struct AppState {
     pub install_mode: String,
     pub app_version: String,
     pub git_download_tasks: Arc<Mutex<HashMap<String, GitDownloadTask>>>,
+    pub library_translate_tasks: Arc<Mutex<HashMap<String, LibraryTranslateTask>>>,
     pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
     pub agent_cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
@@ -99,6 +112,7 @@ impl AppState {
             install_mode,
             app_version,
             git_download_tasks: Arc::new(Mutex::new(HashMap::new())),
+            library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -379,3 +393,5 @@ fn write_install_state(path: &PathBuf, state: &InstallState) -> Result<(), Strin
     let serialized = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
     fs::write(path, serialized).map_err(|e| e.to_string())
 }
+
+
