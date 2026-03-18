@@ -6,7 +6,6 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { extractReferenceQueries, parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";
-import { buildAgentMemoryContext } from "./agentMemoryStore";
 import { buildToolSearchQueryBlock } from "./agentToolSearch";
 import {
   computeDiffStats,
@@ -242,11 +241,7 @@ export async function runAgentWorkflow(params: {
   const parsed = parseAgentPrompt(prompt);
   const commitIntent = resolveAgentCommitIntent(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
-  const memoryContext = await buildAgentMemoryContext(activeProjectId, targetPath).catch(() => "");
-  const withMemoryContext = (basePrompt: string) =>
-    memoryContext.trim().length === 0
-      ? basePrompt
-      : `${basePrompt}\n\n[Memory Context]\n${memoryContext}`;
+  const withMemoryContext = (basePrompt: string) => basePrompt;
 
   setAgentProposal(null);
   setAgentRunId(null);

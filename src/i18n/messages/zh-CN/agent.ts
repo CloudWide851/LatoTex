@@ -36,6 +36,7 @@ export const zhCN_agent = {
   "agent.command.memory.description": "打开项目记忆文档",
   "agent.command.resume.label": "/resume",
   "agent.command.resume.description": "恢复之前的对话会话",
+  "agent.overlay.useChatForMemory": "该命令仅支持在对话页面使用，请切换到对话页面执行长期记忆/会话操作。",
   "agent.command.requiresFile": "该命令需要先选中一个文件。",
   "agent.command.new.done": "已为当前文件开启新会话。",
   "agent.command.memory.opened": "已打开项目记忆文档。",
@@ -76,3 +77,4 @@ export const zhCN_agent = {
   "agent.resume.empty": "暂无已保存会话。",
   "agent.patch.noApplicableEdits": "未为目标文件生成可应用的 SEARCH/REPLACE 编辑块。",
 } as const;
+

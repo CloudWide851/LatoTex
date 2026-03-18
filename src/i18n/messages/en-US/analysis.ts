@@ -6,6 +6,9 @@ export const enUS_analysis = {
   "analysis.pickFiles": "Pick Files",
   "analysis.blankHint": "Start analysis to generate an interactive report.",
   "analysis.centerRunning": "Agent is working on this analysis...",
+  "analysis.liveStage": "Live Stage",
+  "analysis.liveOutput": "Live Output",
+  "analysis.liveOutputEmpty": "Waiting for streaming output...",
   "analysis.emptyTaskTitle": "No analysis task yet",
   "analysis.emptyTaskHint": "Click to create a new task.",
   "analysis.defaultTaskName": "New Analysis Task",
@@ -44,3 +47,4 @@ export const enUS_analysis = {
   "analysis.error.invalidInputRefs": "No valid @file references were found in the current prompt",
   "analysis.error.failed": "Analysis failed",
 } as const;
+

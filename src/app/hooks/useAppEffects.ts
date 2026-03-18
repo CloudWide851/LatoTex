@@ -376,12 +376,15 @@ export function useAppEffects(params: {
       try {
         const waitMs = hasLiveRun ? 1_400 : needsWarmPolling ? 900 : 250;
         const limit = hasLiveRun ? 120 : needsWarmPolling ? 80 : 40;
+        const excludeKinds = analysisRunning && page === "analysis"
+          ? ["agent.run.heartbeat"]
+          : ["responses.output_text.delta", "agent.run.heartbeat"];
         const batch = await getEvents(
           cursorRef.current,
           limit,
           undefined,
           waitMs,
-          ["responses.output_text.delta", "agent.run.heartbeat"],
+          excludeKinds,
         );
         if (batch.events.length > 0) {
           if (shouldStoreEvents) {
@@ -549,3 +552,5 @@ export function useAppEffects(params: {
     suspended,
   });
 }
+
+

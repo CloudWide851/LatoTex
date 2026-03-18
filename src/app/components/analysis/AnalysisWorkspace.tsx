@@ -76,6 +76,9 @@ export function AnalysisWorkspace(props: {
   activeRun: AnalysisTaskRun | null;
   activeRunHtml: string;
   timelineCards: AnalysisTimelineCard[];
+  liveTimelineCards: AnalysisTimelineCard[];
+  liveStageLabel: string;
+  liveOutput: string;
   candidateFiles: string[];
   onPromptChange: (value: string) => void;
   onDropPaths: (paths: string[]) => void;
@@ -100,6 +103,9 @@ export function AnalysisWorkspace(props: {
     activeRun,
     activeRunHtml,
     timelineCards,
+    liveTimelineCards,
+    liveStageLabel,
+    liveOutput,
     candidateFiles,
     onPromptChange,
     onDropPaths,
@@ -114,6 +120,8 @@ export function AnalysisWorkspace(props: {
     t,
   } = props;
   const [dragActive, setDragActive] = useState(false);
+  const hasLiveStream = running && Boolean(liveStageLabel.trim() || liveOutput.trim() || liveTimelineCards.length > 0);
+  const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
 
   return (
     <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
@@ -168,6 +176,22 @@ export function AnalysisWorkspace(props: {
               <span className="text-sm font-medium">{t("analysis.emptyTaskTitle")}</span>
               <span className="mt-1 text-xs">{t("analysis.emptyTaskHint")}</span>
             </button>
+          ) : hasLiveStream ? (
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
+              <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="rounded border border-slate-200 bg-white px-3 py-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.liveStage")}</h3>
+                  <p className="mt-1 text-sm text-slate-700">{liveStageLabel || t("analysis.centerRunning")}</p>
+                </div>
+                <div className="min-h-0 overflow-auto rounded border border-slate-200 bg-white px-3 py-2">
+                  <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.liveOutput")}</h4>
+                  <pre className="whitespace-pre-wrap break-words text-xs leading-5 text-slate-700">
+                    {liveOutput || t("analysis.liveOutputEmpty")}
+                  </pre>
+                </div>
+              </section>
+              <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
+            </div>
           ) : !activeRun ? (
             <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/70 p-4 motion-page-in">
               <span className="text-sm text-slate-500">
@@ -216,7 +240,7 @@ export function AnalysisWorkspace(props: {
                 <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
                   {renderArtifacts(activeRun.assetRelativePaths, t, onExportArtifact, onRevealArtifact)}
                 </section>
-                <AnalysisRunTimeline cards={timelineCards} t={t} />
+                <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
                 <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.history")}</h4>
                   <div className="space-y-1">

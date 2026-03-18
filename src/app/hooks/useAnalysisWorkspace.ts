@@ -47,6 +47,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeRunHtml, setActiveRunHtml] = useState("");
+  const [liveRunIds, setLiveRunIds] = useState<string[]>([]);
+  const [liveStageLabel, setLiveStageLabel] = useState("");
   const loadedRef = useRef(false);
   const tasksRef = useRef<AnalysisTask[]>([]);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,6 +84,50 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         : [];
     return extractEventCards(events, runIds);
   }, [activeRun, events]);
+  const liveTimelineCards = useMemo(() => {
+    if (liveRunIds.length === 0) {
+      return [];
+    }
+    return extractEventCards(events, liveRunIds).slice(-120);
+  }, [events, liveRunIds]);
+  const liveOutput = useMemo(() => {
+    if (liveRunIds.length === 0) {
+      return "";
+    }
+    const runSet = new Set(liveRunIds);
+    const sorted = events
+      .filter((event) => runSet.has(event.runId) && event.kind === "responses.output_text.delta")
+      .sort((a, b) => a.seq - b.seq);
+    let output = "";
+    for (const event of sorted) {
+      const payload = (event.payload ?? {}) as Record<string, unknown>;
+      const chunk = typeof payload.content === "string" ? payload.content : "";
+      if (chunk) {
+        output += chunk;
+      }
+    }
+    return output.slice(-12_000).trimStart();
+  }, [events, liveRunIds]);
+  const liveStage = useMemo(() => {
+    const explicit = liveStageLabel.trim();
+    if (explicit) {
+      return explicit;
+    }
+    if (liveRunIds.length === 0) {
+      return "";
+    }
+    const runSet = new Set(liveRunIds);
+    const latest = [...events]
+      .reverse()
+      .find((event) => runSet.has(event.runId) && event.kind !== "responses.output_text.delta");
+    if (!latest) {
+      return "";
+    }
+    const payload = (latest.payload ?? {}) as Record<string, unknown>;
+    const stage = typeof payload.stage === "string" ? payload.stage : "";
+    const title = typeof payload.title === "string" ? payload.title : "";
+    return stage || title || "";
+  }, [events, liveRunIds, liveStageLabel]);
   useEffect(() => {
     if (!activeRun) {
       setActiveRunHtml("");
@@ -285,10 +331,13 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       updatedAt: nowIso(),
     }));
     setRunning(true);
+    setLiveRunIds([]);
+    setLiveStageLabel("");
     let currentStage = t("analysis.step.agentSynthesis");
     try {
       const setStage = (label: string) => {
         currentStage = label;
+        setLiveStageLabel(label);
       };
       const runIds: string[] = [];
       const runRolePromptWithTrace = async (
@@ -306,6 +355,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           bypassCache,
         });
         runIds.push(result.runId);
+        setLiveRunIds((prev) => (prev.includes(result.runId) ? prev : [...prev, result.runId]));
         return result;
       };
       const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
@@ -535,6 +585,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     } finally {
       runInFlightRef.current = false;
       setRunning(false);
+      setLiveRunIds([]);
+      setLiveStageLabel("");
     }
   }, [
     activeTaskId,
@@ -586,8 +638,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-  return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
+  return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
-
-
 

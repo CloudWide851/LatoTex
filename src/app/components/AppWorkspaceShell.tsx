@@ -354,9 +354,22 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                   setCompileAssistDismissedFor(compileAssistKey);
                   handleOpenChatTab();
                   const extra = compileDiagnostics.slice(0, 6).join("\n").trim();
-                  onAgentRun(extra ? "/review " + extra : "/review", { forceNewSession: true });
+                  const prompt = extra ? `/review ${extra}` : "/review";
+                  if (typeof window !== "undefined") {
+                    const detail = {
+                      projectId: activeProjectId,
+                      prompt,
+                      forceNewSession: true,
+                      source: "compile_assist",
+                      requestId: Date.now().toString(36),
+                    };
+                    (window as Window & { __latotexPendingChatAutoFix?: typeof detail }).__latotexPendingChatAutoFix = detail;
+                    window.setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent("latotex.chat.autofix", { detail }));
+                    }, 0);
+                  }
                 }}
-                autoFixDisabled={busy || agentPhase === "running"}
+                autoFixDisabled={busy}
                 t={t}
               />
             </div>
@@ -600,5 +613,4 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-
 

@@ -134,6 +134,9 @@ export function useAppPanelNodes(params: any) {
       activeRun={analysisWorkspace.activeRun}
       activeRunHtml={analysisWorkspace.activeRunHtml}
       timelineCards={analysisWorkspace.timelineCards}
+      liveTimelineCards={analysisWorkspace.liveTimelineCards}
+      liveStageLabel={analysisWorkspace.liveStage}
+      liveOutput={analysisWorkspace.liveOutput}
       candidateFiles={analysisWorkspace.candidateFiles}
       onPromptChange={analysisWorkspace.setPrompt}
       onDropPaths={analysisWorkspace.onDropPromptPaths}
@@ -319,5 +322,4 @@ export function useAppPanelNodes(params: any) {
     recoverWorkspaceLayout,
   };
 }
-
 

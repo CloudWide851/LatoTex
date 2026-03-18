@@ -22,7 +22,16 @@ import { parseAgentPrompt } from "../../hooks/agentCommands";
 
 type TranslationFn = (key: any) => string;
 
+
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
+
+type ChatAutoFixRequest = {
+  projectId: string | null;
+  prompt: string;
+  forceNewSession?: boolean;
+  source?: string;
+  requestId?: string;
+};
 
 function titleFromPrompt(prompt: string, fallback: string) {
   const firstLine = prompt.replace(/\s+/g, " ").trim().slice(0, 42);
@@ -74,6 +83,8 @@ export function ChatWorkspace(props: {
   const telegramOffsetRef = useRef(0);
   const telegramQueueRef = useRef<Array<{ chatId: string; username: string; text: string; messageId: number }>>([]);
   const telegramProcessingRef = useRef(false);
+  const pendingAutoFixRef = useRef<ChatAutoFixRequest | null>(null);
+  const lastHandledAutoFixKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!projectId) {
@@ -178,7 +189,13 @@ export function ChatWorkspace(props: {
 
   const runPrompt = useCallback(async (
     promptRaw: string,
-    options?: { sessionId?: string; telegramChatId?: string; telegramMessageId?: number; telegramUser?: string },
+    options?: {
+      sessionId?: string;
+      telegramChatId?: string;
+      telegramMessageId?: number;
+      telegramUser?: string;
+      forceNewSession?: boolean;
+    },
   ) => {
     const prompt = promptRaw.trim();
     if (!projectId || !prompt || running) {
@@ -200,7 +217,18 @@ export function ChatWorkspace(props: {
       }
       return;
     }
-    const sessionId = options?.sessionId ?? ensureSession();
+    let sessionId = options?.sessionId ?? null;
+    if (options?.forceNewSession) {
+      const next = newChatSession(t("chat.sessionNew"));
+      setSessions((prev) => [next, ...prev].slice(0, 80));
+      setActiveSessionId(next.id);
+      sessionId = next.id;
+    }
+    if (!sessionId) {
+      sessionId = ensureSession();
+    }
+    const currentSession = sessionsRef.current.find((item) => item.id === sessionId) ?? null;
+    const shouldRetitle = !currentSession || currentSession.messages.length === 0;
     setLastError("");
     if (!options?.telegramChatId) {
       setDraft("");
@@ -230,14 +258,14 @@ export function ChatWorkspace(props: {
       }
       return;
     }
-    setSessions((prev) =>
-      updateSession(prev, sessionId, (session) => {
-        if (session.messages.length > 0) {
-          return session;
-        }
-        return { ...session, title: titleFromPrompt(prompt, session.title) };
-      }),
-    );
+    if (shouldRetitle) {
+      setSessions((prev) =>
+        updateSession(prev, sessionId, (session) => ({
+          ...session,
+          title: titleFromPrompt(prompt, session.title),
+        })),
+      );
+    }
     const assistantMessageId = `a-${Date.now().toString(36)}`;
     appendMessage(sessionId, {
       id: assistantMessageId,
@@ -420,6 +448,81 @@ export function ChatWorkspace(props: {
       void processTelegramQueue();
     }
   }, [processTelegramQueue, running]);
+
+  useEffect(() => {
+    if (running || !pendingAutoFixRef.current) {
+      return;
+    }
+    const next = pendingAutoFixRef.current;
+    pendingAutoFixRef.current = null;
+    if (!next) {
+      return;
+    }
+    void runPrompt(next.prompt, {
+      forceNewSession: next.forceNewSession !== false,
+    });
+  }, [runPrompt, running]);
+
+  useEffect(() => {
+    if (!projectId || typeof window === "undefined") {
+      return;
+    }
+
+    const resolveAutoFixKey = (input: ChatAutoFixRequest) => {
+      const requestId = String(input.requestId || "").trim();
+      if (requestId) {
+        return requestId;
+      }
+      return `${input.projectId ?? "unknown"}:${input.source ?? "chat"}:${input.prompt}`;
+    };
+
+    const handleAutoFixRequest = (request: ChatAutoFixRequest) => {
+      const prompt = String(request.prompt || "").trim();
+      if (!prompt) {
+        return;
+      }
+      if (request.projectId && request.projectId !== projectId) {
+        return;
+      }
+      const key = resolveAutoFixKey(request);
+      if (lastHandledAutoFixKeyRef.current === key) {
+        return;
+      }
+      if (running) {
+        pendingAutoFixRef.current = request;
+        return;
+      }
+      lastHandledAutoFixKeyRef.current = key;
+      pendingAutoFixRef.current = null;
+      const global = window as Window & { __latotexPendingChatAutoFix?: ChatAutoFixRequest };
+      if (global.__latotexPendingChatAutoFix) {
+        const pendingKey = resolveAutoFixKey(global.__latotexPendingChatAutoFix);
+        if (pendingKey === key) {
+          global.__latotexPendingChatAutoFix = undefined;
+        }
+      }
+      void runPrompt(prompt, {
+        forceNewSession: request.forceNewSession !== false,
+      });
+    };
+
+    const global = window as Window & { __latotexPendingChatAutoFix?: ChatAutoFixRequest };
+    if (global.__latotexPendingChatAutoFix) {
+      handleAutoFixRequest(global.__latotexPendingChatAutoFix);
+    }
+
+    const onAutoFix = (event: Event) => {
+      const custom = event as CustomEvent<ChatAutoFixRequest>;
+      if (!custom.detail) {
+        return;
+      }
+      handleAutoFixRequest(custom.detail);
+    };
+    window.addEventListener("latotex.chat.autofix", onAutoFix as EventListener);
+    return () => {
+      window.removeEventListener("latotex.chat.autofix", onAutoFix as EventListener);
+    };
+  }, [projectId, runPrompt, running]);
 
   const stopRun = async () => {
     const runId = pendingRunId;

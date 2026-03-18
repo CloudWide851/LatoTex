@@ -36,6 +36,7 @@ export const enUS_agent = {
   "agent.command.memory.description": "Open project memory document",
   "agent.command.resume.label": "/resume",
   "agent.command.resume.description": "Resume a previous conversation session",
+  "agent.overlay.useChatForMemory": "This command is available in Chat page only. Open Chat for long-memory/session operations.",
   "agent.command.requiresFile": "This command requires an active file.",
   "agent.command.new.done": "Started a new conversation session for this file.",
   "agent.command.memory.opened": "Opened project memory document.",
@@ -76,3 +77,4 @@ export const enUS_agent = {
   "agent.resume.empty": "No saved sessions.",
   "agent.patch.noApplicableEdits": "No applicable SEARCH/REPLACE edits were generated for the target file.",
 } as const;
+

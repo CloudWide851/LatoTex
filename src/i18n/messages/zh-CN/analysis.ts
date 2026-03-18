@@ -6,6 +6,9 @@ export const zhCN_analysis = {
   "analysis.pickFiles": "选择文件",
   "analysis.blankHint": "开始分析后会生成可交互报告页面。",
   "analysis.centerRunning": "Agent 正在处理本次分析任务...",
+  "analysis.liveStage": "实时阶段",
+  "analysis.liveOutput": "实时输出",
+  "analysis.liveOutputEmpty": "等待流式输出...",
   "analysis.emptyTaskTitle": "暂无分析任务",
   "analysis.emptyTaskHint": "点击此处创建新任务。",
   "analysis.defaultTaskName": "新分析任务",
@@ -44,3 +47,4 @@ export const zhCN_analysis = {
   "analysis.error.invalidInputRefs": "当前提示词中未找到有效的 @文件 引用",
   "analysis.error.failed": "分析失败",
 } as const;
+

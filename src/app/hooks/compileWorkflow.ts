@@ -32,6 +32,7 @@ const COMPILE_SKIP_EXTENSIONS = new Set([
 ]);
 
 const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/i;
+const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/i;
 
 function shouldIncludeCompileFile(path: string): boolean {
   const normalized = path.trim().toLowerCase();
@@ -46,14 +47,37 @@ function shouldIncludeCompileFile(path: string): boolean {
   return !COMPILE_SKIP_EXTENSIONS.has(extension);
 }
 
-function detectMissingStyleFile(diagnostics: string[]): string | null {
+export function extractMissingStyleCandidatesFromDiagnostics(diagnostics: string[]): string[] {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
   for (const line of diagnostics) {
-    const match = String(line || "").match(MISSING_STYLE_RE);
-    if (match?.[1]) {
-      return match[1].trim();
+    const text = String(line || "").trim();
+    if (!text) {
+      continue;
+    }
+    const missingMatch = text.match(MISSING_STYLE_RE);
+    if (missingMatch?.[1]) {
+      const style = missingMatch[1].trim();
+      const key = style.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        candidates.push(style);
+      }
+    }
+    const packageErrorMatch = text.match(PACKAGE_ERROR_RE);
+    if (packageErrorMatch?.[1]) {
+      const packageName = packageErrorMatch[1].trim().replace(/[^A-Za-z0-9._-]/g, "");
+      if (packageName) {
+        const style = `${packageName}.sty`;
+        const key = style.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          candidates.push(style);
+        }
+      }
     }
   }
-  return null;
+  return candidates;
 }
 
 function getBusyTexCachePolicy(): "install-first" | "appdata-only" {
@@ -138,36 +162,46 @@ export async function runCompilePass(params: {
   const attemptedPackages = new Set<string>();
   let result = await compileWithBusyTeX(mainContent, baseFileMap, mainPath);
 
-  for (let round = 0; round < 3 && result.status !== "success"; round += 1) {
-    const missingStyle = detectMissingStyleFile(result.diagnostics);
-    if (!missingStyle || attemptedPackages.has(missingStyle.toLowerCase())) {
+  for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
+    const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
+      (style) => !attemptedPackages.has(style.toLowerCase()),
+    );
+    if (missingStyles.length === 0) {
       break;
     }
-    attemptedPackages.add(missingStyle.toLowerCase());
 
-    try {
-      const install = await busytexInstallMissingPackage({
-        styleFile: missingStyle,
-        policy: getBusyTexCachePolicy(),
-      });
-      if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
-        installNotes.push(`BusyTeX auto install did not provide files for ${missingStyle}.`);
-        break;
-      }
-      for (const file of install.overlayFiles) {
-        const relativePath = String(file.path || "").trim();
-        if (!relativePath) {
+    let installedAny = false;
+    for (const missingStyle of missingStyles) {
+      attemptedPackages.add(missingStyle.toLowerCase());
+      try {
+        const install = await busytexInstallMissingPackage({
+          styleFile: missingStyle,
+          policy: getBusyTexCachePolicy(),
+        });
+        if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
+          installNotes.push(`BusyTeX auto install did not provide files for ${missingStyle}.`);
           continue;
         }
-        overlayFileMap[relativePath] = String(file.content || "");
+        for (const file of install.overlayFiles) {
+          const relativePath = String(file.path || "").trim();
+          if (!relativePath) {
+            continue;
+          }
+          overlayFileMap[relativePath] = String(file.content || "");
+        }
+        installedAny = true;
+        installNotes.push(`BusyTeX auto installed ${missingStyle} from ${install.sourceUrl || "cache"}.`);
+      } catch (error) {
+        installNotes.push(`BusyTeX auto install failed for ${missingStyle}: ${String(error)}`);
       }
-      installNotes.push(`BusyTeX auto installed ${missingStyle} from ${install.sourceUrl || "cache"}.`);
-      const mergedFileMap = { ...baseFileMap, ...overlayFileMap };
-      result = await compileWithBusyTeX(mainContent, mergedFileMap, mainPath);
-    } catch (error) {
-      installNotes.push(`BusyTeX auto install failed for ${missingStyle}: ${String(error)}`);
+    }
+
+    if (!installedAny) {
       break;
     }
+
+    const mergedFileMap = { ...baseFileMap, ...overlayFileMap };
+    result = await compileWithBusyTeX(mainContent, mergedFileMap, mainPath);
   }
 
   if (installNotes.length > 0) {
@@ -208,3 +242,5 @@ export async function runCompilePass(params: {
   }
   return result;
 }
+
+
