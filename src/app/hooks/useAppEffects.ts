@@ -78,6 +78,7 @@ export function useAppEffects(params: {
   getCachedTextContent?: (relativePath: string) => string | null;
   onTextFileLoaded?: (relativePath: string, content: string) => void;
   suspended?: boolean;
+  onOutOfMemory?: (source: "error" | "unhandledrejection" | "memory_guard", message: string) => void;
 }) {
   const {
     t,
@@ -128,6 +129,7 @@ export function useAppEffects(params: {
     getCachedTextContent,
     onTextFileLoaded,
     suspended = false,
+    onOutOfMemory,
   } = params;
 
   const initDoneRef = useRef(false);
@@ -459,13 +461,27 @@ export function useAppEffects(params: {
     if (typeof window === "undefined") {
       return;
     }
+
+    const OOM_PATTERNS = [
+      /out of memory/i,
+      /memory access out of bounds/i,
+      /javascript heap out of memory/i,
+      /wasm.*out of memory/i,
+    ];
+    const isOutOfMemoryMessage = (value: string) => OOM_PATTERNS.some((pattern) => pattern.test(value));
+
     const onError = (event: ErrorEvent) => {
       const location = event.filename
         ? `${event.filename}:${event.lineno}:${event.colno}`
         : "unknown";
       const message = event.message || "unknown error";
       runtimeLogWrite("ERROR", `frontend.error: ${message} @ ${location}`).catch(() => undefined);
+      if (isOutOfMemoryMessage(message)) {
+        runtimeLogWrite("WARN", `frontend.oom.error: ${message}`).catch(() => undefined);
+        onOutOfMemory?.("error", message);
+      }
     };
+
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
       let reason = "unknown reason";
       if (typeof event.reason === "string") {
@@ -482,6 +498,10 @@ export function useAppEffects(params: {
       runtimeLogWrite("ERROR", `frontend.unhandledrejection: ${reason || "unknown reason"}`).catch(
         () => undefined,
       );
+      if (isOutOfMemoryMessage(reason)) {
+        runtimeLogWrite("WARN", `frontend.oom.unhandledrejection: ${reason}`).catch(() => undefined);
+        onOutOfMemory?.("unhandledrejection", reason);
+      }
     };
 
     window.addEventListener("error", onError);
@@ -490,7 +510,7 @@ export function useAppEffects(params: {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
-  }, []);
+  }, [onOutOfMemory]);
   useGitRuntimeEffects({
     page,
     activeProjectId,
@@ -503,8 +523,4 @@ export function useAppEffects(params: {
     suspended,
   });
 }
-
-
-
-
 

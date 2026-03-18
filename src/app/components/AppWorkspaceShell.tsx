@@ -350,6 +350,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 diagnostics={compileDiagnostics}
                 hint={compileAssistHint}
                 onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
+                onAutoFix={() => {
+                  setCompileAssistDismissedFor(compileAssistKey);
+                  const extra = compileDiagnostics.slice(0, 6).join("\n").trim();
+                  onAgentRun(extra ? "/review " + extra : "/review");
+                }}
+                autoFixDisabled={busy || agentPhase === "running"}
                 t={t}
               />
             </div>

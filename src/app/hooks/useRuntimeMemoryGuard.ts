@@ -14,8 +14,14 @@ export function useRuntimeMemoryGuard(params: {
   isTauriRuntime: boolean;
   setEvents: React.Dispatch<React.SetStateAction<SwarmEvent[]>>;
   suspended?: boolean;
+  onCriticalMemory?: () => void;
 }) {
-  const { isTauriRuntime, setEvents, suspended = false } = params;
+  const {
+    isTauriRuntime,
+    setEvents,
+    suspended = false,
+    onCriticalMemory,
+  } = params;
   const levelRef = useRef<MemoryLevel>("normal");
   const lastLoggedAtRef = useRef(0);
 
@@ -78,6 +84,9 @@ export function useRuntimeMemoryGuard(params: {
             "WARN",
             `runtime memory critical: rss=${rssMb}MB, private=${privateMb ?? "-"}MB, webview=${webviewMb ?? "-"}MB, webviewProcesses=${webviewCount ?? "-"}`,
           );
+          if (levelRef.current !== "critical") {
+            onCriticalMemory?.();
+          }
         } else if (nextLevel === "high") {
           setEvents((prev) => trimEventsForMemoryPressure(prev, {
             maxEvents: 160,
@@ -114,5 +123,5 @@ export function useRuntimeMemoryGuard(params: {
         clearTimeout(timer);
       }
     };
-  }, [isTauriRuntime, setEvents, suspended]);
+  }, [isTauriRuntime, onCriticalMemory, setEvents, suspended]);
 }

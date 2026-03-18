@@ -7,9 +7,19 @@ export function CompileAssistPopover(props: {
   diagnostics: string[];
   hint: string;
   onDismiss: () => void;
+  onAutoFix: () => void;
+  autoFixDisabled?: boolean;
   t: TranslationFn;
 }) {
-  const { visible, diagnostics, hint, onDismiss, t } = props;
+  const {
+    visible,
+    diagnostics,
+    hint,
+    onDismiss,
+    onAutoFix,
+    autoFixDisabled = false,
+    t,
+  } = props;
   const [copied, setCopied] = useState(false);
 
   if (!visible) {
@@ -45,6 +55,13 @@ export function CompileAssistPopover(props: {
           onClick={onDismiss}
         >
           {t("workspace.compileAssist.dismiss")}
+        </button>
+        <button
+          className="rounded border border-amber-600 bg-amber-600 px-2 py-1 text-[11px] text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={onAutoFix}
+          disabled={autoFixDisabled}
+        >
+          {t("workspace.compileAssist.autoFix")}
         </button>
         <button
           className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-[11px] text-white hover:bg-primary-700"

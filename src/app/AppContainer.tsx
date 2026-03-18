@@ -1,5 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
@@ -212,6 +212,15 @@ export function AppContainer() {
     blocked: runtimeBusy,
     timeoutMs: 60 * 60 * 1000,
   });
+  const oomSleepAtRef = useRef(0);
+  const handleOutOfMemorySleep = useCallback((_source: "error" | "unhandledrejection" | "memory_guard", _message: string) => {
+    const now = Date.now();
+    if (now - oomSleepAtRef.current < 5_000) {
+      return;
+    }
+    oomSleepAtRef.current = now;
+    idleSleep.forceSleep();
+  }, [idleSleep.forceSleep]);
 
   useAppEffects({
     t,
@@ -265,12 +274,14 @@ export function AppContainer() {
     getCachedTextContent,
     onTextFileLoaded: handleTextFileLoaded,
     suspended: idleSleep.sleeping,
+    onOutOfMemory: handleOutOfMemorySleep,
   });
 
   useRuntimeMemoryGuard({
     isTauriRuntime,
     setEvents: s.setEvents,
     suspended: idleSleep.sleeping,
+    onCriticalMemory: () => handleOutOfMemorySleep("memory_guard", "runtime memory critical"),
   });
 
   useEditorDirtySyncEffect({

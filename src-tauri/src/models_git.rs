@@ -182,6 +182,32 @@ pub struct BusyTexCacheInfo {
 pub struct BusyTexCachePrepareInput {
     pub policy: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusyTexInstallPackageInput {
+    pub style_file: String,
+    pub policy: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BusyTexInstalledOverlayFile {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BusyTexInstallPackageResult {
+    pub style_file: String,
+    pub package_name: String,
+    pub installed: bool,
+    pub from_cache: bool,
+    pub source_url: Option<String>,
+    pub cache_dir: String,
+    pub overlay_files: Vec<BusyTexInstalledOverlayFile>,
+}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisPyodideCacheInfo {

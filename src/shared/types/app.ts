@@ -546,6 +546,21 @@ export type BusyTexCacheInfo = {
   usingFallback: boolean;
 };
 
+export type BusyTexInstalledOverlayFile = {
+  path: string;
+  content: string;
+};
+
+export type BusyTexInstallPackageResult = {
+  styleFile: string;
+  packageName: string;
+  installed: boolean;
+  fromCache: boolean;
+  sourceUrl: string | null;
+  cacheDir: string;
+  overlayFiles: BusyTexInstalledOverlayFile[];
+};
+
 export type DrawioCacheInfo = {
   policy: string;
   requestedDir: string;

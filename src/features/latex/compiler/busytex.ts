@@ -26,6 +26,7 @@ const BUSYTEX_ASSET_HINT =
   "BusyTeX assets missing. Run `pnpm run busytex:assets` to prepare src-tauri/resources/core/busytex.";
 
 let runner: BusyTexRunner | null = null;
+let runnerBasePath = "";
 let preparedCacheBasePaths: string[] | null = null;
 let preparingCachePromise: Promise<string[]> | null = null;
 
@@ -93,6 +94,7 @@ function buildInitCandidates(basePaths: string[]): BusyTexInitCandidate[] {
 
 function resetBusyTexRuntime(resetCacheBase = false) {
   runner = null;
+  runnerBasePath = "";
   if (resetCacheBase) {
     preparedCacheBasePaths = null;
   }
@@ -195,6 +197,7 @@ async function initializeRunnerFromCandidates(candidates: BusyTexInitCandidate[]
       if (!candidateRunner.isInitialized()) {
         await candidateRunner.initialize(true);
       }
+      runnerBasePath = candidate.basePath;
       return candidateRunner;
     } catch (error) {
       reasons.push(`${candidate.basePath}: ${toErrorMessage(error)}`);
@@ -292,6 +295,7 @@ const DIAGNOSTIC_NOISE_PATTERNS: RegExp[] = [
   /^\*\*main\.tex$/i,
   /keepruntimealive\(\)/i,
   /tex live \d+_texlyre_busytexwasm/i,
+  /^package\s+[^\r\n]+\s+info:/i,
 ];
 
 const DIAGNOSTIC_ERROR_PATTERNS: RegExp[] = [
@@ -300,7 +304,7 @@ const DIAGNOSTIC_ERROR_PATTERNS: RegExp[] = [
   /emergency stop/i,
   /no output pdf file written/i,
   /cannot \\read from terminal/i,
-  /not found/i,
+  /file [`\'][^`\']+\.(sty|cls|cfg|def|fd|tex|lua)[`\'] not found/i,
   /failed/i,
   /error:/i,
 ];
@@ -381,6 +385,43 @@ async function getRunner(): Promise<BusyTexRunner> {
   return runner;
 }
 
+function resolveRunnerBasePath(currentRunner: BusyTexRunner): string {
+  const knownPath = normalizeTrailingSlash(runnerBasePath);
+  if (knownPath) {
+    return knownPath;
+  }
+
+  const runnerLike = currentRunner as unknown as {
+    getConfig?: () => { busytexBasePath?: string };
+    config?: { busytexBasePath?: string };
+  };
+
+  const fromGetter =
+    typeof runnerLike.getConfig === "function"
+      ? normalizeTrailingSlash(runnerLike.getConfig()?.busytexBasePath ?? "")
+      : "";
+  if (fromGetter) {
+    runnerBasePath = fromGetter;
+    return fromGetter;
+  }
+
+  const fromConfig = normalizeTrailingSlash(runnerLike.config?.busytexBasePath ?? "");
+  if (fromConfig) {
+    runnerBasePath = fromConfig;
+    return fromConfig;
+  }
+
+  return "";
+}
+
+function buildDataPackagesJsForRunner(currentRunner: BusyTexRunner): string[] {
+  const basePath = resolveRunnerBasePath(currentRunner);
+  if (!basePath) {
+    return [];
+  }
+  return [`${basePath}/texlive-basic.js`, `${basePath}/texlive-extra.js`];
+}
+
 async function compileInternal(
   mainSource: string,
   files: Record<string, string>,
@@ -398,6 +439,7 @@ async function compileInternal(
     const rawResult = (await compiler.compile({
       input: mainSource,
       additionalFiles,
+      dataPackagesJs: buildDataPackagesJsForRunner(currentRunner),
     })) as BusyTexCompileResponse;
 
     const diagnostics = sanitizeDiagnostics([

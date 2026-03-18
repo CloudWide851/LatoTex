@@ -13,6 +13,7 @@ import type {
   AnalysisPyodideCacheInfo,
   DrawioCacheInfo,
   BusyTexCacheInfo,
+  BusyTexInstallPackageResult,
   CompileRecord,
   CredentialSaveResult,
   EventBatch,
@@ -593,6 +594,14 @@ export function gitDiffFile(
 export function busytexCachePrepare(policy: "install-first" | "appdata-only"): Promise<BusyTexCacheInfo> {
   return invoke<BusyTexCacheInfo>("busytex_cache_prepare", { input: { policy } });
 }
+
+export function busytexInstallMissingPackage(input: {
+  styleFile: string;
+  policy?: "install-first" | "appdata-only";
+}): Promise<BusyTexInstallPackageResult> {
+  return invoke<BusyTexInstallPackageResult>("busytex_install_missing_package", { input });
+}
+
 export function analysisPyodidePrepare(policy: "install-first" | "appdata-only"): Promise<AnalysisPyodideCacheInfo> {
   return invoke<AnalysisPyodideCacheInfo>("analysis_pyodide_prepare", { input: { policy } });
 }

@@ -20,6 +20,10 @@ export function useIdleSleep(params?: {
     setSleeping(false);
   }, []);
 
+  const forceSleep = useCallback(() => {
+    setSleeping(true);
+  }, []);
+
   const markActivity = useCallback(() => {
     const now = Date.now();
     if (now - lastMarkRef.current < ACTIVITY_THROTTLE_MS) {
@@ -76,7 +80,9 @@ export function useIdleSleep(params?: {
   return {
     sleeping,
     wake,
+    forceSleep,
     markActivity,
     idleMinutes,
   };
 }
+
