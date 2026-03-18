@@ -1,3 +1,7 @@
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+import { drawioCachePrepare } from "../../../shared/api/desktop";
+import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+
 export type DrawMessage = {
   event?: string;
   xml?: string;
@@ -11,187 +15,76 @@ export type DrawMessage = {
   [key: string]: unknown;
 };
 
-export type PendingDrawExportRequest = {
-  filename?: string;
-  format?: string;
-  scale?: number;
-  border?: number;
-  dpi?: number;
-  grid?: boolean;
-  background?: string | null;
-  pageId?: string;
-  currentPage?: boolean;
-  allPages?: boolean;
-  embedImages?: boolean;
-  shadow?: boolean;
-};
-
-export type DrawHandshakeAction =
-  | { kind: "ignore" }
-  | { kind: "hostLoaded" }
-  | { kind: "configure"; outboundMessage: string }
-  | { kind: "init" }
-  | { kind: "error"; detail: string };
-
 type PersistedDrawTabs = {
   paths: string[];
   activePath: string | null;
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
-export const DRAWIO_LOCAL_RESOURCE_URL = "http://latotex-resource.localhost/tool/drawio/index.html";
-export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
-  action: "configure",
-  config: {
-    css: "body{overflow:hidden;}",
-  },
-});
-
-const DRAW_EXPORT_IMAGE_FORMATS = new Set(["png", "xmlpng", "jpg", "jpeg", "gif", "webp"]);
-
-export function buildDrawLoadPayload(xml: string): {
-  action: "load";
-  autosave: 1;
-  exportProtocol: true;
-  xml: string;
-} {
-  return {
-    action: "load",
-    autosave: 1,
-    exportProtocol: true,
-    xml,
-  };
-}
-
-export function isDrawImageExportFormat(format: unknown): boolean {
-  return DRAW_EXPORT_IMAGE_FORMATS.has(String(format ?? "").trim().toLowerCase());
-}
-
-export function buildDrawExportAction(
-  request: PendingDrawExportRequest,
-): Record<string, unknown> {
-  const action: Record<string, unknown> = {
-    action: "export",
-    format: String(request.format ?? "png").trim().toLowerCase() || "png",
-    currentPage: request.currentPage ?? true,
-    spinKey: "exporting",
-  };
-
-  if (typeof request.scale === "number" && Number.isFinite(request.scale) && request.scale > 0) {
-    action.scale = request.scale;
-  }
-  if (typeof request.border === "number" && Number.isFinite(request.border) && request.border >= 0) {
-    action.border = request.border;
-  }
-  if (typeof request.dpi === "number" && Number.isFinite(request.dpi) && request.dpi > 0) {
-    action.dpi = request.dpi;
-  }
-  if (typeof request.grid === "boolean") {
-    action.grid = request.grid;
-  }
-  if (request.background === null) {
-    action.background = "none";
-  } else if (typeof request.background === "string" && request.background.trim()) {
-    action.background = request.background.trim();
-  }
-  if (typeof request.pageId === "string" && request.pageId.trim()) {
-    action.pageId = request.pageId.trim();
-  }
-  if (typeof request.currentPage === "boolean") {
-    action.currentPage = request.currentPage;
-  }
-  if (typeof request.allPages === "boolean") {
-    action.allPages = request.allPages;
-  }
-  if (typeof request.embedImages === "boolean") {
-    action.embedImages = request.embedImages;
-  }
-  if (typeof request.shadow === "boolean") {
-    action.shadow = request.shadow;
-  }
-
-  return action;
-}
-
-export function mergeDrawExportRequest(
-  message: DrawMessage,
-  request?: PendingDrawExportRequest | null,
-): DrawMessage {
-  if (!request) {
-    return message;
-  }
-  return {
-    ...message,
-    filename:
-      typeof message.filename === "string" && message.filename.trim()
-        ? message.filename
-        : request.filename,
-    format:
-      typeof message.format === "string" && message.format.trim()
-        ? message.format
-        : request.format,
-  };
-}
-
-export function shouldClearPendingDrawExport(
-  pendingRequest: PendingDrawExportRequest | null,
-  message: DrawMessage,
-): boolean {
-  if (!pendingRequest) {
-    return false;
-  }
-  return message.event === "error";
-}
-
-export function toDrawioLanguage(locale?: string | null): string {
-  const normalized = String(locale ?? "").trim().toLowerCase();
-  if (normalized.startsWith("zh")) {
-    return "zh";
-  }
-  return "en";
-}
-
-function appendQueryParams(url: string, values: Record<string, string>): string {
-  const [withoutHash, hash = ""] = String(url || "").split("#", 2);
-  const [basePath, query = ""] = withoutHash.split("?", 2);
-  const params = new URLSearchParams(query);
-  for (const [key, value] of Object.entries(values)) {
-    params.set(key, value);
-  }
-  const nextQuery = params.toString();
-  return `${basePath}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
-}
-
-export function toDrawioEmbedUrl(entryUrl: string, locale?: string | null): string {
-  return appendQueryParams(entryUrl, {
-    embed: "1",
-    proto: "json",
-    spin: "0",
-    configure: "1",
-    ui: "min",
-    lang: toDrawioLanguage(locale),
-  });
-}
+const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
+export const DRAWIO_HOST_URL = "/drawio/index.html";
 
 function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-export function resolveDrawioHostFrameSrc(
-  entryUrl?: string | null,
-  locale?: string | null,
-): string | null {
-  const resolvedEntryUrl = String(entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
-  if (!resolvedEntryUrl) {
+function normalizeTrailingSlash(input: string): string {
+  return String(input || "").trim().replace(/\/+$/, "");
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
+}
+
+async function checkFrameSource(url: string): Promise<boolean> {
+  try {
+    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+    if (head.ok) {
+      return true;
+    }
+    if (head.status !== 405 && head.status !== 501) {
+      return false;
+    }
+  } catch {
+    // fallback to GET check below
+  }
+
+  try {
+    const get = await fetch(url, { method: "GET", cache: "no-store" });
+    if (!get.ok) {
+      return false;
+    }
+    await get.body?.cancel().catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
+  if (!isTauri()) {
+    return DRAWIO_HOST_URL;
+  }
+
+  try {
+    const policy = typeof window !== "undefined"
+      ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
+      : null;
+    const info = await drawioCachePrepare(policy ?? "install-first");
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
+    }
+    const candidates = toDrawioHostCandidates(info.actualDir);
+    for (const candidate of candidates) {
+      if (await checkFrameSource(candidate)) {
+        return candidate;
+      }
+    }
+  } catch {
     return null;
   }
-  const absoluteEntryUrl = typeof window === "undefined"
-    ? resolvedEntryUrl
-    : new URL(resolvedEntryUrl, window.location.href).toString();
-  if (!absoluteEntryUrl) {
-    return null;
-  }
-  return toDrawioEmbedUrl(absoluteEntryUrl, locale);
+
+  return null;
 }
 
 export function normalizePath(value: string | null | undefined): string {
@@ -242,6 +135,20 @@ export function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
   }
 }
 
+export function toDrawioHostCandidates(actualDir: string): string[] {
+  const originalDir = String(actualDir || "").trim();
+  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const originalConverted = convertFileSrc(originalDir);
+  const slashConverted = convertFileSrc(slashDir);
+  const bases = uniqueValues([
+    normalizeAssetBasePath(originalConverted),
+    normalizeAssetBasePath(slashConverted),
+    originalConverted,
+    slashConverted,
+  ]);
+  return bases.map((base) => `${base}/index.html`);
+}
+
 export function parseDrawMessage(payload: unknown): DrawMessage | null {
   if (!payload) {
     return null;
@@ -259,29 +166,6 @@ export function parseDrawMessage(payload: unknown): DrawMessage | null {
   return null;
 }
 
-export function interpretDrawHandshakeMessage(message: DrawMessage | null): DrawHandshakeAction {
-  const event = String(message?.event ?? "").trim();
-  if (event === "host_loaded") {
-    return { kind: "hostLoaded" };
-  }
-  if (event === "configure") {
-    return {
-      kind: "configure",
-      outboundMessage: DRAWIO_CONFIG_MESSAGE,
-    };
-  }
-  if (event === "init") {
-    return { kind: "init" };
-  }
-  if (event === "error") {
-    const detail = String(message?.error ?? "").trim();
-    if (detail) {
-      return { kind: "error", detail };
-    }
-  }
-  return { kind: "ignore" };
-}
-
 export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {
   const [prefix, payload] = dataUrl.split(",", 2);
   const mime = /^data:([^;]+);base64$/i.exec(prefix || "")?.[1] || "application/octet-stream";
@@ -291,33 +175,6 @@ export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Arra
     bytes[index] = raw.charCodeAt(index);
   }
   return { mime, bytes };
-}
-
-function encodePlainTextExport(rawData: string, mime?: string): { mime: string; bytes: Uint8Array } {
-  return {
-    mime: String(mime ?? "text/plain").trim() || "text/plain",
-    bytes: new TextEncoder().encode(rawData),
-  };
-}
-
-export function decodeDrawExportPayload(message: DrawMessage): { mime: string; bytes: Uint8Array } {
-  const rawData = String(message.data ?? "");
-  if (!rawData) {
-    throw new Error("draw.export.missing_data");
-  }
-  if (rawData.startsWith("data:")) {
-    return decodeDataUrl(rawData);
-  }
-  if (message.base64 === false) {
-    return encodePlainTextExport(rawData, typeof message.mime === "string" ? message.mime : undefined);
-  }
-  if (rawData.trimStart().startsWith("<")) {
-    return encodePlainTextExport(rawData, typeof message.mime === "string" ? message.mime : "image/svg+xml");
-  }
-  return {
-    mime: String(message.mime ?? "application/octet-stream"),
-    bytes: Uint8Array.from(atob(rawData), (char) => char.charCodeAt(0)),
-  };
 }
 
 function mimeSubtype(mime: string): string {
@@ -366,61 +223,18 @@ function sanitizeExportFileName(filename: string): string {
     .trim();
 }
 
-function hasExtension(fileName: string): boolean {
-  return /\.[a-z0-9.+-]+$/i.test(fileName);
-}
-
-function stemOfFileName(fileName: string): string {
-  if (!hasExtension(fileName)) {
-    return fileName;
-  }
-  return fileName.replace(/\.[a-z0-9.+-]+$/i, "");
-}
-
-function shouldFallbackFromFilenameHint(fileName: string): boolean {
-  const trimmed = String(fileName || "").trim();
-  if (!trimmed) {
-    return true;
-  }
-  if (trimmed.startsWith(".")) {
-    return true;
-  }
-  const normalizedStem = stemOfFileName(trimmed).replace(/^\.+/, "").trim().toLowerCase();
-  return normalizedStem.length === 0 || normalizedStem === "drawio";
-}
-
 export function toDrawExportTarget(activePath: string, extension: string, filenameHint?: string): string {
-  const normalizedActivePath = normalizePath(activePath);
-  const title = tabTitleFromPath(normalizedActivePath);
+  const title = tabTitleFromPath(activePath);
   const stem = title.replace(/\.drawio$/i, "") || "diagram";
   const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
-  const slashIndex = normalizedActivePath.lastIndexOf("/");
-  const sourceParentDir = slashIndex >= 0 ? normalizedActivePath.slice(0, slashIndex) : "";
-  const parentDir = normalizedActivePath.startsWith("drawings/")
-    ? sourceParentDir
-    : "drawings";
 
   const hintedBase = sanitizeExportFileName(filenameHint ?? "");
   const normalizedExtension = String(extension || "bin").replace(/[^a-z0-9.+-]/gi, "") || "bin";
-  const fileName = hintedBase && !shouldFallbackFromFilenameHint(hintedBase)
+  const fileName = hintedBase
     ? (/\.[a-z0-9.+-]+$/i.test(hintedBase) ? hintedBase : `${hintedBase}.${normalizedExtension}`)
     : `${safeStem}.${normalizedExtension}`;
 
-  return parentDir ? `${parentDir}/${fileName}` : fileName;
-}
-
-export function toDrawExportDialogDefaults(
-  activePath: string,
-  extension: string,
-  filenameHint?: string,
-): { defaultRelativeDir: string; defaultFileName: string } {
-  const targetPath = toDrawExportTarget(activePath, extension, filenameHint);
-  const normalized = normalizePath(targetPath);
-  const slashIndex = normalized.lastIndexOf("/");
-  return {
-    defaultRelativeDir: slashIndex >= 0 ? normalized.slice(0, slashIndex) : "",
-    defaultFileName: slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized,
-  };
+  return `drawings/${fileName}`;
 }
 
 export function buildRenamedDrawPath(currentPath: string, nextInput: string): string {
@@ -455,27 +269,85 @@ export function withExportRetrySuffix(path: string): string {
 export async function persistDrawExportToWorkspace(params: {
   activePath: string;
   message: DrawMessage;
-  saveAsset: (path: string, bytes: Uint8Array) => Promise<string>;
-  onAfterSave?: (path: string) => void;
+  writeText: (path: string, content: string) => Promise<unknown>;
+  writeBinary: (path: string, bytes: Uint8Array) => Promise<unknown>;
+  onAfterSave?: (savedPath: string) => Promise<void> | void;
 }): Promise<string> {
-  const { activePath, message, saveAsset, onAfterSave } = params;
-  const decoded = decodeDrawExportPayload(message);
-  const extension = inferExportExtension(message, decoded.mime);
-  const targetPath = toDrawExportTarget(activePath, extension, typeof message.filename === "string" ? message.filename : undefined);
+  const { activePath, message, writeText, writeBinary, onAfterSave } = params;
+  const exportData = String(message.data || "");
+  if (!exportData) {
+    throw new Error("draw.export.empty_payload");
+  }
 
-  let lastError: unknown;
-  for (const attemptPath of [targetPath, ...EXPORT_RETRY_DELAYS_MS.map(() => withExportRetrySuffix(targetPath))]) {
-    try {
-      const savedPath = await saveAsset(attemptPath, decoded.bytes);
-      onAfterSave?.(savedPath);
-      return savedPath;
-    } catch (error) {
-      lastError = error;
-      if (!isPermissionDeniedWriteError(error)) {
-        throw error;
+  let extension = "bin";
+  let targetPath = "";
+  let textPayload: string | null = null;
+  let binaryPayload: Uint8Array | null = null;
+
+  if (exportData.startsWith("data:")) {
+    const parsed = decodeDataUrl(exportData);
+    extension = inferExportExtension(message, parsed.mime);
+    targetPath = toDrawExportTarget(activePath, extension || "bin", message.filename);
+    textPayload = toTextIfPossible(extension, parsed.bytes);
+    if (textPayload === null) {
+      binaryPayload = parsed.bytes;
+    }
+  } else {
+    extension = inferExportExtension(message);
+    targetPath = toDrawExportTarget(activePath, extension || "bin", message.filename);
+    if (message.base64) {
+      const raw = atob(exportData);
+      const bytes = new Uint8Array(raw.length);
+      for (let index = 0; index < raw.length; index += 1) {
+        bytes[index] = raw.charCodeAt(index);
       }
+      binaryPayload = bytes;
+    } else {
+      textPayload = exportData;
     }
   }
-  throw lastError ?? new Error("write failed");
+
+  const writePayload = async (path: string) => {
+    if (textPayload !== null) {
+      await writeText(path, textPayload);
+      return;
+    }
+    if (binaryPayload) {
+      await writeBinary(path, binaryPayload);
+      return;
+    }
+    await writeText(path, exportData);
+  };
+
+  const writeWithRetry = async (path: string) => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= EXPORT_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        await writePayload(path);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!isPermissionDeniedWriteError(error) || attempt >= EXPORT_RETRY_DELAYS_MS.length) {
+          throw error;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, EXPORT_RETRY_DELAYS_MS[attempt]));
+      }
+    }
+    throw lastError ?? new Error("write failed");
+  };
+
+  let savedPath = targetPath;
+  try {
+    await writeWithRetry(savedPath);
+  } catch (error) {
+    if (!isPermissionDeniedWriteError(error)) {
+      throw error;
+    }
+    savedPath = withExportRetrySuffix(targetPath);
+    await writeWithRetry(savedPath);
+  }
+
+  await onAfterSave?.(savedPath);
+  return savedPath;
 }
 

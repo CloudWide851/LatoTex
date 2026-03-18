@@ -398,7 +398,6 @@ fn upsert_catalog_for_legacy_binding(
     .map_err(|e| e.to_string())?;
     Ok(model_id)
 }
-#[allow(dead_code)]
 pub fn resolve_agent_model(
     db_path: &Path,
     role: &str,
@@ -562,8 +561,6 @@ mod tests {
         assert_eq!(review.map(|item| item.model_id.as_str()), Some(""));
     }
 }
-
-
 
 
 

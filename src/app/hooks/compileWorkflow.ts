@@ -1,82 +1,73 @@
-import { compileWithNativeLatex, compileWithNativeLatexTask } from "../../features/latex/compiler/native";
-import { recordCompile } from "../../shared/api/latex";
-import { runtimeLogWrite } from "../../shared/api/runtime";
-import { readFile } from "../../shared/api/workspace";
-import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
-import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
-import type { NativeLatexCompileTaskStatus } from "../../shared/types/app";
-import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
-import { appendBibliographyResourcesToFileMap } from "./compileBibliographyFiles";
+import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
 import {
-  type CompileInstallProgress,
-  isLikelyFontFamily,
-  normalizeFontName,
-  shouldIncludeCompileFile,
-  shouldDisplayCompileProgress,
-  splitDiagnosticLines,
-} from "./compileWorkflowShared";
-export { shouldDisplayCompileProgress } from "./compileWorkflowShared";
-export type { CompileInstallProgress } from "./compileWorkflowShared";
+  busytexInstallMissingPackage,
+  readFile,
+  recordCompile,
+  runtimeLogWrite,
+} from "../../shared/api/desktop";
+
+const COMPILE_SKIP_EXTENSIONS = new Set([
+  "pdf",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "bmp",
+  "webp",
+  "ico",
+  "svg",
+  "zip",
+  "7z",
+  "rar",
+  "mp4",
+  "mp3",
+  "wav",
+  "ogg",
+  "mov",
+  "avi",
+  "wasm",
+  "dll",
+  "exe",
+  "bin",
+]);
 
 const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/i;
 const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/i;
-const FONTSPEC_MISSING_FONT_RE =
-  /Package\s+fontspec\s+Error:\s*(?:The\s+)?font\s+["'`]?([^"'`]+?)["'`]?\s+(?:cannot be found|not found)/i;
-const FONTSPEC_ERROR_RE = /Package\s+fontspec\s+Error:/i;
 
-const SYSTEM_FONT_FALLBACKS: Record<string, string> = {
-  timesnewroman: "Latin Modern Roman",
-  arial: "Latin Modern Sans",
-  calibri: "Latin Modern Sans",
-  helvetica: "Latin Modern Sans",
-  cambria: "Latin Modern Roman",
-  georgia: "Latin Modern Roman",
-  couriernew: "Latin Modern Mono",
-  consolas: "Latin Modern Mono",
-  verdana: "Latin Modern Sans",
-  tahoma: "Latin Modern Sans",
-};
-
-const DEFAULT_FONT_FALLBACK_BY_COMMAND: Record<string, string> = {
-  setmainfont: "Latin Modern Roman",
-  setsansfont: "Latin Modern Sans",
-  setmonofont: "Latin Modern Mono",
-  newfontfamily: "Latin Modern Roman",
-  setcjkmainfont: "FandolSong-Regular",
-  setcjksansfont: "FandolHei-Regular",
-  setcjkmonofont: "FandolFang-Regular",
-  setcjkfamilyfont: "FandolSong-Regular",
-  newcjkfontfamily: "FandolSong-Regular",
-};
-function pickFallbackFont(missingFont: string, commandName: string): string {
-  const normalizedMissing = normalizeFontName(missingFont);
-  return SYSTEM_FONT_FALLBACKS[normalizedMissing]
-    ?? DEFAULT_FONT_FALLBACK_BY_COMMAND[commandName.toLowerCase()]
-    ?? "Latin Modern Roman";
+function shouldIncludeCompileFile(path: string): boolean {
+  const normalized = path.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  const dot = normalized.lastIndexOf(".");
+  if (dot < 0 || dot === normalized.length - 1) {
+    return true;
+  }
+  const extension = normalized.slice(dot + 1);
+  return !COMPILE_SKIP_EXTENSIONS.has(extension);
 }
+
 export function extractMissingStyleCandidatesFromDiagnostics(diagnostics: string[]): string[] {
   const candidates: string[] = [];
   const seen = new Set<string>();
   for (const line of diagnostics) {
-    for (const text of splitDiagnosticLines(line)) {
-      if (!text) {
-        continue;
+    const text = String(line || "").trim();
+    if (!text) {
+      continue;
+    }
+    const missingMatch = text.match(MISSING_STYLE_RE);
+    if (missingMatch?.[1]) {
+      const style = missingMatch[1].trim();
+      const key = style.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        candidates.push(style);
       }
-      const missingMatch = text.match(MISSING_STYLE_RE);
-      if (missingMatch?.[1]) {
-        const style = missingMatch[1].trim();
-        const key = style.toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          candidates.push(style);
-        }
-      }
-      const packageErrorMatch = text.match(PACKAGE_ERROR_RE);
-      if (packageErrorMatch?.[1]) {
-        const packageName = packageErrorMatch[1].trim().replace(/[^A-Za-z0-9._-]/g, "");
-        if (!packageName || packageName.toLowerCase() === "fontspec") {
-          continue;
-        }
+    }
+    const packageErrorMatch = text.match(PACKAGE_ERROR_RE);
+    if (packageErrorMatch?.[1]) {
+      const packageName = packageErrorMatch[1].trim().replace(/[^A-Za-z0-9._-]/g, "");
+      if (packageName) {
         const style = `${packageName}.sty`;
         const key = style.toLowerCase();
         if (!seen.has(key)) {
@@ -88,193 +79,29 @@ export function extractMissingStyleCandidatesFromDiagnostics(diagnostics: string
   }
   return candidates;
 }
-export function extractMissingSystemFontsFromDiagnostics(diagnostics: string[]): string[] {
-  const output: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of diagnostics) {
-    for (const line of splitDiagnosticLines(raw)) {
-      const match = line.match(FONTSPEC_MISSING_FONT_RE);
-      if (!match?.[1]) {
-        continue;
-      }
-      const family = match[1].trim();
-      const key = normalizeFontName(family);
-      if (!key || seen.has(key) || !isLikelyFontFamily(family)) {
-        continue;
-      }
-      seen.add(key);
-      output.push(family);
-    }
+
+function getBusyTexCachePolicy(): "install-first" | "appdata-only" {
+  if (typeof window === "undefined") {
+    return "install-first";
   }
-  return output;
+  const raw = window.localStorage.getItem("latotex.busytex.cachePolicy");
+  return raw === "appdata-only" ? "appdata-only" : "install-first";
 }
-export function hasFontspecErrorDiagnostics(diagnostics: string[]): boolean {
-  return diagnostics.some((raw) =>
-    splitDiagnosticLines(raw).some((line) => FONTSPEC_ERROR_RE.test(line)),
-  );
-}
-export function resolveFontFallbackCandidates(params: {
-  extractedFonts: string[];
-  configuredFonts?: string[];
-  probeMissingFonts?: string[] | null;
-}): string[] {
-  const seen = new Set<string>();
-  const output: string[] = [];
-  for (const font of [
-    ...params.extractedFonts,
-    ...(params.configuredFonts ?? []),
-    ...(params.probeMissingFonts ?? []),
-  ]) {
-    const value = String(font || '').trim();
-    const key = normalizeFontName(value);
-    if (!key || seen.has(key) || !isLikelyFontFamily(value)) {
-      continue;
-    }
-    seen.add(key);
-    output.push(value);
-  }
-  return output;
-}
-export function extractConfiguredSystemFontsFromSource(source: string): string[] {
-  const seen = new Set<string>();
-  const output: string[] = [];
-  const collect = (family: string) => {
-    const value = String(family || "").trim();
-    const key = normalizeFontName(value);
-    if (!key || seen.has(key) || !isLikelyFontFamily(value)) {
-      return;
-    }
-    seen.add(key);
-    output.push(value);
-  };
-  const setFontRe = /\\set(?:CJK)?(?:main|sans|mono)font(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
-  for (const match of source.matchAll(setFontRe)) {
-    if (match?.[1]) {
-      collect(match[1]);
-    }
-  }
-  const setCjkFamilyRe = /\\setCJKfamilyfont\s*\{[^}]+\}(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
-  for (const match of source.matchAll(setCjkFamilyRe)) {
-    if (match?.[1]) {
-      collect(match[1]);
-    }
-  }
-  const newFontFamilyRe = /\\newfontfamily\s*\\[A-Za-z@]+(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
-  for (const match of source.matchAll(newFontFamilyRe)) {
-    if (match?.[1]) {
-      collect(match[1]);
-    }
-  }
-  const newCjkFontFamilyRe = /\\newCJKfontfamily\s*\\[A-Za-z@]+(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
-  for (const match of source.matchAll(newCjkFontFamilyRe)) {
-    if (match?.[1]) {
-      collect(match[1]);
-    }
-  }
-  return output;
-}
-export function applySystemFontFallbackToSource(
-  source: string,
-  missingFonts: string[],
-): { patchedSource: string; replacements: Array<{ missing: string; fallback: string }> } {
-  if (!missingFonts.length) {
-    return { patchedSource: source, replacements: [] };
-  }
-  const missingByKey = new Map<string, string>();
-  for (const font of missingFonts) {
-    const key = normalizeFontName(font);
-    if (!key || missingByKey.has(key) || !isLikelyFontFamily(font)) {
-      continue;
-    }
-    missingByKey.set(key, font);
-  }
-  if (missingByKey.size === 0) {
-    return { patchedSource: source, replacements: [] };
-  }
-  const replacements = new Map<string, { missing: string; fallback: string }>();
-  const replaceFontCommand = (
-    input: string,
-    regex: RegExp,
-    commandNameResolver: (raw: string) => string,
-  ) =>
-    input.replace(regex, (full, commandPrefix: string, options: string | undefined, family: string) => {
-      const normalizedFamily = normalizeFontName(family);
-      if (!normalizedFamily || !missingByKey.has(normalizedFamily)) {
-        return full;
-      }
-      const missing = missingByKey.get(normalizedFamily) || family;
-      const commandName = commandNameResolver(commandPrefix);
-      const fallback = pickFallbackFont(missing, commandName);
-      const replacementKey = `${missing}|${fallback}`;
-      if (!replacements.has(replacementKey)) {
-        replacements.set(replacementKey, { missing, fallback });
-      }
-      return `${commandPrefix}${options || ""}{${fallback}}`;
-    });
-  let patched = source;
-  patched = replaceFontCommand(
-    patched,
-    /(\\set(?:CJK)?(?:main|sans|mono)font)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
-    (commandPrefix) => commandPrefix.slice(1),
-  );
-  patched = replaceFontCommand(
-    patched,
-    /(\\setCJKfamilyfont\s*\{[^}]+\})(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
-    () => "setCJKfamilyfont",
-  );
-  patched = replaceFontCommand(
-    patched,
-    /(\\newfontfamily\s*\\[A-Za-z@]+)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
-    () => "newfontfamily",
-  );
-  patched = replaceFontCommand(
-    patched,
-    /(\\newCJKfontfamily\s*\\[A-Za-z@]+)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
-    () => "newCJKfontfamily",
-  );
-  return {
-    patchedSource: patched,
-    replacements: Array.from(replacements.values()),
-  };
-}
-export function collectConfiguredSystemFontsFromFileMap(fileMap: Record<string, string>): string[] {
-  return collectConfiguredFontsFromCompileMap(
-    fileMap,
-    extractConfiguredSystemFontsFromSource,
-    normalizeFontName,
-  );
-}
-export function applySystemFontFallbackToFileMap(
-  fileMap: Record<string, string>,
-  mainPath: string,
-  missingFonts: string[],
-): {
-  mainSource: string;
-  overlays: Record<string, string>;
-  replacements: Array<{ missing: string; fallback: string }>;
-  changed: boolean;
-} {
-  return applyFontFallbackToCompileMap(
-    fileMap,
-    mainPath,
-    missingFonts,
-    applySystemFontFallbackToSource,
-  );
-}
+
 function mergeDiagnostics(base: string[], extra: string[]): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const value of [...base, ...extra]) {
-    for (const line of splitDiagnosticLines(value)) {
-      if (!line || seen.has(line)) {
-        continue;
-      }
-      seen.add(line);
-      merged.push(line);
+    const line = String(value || "").trim();
+    if (!line || seen.has(line)) {
+      continue;
     }
+    seen.add(line);
+    merged.push(line);
   }
-  return merged.slice(0, 24);
+  return merged.slice(0, 16);
 }
+
 function formatMessage(
   t: (key: any) => string,
   key: string,
@@ -286,6 +113,7 @@ function formatMessage(
   }
   return template;
 }
+
 async function buildCompileFileMap(
   projectId: string,
   mainPath: string,
@@ -304,55 +132,7 @@ async function buildCompileFileMap(
     const data = await readFile(projectId, filePath);
     fileMap[filePath] = data.content;
   }
-  await appendBibliographyResourcesToFileMap({
-    fileMap,
-    scanFileMap: { ...fileMap, [mainPath]: mainContent },
-    readTextFile: async (path) => (await readFile(projectId, path)).content,
-    shouldIncludeFile: shouldIncludeCompileFile,
-  });
   return fileMap;
-}
-type NativeCompileResult = Awaited<ReturnType<typeof compileWithNativeLatex>>;
-type CompileMode = "sync" | "task";
-
-type CompileExecutorInput = {
-  projectId: string;
-  mainPath: string;
-  mainSource: string;
-  fileMap: Record<string, string>;
-  reason: string;
-};
-
-function localizeCompileStage(
-  t: (key: any) => string,
-  stage?: string | null,
-  fallback?: string | null,
-): string {
-  const key = `workspace.compileStage.${String(stage || "compiling")}`;
-  const resolved = String(t(key as any));
-  if (resolved !== key) {
-    return resolved;
-  }
-  return String(fallback || stage || t("workspace.compile"));
-}
-
-function toCompileTaskProgress(
-  status: NativeLatexCompileTaskStatus,
-  t: (key: any) => string,
-): CompileInstallProgress {
-  const percent = Math.max(0, Math.min(100, Number(status.percent ?? 0)));
-  const currentPackage = status.currentItem ?? status.latestLogLine ?? null;
-  return {
-    active: true,
-    percent,
-    stage: String(status.stage || "compiling"),
-    currentPackage,
-    completed: Math.max(0, Math.min(100, Math.round(percent))),
-    total: 100,
-    message: localizeCompileStage(t, status.stage, status.message ?? null),
-    detail: status.latestLogLine ?? null,
-    taskId: status.taskId,
-  };
 }
 
 export async function runCompilePass(params: {
@@ -360,175 +140,141 @@ export async function runCompilePass(params: {
   mainPath: string;
   mainContent: string;
   fileList: string[];
+  currentPdfUrl: string | null;
   updatePreview: boolean;
   emitToast: boolean;
   t: (key: any) => string;
   setLastCompileFailed: (value: boolean) => void;
   setCompileDiagnostics: (value: string[]) => void;
   setPdfUrl: (value: string | null) => void;
-  setCompiledPdfRelativePath?: (value: string | null) => void;
+  setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
-  setCompileInstallProgress?: (value: CompileInstallProgress | null) => void;
-  compileMode?: CompileMode;
 }) {
   const {
     projectId,
     mainPath,
     mainContent,
     fileList,
+    currentPdfUrl,
     updatePreview,
     emitToast,
     t,
     setLastCompileFailed,
     setCompileDiagnostics,
     setPdfUrl,
-    setCompiledPdfRelativePath,
+    setCompiledPdfBytes,
     setPreferCompiledPreview,
     setToast,
-    setCompileInstallProgress,
-    compileMode = "sync",
   } = params;
+
   const baseFileMap = await buildCompileFileMap(projectId, mainPath, mainContent, fileList);
-  const baseCompileMap: Record<string, string> = {
-    ...baseFileMap,
-    [mainPath]: mainContent,
-  };
-  const fontOverlayFileMap: Record<string, string> = {};
-  const progressNotes: string[] = [];
+  const overlayFileMap: Record<string, string> = {};
+  const installNotes: string[] = [];
+  const attemptedPackages = new Set<string>();
+  let result = await compileWithBusyTeX(mainContent, baseFileMap, mainPath);
 
-  const runNativeCompile = async (
-    input: CompileExecutorInput,
-  ): Promise<NativeCompileResult> => {
-    if (compileMode === "task") {
-      return compileWithNativeLatexTask({
-        ...input,
-        onProgress: (status) => {
-          setCompileInstallProgress?.(toCompileTaskProgress(status, t));
-          const nextDiagnostics = mergeDiagnostics(
-            status.diagnostics ?? [],
-            status.latestLogLine ? [status.latestLogLine] : [],
-          );
-          if (nextDiagnostics.length > 0) {
-            setCompileDiagnostics(nextDiagnostics);
-          }
-        },
-      });
-    }
-    return compileWithNativeLatex(input);
+  const emitInstallProgress = (line: string) => {
+    installNotes.push(line);
+    setCompileDiagnostics(mergeDiagnostics(result.diagnostics, installNotes));
   };
 
-  let compileSource = mainContent;
-  let result = await runNativeCompile({
-    projectId,
-    mainPath,
-    mainSource: compileSource,
-    fileMap: baseCompileMap,
-    reason: "editor.compile",
-  });
-
-  const emitProgress = (message: string, percent = 52) => {
-    progressNotes.push(message);
-    setCompileDiagnostics(mergeDiagnostics(result.diagnostics, progressNotes));
-    setCompileInstallProgress?.({
-      active: true,
-      percent,
-      stage: "retrying",
-      currentPackage: null,
-      completed: progressNotes.length,
-      total: Math.max(progressNotes.length, 1),
-      message,
-    });
-  };
-
-  try {
-    const mergedCompileMap = { ...baseCompileMap, ...fontOverlayFileMap };
-    const extractedFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
-    const hasFontspecError = hasFontspecErrorDiagnostics(result.diagnostics);
-    const configuredFonts = hasFontspecError
-      ? collectConfiguredSystemFontsFromFileMap(mergedCompileMap)
-      : [];
-    const probeCandidates = resolveFontFallbackCandidates({
-      extractedFonts,
-      configuredFonts,
-    });
-    let probeMissingFonts: string[] = [];
-    if (hasFontspecError && probeCandidates.length > 0) {
-      try {
-        const probe = await runtimeSystemFontProbe(probeCandidates);
-        probeMissingFonts = probe.missingFonts;
-      } catch {
-        // Keep heuristic fallback when font probe is unavailable.
-      }
-    }
-    const fallbackFonts = resolveFontFallbackCandidates({
-      extractedFonts,
-      configuredFonts,
-      probeMissingFonts,
-    });
-    if ((fallbackFonts.length > 0 || hasFontspecError) && result.status !== "success") {
-      const fallback = applySystemFontFallbackToFileMap(mergedCompileMap, mainPath, fallbackFonts);
-      if (fallback.changed && fallback.replacements.length > 0) {
-        const replacementSummary = fallback.replacements
-          .map((item) => `${item.missing} -> ${item.fallback}`)
-          .join(", ");
-        emitProgress(
-          formatMessage(t, "workspace.compileAssist.nativeFontFallbackApplied", {
-            details: replacementSummary,
-          }),
-          58,
-        );
-        compileSource = fallback.mainSource;
-        Object.assign(fontOverlayFileMap, fallback.overlays);
-        result = await runNativeCompile({
-          projectId,
-          mainPath,
-          mainSource: compileSource,
-          fileMap: { ...baseCompileMap, ...fontOverlayFileMap },
-          reason: "font-fallback-retry",
-        });
-      } else if (fallbackFonts.length > 0 || hasFontspecError) {
-        emitProgress(
-          formatMessage(t, "workspace.compileAssist.nativeFontFallbackUnavailable", {
-            fonts: fallbackFonts.length > 0 ? fallbackFonts.join(", ") : "fontspec",
-          }),
-          40,
-        );
-      }
-    }
-
-    if (progressNotes.length > 0) {
-      result = {
-        ...result,
-        diagnostics: mergeDiagnostics(result.diagnostics, progressNotes),
-      };
-    }
-    setLastCompileFailed(result.status !== "success");
-    setCompileDiagnostics(result.diagnostics);
-    await runtimeLogWrite(
-      result.status === "success" ? "INFO" : "ERROR",
-      `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, engine=${result.engine}, durationMs=${result.durationMs}`,
+  for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
+    const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
+      (style) => !attemptedPackages.has(style.toLowerCase()),
     );
-    await recordCompile({
-      projectId,
-      mainFile: mainPath,
-      status: result.status,
-      diagnostics: result.diagnostics,
-      durationMs: result.durationMs,
-    });
-    if (result.status === "success" && result.pdfRelativePath && updatePreview) {
-      setCompiledPdfRelativePath?.(result.pdfRelativePath);
-      setPdfUrl(buildWorkspacePreviewUrl(projectId, result.pdfRelativePath, Date.now()));
-      setPreferCompiledPreview(true);
+    if (missingStyles.length === 0) {
+      break;
     }
-    if (emitToast) {
-      setToast({
-        type: result.status === "success" ? "info" : "error",
-        message: result.status === "success" ? t("toast.compileSuccess") : t("toast.compileFailed"),
-      });
+
+    let installedAny = false;
+    for (const missingStyle of missingStyles) {
+      attemptedPackages.add(missingStyle.toLowerCase());
+      emitInstallProgress(
+        formatMessage(t, "workspace.compileAssist.busytexDownloadStart", {
+          package: missingStyle,
+        }),
+      );
+      try {
+        const install = await busytexInstallMissingPackage({
+          styleFile: missingStyle,
+          policy: getBusyTexCachePolicy(),
+        });
+        if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
+          emitInstallProgress(
+            formatMessage(t, "workspace.compileAssist.busytexDownloadNoFiles", {
+              package: missingStyle,
+            }),
+          );
+          continue;
+        }
+        for (const file of install.overlayFiles) {
+          const relativePath = String(file.path || "").trim();
+          if (!relativePath) {
+            continue;
+          }
+          overlayFileMap[relativePath] = String(file.content || "");
+        }
+        installedAny = true;
+        emitInstallProgress(
+          formatMessage(t, "workspace.compileAssist.busytexDownloadSuccess", {
+            package: missingStyle,
+            source: install.sourceUrl || "cache",
+          }),
+        );
+      } catch (error) {
+        emitInstallProgress(
+          formatMessage(t, "workspace.compileAssist.busytexDownloadFailed", {
+            package: missingStyle,
+            reason: String(error),
+          }),
+        );
+      }
     }
-    return result;
-  } finally {
-    setCompileInstallProgress?.(null);
+
+    if (!installedAny) {
+      break;
+    }
+
+    const mergedFileMap = { ...baseFileMap, ...overlayFileMap };
+    result = await compileWithBusyTeX(mainContent, mergedFileMap, mainPath);
   }
+
+  if (installNotes.length > 0) {
+    result = {
+      ...result,
+      diagnostics: mergeDiagnostics(result.diagnostics, installNotes),
+    };
+  }
+
+  setLastCompileFailed(result.status !== "success");
+  setCompileDiagnostics(result.diagnostics);
+  await runtimeLogWrite(
+    result.status === "success" ? "INFO" : "ERROR",
+    `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
+  );
+  await recordCompile({
+    projectId,
+    mainFile: mainPath,
+    status: result.status,
+    diagnostics: result.diagnostics,
+    durationMs: result.durationMs,
+  });
+  if (result.status === "success" && result.pdfBytes && updatePreview) {
+    if (currentPdfUrl) {
+      URL.revokeObjectURL(currentPdfUrl);
+    }
+    const normalizedBytes = Uint8Array.from(result.pdfBytes);
+    const url = URL.createObjectURL(new Blob([normalizedBytes], { type: "application/pdf" }));
+    setPdfUrl(url);
+    setCompiledPdfBytes(normalizedBytes);
+    setPreferCompiledPreview(true);
+  }
+  if (emitToast) {
+    setToast({
+      type: result.status === "success" ? "info" : "error",
+      message: result.status === "success" ? t("toast.compileSuccess") : t("toast.compileFailed"),
+    });
+  }
+  return result;
 }
