@@ -1,5 +1,6 @@
 import { Check, ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Select } from "../../../components/ui/select";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
@@ -330,15 +331,16 @@ export function WorkspaceShareControl(props: {
                       placeholder={t("share.sessionNamePlaceholder")}
                       disabled={shareBusy}
                     />
-                    <select
-                      className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                    <Select
+                      uiSize="sm"
+                      wrapperClassName="w-[138px] shrink-0"
                       value={activeMode}
                       onChange={(event) => onShareModeChange(event.target.value as ShareMode)}
                       disabled={shareBusy}
                     >
                       <option value="remote">{t("share.mode.remote")}</option>
                       <option value="local">{t("share.mode.local")}</option>
-                    </select>
+                    </Select>
                     <button
                       className="rounded border border-primary-600 bg-primary-600 px-3 py-1.5 text-xs text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-55"
                       disabled={shareBusy || !isTexSelected}

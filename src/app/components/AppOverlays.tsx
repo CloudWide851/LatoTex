@@ -4,6 +4,7 @@ import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
 import { ModelModal } from "./ModelModal";
+import { normalizeLogLevel, resolveLineTone } from "./logTone";
 import type {
   AppSettings,
   ModelCatalogItem,
@@ -112,11 +113,46 @@ export function AppOverlays(props: {
     t,
   } = props;
 
+  const eventItems = events.length > 0
+    ? events
+        .slice(-160)
+        .reverse()
+        .map((event) => {
+          const formatted = JSON.stringify(
+            {
+              createdAt: event.createdAt,
+              role: event.role,
+              kind: event.kind,
+              payload: event.payload,
+            },
+            null,
+            2,
+          );
+          const signal = `${event.kind} ${event.role} ${formatted}`;
+          return {
+            text: formatted,
+            tone: resolveLineTone(signal),
+            level: normalizeLogLevel(event.kind, signal),
+          };
+        })
+    : [];
+
+  const diagnosticsItems = compileDiagnostics.length > 0
+    ? compileDiagnostics.map((line) => {
+        const formatted = tryFormatJson(line) ?? line;
+        return {
+          text: formatted,
+          tone: resolveLineTone(formatted),
+          level: normalizeLogLevel(formatted, formatted),
+        };
+      })
+    : [];
+
   return (
     <>
       {overlay === "logs" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
-          <div className="grid h-[72vh] w-full max-w-3xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft">
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/60 p-4 motion-fade-in">
+          <div className="grid h-[74vh] w-full max-w-4xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-soft">
             <div className="flex items-center justify-between border-b border-slate-200 px-4">
               <h3 className="text-sm font-semibold text-slate-800">{t("preview.title")}</h3>
               <button className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={onOverlayClose}>
@@ -126,7 +162,7 @@ export function AppOverlays(props: {
             <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2">
               <button
                 className={cn(
-                  "rounded border px-2 py-1 text-xs",
+                  "rounded-md border px-2.5 py-1 text-xs",
                   logsTab === "events"
                     ? "border-primary-600 bg-primary-600 text-white"
                     : "border-slate-300 bg-white text-slate-600",
@@ -137,7 +173,7 @@ export function AppOverlays(props: {
               </button>
               <button
                 className={cn(
-                  "rounded border px-2 py-1 text-xs",
+                  "rounded-md border px-2.5 py-1 text-xs",
                   logsTab === "status"
                     ? "border-primary-600 bg-primary-600 text-white"
                     : "border-slate-300 bg-white text-slate-600",
@@ -147,45 +183,45 @@ export function AppOverlays(props: {
                 {t("preview.diagnostics")}
               </button>
             </div>
-            <div className="overflow-auto p-4">
+            <div className="overflow-auto bg-slate-950 p-4">
               {logsTab === "events" ? (
-                <ul className="space-y-2 text-xs text-slate-700">
-                  {(events.length > 0
-                    ? events
-                        .slice(-160)
-                        .reverse()
-                        .map((event) =>
-                          JSON.stringify(
-                            {
-                              createdAt: event.createdAt,
-                              role: event.role,
-                              kind: event.kind,
-                              payload: event.payload,
-                            },
-                            null,
-                            2,
-                          ),
-                        )
-                    : [t("preview.none")]).map((line, index) => (
-                    <li
-                      key={`${line}-${index}`}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-                    >
-                      <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
-                        {line}
-                      </pre>
-                    </li>
-                  ))}
-                </ul>
+                eventItems.length === 0 ? (
+                  <div className="text-xs text-slate-300">{t("preview.none")}</div>
+                ) : (
+                  <ul className="space-y-2 text-xs">
+                    {eventItems.map((item, index) => (
+                      <li
+                        key={`${item.level}-${index}`}
+                        className={cn("rounded-lg border px-3 py-2", item.tone.rowClass)}
+                      >
+                        <div className="mb-1 text-[10px] uppercase tracking-[0.12em]">
+                          <span className={cn("inline-flex rounded-full px-2 py-0.5 font-semibold", item.tone.badgeClass)}>
+                            {item.level}
+                          </span>
+                        </div>
+                        <pre className={cn("whitespace-pre-wrap break-all font-mono text-[11px] leading-5", item.tone.textClass)}>
+                          {item.text}
+                        </pre>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : diagnosticsItems.length === 0 ? (
+                <div className="text-xs text-slate-300">{t("preview.none")}</div>
               ) : (
-                <ul className="space-y-2 text-xs text-slate-700">
-                  {(compileDiagnostics.length > 0 ? compileDiagnostics : [t("preview.none")]).map((line, index) => (
+                <ul className="space-y-2 text-xs">
+                  {diagnosticsItems.map((item, index) => (
                     <li
-                      key={`${line}-${index}`}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                      key={`${item.level}-${index}`}
+                      className={cn("rounded-lg border px-3 py-2", item.tone.rowClass)}
                     >
-                      <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-slate-700">
-                        {tryFormatJson(line) ?? line}
+                      <div className="mb-1 text-[10px] uppercase tracking-[0.12em]">
+                        <span className={cn("inline-flex rounded-full px-2 py-0.5 font-semibold", item.tone.badgeClass)}>
+                          {item.level}
+                        </span>
+                      </div>
+                      <pre className={cn("whitespace-pre-wrap break-all font-mono text-[11px] leading-5", item.tone.textClass)}>
+                        {item.text}
                       </pre>
                     </li>
                   ))}
@@ -210,7 +246,7 @@ export function AppOverlays(props: {
       )}
 
       {deleteIntent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
           <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
             <h3 className="text-sm font-semibold text-slate-800">{t("explorer.deleteConfirmTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{deleteIntent.path}</p>
@@ -236,7 +272,7 @@ export function AppOverlays(props: {
       )}
 
       {integrityIssue && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
           <div className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
             <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">
@@ -262,7 +298,7 @@ export function AppOverlays(props: {
       )}
 
       {closeBehaviorDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
           <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
             <h3 className="text-sm font-semibold text-slate-800">
               {t("window.closeConfirmTitle")}
@@ -329,7 +365,7 @@ export function AppOverlays(props: {
       {toast && (
         <div
           className={cn(
-            "fixed bottom-4 right-4 z-40 rounded-md px-4 py-2 text-sm text-white shadow-soft",
+            "fixed bottom-4 right-4 z-[440] rounded-md px-4 py-2 text-sm text-white shadow-soft",
             toast.type === "info" ? "bg-emerald-600" : "bg-rose-600",
           )}
         >
@@ -339,4 +375,3 @@ export function AppOverlays(props: {
     </>
   );
 }
-

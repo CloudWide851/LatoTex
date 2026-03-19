@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./annotationPalette";
 import type { AnnotationTextStylePreset } from "./annotationModel";
+import { Select } from "../../../components/ui/select";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type TranslationFn = (key: any) => string;
@@ -357,8 +358,8 @@ export function LibraryPdfToolSidebar(props: {
 
               <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-[11px] text-slate-600">
                 <span>{t("library.viewer.menu.highlightWidth")}</span>
-                <select
-                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-[11px]"
+                <Select
+                  uiSize="sm"
                   value={String(highlightWidth)}
                   onChange={(event) => onHighlightWidthChange(Number(event.target.value))}
                 >
@@ -367,13 +368,13 @@ export function LibraryPdfToolSidebar(props: {
                       {value}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-[11px] text-slate-600">
                 <span>{t("library.viewer.menu.highlightOpacity")}</span>
-                <select
-                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-[11px]"
+                <Select
+                  uiSize="sm"
                   value={String(highlightOpacity)}
                   onChange={(event) => onHighlightOpacityChange(Number(event.target.value))}
                 >
@@ -382,7 +383,7 @@ export function LibraryPdfToolSidebar(props: {
                       {Math.round(value * 100)}%
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
           ) : (
@@ -405,8 +406,8 @@ export function LibraryPdfToolSidebar(props: {
 
               <label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-[11px] text-slate-600">
                 <span>{t("library.viewer.menu.textboxStyle")}</span>
-                <select
-                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-[11px]"
+                <Select
+                  uiSize="sm"
                   value={textBoxStylePreset}
                   onChange={(event) =>
                     onTextBoxStylePresetChange(event.target.value as AnnotationTextStylePreset)
@@ -415,7 +416,7 @@ export function LibraryPdfToolSidebar(props: {
                   <option value="minimal">{t("library.viewer.textboxStyle.minimal")}</option>
                   <option value="boxed">{t("library.viewer.textboxStyle.boxed")}</option>
                   <option value="note">{t("library.viewer.textboxStyle.note")}</option>
-                </select>
+                </Select>
               </label>
             </div>
           )}

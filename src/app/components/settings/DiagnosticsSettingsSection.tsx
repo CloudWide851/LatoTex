@@ -1,36 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "../../../i18n";
+import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import type { RuntimeLogEntry, RuntimeLogInfo } from "../../../shared/types/app";
+import { normalizeLogLevel, resolveRuntimeLogTone } from "../logTone";
 
 type TranslationFn = (key: any) => string;
 
-function resolveLineTone(entry: RuntimeLogEntry): string {
-  const upper = entry.level.toUpperCase();
-  const lowerMessage = entry.message.toLowerCase();
-  if (upper.includes("ERROR") || upper.includes("CRASH")) {
-    return "text-rose-300";
-  }
-  if (upper.includes("WARN")) {
-    return "text-amber-300";
-  }
-  if (
-    lowerMessage.includes("success") ||
-    lowerMessage.includes("completed") ||
-    lowerMessage.includes("ok=true")
-  ) {
-    return "text-emerald-300";
-  }
-  return "text-slate-200";
-}
-
-function renderConsoleLine(entry: RuntimeLogEntry): string {
-  const timestamp = entry.timestamp?.trim() || "-";
-  const level = entry.level?.trim().toUpperCase() || "INFO";
-  const message = entry.message?.trim() || entry.raw?.trim() || "-";
-  return `[${timestamp}] [${level}] ${message}`;
+function resolveConsoleMessage(entry: RuntimeLogEntry): string {
+  const message = entry.message?.trim() || entry.raw?.trim();
+  return message && message.length > 0 ? message : "-";
 }
 
 function normalizeLogDateInput(value: string): string {
@@ -133,12 +114,13 @@ export function DiagnosticsSettingsSection(props: {
       return true;
     });
   }, [logFrom, logKeyword, logLevelFilter, logTo, runtimeLogs]);
+
   const datePlaceholder = locale === "zh-CN" ? "YYYY/MM/DD HH:mm:ss" : "YYYY-MM-DD HH:mm:ss";
   const hasActiveFilter = Boolean(logLevelFilter !== "ALL" || logKeyword.trim() || normalizeLogDateInput(logFrom) || normalizeLogDateInput(logTo));
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 px-3 py-2 text-[11px] text-slate-600">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden">
           <span className="truncate">
             {t("settings.currentLog")}: <span className="font-mono">{sessionLogName}</span>
@@ -159,11 +141,11 @@ export function DiagnosticsSettingsSection(props: {
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+      <div className="rounded-lg border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={logLevelFilter}
-            wrapperClassName="w-[180px] shrink-0"
+            wrapperClassName="w-[190px] shrink-0"
             className="text-sm"
             onChange={(event) => setLogLevelFilter(event.target.value)}
             aria-label={t("settings.logFilterLevel")}
@@ -214,7 +196,7 @@ export function DiagnosticsSettingsSection(props: {
 
       <div
         ref={consoleRef}
-        className="hide-scrollbar h-full min-h-0 flex-1 overflow-auto rounded-md border border-slate-300 bg-slate-950 p-3 font-mono text-[11px] leading-5"
+        className="h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-3"
         onScroll={(event) => {
           const node = event.currentTarget;
           const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
@@ -226,21 +208,33 @@ export function DiagnosticsSettingsSection(props: {
         ) : filteredRuntimeLogs.length === 0 ? (
           <div className="text-slate-400">{t("settings.logViewerEmpty")}</div>
         ) : (
-          <div className="space-y-1">
-            {filteredRuntimeLogs.map((entry, index) => (
-              <pre
-                key={`${entry.timestamp}-${entry.level}-${index}`}
-                className={`whitespace-pre-wrap break-all ${resolveLineTone(entry)}`}
-              >
-                {renderConsoleLine(entry)}
-              </pre>
-            ))}
+          <div className="space-y-1.5">
+            {filteredRuntimeLogs.map((entry, index) => {
+              const tone = resolveRuntimeLogTone(entry);
+              const label = normalizeLogLevel(entry.level, entry.message || entry.raw);
+              return (
+                <article
+                  key={`${entry.timestamp}-${entry.level}-${index}`}
+                  className={cn("rounded-lg border px-2.5 py-2 shadow-[0_10px_20px_rgba(2,6,23,0.22)]", tone.rowClass)}
+                >
+                  <div className="mb-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em]">
+                    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 font-semibold", tone.badgeClass)}>
+                      {label}
+                    </span>
+                    <span className="font-mono text-slate-400">{entry.timestamp || "-"}</span>
+                  </div>
+                  <pre className={cn("whitespace-pre-wrap break-all font-mono text-[11px] leading-5", tone.textClass)}>
+                    {resolveConsoleMessage(entry)}
+                  </pre>
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
 
       {clearLogConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4">
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
           <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
             <h3 className="text-sm font-semibold text-slate-800">{t("settings.logClearModalTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{t("settings.logClearModalDesc")}</p>

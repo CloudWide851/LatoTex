@@ -1,4 +1,5 @@
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Trash2, Underline } from "lucide-react";
+import { Select } from "../../../components/ui/select";
 
 const FONT_FAMILIES = [
   "Segoe UI",
@@ -43,24 +44,24 @@ export function PdfTextBoxContextMenu(props: {
     >
       <div className="mb-2 text-xs font-semibold text-slate-700">{t("library.viewer.textbox.menu.title")}</div>
       <div className="mb-2 grid grid-cols-[1fr_92px] gap-2">
-        <select
-          className="h-8 rounded border border-slate-300 bg-white px-2 text-xs"
+        <Select
+          uiSize="sm"
           value={style.fontFamily}
           onChange={(event) => onChangeStyle({ fontFamily: event.target.value })}
         >
           {FONT_FAMILIES.map((family) => (
             <option key={family} value={family}>{family}</option>
           ))}
-        </select>
-        <select
-          className="h-8 rounded border border-slate-300 bg-white px-2 text-xs"
+        </Select>
+        <Select
+          uiSize="sm"
           value={String(style.fontSize)}
           onChange={(event) => onChangeStyle({ fontSize: Number(event.target.value) })}
         >
           {FONT_SIZES.map((size) => (
             <option key={size} value={size}>{size}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="mb-2 flex items-center gap-1">

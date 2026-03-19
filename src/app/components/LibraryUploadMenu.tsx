@@ -7,6 +7,7 @@ import {
   dropdownSurfaceClassName,
   useDropdownDismiss,
 } from "../../components/ui/dropdown";
+import { Select } from "../../components/ui/select";
 
 type TranslationFn = (key: any) => string;
 
@@ -101,14 +102,15 @@ export function LibraryUploadMenu(props: {
         <div className={dropdownSurfaceClassName("absolute right-0 mt-1 w-72 p-2") }>
           {linkKind === "zotero-sync" ? (
             <div className="space-y-2">
-              <select
-                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-primary-500"
+              <Select
+                uiSize="sm"
+                className="w-full"
                 value={zoteroScope}
                 onChange={(event) => setZoteroScope(event.target.value as "users" | "groups")}
               >
                 <option value="users">{t("library.zoteroScopeUsers")}</option>
                 <option value="groups">{t("library.zoteroScopeGroups")}</option>
-              </select>
+              </Select>
               <input
                 className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-primary-500"
                 value={zoteroOwnerId}

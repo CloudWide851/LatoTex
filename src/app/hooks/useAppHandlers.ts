@@ -140,10 +140,11 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     if (!isTauriRuntime) {
       return;
     }
-    if ((action === "toggle" || action === "close") && windowActionBusy) {
+    const closeBehavior = settings?.uiPrefs?.closeBehavior ?? "ask";
+    const shouldTrackBusy = action === "toggle" || (action === "close" && closeBehavior !== "ask");
+    if (shouldTrackBusy && windowActionBusy) {
       return;
     }
-    const shouldTrackBusy = action === "toggle" || action === "close";
     if (shouldTrackBusy) {
       setWindowActionBusy(true);
     }
@@ -164,7 +165,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         }
         return;
       }
-      const closeBehavior = settings?.uiPrefs?.closeBehavior ?? "ask";
       if (closeBehavior === "exit") {
         await runWindowCloseBehavior("exit");
         return;
@@ -191,6 +191,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setIsMaximized,
     setToast,
     setWindowActionBusy,
+    settings?.uiPrefs?.closeBehavior,
     t,
     windowActionBusy,
     requestCloseBehaviorDecision,

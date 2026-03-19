@@ -38,14 +38,16 @@ export function useDropdownDismiss(params: {
 
 export function dropdownSurfaceClassName(extraClassName?: string) {
   return cn(
-    "z-[240] overflow-auto rounded-lg border border-slate-300 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.18)]",
+    "z-[260] overflow-auto rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 shadow-[0_18px_44px_rgba(15,23,42,0.18)]",
+    "origin-top motion-fade-in",
     extraClassName,
   );
 }
 
 export function dropdownItemClassName(extraClassName?: string) {
   return cn(
-    "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 transition hover:bg-slate-100",
+    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-slate-700 transition",
+    "hover:bg-slate-100 focus-visible:bg-slate-100",
     extraClassName,
   );
 }

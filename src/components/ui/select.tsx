@@ -10,15 +10,15 @@ export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, wrapperClassName, children, tone = "light", uiSize = "default", ...props }, ref) => (
-    <div className={cn("relative w-full", wrapperClassName)}>
+    <div className={cn("group relative w-full", wrapperClassName)}>
       <select
         ref={ref}
         className={cn(
           "w-full appearance-none rounded-lg border px-3 pr-9 font-medium leading-none outline-none transition",
           uiSize === "sm" ? "h-8 text-xs" : "h-10 text-sm",
           tone === "dark"
-            ? "border-slate-600 bg-slate-900/95 text-slate-100 shadow-[0_10px_22px_rgba(2,6,23,0.32)] hover:border-slate-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/30"
-            : "border-slate-300 bg-white text-slate-800 shadow-[0_8px_18px_rgba(15,23,42,0.09)] hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
+            ? "border-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-100 shadow-[0_10px_22px_rgba(2,6,23,0.32)] hover:border-slate-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/30"
+            : "border-slate-300 bg-gradient-to-b from-white to-slate-50 text-slate-800 shadow-[0_1px_0_rgba(255,255,255,0.5),0_10px_22px_rgba(15,23,42,0.09)] hover:border-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-200",
           "disabled:cursor-not-allowed disabled:opacity-60",
           className,
         )}
@@ -28,13 +28,14 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       </select>
       <ChevronDown
         className={cn(
-          "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2",
+          "pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition",
           uiSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
-          tone === "dark" ? "text-zinc-400" : "text-slate-500"
+          tone === "dark" ? "text-zinc-400" : "text-slate-500",
+          "group-focus-within:text-primary-500",
         )}
       />
     </div>
-  )
+  ),
 );
 Select.displayName = "Select";
 
