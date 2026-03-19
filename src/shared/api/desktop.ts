@@ -49,6 +49,7 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   RuntimeLogInfo,
+  RuntimeLogSessionListResponse,
   RuntimeMemorySnapshot,
   RuntimeLogReadFilters,
   RuntimeLogReadResponse,
@@ -520,6 +521,10 @@ export function runtimeLogWrite(level: string, message: string) {
 
 export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
   return invoke<RuntimeLogInfo>("runtime_log_info");
+}
+
+export function runtimeLogListSessions(): Promise<RuntimeLogSessionListResponse> {
+  return invoke<RuntimeLogSessionListResponse>("runtime_log_list_sessions");
 }
 
 export function runtimeMemorySnapshot(): Promise<RuntimeMemorySnapshot> {

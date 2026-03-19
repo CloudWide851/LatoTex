@@ -13,6 +13,7 @@ import type {
   ModelTestResult,
   RuntimeLogEntry,
   RuntimeLogInfo,
+  RuntimeLogSession,
 } from "../../shared/types/app";
 import {
   DEFAULT_PANEL_LAYOUT,
@@ -56,6 +57,8 @@ export function SettingsPanel(props: {
   runtimeLogs: RuntimeLogEntry[];
   runtimeLogLoading: boolean;
   sessionLogName: string;
+  runtimeLogSessions: RuntimeLogSession[];
+  selectedLogFileName: string;
   activeModelCatalog: ModelCatalogItem[];
   modelTestBusy: boolean;
   modelTestActiveId: string | null;
@@ -65,7 +68,12 @@ export function SettingsPanel(props: {
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
   onOpenModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
-  onReloadLogs: (options?: { silent?: boolean }) => Promise<void>;
+  onReloadLogs: (options?: {
+    silent?: boolean;
+    logFileName?: string;
+    refreshSessions?: boolean;
+  }) => Promise<void>;
+  onSelectLogFile: (fileName: string) => Promise<void>;
   onClearCurrentLog: () => Promise<void>;
   onTestModel: (modelId: string) => void;
   onTestAllModels: () => void;
@@ -83,6 +91,8 @@ export function SettingsPanel(props: {
     runtimeLogs,
     runtimeLogLoading,
     sessionLogName,
+    runtimeLogSessions,
+    selectedLogFileName,
     activeModelCatalog,
     modelTestBusy,
     modelTestActiveId,
@@ -93,6 +103,7 @@ export function SettingsPanel(props: {
     onBusyTexCachePolicyChange,
     onOpenModelModal,
     onReloadLogs,
+    onSelectLogFile,
     onClearCurrentLog,
     onTestModel,
     onTestAllModels,
@@ -575,8 +586,11 @@ export function SettingsPanel(props: {
             runtimeLogs={runtimeLogs}
             runtimeLogLoading={runtimeLogLoading}
             sessionLogName={sessionLogName}
+            runtimeLogSessions={runtimeLogSessions}
+            selectedLogFileName={selectedLogFileName}
             locale={locale}
             onReloadLogs={onReloadLogs}
+            onSelectLogFile={onSelectLogFile}
             onClearCurrentLog={onClearCurrentLog}
             t={t}
           />

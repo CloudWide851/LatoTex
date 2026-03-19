@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   gitCommitFiles,
   gitCheckout,
@@ -12,6 +12,7 @@ import {
   gitStatus,
   gitUnstage,
   runtimeLogClearCurrentSession,
+  runtimeLogListSessions,
   runtimeLogRead,
 } from "../../shared/api/desktop";
 import { clampLayout, DEFAULT_PANEL_LAYOUT } from "../app-config";
@@ -72,43 +73,126 @@ export function useAppPanelNodes(params: any) {
     return parts[parts.length - 1] || runtimeInfo.sessionLogFile;
   }, [runtimeInfo?.sessionLogFile]);
 
-  const reloadRuntimeLogs = useCallback(async (options?: { silent?: boolean }) => {
+  const [runtimeLogSessions, setRuntimeLogSessions] = useState<any[]>([]);
+  const [selectedRuntimeLogFile, setSelectedRuntimeLogFile] = useState("");
+
+  useEffect(() => {
+    if (sessionLogName === "-") {
+      return;
+    }
+    setSelectedRuntimeLogFile((prev) => (prev.trim().length > 0 ? prev : sessionLogName));
+  }, [sessionLogName]);
+
+  const applyRuntimeLogEntries = useCallback((nextEntries: any[]) => {
+    setRuntimeLogs((prev: any[]) => {
+      if (prev.length === nextEntries.length && prev.length > 0) {
+        const prevLast = prev[prev.length - 1];
+        const nextLast = nextEntries[nextEntries.length - 1];
+        const prevFirst = prev[0];
+        const nextFirst = nextEntries[0];
+        if (
+          prevLast?.raw === nextLast?.raw &&
+          prevLast?.timestamp === nextLast?.timestamp &&
+          prevLast?.level === nextLast?.level &&
+          prevFirst?.raw === nextFirst?.raw &&
+          prevFirst?.timestamp === nextFirst?.timestamp &&
+          prevFirst?.level === nextFirst?.level
+        ) {
+          return prev;
+        }
+      }
+      if (prev.length === 0 && nextEntries.length === 0) {
+        return prev;
+      }
+      return nextEntries;
+    });
+  }, [setRuntimeLogs]);
+
+  const loadRuntimeLogSessions = useCallback(async (showToast: boolean) => {
+    try {
+      const response = await runtimeLogListSessions();
+      const nextSessions = Array.isArray(response.sessions) ? response.sessions : [];
+      setRuntimeLogSessions(nextSessions);
+      return nextSessions;
+    } catch (error) {
+      if (showToast) {
+        setToast({ type: "error", message: String(error) });
+      }
+      return [];
+    }
+  }, [setToast]);
+
+  const reloadRuntimeLogs = useCallback(async (options?: {
+    silent?: boolean;
+    logFileName?: string;
+    refreshSessions?: boolean;
+  }) => {
     const silent = options?.silent ?? false;
     if (!silent && runtimeLogs.length === 0) {
       setRuntimeLogLoading(true);
     }
+
+    let targetLogFile = "";
     try {
-      const response = await runtimeLogRead({ limit: 600 });
-      setRuntimeLogs((prev: any[]) => {
-        if (prev.length === response.entries.length && prev.length > 0) {
-          const prevLast = prev[prev.length - 1];
-          const nextLast = response.entries[response.entries.length - 1];
-          const prevFirst = prev[0];
-          const nextFirst = response.entries[0];
-          if (
-            prevLast?.raw === nextLast?.raw &&
-            prevLast?.timestamp === nextLast?.timestamp &&
-            prevLast?.level === nextLast?.level &&
-            prevFirst?.raw === nextFirst?.raw &&
-            prevFirst?.timestamp === nextFirst?.timestamp &&
-            prevFirst?.level === nextFirst?.level
-          ) {
-            return prev;
-          }
-        }
-        if (prev.length === 0 && response.entries.length === 0) {
-          return prev;
-        }
-        return response.entries;
+      let sessions = runtimeLogSessions;
+      const refreshSessions = options?.refreshSessions ?? sessions.length === 0;
+      if (refreshSessions) {
+        sessions = await loadRuntimeLogSessions(!silent);
+      }
+
+      targetLogFile = String(options?.logFileName ?? selectedRuntimeLogFile).trim();
+      if (!targetLogFile) {
+        targetLogFile = String(
+          sessions.find((item: any) => item?.isCurrent)?.fileName
+          || (sessionLogName === "-" ? "" : sessionLogName),
+        ).trim();
+      }
+
+      if (targetLogFile) {
+        setSelectedRuntimeLogFile(targetLogFile);
+      }
+
+      const response = await runtimeLogRead({
+        limit: 600,
+        logFileName: targetLogFile || undefined,
       });
+      applyRuntimeLogEntries(response.entries);
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      const detail = String(error);
+      const lowered = detail.toLowerCase();
+      const canFallback =
+        lowered.includes("not found") &&
+        targetLogFile.trim().length > 0 &&
+        sessionLogName !== "-" &&
+        targetLogFile !== sessionLogName;
+
+      if (canFallback) {
+        try {
+          setSelectedRuntimeLogFile(sessionLogName);
+          const fallback = await runtimeLogRead({ limit: 600, logFileName: sessionLogName });
+          applyRuntimeLogEntries(fallback.entries);
+          return;
+        } catch {
+          // Fall through to toast below.
+        }
+      }
+      setToast({ type: "error", message: detail });
     } finally {
       if (!silent || runtimeLogLoading) {
         setRuntimeLogLoading(false);
       }
     }
-  }, [runtimeLogLoading, runtimeLogs.length, setRuntimeLogLoading, setRuntimeLogs, setToast]);
+  }, [
+    applyRuntimeLogEntries,
+    loadRuntimeLogSessions,
+    runtimeLogLoading,
+    runtimeLogSessions,
+    runtimeLogs.length,
+    selectedRuntimeLogFile,
+    sessionLogName,
+    setRuntimeLogLoading,
+    setToast,
+  ]);
 
   const compileErrorLine = useMemo(
     () => (params.lastCompileFailed && params.compileDiagnostics.length > 0 ? params.compileDiagnostics[0] : null),
@@ -198,6 +282,8 @@ export function useAppPanelNodes(params: any) {
       runtimeLogs={runtimeLogs}
       runtimeLogLoading={runtimeLogLoading}
       sessionLogName={sessionLogName}
+      runtimeLogSessions={runtimeLogSessions}
+      selectedLogFileName={selectedRuntimeLogFile}
       activeModelCatalog={activeModelCatalog}
       modelTestBusy={modelTestBusy}
       modelTestActiveId={modelTestActiveId}
@@ -208,10 +294,13 @@ export function useAppPanelNodes(params: any) {
       onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
       onOpenModelModal={openModelModal}
       onReloadLogs={reloadRuntimeLogs}
+      onSelectLogFile={async (fileName) => {
+        await reloadRuntimeLogs({ logFileName: fileName, silent: false });
+      }}
       onClearCurrentLog={async () => {
         try {
           await runtimeLogClearCurrentSession("CLEAR_CURRENT_SESSION");
-          await reloadRuntimeLogs({ silent: true });
+          await reloadRuntimeLogs({ silent: true, refreshSessions: true });
         } catch (error) {
           setToast({ type: "error", message: String(error) });
         }

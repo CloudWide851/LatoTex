@@ -291,6 +291,17 @@ export type RuntimeLogReadResponse = {
   entries: RuntimeLogEntry[];
 };
 
+export type RuntimeLogSession = {
+  fileName: string;
+  modifiedAt: string;
+  sizeBytes: number;
+  isCurrent: boolean;
+};
+
+export type RuntimeLogSessionListResponse = {
+  sessions: RuntimeLogSession[];
+};
+
 export type AppBackgroundImage = {
   path: string;
 };
@@ -307,6 +318,7 @@ export type RuntimeLogReadFilters = {
   keyword?: string;
   fromTime?: string;
   toTime?: string;
+  logFileName?: string;
 };
 
 export type LibraryCitationSummary = {
@@ -591,8 +603,4 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
-
-
-
-
 

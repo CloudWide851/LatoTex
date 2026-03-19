@@ -35,7 +35,8 @@ const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] no
 const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/i;
 const FONTSPEC_MISSING_FONT_RE =
   /Package\s+fontspec\s+Error:\s*(?:The\s+)?font\s+["'`]?([^"'`]+?)["'`]?\s+(?:cannot be found|not found)/i;
-const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written\.)/gi;
+const FONTSPEC_ERROR_RE = /Package\s+fontspec\s+Error:/i;
+const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written(?:\.[A-Za-z0-9_-]+)?\.?)/gi;
 
 const SYSTEM_FONT_FALLBACKS: Record<string, string> = {
   timesnewroman: "Latin Modern Roman",
@@ -158,6 +159,42 @@ export function extractMissingSystemFontsFromDiagnostics(diagnostics: string[]):
       output.push(family);
     }
   }
+  return output;
+}
+
+export function hasFontspecErrorDiagnostics(diagnostics: string[]): boolean {
+  return diagnostics.some((raw) =>
+    splitDiagnosticLines(raw).some((line) => FONTSPEC_ERROR_RE.test(line)),
+  );
+}
+
+export function extractConfiguredSystemFontsFromSource(source: string): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  const collect = (family: string) => {
+    const value = String(family || "").trim();
+    const key = normalizeFontName(value);
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    output.push(value);
+  };
+
+  const setFontRe = /\\set(?:CJK)?(?:main|sans|mono)font(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
+  for (const match of source.matchAll(setFontRe)) {
+    if (match?.[1]) {
+      collect(match[1]);
+    }
+  }
+
+  const newFontFamilyRe = /\\newfontfamily\s*\\[A-Za-z@]+(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
+  for (const match of source.matchAll(newFontFamilyRe)) {
+    if (match?.[1]) {
+      collect(match[1]);
+    }
+  }
+
   return output;
 }
 
@@ -353,10 +390,16 @@ export async function runCompilePass(params: {
   try {
     for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
       if (!fontFallbackAttempted) {
-        const missingFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
-        if (missingFonts.length > 0) {
+        const extractedFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
+        const hasFontspecError = hasFontspecErrorDiagnostics(result.diagnostics);
+        const fallbackFonts = extractedFonts.length > 0
+          ? extractedFonts
+          : hasFontspecError
+            ? extractConfiguredSystemFontsFromSource(compileSource)
+            : [];
+        if (fallbackFonts.length > 0 || hasFontspecError) {
           fontFallbackAttempted = true;
-          const fallback = applySystemFontFallbackToSource(compileSource, missingFonts);
+          const fallback = applySystemFontFallbackToSource(compileSource, fallbackFonts);
           if (fallback.patchedSource !== compileSource && fallback.replacements.length > 0) {
             const replacementSummary = fallback.replacements
               .map((item) => `${item.missing} -> ${item.fallback}`)
@@ -376,7 +419,7 @@ export async function runCompilePass(params: {
           }
           emitInstallProgress(
             formatMessage(t, "workspace.compileAssist.busytexFontFallbackUnavailable", {
-              fonts: missingFonts.join(", "),
+              fonts: fallbackFonts.length > 0 ? fallbackFonts.join(", ") : "fontspec",
             }),
           );
         }

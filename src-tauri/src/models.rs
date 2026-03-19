@@ -179,6 +179,7 @@ pub struct RuntimeLogReadInput {
     pub keyword: Option<String>,
     pub from_time: Option<String>,
     pub to_time: Option<String>,
+    pub log_file_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -194,6 +195,21 @@ pub struct RuntimeLogEntry {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeLogReadResponse {
     pub entries: Vec<RuntimeLogEntry>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogSession {
+    pub file_name: String,
+    pub modified_at: String,
+    pub size_bytes: u64,
+    pub is_current: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeLogSessionListResponse {
+    pub sessions: Vec<RuntimeLogSession>,
 }
 
 #[derive(Debug, Deserialize)]

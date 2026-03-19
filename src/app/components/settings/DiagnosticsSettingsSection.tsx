@@ -1,10 +1,12 @@
+import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "../../../i18n";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
-import type { RuntimeLogEntry, RuntimeLogInfo } from "../../../shared/types/app";
+import { dropdownItemClassName, dropdownSurfaceClassName, useDropdownDismiss } from "../../../components/ui/dropdown";
+import type { RuntimeLogEntry, RuntimeLogInfo, RuntimeLogSession } from "../../../shared/types/app";
 import { normalizeLogLevel, resolveRuntimeLogTone } from "../logTone";
 
 type TranslationFn = (key: any) => string;
@@ -14,70 +16,73 @@ function resolveConsoleMessage(entry: RuntimeLogEntry): string {
   return message && message.length > 0 ? message : "-";
 }
 
-function normalizeLogDateInput(value: string): string {
-  const text = value.trim();
-  if (!text) {
-    return "";
-  }
-  const normalized = text
-    .replace(/[./]/g, "-")
-    .replace("T", " ")
-    .replace(/\s+/g, " ");
-  const match = normalized.match(
-    /^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/,
-  );
-  if (!match) {
-    return "";
-  }
-  const [, yy, mm, dd, hh = "0", mi = "0", ss = "0"] = match;
-  const clamp = (input: string, min: number, max: number) => {
-    const n = Number(input);
-    if (!Number.isFinite(n)) {
-      return min;
-    }
-    return Math.min(max, Math.max(min, Math.floor(n)));
-  };
-  const year = clamp(yy, 1970, 9999);
-  const month = clamp(mm, 1, 12);
-  const day = clamp(dd, 1, 31);
-  const hour = clamp(hh, 0, 23);
-  const minute = clamp(mi, 0, 59);
-  const second = clamp(ss, 0, 59);
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
-}
-
 export function DiagnosticsSettingsSection(props: {
   runtimeInfo: RuntimeLogInfo | null;
   runtimeLogs: RuntimeLogEntry[];
   runtimeLogLoading: boolean;
   sessionLogName: string;
+  runtimeLogSessions: RuntimeLogSession[];
+  selectedLogFileName: string;
   locale: Locale;
-  onReloadLogs: (options?: { silent?: boolean }) => Promise<void>;
+  onReloadLogs: (options?: {
+    silent?: boolean;
+    logFileName?: string;
+    refreshSessions?: boolean;
+  }) => Promise<void>;
+  onSelectLogFile: (fileName: string) => Promise<void>;
   onClearCurrentLog: () => Promise<void>;
   t: TranslationFn;
 }) {
-  const { runtimeInfo, runtimeLogs, runtimeLogLoading, sessionLogName, locale, onReloadLogs, onClearCurrentLog, t } = props;
+  const {
+    runtimeInfo,
+    runtimeLogs,
+    runtimeLogLoading,
+    sessionLogName,
+    runtimeLogSessions,
+    selectedLogFileName,
+    onReloadLogs,
+    onSelectLogFile,
+    onClearCurrentLog,
+    t,
+  } = props;
   const [logLevelFilter, setLogLevelFilter] = useState("ALL");
   const [logKeyword, setLogKeyword] = useState("");
-  const [logFrom, setLogFrom] = useState("");
-  const [logTo, setLogTo] = useState("");
   const [clearLogConfirmOpen, setClearLogConfirmOpen] = useState(false);
+  const [logFilePickerOpen, setLogFilePickerOpen] = useState(false);
+  const [logFileQuery, setLogFileQuery] = useState("");
   const consoleRef = useRef<HTMLDivElement | null>(null);
   const followTailRef = useRef(true);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+
+  useDropdownDismiss({
+    open: logFilePickerOpen,
+    rootRef: pickerRef,
+    onClose: () => {
+      setLogFilePickerOpen(false);
+      setLogFileQuery("");
+    },
+  });
 
   useEffect(() => {
-    void onReloadLogs();
+    const targetLog = selectedLogFileName || (sessionLogName !== "-" ? sessionLogName : "");
+    void onReloadLogs({
+      logFileName: targetLog || undefined,
+      refreshSessions: true,
+    });
     const timer = window.setInterval(() => {
       const hidden = typeof document !== "undefined" && document.hidden;
       if (hidden) {
         return;
       }
-      void onReloadLogs({ silent: true });
+      void onReloadLogs({
+        silent: true,
+        logFileName: targetLog || undefined,
+      });
     }, 2800);
     return () => {
       window.clearInterval(timer);
     };
-  }, [onReloadLogs]);
+  }, [onReloadLogs, selectedLogFileName, sessionLogName]);
 
   useEffect(() => {
     if (!followTailRef.current) {
@@ -91,8 +96,6 @@ export function DiagnosticsSettingsSection(props: {
   }, [runtimeLogs.length]);
 
   const filteredRuntimeLogs = useMemo(() => {
-    const from = normalizeLogDateInput(logFrom);
-    const to = normalizeLogDateInput(logTo);
     const keyword = logKeyword.trim().toLowerCase();
     return runtimeLogs.filter((entry) => {
       const level = entry.level.toUpperCase();
@@ -105,18 +108,19 @@ export function DiagnosticsSettingsSection(props: {
           return false;
         }
       }
-      if (from && entry.timestamp && entry.timestamp < from) {
-        return false;
-      }
-      if (to && entry.timestamp && entry.timestamp > to) {
-        return false;
-      }
       return true;
     });
-  }, [logFrom, logKeyword, logLevelFilter, logTo, runtimeLogs]);
+  }, [logKeyword, logLevelFilter, runtimeLogs]);
 
-  const datePlaceholder = locale === "zh-CN" ? "YYYY/MM/DD HH:mm:ss" : "YYYY-MM-DD HH:mm:ss";
-  const hasActiveFilter = Boolean(logLevelFilter !== "ALL" || logKeyword.trim() || normalizeLogDateInput(logFrom) || normalizeLogDateInput(logTo));
+  const selectedLogName = selectedLogFileName || (sessionLogName !== "-" ? sessionLogName : "");
+  const filteredSessions = useMemo(() => {
+    const keyword = logFileQuery.trim().toLowerCase();
+    if (!keyword) {
+      return runtimeLogSessions;
+    }
+    return runtimeLogSessions.filter((item) => item.fileName.toLowerCase().includes(keyword));
+  }, [logFileQuery, runtimeLogSessions]);
+  const hasActiveFilter = Boolean(logLevelFilter !== "ALL" || logKeyword.trim());
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -143,6 +147,68 @@ export function DiagnosticsSettingsSection(props: {
 
       <div className="rounded-lg border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center gap-2">
+          <div ref={pickerRef} className="relative w-full min-w-[230px] shrink-0 sm:w-[320px]">
+            <button
+              className="group flex h-10 w-full items-center justify-between rounded-lg border border-slate-300 bg-gradient-to-b from-white to-slate-50 px-3 text-sm text-slate-800 shadow-[0_1px_0_rgba(255,255,255,0.5),0_10px_22px_rgba(15,23,42,0.09)] transition hover:border-slate-400"
+              onClick={() => {
+                setLogFilePickerOpen((prev) => !prev);
+                if (!logFilePickerOpen) {
+                  void onReloadLogs({
+                    silent: true,
+                    refreshSessions: true,
+                    logFileName: selectedLogName || undefined,
+                  });
+                }
+              }}
+              title={selectedLogName || t("settings.logSelectPlaceholder")}
+            >
+              <span className="min-w-0 truncate font-mono text-xs">
+                {selectedLogName || t("settings.logSelectPlaceholder")}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:text-slate-700" />
+            </button>
+
+            {logFilePickerOpen ? (
+              <div className={dropdownSurfaceClassName("absolute left-0 right-0 top-[calc(100%+6px)] z-[290] max-h-64 p-1") }>
+                <div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                  <Search className="h-3.5 w-3.5 text-slate-500" />
+                  <input
+                    value={logFileQuery}
+                    onChange={(event) => setLogFileQuery(event.target.value)}
+                    placeholder={t("settings.logSelectSearch")}
+                    className="w-full bg-transparent text-xs text-slate-700 outline-none"
+                  />
+                </div>
+
+                {filteredSessions.length === 0 ? (
+                  <div className="px-2 py-2 text-xs text-slate-500">{t("settings.logSelectEmpty")}</div>
+                ) : (
+                  <div className="space-y-0.5">
+                    {filteredSessions.map((session) => {
+                      const active = session.fileName === selectedLogName;
+                      return (
+                        <button
+                          key={session.fileName}
+                          className={dropdownItemClassName(active ? "bg-primary-50 text-primary-700" : "")}
+                          title={session.fileName}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            void onSelectLogFile(session.fileName);
+                            setLogFilePickerOpen(false);
+                            setLogFileQuery("");
+                          }}
+                        >
+                          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{session.fileName}</span>
+                          <span className="shrink-0 text-[10px] text-slate-500">{session.modifiedAt}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
           <Select
             value={logLevelFilter}
             wrapperClassName="w-[190px] shrink-0"
@@ -156,37 +222,22 @@ export function DiagnosticsSettingsSection(props: {
             <option value="ERROR">{t("settings.logLevelError")}</option>
             <option value="CRASH">{t("settings.logLevelCrash")}</option>
           </Select>
+
           <Input
             className="h-10 min-w-[180px] grow basis-[220px] text-sm"
             value={logKeyword}
             onChange={(event) => setLogKeyword(event.target.value)}
             placeholder={t("settings.logFilterKeyword")}
           />
-          <Input
-            className="h-10 w-full min-w-[170px] sm:w-[210px] sm:shrink-0 text-sm"
-            type="text"
-            value={logFrom}
-            onChange={(event) => setLogFrom(event.target.value)}
-            placeholder={datePlaceholder}
-            title={t("settings.logFilterFrom")}
-          />
-          <Input
-            className="h-10 w-full min-w-[170px] sm:w-[210px] sm:shrink-0 text-sm"
-            type="text"
-            value={logTo}
-            onChange={(event) => setLogTo(event.target.value)}
-            placeholder={datePlaceholder}
-            title={t("settings.logFilterTo")}
-          />
+
           <Button
             size="sm"
             variant="secondary"
+            className="h-11 px-5 text-sm font-semibold"
             disabled={!hasActiveFilter}
             onClick={() => {
               setLogLevelFilter("ALL");
               setLogKeyword("");
-              setLogFrom("");
-              setLogTo("");
             }}
           >
             {t("settings.logFilterReset")}
@@ -196,7 +247,7 @@ export function DiagnosticsSettingsSection(props: {
 
       <div
         ref={consoleRef}
-        className="h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-3"
+        className="h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-[#05080f] p-3"
         onScroll={(event) => {
           const node = event.currentTarget;
           const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
@@ -204,28 +255,28 @@ export function DiagnosticsSettingsSection(props: {
         }}
       >
         {runtimeLogLoading && filteredRuntimeLogs.length === 0 ? (
-          <div className="text-slate-300">{t("common.loading")}</div>
+          <div className="font-mono text-slate-300">{t("common.loading")}</div>
         ) : filteredRuntimeLogs.length === 0 ? (
-          <div className="text-slate-400">{t("settings.logViewerEmpty")}</div>
+          <div className="font-mono text-slate-500">{t("settings.logViewerEmpty")}</div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1 font-mono text-[11px] leading-5">
             {filteredRuntimeLogs.map((entry, index) => {
               const tone = resolveRuntimeLogTone(entry);
               const label = normalizeLogLevel(entry.level, entry.message || entry.raw);
               return (
                 <article
                   key={`${entry.timestamp}-${entry.level}-${index}`}
-                  className={cn("rounded-lg border px-2.5 py-2 shadow-[0_10px_20px_rgba(2,6,23,0.22)]", tone.rowClass)}
+                  className={cn("rounded px-1.5 py-1", tone.rowClass)}
                 >
-                  <div className="mb-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.12em]">
-                    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 font-semibold", tone.badgeClass)}>
-                      {label}
+                  <div className="flex items-start gap-2">
+                    <span className={cn("shrink-0 font-semibold uppercase tracking-[0.1em]", tone.badgeClass)}>
+                      [{label}]
                     </span>
-                    <span className="font-mono text-slate-400">{entry.timestamp || "-"}</span>
+                    <span className="shrink-0 text-slate-500">{entry.timestamp || "-"}</span>
+                    <pre className={cn("min-w-0 flex-1 whitespace-pre-wrap break-all", tone.textClass)}>
+                      {resolveConsoleMessage(entry)}
+                    </pre>
                   </div>
-                  <pre className={cn("whitespace-pre-wrap break-all font-mono text-[11px] leading-5", tone.textClass)}>
-                    {resolveConsoleMessage(entry)}
-                  </pre>
                 </article>
               );
             })}

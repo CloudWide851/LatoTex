@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   applySystemFontFallbackToSource,
+  extractConfiguredSystemFontsFromSource,
   extractMissingStyleCandidatesFromDiagnostics,
   extractMissingSystemFontsFromDiagnostics,
+  hasFontspecErrorDiagnostics,
 } from "./compileWorkflow";
 
 describe("compile workflow missing package detection", () => {
@@ -66,6 +68,26 @@ hello
     expect(output.patchedSource).toContain("\\setmainfont{Latin Modern Roman}");
     expect(output.patchedSource).toContain("\\newfontfamily\\titlefont{Latin Modern Sans}");
     expect(output.replacements.length).toBe(2);
+  });
+
+  it("detects generic fontspec errors without explicit font family", () => {
+    const diagnostics = [
+      "! Package fontspec Error: Font \"\" cannot be found.",
+      "Package fontspec Error: The font cannot be found.",
+    ];
+    expect(hasFontspecErrorDiagnostics(diagnostics)).toBe(true);
+  });
+
+  it("extracts configured font names for conservative fallback", () => {
+    const source = String.raw`\setmainfont{Times New Roman}
+\setsansfont{Arial}
+\newfontfamily\codefont{Consolas}`;
+
+    expect(extractConfiguredSystemFontsFromSource(source)).toEqual([
+      "Times New Roman",
+      "Arial",
+      "Consolas",
+    ]);
   });
 });
 

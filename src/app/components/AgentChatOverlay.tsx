@@ -2,6 +2,7 @@ import {
   ChevronDown,
   ChevronUp,
   CornerDownLeft,
+  Loader2,
   MessageSquareMore,
   Send,
   Sparkles,
@@ -9,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getEvents } from "../../shared/api/desktop";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
 import { AgentSessionPicker } from "./agent/AgentSessionPicker";
@@ -19,6 +21,7 @@ import type {
   AgentSessionSummary,
 } from "../hooks/agentTypes";
 import type { AgentPendingAction } from "../hooks/useAppContainerState";
+import { deltaTextFromEvent, toActivityLines, toneClass } from "./agent/agentOverlayActivity";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -28,119 +31,6 @@ export type AgentCommandItem = {
   description: string;
 };
 
-type ActivityLine = {
-  id: string;
-  text: string;
-  tone: "neutral" | "success" | "error";
-};
-
-function normalizeLine(value: string): string {
-  return value
-    .replace(/\s+/g, " ")
-    .replace(/\r?\n/g, " ")
-    .trim();
-}
-
-function lineFromEvent(event: SwarmEvent): ActivityLine | null {
-  if (event.kind === "agent.run.heartbeat") {
-    return null;
-  }
-  const payload = event.payload ?? {};
-  const status = typeof payload.status === "string" ? payload.status : "";
-  const stage = typeof payload.stage === "string" ? payload.stage : "";
-  const title = typeof payload.title === "string" ? payload.title : "";
-  const tool = typeof payload.toolName === "string" ? payload.toolName : "";
-  const content = typeof payload.content === "string" ? payload.content : "";
-
-  const pathMatch = content.match(/path:\s*([^\n\r]+)/i);
-  if (pathMatch?.[1]) {
-    return {
-      id: event.id,
-      text: normalizeLine(pathMatch[1]),
-      tone: "neutral",
-    };
-  }
-
-  if (event.kind === "mcp.tool.call.started" || event.kind === "mcp.tool.call.completed") {
-    const tone: ActivityLine["tone"] = event.kind.endsWith(".completed") ? "success" : "neutral";
-    return {
-      id: event.id,
-      text: normalizeLine([tool || title || stage || event.kind, status].filter(Boolean).join(" · ")),
-      tone,
-    };
-  }
-
-  if (event.kind === "a2a.task.started" || event.kind === "a2a.task.completed") {
-    return {
-      id: event.id,
-      text: normalizeLine([title || stage || event.kind, status].filter(Boolean).join(" · ")),
-      tone: event.kind.endsWith(".completed") ? "success" : "neutral",
-    };
-  }
-
-  if (event.kind === "agent.run.failed") {
-    return {
-      id: event.id,
-      text: normalizeLine(content || title || event.kind),
-      tone: "error",
-    };
-  }
-
-  if (event.kind === "agent.run.cancelled" || event.kind === "agent.run.completed") {
-    return {
-      id: event.id,
-      text: normalizeLine(title || event.kind),
-      tone: event.kind.endsWith(".completed") ? "success" : "neutral",
-    };
-  }
-
-  if (event.kind === "responses.output_text.delta") {
-    const short = normalizeLine(content).slice(0, 180);
-    if (!short) {
-      return null;
-    }
-    return { id: event.id, text: short, tone: "neutral" };
-  }
-
-  if (!title && !status) {
-    return null;
-  }
-  return {
-    id: event.id,
-    text: normalizeLine([title || stage || event.kind, status].filter(Boolean).join(" · ")),
-    tone: "neutral",
-  };
-}
-
-function toActivityLines(events: SwarmEvent[], runId: string | null): ActivityLine[] {
-  if (!runId) {
-    return [];
-  }
-  const lines = events
-    .filter((event) => event.runId === runId)
-    .sort((a, b) => a.seq - b.seq)
-    .map((event) => lineFromEvent(event))
-    .filter((line): line is ActivityLine => Boolean(line));
-  const deduped: ActivityLine[] = [];
-  for (const item of lines) {
-    const prev = deduped[deduped.length - 1];
-    if (prev?.text === item.text && prev.tone === item.tone) {
-      continue;
-    }
-    deduped.push(item);
-  }
-  return deduped.slice(-120);
-}
-
-function toneClass(tone: ActivityLine["tone"]): string {
-  if (tone === "error") {
-    return "text-rose-700";
-  }
-  if (tone === "success") {
-    return "text-emerald-700";
-  }
-  return "text-slate-700";
-}
 
 export function AgentChatOverlay(props: {
   collapsed: boolean;
@@ -233,6 +123,10 @@ export function AgentChatOverlay(props: {
   const [commandPlacement, setCommandPlacement] = useState<"above" | "below">("above");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
   const activityContainerRef = useRef<HTMLDivElement | null>(null);
+  const streamCursorRef = useRef<number | undefined>(undefined);
+  const streamRunRef = useRef<string | null>(null);
+  const [streamedText, setStreamedText] = useState("");
+  const [thinkingFrame, setThinkingFrame] = useState(0);
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
   const commandSuggestions = useMemo(
     () =>
@@ -262,9 +156,13 @@ export function AgentChatOverlay(props: {
     }
     return pendingActionWaitLabel;
   }, [pendingAction, pendingActionWaitLabel]);
-  const currentStatusLine = pendingActionLabel
+  const baseStatusLine = pendingActionLabel
     || activityLines[activityLines.length - 1]?.text
     || ((phase === "running" || phase === "starting" || Boolean(runId)) ? statusLine : "");
+  const currentStatusLine =
+    (phase === "running" || phase === "starting") && baseStatusLine
+      ? `${baseStatusLine}${".".repeat((thinkingFrame % 3) + 1)}`
+      : baseStatusLine;
   const pendingActionDescription = useMemo(() => {
     if (!pendingAction) {
       return "";
@@ -274,7 +172,7 @@ export function AgentChatOverlay(props: {
     }
     return pendingActionDesc;
   }, [pendingAction, pendingActionDesc]);
-  const canShowActivity = activityLines.length > 0;
+  const canShowActivity = activityLines.length > 0 || streamedText.trim().length > 0;
   const showActivityPanel = activityExpanded && canShowActivity;
 
   useEffect(() => {
@@ -283,7 +181,78 @@ export function AgentChatOverlay(props: {
     }
     const el = activityContainerRef.current;
     el.scrollTop = el.scrollHeight;
-  }, [activityLines, showActivityPanel]);
+  }, [activityLines, showActivityPanel, streamedText]);
+
+  useEffect(() => {
+    if (phase !== "running" && phase !== "starting") {
+      setThinkingFrame(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setThinkingFrame((prev) => (prev + 1) % 4);
+    }, 360);
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
+  useEffect(() => {
+    if (runId) {
+      return;
+    }
+    streamRunRef.current = null;
+    streamCursorRef.current = undefined;
+    setStreamedText("");
+  }, [runId]);
+
+  useEffect(() => {
+    if (!runId || (phase !== "running" && phase !== "starting")) {
+      return;
+    }
+    if (streamRunRef.current !== runId) {
+      streamRunRef.current = runId;
+      streamCursorRef.current = undefined;
+      setStreamedText("");
+    }
+
+    let cancelled = false;
+    const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+    const pull = async () => {
+      while (!cancelled) {
+        try {
+          const batch = await getEvents(streamCursorRef.current, 200, runId, 2_200, ["agent.run.heartbeat"]);
+          if (cancelled) {
+            return;
+          }
+          streamCursorRef.current = batch.nextCursor;
+
+          const deltas = batch.events
+            .filter((event) => event.runId === runId)
+            .map((event) => deltaTextFromEvent(event))
+            .filter((value) => value.length > 0)
+            .join("");
+          if (deltas) {
+            setStreamedText((prev) => `${prev}${deltas}`.slice(-12_000));
+          }
+
+          const finished = batch.events.some(
+            (event) =>
+              event.runId === runId
+              && (event.kind === "agent.run.completed" || event.kind === "agent.run.failed" || event.kind === "agent.run.cancelled"),
+          );
+          if (finished) {
+            return;
+          }
+        } catch {
+          await wait(700);
+        }
+      }
+    };
+
+    void pull();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, runId]);
 
   const updateCommandPlacement = () => {
     if (!promptRef.current || commandSuggestions.length === 0 || typeof window === "undefined") {
@@ -341,6 +310,9 @@ export function AgentChatOverlay(props: {
             <span className="shrink-0">{title}</span>
             {currentStatusLine ? (
               <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                {(phase === "running" || phase === "starting") ? (
+                  <Loader2 className="mr-1.5 inline-block h-3 w-3 animate-spin align-[-0.1em] text-primary-600" />
+                ) : null}
                 {currentStatusLine}
               </span>
             ) : null}
@@ -378,6 +350,11 @@ export function AgentChatOverlay(props: {
               showActivityPanel ? "max-h-[26vh] py-2 opacity-100" : "max-h-0 py-0 opacity-0",
             )}
           >
+            {streamedText.trim() ? (
+              <pre className="whitespace-pre-wrap break-words rounded border border-slate-200/80 bg-slate-900 px-2 py-1.5 font-mono text-[11px] leading-5 text-emerald-300">
+                {streamedText}
+              </pre>
+            ) : null}
             {activityLines.map((line) => (
               <p
                 key={line.id}
