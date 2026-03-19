@@ -9,6 +9,7 @@ import type {
 } from "../../shared/types/app";
 import type { AgentStatusKey, ThemeMode } from "../app-config";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
+import type { CompileInstallProgress } from "./compileWorkflow";
 import type { AgentPendingAction, AgentProposalMap } from "./useAppContainerState";
 
 export type TranslationFn = (key: any) => string;
@@ -45,6 +46,7 @@ export type UseAppHandlersParams = {
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;
   setCompileDiagnostics: (value: string[]) => void;
+  setCompileInstallProgress: (value: CompileInstallProgress | null) => void;
   setLastCompileFailed: (value: boolean) => void;
   setPdfUrl: (value: string | null) => void;
   setCompiledPdfBytes: (value: Uint8Array | null) => void;

@@ -46,6 +46,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     previewOverridePath,
     compileErrorLine,
     compileDiagnostics,
+    compileInstallProgress,
     agentCollapsed,
     agentPhase,
     agentStatusKey,
@@ -237,6 +238,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       canZoomPreview={canZoomPreview}
       previewZoom={previewZoom}
       compileErrorLine={compileErrorLine}
+      compileInstallProgress={compileInstallProgress}
       onEditorChange={onEditorChange}
       onOpenLogs={onOpenLogs}
       onExportPdf={onExportPdf}

@@ -31,6 +31,7 @@ import {
   type Toast,
 } from "../app-config";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
+import type { CompileInstallProgress } from "./compileWorkflow";
 
 export type AgentProposalMap = Record<string, AgentFileProposal>;
 export type AgentPendingAction =
@@ -104,6 +105,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [events, setEvents] = useState<SwarmEvent[]>([]);
   const [cursor, setCursor] = useState(0);
   const [compileDiagnostics, setCompileDiagnostics] = useState<string[]>([]);
+  const [compileInstallProgress, setCompileInstallProgress] = useState<CompileInstallProgress | null>(null);
   const [lastCompileFailed, setLastCompileFailed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [compiledPdfBytes, setCompiledPdfBytes] = useState<Uint8Array | null>(null);
@@ -268,6 +270,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setCursor,
     compileDiagnostics,
     setCompileDiagnostics,
+    compileInstallProgress,
+    setCompileInstallProgress,
     lastCompileFailed,
     setLastCompileFailed,
     pdfUrl,
@@ -372,3 +376,4 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     fileSet,
   };
 }
+

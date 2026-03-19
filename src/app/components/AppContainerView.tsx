@@ -71,6 +71,7 @@ export function AppContainerView(props: any) {
     previewOverridePath,
     compileErrorLine,
     compileDiagnostics,
+    compileInstallProgress,
     agentCollapsed,
     agentPhase,
     agentStatusKey,
@@ -274,6 +275,7 @@ export function AppContainerView(props: any) {
               previewOverridePath={previewOverridePath}
               compileErrorLine={compileErrorLine}
               compileDiagnostics={compileDiagnostics}
+              compileInstallProgress={compileInstallProgress}
               agentCollapsed={agentCollapsed}
               agentPhase={agentPhase}
               agentStatusKey={agentStatusKey}
@@ -413,11 +415,4 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
-
-
-
-
-
-
-
 

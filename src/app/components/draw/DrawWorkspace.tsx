@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
-  DRAWIO_HOST_URL,
   buildRenamedDrawPath,
   isDrawPath,
   loadPersistedTabs,
@@ -54,12 +53,12 @@ export function DrawWorkspace(props: {
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
-  const frameSrcRef = useRef<string | null>(DRAWIO_HOST_URL);
+  const frameSrcRef = useRef<string | null>(null);
 
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [frameSrc, setFrameSrc] = useState<string | null>(DRAWIO_HOST_URL);
+  const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -73,31 +72,29 @@ export function DrawWorkspace(props: {
           return;
         }
         const resolved = nextSrc ?? null;
-        const previous = frameSrcRef.current;
-
         if (!resolved) {
-          if (!previous) {
-            setReady(false);
-            setFrameSrc(null);
-            frameSrcRef.current = null;
-            setStatus(t("draw.startFailed"));
-          }
-          return;
-        }
-
-        if (resolved !== previous) {
-          setReady(false);
-          setFrameSrc(resolved);
-          frameSrcRef.current = resolved;
-        }
-      })
-      .catch(() => {
-        if (!cancelled && !frameSrcRef.current) {
           setReady(false);
           setFrameSrc(null);
           frameSrcRef.current = null;
           setStatus(t("draw.startFailed"));
+          return;
         }
+
+        if (resolved !== frameSrcRef.current) {
+          setReady(false);
+          setFrameSrc(resolved);
+          frameSrcRef.current = resolved;
+        }
+        setStatus("");
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setReady(false);
+        setFrameSrc(null);
+        frameSrcRef.current = null;
+        setStatus(t("draw.startFailed"));
       });
 
     return () => {
@@ -307,6 +304,8 @@ export function DrawWorkspace(props: {
       setActivePath(null);
       activePathRef.current = null;
       setReady(false);
+      setFrameSrc(null);
+      frameSrcRef.current = null;
       setStatus("");
       setRenamingPath(null);
       setRenameInput("");
@@ -405,7 +404,7 @@ export function DrawWorkspace(props: {
         })();
         return;
       }
-      if (message.event === "export" && typeof message.data === "string") {
+      if (message.event === "export") {
         const currentActivePath = activePathRef.current;
         if (!projectId || !currentActivePath) {
           return;
@@ -570,3 +569,4 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
+

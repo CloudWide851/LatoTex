@@ -33,6 +33,42 @@ const COMPILE_SKIP_EXTENSIONS = new Set([
 
 const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/i;
 const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/i;
+const FONTSPEC_MISSING_FONT_RE =
+  /Package\s+fontspec\s+Error:\s*(?:The\s+)?font\s+["'`]?([^"'`]+?)["'`]?\s+(?:cannot be found|not found)/i;
+const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written\.)/gi;
+
+const SYSTEM_FONT_FALLBACKS: Record<string, string> = {
+  timesnewroman: "Latin Modern Roman",
+  arial: "Latin Modern Sans",
+  calibri: "Latin Modern Sans",
+  helvetica: "Latin Modern Sans",
+  cambria: "Latin Modern Roman",
+  georgia: "Latin Modern Roman",
+  couriernew: "Latin Modern Mono",
+  consolas: "Latin Modern Mono",
+  verdana: "Latin Modern Sans",
+  tahoma: "Latin Modern Sans",
+};
+
+const DEFAULT_FONT_FALLBACK_BY_COMMAND: Record<string, string> = {
+  setmainfont: "Latin Modern Roman",
+  setcjkmainfont: "Latin Modern Roman",
+  setsansfont: "Latin Modern Sans",
+  setcjksansfont: "Latin Modern Sans",
+  setmonofont: "Latin Modern Mono",
+  setcjkmonofont: "Latin Modern Mono",
+  newfontfamily: "Latin Modern Roman",
+};
+
+export type CompileInstallProgress = {
+  active: boolean;
+  percent: number;
+  stage: "installing" | "retrying";
+  currentPackage: string | null;
+  completed: number;
+  total: number;
+  message: string;
+};
 
 function shouldIncludeCompileFile(path: string): boolean {
   const normalized = path.trim().toLowerCase();
@@ -47,27 +83,51 @@ function shouldIncludeCompileFile(path: string): boolean {
   return !COMPILE_SKIP_EXTENSIONS.has(extension);
 }
 
+function splitDiagnosticLines(value: string): string[] {
+  const text = String(value || "").replace(COMBINED_DIAGNOSTIC_SPLIT_RE, "$1\n$2");
+  return text
+    .split(/\r?\n/)
+    .map((line) => String(line || "").trim())
+    .filter((line) => line.length > 0);
+}
+
+function normalizeFontName(input: string): string {
+  return String(input || "")
+    .toLowerCase()
+    .replace(/["'`]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function pickFallbackFont(missingFont: string, commandName: string): string {
+  const normalizedMissing = normalizeFontName(missingFont);
+  return SYSTEM_FONT_FALLBACKS[normalizedMissing]
+    ?? DEFAULT_FONT_FALLBACK_BY_COMMAND[commandName.toLowerCase()]
+    ?? "Latin Modern Roman";
+}
+
 export function extractMissingStyleCandidatesFromDiagnostics(diagnostics: string[]): string[] {
   const candidates: string[] = [];
   const seen = new Set<string>();
   for (const line of diagnostics) {
-    const text = String(line || "").trim();
-    if (!text) {
-      continue;
-    }
-    const missingMatch = text.match(MISSING_STYLE_RE);
-    if (missingMatch?.[1]) {
-      const style = missingMatch[1].trim();
-      const key = style.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        candidates.push(style);
+    for (const text of splitDiagnosticLines(line)) {
+      if (!text) {
+        continue;
       }
-    }
-    const packageErrorMatch = text.match(PACKAGE_ERROR_RE);
-    if (packageErrorMatch?.[1]) {
-      const packageName = packageErrorMatch[1].trim().replace(/[^A-Za-z0-9._-]/g, "");
-      if (packageName) {
+      const missingMatch = text.match(MISSING_STYLE_RE);
+      if (missingMatch?.[1]) {
+        const style = missingMatch[1].trim();
+        const key = style.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          candidates.push(style);
+        }
+      }
+      const packageErrorMatch = text.match(PACKAGE_ERROR_RE);
+      if (packageErrorMatch?.[1]) {
+        const packageName = packageErrorMatch[1].trim().replace(/[^A-Za-z0-9._-]/g, "");
+        if (!packageName || packageName.toLowerCase() === "fontspec") {
+          continue;
+        }
         const style = `${packageName}.sty`;
         const key = style.toLowerCase();
         if (!seen.has(key)) {
@@ -78,6 +138,87 @@ export function extractMissingStyleCandidatesFromDiagnostics(diagnostics: string
     }
   }
   return candidates;
+}
+
+export function extractMissingSystemFontsFromDiagnostics(diagnostics: string[]): string[] {
+  const output: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of diagnostics) {
+    for (const line of splitDiagnosticLines(raw)) {
+      const match = line.match(FONTSPEC_MISSING_FONT_RE);
+      if (!match?.[1]) {
+        continue;
+      }
+      const family = match[1].trim();
+      const key = normalizeFontName(family);
+      if (!key || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      output.push(family);
+    }
+  }
+  return output;
+}
+
+export function applySystemFontFallbackToSource(
+  source: string,
+  missingFonts: string[],
+): { patchedSource: string; replacements: Array<{ missing: string; fallback: string }> } {
+  if (!missingFonts.length) {
+    return { patchedSource: source, replacements: [] };
+  }
+
+  const missingByKey = new Map<string, string>();
+  for (const font of missingFonts) {
+    const key = normalizeFontName(font);
+    if (!key || missingByKey.has(key)) {
+      continue;
+    }
+    missingByKey.set(key, font);
+  }
+
+  if (missingByKey.size === 0) {
+    return { patchedSource: source, replacements: [] };
+  }
+
+  const replacements = new Map<string, { missing: string; fallback: string }>();
+  const replaceFontCommand = (
+    input: string,
+    regex: RegExp,
+    commandNameResolver: (raw: string) => string,
+  ) =>
+    input.replace(regex, (full, commandPrefix: string, options: string | undefined, family: string) => {
+      const normalizedFamily = normalizeFontName(family);
+      if (!normalizedFamily || !missingByKey.has(normalizedFamily)) {
+        return full;
+      }
+      const missing = missingByKey.get(normalizedFamily) || family;
+      const commandName = commandNameResolver(commandPrefix);
+      const fallback = pickFallbackFont(missing, commandName);
+      const replacementKey = `${missing}|${fallback}`;
+      if (!replacements.has(replacementKey)) {
+        replacements.set(replacementKey, { missing, fallback });
+      }
+      return `${commandPrefix}${options || ""}{${fallback}}`;
+    });
+
+  let patched = source;
+  patched = replaceFontCommand(
+    patched,
+    /(\\set(?:CJK)?(?:main|sans|mono)font)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
+    (commandPrefix) => commandPrefix.slice(1),
+  );
+  patched = replaceFontCommand(
+    patched,
+    /(\\newfontfamily\s*\\[A-Za-z@]+)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
+    () => "newfontfamily",
+  );
+
+  return {
+    patchedSource: patched,
+    replacements: Array.from(replacements.values()),
+  };
 }
 
 function getBusyTexCachePolicy(): "install-first" | "appdata-only" {
@@ -92,14 +233,15 @@ function mergeDiagnostics(base: string[], extra: string[]): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const value of [...base, ...extra]) {
-    const line = String(value || "").trim();
-    if (!line || seen.has(line)) {
-      continue;
+    for (const line of splitDiagnosticLines(value)) {
+      if (!line || seen.has(line)) {
+        continue;
+      }
+      seen.add(line);
+      merged.push(line);
     }
-    seen.add(line);
-    merged.push(line);
   }
-  return merged.slice(0, 16);
+  return merged.slice(0, 24);
 }
 
 function formatMessage(
@@ -150,6 +292,7 @@ export async function runCompilePass(params: {
   setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
+  setCompileInstallProgress?: (value: CompileInstallProgress | null) => void;
 }) {
   const {
     projectId,
@@ -166,115 +309,201 @@ export async function runCompilePass(params: {
     setCompiledPdfBytes,
     setPreferCompiledPreview,
     setToast,
+    setCompileInstallProgress,
   } = params;
 
   const baseFileMap = await buildCompileFileMap(projectId, mainPath, mainContent, fileList);
   const overlayFileMap: Record<string, string> = {};
   const installNotes: string[] = [];
   const attemptedPackages = new Set<string>();
-  let result = await compileWithBusyTeX(mainContent, baseFileMap, mainPath);
+  const installProgressState = {
+    total: 0,
+    completed: 0,
+    currentPackage: null as string | null,
+  };
+
+  let compileSource = mainContent;
+  let fontFallbackAttempted = false;
+  let result = await compileWithBusyTeX(compileSource, baseFileMap, mainPath);
 
   const emitInstallProgress = (line: string) => {
     installNotes.push(line);
     setCompileDiagnostics(mergeDiagnostics(result.diagnostics, installNotes));
   };
 
-  for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
-    const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
-      (style) => !attemptedPackages.has(style.toLowerCase()),
-    );
-    if (missingStyles.length === 0) {
-      break;
+  const emitProgressState = (stage: "installing" | "retrying", message: string) => {
+    if (!setCompileInstallProgress) {
+      return;
     }
+    const hasWork = installProgressState.total > 0;
+    const percent = hasWork
+      ? Math.min(99, Math.max(0, Math.floor((installProgressState.completed / installProgressState.total) * 100)))
+      : 0;
+    setCompileInstallProgress({
+      active: true,
+      percent,
+      stage,
+      currentPackage: installProgressState.currentPackage,
+      completed: installProgressState.completed,
+      total: installProgressState.total,
+      message,
+    });
+  };
 
-    let installedAny = false;
-    for (const missingStyle of missingStyles) {
-      attemptedPackages.add(missingStyle.toLowerCase());
-      emitInstallProgress(
-        formatMessage(t, "workspace.compileAssist.busytexDownloadStart", {
-          package: missingStyle,
-        }),
-      );
-      try {
-        const install = await busytexInstallMissingPackage({
-          styleFile: missingStyle,
-          policy: getBusyTexCachePolicy(),
-        });
-        if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
-          emitInstallProgress(
-            formatMessage(t, "workspace.compileAssist.busytexDownloadNoFiles", {
-              package: missingStyle,
-            }),
-          );
-          continue;
-        }
-        for (const file of install.overlayFiles) {
-          const relativePath = String(file.path || "").trim();
-          if (!relativePath) {
+  try {
+    for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
+      if (!fontFallbackAttempted) {
+        const missingFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
+        if (missingFonts.length > 0) {
+          fontFallbackAttempted = true;
+          const fallback = applySystemFontFallbackToSource(compileSource, missingFonts);
+          if (fallback.patchedSource !== compileSource && fallback.replacements.length > 0) {
+            const replacementSummary = fallback.replacements
+              .map((item) => `${item.missing} -> ${item.fallback}`)
+              .join(", ");
+            emitInstallProgress(
+              formatMessage(t, "workspace.compileAssist.busytexFontFallbackApplied", {
+                details: replacementSummary,
+              }),
+            );
+            compileSource = fallback.patchedSource;
+            emitProgressState(
+              "retrying",
+              formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
+            );
+            result = await compileWithBusyTeX(compileSource, { ...baseFileMap, ...overlayFileMap }, mainPath);
             continue;
           }
-          overlayFileMap[relativePath] = String(file.content || "");
+          emitInstallProgress(
+            formatMessage(t, "workspace.compileAssist.busytexFontFallbackUnavailable", {
+              fonts: missingFonts.join(", "),
+            }),
+          );
         }
-        installedAny = true;
-        emitInstallProgress(
-          formatMessage(t, "workspace.compileAssist.busytexDownloadSuccess", {
-            package: missingStyle,
-            source: install.sourceUrl || "cache",
-          }),
-        );
-      } catch (error) {
-        emitInstallProgress(
-          formatMessage(t, "workspace.compileAssist.busytexDownloadFailed", {
-            package: missingStyle,
-            reason: String(error),
-          }),
-        );
       }
+
+      const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
+        (style) => !attemptedPackages.has(style.toLowerCase()),
+      );
+      if (missingStyles.length === 0) {
+        break;
+      }
+
+      installProgressState.total += missingStyles.length;
+      let installedAny = false;
+      for (const missingStyle of missingStyles) {
+        attemptedPackages.add(missingStyle.toLowerCase());
+        installProgressState.currentPackage = missingStyle;
+        emitInstallProgress(
+          formatMessage(t, "workspace.compileAssist.busytexDownloadStart", {
+            package: missingStyle,
+          }),
+        );
+        emitProgressState(
+          "installing",
+          formatMessage(t, "workspace.compileAssist.busytexProgressInstalling", {
+            package: missingStyle,
+          }),
+        );
+
+        try {
+          const install = await busytexInstallMissingPackage({
+            styleFile: missingStyle,
+            policy: getBusyTexCachePolicy(),
+          });
+          if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
+            emitInstallProgress(
+              formatMessage(t, "workspace.compileAssist.busytexDownloadNoFiles", {
+                package: missingStyle,
+              }),
+            );
+            continue;
+          }
+          for (const file of install.overlayFiles) {
+            const relativePath = String(file.path || "").trim();
+            if (!relativePath) {
+              continue;
+            }
+            overlayFileMap[relativePath] = String(file.content || "");
+          }
+          installedAny = true;
+          emitInstallProgress(
+            formatMessage(t, "workspace.compileAssist.busytexDownloadSuccess", {
+              package: missingStyle,
+              source: install.sourceUrl || "cache",
+            }),
+          );
+        } catch (error) {
+          emitInstallProgress(
+            formatMessage(t, "workspace.compileAssist.busytexDownloadFailed", {
+              package: missingStyle,
+              reason: String(error),
+            }),
+          );
+        } finally {
+          installProgressState.completed += 1;
+          emitProgressState(
+            "installing",
+            formatMessage(t, "workspace.compileAssist.busytexProgressPackages", {
+              completed: String(installProgressState.completed),
+              total: String(installProgressState.total),
+            }),
+          );
+        }
+      }
+
+      if (!installedAny) {
+        break;
+      }
+
+      emitProgressState(
+        "retrying",
+        formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
+      );
+      result = await compileWithBusyTeX(compileSource, { ...baseFileMap, ...overlayFileMap }, mainPath);
     }
 
-    if (!installedAny) {
-      break;
+    if (installNotes.length > 0) {
+      result = {
+        ...result,
+        diagnostics: mergeDiagnostics(result.diagnostics, installNotes),
+      };
     }
 
-    const mergedFileMap = { ...baseFileMap, ...overlayFileMap };
-    result = await compileWithBusyTeX(mainContent, mergedFileMap, mainPath);
-  }
-
-  if (installNotes.length > 0) {
-    result = {
-      ...result,
-      diagnostics: mergeDiagnostics(result.diagnostics, installNotes),
-    };
-  }
-
-  setLastCompileFailed(result.status !== "success");
-  setCompileDiagnostics(result.diagnostics);
-  await runtimeLogWrite(
-    result.status === "success" ? "INFO" : "ERROR",
-    `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
-  );
-  await recordCompile({
-    projectId,
-    mainFile: mainPath,
-    status: result.status,
-    diagnostics: result.diagnostics,
-    durationMs: result.durationMs,
-  });
-  if (result.status === "success" && result.pdfBytes && updatePreview) {
-    if (currentPdfUrl) {
-      URL.revokeObjectURL(currentPdfUrl);
-    }
-    const normalizedBytes = Uint8Array.from(result.pdfBytes);
-    const url = URL.createObjectURL(new Blob([normalizedBytes], { type: "application/pdf" }));
-    setPdfUrl(url);
-    setCompiledPdfBytes(normalizedBytes);
-    setPreferCompiledPreview(true);
-  }
-  if (emitToast) {
-    setToast({
-      type: result.status === "success" ? "info" : "error",
-      message: result.status === "success" ? t("toast.compileSuccess") : t("toast.compileFailed"),
+    setLastCompileFailed(result.status !== "success");
+    setCompileDiagnostics(result.diagnostics);
+    await runtimeLogWrite(
+      result.status === "success" ? "INFO" : "ERROR",
+      `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
+    );
+    await recordCompile({
+      projectId,
+      mainFile: mainPath,
+      status: result.status,
+      diagnostics: result.diagnostics,
+      durationMs: result.durationMs,
     });
+
+    if (result.status === "success" && result.pdfBytes && updatePreview) {
+      if (currentPdfUrl) {
+        URL.revokeObjectURL(currentPdfUrl);
+      }
+      const normalizedBytes = Uint8Array.from(result.pdfBytes);
+      const url = URL.createObjectURL(new Blob([normalizedBytes], { type: "application/pdf" }));
+      setPdfUrl(url);
+      setCompiledPdfBytes(normalizedBytes);
+      setPreferCompiledPreview(true);
+    }
+
+    if (emitToast) {
+      setToast({
+        type: result.status === "success" ? "info" : "error",
+        message: result.status === "success" ? t("toast.compileSuccess") : t("toast.compileFailed"),
+      });
+    }
+    return result;
+  } finally {
+    setCompileInstallProgress?.(null);
   }
-  return result;
 }
+

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { openProject, runtimeLogWrite, workspaceExportPdf } from "../../shared/api/desktop";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
+import type { CompileInstallProgress } from "./compileWorkflow";
 
 type TranslationFn = (key: any) => string;
 
@@ -21,6 +22,7 @@ export function useCompileActions(params: {
   setPdfUrl: (value: string | null) => void;
   setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
+  setCompileInstallProgress: (value: CompileInstallProgress | null) => void;
   editorRef: React.MutableRefObject<any>;
   t: TranslationFn;
 }) {
@@ -40,6 +42,7 @@ export function useCompileActions(params: {
     setPdfUrl,
     setCompiledPdfBytes,
     setPreferCompiledPreview,
+    setCompileInstallProgress,
     editorRef,
     t,
   } = params;
@@ -64,6 +67,7 @@ export function useCompileActions(params: {
       setPdfUrl,
       setCompiledPdfBytes,
       setPreferCompiledPreview,
+      setCompileInstallProgress,
       setToast,
     });
   }, [
@@ -71,6 +75,7 @@ export function useCompileActions(params: {
     pdfUrl,
     setCompileDiagnostics,
     setCompiledPdfBytes,
+    setCompileInstallProgress,
     setLastCompileFailed,
     setPdfUrl,
     setPreferCompiledPreview,
@@ -93,6 +98,7 @@ export function useCompileActions(params: {
     }
     setBusy(true);
     setCompileDiagnostics([]);
+    setCompileInstallProgress(null);
     try {
       await runCompilePass(activeProjectId, selectedFile, editorContent, {
         updatePreview: true,
@@ -103,7 +109,9 @@ export function useCompileActions(params: {
       setToast({ type: "error", message: String(error) });
       setCompileDiagnostics([String(error)]);
       setCompiledPdfBytes(null);
+      setCompileInstallProgress(null);
     } finally {
+      setCompileInstallProgress(null);
       setBusy(false);
     }
   }, [
@@ -113,6 +121,7 @@ export function useCompileActions(params: {
     selectedFile,
     setBusy,
     setCompileDiagnostics,
+    setCompileInstallProgress,
     setCompiledPdfBytes,
     setLastCompileFailed,
     setToast,
@@ -169,3 +178,4 @@ export function useCompileActions(params: {
     handleEditorRedo,
   };
 }
+

@@ -15,6 +15,7 @@ import type { AgentPhase } from "../AgentChatOverlay";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../../hooks/agentTypes";
 import type { AgentStatusKey } from "./workspaceShellUtils";
+import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 
 export type TranslationFn = (key: any) => string;
 export type ShareMode = "local" | "remote";
@@ -44,6 +45,7 @@ export type AppWorkspaceShellProps = {
   previewOverridePath: string | null;
   compileErrorLine: string | null;
   compileDiagnostics: string[];
+  compileInstallProgress: CompileInstallProgress | null;
   agentCollapsed: boolean;
   agentPhase: AgentPhase;
   agentStatusKey: AgentStatusKey;
@@ -132,7 +134,4 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
-
-
-
 

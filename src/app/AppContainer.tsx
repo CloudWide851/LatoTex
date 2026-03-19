@@ -152,6 +152,7 @@ export function AppContainer() {
     setSettings: s.setSettings,
     setToast: s.setToast,
     setCompileDiagnostics: s.setCompileDiagnostics,
+    setCompileInstallProgress: s.setCompileInstallProgress,
     setLastCompileFailed: s.setLastCompileFailed,
     setPdfUrl: s.setPdfUrl,
     setCompiledPdfBytes: s.setCompiledPdfBytes,
@@ -504,6 +505,7 @@ export function AppContainer() {
       previewOverridePath={s.previewOverridePath}
       compileErrorLine={panels.compileErrorLine}
       compileDiagnostics={s.compileDiagnostics}
+      compileInstallProgress={s.compileInstallProgress}
       agentCollapsed={s.agentCollapsed}
       agentPhase={s.agentPhase}
       agentStatusKey={s.agentStatusKey}
@@ -597,7 +599,4 @@ export function AppContainer() {
     />
   );
 }
-
-
-
 
