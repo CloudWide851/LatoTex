@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { executeWorkflowCancel } from "../../shared/api/agent";
-import type { AgentTeamMode } from "../../shared/types/app";
+import { executeWorkflowCancel } from "../../shared/api/desktop";
 import type { AgentStatusKey } from "../app-config";
 import { parseAgentPrompt } from "./agentCommands";
 import type { AgentChatMessage, AgentRunRollback, AgentSessionSummary } from "./agentTypes";
@@ -20,8 +19,7 @@ export function useAgentSessionController(params: {
   setPage: React.Dispatch<React.SetStateAction<any>>;
   setSelectedFile: React.Dispatch<React.SetStateAction<string | null>>;
   setToast: React.Dispatch<React.SetStateAction<{ type: "info" | "error"; message: string } | null>>;
-  suspended?: boolean;
-  runTaskAgent: (promptOverride?: string, options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode }) => Promise<void>;
+  runTaskAgent: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void>;
   t: (key: any) => string;
 }) {
   const {
@@ -37,7 +35,6 @@ export function useAgentSessionController(params: {
     setAgentPhase,
     setAgentStatusKey,
     setToast,
-    suspended = false,
     runTaskAgent,
     t,
   } = params;
@@ -48,7 +45,6 @@ export function useAgentSessionController(params: {
   const [agentRollback, setAgentRollback] = useState<AgentRunRollback | null>(null);
   const [agentRollbackVisible, setAgentRollbackVisible] = useState(false);
   const runLaunchLockRef = useRef(false);
-  const runGenerationRef = useRef(0);
 
   useEffect(() => {
     setAgentSessions([]);
@@ -57,13 +53,6 @@ export function useAgentSessionController(params: {
     setAgentRollbackVisible(false);
     setAgentMessages([]);
   }, [activeProjectId, selectedFile, setAgentMessages]);
-
-  useEffect(() => {
-    if (!suspended || agentPhase !== "running" || !agentRunId) {
-      return;
-    }
-    void executeWorkflowCancel(agentRunId).catch(() => undefined);
-  }, [agentPhase, agentRunId, suspended]);
 
   const handleAgentRollback = useCallback(() => {
     if (!agentRollback) {
@@ -87,31 +76,15 @@ export function useAgentSessionController(params: {
     t,
   ]);
 
-  const handleAgentRun = useCallback(async (
-    promptOverride?: string,
-    options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode },
-  ) => {
+  const handleAgentRun = useCallback(async (promptOverride?: string, options?: { forceNewSession?: boolean }) => {
     const projectId = activeProjectId;
-    if (!projectId || suspended) {
-      if (!projectId) {
-        setToast({ type: "error", message: t("agent.overlay.noProject") });
-      } else if (suspended) {
-        setToast({ type: "error", message: t("agent.overlay.suspended") });
-      }
+    if (!projectId) {
       return;
     }
     if (agentPhase === "running" && agentRunId) {
-      const cancelGeneration = runGenerationRef.current + 1;
-      runGenerationRef.current = cancelGeneration;
       try {
         await executeWorkflowCancel(agentRunId);
-        if (runGenerationRef.current === cancelGeneration) {
-          setAgentRunId(null);
-          setAgentPhase("done");
-          setAgentStatusKey("agent.statusDone");
-          setAgentRollbackVisible(true);
-        }
-        runLaunchLockRef.current = false;
+        setAgentRollbackVisible(true);
       } catch (error) {
         setToast({ type: "error", message: String(error) });
       }
@@ -120,13 +93,10 @@ export function useAgentSessionController(params: {
     if (runLaunchLockRef.current) {
       return;
     }
-    const launchGeneration = runGenerationRef.current + 1;
-    runGenerationRef.current = launchGeneration;
     runLaunchLockRef.current = true;
     try {
       const rawPrompt = (promptOverride ?? agentPrompt).trim();
       if (!rawPrompt) {
-        setToast({ type: "error", message: t("agent.overlay.emptyPrompt") });
         return;
       }
       const parsed = parseAgentPrompt(rawPrompt);
@@ -151,9 +121,7 @@ export function useAgentSessionController(params: {
       setAgentRollbackVisible(false);
       await runTaskAgent(rawPrompt, options);
     } finally {
-      if (runGenerationRef.current === launchGeneration) {
-        runLaunchLockRef.current = false;
-      }
+      runLaunchLockRef.current = false;
     }
   }, [
     activeProjectId,
@@ -163,12 +131,8 @@ export function useAgentSessionController(params: {
     agentRunId,
     runTaskAgent,
     setAgentMessages,
-    setAgentPhase,
     setAgentPrompt,
-    setAgentRunId,
-    setAgentStatusKey,
     setToast,
-    suspended,
     t,
   ]);
 
@@ -188,3 +152,5 @@ export function useAgentSessionController(params: {
     handleAgentSessionConfirm,
   };
 }
+
+

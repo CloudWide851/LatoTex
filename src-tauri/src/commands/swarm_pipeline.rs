@@ -1,20 +1,22 @@
-use crate::models::{AgentRunRequest, AgentRunStartAccepted};
-use crate::secure;
+use crate::models::{AgentExecuteRequest, AgentExecuteStartAccepted, AppSettings};
 use crate::state::AppState;
 use crate::storage;
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
+
 use super::swarm_events::{
-    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, envelope,
+    EventMetadata, append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event,
+    run_envelope,
 };
-#[path = "swarm_pipeline_queries.rs"]
-mod swarm_pipeline_queries;
-use swarm_pipeline_queries::{
-    derive_tool_search_queries, with_tool_search_queries,
+use super::swarm_tool_search;
+use super::swarm_workflows::{
+    WorkflowDefinition, WorkflowStep, load_registry_for_project, max_steps_for_workflow, resolve_workflow,
+    timeout_for_workflow, validate_invocation, validate_step_tools,
 };
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
@@ -31,6 +33,14 @@ impl Drop for AgentRunSlotGuard {
             cvar.notify_one();
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct ModelConnection {
+    protocol_id: String,
+    base_url: String,
+    model_name: String,
+    api_key: String,
 }
 
 fn acquire_agent_slot_from(
@@ -50,24 +60,6 @@ fn acquire_agent_slot_from(
     Ok(AgentRunSlotGuard { slots })
 }
 
-fn resolve_connection_for_role(
-    db_path: &Path,
-    runtime_root: &Path,
-    role: &str,
-    model_override: Option<&str>,
-) -> Result<(String, String, String, String), String> {
-    let (protocol_id, base_url, model_name, resolved_model_id) =
-        storage::resolve_agent_model(db_path, role, model_override)?;
-    let secure_context = secure::SecureStorageContext {
-        db_path: db_path.to_path_buf(),
-        runtime_root: runtime_root.to_path_buf(),
-    };
-    let api_key = secure::get_model_api_key(&secure_context, &resolved_model_id)?
-        .api_key
-        .ok_or_else(|| format!("API key is missing for model: {resolved_model_id}"))?;
-    Ok((protocol_id, base_url, model_name, api_key))
-}
-
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
         return Err("agent.run.cancelled".to_string());
@@ -75,210 +67,311 @@ fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     Ok(())
 }
 
+fn build_prompt(prompt: &str, context_refs: &[String]) -> String {
+    if context_refs.is_empty() {
+        return prompt.to_string();
+    }
+    format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
+}
+
 fn call_model_output(
     db_path: &Path,
-    runtime_root: &Path,
-    role_for_model: &str,
-    model_override: Option<&str>,
+    connection: &ModelConnection,
     prompt: &str,
     context_refs: &[String],
     bypass_cache: bool,
 ) -> Result<String, String> {
-    let (protocol_id, base_url, model_name, api_key) =
-        resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
-    let full_prompt = if context_refs.is_empty() {
-        prompt.to_string()
-    } else {
-        format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
-    };
+    let full_prompt = build_prompt(prompt, context_refs);
     super::call_provider_with_retry(
         Some(db_path),
-        &protocol_id,
-        &base_url,
-        &api_key,
-        &model_name,
+        &connection.protocol_id,
+        &connection.base_url,
+        &connection.api_key,
+        &connection.model_name,
         &full_prompt,
         bypass_cache,
     )
 }
 
-fn run_stage_role(
+fn push_unique(values: &mut Vec<String>, candidate: Option<String>) {
+    let Some(value) = candidate.map(|item| item.trim().to_string()) else {
+        return;
+    };
+    if value.is_empty() {
+        return;
+    }
+    if !values.iter().any(|existing| existing == &value) {
+        values.push(value);
+    }
+}
+
+fn pick_feature_binding(settings: &AppSettings, callsite: &str) -> Option<String> {
+    let bindings = settings
+        .ui_prefs
+        .as_ref()
+        .and_then(|prefs| prefs.feature_model_bindings.as_ref())?;
+    match callsite {
+        "latex.overlay" => bindings.latex_agent_model_id.clone(),
+        "analysis.workspace" => bindings.analysis_agent_model_id.clone(),
+        "chat.workspace" => bindings.translation_model_id.clone(),
+        "completion.inline" => bindings.completion_model_id.clone(),
+        "git.summary" => bindings.analysis_agent_model_id.clone(),
+        _ => None,
+    }
+}
+
+fn resolve_model_connection(
     db_path: &Path,
     runtime_root: &Path,
+    callsite: &str,
+    workflow: &WorkflowDefinition,
+    model_override: Option<&str>,
+) -> Result<ModelConnection, String> {
+    let settings = storage::load_settings(db_path, runtime_root)?;
+
+    let mut candidates = Vec::<String>::new();
+    push_unique(
+        &mut candidates,
+        model_override.map(|item| item.trim().to_string()),
+    );
+    push_unique(&mut candidates, workflow.model_id.clone());
+    push_unique(&mut candidates, pick_feature_binding(&settings, callsite));
+    for model in &settings.model_catalog {
+        push_unique(&mut candidates, Some(model.id.clone()));
+    }
+
+    for model_id in candidates {
+        let resolved = storage::resolve_model_test_connection(db_path, runtime_root, &model_id);
+        let Ok((protocol_id, base_url, model_name, api_key)) = resolved else {
+            continue;
+        };
+        let Some(key) = api_key else {
+            continue;
+        };
+        if key.trim().is_empty() {
+            continue;
+        }
+        return Ok(ModelConnection {
+            protocol_id,
+            base_url,
+            model_name,
+            api_key: key,
+        });
+    }
+
+    Err("workflow.model.unavailable".to_string())
+}
+
+fn run_provider_step(
+    db_path: &Path,
     run_id: &str,
     project_id: &str,
-    stage: &str,
-    role_for_model: &str,
-    source: &str,
-    title: &str,
+    event_scope: &str,
+    step: &WorkflowStep,
     prompt: &str,
     context_refs: &[String],
     cancel_flag: &Arc<AtomicBool>,
-    model_override: Option<&str>,
-    tool_name: &str,
+    connection: &ModelConnection,
     bypass_cache: bool,
+    metadata: EventMetadata<'_>,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
+    let stage = if step.id.trim().is_empty() {
+        "step"
+    } else {
+        step.id.as_str()
+    };
+    let title = if step.title.trim().is_empty() {
+        "Workflow Step"
+    } else {
+        step.title.as_str()
+    };
+    let source = if step.source.trim().is_empty() {
+        "workflow"
+    } else {
+        step.source.as_str()
+    };
+
     emit_stage_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         "running",
         title,
         "",
+        metadata,
     )?;
     emit_tool_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
-        tool_name,
+        "provider_generate",
         "running",
         "",
+        metadata,
     )?;
-    let output = call_model_output(
-        db_path,
-        runtime_root,
-        role_for_model,
-        model_override,
-        prompt,
-        context_refs,
-        bypass_cache,
-    )?;
+
+    let output = call_model_output(db_path, connection, prompt, context_refs, bypass_cache)?;
     ensure_not_cancelled(cancel_flag)?;
+
     emit_tool_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
-        tool_name,
+        "provider_generate",
         "success",
         "",
+        metadata,
     )?;
     emit_response_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         &output,
+        metadata,
     )?;
     emit_stage_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         "success",
         title,
         "",
+        metadata,
     )?;
     Ok(output)
 }
 
-fn run_agent_pipeline_async(
+fn run_execute_pipeline_async(
     db_path: PathBuf,
     runtime_root: PathBuf,
     run_id: String,
     cancel_flag: Arc<AtomicBool>,
-    input: AgentRunRequest,
+    input: AgentExecuteRequest,
+    workflow: WorkflowDefinition,
 ) -> Result<String, String> {
-    if input.role == "web_search" {
-        let bypass_cache = input.bypass_cache;
-        return super::swarm_tool_search::run_stage_tool_search(
-            &db_path,
-            &runtime_root,
-            &run_id,
-            &input.project_id,
-            "web_search",
-            "web_search",
-            "explorer",
-            "Tool Search",
-            &input.prompt,
-            &input.context_refs,
-            &cancel_flag,
-            input.model_override.as_deref(),
-            bypass_cache,
-        );
-    }
-
-    let bypass_cache = input.bypass_cache;
-
-    if input.role != "task" {
-        return run_stage_role(
-            &db_path,
-            &runtime_root,
-            &run_id,
-            &input.project_id,
-            &input.role,
-            &input.role,
-            "tasker",
-            "Task",
-            &input.prompt,
-            &input.context_refs,
-            &cancel_flag,
-            input.model_override.as_deref(),
-            "provider_generate",
-            bypass_cache,
-        );
-    }
-
-    let request_queries = derive_tool_search_queries(&input.prompt);
-    let task_prompt = with_tool_search_queries(&input.prompt, &request_queries);
-
-    super::swarm_tool_search::run_stage_tool_search(
+    let connection = resolve_model_connection(
         &db_path,
         &runtime_root,
-        &run_id,
-        &input.project_id,
-        "task",
-        "task",
-        "tasker",
-        "Task",
-        &task_prompt,
-        &input.context_refs,
-        &cancel_flag,
+        &input.callsite,
+        &workflow,
         input.model_override.as_deref(),
-        bypass_cache,
-    )
+    )?;
+    let max_steps = max_steps_for_workflow(&workflow);
+    let timeout_ms = timeout_for_workflow(&workflow);
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+
+    let mut output = String::new();
+    let steps = workflow.steps.iter().take(max_steps);
+    for step in steps {
+        ensure_not_cancelled(&cancel_flag)?;
+        if Instant::now() >= deadline {
+            return Err("agent.run.timeout.total".to_string());
+        }
+        let metadata = EventMetadata {
+            workflow_id: &workflow.id,
+            step_id: &step.id,
+            callsite: &input.callsite,
+        };
+        output = match step.kind.as_str() {
+            "provider.generate" => run_provider_step(
+                &db_path,
+                &run_id,
+                &input.project_id,
+                &workflow.id,
+                step,
+                &input.prompt,
+                &input.context_refs,
+                &cancel_flag,
+                &connection,
+                input.bypass_cache,
+                metadata,
+            )?,
+            "tool.search" => swarm_tool_search::run_stage_tool_search(
+                &db_path,
+                &run_id,
+                &input.project_id,
+                &workflow.id,
+                &step.id,
+                if step.source.trim().is_empty() {
+                    "workflow"
+                } else {
+                    step.source.as_str()
+                },
+                if step.title.trim().is_empty() {
+                    "Tool Search"
+                } else {
+                    step.title.as_str()
+                },
+                &input.prompt,
+                &input.context_refs,
+                &cancel_flag,
+                &connection.protocol_id,
+                &connection.base_url,
+                &connection.api_key,
+                &connection.model_name,
+                input.bypass_cache,
+                metadata,
+            )?,
+            other => {
+                return Err(format!("workflow.step.unsupported:{}", other));
+            }
+        };
+    }
+
+    Ok(output)
 }
 
-pub fn agent_run_start(
+pub fn agent_execute_start(
     state: &AppState,
-    input: AgentRunRequest,
-) -> Result<AgentRunStartAccepted, String> {
+    input: AgentExecuteRequest,
+) -> Result<AgentExecuteStartAccepted, String> {
     state.log(
         "INFO",
         &format!(
-            "agent_run_start: role={}, project={}",
-            input.role, input.project_id
+            "agent_execute_start: workflow={}, callsite={}, project={}",
+            input.workflow_id, input.callsite, input.project_id
         ),
     );
 
+    let registry = load_registry_for_project(&state.db_path, &input.project_id)?;
+    let workflow = resolve_workflow(&registry, &input.workflow_id)?.clone();
+    validate_invocation(&workflow, &input.callsite, &input.context_refs)?;
+    validate_step_tools(&workflow)?;
+
     let run_id = Uuid::new_v4().to_string();
-    storage::append_event(
+    append_protocol_event(
         &state.db_path,
         &run_id,
         &input.project_id,
-        &input.role,
+        &workflow.id,
         "agent.run.accepted",
-        envelope(
+        run_envelope(
             &run_id,
-            "system",
-            "run",
             "accepted",
             "Run Accepted",
             "",
             &format!("{run_id}:run:accepted"),
+            EventMetadata {
+                workflow_id: &workflow.id,
+                step_id: "run",
+                callsite: &input.callsite,
+            },
         ),
     )?;
 
@@ -294,8 +387,10 @@ pub fn agent_run_start(
             .map_err(|_| "failed to lock agent cancel flags".to_string())?;
         flags.insert(run_id.clone(), cancel_flag.clone());
     }
+
     let worker_project_id = input.project_id.clone();
-    let worker_role = input.role.clone();
+    let worker_workflow_id = workflow.id.clone();
+    let worker_callsite = input.callsite.clone();
     thread::spawn(move || {
         let slot_guard = acquire_agent_slot_from(slots);
         if slot_guard.is_err() {
@@ -306,16 +401,19 @@ pub fn agent_run_start(
                 &db_path,
                 &run_id_for_worker,
                 &worker_project_id,
-                &worker_role,
+                &worker_workflow_id,
                 "a2a.task.failed",
-                envelope(
+                run_envelope(
                     &run_id_for_worker,
-                    "system",
-                    "run",
                     "error",
                     "Run Failed",
                     &message,
                     &format!("{run_id_for_worker}:run:failed"),
+                    EventMetadata {
+                        workflow_id: &worker_workflow_id,
+                        step_id: "run",
+                        callsite: &worker_callsite,
+                    },
                 ),
             );
             if let Ok(mut flags) = cancel_flags.lock() {
@@ -324,23 +422,27 @@ pub fn agent_run_start(
             return;
         }
         let _slot_guard = slot_guard.unwrap();
-        let run_output = run_agent_pipeline_async(
+        let run_output = run_execute_pipeline_async(
             db_path.clone(),
             runtime_root.clone(),
             run_id_for_worker.clone(),
             cancel_flag,
             input,
+            workflow,
         );
         match run_output {
             Ok(output) => {
-                let mut payload = envelope(
+                let mut payload = run_envelope(
                     &run_id_for_worker,
-                    "system",
-                    "run",
                     "success",
                     "Run Completed",
                     "",
                     &format!("{run_id_for_worker}:run:completed"),
+                    EventMetadata {
+                        workflow_id: &worker_workflow_id,
+                        step_id: "run",
+                        callsite: &worker_callsite,
+                    },
                 );
                 if let Some(object) = payload.as_object_mut() {
                     object.insert("output".to_string(), json!(output));
@@ -349,7 +451,7 @@ pub fn agent_run_start(
                     &db_path,
                     &run_id_for_worker,
                     &worker_project_id,
-                    &worker_role,
+                    &worker_workflow_id,
                     "agent.run.completed",
                     payload,
                 );
@@ -360,16 +462,19 @@ pub fn agent_run_start(
                         &db_path,
                         &run_id_for_worker,
                         &worker_project_id,
-                        &worker_role,
+                        &worker_workflow_id,
                         "agent.run.cancelled",
-                        envelope(
+                        run_envelope(
                             &run_id_for_worker,
-                            "system",
-                            "run",
                             "cancelled",
                             "Run Cancelled",
                             "",
                             &format!("{run_id_for_worker}:run:cancelled"),
+                            EventMetadata {
+                                workflow_id: &worker_workflow_id,
+                                step_id: "run",
+                                callsite: &worker_callsite,
+                            },
                         ),
                     );
                     if let Ok(mut flags) = cancel_flags.lock() {
@@ -381,16 +486,19 @@ pub fn agent_run_start(
                     &db_path,
                     &run_id_for_worker,
                     &worker_project_id,
-                    &worker_role,
+                    &worker_workflow_id,
                     "agent.run.failed",
-                    envelope(
+                    run_envelope(
                         &run_id_for_worker,
-                        "system",
-                        "run",
                         "error",
                         "Run Failed",
                         &error,
                         &format!("{run_id_for_worker}:run:failed"),
+                        EventMetadata {
+                            workflow_id: &worker_workflow_id,
+                            step_id: "run",
+                            callsite: &worker_callsite,
+                        },
                     ),
                 );
             }
@@ -400,7 +508,7 @@ pub fn agent_run_start(
         }
     });
 
-    Ok(AgentRunStartAccepted {
+    Ok(AgentExecuteStartAccepted {
         run_id,
         status: "accepted".to_string(),
     })

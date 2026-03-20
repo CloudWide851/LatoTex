@@ -9,7 +9,11 @@ mod storage;
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
-use commands::busytex::busytex_cache_prepare;
+use commands::busytex::{
+    analysis_pyodide_prepare, busytex_cache_prepare, busytex_install_missing_package,
+    drawio_cache_prepare,
+};
+use commands::channels::{channels_telegram_poll, channels_telegram_send};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
     git_commit_files,
@@ -19,17 +23,21 @@ use commands::git::{
 use commands::health::{health_check, tray_set_labels, window_sync_icon};
 use commands::projects::{
     file_read, file_read_binary, file_write, file_write_binary, fs_operation, library_import_link, library_import_pdf,
+    library_zotero_sync,
     open_external_link,
     library_citation_summary, library_rescan, library_resolve_pdf_preview, library_tree, project_create,
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list, project_open, project_search_content,
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
+use commands::projects_translation::{
+    library_translate_document, library_translate_start, library_translate_status,
+};
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test, model_test_draft, protocol_test, runtime_log_clear_current_session,
-    runtime_log_info, runtime_log_read, runtime_log_write, settings_get, settings_update,
+    runtime_log_info, runtime_log_list_sessions, runtime_log_read, runtime_log_write, runtime_memory_snapshot, runtime_system_font_probe, settings_get, settings_pick_background_image, settings_read_background_image, settings_remove_background_image, settings_update,
 };
-use commands::swarm::{agent_run, agent_run_cancel, agent_run_start, events_subscribe, latex_compile_record};
+use commands::swarm::{agent_execute_cancel, agent_execute_start, events_subscribe, latex_compile_record};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -119,19 +127,27 @@ pub fn run() {
             library_rescan,
             library_import_pdf,
             library_import_link,
+            library_translate_document,
+            library_translate_start,
+            library_translate_status,
+            library_zotero_sync,
             library_citation_summary,
             library_resolve_pdf_preview,
             share_session_create,
             share_session_status,
             share_session_stop,
+            channels_telegram_poll,
+            channels_telegram_send,
             fs_operation,
             latex_compile_record,
-            agent_run,
-            agent_run_start,
-            agent_run_cancel,
+            agent_execute_start,
+            agent_execute_cancel,
             events_subscribe,
             settings_get,
             settings_update,
+            settings_pick_background_image,
+            settings_read_background_image,
+            settings_remove_background_image,
             protocol_test,
             model_test,
             model_test_draft,
@@ -140,7 +156,10 @@ pub fn run() {
             model_api_key_save_verified,
             runtime_log_write,
             runtime_log_info,
+            runtime_log_list_sessions,
             runtime_log_read,
+            runtime_memory_snapshot,
+            runtime_system_font_probe,
             runtime_log_clear_current_session,
             git_status,
             git_check_installed,
@@ -160,8 +179,21 @@ pub fn run() {
             git_fetch,
             git_pull,
             git_push,
-            busytex_cache_prepare
+            busytex_cache_prepare,
+            busytex_install_missing_package,
+            analysis_pyodide_prepare,
+            drawio_cache_prepare
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+
+
+
+
+
+
+
+

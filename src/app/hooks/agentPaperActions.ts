@@ -1,6 +1,6 @@
-import { startLatexPaperAnalyze } from "../../shared/api/agent";
-import { translateLibraryDocument } from "../../shared/api/library";
+import { translateLibraryDocument } from "../../shared/api/desktop";
 import {
+  buildAgentPaperContextBlock,
   importPaperLinkAndResolveContext,
   inferPaperPromptAction,
   extractPaperLinkFromPrompt,
@@ -34,6 +34,7 @@ export async function executePaperLinkFlow(params: {
   action: PaperLinkFlowAction;
   instruction?: string;
   t: (key: any) => string;
+  withMemoryContext: (basePrompt: string) => string;
   setAgentRunId: (value: string | null) => void;
   modelOverride?: string;
   pushAgentMessage: (text: string, format?: "plain" | "markdown") => void;
@@ -45,6 +46,7 @@ export async function executePaperLinkFlow(params: {
     action,
     instruction,
     t,
+    withMemoryContext,
     setAgentRunId,
     modelOverride,
     pushAgentMessage,
@@ -89,14 +91,28 @@ export async function executePaperLinkFlow(params: {
     return;
   }
 
+  const paperContext = await buildAgentPaperContextBlock(activeProjectId, imported.sourcePath);
+  const analysisPrompt = [
+    "You are a research-paper analyst.",
+    "Read the paper context and return a concise markdown report with sections:",
+    "1) Core Problem 2) Method 3) Evidence 4) Limitations 5) Actionable next steps.",
+    "If evidence is missing, state uncertainty explicitly.",
+    instruction?.trim() ? `User focus: ${instruction.trim()}` : "",
+    "",
+    paperContext,
+  ]
+    .filter(Boolean)
+    .join("\n");
   const response = await runAgentThroughEvents({
-    startRun: () => startLatexPaperAnalyze({
-      projectId: activeProjectId,
-      sourcePath: imported.sourcePath,
-      instruction,
-      modelOverride,
-    }),
+    activeProjectId,
+    workflowId: "latex.paper_analyze",
+    callsite: "latex.overlay",
+    prompt: withMemoryContext(analysisPrompt),
+    contextRefs: [`paper:${imported.sourcePath}`],
     setAgentRunId,
+    modelOverride,
   });
   pushAgentMessage(normalizeOutput(response.output), "markdown");
 }
+
+

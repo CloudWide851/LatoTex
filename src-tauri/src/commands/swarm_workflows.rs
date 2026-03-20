@@ -22,8 +22,6 @@ pub struct WorkflowDefinition {
     #[serde(default)]
     pub model_id: Option<String>,
     #[serde(default)]
-    pub execution_mode: Option<String>,
-    #[serde(default)]
     pub steps: Vec<WorkflowStep>,
     #[serde(default)]
     pub constraints: WorkflowConstraints,
@@ -38,10 +36,6 @@ pub struct WorkflowStep {
     pub title: String,
     #[serde(default)]
     pub source: String,
-    #[serde(default)]
-    pub retryable: Option<bool>,
-    #[serde(default)]
-    pub approval_required: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -55,18 +49,9 @@ pub struct WorkflowConstraints {
     pub writable_scopes: Vec<String>,
     pub max_steps: Option<u32>,
     pub timeout_ms: Option<u64>,
-    #[serde(default)]
-    pub max_iterations: Option<u32>,
-    #[serde(default)]
-    pub approval_policy: Option<String>,
-    #[serde(default)]
-    pub trace_visibility: Option<String>,
-    #[serde(default)]
-    pub parallelism: Option<u32>,
 }
 
 const DEFAULT_TIMEOUT_MS: u64 = 45 * 60 * 1000;
-const DEFAULT_MAX_ITERATIONS: usize = 2;
 
 fn workflow_file_path(project_root: &Path) -> PathBuf {
     project_root
@@ -90,122 +75,54 @@ fn is_latex_related_path(path: &str) -> bool {
     latex_extensions().iter().any(|value| *value == ext)
 }
 
-fn provider(
-    id: &str,
-    title: &str,
-    callsites: &[&str],
-    writable_scopes: &[&str],
-    execution_mode: &str,
-) -> WorkflowDefinition {
-    WorkflowDefinition {
+fn default_workflow_registry() -> WorkflowRegistry {
+    let provider = |id: &str, title: &str, callsites: &[&str], writable_scopes: &[&str]| WorkflowDefinition {
         id: id.to_string(),
         title: title.to_string(),
         callsites: callsites.iter().map(|value| value.to_string()).collect(),
         model_id: None,
-        execution_mode: Some(execution_mode.to_string()),
         steps: vec![WorkflowStep {
             id: "main".to_string(),
             kind: "provider.generate".to_string(),
             title: title.to_string(),
             source: "workflow".to_string(),
-            retryable: Some(true),
-            approval_required: None,
         }],
         constraints: WorkflowConstraints {
-            allowed_context_prefixes: vec![
-                "file:".to_string(),
-                "paper:".to_string(),
-                "folder:".to_string(),
-            ],
+            allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
             allowed_tools: vec!["provider_generate".to_string()],
             writable_scopes: writable_scopes.iter().map(|value| value.to_string()).collect(),
             max_steps: Some(4),
             timeout_ms: Some(DEFAULT_TIMEOUT_MS),
-            max_iterations: Some(DEFAULT_MAX_ITERATIONS as u32),
-            approval_policy: Some(if writable_scopes.iter().any(|value| *value != "readonly") {
-                "checkpoint_on_write".to_string()
-            } else {
-                "readonly".to_string()
-            }),
-            trace_visibility: Some("full".to_string()),
-            parallelism: Some(1),
         },
-    }
-}
+    };
 
-fn step(id: &str, kind: &str, title: &str, source: &str) -> WorkflowStep {
-    WorkflowStep {
-        id: id.to_string(),
-        kind: kind.to_string(),
-        title: title.to_string(),
-        source: source.to_string(),
-        retryable: Some(true),
-        approval_required: Some(false),
-    }
-}
-
-fn with_tools(mut workflow: WorkflowDefinition, tools: &[(&str, &str, &str, &str)]) -> WorkflowDefinition {
-    let mut next_steps = tools
-        .iter()
-        .map(|(id, kind, title, source)| step(id, kind, title, source))
-        .collect::<Vec<_>>();
-    next_steps.extend(std::mem::take(&mut workflow.steps));
-    workflow.steps = next_steps;
-    for (_, kind, _, _) in tools {
-        let normalized = normalize_tool_name(kind);
-        if !workflow.constraints.allowed_tools.iter().any(|item| item == &normalized) {
-            workflow.constraints.allowed_tools.push(normalized);
-        }
-    }
-    workflow
-}
-
-fn default_workflow_registry() -> WorkflowRegistry {
     WorkflowRegistry {
-        version: 3,
+        version: 1,
         workflows: vec![
-            with_tools(
-                provider("latex.edit", "LaTeX Edit", &["latex.overlay"], &["latex"], "supervisor"),
-                &[
-                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
-                    ("search", "tool.search", "Web Search", "workflow"),
-                ],
-            ),
+            provider("latex.edit", "LaTeX Edit", &["latex.overlay"], &["latex"]),
             provider(
                 "latex.review_fix",
                 "LaTeX Review Fix",
                 &["latex.overlay"],
                 &["latex"],
-                "supervisor",
             ),
             WorkflowDefinition {
                 id: "latex.reference_check".to_string(),
                 title: "Reference Check".to_string(),
                 callsites: vec!["latex.overlay".to_string()],
                 model_id: None,
-                execution_mode: Some("supervisor".to_string()),
                 steps: vec![WorkflowStep {
                     id: "search".to_string(),
                     kind: "tool.search".to_string(),
                     title: "Tool Search".to_string(),
                     source: "workflow".to_string(),
-                    retryable: Some(true),
-                    approval_required: Some(false),
                 }],
                 constraints: WorkflowConstraints {
-                    allowed_context_prefixes: vec![
-                        "file:".to_string(),
-                        "paper:".to_string(),
-                        "folder:".to_string(),
-                    ],
+                    allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
                     allowed_tools: vec!["tool_search".to_string()],
                     writable_scopes: vec!["readonly".to_string()],
                     max_steps: Some(2),
                     timeout_ms: Some(DEFAULT_TIMEOUT_MS),
-                    max_iterations: Some(1),
-                    approval_policy: Some("readonly".to_string()),
-                    trace_visibility: Some("full".to_string()),
-                    parallelism: Some(1),
                 },
             },
             provider(
@@ -213,61 +130,36 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 "Paper Analyze",
                 &["latex.overlay"],
                 &["readonly"],
-                "supervisor",
             ),
-            with_tools(
-                provider(
-                    "analysis.explore_chunk",
-                    "Analysis Explore",
-                    &["analysis.workspace"],
-                    &["data"],
-                    "supervisor",
-                ),
-                &[
-                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
-                    ("python", "tool.python", "Python Analysis", "workflow"),
-                    ("search", "tool.search", "Web Search", "workflow"),
-                ],
+            provider(
+                "analysis.explore_chunk",
+                "Analysis Explore",
+                &["analysis.workspace"],
+                &["readonly"],
             ),
-            with_tools(
-                provider(
-                    "analysis.synthesize",
-                    "Analysis Synthesize",
-                    &["analysis.workspace"],
-                    &["data"],
-                    "supervisor",
-                ),
-                &[
-                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
-                    ("python", "tool.python", "Python Analysis", "workflow"),
-                ],
+            provider(
+                "analysis.synthesize",
+                "Analysis Synthesize",
+                &["analysis.workspace"],
+                &["readonly"],
             ),
-            with_tools(
-                provider(
-                    "chat.general",
-                    "Chat General",
-                    &["chat.workspace"],
-                    &["latex", "drawings", "data"],
-                    "supervisor",
-                ),
-                &[
-                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
-                    ("search", "tool.search", "Web Search", "workflow"),
-                ],
+            provider(
+                "chat.general",
+                "Chat General",
+                &["chat.workspace"],
+                &["readonly"],
             ),
             provider(
                 "completion.latex",
                 "Completion",
                 &["completion.inline"],
                 &["readonly"],
-                "single",
             ),
             provider(
                 "git.summary",
                 "Git Summary",
                 &["git.summary"],
                 &["readonly"],
-                "single",
             ),
         ],
     }
@@ -289,32 +181,13 @@ fn ensure_registry_file(project_root: &Path) -> Result<PathBuf, String> {
     Ok(file_path)
 }
 
-pub(super) fn load_registry_for_project(
-    db_path: &Path,
-    project_id: &str,
-) -> Result<WorkflowRegistry, String> {
+pub(super) fn load_registry_for_project(db_path: &Path, project_id: &str) -> Result<WorkflowRegistry, String> {
     let project_root = storage::load_project_root(db_path, project_id)?;
     let file_path = ensure_registry_file(&project_root)?;
     let raw = fs::read_to_string(&file_path)
         .map_err(|error| format!("workflow.config.read_failed:{error}"))?;
-    let mut registry = serde_json::from_str::<WorkflowRegistry>(&raw)
-        .map_err(|error| format!("workflow.config.invalid_json:{error}"))?;
-    if registry.version < 3 {
-        let defaults = default_workflow_registry();
-        for default_workflow in defaults.workflows {
-            if let Some(existing) = registry
-                .workflows
-                .iter_mut()
-                .find(|workflow| workflow.id == default_workflow.id)
-            {
-                *existing = default_workflow;
-            } else {
-                registry.workflows.push(default_workflow);
-            }
-        }
-        registry.version = 3;
-    }
-    Ok(registry)
+    serde_json::from_str::<WorkflowRegistry>(&raw)
+        .map_err(|error| format!("workflow.config.invalid_json:{error}"))
 }
 
 pub(super) fn resolve_workflow<'a>(
@@ -348,30 +221,10 @@ pub(super) fn max_steps_for_workflow(workflow: &WorkflowDefinition) -> usize {
         .unwrap_or(4)
 }
 
-pub(super) fn max_iterations_for_workflow(workflow: &WorkflowDefinition) -> usize {
-    workflow
-        .constraints
-        .max_iterations
-        .map(|value| value.clamp(1, 4) as usize)
-        .unwrap_or(DEFAULT_MAX_ITERATIONS)
-}
-
-pub(super) fn execution_mode_for_workflow(workflow: &WorkflowDefinition, callsite: &str) -> &'static str {
-    match workflow.execution_mode.as_deref().map(str::trim) {
-        Some("single") => "single",
-        Some("supervisor") => "supervisor",
-        _ if callsite == "completion.inline" => "single",
-        _ => "supervisor",
-    }
-}
-
 pub(super) fn normalize_tool_name(step_kind: &str) -> String {
     match step_kind {
         "provider.generate" => "provider_generate".to_string(),
         "tool.search" => "tool_search".to_string(),
-        "tool.workspace" => "tool_workspace".to_string(),
-        "tool.python" => "tool_python".to_string(),
-        "mcp.call" => "mcp_call".to_string(),
         other => other.replace('.', "_"),
     }
 }
@@ -449,41 +302,4 @@ pub(super) fn validate_step_tools(workflow: &WorkflowDefinition) -> Result<(), S
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{execution_mode_for_workflow, max_iterations_for_workflow, WorkflowDefinition, WorkflowRegistry};
-
-    #[test]
-    fn parses_legacy_registry_without_new_fields() {
-        let raw = r#"{
-          "version": 1,
-          "workflows": [{
-            "id": "latex.edit",
-            "title": "LaTeX Edit",
-            "callsites": ["latex.overlay"],
-            "steps": [{"id": "main", "kind": "provider.generate"}],
-            "constraints": {"writableScopes": ["latex"], "maxSteps": 4}
-          }]
-        }"#;
-        let registry: WorkflowRegistry = serde_json::from_str(raw).expect("legacy registry parses");
-        let workflow = registry.workflows.first().expect("workflow exists");
-        assert_eq!(execution_mode_for_workflow(workflow, "latex.overlay"), "supervisor");
-        assert_eq!(max_iterations_for_workflow(workflow), 2);
-    }
-
-    #[test]
-    fn completion_defaults_to_single_mode_when_execution_mode_is_missing() {
-        let workflow = WorkflowDefinition {
-            id: "completion.latex".to_string(),
-            title: "Completion".to_string(),
-            callsites: vec!["completion.inline".to_string()],
-            model_id: None,
-            execution_mode: None,
-            steps: vec![],
-            constraints: Default::default(),
-        };
-        assert_eq!(execution_mode_for_workflow(&workflow, "completion.inline"), "single");
-    }
 }

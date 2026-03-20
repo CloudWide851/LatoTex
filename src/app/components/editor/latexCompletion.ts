@@ -1,4 +1,4 @@
-import { startCompletionLatex } from "../../../shared/api/agent";
+import { executeWorkflowStart } from "../../../shared/api/desktop";
 import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 
@@ -143,12 +143,11 @@ function collectUniqueMatches(text: string, pattern: RegExp): string[] {
 
 function collectCiteKeys(text: string): string[] {
   const fromBibItem = collectUniqueMatches(text, /\\bibitem\{([^}]+)\}/g);
-  const fromBibEntries = collectUniqueMatches(text, /@\w+\s*\{\s*([^,\s{}]+)\s*,/g);
   const fromCite = collectUniqueMatches(text, /\\cite[a-zA-Z*]*\{([^}]+)\}/g)
     .flatMap((item) => item.split(","))
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
-  const merged = new Set<string>([...fromBibItem, ...fromBibEntries, ...fromCite]);
+  const merged = new Set<string>([...fromBibItem, ...fromCite]);
   return Array.from(merged).slice(0, 300);
 }
 
@@ -319,13 +318,31 @@ async function fetchRemoteSuggestions(params: {
         prefix: symbolHintPrefix.replace(/^\\/, ""),
         limit: 20,
       });
-      const accepted = await startCompletionLatex({
+      const prompt = [
+        "You are a LaTeX autocomplete engine.",
+        "Return strict JSON only.",
+        "Schema:",
+        "{\"suggestions\":[{\"label\":\"\\\\command\",\"insertText\":\"\\\\command{${1}}\",\"kind\":\"snippet|text\"}]}",
+        `Maximum ${REMOTE_COMPLETION_MAX} suggestions.`,
+        "Only include suggestions that start with '\\\\' and match the current prefix.",
+        "",
+        "Current line prefix:",
+        focusedLine,
+        "",
+        "Known project symbols (high confidence):",
+        projectSymbols.join(", "),
+        "",
+        "Current document context (tail):",
+        params.fullText.slice(Math.max(0, params.fullText.length - 720)),
+      ].join("\n");
+      const accepted = await executeWorkflowStart({
         projectId,
-        selectedFile,
-        linePrefix: focusedLine,
-        fullText: params.fullText,
-        projectSymbols,
+        workflowId: "completion.latex",
+        callsite: "completion.inline",
+        prompt,
+        contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
         modelOverride: completionModelId,
+        bypassCache: false,
       });
       const output = await waitCompletionRunOutput(accepted.runId);
       const suggestions = parseRemoteSuggestions(output);
@@ -453,19 +470,7 @@ export function ensureLatexCompletionProvider(monaco: any) {
       }
 
       if (inCite) {
-        const projectCiteKeys = await getIndexedProjectSymbols({
-          projectId: context.projectId,
-          fileList: context.fileList,
-          selectedFile: context.selectedFile,
-          selectedFileContent: text,
-          prefix: "",
-          limit: 160,
-        });
-        const citeKeys = Array.from(new Set([
-          ...collectCiteKeys(text),
-          ...projectCiteKeys.filter((item) => !item.startsWith("\\") && !/\s/.test(item)),
-        ])).slice(0, 300);
-        for (const key of citeKeys) {
+        for (const key of collectCiteKeys(text)) {
           suggestions.push({
             label: key,
             kind: monaco.languages.CompletionItemKind.Reference,
@@ -544,8 +549,5 @@ export function ensureLatexCompletionProvider(monaco: any) {
     },
   });
 }
-
-
-
 
 

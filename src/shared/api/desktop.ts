@@ -5,10 +5,15 @@ import type {
   AnalysisExportArtifactResponse,
   AnalysisListReportsResponse,
   AnalysisSaveReportResponse,
-  AgentRunStartAccepted,
+  AgentExecuteStartAccepted,
   AgentModelBinding,
+  AppBackgroundImage,
+  AppBackgroundImagePayload,
   AppSettings,
+  AnalysisPyodideCacheInfo,
+  DrawioCacheInfo,
   BusyTexCacheInfo,
+  BusyTexInstallPackageResult,
   CompileRecord,
   CredentialSaveResult,
   EventBatch,
@@ -26,6 +31,10 @@ import type {
   GitStatus,
   LibraryCitationSummary,
   LibraryPdfPreview,
+  LibraryTranslateResult,
+  LibraryTranslateStartResult,
+  LibraryTranslateStatus,
+  LibraryZoteroSyncResult,
   ModelCatalogItemInput,
   ModelDraftTestInput,
   ModelApiKeyValue,
@@ -40,10 +49,14 @@ import type {
   ProjectSnapshot,
   ProjectSummary,
   RuntimeLogInfo,
+  RuntimeLogSessionListResponse,
+  RuntimeMemorySnapshot,
   RuntimeLogReadFilters,
   RuntimeLogReadResponse,
   ResourceNode,
   ShareSessionInfo,
+  TelegramPollInput,
+  TelegramPollResult,
   WorkspaceExportPdfResponse,
 } from "../types/app";
 import type { HealthCheckResponse } from "../types/health";
@@ -152,9 +165,11 @@ export function workspaceOpenTerminal(projectId: string, relativePath?: string) 
 export function shareSessionCreate(
   projectId: string,
   targetPath: string,
+  mode: "local" | "remote" = "remote",
+  sessionName?: string,
 ): Promise<ShareSessionInfo> {
   return invoke<ShareSessionInfo>("share_session_create", {
-    input: { projectId, targetPath },
+    input: { projectId, targetPath, mode, sessionName },
   });
 }
 
@@ -164,6 +179,18 @@ export function shareSessionStatus(): Promise<ShareSessionInfo> {
 
 export function shareSessionStop(): Promise<Ack> {
   return invoke<Ack>("share_session_stop");
+}
+
+export function channelsTelegramPoll(input: TelegramPollInput = {}): Promise<TelegramPollResult> {
+  return invoke<TelegramPollResult>("channels_telegram_poll", { input });
+}
+
+export function channelsTelegramSend(input: {
+  chatId?: string;
+  text: string;
+  replyToMessageId?: number;
+}): Promise<Ack> {
+  return invoke<Ack>("channels_telegram_send", { input });
 }
 
 export function openExternalLink(url: string): Promise<Ack> {
@@ -237,6 +264,61 @@ export function importLibraryLink(projectId: string, link: string): Promise<Ack>
   return invoke<Ack>("library_import_link", { input: { projectId, link } });
 }
 
+export function syncLibraryZotero(input: {
+  projectId: string;
+  ownerId: string;
+  apiKey: string;
+  scope?: "users" | "groups";
+}): Promise<LibraryZoteroSyncResult> {
+  return invoke<LibraryZoteroSyncResult>("library_zotero_sync", {
+    input: {
+      projectId: input.projectId,
+      ownerId: input.ownerId,
+      apiKey: input.apiKey,
+      scope: input.scope ?? "users",
+    },
+  });
+}
+
+export function translateLibraryDocument(input: {
+  projectId: string;
+  relativePath: string;
+  targetLanguage?: string;
+  modelOverride?: string;
+}): Promise<LibraryTranslateResult> {
+  return invoke<LibraryTranslateResult>("library_translate_document", {
+    input: {
+      projectId: input.projectId,
+      relativePath: input.relativePath,
+      targetLanguage: input.targetLanguage,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+
+export function translateLibraryDocumentStart(input: {
+  projectId: string;
+  relativePath: string;
+  targetLanguage?: string;
+  modelOverride?: string;
+}): Promise<LibraryTranslateStartResult> {
+  return invoke<LibraryTranslateStartResult>("library_translate_start", {
+    input: {
+      projectId: input.projectId,
+      relativePath: input.relativePath,
+      targetLanguage: input.targetLanguage,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function translateLibraryDocumentStatus(taskId: string): Promise<LibraryTranslateStatus> {
+  return invoke<LibraryTranslateStatus>("library_translate_status", {
+    input: { taskId },
+  });
+}
+
 export function libraryCitationSummary(
   projectId: string,
   relativePath: string,
@@ -255,18 +337,20 @@ export function libraryResolvePdfPreview(
   });
 }
 
-export function runAgent(input: {
+export function executeWorkflowStart(input: {
   projectId: string;
-  role: string;
+  workflowId: string;
+  callsite: string;
   prompt: string;
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
-}) {
-  return invoke<{ runId: string; status: string; output: string }>("agent_run", {
+}): Promise<AgentExecuteStartAccepted> {
+  return invoke<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
       projectId: input.projectId,
-      role: input.role,
+      workflowId: input.workflowId,
+      callsite: input.callsite,
       prompt: input.prompt,
       contextRefs: input.contextRefs,
       modelOverride: input.modelOverride,
@@ -275,32 +359,17 @@ export function runAgent(input: {
   });
 }
 
-export function runAgentStart(input: {
-  projectId: string;
-  role: string;
-  prompt: string;
-  contextRefs: string[];
-  modelOverride?: string;
-  bypassCache?: boolean;
-}): Promise<AgentRunStartAccepted> {
-  return invoke<AgentRunStartAccepted>("agent_run_start", {
-    input: {
-      projectId: input.projectId,
-      role: input.role,
-      prompt: input.prompt,
-      contextRefs: input.contextRefs,
-      modelOverride: input.modelOverride,
-      bypassCache: input.bypassCache ?? false,
-    },
-  });
+export function executeWorkflowCancel(runId: string) {
+  return invoke<Ack>("agent_execute_cancel", { input: { runId } });
 }
-
-export function runAgentCancel(runId: string) {
-  return invoke<Ack>("agent_run_cancel", { input: { runId } });
-}
-
-export function getEvents(cursor?: number, limit = 200, runId?: string): Promise<EventBatch> {
-  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId } });
+export function getEvents(
+  cursor?: number,
+  limit = 200,
+  runId?: string,
+  waitMs?: number,
+  excludeKinds?: string[],
+): Promise<EventBatch> {
+  return invoke<EventBatch>("events_subscribe", { query: { cursor, limit, runId, waitMs, excludeKinds } });
 }
 
 export function setTrayLabels(showLabel: string, exitLabel: string, tooltip: string) {
@@ -341,10 +410,42 @@ export function updateSettings(input: {
     busytexCacheDir?: string;
     previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
+    featureModelBindings?: {
+      latexAgentModelId?: string;
+      analysisAgentModelId?: string;
+      translationModelId?: string;
+      completionModelId?: string;
+    };
+    channels?: {
+      telegramEnabled?: boolean;
+      telegramBotToken?: string;
+      telegramChatId?: string;
+    };
+    closeBehavior?: "ask" | "tray" | "exit";
+    closeBehaviorRemember?: boolean;
+    backgroundImagePath?: string;
+    backgroundImagePaths?: string[];
+    backgroundBlurPx?: number;
   };
 }): Promise<AppSettings> {
   return invoke<AppSettings>("settings_update", { input });
 }
+
+export function pickBackgroundImage(): Promise<AppBackgroundImage | null> {
+  return invoke<AppBackgroundImage | null>("settings_pick_background_image");
+}
+
+export function readBackgroundImage(path: string): Promise<AppBackgroundImagePayload | null> {
+  return invoke<AppBackgroundImagePayload | null>("settings_read_background_image", {
+    input: { path },
+  });
+}
+export function removeBackgroundImage(path: string): Promise<Ack> {
+  return invoke<Ack>("settings_remove_background_image", {
+    input: { path },
+  });
+}
+
 
 export function testProtocol(input: ProtocolTestInput): Promise<ProtocolHealth> {
   return invoke<ProtocolHealth>("protocol_test", {
@@ -401,6 +502,14 @@ export function runtimeLogWrite(level: string, message: string) {
 
 export function runtimeLogInfo(): Promise<RuntimeLogInfo> {
   return invoke<RuntimeLogInfo>("runtime_log_info");
+}
+
+export function runtimeLogListSessions(): Promise<RuntimeLogSessionListResponse> {
+  return invoke<RuntimeLogSessionListResponse>("runtime_log_list_sessions");
+}
+
+export function runtimeMemorySnapshot(): Promise<RuntimeMemorySnapshot> {
+  return invoke<RuntimeMemorySnapshot>("runtime_memory_snapshot");
 }
 
 export function runtimeLogRead(filters: RuntimeLogReadFilters = {}): Promise<RuntimeLogReadResponse> {
@@ -496,3 +605,24 @@ export function gitDiffFile(
 export function busytexCachePrepare(policy: "install-first" | "appdata-only"): Promise<BusyTexCacheInfo> {
   return invoke<BusyTexCacheInfo>("busytex_cache_prepare", { input: { policy } });
 }
+
+export function busytexInstallMissingPackage(input: {
+  styleFile: string;
+  policy?: "install-first" | "appdata-only";
+}): Promise<BusyTexInstallPackageResult> {
+  return invoke<BusyTexInstallPackageResult>("busytex_install_missing_package", { input });
+}
+
+export function analysisPyodidePrepare(policy: "install-first" | "appdata-only"): Promise<AnalysisPyodideCacheInfo> {
+  return invoke<AnalysisPyodideCacheInfo>("analysis_pyodide_prepare", { input: { policy } });
+}
+
+export function drawioCachePrepare(policy: "install-first" | "appdata-only"): Promise<DrawioCacheInfo> {
+  return invoke<DrawioCacheInfo>("drawio_cache_prepare", { input: { policy } });
+}
+
+
+
+
+
+

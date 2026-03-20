@@ -1,24 +1,7 @@
-import { executeWorkflowStart } from "../../shared/api/agent";
-import type { AgentTeamMode } from "../../shared/types/app";
+import { executeWorkflowStart } from "../../shared/api/desktop";
 import type { MutableRefObject } from "react";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";
-
-export function isRetryableAnalysisProviderError(message: string): boolean {
-  if (message.includes("agent.run.failed_after_delta")) {
-    return false;
-  }
-  return (
-    message.includes("provider.empty_body")
-    || message.includes("provider.parse_eof")
-    || message.includes("provider.parse_invalid_json")
-    || message.includes("provider.empty_output")
-    || message.includes("provider.transport_error")
-    || message.includes("provider.server_error")
-    || message.includes("provider.rate_limited")
-    || message.includes("provider.endpoint_mismatch")
-  );
-}
 
 export async function ensureAnalysisTasksLoaded(
   loadedRef: MutableRefObject<boolean>,
@@ -40,8 +23,6 @@ export async function runRolePromptWithAgent(params: {
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
-  teamMode?: AgentTeamMode;
-  onAcceptedRunId?: (runId: string) => void;
 }): Promise<{ runId: string; output: string }> {
   const {
     projectId,
@@ -50,12 +31,19 @@ export async function runRolePromptWithAgent(params: {
     contextRefs,
     modelOverride,
     bypassCache = false,
-    teamMode = "auto",
-    onAcceptedRunId,
   } = params;
   const promptRefContext = extractPromptRefValues(promptText).map((path) => `file:${path}`);
   const mergedContextRefs = Array.from(new Set([...contextRefs, ...promptRefContext]));
   const maxAttempts = 3;
+  const isRetryableProviderError = (message: string) =>
+    message.includes("provider.empty_body")
+    || message.includes("provider.parse_eof")
+    || message.includes("provider.parse_invalid_json")
+    || message.includes("provider.empty_output")
+    || message.includes("provider.transport_error")
+    || message.includes("provider.server_error")
+    || message.includes("provider.rate_limited")
+    || message.includes("provider.endpoint_mismatch");
   let lastError: unknown = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const retryAttempt = attempt > 0;
@@ -69,9 +57,7 @@ export async function runRolePromptWithAgent(params: {
         contextRefs: mergedContextRefs,
         modelOverride,
         bypassCache: runBypassCache,
-        teamMode,
       });
-      onAcceptedRunId?.(accepted.runId);
       return {
         runId: accepted.runId,
         output: await waitForRunOutput(accepted.runId),
@@ -79,7 +65,7 @@ export async function runRolePromptWithAgent(params: {
     } catch (error) {
       lastError = error;
       const message = String(error ?? "");
-      const retryable = isRetryableAnalysisProviderError(message);
+      const retryable = isRetryableProviderError(message);
       if (!retryable || attempt >= maxAttempts - 1) {
         break;
       }
@@ -89,4 +75,3 @@ export async function runRolePromptWithAgent(params: {
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "analysis.run.failed"));
 }
-

@@ -5,8 +5,8 @@ import {
   channelsTelegramSend,
   getEvents,
   readFile,
-  runAgentCancel,
-  runAgentStart,
+  executeWorkflowCancel,
+  executeWorkflowStart,
 } from "../../../shared/api/desktop";
 import { cn } from "../../../lib/utils";
 import type { ChannelPrefs } from "../../../shared/types/app";
@@ -282,9 +282,10 @@ export function ChatWorkspace(props: {
     });
     setRunning(true);
     try {
-      const accepted = await runAgentStart({
+      const accepted = await executeWorkflowStart({
         projectId,
-        role: "task",
+        workflowId: "chat.general",
+        callsite: "chat.workspace",
         prompt,
         contextRefs: [],
         modelOverride: modelOverride ?? undefined,
@@ -538,7 +539,7 @@ export function ChatWorkspace(props: {
       return;
     }
     try {
-      await runAgentCancel(runId);
+      await executeWorkflowCancel(runId);
     } catch {
       // ignore
     }
@@ -612,6 +613,8 @@ export function ChatWorkspace(props: {
     </section>
   );
 }
+
+
 
 
 

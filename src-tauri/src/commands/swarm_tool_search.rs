@@ -2,13 +2,13 @@ use crate::commands::analysis::run_reference_check_queries;
 use serde_json::json;
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::call_provider_with_retry;
 use super::swarm_events::{
-    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, run_envelope,
-    EventMetadata,
+    EventMetadata, append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event,
+    run_envelope,
 };
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
@@ -177,7 +177,6 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_stage_tool_search(
     db_path: &Path,
-    runtime_root: &Path,
     run_id: &str,
     project_id: &str,
     event_scope: &str,
@@ -195,24 +194,6 @@ pub(super) fn run_stage_tool_search(
     metadata: EventMetadata<'_>,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
-    let settings = crate::storage::load_settings(db_path, runtime_root)?;
-    let web_enabled = settings.ui_prefs.as_ref().map(|prefs| {
-        let legacy_enabled = prefs
-            .agent_tool_prefs
-            .as_ref()
-            .and_then(|prefs| prefs.web_search_enabled)
-            .unwrap_or(true);
-        let permission_enabled = prefs
-            .agent_permission_prefs
-            .as_ref()
-            .and_then(|prefs| prefs.web_search.as_deref())
-            .map(|mode| mode != "deny")
-            .unwrap_or(true);
-        legacy_enabled && permission_enabled
-    }).unwrap_or(true);
-    if !web_enabled {
-        return Ok("[tool_search.compact.v1]\nweb_search=disabled_by_settings".to_string());
-    }
     emit_stage_event(
         db_path,
         run_id,
@@ -225,7 +206,6 @@ pub(super) fn run_stage_tool_search(
         "",
         metadata,
     )?;
-    let running_actions = json!([{"type":"search","tool":"web","status":"running"}]);
     emit_tool_event(
         db_path,
         run_id,
@@ -236,18 +216,10 @@ pub(super) fn run_stage_tool_search(
         "tool_search",
         "running",
         "",
-        EventMetadata { actions: Some(&running_actions), ..metadata },
+        metadata,
     )?;
     let (queries, compact_context, evidence_count) = build_tool_search_context(prompt);
     ensure_not_cancelled(cancel_flag)?;
-    let query_count = queries.len();
-    let result_actions = json!([{
-        "type": "search",
-        "tool": "web",
-        "status": "success",
-        "queries": queries,
-        "evidenceCount": evidence_count
-    }]);
     emit_tool_event(
         db_path,
         run_id,
@@ -259,14 +231,15 @@ pub(super) fn run_stage_tool_search(
         "success",
         &format!(
             "queries={}, evidence={}, token_mode=compact",
-            query_count,
+            queries.len(),
             evidence_count
         ),
-        EventMetadata { actions: Some(&result_actions), ..metadata },
+        metadata,
     )?;
 
-    let estimated_saved =
-        ((query_count.saturating_mul(850)) as i64 - (compact_context.len() as i64 / 4)).max(0);
+    let estimated_saved = ((queries.len().saturating_mul(850)) as i64
+        - (compact_context.len() as i64 / 4))
+        .max(0);
     let mut stats_payload = run_envelope(
         run_id,
         "success",
@@ -277,10 +250,7 @@ pub(super) fn run_stage_tool_search(
     );
     if let Some(object) = stats_payload.as_object_mut() {
         object.insert("toolName".to_string(), json!("tool_search"));
-        object.insert(
-            "toolTokensSavedEstimate".to_string(),
-            json!(estimated_saved),
-        );
+        object.insert("toolTokensSavedEstimate".to_string(), json!(estimated_saved));
         object.insert("toolRound".to_string(), json!(1));
     }
     append_protocol_event(
@@ -340,66 +310,4 @@ pub(super) fn run_stage_tool_search(
         metadata,
     )?;
     Ok(output)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::run_stage_tool_search;
-    use super::EventMetadata;
-    use crate::storage;
-    use rusqlite::{params, Connection};
-    use serde_json::json;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::sync::atomic::AtomicBool;
-    use std::sync::Arc;
-    use uuid::Uuid;
-
-    fn disabled_settings_fixture() -> (PathBuf, PathBuf) {
-        let root = std::env::temp_dir().join(format!("latotex-search-tool-{}", Uuid::new_v4()));
-        let runtime_root = root.join("runtime");
-        let db_path = runtime_root.join("latotex.db");
-        fs::create_dir_all(&runtime_root).unwrap();
-        storage::initialize_database(&db_path).unwrap();
-        let conn = Connection::open(&db_path).unwrap();
-        conn.execute(
-            "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
-            params![json!({"agentToolPrefs":{"webSearchEnabled":false}}).to_string()],
-        )
-        .unwrap();
-        (db_path, runtime_root)
-    }
-
-    #[test]
-    fn web_search_disabled_returns_without_events_or_provider_call() {
-        let (db_path, runtime_root) = disabled_settings_fixture();
-        let cancel_flag = Arc::new(AtomicBool::new(false));
-        let result = run_stage_tool_search(
-            &db_path,
-            &runtime_root,
-            "run-disabled-web",
-            "missing-project",
-            "unit",
-            "search",
-            "web",
-            "Web",
-            "query",
-            &[],
-            &cancel_flag,
-            "missing-protocol",
-            "https://example.invalid",
-            "missing-key",
-            "missing-model",
-            false,
-            EventMetadata::base("wf", "step", "test"),
-        )
-        .unwrap();
-
-        assert!(result.contains("web_search=disabled_by_settings"));
-        let conn = Connection::open(&db_path).unwrap();
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 0);
-    }
 }

@@ -1,10 +1,14 @@
-import { Plus } from "lucide-react";
+import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon } from "lucide-react";
 import { useCallback } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
+import telegramIcon from "../../assets/brands/telegram.svg";
 import { Button } from "../../components/ui/button";
+import { Checkbox } from "../../components/ui/checkbox";
+import { Select } from "../../components/ui/select";
 import type {
   AppSettings,
+  BusyTexCacheInfo,
   ModelCatalogItem,
   ModelTestResult,
   RuntimeLogEntry,
@@ -14,37 +18,41 @@ import type {
 import {
   DEFAULT_PANEL_LAYOUT,
   DEFAULT_PROTOCOLS,
-  SETTINGS_SECTIONS,
   type SettingsSection,
   type ThemeMode,
 } from "../app-config";
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
-import { DocxSettingsSection } from "./settings/DocxSettingsSection";
-import { SettingsDoctorSection } from "./settings/SettingsDoctorSection";
+import { BackgroundImageCard } from "./settings/BackgroundImageCard";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
-import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
-import { AgentToolsSettingsSection, McpSettingsSection, SkillsSettingsSection } from "./settings/AgentToolsSettingsSection";
-import { AgentPermissionsSettingsSection } from "./settings/AgentPermissionsSettingsSection";
-import { AgentTeamsSettingsSection } from "./settings/AgentTeamsSettingsSection";
-import { AgentRoutingSettingsSection } from "./settings/AgentRoutingSettingsSection";
-import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
-import { ExplorerDefaultsSection } from "./settings/ExplorerDefaultsSection";
-import { MemoryGuardSettingsSection } from "./settings/MemoryGuardSettingsSection";
-import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
-import { SettingsSelectRow } from "./settings/SettingsSelectRow";
-import { SidebarPageOrderSettingsSection } from "./settings/SidebarPageOrderSettingsSection";
-import { PluginSourcesSettingsSection } from "./settings/PluginSourcesSettingsSection";
-import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
 
 type TranslationFn = (key: any) => string;
 
+const SETTINGS_SECTIONS: Array<{
+  id: SettingsSection;
+  key:
+    | "settings.section.general"
+    | "settings.section.appearance"
+    | "settings.section.models"
+    | "settings.section.agents"
+    | "settings.section.channels"
+    | "settings.section.diagnostics";
+  icon: typeof Languages;
+}> = [
+  { id: "general", key: "settings.section.general", icon: Languages },
+  { id: "appearance", key: "settings.section.appearance", icon: Palette },
+  { id: "models", key: "settings.section.models", icon: Globe },
+  { id: "agents", key: "settings.section.agents", icon: Bot },
+  { id: "channels", key: "settings.section.channels", icon: Globe },
+  { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
+];
+const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
 export function SettingsPanel(props: {
   settings: AppSettings | null;
   activeProjectId: string | null;
-  fileList: string[];
   locale: Locale;
   busy: boolean;
   settingsSection: SettingsSection;
+  busytexCacheInfo: BusyTexCacheInfo | null;
   runtimeInfo: RuntimeLogInfo | null;
   runtimeLogs: RuntimeLogEntry[];
   runtimeLogLoading: boolean;
@@ -58,6 +66,7 @@ export function SettingsPanel(props: {
   onSettingsSectionChange: (value: SettingsSection) => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
+  onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
   onOpenModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
   onReloadLogs: (options?: {
     silent?: boolean;
@@ -68,17 +77,16 @@ export function SettingsPanel(props: {
   onClearCurrentLog: () => Promise<void>;
   onTestModel: (modelId: string) => void;
   onTestAllModels: () => void;
-  onReleaseMemory?: () => void;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
   t: TranslationFn;
 }) {
   const {
     settings,
     activeProjectId,
-    fileList,
     locale,
     busy,
     settingsSection,
+    busytexCacheInfo,
     runtimeInfo,
     runtimeLogs,
     runtimeLogLoading,
@@ -92,13 +100,13 @@ export function SettingsPanel(props: {
     onSettingsSectionChange,
     onLocaleChange,
     onThemeModeChange,
+    onBusyTexCachePolicyChange,
     onOpenModelModal,
     onReloadLogs,
     onSelectLogFile,
     onClearCurrentLog,
     onTestModel,
     onTestAllModels,
-    onReleaseMemory,
     setSettings,
     t,
   } = props;
@@ -112,39 +120,16 @@ export function SettingsPanel(props: {
       language: locale,
       closeToTrayNoticeEnabled: true,
       theme: "system",
-      themePreset: "default",
+      busytexCachePolicy: "install-first",
       previewDefaultZoom: 1,
       panelLayout: DEFAULT_PANEL_LAYOUT,
-      terminalShell: "powershell",
       backgroundImagePaths: [],
       backgroundBlurPx: 18,
-      accentColor: "emerald",
-      accentCustomColor: "",
-      scrollbarColorMode: "accent",
-      scrollbarWidthPx: 14,
-      glassOpacity: 0.78,
-      glassBlurPx: 18,
-      motionLevel: "full",
-      fontScale: 1,
-      pdfPageGapPx: 12,
-      logFontSizePx: 12,
-      panelRadiusPx: 8,
-      panelBorderContrast: "normal",
-      memoryGuardPrefs: {
-        enabled: true,
-        highWatermarkMb: 560,
-        criticalWatermarkMb: 760,
-        sampleIntervalSec: 25,
-        criticalAction: "sleep",
-      },
-      agentTeamPrefs: DEFAULT_AGENT_TEAM_PREFS,
     },
   };
 
   const deleteConfirmEnabled = !(localSettings.uiPrefs?.skipDeleteConfirm ?? false);
   const closeToTrayNoticeEnabled = localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true;
-  const paperBriefEngine = localSettings.uiPrefs?.paperBriefEngine ?? "auto";
-  const terminalShell = localSettings.uiPrefs?.terminalShell ?? "powershell";
 
   const updateGeneralUiPrefs = useCallback((patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -162,8 +147,8 @@ export function SettingsPanel(props: {
   }, [locale, localSettings, setSettings]);
 
   return (
-    <div className="settings-panel-scroll-scope relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
-      <aside className="bg-slate-50 p-2 max-[980px]:border-b">
+    <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
+      <aside className="border-r border-slate-200 bg-slate-50 p-2 max-[980px]:border-r-0 max-[980px]:border-b">
         <div className="space-y-1">
           {SETTINGS_SECTIONS.map((item) => {
             const Icon = item.icon;
@@ -171,8 +156,10 @@ export function SettingsPanel(props: {
               <button
                 key={item.id}
                 className={cn(
-                  "settings-nav-item flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition focus:outline-none",
-                  settingsSection === item.id && "settings-nav-item--active",
+                  "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition",
+                  settingsSection === item.id
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-700 hover:bg-slate-200",
                 )}
                 onClick={() => onSettingsSectionChange(item.id)}
               >
@@ -189,7 +176,7 @@ export function SettingsPanel(props: {
           "min-h-0 p-3",
           settingsSection === "diagnostics"
             ? "grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
-            : "settings-scrollbar-hidden overflow-auto",
+            : "overflow-auto",
         )}
       >
         <div className="mb-3 border-b border-slate-200 pb-3">
@@ -206,84 +193,154 @@ export function SettingsPanel(props: {
 
         {settingsSection === "general" && (
           <div className="grid gap-3">
-            <SettingsSelectRow
-              title={t("settings.languageTitle")}
-              value={locale}
-              description={`${t("settings.languageAuto")}: ${
-                detectSystemLocale() === "zh-CN"
-                  ? t("settings.language.zh-CN")
-                  : t("settings.language.en-US")
-              }`}
-              options={[
-                { value: "zh-CN", label: t("settings.language.zh-CN") },
-                { value: "en-US", label: t("settings.language.en-US") },
-              ]}
-              onChange={(value) => onLocaleChange(value as Locale)}
-            />
-            <SettingsSelectRow
-              title={t("settings.paperBriefEngineTitle")}
-              value={paperBriefEngine}
-              description={t("settings.paperBriefEngineHint")}
-              options={[
-                { value: "auto", label: t("settings.paperBriefEngine.auto") },
-                { value: "pdfjs", label: t("settings.paperBriefEngine.pdfjs") },
-                { value: "python", label: t("settings.paperBriefEngine.python") },
-              ]}
-              onChange={(value) =>
-                updateGeneralUiPrefs({
-                  paperBriefEngine: value as "auto" | "pdfjs" | "python",
-                })
-              }
-            />
-            <SettingsSelectRow
-              title={t("settings.terminalShellTitle")}
-              value={terminalShell}
-              description={t("settings.terminalShellHint")}
-              options={[
-                { value: "powershell", label: t("settings.terminalShell.powershell") },
-                { value: "cmd", label: t("settings.terminalShell.cmd") },
-                { value: "system", label: t("settings.terminalShell.system") },
-              ]}
-              onChange={(value) =>
-                updateGeneralUiPrefs({
-                  terminalShell: value as "powershell" | "cmd" | "system",
-                })
-              }
-            />
-            <SettingsBooleanRow
-              label={t("settings.deleteConfirm")}
-              checked={deleteConfirmEnabled}
-              onCheckedChange={(nextValue) =>
-                updateGeneralUiPrefs({ skipDeleteConfirm: !nextValue })
-              }
-            />
-            <SettingsBooleanRow
-              label={t("settings.closeToTrayNotice")}
-              checked={closeToTrayNoticeEnabled}
-              onCheckedChange={(nextValue) =>
-                updateGeneralUiPrefs({ closeToTrayNoticeEnabled: nextValue })
-              }
-            />
-            <MemoryGuardSettingsSection
-              settings={localSettings}
-              setSettings={setSettings}
-              onReleaseMemory={onReleaseMemory}
-              t={t}
-            />
-            <ExplorerDefaultsSection settings={localSettings} setSettings={setSettings} t={t} />
-            <DocxSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-            <SidebarPageOrderSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                {t("settings.languageTitle")}
+              </h3>
+              <div className="grid max-w-xs gap-2">
+                <Select
+                  value={locale}
+                  onChange={(event) => onLocaleChange(event.target.value as Locale)}
+                >
+                  <option value="zh-CN">{t("settings.language.zh-CN")}</option>
+                  <option value="en-US">{t("settings.language.en-US")}</option>
+                </Select>
+                <p className="text-xs text-slate-500">
+                  {t("settings.languageAuto")}: {" "}
+                  {detectSystemLocale() === "zh-CN"
+                    ? t("settings.language.zh-CN")
+                    : t("settings.language.en-US")}
+                </p>
+              </div>
+            </div>
+            <div
+              className="rounded-lg border border-slate-200 p-4"
+              onClick={() => updateGeneralUiPrefs({ skipDeleteConfirm: deleteConfirmEnabled })}
+            >
+              <div className="flex cursor-pointer items-center justify-between text-sm text-slate-700">
+                <span>{t("settings.deleteConfirm")}</span>
+                <Checkbox
+                  checked={deleteConfirmEnabled}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) =>
+                    updateGeneralUiPrefs({ skipDeleteConfirm: !event.target.checked })
+                  }
+                />
+              </div>
+            </div>
+            <div
+              className="rounded-lg border border-slate-200 p-4"
+              onClick={() => updateGeneralUiPrefs({ closeToTrayNoticeEnabled: !closeToTrayNoticeEnabled })}
+            >
+              <div className="flex cursor-pointer items-center justify-between text-sm text-slate-700">
+                <span>{t("settings.closeToTrayNotice")}</span>
+                <Checkbox
+                  checked={closeToTrayNoticeEnabled}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) =>
+                    updateGeneralUiPrefs({ closeToTrayNoticeEnabled: event.target.checked })
+                  }
+                />
+              </div>
+            </div>
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                {t("settings.busytexCacheTitle")}
+              </h3>
+              <div className="grid max-w-md gap-2">
+                <Select
+                  value={localSettings.uiPrefs?.busytexCachePolicy ?? "install-first"}
+                  onChange={(event) =>
+                    onBusyTexCachePolicyChange(
+                      event.target.value as "install-first" | "appdata-only",
+                    )
+                  }
+                >
+                  <option value="install-first">{t("settings.busytex.installFirst")}</option>
+                  <option value="appdata-only">{t("settings.busytex.appDataOnly")}</option>
+                </Select>
+                <div className="text-xs text-slate-500">
+                  {t("settings.busytex.currentDir")}: {" "}
+                  {busytexCacheInfo?.actualDir ?? localSettings.uiPrefs?.busytexCacheDir ?? "-"}
+                </div>
+                {busytexCacheInfo?.usingFallback && (
+                  <div className="text-xs text-amber-600">{t("settings.busytex.fallbackUsed")}</div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
         {settingsSection === "appearance" && (
-          <AppearanceSettingsSection
-            settings={localSettings}
-            setSettings={setSettings}
-            onThemeModeChange={onThemeModeChange}
-            t={t}
-          />
+          <div className="grid gap-3">
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                {t("settings.themeTitle")}
+              </h3>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  { id: "light" as const, key: "settings.theme.light" as const, icon: Sun },
+                  { id: "dark" as const, key: "settings.theme.dark" as const, icon: MoonStar },
+                  { id: "system" as const, key: "settings.theme.system" as const, icon: SunMoon },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const selected = (localSettings.uiPrefs?.theme ?? "system") === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      className={cn(
+                        "flex h-11 items-center justify-center gap-2 rounded-md border text-sm transition",
+                        selected
+                          ? "border-primary-600 bg-primary-600 text-white"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
+                      )}
+                      onClick={(event) =>
+                        onThemeModeChange(item.id, {
+                          clientX: event.clientX,
+                          clientY: event.clientY,
+                        })
+                      }
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span>{t(item.key)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                {t("settings.previewZoomTitle")}
+              </h3>
+              <div className="grid max-w-xs gap-2">
+                <Select
+                  value={String(localSettings.uiPrefs?.previewDefaultZoom ?? 1)}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              previewDefaultZoom: Number(event.target.value),
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                >
+                  {PREVIEW_ZOOM_OPTIONS.map((value) => (
+                    <option key={value} value={String(value)}>
+                      {`${Math.round(value * 100)}%`}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-slate-500">{t("settings.previewZoomHint")}</p>
+              </div>
+            </div>
+            <BackgroundImageCard settings={localSettings} setSettings={setSettings} t={t} />
+          </div>
         )}
 
         {settingsSection === "models" && (
@@ -308,7 +365,7 @@ export function SettingsPanel(props: {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="settings-scrollbar-hidden max-h-[42vh] space-y-2 overflow-auto pr-1">
+              <div className="max-h-[42vh] space-y-2 overflow-auto pr-1">
                 {localSettings.modelCatalog.map((model) => {
                   const protocol = localSettings.modelProtocols.find(
                     (item) => item.id === model.protocolId,
@@ -378,62 +435,143 @@ export function SettingsPanel(props: {
         )}
 
         {settingsSection === "agents" && (
-          <AgentRoutingSettingsSection
-            settings={localSettings}
-            activeModelCatalog={activeModelCatalog}
-            setSettings={setSettings}
-            t={t}
-          />
-        )}
-
-        {settingsSection === "agent-teams" && (
-          <AgentTeamsSettingsSection
-            settings={localSettings}
-            activeModelCatalog={activeModelCatalog}
-            setSettings={setSettings}
-            t={t}
-          />
-        )}
-
-        {settingsSection === "agent-tools" && (
-          <AgentToolsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-        )}
-
-        {settingsSection === "agent-permissions" && (
-          <AgentPermissionsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-        )}
-
-        {settingsSection === "plugin-sources" && (
-          <PluginSourcesSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-        )}
-
-        {settingsSection === "mcp" && (
-          <McpSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-        )}
-
-        {settingsSection === "skills" && (
-          <SkillsSettingsSection
-            settings={localSettings}
-            activeProjectId={activeProjectId}
-            setSettings={setSettings}
-            t={t}
-          />
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
+            {[
+              {
+                key: "latexAgentModelId",
+                label: t("settings.featureModel.latexAgent"),
+              },
+              {
+                key: "analysisAgentModelId",
+                label: t("settings.featureModel.analysisAgent"),
+              },
+              {
+                key: "translationModelId",
+                label: t("settings.featureModel.translation"),
+              },
+              {
+                key: "completionModelId",
+                label: t("settings.featureModel.completion"),
+              },
+            ].map((item) => {
+              const featureBindings = localSettings.uiPrefs?.featureModelBindings ?? {};
+              const currentValue = (featureBindings as Record<string, string | undefined>)[item.key] ?? "";
+              return (
+                <div
+                  className="grid grid-cols-[180px_minmax(220px,1fr)] items-center gap-2 rounded-lg border border-slate-200 p-2 max-[980px]:grid-cols-1"
+                  key={item.key}
+                >
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
+                    {item.label}
+                  </span>
+                  <Select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setSettings((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              uiPrefs: {
+                                ...(prev.uiPrefs ?? {}),
+                                featureModelBindings: {
+                                  ...(prev.uiPrefs?.featureModelBindings ?? {}),
+                                  [item.key]: event.target.value,
+                                },
+                              },
+                            }
+                          : prev,
+                      )
+                    }
+                  >
+                    <option value="">{t("settings.noModelAssigned")}</option>
+                    {activeModelCatalog.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.displayName} ({model.requestName || "-"})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {settingsSection === "channels" && (
-          <ChannelsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-        )}
-
-        {settingsSection === "doctor" && (
-          <SettingsDoctorSection
-            activeProjectId={activeProjectId}
-            fileList={fileList}
-            locale={locale}
-            settings={settings}
-            setSettings={setSettings}
-            onReleaseMemory={onReleaseMemory}
-            t={t}
-          />
+          <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <img src={telegramIcon} alt="" className="h-4 w-4 rounded-sm" />
+                <span>{t("settings.channels.telegram")}</span>
+              </div>
+              <label className="mb-2 flex items-center justify-between text-xs text-slate-600">
+                <span>{t("settings.channels.telegramEnabled")}</span>
+                <Checkbox
+                  checked={Boolean(localSettings.uiPrefs?.channels?.telegramEnabled)}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              channels: {
+                                ...(prev.uiPrefs?.channels ?? {}),
+                                telegramEnabled: event.target.checked,
+                              },
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                />
+              </label>
+              <div className="grid gap-2">
+                <input
+                  value={localSettings.uiPrefs?.channels?.telegramBotToken ?? ""}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              channels: {
+                                ...(prev.uiPrefs?.channels ?? {}),
+                                telegramBotToken: event.target.value,
+                              },
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                  placeholder={t("settings.channels.telegramToken")}
+                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                />
+                <input
+                  value={localSettings.uiPrefs?.channels?.telegramChatId ?? ""}
+                  onChange={(event) =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              channels: {
+                                ...(prev.uiPrefs?.channels ?? {}),
+                                telegramChatId: event.target.value,
+                              },
+                            },
+                          }
+                        : prev,
+                    )
+                  }
+                  placeholder={t("settings.channels.telegramChatId")}
+                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {settingsSection === "diagnostics" && (
@@ -455,10 +593,6 @@ export function SettingsPanel(props: {
     </div>
   );
 }
-
-
-
-
 
 
 

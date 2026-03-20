@@ -1,17 +1,12 @@
-import { startGitSummaryWorkflow } from "../../shared/api/agent";
-import { gitDiffFile } from "../../shared/api/git";
+import { executeWorkflowStart, gitDiffFile } from "../../shared/api/desktop";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
-
-export function toGitSummaryContextRefs(paths: string[]): string[] {
-  return paths.map((path) => `file:${path}`);
-}
 
 export async function generateGitSummary(
   activeProjectId: string | null,
   includedPaths: string[],
 ): Promise<string> {
   if (!activeProjectId) {
-    throw new Error("git.noProject");
+    throw new Error("No active project");
   }
   const files = Array.from(
     new Set(
@@ -40,10 +35,28 @@ export async function generateGitSummary(
   );
 
   const joinedPatch = patches.filter((item) => item.length > 0).join("\n\n").slice(0, 48_000);
-  const accepted = await startGitSummaryWorkflow({
+  const prompt = [
+    "Summarize the staged Git changes and return a commit message proposal.",
+    "Output format:",
+    "TITLE: <single line, <=72 chars>",
+    "BODY:",
+    "- <bullet 1>",
+    "- <bullet 2>",
+    "Use concise, technical wording.",
+    "",
+    `Files: ${files.join(", ")}`,
+    "",
+    "Patch:",
+    joinedPatch || "(empty patch text)",
+  ].join("\n");
+
+  const accepted = await executeWorkflowStart({
     projectId: activeProjectId,
-    files,
-    joinedPatch,
+    workflowId: "git.summary",
+    callsite: "git.summary",
+    prompt,
+    contextRefs: files,
+    bypassCache: true,
   });
   const output = (await waitForRunOutputWithPolicy({
     runId: accepted.runId,

@@ -1,4 +1,4 @@
-export type WorkspacePage = "latex" | "analysis" | "library" | "git" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -66,12 +66,46 @@ export type WorkspaceExportPdfResponse = {
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;
+  sessionName?: string | null;
+  sessionCreatedAt?: string | null;
   projectId?: string | null;
   targetPath?: string | null;
+  mode?: "local" | "remote" | string | null;
   localUrl?: string | null;
   tunnelUrl?: string | null;
+  localJoinUrl?: string | null;
+  remoteJoinUrl?: string | null;
+  activeJoinUrl?: string | null;
+  passwordRequired?: boolean | null;
   password?: string | null;
   expiresAt?: string | null;
+  status?: "starting" | "ready" | "failed" | "stopping" | string | null;
+  pdfState?: "empty" | "ready" | "uploading" | "error" | string | null;
+  pdfUpdatedAt?: string | null;
+  tunnelState?: "pending" | "ready" | "failed" | string | null;
+  tunnelError?: string | null;
+  participants?: ShareParticipantInfo[];
+};
+
+export type ShareParticipantInfo = {
+  participantId: string;
+  username: string;
+  lastSeenAt: string;
+  lastAction?: string | null;
+};
+
+export type ShareCommentItem = {
+  id: string;
+  username: string;
+  text: string;
+  quote?: string;
+  source?: "tex" | "pdf" | string;
+  sessionName?: string;
+  sessionCreatedAt?: string;
+  page?: number;
+  start?: number;
+  end?: number;
+  createdAt?: string;
 };
 
 export type SwarmEvent = {
@@ -90,7 +124,7 @@ export type EventBatch = {
   events: SwarmEvent[];
 };
 
-export type AgentRunStartAccepted = {
+export type AgentExecuteStartAccepted = {
   runId: string;
   status: string;
 };
@@ -112,6 +146,11 @@ export type ModelCatalogItem = {
   protocolId: string;
   displayName: string;
   requestName: string;
+  capabilities?: {
+    apiMode?: string;
+    reasoningMode?: string;
+    autoRepair?: boolean;
+  };
 };
 
 export type ProtocolHealth = {
@@ -170,7 +209,46 @@ export type AppSettings = {
     busytexCacheDir?: string;
     previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
+    featureModelBindings?: FeatureModelBindings;
+    channels?: ChannelPrefs;
+    closeBehavior?: "ask" | "tray" | "exit";
+    closeBehaviorRemember?: boolean;
+    backgroundImagePath?: string;
+    backgroundImagePaths?: string[];
+    backgroundBlurPx?: number;
   };
+};
+
+export type FeatureModelBindings = {
+  latexAgentModelId?: string;
+  analysisAgentModelId?: string;
+  translationModelId?: string;
+  completionModelId?: string;
+};
+
+export type ChannelPrefs = {
+  telegramEnabled?: boolean;
+  telegramBotToken?: string;
+  telegramChatId?: string;
+};
+
+export type TelegramPollInput = {
+  offset?: number;
+  limit?: number;
+  timeoutSecs?: number;
+};
+
+export type TelegramUpdateItem = {
+  updateId: number;
+  messageId: number;
+  chatId: string;
+  username: string;
+  text: string;
+};
+
+export type TelegramPollResult = {
+  nextOffset: number;
+  updates: TelegramUpdateItem[];
 };
 
 export type PanelLayoutPrefs = {
@@ -190,6 +268,18 @@ export type RuntimeLogInfo = {
   version: string;
 };
 
+export type RuntimeMemorySnapshot = {
+  processId: number;
+  rssBytes: number;
+  privateBytes?: number | null;
+  webviewRssBytes?: number | null;
+  webviewPrivateBytes?: number | null;
+  webviewProcessCount?: number | null;
+  totalRssBytes?: number | null;
+  totalPrivateBytes?: number | null;
+  sampledAt: string;
+};
+
 export type RuntimeLogEntry = {
   timestamp: string;
   level: string;
@@ -201,12 +291,34 @@ export type RuntimeLogReadResponse = {
   entries: RuntimeLogEntry[];
 };
 
+export type RuntimeLogSession = {
+  fileName: string;
+  modifiedAt: string;
+  sizeBytes: number;
+  isCurrent: boolean;
+};
+
+export type RuntimeLogSessionListResponse = {
+  sessions: RuntimeLogSession[];
+};
+
+export type AppBackgroundImage = {
+  path: string;
+};
+
+export type AppBackgroundImagePayload = {
+  path: string;
+  mime: string;
+  bytes: number[];
+};
+
 export type RuntimeLogReadFilters = {
   limit?: number;
   level?: string;
   keyword?: string;
   fromTime?: string;
   toTime?: string;
+  logFileName?: string;
 };
 
 export type LibraryCitationSummary = {
@@ -226,6 +338,39 @@ export type LibraryPdfPreview = {
   relativePath?: string | null;
   sourceUrl?: string | null;
   cached: boolean;
+  translatedRelativePath?: string | null;
+};
+
+export type LibraryZoteroSyncResult = {
+  relativePath: string;
+  entryCount: number;
+  totalResults?: number | null;
+};
+
+export type LibraryTranslateStartResult = {
+  taskId: string;
+};
+
+export type LibraryTranslateStatus = {
+  taskId: string;
+  status: string;
+  currentPage: number;
+  totalPages: number;
+  message?: string | null;
+  error?: string | null;
+  result?: LibraryTranslateResult | null;
+};
+export type LibraryTranslateResult = {
+  relativePath: string;
+  sourceKind: string;
+  engine: string;
+  artifactPaths?: string[];
+  detectedLanguage?: string | null;
+  extractionEngine?: string | null;
+  refinedBySearch?: boolean;
+  glossaryCount?: number;
+  translatedPdfRelativePath: string;
+  sourcePdfRelativePath: string;
 };
 
 export type CompileRecord = {
@@ -294,6 +439,11 @@ export type ModelCatalogItemInput = {
   protocolId: string;
   displayName: string;
   requestName: string;
+  capabilities?: {
+    apiMode?: string;
+    reasoningMode?: string;
+    autoRepair?: boolean;
+  };
 };
 
 export type FsScope = "workspace" | "library";
@@ -405,7 +555,38 @@ export type GitDiffResponse = {
   hunks: GitDiffHunk[];
 };
 
+export type AnalysisPyodideCacheInfo = {
+  policy: string;
+  requestedDir: string;
+  actualDir: string;
+  installDirWritable: boolean;
+  usingFallback: boolean;
+};
+
 export type BusyTexCacheInfo = {
+  policy: string;
+  requestedDir: string;
+  actualDir: string;
+  installDirWritable: boolean;
+  usingFallback: boolean;
+};
+
+export type BusyTexInstalledOverlayFile = {
+  path: string;
+  content: string;
+};
+
+export type BusyTexInstallPackageResult = {
+  styleFile: string;
+  packageName: string;
+  installed: boolean;
+  fromCache: boolean;
+  sourceUrl: string | null;
+  cacheDir: string;
+  overlayFiles: BusyTexInstalledOverlayFile[];
+};
+
+export type DrawioCacheInfo = {
   policy: string;
   requestedDir: string;
   actualDir: string;
@@ -422,3 +603,5 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
+

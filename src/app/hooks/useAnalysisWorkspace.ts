@@ -1,24 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentTeamMode } from "../../shared/types/app";
-import { executeWorkflowCancel, getEvents } from "../../shared/api/agent";
-import { runtimeLogWrite } from "../../shared/api/runtime";
-import { readFile } from "../../shared/api/workspace";
-import { listCandidateDataFiles } from "./analysisDataSources";
+import {
+  analysisSaveReport,
+  readFile,
+  runtimeLogWrite,
+} from "../../shared/api/desktop";
+import {
+  buildPaperAnalysisContext,
+  listCandidateDataFiles,
+  loadDataSnapshots,
+  type AnalysisSourceSnapshot,
+} from "./analysisDataSources";
+import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
 import { appendPromptRefs, resolveDroppedPromptRefs } from "./analysisDropRefs";
-import { applyPromptRefSuggestion } from "./analysisPromptRefs";
+import { applyPromptRefSuggestion, resolvePromptInputFiles } from "./analysisPromptRefs";
+import { buildPyodideAnalysisProfile } from "../../features/analysis/pyodide/profile";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
-import { ensureAnalysisTasksLoaded } from "./analysisRunHelpers";
-import type { AnalysisPreflightState, AnalysisSourceType, AnalysisTask } from "./analysisTypes";
-import { nowIso } from "./analysisTypes";
-import { loadAnalysisStageCache, saveAnalysisStageCache, writeCachedAnalysisStageValue, type AnalysisStageCacheStore } from "./analysisStageCache";
-import { upsertRun } from "./analysisWorkspaceHelpers";
+import { ensureAnalysisTasksLoaded, runRolePromptWithAgent } from "./analysisRunHelpers";
+import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
+import { newRunId, nowIso } from "./analysisTypes";
+import {
+  buildReportHtml,
+  clampChart,
+  deriveSections,
+  extractEventCards,
+  parsePayloadJson,
+  summarizeSnapshotsForPrompt,
+  toChartFromSnapshots,
+  upsertRun,
+} from "./analysisWorkspaceHelpers";
 import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
-import { useAnalysisLiveState } from "./useAnalysisLiveState";
-import { runAnalysisWorkspacePrompt } from "./analysisWorkspaceRunner";
-import { applyAnalysisPreflightAnswers, buildAnalysisPreflight } from "./analysisPreflight";
-
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const {
     projectId,
@@ -27,7 +39,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     fileList,
     locale,
     analysisModelOverride,
-    suspended = false,
     events,
     setToast,
     t,
@@ -36,19 +47,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeRunHtml, setActiveRunHtml] = useState("");
-  const [historicalEvents, setHistoricalEvents] = useState<typeof events>([]);
   const [liveRunIds, setLiveRunIds] = useState<string[]>([]);
   const [liveStageLabel, setLiveStageLabel] = useState("");
-  const [preflight, setPreflight] = useState<AnalysisPreflightState | null>(null);
   const loadedRef = useRef(false);
   const tasksRef = useRef<AnalysisTask[]>([]);
-  const stageCacheRef = useRef<AnalysisStageCacheStore | null>(null);
-  const stageCacheProjectIdRef = useRef<string | null>(null);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runInFlightRef = useRef(false);
-  const liveTaskIdRef = useRef<string | null>(null);
-  const liveTaskRunIdRef = useRef<string | null>(null);
-  const runGenerationRef = useRef(0);
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
   const csvCandidateFiles = useMemo(
     () => candidateFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
@@ -62,76 +66,68 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     if (!activeTask) {
       return null;
     }
-    const activeRunId = typeof activeTask.activeRunId === "string" ? activeTask.activeRunId.trim() : "";
-    if (activeRunId) {
-      const matched = activeTask.runs.find((item) => item.id === activeRunId);
-      if (matched) {
-        return matched;
-      }
+    if (activeTask.activeRunId) {
+      return activeTask.runs.find((item) => item.id === activeTask.activeRunId) ?? activeTask.runs[0] ?? null;
     }
     return activeTask.runs[0] ?? null;
   }, [activeTask]);
   const prompt = activeTask?.draftPrompt ?? "";
   const analysisError = activeTask?.lastError ?? null;
-  const mergedAnalysisEvents = useMemo(() => {
-    if (historicalEvents.length === 0) {
-      return events;
+  const timelineCards = useMemo(() => {
+    if (!activeRun) {
+      return [];
     }
-    const byId = new Map<string, typeof events[number]>();
-    for (const event of historicalEvents) {
-      byId.set(event.id, event);
+    const runIds = Array.isArray(activeRun.eventRunIds) && activeRun.eventRunIds.length > 0
+      ? activeRun.eventRunIds
+      : activeRun.agentRunId
+        ? [activeRun.agentRunId]
+        : [];
+    return extractEventCards(events, runIds);
+  }, [activeRun, events]);
+  const liveTimelineCards = useMemo(() => {
+    if (liveRunIds.length === 0) {
+      return [];
     }
-    for (const event of events) {
-      byId.set(event.id, event);
+    return extractEventCards(events, liveRunIds).slice(-120);
+  }, [events, liveRunIds]);
+  const liveOutput = useMemo(() => {
+    if (liveRunIds.length === 0) {
+      return "";
     }
-    return Array.from(byId.values()).sort((left, right) => left.seq - right.seq);
-  }, [events, historicalEvents]);
-  const {
-    timelineCards,
-    liveTimelineCards,
-    liveOutput,
-    liveStage,
-  } = useAnalysisLiveState({
-    activeRun,
-    events: mergedAnalysisEvents,
-    liveRunIds,
-    liveStageLabel,
-  });
-  useEffect(() => {
-    if (!activeRun || liveRunIds.length > 0) {
-      setHistoricalEvents([]);
-      return;
+    const runSet = new Set(liveRunIds);
+    const sorted = events
+      .filter((event) => runSet.has(event.runId) && event.kind === "responses.output_text.delta")
+      .sort((a, b) => a.seq - b.seq);
+    let output = "";
+    for (const event of sorted) {
+      const payload = (event.payload ?? {}) as Record<string, unknown>;
+      const chunk = typeof payload.content === "string" ? payload.content : "";
+      if (chunk) {
+        output += chunk;
+      }
     }
-    const runIds = Array.from(new Set(
-      Array.isArray(activeRun.eventRunIds) && activeRun.eventRunIds.length > 0
-        ? activeRun.eventRunIds
-        : activeRun.agentRunId
-          ? [activeRun.agentRunId]
-          : [],
-    ));
-    if (runIds.length === 0) {
-      setHistoricalEvents([]);
-      return;
+    return output.slice(-12_000).trimStart();
+  }, [events, liveRunIds]);
+  const liveStage = useMemo(() => {
+    const explicit = liveStageLabel.trim();
+    if (explicit) {
+      return explicit;
     }
-    let cancelled = false;
-    Promise.all(runIds.map((runId) => getEvents(0, 1000, runId, 0)))
-      .then((batches) => {
-        if (cancelled) {
-          return;
-        }
-        const hydrated = batches.flatMap((batch) => batch.events ?? []);
-        setHistoricalEvents(hydrated);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setHistoricalEvents([]);
-          void runtimeLogWrite("WARN", `analysis history hydrate failed: runIds=${runIds.join(",")}, reason=${String(error)}`).catch(() => undefined);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeRun, liveRunIds.length]);
+    if (liveRunIds.length === 0) {
+      return "";
+    }
+    const runSet = new Set(liveRunIds);
+    const latest = [...events]
+      .reverse()
+      .find((event) => runSet.has(event.runId) && event.kind !== "responses.output_text.delta");
+    if (!latest) {
+      return "";
+    }
+    const payload = (latest.payload ?? {}) as Record<string, unknown>;
+    const stage = typeof payload.stage === "string" ? payload.stage : "";
+    const title = typeof payload.title === "string" ? payload.title : "";
+    return stage || title || "";
+  }, [events, liveRunIds, liveStageLabel]);
   useEffect(() => {
     if (!activeRun) {
       setActiveRunHtml("");
@@ -164,12 +160,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
-  useEffect(() => {
-    if (stageCacheProjectIdRef.current !== projectId) {
-      stageCacheProjectIdRef.current = projectId;
-      stageCacheRef.current = null;
-    }
-  }, [projectId]);
   useEffect(() => {
     if (!projectId) {
       setTasks([]);
@@ -231,90 +221,21 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }
     };
   }, [activeTaskId, projectId, setToast, tasks]);
-  const canRun = useMemo(() => Boolean(!suspended && projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt, suspended]);
-  const canContinue = useMemo(
-    () => Boolean(!suspended && projectId && activeTask && activeRun?.prompt?.trim() && !running),
-    [activeRun?.prompt, activeTask, projectId, running, suspended],
-  );
-  useEffect(() => {
-    if (!suspended || liveRunIds.length === 0) {
-      return;
-    }
-    const runIds = Array.from(new Set(liveRunIds));
-    for (const runId of runIds) {
-      void executeWorkflowCancel(runId).catch(() => undefined);
-    }
-  }, [liveRunIds, suspended]);
+  const canRun = useMemo(() => Boolean(projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt]);
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
     setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
-  const cancelAnalysis = useCallback(async () => {
-    const runIds = Array.from(new Set(liveRunIds));
-    runGenerationRef.current += 1;
-    runInFlightRef.current = false;
-    setRunning(false);
-    setLiveRunIds([]);
-    setLiveStageLabel("");
-    const taskId = liveTaskIdRef.current;
-    const runId = liveTaskRunIdRef.current;
-    liveTaskIdRef.current = null;
-    liveTaskRunIdRef.current = null;
-    if (taskId && runId) {
-      updateTaskById(taskId, (task) => {
-        const existing = task.runs.find((item) => item.id === runId);
-        if (!existing) {
-          return task;
-        }
-        return upsertRun(task, {
-          ...existing,
-          status: "cancelled",
-          draftOutputText: liveOutput || existing.draftOutputText || "",
-          liveStageLabel: liveStage || existing.liveStageLabel || "",
-          failureMessage: undefined,
-          updatedAt: nowIso(),
-        });
-      });
-    }
-    await Promise.all(runIds.map((runId) => executeWorkflowCancel(runId).catch(() => undefined)));
-  }, [liveOutput, liveRunIds, liveStage, updateTaskById]);
-  useEffect(() => {
-    const taskId = liveTaskIdRef.current;
-    const runId = liveTaskRunIdRef.current;
-    if (!running || !taskId || !runId) {
-      return;
-    }
-    updateTaskById(taskId, (task) => {
-      const existing = task.runs.find((item) => item.id === runId);
-      if (!existing) {
-        return task;
-      }
-      const nextDraft = liveOutput || existing.draftOutputText || "";
-      const nextStage = liveStage || existing.liveStageLabel || "";
-      if (
-        existing.status === "running"
-        && existing.draftOutputText === nextDraft
-        && existing.liveStageLabel === nextStage
-      ) {
-        return task;
-      }
-      return upsertRun(task, {
-        ...existing,
-        status: "running",
-        draftOutputText: nextDraft,
-        liveStageLabel: nextStage,
-        updatedAt: nowIso(),
-      });
-    });
-  }, [liveOutput, liveStage, running, updateTaskById]);
   const onDropPromptPaths = useCallback((paths: string[]) => {
     const resolvedPaths = resolveDroppedPromptRefs(paths, candidateFiles);
     if (resolvedPaths.length === 0) {
       return;
     }
+
     let targetTaskId = activeTaskId;
     if (!targetTaskId) {
       targetTaskId = tasksRef.current[0]?.id ?? null;
     }
+
     if (!targetTaskId) {
       const task = createAnalysisTask({
         defaultName: t("analysis.defaultTaskName"),
@@ -324,6 +245,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setActiveTaskId(task.id);
       targetTaskId = task.id;
     }
+
     updateTaskById(targetTaskId, (task) => ({
       ...task,
       draftPrompt: appendPromptRefs(task.draftPrompt ?? "", resolvedPaths, applyPromptRefSuggestion),
@@ -369,40 +291,15 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     });
   }, [activeTaskId]);
   const ensureTasksReady = useCallback(async () => ensureAnalysisTasksLoaded(loadedRef), []);
-  const ensureStageCache = useCallback(async () => {
-    if (!projectId) {
-      return { version: 1, entries: {} } as AnalysisStageCacheStore;
-    }
-    if (!stageCacheRef.current || stageCacheProjectIdRef.current !== projectId) {
-      stageCacheRef.current = await loadAnalysisStageCache(projectId);
-      stageCacheProjectIdRef.current = projectId;
-    }
-    return stageCacheRef.current;
-  }, [projectId]);
-  const persistStageCacheEntry = useCallback(async (key: string, value: unknown) => {
-    if (!projectId) {
-      return;
-    }
-    const store = await ensureStageCache();
-    const nextStore = writeCachedAnalysisStageValue(store, key, value);
-    stageCacheRef.current = nextStore;
-    await saveAnalysisStageCache(projectId, nextStore);
-  }, [ensureStageCache, projectId]);
   const runAnalysisForPrompt = useCallback(async (
     inputPrompt: string,
     options?: {
       forcedTaskId?: string;
       taskSnapshot?: AnalysisTask;
       savePrompt?: boolean;
-      teamMode?: AgentTeamMode;
-      skipPreflight?: boolean;
     },
   ) => {
     const normalizedPrompt = inputPrompt.trim();
-    if (suspended) {
-      setToast({ type: "info", message: t("sleep.title") });
-      return;
-    }
     if (runInFlightRef.current) {
       setToast({ type: "info", message: t("analysis.running") });
       return;
@@ -426,125 +323,286 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }));
       return;
     }
-    if (!options?.skipPreflight && task.sourceType !== "paper") {
-      try {
-        const result = await buildAnalysisPreflight({
+    runInFlightRef.current = true;
+    updateTaskById(task.id, (item) => ({
+      ...item,
+      draftPrompt: "",
+      lastError: null,
+      updatedAt: nowIso(),
+    }));
+    setRunning(true);
+    setLiveRunIds([]);
+    setLiveStageLabel("");
+    let currentStage = t("analysis.step.agentSynthesis");
+    try {
+      const setStage = (label: string) => {
+        currentStage = label;
+        setLiveStageLabel(label);
+      };
+      const runIds: string[] = [];
+      const runRolePromptWithTrace = async (
+        workflowId: string,
+        promptText: string,
+        contextRefs: string[],
+        bypassCache = false,
+      ) => {
+        const result = await runRolePromptWithAgent({
           projectId,
-          prompt: normalizedPrompt,
-          candidateFiles,
-          csvCandidateFiles,
-          t,
+          workflowId,
+          promptText,
+          contextRefs,
+          modelOverride: analysisModelOverride ?? undefined,
+          bypassCache,
         });
-        if (result.questions.length > 0) {
-          const answers = Object.fromEntries(result.questions.map((question) => [
-            question.id,
-            question.multiple
-              ? question.options.map((option) => option.id)
-              : question.options.slice(0, 1).map((option) => option.id),
-          ]));
-          setPreflight({ prompt: normalizedPrompt, questions: result.questions, answers });
-          return;
-        }
-      } catch (error) {
-        await runtimeLogWrite("WARN", `analysis preflight skipped: ${String(error)}`).catch(() => undefined);
+        runIds.push(result.runId);
+        setLiveRunIds((prev) => (prev.includes(result.runId) ? prev : [...prev, result.runId]));
+        return result;
+      };
+      const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
+      const outputLanguageLabel = languageLabel(outputLanguage);
+      const contextRefs: string[] = [];
+      if (selectedFile) {
+        contextRefs.push(`file:${selectedFile}`);
       }
+      let snapshots: AnalysisSourceSnapshot[] = [];
+      let sourceBlock = "";
+      let resolvedInputFiles: string[] = [];
+      const steps: string[] = [];
+      if (task.sourceType === "paper" && task.sourcePath) {
+        setStage(t("analysis.step.paperExtract"));
+        steps.push(currentStage);
+        const paperContext = await buildPaperAnalysisContext(projectId, task.sourcePath);
+        const chunkSummaries: string[] = [];
+        let chunkFailures = 0;
+        for (const chunk of paperContext.chunks) {
+          const chunkPrompt = [
+            `Summarize the following paper segment in ${outputLanguageLabel}.`,
+            "Return concise markdown bullet points of methods, findings, and limitations.",
+            `Chunk pages: ${chunk.pageStart}-${chunk.pageEnd}`,
+            chunk.text,
+          ].join("\n\n");
+          try {
+            const chunkResult = await runRolePromptWithTrace("analysis.explore_chunk", chunkPrompt, contextRefs);
+            chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
+          } catch (error) {
+            chunkFailures += 1;
+            await runtimeLogWrite(
+              "WARN",
+              `analysis paper chunk failed: path=${task.sourcePath}, chunk=${chunk.chunkIndex + 1}, reason=${String(error)}`,
+            ).catch(() => undefined);
+          }
+        }
+        if (paperContext.chunks.length > 0 && chunkSummaries.length === 0) {
+          throw new Error(`analysis.paper.chunk_failed_all(${chunkFailures})`);
+        }
+        sourceBlock = [
+          `Paper source: ${paperContext.sourcePath}`,
+          `Title: ${paperContext.title}`,
+          "Metadata:",
+          paperContext.metadataBlock,
+          "Chunk summaries:",
+          chunkSummaries.join("\n\n"),
+        ].join("\n\n");
+        snapshots = [
+          {
+            path: paperContext.sourcePath,
+            kind: "paper",
+            summary: `chunks=${paperContext.chunks.length}`,
+            excerpt: sourceBlock.slice(0, 8000),
+          },
+        ];
+        resolvedInputFiles = [task.sourcePath];
+      } else {
+        const promptRefs = resolvePromptInputFiles(normalizedPrompt, candidateFiles);
+        const defaultInputFiles = csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles;
+        const chosenFiles = promptRefs.resolved.length > 0 ? promptRefs.resolved : defaultInputFiles;
+        if (promptRefs.unresolved.length > 0 && promptRefs.resolved.length === 0) {
+          throw new Error(`${t("analysis.error.invalidInputRefs")}: ${promptRefs.unresolved.join(", ")}`);
+        }
+        if (chosenFiles.length === 0) {
+          throw new Error(t("analysis.error.noInputFiles"));
+        }
+        resolvedInputFiles = chosenFiles;
+        setStage(t("analysis.step.loadData"));
+        steps.push(currentStage);
+        snapshots = await loadDataSnapshots(projectId, chosenFiles);
+        const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
+        setStage(t("analysis.step.profileEachFile"));
+        steps.push(currentStage);
+        let pyodideProfileText = "{}";
+        try {
+          const pyodideProfile = await buildPyodideAnalysisProfile({
+            snapshots,
+            prompt: normalizedPrompt,
+            outputLanguage: outputLanguageLabel,
+          });
+          pyodideProfileText = JSON.stringify(pyodideProfile, null, 2).slice(0, 12000);
+          await runtimeLogWrite(
+            "INFO",
+            `analysis pyodide profile ready: source=${pyodideProfile.runtimeSource}, files=${pyodideProfile.fileCount}`
+          ).catch(() => undefined);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          pyodideProfileText = JSON.stringify({
+            runtimeSource: "unavailable",
+            error: reason,
+          });
+          await runtimeLogWrite("WARN", `analysis pyodide profile failed: ${reason}`).catch(() => undefined);
+        }
+        sourceBlock = [
+          snapshotSummary,
+          "Structured profile (pyodide):",
+          pyodideProfileText,
+        ].join("\n\n");
+      }
+      if (selectedFile && editorContent.trim()) {
+        sourceBlock = `${sourceBlock}\n\n---\n\nCurrent editor file (${selectedFile}):\n${editorContent.slice(0, 2200)}`;
+      }
+      setStage(t("analysis.step.agentSynthesis"));
+      steps.push(currentStage);
+      const agentPrompt = [
+        `You are a senior data analyst. Output language must be ${outputLanguageLabel}.`,
+        "Return strict JSON only with keys:",
+        "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
+        "The report must be complete, practical, and visually-oriented.",
+        "If user asks another language explicitly, honor user request.",
+        "User request:",
+        normalizedPrompt,
+        "\nSource material:",
+        sourceBlock,
+      ].join("\n\n");
+      const finalResult = await runRolePromptWithTrace("analysis.synthesize", agentPrompt, contextRefs);
+      const hasStructuredOutput = (parsed: Record<string, unknown>) => Boolean(
+        (typeof parsed.title === "string" && parsed.title.trim().length > 0)
+        || (typeof parsed.summary === "string" && parsed.summary.trim().length > 0)
+        || (Array.isArray(parsed.sections) && parsed.sections.length > 0)
+        || (Array.isArray(parsed.insights) && parsed.insights.length > 0),
+      );
+      let parsed = parsePayloadJson(finalResult.output);
+      if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
+        setStage(t("analysis.step.jsonRepair"));
+        steps.push(currentStage);
+        const repairPrompt = [
+          `Output language must be ${outputLanguageLabel}.`,
+          "You are a strict JSON formatter.",
+          "Transform the source text into a strict JSON object only (no markdown code block).",
+          "Allowed keys only:",
+          "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
+          "If unknown, use empty strings/arrays. Do not omit keys.",
+          "Source output to normalize:",
+          finalResult.output.slice(0, 14_000),
+        ].join("\n\n");
+        const repairResult = await runRolePromptWithTrace("analysis.synthesize", repairPrompt, contextRefs, true);
+        parsed = parsePayloadJson(repairResult.output);
+      }
+      if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
+        throw new Error("analysis.output.invalid_json");
+      }
+      const chartSource = clampChart(
+        Array.isArray(parsed.chart)
+          ? parsed.chart
+              .map((item) => ({ label: String(item.label ?? ""), value: Number(item.value ?? Number.NaN) }))
+              .filter((item) => item.label && Number.isFinite(item.value))
+          : [],
+      );
+      const fallbackChart = toChartFromSnapshots(snapshots);
+      const chart = chartSource.length > 0 ? chartSource : fallbackChart;
+      const labels = chart.map((item) => item.label);
+      const values = chart.map((item) => item.value);
+      const mergedSteps = Array.from(
+        new Set([
+          ...steps,
+          ...(Array.isArray(parsed.steps) ? parsed.steps.map((item) => String(item)) : []),
+        ]),
+      ).slice(0, 20);
+      const insights = (Array.isArray(parsed.insights) ? parsed.insights.map((item) => String(item)) : [])
+        .filter((item) => item.trim())
+        .slice(0, 24);
+      const sections = deriveSections(parsed);
+      const runRecordId = newRunId("analysis-run");
+      const resultTitle = (parsed.title?.trim() || `${task.name} - ${t("analysis.defaultTitle")}`).slice(0, 120);
+      const resultSummary = parsed.summary?.trim() || t("analysis.defaultSummary");
+      const report = buildReportHtml({
+        language: outputLanguage,
+        title: resultTitle,
+        summary: resultSummary,
+        steps: mergedSteps.length > 0 ? mergedSteps : [t("analysis.defaultStep")],
+        insights: insights.length > 0 ? insights : [t("analysis.defaultInsight")],
+        sections,
+        labels,
+        values,
+      });
+      const saved = await analysisSaveReport({
+        projectId,
+        runId: runRecordId,
+        title: resultTitle,
+        reportHtml: report.html,
+        assets: [{ fileName: "chart.svg", dataUrl: report.chartDataUrl }],
+      });
+      const runRecord: AnalysisTaskRun = {
+        id: runRecordId,
+        prompt: normalizedPrompt,
+        title: resultTitle,
+        summary: resultSummary,
+        reportRelativePath: saved.reportRelativePath,
+        assetRelativePaths: saved.assetRelativePaths,
+        labels,
+        values,
+        insights,
+        steps: mergedSteps,
+        sourceType: task.sourceType,
+        sourcePath: task.sourcePath,
+        inputFiles: resolvedInputFiles,
+        outputLanguage,
+        agentRunId: finalResult.runId,
+        eventRunIds: Array.from(new Set(runIds)),
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+      };
+      setActiveRunHtml(report.html);
+      updateTaskById(task.id, (item) => ({
+        ...upsertRun(item, runRecord),
+        lastError: null,
+        draftPrompt: options?.savePrompt === false ? item.draftPrompt : "",
+      }));
+      setActiveTaskId(task.id);
+      setToast({ type: "info", message: t("analysis.runDone") });
+    } catch (error) {
+      const rawMessage = String(error);
+      const reason = rawMessage === "agent.run.timeout.total"
+        ? t("agent.run.timeout")
+        : rawMessage === "agent.run.timeout.inactive"
+          ? t("agent.run.timeout.inactive")
+          : rawMessage;
+      const message = `${t("analysis.error.failed")}: ${currentStage} · ${reason}`;
+      updateTaskById(task.id, (item) => ({
+        ...item,
+        lastError: message,
+        updatedAt: nowIso(),
+      }));
+      setToast({ type: "error", message });
+      await runtimeLogWrite("ERROR", `analysis run failed: stage=${currentStage}; reason=${rawMessage}`).catch(() => undefined);
+    } finally {
+      runInFlightRef.current = false;
+      setRunning(false);
+      setLiveRunIds([]);
+      setLiveStageLabel("");
     }
-    setPreflight(null);
-    const runGeneration = runGenerationRef.current + 1;
-    runGenerationRef.current = runGeneration;
-    await runAnalysisWorkspacePrompt({
-      inputPrompt: normalizedPrompt,
-      options,
-      suspended,
-      projectId,
-      activeTaskId,
-      selectedFile,
-      editorContent,
-      candidateFiles,
-      csvCandidateFiles,
-      locale,
-      analysisModelOverride,
-      liveOutput,
-      tasksRef,
-      loadedRef,
-      runInFlightRef,
-      liveTaskIdRef,
-      liveTaskRunIdRef,
-      runGeneration,
-      isRunGenerationCurrent: (generation) => runGenerationRef.current === generation,
-      ensureStageCache,
-      persistStageCacheEntry,
-      updateTaskById,
-      setActiveTaskId,
-      setActiveRunHtml,
-      setLiveRunIds,
-      setLiveStageLabel,
-      setRunning,
-      setToast,
-      t,
-    });
   }, [
     activeTaskId,
-    analysisModelOverride,
     candidateFiles,
     csvCandidateFiles,
     editorContent,
     ensureTasksReady,
-    ensureStageCache,
     locale,
-    liveOutput,
-    persistStageCacheEntry,
     projectId,
+    runRolePromptWithAgent,
     selectedFile,
     setToast,
-    suspended,
     t,
     updateTaskById,
   ]);
-  const runAnalysis = useCallback(async (teamMode: AgentTeamMode = "auto") => {
-    if (running) {
-      await cancelAnalysis();
-      return;
-    }
-    await runAnalysisForPrompt(prompt, { teamMode });
-  }, [cancelAnalysis, prompt, runAnalysisForPrompt, running]);
-  const updatePreflightAnswers = useCallback((questionId: string, values: string[]) => {
-    setPreflight((prev) => prev ? {
-      ...prev,
-      answers: {
-        ...prev.answers,
-        [questionId]: values,
-      },
-    } : prev);
-  }, []);
-  const submitPreflight = useCallback(async () => {
-    if (!preflight) {
-      return;
-    }
-    const nextPrompt = applyAnalysisPreflightAnswers(preflight);
-    setPreflight(null);
-    await runAnalysisForPrompt(nextPrompt, { skipPreflight: true });
-  }, [preflight, runAnalysisForPrompt]);
-  const cancelPreflight = useCallback(() => {
-    setPreflight(null);
-  }, []);
-  const continueAnalysis = useCallback(async (teamMode: AgentTeamMode = "auto") => {
-    if (running) {
-      await cancelAnalysis();
-      return;
-    }
-    const retryPrompt = activeRun?.prompt?.trim();
-    if (!retryPrompt) {
-      setToast({ type: "error", message: t("analysis.error.emptyPrompt") });
-      return;
-    }
-    await runAnalysisForPrompt(retryPrompt, {
-      forcedTaskId: activeTaskId ?? undefined,
-      taskSnapshot: activeTask ?? undefined,
-      savePrompt: false,
-      teamMode,
-    });
-  }, [activeRun?.prompt, activeTask, activeTaskId, cancelAnalysis, runAnalysisForPrompt, running, setToast, t]);
+  const runAnalysis = useCallback(async () => runAnalysisForPrompt(prompt), [prompt, runAnalysisForPrompt]);
   const runAnalysisWithPrompt = useCallback(
     async (inputPrompt: string) => {
       setPrompt(inputPrompt);
@@ -580,5 +638,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-  return { prompt, setPrompt, onDropPromptPaths, running, canRun, canContinue, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, preflight, updatePreflightAnswers, submitPreflight, cancelPreflight, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, continueAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
+  return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+
+
