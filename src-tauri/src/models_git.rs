@@ -1,4 +1,4 @@
-#[derive(Debug, Serialize)]
+﻿#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitStatusEntry {
     pub path: String,
@@ -188,6 +188,7 @@ pub struct BusyTexCachePrepareInput {
 pub struct BusyTexInstallPackageInput {
     pub style_file: String,
     pub policy: Option<String>,
+    pub cache_only: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

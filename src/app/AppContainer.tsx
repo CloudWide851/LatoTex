@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+﻿import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
@@ -65,7 +65,6 @@ export function AppContainer() {
     setSelectedLibraryPath: s.setSelectedLibraryPath,
     setSuppressAutoGitInstall: s.setSuppressAutoGitInstall,
   });
-
   const { persistSettings, savePanelLayout, cancelPendingAutoSave } = useSettingsPersistence({
     activeProjectId: s.activeProjectId,
     locale,
@@ -80,7 +79,6 @@ export function AppContainer() {
     autoSaveReadyRef: s.autoSaveReadyRef,
     lastAutoSavedHashRef: s.lastAutoSavedHashRef,
   });
-
   useEffect(
     () => () => {
       if (s.pdfUrl) {
@@ -95,7 +93,6 @@ export function AppContainer() {
     },
     [s.pdfUrl, s.selectedFilePdfUrl, s.selectedImagePreviewUrl],
   );
-
   useTrayLabelSync({ isTauriRuntime, locale, t });
   useCompiledPreviewResetOnProjectChange({
     activeProjectId: s.activeProjectId,
@@ -103,7 +100,6 @@ export function AppContainer() {
     setCompiledPdfBytes: s.setCompiledPdfBytes,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
   });
-
   const analysisWorkspace = useAnalysisWorkspace({
     projectId: s.activeProjectId,
     selectedFile: s.selectedFile,
@@ -115,7 +111,6 @@ export function AppContainer() {
     t,
     setToast: s.setToast,
   });
-
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,
@@ -190,24 +185,20 @@ export function AppContainer() {
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
   });
-
   const activeAgentProposal = useMemo(
     () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
     [s.agentProposalsByPath, s.selectedFile],
   );
-
   useAgentProposalDecorations({
     editorRef: s.editorRef,
     selectedFile: s.selectedFile,
     activeProposal: activeAgentProposal,
   });
-
   const { getCachedTextContent, handleTextFileLoaded } = useTextContentCacheBridge({
     workingContentByPathRef: s.workingContentByPathRef,
     savedContentByPathRef: s.savedContentByPathRef,
     dirtyByPathRef: s.dirtyByPathRef,
   });
-
   const runtimeBusy = s.busy || Boolean(s.agentRunId) || analysisWorkspace.running || Boolean(s.gitDownloadTaskId);
   const idleSleep = useIdleSleep({
     blocked: runtimeBusy,
@@ -222,7 +213,6 @@ export function AppContainer() {
     oomSleepAtRef.current = now;
     idleSleep.forceSleep();
   }, [idleSleep.forceSleep]);
-
   useAppEffects({
     t,
     isTauriRuntime,
@@ -277,14 +267,12 @@ export function AppContainer() {
     suspended: idleSleep.sleeping,
     onOutOfMemory: handleOutOfMemorySleep,
   });
-
   useRuntimeMemoryGuard({
     isTauriRuntime,
     setEvents: s.setEvents,
     suspended: idleSleep.sleeping,
     onCriticalMemory: () => handleOutOfMemorySleep("memory_guard", "runtime memory critical"),
   });
-
   useEditorDirtySyncEffect({
     selectedFile: s.selectedFile,
     editorContent: s.editorContent,
@@ -292,7 +280,6 @@ export function AppContainer() {
     workingContentByPathRef: s.workingContentByPathRef,
     setDirtyByPath: s.setDirtyByPath,
   });
-
   const workspaceActions = useAppContainerWorkspaceActions({
     selectedFile: s.selectedFile,
     editorContent: s.editorContent,
@@ -345,7 +332,6 @@ export function AppContainer() {
     setModelModalInitial: s.setModelModalInitial,
     setModelModalOpen: s.setModelModalOpen,
   });
-
   const agentSession = useAgentSessionController({
     activeProjectId: s.activeProjectId,
     selectedFile: s.selectedFile,
@@ -364,7 +350,6 @@ export function AppContainer() {
     runTaskAgent: handlers.handleRunAgent,
     t,
   });
-
   const explorerGitDecorations = useExplorerGitDecorations(s.gitStatusState?.changes);
   const shareSession = useShareSession({
     activeProjectId: s.activeProjectId,
@@ -380,7 +365,6 @@ export function AppContainer() {
     },
     t,
   });
-
   const panels = useAppPanelNodes({
     settings: s.settings,
     locale,
@@ -430,13 +414,11 @@ export function AppContainer() {
     runPaperAnalysisFromLibrary: analysisWorkspace.runPaperAnalysisFromLibrary,
     analysisRunning: analysisWorkspace.running,
   });
-
   const handleCloseBehaviorDialogCancel = useCallback(() => {
     setCloseBehaviorDialogOpen(false);
     setCloseDecisionBusy(false);
     setCloseBehaviorRememberChoice(false);
   }, []);
-
   const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
     if (closeDecisionBusy) {
       return;
@@ -444,7 +426,6 @@ export function AppContainer() {
     setCloseBehaviorDialogOpen(false);
     void handlers.handleWindowCloseDecision(behavior, closeBehaviorRememberChoice);
   }, [closeBehaviorRememberChoice, closeDecisionBusy, handlers]);
-
   return (
     <AppContainerView
       windowActionBusy={s.windowActionBusy}
@@ -599,4 +580,3 @@ export function AppContainer() {
     />
   );
 }
-

@@ -1,4 +1,4 @@
-export const enUS_workspace = {
+﻿export const enUS_workspace = {
   "workspace.analysis": "Data analysis workspace is coming soon.",
   "workspace.library": "Paper library workspace is coming soon.",
   "workspace.noProject": "No project yet. Open a folder to initialize a workspace.",
@@ -21,7 +21,7 @@ export const enUS_workspace = {
   "workspace.compileAssist.hintMissingCtex": "ctex.sty is missing. Avoid ctex-specific packages and use base article + UTF-8 text.",
   "workspace.compileAssist.hintBusytexWorkerOrigin": "BusyTeX Worker failed due asset origin mismatch. Use packaged/local BusyTeX assets first and avoid HTML fallback paths (Unexpected token '<').",
   "workspace.compileAssist.hintGeneric": "Fix missing package/syntax errors first, then recompile. Start from the first ERROR line.",
-  "workspace.compileAssist.busytexDownloadStart": "BusyTeX downloading missing package: {package}.",
+    "workspace.compileAssist.busytexCacheHit": "BusyTeX reused cached package: {package}.",
   "workspace.compileAssist.busytexDownloadSuccess": "BusyTeX downloaded {package} from {source}.",
   "workspace.compileAssist.busytexDownloadNoFiles": "BusyTeX downloaded {package} but no usable files were returned.",
   "workspace.compileAssist.busytexDownloadFailed": "BusyTeX failed to download {package}: {reason}",
@@ -33,7 +33,7 @@ export const enUS_workspace = {
   "workspace.undo": "Undo",
   "workspace.redo": "Redo",
   "workspace.messagePlaceholder": "Conversation",
-  "workspace.openConversation": "Open conversation",
+    "workspace.openDrawPage": "Open In Draw Page",
   "workspace.agentTitle": "Task Agent Prompt",
   "workspace.agentPlaceholder": "Describe what the task agent should do with current LaTeX context...",
   "workspace.runTaskAgent": "Run Task Agent",

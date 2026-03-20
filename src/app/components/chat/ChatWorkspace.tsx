@@ -1,4 +1,4 @@
-import { Send, Square } from "lucide-react";
+﻿import { Send, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   channelsTelegramPoll,
@@ -19,12 +19,8 @@ import {
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
-
 type TranslationFn = (key: any) => string;
-
-
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
-
 type ChatAutoFixRequest = {
   projectId: string | null;
   prompt: string;
@@ -32,7 +28,6 @@ type ChatAutoFixRequest = {
   source?: string;
   requestId?: string;
 };
-
 function renderRunFailureMessage(t: TranslationFn, error: unknown): string {
   const detail = String(error ?? "").trim();
   if (!detail) {
@@ -44,7 +39,6 @@ function titleFromPrompt(prompt: string, fallback: string) {
   const firstLine = prompt.replace(/\s+/g, " ").trim().slice(0, 42);
   return firstLine || fallback;
 }
-
 function updateSession(
   sessions: ChatSession[],
   sessionId: string,
@@ -52,7 +46,6 @@ function updateSession(
 ): ChatSession[] {
   return sessions.map((item) => (item.id === sessionId ? updater(item) : item));
 }
-
 function ensureTelegramSession(
   sessions: ChatSession[],
   chatId: string,
@@ -71,7 +64,6 @@ function ensureTelegramSession(
     sessionId: next.id,
   };
 }
-
 export function ChatWorkspace(props: {
   projectId: string | null;
   modelOverride?: string | null;
@@ -92,7 +84,6 @@ export function ChatWorkspace(props: {
   const telegramProcessingRef = useRef(false);
   const pendingAutoFixRef = useRef<ChatAutoFixRequest | null>(null);
   const lastHandledAutoFixKeyRef = useRef<string>("");
-
   useEffect(() => {
     if (!projectId) {
       setSessions([]);
@@ -103,14 +94,12 @@ export function ChatWorkspace(props: {
     setSessions(loaded.sessions);
     setActiveSessionId(loaded.activeSessionId);
   }, [projectId]);
-
   useEffect(() => {
     if (!projectId) {
       return;
     }
     saveChatStore(projectId, sessions, activeSessionId);
   }, [activeSessionId, projectId, sessions]);
-
   useEffect(() => {
     if (!projectId || typeof window === "undefined") {
       return;
@@ -128,23 +117,19 @@ export function ChatWorkspace(props: {
       window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
     };
   }, [projectId]);
-
   useEffect(() => {
     if (!listRef.current) {
       return;
     }
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [activeSessionId, sessions]);
-
   useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
-
   const activeSession = useMemo(
     () => sessions.find((item) => item.id === activeSessionId) ?? null,
     [activeSessionId, sessions],
   );
-
   const ensureSession = useCallback(() => {
     if (activeSessionId && sessions.some((item) => item.id === activeSessionId)) {
       return activeSessionId;
@@ -154,7 +139,6 @@ export function ChatWorkspace(props: {
     setActiveSessionId(session.id);
     return session.id;
   }, [activeSessionId, sessions, t]);
-
   const appendMessage = (sessionId: string, message: ChatMessage) => {
     setSessions((prev) =>
       updateSession(prev, sessionId, (session) => ({
@@ -164,7 +148,6 @@ export function ChatWorkspace(props: {
       })),
     );
   };
-
   const updateMessageText = (sessionId: string, messageId: string, text: string) => {
     setSessions((prev) =>
       updateSession(prev, sessionId, (session) => ({
@@ -174,7 +157,6 @@ export function ChatWorkspace(props: {
       })),
     );
   };
-
   const loadProjectMemoryText = useCallback(async () => {
     if (!projectId) {
       return "";
@@ -193,7 +175,6 @@ export function ChatWorkspace(props: {
     }
     return "";
   }, [projectId]);
-
   const runPrompt = useCallback(async (
     promptRaw: string,
     options?: {
@@ -358,11 +339,9 @@ export function ChatWorkspace(props: {
       setPendingRunId(null);
     }
   }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, t, updateMessageText]);
-
   const sendMessage = async () => {
     await runPrompt(draft);
   };
-
   const processTelegramQueue = useCallback(async () => {
     if (!projectId || telegramProcessingRef.current || running) {
       return;
@@ -397,7 +376,6 @@ export function ChatWorkspace(props: {
       }
     }
   }, [projectId, runPrompt, running, t]);
-
   useEffect(() => {
     if (!projectId || !channelPrefs?.telegramEnabled) {
       return;
@@ -406,7 +384,6 @@ export function ChatWorkspace(props: {
     const offsetKey = `latotex.chat.telegram.offset.${projectId}`;
     const savedOffset = Number(localStorage.getItem(offsetKey) || "0");
     telegramOffsetRef.current = Number.isFinite(savedOffset) ? savedOffset : 0;
-
     const pollLoop = async () => {
       if (cancelled) {
         return;
@@ -445,19 +422,16 @@ export function ChatWorkspace(props: {
         }
       }
     };
-
     void pollLoop();
     return () => {
       cancelled = true;
     };
   }, [channelPrefs?.telegramEnabled, processTelegramQueue, projectId]);
-
   useEffect(() => {
     if (!running) {
       void processTelegramQueue();
     }
   }, [processTelegramQueue, running]);
-
   useEffect(() => {
     if (running || !pendingAutoFixRef.current) {
       return;
@@ -471,12 +445,10 @@ export function ChatWorkspace(props: {
       forceNewSession: next.forceNewSession !== false,
     });
   }, [runPrompt, running]);
-
   useEffect(() => {
     if (!projectId || typeof window === "undefined") {
       return;
     }
-
     const resolveAutoFixKey = (input: ChatAutoFixRequest) => {
       const requestId = String(input.requestId || "").trim();
       if (requestId) {
@@ -484,7 +456,6 @@ export function ChatWorkspace(props: {
       }
       return `${input.projectId ?? "unknown"}:${input.source ?? "chat"}:${input.prompt}`;
     };
-
     const handleAutoFixRequest = (request: ChatAutoFixRequest) => {
       const prompt = String(request.prompt || "").trim();
       if (!prompt) {
@@ -514,12 +485,10 @@ export function ChatWorkspace(props: {
         forceNewSession: request.forceNewSession !== false,
       });
     };
-
     const global = window as Window & { __latotexPendingChatAutoFix?: ChatAutoFixRequest };
     if (global.__latotexPendingChatAutoFix) {
       handleAutoFixRequest(global.__latotexPendingChatAutoFix);
     }
-
     const onAutoFix = (event: Event) => {
       const custom = event as CustomEvent<ChatAutoFixRequest>;
       if (!custom.detail) {
@@ -532,7 +501,6 @@ export function ChatWorkspace(props: {
       window.removeEventListener("latotex.chat.autofix", onAutoFix as EventListener);
     };
   }, [projectId, runPrompt, running]);
-
   const stopRun = async () => {
     const runId = pendingRunId;
     if (!runId) {
@@ -544,7 +512,6 @@ export function ChatWorkspace(props: {
       // ignore
     }
   };
-
   if (!projectId) {
     return (
       <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
@@ -552,7 +519,6 @@ export function ChatWorkspace(props: {
       </section>
     );
   }
-
   return (
     <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_128px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
@@ -579,7 +545,6 @@ export function ChatWorkspace(props: {
           </div>
         )}
       </div>
-
       <div className="flex h-full min-h-0 flex-col border-t border-slate-200 px-2 pb-2 pt-1.5">
         <div className="relative min-h-0 flex-1">
           <textarea
@@ -613,8 +578,3 @@ export function ChatWorkspace(props: {
     </section>
   );
 }
-
-
-
-
-

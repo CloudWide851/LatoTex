@@ -1,4 +1,4 @@
-import type { AgentCommandItem } from "../AgentChatOverlay";
+﻿import type { AgentCommandItem } from "../AgentChatOverlay";
 
 type TranslationFn = (key: any) => string;
 
@@ -19,3 +19,28 @@ export function buildAgentCommandItems(t: TranslationFn): AgentCommandItem[] {
 }
 
 
+
+type PendingChatAutoFix = {
+  projectId: string | null;
+  prompt: string;
+  forceNewSession: boolean;
+  source: string;
+  requestId: string;
+};
+
+export function dispatchCompileAssistAutoFix(projectId: string | null, prompt: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const detail: PendingChatAutoFix = {
+    projectId,
+    prompt,
+    forceNewSession: true,
+    source: "compile_assist",
+    requestId: Date.now().toString(36),
+  };
+  (window as Window & { __latotexPendingChatAutoFix?: PendingChatAutoFix }).__latotexPendingChatAutoFix = detail;
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent("latotex.chat.autofix", { detail }));
+  }, 0);
+}

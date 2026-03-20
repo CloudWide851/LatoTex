@@ -1,4 +1,4 @@
-use crate::storage;
+﻿use crate::storage;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use serde_json::json;
@@ -9,62 +9,23 @@ use std::thread;
 use std::time::Duration;
 #[path = "swarm_provider_gemini.rs"]
 mod swarm_provider_gemini;
+#[path = "swarm_provider_parse.rs"]
+mod swarm_provider_parse;
 use swarm_provider_gemini::call_gemini;
+use swarm_provider_parse::{compact_body_preview, parse_line_delimited_json, parse_sse_json_body};
 const AGENT_RETRY_MAX: u32 = 4;
 const AGENT_AUTO_REPAIR_MAX: u32 = 3;
-
 struct ProviderError {
     code: &'static str,
     message: String,
     retryable: bool,
     auto_repairable: bool,
 }
-
 impl ProviderError {
     fn render(&self) -> String {
         format!("{}: {}", self.code, self.message)
     }
 }
-
-fn compact_body_preview(body: &str) -> String {
-    body.replace('\n', " ")
-        .replace('\r', " ")
-        .chars()
-        .take(260)
-        .collect::<String>()
-}
-
-fn parse_sse_json_body(trimmed: &str) -> Option<serde_json::Value> {
-    let mut last_json: Option<serde_json::Value> = None;
-    for line in trimmed.lines() {
-        let text = line.trim();
-        if !text.starts_with("data:") {
-            continue;
-        }
-        let payload = text.trim_start_matches("data:").trim();
-        if payload.is_empty() || payload == "[DONE]" {
-            continue;
-        }
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(payload) {
-            last_json = Some(parsed);
-        }
-    }
-    last_json
-}
-
-fn parse_line_delimited_json(trimmed: &str) -> Option<serde_json::Value> {
-    for line in trimmed.lines().rev() {
-        let text = line.trim();
-        if text.is_empty() {
-            continue;
-        }
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-            return Some(parsed);
-        }
-    }
-    None
-}
-
 fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, ProviderError> {
     let trimmed = body.trim();
     if trimmed.is_empty() {
@@ -75,11 +36,9 @@ fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, 
             auto_repairable: true,
         });
     }
-
     if let Some(parsed) = parse_sse_json_body(trimmed) {
         return Ok(parsed);
     }
-
     match serde_json::from_str(trimmed) {
         Ok(parsed) => Ok(parsed),
         Err(error) => {
@@ -111,11 +70,9 @@ fn parse_provider_json(body: &str, provider: &str) -> Result<serde_json::Value, 
         }
     }
 }
-
 fn should_retry(status: StatusCode) -> bool {
     status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
 }
-
 fn classify_http_error(provider: &str, status: StatusCode, body: &str) -> ProviderError {
     let normalized = body.to_ascii_lowercase();
     let unsupported_param = normalized.contains("unsupported")
@@ -147,7 +104,6 @@ fn classify_http_error(provider: &str, status: StatusCode, body: &str) -> Provid
         auto_repairable: endpoint_mismatch || unsupported_param,
     }
 }
-
 fn extract_text_content(value: &serde_json::Value) -> Option<String> {
     if let Some(text) = value.as_str() {
         return Some(text.to_string());
@@ -173,7 +129,6 @@ fn extract_text_content(value: &serde_json::Value) -> Option<String> {
     }
     None
 }
-
 fn is_reasoning_model(model_name: &str) -> bool {
     let lower = model_name.to_ascii_lowercase();
     lower.contains("think")
@@ -183,7 +138,6 @@ fn is_reasoning_model(model_name: &str) -> bool {
         || lower.contains("r1")
         || lower.contains("qwq")
 }
-
 fn candidate_endpoints(base_url: &str, suffix: &str) -> Vec<String> {
     let normalized = base_url.trim_end_matches('/');
     let suffix = suffix.trim_start_matches('/');
@@ -200,7 +154,6 @@ fn candidate_endpoints(base_url: &str, suffix: &str) -> Vec<String> {
     out.dedup();
     out
 }
-
 fn candidate_gemini_endpoints(base_url: &str, model_name: &str, api_key: &str) -> Vec<String> {
     let normalized = base_url.trim_end_matches('/');
     let mut out = Vec::new();
@@ -215,7 +168,6 @@ fn candidate_gemini_endpoints(base_url: &str, model_name: &str, api_key: &str) -
     out.dedup();
     out
 }
-
 fn extract_openai_responses_content(parsed: &serde_json::Value) -> String {
     if let Some(text) = parsed.get("output_text").and_then(|value| value.as_str()) {
         return text.to_string();
@@ -242,7 +194,6 @@ fn extract_openai_responses_content(parsed: &serde_json::Value) -> String {
     }
     String::new()
 }
-
 fn transport_error(error: reqwest::Error) -> ProviderError {
     ProviderError {
         code: "provider.transport_error",
@@ -251,7 +202,6 @@ fn transport_error(error: reqwest::Error) -> ProviderError {
         auto_repairable: true,
     }
 }
-
 fn call_openai_chat(
     client: &Client,
     base_url: &str,
@@ -279,7 +229,6 @@ fn call_openai_chat(
         "model": model_name,
         "messages": [{ "role": "user", "content": prompt }]
     }));
-
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_endpoints(base_url, "chat/completions") {
         for payload in &payloads {
@@ -305,7 +254,6 @@ fn call_openai_chat(
                 }
                 return Err(error);
             }
-
             let parsed = match parse_provider_json(&body, "OpenAI-compatible/chat") {
                 Ok(value) => value,
                 Err(error) => {
@@ -341,7 +289,6 @@ fn call_openai_chat(
         auto_repairable: true,
     }))
 }
-
 fn call_openai_responses(
     client: &Client,
     base_url: &str,
@@ -376,7 +323,6 @@ fn call_openai_responses(
         "model": model_name,
         "input": prompt
     }));
-
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_endpoints(base_url, "responses") {
         for payload in &payloads {
@@ -431,7 +377,6 @@ fn call_openai_responses(
         auto_repairable: true,
     }))
 }
-
 fn call_openai_compatible(
     client: &Client,
     base_url: &str,
@@ -447,7 +392,6 @@ fn call_openai_compatible(
         } else {
             [call_openai_chat, call_openai_responses]
         };
-
     for call in call_order {
         match call(client, base_url, api_key, model_name, prompt) {
             Ok(value) => return Ok(value),
@@ -460,7 +404,6 @@ fn call_openai_compatible(
             }
         }
     }
-
     Err(last_error.unwrap_or(ProviderError {
         code: "provider.endpoint_mismatch",
         message: "No compatible OpenAI-compatible mode succeeded".to_string(),
@@ -468,7 +411,6 @@ fn call_openai_compatible(
         auto_repairable: true,
     }))
 }
-
 fn call_anthropic(
     client: &Client,
     base_url: &str,
@@ -493,7 +435,6 @@ fn call_anthropic(
             }),
         );
     }
-
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_endpoints(base_url, "messages") {
         for payload in &payloads {
@@ -510,7 +451,6 @@ fn call_anthropic(
                     continue;
                 }
             };
-
             let status = response.status();
             let body = response.text().unwrap_or_default();
             if !status.is_success() {
@@ -521,7 +461,6 @@ fn call_anthropic(
                 }
                 return Err(error);
             }
-
             let parsed = match parse_provider_json(&body, "Anthropic") {
                 Ok(value) => value,
                 Err(error) => {
@@ -554,7 +493,6 @@ fn call_anthropic(
         auto_repairable: true,
     }))
 }
-
 fn cache_key(protocol_id: &str, base_url: &str, model_name: &str, prompt: &str) -> String {
     let mut hasher = DefaultHasher::new();
     protocol_id.hash(&mut hasher);
@@ -563,7 +501,6 @@ fn cache_key(protocol_id: &str, base_url: &str, model_name: &str, prompt: &str) 
     prompt.hash(&mut hasher);
     format!("agent:{}:{:x}", protocol_id, hasher.finish())
 }
-
 pub(crate) fn call_provider_with_retry(
     db_path: Option<&Path>,
     protocol_id: &str,
@@ -581,12 +518,10 @@ pub(crate) fn call_provider_with_retry(
             }
         }
     }
-
     let client = Client::builder()
         .timeout(Duration::from_secs(35))
         .build()
         .map_err(|e| e.to_string())?;
-
     let mut last_error = String::new();
     let mut auto_repair_attempts = 0_u32;
     for attempt in 0..=AGENT_RETRY_MAX {
@@ -595,7 +530,6 @@ pub(crate) fn call_provider_with_retry(
             "gemini" => call_gemini(&client, base_url, api_key, model_name, prompt),
             _ => call_openai_compatible(&client, base_url, api_key, model_name, prompt),
         };
-
         match result {
             Ok(text) => {
                 if !bypass_cache {
@@ -634,7 +568,3 @@ pub(crate) fn call_provider_with_retry(
     }
     Err(last_error)
 }
-
-
-
-

@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+﻿import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
 import type { FsAction, FsScope } from "../../../shared/types/app";
@@ -8,7 +8,7 @@ import {
   loadPersistedTabs,
   normalizePath,
   parseDrawMessage,
-  resolveDrawioHostFrameSrc,
+  resolveDrawioHostFrameCandidates,
   savePersistedTabs,
   tabTitleFromPath,
   persistDrawExportToWorkspace,
@@ -58,6 +58,8 @@ export function DrawWorkspace(props: {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [frameCandidates, setFrameCandidates] = useState<string[]>([]);
+  const [frameCandidateIndex, setFrameCandidateIndex] = useState(0);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -66,13 +68,17 @@ export function DrawWorkspace(props: {
 
   useEffect(() => {
     let cancelled = false;
-    resolveDrawioHostFrameSrc()
-      .then((nextSrc) => {
+    resolveDrawioHostFrameCandidates()
+      .then((nextCandidates) => {
         if (cancelled) {
           return;
         }
-        const resolved = nextSrc ?? null;
-        if (!resolved) {
+        const resolved = Array.isArray(nextCandidates)
+          ? nextCandidates.map((item) => String(item || "").trim()).filter(Boolean)
+          : [];
+        if (resolved.length === 0) {
+          setFrameCandidates([]);
+          setFrameCandidateIndex(0);
           setReady(false);
           setFrameSrc(null);
           frameSrcRef.current = null;
@@ -80,17 +86,19 @@ export function DrawWorkspace(props: {
           return;
         }
 
-        if (resolved !== frameSrcRef.current) {
-          setReady(false);
-          setFrameSrc(resolved);
-          frameSrcRef.current = resolved;
-        }
+        setFrameCandidates(resolved);
+        setFrameCandidateIndex(0);
+        setReady(false);
+        setFrameSrc(resolved[0]);
+        frameSrcRef.current = resolved[0];
         setStatus("");
       })
       .catch(() => {
         if (cancelled) {
           return;
         }
+        setFrameCandidates([]);
+        setFrameCandidateIndex(0);
         setReady(false);
         setFrameSrc(null);
         frameSrcRef.current = null;
@@ -304,6 +312,8 @@ export function DrawWorkspace(props: {
       setActivePath(null);
       activePathRef.current = null;
       setReady(false);
+      setFrameCandidates([]);
+      setFrameCandidateIndex(0);
       setFrameSrc(null);
       frameSrcRef.current = null;
       setStatus("");
@@ -447,9 +457,20 @@ export function DrawWorkspace(props: {
       return;
     }
     initTimerRef.current = window.setTimeout(() => {
-      if (!ready) {
-        setStatus(t("draw.startFailed"));
+      if (ready) {
+        return;
       }
+      const nextIndex = frameCandidateIndex + 1;
+      if (nextIndex < frameCandidates.length) {
+        const nextSrc = frameCandidates[nextIndex];
+        setFrameCandidateIndex(nextIndex);
+        setReady(false);
+        setFrameSrc(nextSrc);
+        frameSrcRef.current = nextSrc;
+        setStatus(t("draw.waiting"));
+        return;
+      }
+      setStatus(t("draw.startFailed"));
     }, 12_000);
     return () => {
       if (initTimerRef.current !== null) {
@@ -457,7 +478,7 @@ export function DrawWorkspace(props: {
         initTimerRef.current = null;
       }
     };
-  }, [frameSrc, ready, t]);
+  }, [frameCandidateIndex, frameCandidates, frameSrc, ready, t]);
 
   if (!projectId) {
     return (

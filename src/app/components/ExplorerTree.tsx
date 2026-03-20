@@ -1,4 +1,4 @@
-import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
+﻿import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
@@ -58,7 +58,6 @@ export function ExplorerTree(props: {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
-
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
       if (event.button === 2) {
@@ -81,7 +80,6 @@ export function ExplorerTree(props: {
       window.removeEventListener("blur", closeMenuOnBlur);
     };
   }, []);
-
   const expandedMap = useMemo(() => {
     if (Object.keys(expanded).length > 0) {
       return expanded;
@@ -98,17 +96,14 @@ export function ExplorerTree(props: {
     walk(tree);
     return defaults;
   }, [expanded, tree]);
-
   const triggerRename = (path: string, name: string) => {
     requestAnimationFrame(() => {
       setEditing({ mode: "rename", path, value: name });
     });
   };
-
   const triggerCreate = (parentPath: string, mode: "create_file" | "create_folder") => {
     setEditing({ mode, parentPath, value: "" });
   };
-
   const submitEditing = async () => {
     if (submitLockRef.current) {
       return;
@@ -130,7 +125,6 @@ export function ExplorerTree(props: {
       submitLockRef.current = false;
       return;
     }
-
     try {
       if (editingSnapshot.mode === "rename") {
         const targetPath = joinPath(dirnameOf(editingSnapshot.path), nextName);
@@ -138,7 +132,6 @@ export function ExplorerTree(props: {
         setEditing(null);
         return;
       }
-
       const path = joinPath(editingSnapshot.parentPath, nextName);
       if (editingSnapshot.mode === "create_file") {
         await onAction("create_file", path, undefined, "");
@@ -150,12 +143,10 @@ export function ExplorerTree(props: {
       submitLockRef.current = false;
     }
   };
-
   const renderMenu = () => {
     if (!menu) {
       return null;
     }
-
     const items: Array<{ key: string; onClick: () => void }> = [];
     if (mode === "library") {
       items.push(
@@ -273,7 +264,6 @@ export function ExplorerTree(props: {
         },
       );
     }
-
     const menuContent = (
       <div
         ref={menuRef}
@@ -300,7 +290,6 @@ export function ExplorerTree(props: {
     }
     return createPortal(menuContent, document.body);
   };
-
   const renderCreateEditor = (parentPath: string) => {
     if (mode !== "workspace") {
       return null;
@@ -350,7 +339,6 @@ export function ExplorerTree(props: {
       </div>
     );
   };
-
   const renderNode = (node: ResourceNode, depth: number) => {
     const isDirectory = node.kind === "directory";
     const isExpanded = isDirectory ? expandedMap[node.relativePath] !== false : false;
@@ -426,7 +414,6 @@ export function ExplorerTree(props: {
               />
             </>
           )}
-
           {isRenaming ? (
             <input
               autoFocus
@@ -494,7 +481,6 @@ export function ExplorerTree(props: {
       </Fragment>
     );
   };
-
   return (
     <div
       ref={rootRef}
@@ -531,7 +517,6 @@ export function ExplorerTree(props: {
           </>
         )}
       </div>
-
       {mode === "workspace" && transferPanel && (
         <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
           <div className="truncate text-slate-600">{transferPanel.sourcePath}</div>
@@ -602,4 +587,3 @@ export function ExplorerTree(props: {
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { FolderOpen, Play, Redo2, Save, Undo2 } from "lucide-react";
+import { PenTool, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentChatOverlay } from "./AgentChatOverlay";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
@@ -14,11 +14,12 @@ import { buildCompileAssistHint } from "./editor/compileAssistHint";
 import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
+import { NoProjectPanel } from "./workspace/NoProjectPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
 import { ChatWorkspace } from "./chat/ChatWorkspace";
 import { ChatTopbarSessionControl } from "./chat/ChatTopbarSessionControl";
 import { DrawWorkspace } from "./draw/DrawWorkspace";
-import { buildAgentCommandItems, composeTitleWithShortcut } from "./workspace/workspaceShellUtils";
+import { buildAgentCommandItems, composeTitleWithShortcut, dispatchCompileAssistAutoFix } from "./workspace/workspaceShellUtils";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -152,7 +153,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       setChatTabActive(false);
     }
   }, [activeProjectId]);
-
   useEffect(() => {
     if (page !== "latex") {
       setChatTabActive(false);
@@ -166,6 +166,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const selectedIsSvg = isSvgPath(previewSelectedPath);
   const selectedIsCsv = isCsvPath(previewSelectedPath);
   const selectedIsTabular = isTabularPath(previewSelectedPath);
+  const selectedIsDraw = Boolean(selectedFile && /\.drawio$/i.test(selectedFile));
   const previewMode: "pdf" | "image" | "markdown" | "svg" | "empty" = selectedIsImage
     ? (selectedImagePreviewUrl ? "image" : "empty")
     : selectedIsPdf
@@ -206,21 +207,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     setChatTabActive(false);
     onSelectFile(path);
   };
-  const renderNoProjectPanel = () => (
-    <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up">
-      <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
-      <button
-        className="rounded border border-slate-300 bg-white p-2 text-slate-700 hover:bg-slate-100"
-        onClick={onOpenFolder}
-        disabled={busy}
-        title={t("topbar.openFolder")}
-        aria-label={t("topbar.openFolder")}
-      >
-        <FolderOpen className="h-5 w-5" />
-      </button>
-    </div>
-  );
-
+  const handleCompileAssistAutoFix = () => {
+    setCompileAssistDismissedFor(compileAssistKey);
+    handleOpenChatTab();
+    const extra = compileDiagnostics.slice(0, 6).join("\n").trim();
+    const prompt = extra ? `/review ${extra}` : "/review";
+    dispatchCompileAssistAutoFix(activeProjectId, prompt);
+  };
   const renderPdfPreviewPanel = () => (
     <WorkspacePreviewPanel
       activeProjectId={activeProjectId}
@@ -256,7 +249,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       t={t}
     />
   );
-
   const renderMainPanel = () => {
     if (page === "analysis") {
       return <section className="h-full min-h-0">{analysisPanel}</section>;
@@ -273,18 +265,17 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       );
     }
     if (page === "library") {
-      return renderNoProjectPanel();
+      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
     if (page === "git") {
-      return activeProjectId ? gitPanel : renderNoProjectPanel();
+      return activeProjectId ? gitPanel : <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
     if (page === "settings") {
       return settingsPanel;
     }
     if (!activeProjectId) {
-      return renderNoProjectPanel();
+      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
-
     return (
       <div className="grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
         <div className="min-w-0 overflow-visible border-b border-slate-200 px-3 py-1.5">
@@ -335,7 +326,18 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               <Save className="h-4 w-4" />
             </button>
             <div className="relative">
+            {selectedIsDraw ? (
               <button
+                className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                onClick={() => onPageChange("draw")}
+                disabled={busy}
+                title={t("workspace.openDrawPage")}
+                aria-label={t("workspace.openDrawPage")}
+              >
+                <PenTool className="h-4 w-4" />
+              </button>
+            ) : null}
+            <button
                 className="panel-topbar-btn rounded border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-50"
                 onClick={() => {
                   setCompileAssistDismissedFor("");
@@ -352,25 +354,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 diagnostics={compileDiagnostics}
                 hint={compileAssistHint}
                 onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
-                onAutoFix={() => {
-                  setCompileAssistDismissedFor(compileAssistKey);
-                  handleOpenChatTab();
-                  const extra = compileDiagnostics.slice(0, 6).join("\n").trim();
-                  const prompt = extra ? `/review ${extra}` : "/review";
-                  if (typeof window !== "undefined") {
-                    const detail = {
-                      projectId: activeProjectId,
-                      prompt,
-                      forceNewSession: true,
-                      source: "compile_assist",
-                      requestId: Date.now().toString(36),
-                    };
-                    (window as Window & { __latotexPendingChatAutoFix?: typeof detail }).__latotexPendingChatAutoFix = detail;
-                    window.setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent("latotex.chat.autofix", { detail }));
-                    }, 0);
-                  }
-                }}
+                onAutoFix={handleCompileAssistAutoFix}
                 autoFixDisabled={busy}
                 t={t}
               />
@@ -378,7 +362,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
           </div>
         </div>
       </div>
-
         <EditorTabsBar
           tabs={editorTabs}
           activeTabId={showChatWorkspace ? null : activeTabId}
@@ -397,7 +380,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
           onPin={onTabPin}
           t={t}
         />
-
         <div ref={editorPanelRef} className="relative h-full min-h-0">
           {agentProposal ? (
             <AgentProposalMiniBar
@@ -498,7 +480,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       </div>
     );
   };
-
   return (
     <main className="flex-1 min-h-0 overflow-hidden p-1">
       <div className="flex h-full gap-0">
@@ -615,4 +596,3 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   analysisSaveReport,
   readFile,
@@ -31,6 +31,7 @@ import {
 } from "./analysisWorkspaceHelpers";
 import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
+import { useAnalysisLiveState } from "./useAnalysisLiveState";
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const {
     projectId,
@@ -73,61 +74,17 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [activeTask]);
   const prompt = activeTask?.draftPrompt ?? "";
   const analysisError = activeTask?.lastError ?? null;
-  const timelineCards = useMemo(() => {
-    if (!activeRun) {
-      return [];
-    }
-    const runIds = Array.isArray(activeRun.eventRunIds) && activeRun.eventRunIds.length > 0
-      ? activeRun.eventRunIds
-      : activeRun.agentRunId
-        ? [activeRun.agentRunId]
-        : [];
-    return extractEventCards(events, runIds);
-  }, [activeRun, events]);
-  const liveTimelineCards = useMemo(() => {
-    if (liveRunIds.length === 0) {
-      return [];
-    }
-    return extractEventCards(events, liveRunIds).slice(-120);
-  }, [events, liveRunIds]);
-  const liveOutput = useMemo(() => {
-    if (liveRunIds.length === 0) {
-      return "";
-    }
-    const runSet = new Set(liveRunIds);
-    const sorted = events
-      .filter((event) => runSet.has(event.runId) && event.kind === "responses.output_text.delta")
-      .sort((a, b) => a.seq - b.seq);
-    let output = "";
-    for (const event of sorted) {
-      const payload = (event.payload ?? {}) as Record<string, unknown>;
-      const chunk = typeof payload.content === "string" ? payload.content : "";
-      if (chunk) {
-        output += chunk;
-      }
-    }
-    return output.slice(-12_000).trimStart();
-  }, [events, liveRunIds]);
-  const liveStage = useMemo(() => {
-    const explicit = liveStageLabel.trim();
-    if (explicit) {
-      return explicit;
-    }
-    if (liveRunIds.length === 0) {
-      return "";
-    }
-    const runSet = new Set(liveRunIds);
-    const latest = [...events]
-      .reverse()
-      .find((event) => runSet.has(event.runId) && event.kind !== "responses.output_text.delta");
-    if (!latest) {
-      return "";
-    }
-    const payload = (latest.payload ?? {}) as Record<string, unknown>;
-    const stage = typeof payload.stage === "string" ? payload.stage : "";
-    const title = typeof payload.title === "string" ? payload.title : "";
-    return stage || title || "";
-  }, [events, liveRunIds, liveStageLabel]);
+  const {
+    timelineCards,
+    liveTimelineCards,
+    liveOutput,
+    liveStage,
+  } = useAnalysisLiveState({
+    activeRun,
+    events,
+    liveRunIds,
+    liveStageLabel,
+  });
   useEffect(() => {
     if (!activeRun) {
       setActiveRunHtml("");
@@ -230,12 +187,10 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     if (resolvedPaths.length === 0) {
       return;
     }
-
     let targetTaskId = activeTaskId;
     if (!targetTaskId) {
       targetTaskId = tasksRef.current[0]?.id ?? null;
     }
-
     if (!targetTaskId) {
       const task = createAnalysisTask({
         defaultName: t("analysis.defaultTaskName"),
@@ -245,7 +200,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setActiveTaskId(task.id);
       targetTaskId = task.id;
     }
-
     updateTaskById(targetTaskId, (task) => ({
       ...task,
       draftPrompt: appendPromptRefs(task.draftPrompt ?? "", resolvedPaths, applyPromptRefSuggestion),
@@ -640,5 +594,3 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
-
-

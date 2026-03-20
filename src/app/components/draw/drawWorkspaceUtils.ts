@@ -1,4 +1,4 @@
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+﻿import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { drawioCachePrepare } from "../../../shared/api/desktop";
 import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
 
@@ -36,36 +36,12 @@ function uniqueValues(values: string[]): string[] {
   return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
 }
 
-async function checkFrameSource(url: string): Promise<boolean> {
-  try {
-    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
-    if (head.ok) {
-      return true;
-    }
-    if (head.status !== 405 && head.status !== 501) {
-      return false;
-    }
-  } catch {
-    // fallback to GET check below
-  }
-
-  try {
-    const get = await fetch(url, { method: "GET", cache: "no-store" });
-    if (!get.ok) {
-      return false;
-    }
-    await get.body?.cancel().catch(() => undefined);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
+export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
-    return DRAWIO_HOST_URL;
+    return [DRAWIO_HOST_URL];
   }
 
+  const fallbackCandidates = [DRAWIO_HOST_URL];
   try {
     const policy = typeof window !== "undefined"
       ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
@@ -74,19 +50,19 @@ export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    const candidates = toDrawioHostCandidates(info.actualDir);
-    for (const candidate of candidates) {
-      if (await checkFrameSource(candidate)) {
-        return candidate;
-      }
-    }
+    return uniqueValues([
+      ...toDrawioHostCandidates(info.actualDir),
+      ...fallbackCandidates,
+    ]);
   } catch {
-    return null;
+    return fallbackCandidates;
   }
-
-  return null;
 }
 
+export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
+  const candidates = await resolveDrawioHostFrameCandidates();
+  return candidates[0] ?? null;
+}
 export function normalizePath(value: string | null | undefined): string {
   return String(value ?? "").trim().replace(/\\/g, "/");
 }

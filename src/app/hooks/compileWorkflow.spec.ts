@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   applySystemFontFallbackToFileMap,
   applySystemFontFallbackToSource,
@@ -118,5 +118,36 @@ hello
     expect(patched.mainSource).toContain("\\setmainfont{Latin Modern Roman}");
     expect(patched.overlays["sections/body.tex"]).toContain("\\newfontfamily\\titlefont{Latin Modern Sans}");
     expect(patched.replacements).toHaveLength(2);
+  });
+
+  it("ignores non-font one-letter candidates from fontspec diagnostics", () => {
+    const diagnostics = [
+      "! Package fontspec Error: The font \"L\" cannot be found.",
+      "! Package fontspec Error: The font \"KaiTi\" cannot be found.",
+    ];
+
+    expect(extractMissingSystemFontsFromDiagnostics(diagnostics)).toEqual(["KaiTi"]);
+  });
+
+  it("does not rewrite CJK font commands during fallback", () => {
+    const source = String.raw`\setCJKmainfont{SimSun}
+\setmainfont{Times New Roman}`;
+
+    const output = applySystemFontFallbackToSource(source, ["SimSun", "Times New Roman"]);
+
+    expect(output.patchedSource).toContain("\\setCJKmainfont{SimSun}");
+    expect(output.patchedSource).toContain("\\setmainfont{Latin Modern Roman}");
+  });
+
+  it("does not patch style files when applying fallback across compile map", () => {
+    const fileMap = {
+      "main.tex": String.raw`\setmainfont{Times New Roman}`,
+      "styles/fontdefs.sty": String.raw`\setmainfont{Times New Roman}`,
+    };
+
+    const patched = applySystemFontFallbackToFileMap(fileMap, "main.tex", ["Times New Roman"]);
+
+    expect(patched.mainSource).toContain("\\setmainfont{Latin Modern Roman}");
+    expect(patched.overlays["styles/fontdefs.sty"]).toBeUndefined();
   });
 });

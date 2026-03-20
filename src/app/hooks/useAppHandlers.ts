@@ -1,4 +1,4 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
+﻿import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
 import {
@@ -114,7 +114,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setLibraryTree,
     refreshGitWorkspace,
   });
-
   const runWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {
     const appWindow = getCurrentWindow();
     if (behavior === "exit") {
@@ -135,7 +134,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
     await runtimeLogWrite("INFO", "window hidden to tray");
   }, [closeGuardUnlockedRef, setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
-
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
       return;
@@ -197,7 +195,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     requestCloseBehaviorDecision,
     runWindowCloseBehavior,
   ]);
-
   const handleWindowCloseDecision = useCallback(async (
     behavior: "tray" | "exit",
     remember: boolean,
@@ -238,7 +235,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     settings,
     t,
   ]);
-
   const handleInitProjectFromFolder = useCallback(async () => {
     setBusy(true);
     try {
@@ -261,7 +257,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [setBusy, setProjects, upsertProject, setActiveProjectId, setTree, setSelectedFile, setSettings, setToast, t]);
-
   const handleSaveFile = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
       return false;
@@ -284,7 +279,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [activeProjectId, editorContent, refreshGitWorkspace, selectedFile, setBusy, setToast, t]);
-
   const {
     runCompilePassForAgent,
     handleCompile,
@@ -311,7 +305,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     editorRef,
     t,
   });
-
   const {
     handleRunAgent,
     handleAcceptAgentProposal,
@@ -344,7 +337,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     runAnalysisFromAgent,
     taskModelOverride: settings?.uiPrefs?.featureModelBindings?.latexAgentModelId ?? null,
   });
-
   const handleSaveSettings = useCallback(async () => {
     if (!settings) {
       return;
@@ -369,7 +361,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [persistSettings, setBusy, setToast, settings, t]);
-
   const handleLocaleChange = useCallback((nextLocale: Locale) => {
     setLocale(nextLocale);
     if (typeof window !== "undefined") {
@@ -384,7 +375,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         : prev,
     );
   }, [setLocale, setSettings]);
-
   const handleThemeModeChange = useCallback((
     nextTheme: ThemeMode,
     event?: { clientX: number; clientY: number },
@@ -398,7 +388,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setThemeTransition,
     });
   }, [locale, setSettings, setThemeTransition, settings?.uiPrefs?.theme]);
-
   const handleWorkspaceRevealInSystem = useCallback(async (relativePath?: string) => {
     if (!activeProjectId) {
       return;
@@ -409,7 +398,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [activeProjectId, setToast]);
-
   const handleWorkspaceOpenTerminal = useCallback(async (relativePath?: string) => {
     if (!activeProjectId) {
       return;
@@ -420,7 +408,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [activeProjectId, setToast]);
-
   const handleWorkspaceRescan = useCallback(async () => {
     if (!activeProjectId) {
       return;
@@ -436,7 +423,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [activeProjectId, refreshGitWorkspace, setBusy, setToast, setTree]);
-
   const handleProjectSearch = useCallback(async () => {
     if (!activeProjectId || !projectSearchQuery.trim()) {
       setProjectSearchResults([]);
@@ -455,13 +441,11 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setProjectSearchBusy(false);
     }
   }, [activeProjectId, projectSearchQuery, setProjectSearchBusy, setProjectSearchResults, setProjectSearchSearched, setToast]);
-
   const handleProjectSearchSelect = useCallback((hit: ProjectSearchHit) => {
     setPage("latex");
     setSelectedFile(hit.relativePath);
     setPendingRevealLine(hit.lineNumber);
   }, [setPage, setPendingRevealLine, setSelectedFile]);
-
   const handleBusyTexCachePolicyChange = useCallback(async (
     policy: "install-first" | "appdata-only",
   ) => {
@@ -475,7 +459,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast,
     });
   }, [locale, setBusy, setBusytexCacheInfo, setSettings, setToast, t]);
-
   const handleProtocolPing = useCallback(async (input: {
     protocolId: string;
     baseUrl: string;
@@ -491,7 +474,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       t,
     });
   }, [setToast, t]);
-
   const runFsAction = useCallback(async (
     scope: FsScope,
     action: FsAction,
@@ -529,7 +511,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [activeProjectId, refreshGitWorkspace, setBusy, setLibraryTree, setToast, setTree, t]);
-
   const requestFsAction = useCallback(async (
     scope: FsScope,
     action: FsAction,
@@ -553,12 +534,10 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setDeleteIntent({ scope, path: normalizedPath });
     setDeleteDontAskAgain(false);
   }, [runFsAction, setDeleteDontAskAgain, setDeleteIntent, settings?.uiPrefs?.skipDeleteConfirm]);
-
   const confirmDelete = useCallback(async () => {
     if (!deleteIntent || !settings) {
       return;
     }
-
     if (deleteDontAskAgain) {
       const nextSettings: AppSettings = {
         ...settings,
@@ -571,11 +550,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       };
       await persistSettings(nextSettings);
     }
-
     await runFsAction(deleteIntent.scope, "delete", deleteIntent.path);
     setDeleteIntent(null);
   }, [deleteDontAskAgain, deleteIntent, locale, persistSettings, runFsAction, setDeleteIntent, settings]);
-
   return {
     handleWindowControl,
     handleWindowCloseDecision,
@@ -612,4 +589,3 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
-
