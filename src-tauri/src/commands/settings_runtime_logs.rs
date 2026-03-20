@@ -29,26 +29,33 @@ fn normalize_log_file_name(raw: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-fn resolve_log_path(state: &AppState, input_name: Option<&str>) -> Result<PathBuf, String> {
+fn resolve_log_path_from_roots(
+    logs_dir: &Path,
+    session_log_path: &Path,
+    input_name: Option<&str>,
+) -> Result<PathBuf, String> {
     let Some(raw) = input_name else {
-        return Ok(state.session_log_path.clone());
+        return Ok(session_log_path.to_path_buf());
     };
     let normalized = normalize_log_file_name(raw)?;
-    let candidate = state.logs_dir.join(&normalized);
+    let candidate = logs_dir.join(&normalized);
     if !candidate.exists() {
         return Err(format!("Log file not found: {normalized}"));
     }
-    let logs_dir = state
-        .logs_dir
+    let logs_dir_resolved = logs_dir
         .canonicalize()
         .map_err(|e| format!("Failed to resolve logs directory: {e}"))?;
     let candidate_resolved = candidate
         .canonicalize()
         .map_err(|e| format!("Failed to resolve log file path: {e}"))?;
-    if !candidate_resolved.starts_with(&logs_dir) {
+    if !candidate_resolved.starts_with(&logs_dir_resolved) {
         return Err("Resolved log file is outside logs directory".to_string());
     }
     Ok(candidate_resolved)
+}
+
+fn resolve_log_path(state: &AppState, input_name: Option<&str>) -> Result<PathBuf, String> {
+    resolve_log_path_from_roots(&state.logs_dir, &state.session_log_path, input_name)
 }
 
 #[tauri::command]
@@ -320,7 +327,20 @@ pub fn runtime_log_clear_current_session(
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_log_file_name;
+    use super::{normalize_log_file_name, resolve_log_path_from_roots};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn make_temp_logs_dir() -> PathBuf {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("latotex-log-test-{now}"));
+        fs::create_dir_all(&dir).expect("create temp logs dir");
+        dir
+    }
 
     #[test]
     fn accepts_plain_log_file_name() {
@@ -338,5 +358,37 @@ mod tests {
     #[test]
     fn rejects_non_log_extension() {
         assert!(normalize_log_file_name("runtime.txt").is_err());
+    }
+
+    #[test]
+    fn resolves_explicit_log_file_name() {
+        let logs_dir = make_temp_logs_dir();
+        let session_log = logs_dir.join("session.log");
+        let target_log = logs_dir.join("20260320-test.log");
+        fs::write(&session_log, "session").expect("write session log");
+        fs::write(&target_log, "target").expect("write target log");
+
+        let resolved = resolve_log_path_from_roots(&logs_dir, &session_log, Some("20260320-test.log"))
+            .expect("resolve explicit log");
+        let resolved_name = resolved
+            .file_name()
+            .map(|item| item.to_string_lossy().to_string())
+            .unwrap_or_default();
+        assert_eq!(resolved_name, "20260320-test.log");
+
+        let _ = fs::remove_dir_all(logs_dir);
+    }
+
+    #[test]
+    fn falls_back_to_session_log_when_name_missing() {
+        let logs_dir = make_temp_logs_dir();
+        let session_log = logs_dir.join("session.log");
+        fs::write(&session_log, "session").expect("write session log");
+
+        let resolved = resolve_log_path_from_roots(&logs_dir, &session_log, None)
+            .expect("resolve session log");
+        assert_eq!(resolved, session_log);
+
+        let _ = fs::remove_dir_all(logs_dir);
     }
 }

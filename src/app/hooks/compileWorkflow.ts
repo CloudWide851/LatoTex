@@ -5,6 +5,8 @@ import {
   recordCompile,
   runtimeLogWrite,
 } from "../../shared/api/desktop";
+import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
+import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
 
 const COMPILE_SKIP_EXTENSIONS = new Set([
   "pdf",
@@ -258,6 +260,32 @@ export function applySystemFontFallbackToSource(
   };
 }
 
+export function collectConfiguredSystemFontsFromFileMap(fileMap: Record<string, string>): string[] {
+  return collectConfiguredFontsFromCompileMap(
+    fileMap,
+    extractConfiguredSystemFontsFromSource,
+    normalizeFontName,
+  );
+}
+
+export function applySystemFontFallbackToFileMap(
+  fileMap: Record<string, string>,
+  mainPath: string,
+  missingFonts: string[],
+): {
+  mainSource: string;
+  overlays: Record<string, string>;
+  replacements: Array<{ missing: string; fallback: string }>;
+  changed: boolean;
+} {
+  return applyFontFallbackToCompileMap(
+    fileMap,
+    mainPath,
+    missingFonts,
+    applySystemFontFallbackToSource,
+  );
+}
+
 function getBusyTexCachePolicy(): "install-first" | "appdata-only" {
   if (typeof window === "undefined") {
     return "install-first";
@@ -350,6 +378,10 @@ export async function runCompilePass(params: {
   } = params;
 
   const baseFileMap = await buildCompileFileMap(projectId, mainPath, mainContent, fileList);
+  const baseCompileMap: Record<string, string> = {
+    ...baseFileMap,
+    [mainPath]: mainContent,
+  };
   const overlayFileMap: Record<string, string> = {};
   const installNotes: string[] = [];
   const attemptedPackages = new Set<string>();
@@ -361,7 +393,7 @@ export async function runCompilePass(params: {
 
   let compileSource = mainContent;
   let fontFallbackAttempted = false;
-  let result = await compileWithBusyTeX(compileSource, baseFileMap, mainPath);
+  let result = await compileWithBusyTeX(compileSource, baseCompileMap, mainPath);
 
   const emitInstallProgress = (line: string) => {
     installNotes.push(line);
@@ -390,17 +422,32 @@ export async function runCompilePass(params: {
   try {
     for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
       if (!fontFallbackAttempted) {
+        const mergedCompileMap = { ...baseCompileMap, ...overlayFileMap };
         const extractedFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
         const hasFontspecError = hasFontspecErrorDiagnostics(result.diagnostics);
-        const fallbackFonts = extractedFonts.length > 0
-          ? extractedFonts
-          : hasFontspecError
-            ? extractConfiguredSystemFontsFromSource(compileSource)
-            : [];
+        const configuredFonts = hasFontspecError
+          ? collectConfiguredSystemFontsFromFileMap(mergedCompileMap)
+          : [];
+        const probeCandidates = Array.from(new Set([...extractedFonts, ...configuredFonts]));
+        let fallbackFonts = extractedFonts.length > 0 ? extractedFonts : configuredFonts;
+
+        if (hasFontspecError && probeCandidates.length > 0) {
+          try {
+            const probe = await runtimeSystemFontProbe(probeCandidates);
+            if (probe.missingFonts.length > 0) {
+              fallbackFonts = probe.missingFonts;
+            } else if (extractedFonts.length === 0) {
+              fallbackFonts = [];
+            }
+          } catch {
+            // Keep fallback heuristic path when probe is unavailable.
+          }
+        }
+
         if (fallbackFonts.length > 0 || hasFontspecError) {
           fontFallbackAttempted = true;
-          const fallback = applySystemFontFallbackToSource(compileSource, fallbackFonts);
-          if (fallback.patchedSource !== compileSource && fallback.replacements.length > 0) {
+          const fallback = applySystemFontFallbackToFileMap(mergedCompileMap, mainPath, fallbackFonts);
+          if (fallback.changed && fallback.replacements.length > 0) {
             const replacementSummary = fallback.replacements
               .map((item) => `${item.missing} -> ${item.fallback}`)
               .join(", ");
@@ -409,12 +456,13 @@ export async function runCompilePass(params: {
                 details: replacementSummary,
               }),
             );
-            compileSource = fallback.patchedSource;
+            compileSource = fallback.mainSource;
+            Object.assign(overlayFileMap, fallback.overlays);
             emitProgressState(
               "retrying",
               formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
             );
-            result = await compileWithBusyTeX(compileSource, { ...baseFileMap, ...overlayFileMap }, mainPath);
+            result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...overlayFileMap }, mainPath);
             continue;
           }
           emitInstallProgress(
@@ -503,7 +551,7 @@ export async function runCompilePass(params: {
         "retrying",
         formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
       );
-      result = await compileWithBusyTeX(compileSource, { ...baseFileMap, ...overlayFileMap }, mainPath);
+      result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...overlayFileMap }, mainPath);
     }
 
     if (installNotes.length > 0) {

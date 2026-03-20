@@ -18,6 +18,8 @@ mod settings_background;
 mod settings_memory;
 #[path = "settings_runtime_logs.rs"]
 mod settings_runtime_logs;
+#[path = "settings_fonts.rs"]
+mod settings_fonts;
 pub use settings_keysave::model_api_key_save_verified;
 pub use settings_background::{
     settings_pick_background_image,
@@ -29,6 +31,7 @@ pub use settings_runtime_logs::{
     runtime_log_clear_current_session, runtime_log_info, runtime_log_list_sessions,
     runtime_log_read, runtime_log_write,
 };
+pub use settings_fonts::runtime_system_font_probe;
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");

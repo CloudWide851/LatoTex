@@ -1,6 +1,7 @@
 import { runAgentStart } from "../../shared/api/desktop";
 import type { MutableRefObject } from "react";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
+import { extractPromptRefValues } from "./analysisPromptRefs";
 
 export async function ensureAnalysisTasksLoaded(
   loadedRef: MutableRefObject<boolean>,
@@ -24,6 +25,8 @@ export async function runRolePromptWithAgent(params: {
   bypassCache?: boolean;
 }): Promise<{ runId: string; output: string }> {
   const { projectId, role, promptText, contextRefs, modelOverride, bypassCache = false } = params;
+  const promptRefContext = extractPromptRefValues(promptText).map((path) => `file:${path}`);
+  const mergedContextRefs = Array.from(new Set([...contextRefs, ...promptRefContext]));
   const maxAttempts = 3;
   const isRetryableProviderError = (message: string) =>
     message.includes("provider.empty_body")
@@ -43,7 +46,7 @@ export async function runRolePromptWithAgent(params: {
         projectId,
         role,
         prompt: promptText,
-        contextRefs,
+        contextRefs: mergedContextRefs,
         modelOverride,
         bypassCache: runBypassCache,
       });

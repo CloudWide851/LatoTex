@@ -24,6 +24,20 @@ export function extractPromptRefTokens(prompt: string): RefToken[] {
   return out;
 }
 
+export function extractPromptRefValues(prompt: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of extractPromptRefTokens(prompt)) {
+    const value = token.value;
+    if (!value || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
 function basenameOf(path: string): string {
   const normalized = normalizePath(path);
   const parts = normalized.split("/");
@@ -52,7 +66,6 @@ export function resolvePromptInputFiles(prompt: string, candidateFiles: string[]
   }
 
   const resolvedSet = new Set<string>();
-  const unresolved: string[] = [];
   for (const token of tokens) {
     const exact = byPath.get(token.value);
     if (exact) {
@@ -62,13 +75,11 @@ export function resolvePromptInputFiles(prompt: string, candidateFiles: string[]
     const byFileName = byName.get(basenameOf(token.value).toLowerCase()) ?? [];
     if (byFileName.length === 1) {
       resolvedSet.add(byFileName[0]);
-      continue;
     }
-    unresolved.push(token.value);
   }
   return {
     resolved: Array.from(resolvedSet),
-    unresolved,
+    unresolved: [],
   };
 }
 

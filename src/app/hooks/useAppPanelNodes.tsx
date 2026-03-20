@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   gitCommitFiles,
   gitCheckout,
@@ -75,6 +75,7 @@ export function useAppPanelNodes(params: any) {
 
   const [runtimeLogSessions, setRuntimeLogSessions] = useState<any[]>([]);
   const [selectedRuntimeLogFile, setSelectedRuntimeLogFile] = useState("");
+  const runtimeLogSourceRef = useRef("");
 
   useEffect(() => {
     if (sessionLogName === "-") {
@@ -83,9 +84,13 @@ export function useAppPanelNodes(params: any) {
     setSelectedRuntimeLogFile((prev) => (prev.trim().length > 0 ? prev : sessionLogName));
   }, [sessionLogName]);
 
-  const applyRuntimeLogEntries = useCallback((nextEntries: any[]) => {
+  const applyRuntimeLogEntries = useCallback((nextEntries: any[], sourceKey: string) => {
     setRuntimeLogs((prev: any[]) => {
-      if (prev.length === nextEntries.length && prev.length > 0) {
+      const normalizedSource = sourceKey.trim();
+      const sourceChanged = runtimeLogSourceRef.current !== normalizedSource;
+      runtimeLogSourceRef.current = normalizedSource;
+
+      if (!sourceChanged && prev.length === nextEntries.length && prev.length > 0) {
         const prevLast = prev[prev.length - 1];
         const nextLast = nextEntries[nextEntries.length - 1];
         const prevFirst = prev[0];
@@ -101,7 +106,7 @@ export function useAppPanelNodes(params: any) {
           return prev;
         }
       }
-      if (prev.length === 0 && nextEntries.length === 0) {
+      if (!sourceChanged && prev.length === 0 && nextEntries.length === 0) {
         return prev;
       }
       return nextEntries;
@@ -156,7 +161,7 @@ export function useAppPanelNodes(params: any) {
         limit: 600,
         logFileName: targetLogFile || undefined,
       });
-      applyRuntimeLogEntries(response.entries);
+      applyRuntimeLogEntries(response.entries, targetLogFile || sessionLogName || "-");
     } catch (error) {
       const detail = String(error);
       const lowered = detail.toLowerCase();
@@ -170,7 +175,7 @@ export function useAppPanelNodes(params: any) {
         try {
           setSelectedRuntimeLogFile(sessionLogName);
           const fallback = await runtimeLogRead({ limit: 600, logFileName: sessionLogName });
-          applyRuntimeLogEntries(fallback.entries);
+          applyRuntimeLogEntries(fallback.entries, sessionLogName);
           return;
         } catch {
           // Fall through to toast below.

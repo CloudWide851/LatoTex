@@ -1,5 +1,14 @@
-export function resolveDroppedPromptRefs(paths: string[], candidateFiles: string[]): string[] {
-  const normalizedCandidates = candidateFiles.map((item) => item.replace(/\\/g, "/"));
+function normalizePath(value: string): string {
+  return String(value || "").trim().replace(/\\/g, "/").replace(/^\.\//, "");
+}
+
+export function resolveDroppedPromptRefs(
+  paths: string[],
+  candidateFiles: string[],
+  options?: { allowUnmatched?: boolean },
+): string[] {
+  const allowUnmatched = options?.allowUnmatched ?? true;
+  const normalizedCandidates = candidateFiles.map((item) => normalizePath(item));
   const byPath = new Map<string, string>();
   const byName = new Map<string, string[]>();
 
@@ -15,7 +24,7 @@ export function resolveDroppedPromptRefs(paths: string[], candidateFiles: string
 
   const resolved = new Set<string>();
   for (const item of paths) {
-    const normalized = String(item || "").trim().replace(/\\/g, "/");
+    const normalized = normalizePath(item);
     if (!normalized) {
       continue;
     }
@@ -28,6 +37,10 @@ export function resolveDroppedPromptRefs(paths: string[], candidateFiles: string
     const byFileName = byName.get(name) ?? [];
     if (byFileName.length === 1) {
       resolved.add(byFileName[0]);
+      continue;
+    }
+    if (allowUnmatched) {
+      resolved.add(normalized);
     }
   }
 

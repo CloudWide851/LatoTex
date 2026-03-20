@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  applySystemFontFallbackToFileMap,
   applySystemFontFallbackToSource,
+  collectConfiguredSystemFontsFromFileMap,
   extractConfiguredSystemFontsFromSource,
   extractMissingStyleCandidatesFromDiagnostics,
   extractMissingSystemFontsFromDiagnostics,
@@ -89,5 +91,32 @@ hello
       "Consolas",
     ]);
   });
-});
 
+  it("collects configured font names from compile file map", () => {
+    const fileMap = {
+      "main.tex": String.raw`\setmainfont{Times New Roman}`,
+      "sections/body.tex": String.raw`\setsansfont{Arial}`,
+      "assets/readme.md": "# no latex commands",
+    };
+
+    expect(collectConfiguredSystemFontsFromFileMap(fileMap)).toEqual([
+      "Times New Roman",
+      "Arial",
+    ]);
+  });
+
+  it("applies fallback across main and additional tex files", () => {
+    const fileMap = {
+      "main.tex": String.raw`\setmainfont{Times New Roman}`,
+      "sections/body.tex": String.raw`\newfontfamily\titlefont{Arial}`,
+      "image.png": "binary",
+    };
+
+    const patched = applySystemFontFallbackToFileMap(fileMap, "main.tex", ["Times New Roman", "Arial"]);
+
+    expect(patched.changed).toBe(true);
+    expect(patched.mainSource).toContain("\\setmainfont{Latin Modern Roman}");
+    expect(patched.overlays["sections/body.tex"]).toContain("\\newfontfamily\\titlefont{Latin Modern Sans}");
+    expect(patched.replacements).toHaveLength(2);
+  });
+});

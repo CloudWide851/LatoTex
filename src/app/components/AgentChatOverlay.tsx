@@ -9,7 +9,7 @@ import {
   Square,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { getEvents } from "../../shared/api/desktop";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
@@ -32,6 +32,42 @@ export type AgentCommandItem = {
 };
 
 
+function parseDroppedPaths(event: DragEvent<HTMLTextAreaElement>): string[] {
+  const dataTransfer = event.dataTransfer;
+  const customRaw = dataTransfer.getData("application/x-latotex-path");
+  const customPaths = customRaw
+    .split(/\r?\n/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const plainRaw = dataTransfer.getData("text/plain");
+  const plainPaths = plainRaw
+    .split(/\r?\n/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return Array.from(new Set([...customPaths, ...plainPaths]));
+}
+
+function toPromptRef(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/^\.\/+/, "").trim();
+  if (!normalized) {
+    return "";
+  }
+  return /\s/.test(normalized) ? `@"${normalized}"` : `@${normalized}`;
+}
+
+function appendDroppedPromptRefs(prompt: string, paths: string[]): string {
+  const refs = paths
+    .map((item) => toPromptRef(item))
+    .filter((item) => item.length > 0);
+  if (refs.length === 0) {
+    return prompt;
+  }
+  const suffix = `${refs.join(" ")} `;
+  if (!prompt.trim()) {
+    return suffix;
+  }
+  return `${prompt.trimEnd()} ${suffix}`;
+}
 export function AgentChatOverlay(props: {
   collapsed: boolean;
   phase: AgentPhase;
@@ -411,6 +447,20 @@ export function AgentChatOverlay(props: {
               onClick={updateCommandPlacement}
               onKeyUp={updateCommandPlacement}
               onSelect={updateCommandPlacement}
+              onDragOver={(event) => {
+                const types = Array.from(event.dataTransfer.types ?? []);
+                if (!types.includes("application/x-latotex-path") && !types.includes("text/plain")) {
+                  return;
+                }
+                event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const nextPrompt = appendDroppedPromptRefs(prompt, parseDroppedPaths(event));
+                if (nextPrompt !== prompt) {
+                  onPromptChange(nextPrompt);
+                }
+              }}
               onKeyDown={(event) => {
                 if (sessionPickerOpen) {
                   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
