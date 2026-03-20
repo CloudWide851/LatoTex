@@ -1,4 +1,4 @@
-import { gitDiffFile, runAgentStart } from "../../shared/api/desktop";
+import { executeWorkflowStart, gitDiffFile } from "../../shared/api/desktop";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export async function generateGitSummary(
@@ -50,9 +50,10 @@ export async function generateGitSummary(
     joinedPatch || "(empty patch text)",
   ].join("\n");
 
-  const accepted = await runAgentStart({
+  const accepted = await executeWorkflowStart({
     projectId: activeProjectId,
-    role: "git_summary",
+    workflowId: "git.summary",
+    callsite: "git.summary",
     prompt,
     contextRefs: files,
     bypassCache: true,
@@ -75,3 +76,5 @@ export async function generateGitSummary(
   }
   return output.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
 }
+
+

@@ -303,7 +303,8 @@ export async function runAgentWorkflow(params: {
         ].join("\n");
         const response = await runAgentThroughEvents({
           activeProjectId,
-          role: "review",
+          workflowId: "latex.review_fix",
+          callsite: "latex.overlay",
           prompt: withMemoryContext(reviewPrompt),
           contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
           setAgentRunId,
@@ -396,7 +397,8 @@ export async function runAgentWorkflow(params: {
       ].join("\n");
       const response = await runAgentThroughEvents({
         activeProjectId,
-        role: "web_search",
+        workflowId: "latex.reference_check",
+        callsite: "latex.overlay",
         prompt: withMemoryContext(analysisPrompt),
         contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
         setAgentRunId,
@@ -490,7 +492,8 @@ export async function runAgentWorkflow(params: {
     );
     const response = await runAgentThroughEvents({
       activeProjectId,
-      role: "task",
+      workflowId: "latex.edit",
+      callsite: "latex.overlay",
       prompt: withMemoryContext(taskPrompt),
       contextRefs: taskRefs,
       setAgentRunId,
@@ -577,4 +580,6 @@ export async function runAgentWorkflow(params: {
     setToast({ type: "error", message: toastMessage });
   }
 }
+
+
 

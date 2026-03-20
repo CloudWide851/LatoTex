@@ -441,28 +441,22 @@ export function SettingsPanel(props: {
               {
                 key: "latexAgentModelId",
                 label: t("settings.featureModel.latexAgent"),
-                fallbackRole: "task",
               },
               {
                 key: "analysisAgentModelId",
                 label: t("settings.featureModel.analysisAgent"),
-                fallbackRole: "task",
               },
               {
                 key: "translationModelId",
                 label: t("settings.featureModel.translation"),
-                fallbackRole: "task",
               },
               {
                 key: "completionModelId",
                 label: t("settings.featureModel.completion"),
-                fallbackRole: "completion",
               },
             ].map((item) => {
               const featureBindings = localSettings.uiPrefs?.featureModelBindings ?? {};
-              const fallbackModelId =
-                localSettings.agentBindings.find((binding) => binding.role === item.fallbackRole)?.modelId ?? "";
-              const currentValue = (featureBindings as Record<string, string | undefined>)[item.key] ?? fallbackModelId;
+              const currentValue = (featureBindings as Record<string, string | undefined>)[item.key] ?? "";
               return (
                 <div
                   className="grid grid-cols-[180px_minmax(220px,1fr)] items-center gap-2 rounded-lg border border-slate-200 p-2 max-[980px]:grid-cols-1"
@@ -599,3 +593,7 @@ export function SettingsPanel(props: {
     </div>
   );
 }
+
+
+
+

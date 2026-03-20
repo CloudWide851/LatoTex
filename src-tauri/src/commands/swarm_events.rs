@@ -2,7 +2,14 @@ use crate::storage;
 use serde_json::json;
 use std::path::Path;
 
-pub(super) fn envelope(
+#[derive(Debug, Clone, Copy)]
+pub(super) struct EventMetadata<'a> {
+    pub workflow_id: &'a str,
+    pub step_id: &'a str,
+    pub callsite: &'a str,
+}
+
+fn envelope(
     run_id: &str,
     source: &str,
     stage: &str,
@@ -24,6 +31,14 @@ pub(super) fn envelope(
     })
 }
 
+fn apply_metadata(payload: &mut serde_json::Value, metadata: EventMetadata<'_>) {
+    if let Some(object) = payload.as_object_mut() {
+        object.insert("workflowId".to_string(), json!(metadata.workflow_id));
+        object.insert("stepId".to_string(), json!(metadata.step_id));
+        object.insert("callsite".to_string(), json!(metadata.callsite));
+    }
+}
+
 pub(super) fn append_protocol_event(
     db_path: &Path,
     run_id: &str,
@@ -40,46 +55,43 @@ pub(super) fn emit_stage_event(
     db_path: &Path,
     run_id: &str,
     project_id: &str,
-    role: &str,
+    event_scope: &str,
     source: &str,
     stage: &str,
     status: &str,
     title: &str,
     content: &str,
+    metadata: EventMetadata<'_>,
 ) -> Result<(), String> {
     let kind = match status {
         "running" => "a2a.task.started",
         "success" => "a2a.task.completed",
         _ => "a2a.task.failed",
     };
-    append_protocol_event(
-        db_path,
+    let mut payload = envelope(
         run_id,
-        project_id,
-        role,
-        kind,
-        envelope(
-            run_id,
-            source,
-            stage,
-            status,
-            title,
-            content,
-            &format!("{run_id}:{stage}:{source}:{role}"),
-        ),
-    )
+        source,
+        stage,
+        status,
+        title,
+        content,
+        &format!("{run_id}:{stage}:{source}:{event_scope}"),
+    );
+    apply_metadata(&mut payload, metadata);
+    append_protocol_event(db_path, run_id, project_id, event_scope, kind, payload)
 }
 
 pub(super) fn emit_tool_event(
     db_path: &Path,
     run_id: &str,
     project_id: &str,
-    role: &str,
+    event_scope: &str,
     source: &str,
     stage: &str,
     tool_name: &str,
     status: &str,
     content: &str,
+    metadata: EventMetadata<'_>,
 ) -> Result<(), String> {
     let kind = match status {
         "running" => "mcp.tool.call.started",
@@ -93,24 +105,26 @@ pub(super) fn emit_tool_event(
         status,
         &format!("{stage} · {tool_name}"),
         content,
-        &format!("{run_id}:{stage}:{source}:{role}:tool:{tool_name}"),
+        &format!("{run_id}:{stage}:{source}:{event_scope}:tool:{tool_name}"),
     );
     if let Some(object) = payload.as_object_mut() {
         object.insert("toolName".to_string(), json!(tool_name));
     }
-    append_protocol_event(db_path, run_id, project_id, role, kind, payload)
+    apply_metadata(&mut payload, metadata);
+    append_protocol_event(db_path, run_id, project_id, event_scope, kind, payload)
 }
 
 pub(super) fn emit_response_event(
     db_path: &Path,
     run_id: &str,
     project_id: &str,
-    role: &str,
+    event_scope: &str,
     source: &str,
     stage: &str,
     output: &str,
+    metadata: EventMetadata<'_>,
 ) -> Result<(), String> {
-    let card_key = format!("{run_id}:{stage}:{source}:{role}:response");
+    let card_key = format!("{run_id}:{stage}:{source}:{event_scope}:response");
     for chunk in output.as_bytes().chunks(520) {
         let text = String::from_utf8_lossy(chunk).to_string();
         let mut payload = envelope(
@@ -125,31 +139,46 @@ pub(super) fn emit_response_event(
         if let Some(object) = payload.as_object_mut() {
             object.insert("append".to_string(), json!(true));
         }
+        apply_metadata(&mut payload, metadata);
         append_protocol_event(
             db_path,
             run_id,
             project_id,
-            role,
+            event_scope,
             "responses.output_text.delta",
             payload,
         )?;
     }
+    let mut completed_payload = envelope(
+        run_id,
+        source,
+        stage,
+        "success",
+        &format!("{stage} · output"),
+        output,
+        &card_key,
+    );
+    apply_metadata(&mut completed_payload, metadata);
     append_protocol_event(
         db_path,
         run_id,
         project_id,
-        role,
+        event_scope,
         "responses.output_text.completed",
-        envelope(
-            run_id,
-            source,
-            stage,
-            "success",
-            &format!("{stage} · output"),
-            output,
-            &card_key,
-        ),
+        completed_payload,
     )?;
     Ok(())
 }
 
+pub(super) fn run_envelope(
+    run_id: &str,
+    status: &str,
+    title: &str,
+    content: &str,
+    card_key: &str,
+    metadata: EventMetadata<'_>,
+) -> serde_json::Value {
+    let mut payload = envelope(run_id, "system", "run", status, title, content, card_key);
+    apply_metadata(&mut payload, metadata);
+    payload
+}

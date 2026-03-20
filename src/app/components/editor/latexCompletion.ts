@@ -1,4 +1,4 @@
-import { runAgentStart } from "../../../shared/api/desktop";
+import { executeWorkflowStart } from "../../../shared/api/desktop";
 import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 
@@ -335,9 +335,10 @@ async function fetchRemoteSuggestions(params: {
         "Current document context (tail):",
         params.fullText.slice(Math.max(0, params.fullText.length - 720)),
       ].join("\n");
-      const accepted = await runAgentStart({
+      const accepted = await executeWorkflowStart({
         projectId,
-        role: "completion",
+        workflowId: "completion.latex",
+        callsite: "completion.inline",
         prompt,
         contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
         modelOverride: completionModelId,
@@ -548,3 +549,5 @@ export function ensureLatexCompletionProvider(monaco: any) {
     },
   });
 }
+
+

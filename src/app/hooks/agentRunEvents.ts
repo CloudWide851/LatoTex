@@ -1,9 +1,10 @@
-import { runAgentStart } from "../../shared/api/desktop";
+import { executeWorkflowStart } from "../../shared/api/desktop";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export async function runAgentThroughEvents(params: {
   activeProjectId: string;
-  role: string;
+  workflowId: string;
+  callsite: string;
   prompt: string;
   contextRefs: string[];
   setAgentRunId: (value: string | null) => void;
@@ -25,9 +26,10 @@ export async function runAgentThroughEvents(params: {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const retryAttempt = attempt > 0;
     try {
-      const accepted = await runAgentStart({
+      const accepted = await executeWorkflowStart({
         projectId: params.activeProjectId,
-        role: params.role,
+        workflowId: params.workflowId,
+        callsite: params.callsite,
         prompt: params.prompt,
         contextRefs: params.contextRefs,
         modelOverride: params.modelOverride,

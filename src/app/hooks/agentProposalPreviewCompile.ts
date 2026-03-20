@@ -50,7 +50,8 @@ export async function compileProposalPreviewWithAutoFix(params: {
 
   const repairResult = await runAgentThroughEvents({
     activeProjectId,
-    role: "review",
+    workflowId: "latex.review_fix",
+    callsite: "latex.overlay",
     prompt: withMemoryContext(repairPrompt),
     contextRefs: [`file:${targetPath}`],
     setAgentRunId,
@@ -75,3 +76,4 @@ export async function compileProposalPreviewWithAutoFix(params: {
   });
   return fixedCandidate;
 }
+

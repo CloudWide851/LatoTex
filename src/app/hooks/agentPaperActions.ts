@@ -105,7 +105,8 @@ export async function executePaperLinkFlow(params: {
     .join("\n");
   const response = await runAgentThroughEvents({
     activeProjectId,
-    role: "analysis",
+    workflowId: "latex.paper_analyze",
+    callsite: "latex.overlay",
     prompt: withMemoryContext(analysisPrompt),
     contextRefs: [`paper:${imported.sourcePath}`],
     setAgentRunId,
@@ -113,3 +114,5 @@ export async function executePaperLinkFlow(params: {
   });
   pushAgentMessage(normalizeOutput(response.output), "markdown");
 }
+
+

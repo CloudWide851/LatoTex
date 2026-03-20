@@ -341,14 +341,14 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       };
       const runIds: string[] = [];
       const runRolePromptWithTrace = async (
-        role: string,
+        workflowId: string,
         promptText: string,
         contextRefs: string[],
         bypassCache = false,
       ) => {
         const result = await runRolePromptWithAgent({
           projectId,
-          role,
+          workflowId,
           promptText,
           contextRefs,
           modelOverride: analysisModelOverride ?? undefined,
@@ -382,7 +382,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
             chunk.text,
           ].join("\n\n");
           try {
-            const chunkResult = await runRolePromptWithTrace("explore", chunkPrompt, contextRefs);
+            const chunkResult = await runRolePromptWithTrace("analysis.explore_chunk", chunkPrompt, contextRefs);
             chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
           } catch (error) {
             chunkFailures += 1;
@@ -471,7 +471,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         "\nSource material:",
         sourceBlock,
       ].join("\n\n");
-      const finalResult = await runRolePromptWithTrace("task", agentPrompt, contextRefs);
+      const finalResult = await runRolePromptWithTrace("analysis.synthesize", agentPrompt, contextRefs);
       const hasStructuredOutput = (parsed: Record<string, unknown>) => Boolean(
         (typeof parsed.title === "string" && parsed.title.trim().length > 0)
         || (typeof parsed.summary === "string" && parsed.summary.trim().length > 0)
@@ -492,7 +492,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           "Source output to normalize:",
           finalResult.output.slice(0, 14_000),
         ].join("\n\n");
-        const repairResult = await runRolePromptWithTrace("task", repairPrompt, contextRefs, true);
+        const repairResult = await runRolePromptWithTrace("analysis.synthesize", repairPrompt, contextRefs, true);
         parsed = parsePayloadJson(repairResult.output);
       }
       if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
@@ -640,4 +640,5 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+
 

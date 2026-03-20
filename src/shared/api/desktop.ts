@@ -5,7 +5,7 @@ import type {
   AnalysisExportArtifactResponse,
   AnalysisListReportsResponse,
   AnalysisSaveReportResponse,
-  AgentRunStartAccepted,
+  AgentExecuteStartAccepted,
   AgentModelBinding,
   AppBackgroundImage,
   AppBackgroundImagePayload,
@@ -337,18 +337,20 @@ export function libraryResolvePdfPreview(
   });
 }
 
-export function runAgent(input: {
+export function executeWorkflowStart(input: {
   projectId: string;
-  role: string;
+  workflowId: string;
+  callsite: string;
   prompt: string;
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
-}) {
-  return invoke<{ runId: string; status: string; output: string }>("agent_run", {
+}): Promise<AgentExecuteStartAccepted> {
+  return invoke<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
       projectId: input.projectId,
-      role: input.role,
+      workflowId: input.workflowId,
+      callsite: input.callsite,
       prompt: input.prompt,
       contextRefs: input.contextRefs,
       modelOverride: input.modelOverride,
@@ -357,30 +359,9 @@ export function runAgent(input: {
   });
 }
 
-export function runAgentStart(input: {
-  projectId: string;
-  role: string;
-  prompt: string;
-  contextRefs: string[];
-  modelOverride?: string;
-  bypassCache?: boolean;
-}): Promise<AgentRunStartAccepted> {
-  return invoke<AgentRunStartAccepted>("agent_run_start", {
-    input: {
-      projectId: input.projectId,
-      role: input.role,
-      prompt: input.prompt,
-      contextRefs: input.contextRefs,
-      modelOverride: input.modelOverride,
-      bypassCache: input.bypassCache ?? false,
-    },
-  });
+export function executeWorkflowCancel(runId: string) {
+  return invoke<Ack>("agent_execute_cancel", { input: { runId } });
 }
-
-export function runAgentCancel(runId: string) {
-  return invoke<Ack>("agent_run_cancel", { input: { runId } });
-}
-
 export function getEvents(
   cursor?: number,
   limit = 200,
@@ -639,6 +620,7 @@ export function analysisPyodidePrepare(policy: "install-first" | "appdata-only")
 export function drawioCachePrepare(policy: "install-first" | "appdata-only"): Promise<DrawioCacheInfo> {
   return invoke<DrawioCacheInfo>("drawio_cache_prepare", { input: { policy } });
 }
+
 
 
 

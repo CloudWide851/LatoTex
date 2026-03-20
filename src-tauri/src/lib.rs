@@ -37,7 +37,7 @@ use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test, model_test_draft, protocol_test, runtime_log_clear_current_session,
     runtime_log_info, runtime_log_list_sessions, runtime_log_read, runtime_log_write, runtime_memory_snapshot, runtime_system_font_probe, settings_get, settings_pick_background_image, settings_read_background_image, settings_remove_background_image, settings_update,
 };
-use commands::swarm::{agent_run, agent_run_cancel, agent_run_start, events_subscribe, latex_compile_record};
+use commands::swarm::{agent_execute_cancel, agent_execute_start, events_subscribe, latex_compile_record};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -140,9 +140,8 @@ pub fn run() {
             channels_telegram_send,
             fs_operation,
             latex_compile_record,
-            agent_run,
-            agent_run_start,
-            agent_run_cancel,
+            agent_execute_start,
+            agent_execute_cancel,
             events_subscribe,
             settings_get,
             settings_update,
@@ -188,6 +187,10 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+
+
 
 
 

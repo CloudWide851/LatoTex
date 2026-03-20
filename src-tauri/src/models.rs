@@ -286,9 +286,10 @@ pub struct CompileRecord {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentRunRequest {
+pub struct AgentExecuteRequest {
     pub project_id: String,
-    pub role: String,
+    pub workflow_id: String,
+    pub callsite: String,
     pub prompt: String,
     pub context_refs: Vec<String>,
     pub model_override: Option<String>,
@@ -298,25 +299,16 @@ pub struct AgentRunRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentRunCancelInput {
+pub struct AgentExecuteCancelInput {
     pub run_id: String,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentRunAccepted {
-    pub run_id: String,
-    pub status: String,
-    pub output: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentRunStartAccepted {
+pub struct AgentExecuteStartAccepted {
     pub run_id: String,
     pub status: String,
 }
-
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EventQuery {
@@ -580,3 +572,4 @@ pub struct ModelTestResult {
 }
 include!("models_library.rs");
 include!("models_git.rs");
+

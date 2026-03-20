@@ -164,13 +164,9 @@ export function AppContainerView(props: any) {
   } = props;
   const completionModelId =
     settings?.uiPrefs?.featureModelBindings?.completionModelId
-    || settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "completion")
-      ?.modelId
     || null;
   const translationModelId =
     settings?.uiPrefs?.featureModelBindings?.translationModelId
-    || settings?.agentBindings?.find((item: { role: string; modelId: string }) => item.role === "task")
-      ?.modelId
     || null;
   const rawBackgroundPaths: string[] = Array.isArray(settings?.uiPrefs?.backgroundImagePaths)
     ? (settings.uiPrefs.backgroundImagePaths as string[])
@@ -415,4 +411,5 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
 

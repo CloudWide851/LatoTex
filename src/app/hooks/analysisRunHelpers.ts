@@ -1,4 +1,4 @@
-import { runAgentStart } from "../../shared/api/desktop";
+import { executeWorkflowStart } from "../../shared/api/desktop";
 import type { MutableRefObject } from "react";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";
@@ -18,13 +18,20 @@ export async function ensureAnalysisTasksLoaded(
 
 export async function runRolePromptWithAgent(params: {
   projectId: string;
-  role: string;
+  workflowId: string;
   promptText: string;
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
 }): Promise<{ runId: string; output: string }> {
-  const { projectId, role, promptText, contextRefs, modelOverride, bypassCache = false } = params;
+  const {
+    projectId,
+    workflowId,
+    promptText,
+    contextRefs,
+    modelOverride,
+    bypassCache = false,
+  } = params;
   const promptRefContext = extractPromptRefValues(promptText).map((path) => `file:${path}`);
   const mergedContextRefs = Array.from(new Set([...contextRefs, ...promptRefContext]));
   const maxAttempts = 3;
@@ -42,9 +49,10 @@ export async function runRolePromptWithAgent(params: {
     const retryAttempt = attempt > 0;
     const runBypassCache = retryAttempt || bypassCache;
     try {
-      const accepted = await runAgentStart({
+      const accepted = await executeWorkflowStart({
         projectId,
-        role,
+        workflowId,
+        callsite: "analysis.workspace",
         prompt: promptText,
         contextRefs: mergedContextRefs,
         modelOverride,

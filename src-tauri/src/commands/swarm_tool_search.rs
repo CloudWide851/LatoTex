@@ -1,6 +1,4 @@
 use crate::commands::analysis::run_reference_check_queries;
-use crate::secure;
-use crate::storage;
 use serde_json::json;
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
@@ -8,7 +6,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::call_provider_with_retry;
-use super::swarm_events::{append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, envelope};
+use super::swarm_events::{
+    EventMetadata, append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event,
+    run_envelope,
+};
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
@@ -17,35 +18,16 @@ fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     Ok(())
 }
 
-fn resolve_connection_for_role(
-    db_path: &Path,
-    runtime_root: &Path,
-    role: &str,
-    model_override: Option<&str>,
-) -> Result<(String, String, String, String), String> {
-    let (protocol_id, base_url, model_name, resolved_model_id) =
-        storage::resolve_agent_model(db_path, role, model_override)?;
-    let secure_context = secure::SecureStorageContext {
-        db_path: db_path.to_path_buf(),
-        runtime_root: runtime_root.to_path_buf(),
-    };
-    let api_key = secure::get_model_api_key(&secure_context, &resolved_model_id)?
-        .api_key
-        .ok_or_else(|| format!("API key is missing for model: {resolved_model_id}"))?;
-    Ok((protocol_id, base_url, model_name, api_key))
-}
-
 fn call_model_output(
     db_path: &Path,
-    runtime_root: &Path,
-    role_for_model: &str,
-    model_override: Option<&str>,
+    protocol_id: &str,
+    base_url: &str,
+    api_key: &str,
+    model_name: &str,
     prompt: &str,
     context_refs: &[String],
     bypass_cache: bool,
 ) -> Result<String, String> {
-    let (protocol_id, base_url, model_name, api_key) =
-        resolve_connection_for_role(db_path, runtime_root, role_for_model, model_override)?;
     let full_prompt = if context_refs.is_empty() {
         prompt.to_string()
     } else {
@@ -53,10 +35,10 @@ fn call_model_output(
     };
     call_provider_with_retry(
         Some(db_path),
-        &protocol_id,
-        &base_url,
-        &api_key,
-        &model_name,
+        protocol_id,
+        base_url,
+        api_key,
+        model_name,
         &full_prompt,
         bypass_cache,
     )
@@ -192,43 +174,49 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn run_stage_tool_search(
     db_path: &Path,
-    runtime_root: &Path,
     run_id: &str,
     project_id: &str,
+    event_scope: &str,
     stage: &str,
-    role_for_model: &str,
     source: &str,
     title: &str,
     prompt: &str,
     context_refs: &[String],
     cancel_flag: &Arc<AtomicBool>,
-    model_override: Option<&str>,
+    protocol_id: &str,
+    base_url: &str,
+    api_key: &str,
+    model_name: &str,
     bypass_cache: bool,
+    metadata: EventMetadata<'_>,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
     emit_stage_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         "running",
         title,
         "",
+        metadata,
     )?;
     emit_tool_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         "tool_search",
         "running",
         "",
+        metadata,
     )?;
     let (queries, compact_context, evidence_count) = build_tool_search_context(prompt);
     ensure_not_cancelled(cancel_flag)?;
@@ -236,7 +224,7 @@ pub(super) fn run_stage_tool_search(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         "tool_search",
@@ -246,19 +234,19 @@ pub(super) fn run_stage_tool_search(
             queries.len(),
             evidence_count
         ),
+        metadata,
     )?;
 
     let estimated_saved = ((queries.len().saturating_mul(850)) as i64
         - (compact_context.len() as i64 / 4))
         .max(0);
-    let mut stats_payload = envelope(
+    let mut stats_payload = run_envelope(
         run_id,
-        source,
-        stage,
         "success",
         "Tool Search Stats",
         "",
-        &format!("{run_id}:{stage}:{source}:{role_for_model}:tool:tool_search:stats"),
+        &format!("{run_id}:{stage}:{source}:{event_scope}:tool:tool_search:stats"),
+        metadata,
     );
     if let Some(object) = stats_payload.as_object_mut() {
         object.insert("toolName".to_string(), json!("tool_search"));
@@ -269,7 +257,7 @@ pub(super) fn run_stage_tool_search(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         "mcp.tool.search.stats",
         stats_payload,
     )?;
@@ -290,9 +278,10 @@ pub(super) fn run_stage_tool_search(
 
     let output = call_model_output(
         db_path,
-        runtime_root,
-        role_for_model,
-        model_override,
+        protocol_id,
+        base_url,
+        api_key,
+        model_name,
         &final_prompt,
         context_refs,
         bypass_cache,
@@ -302,21 +291,23 @@ pub(super) fn run_stage_tool_search(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         &output,
+        metadata,
     )?;
     emit_stage_event(
         db_path,
         run_id,
         project_id,
-        role_for_model,
+        event_scope,
         source,
         stage,
         "success",
         title,
         "",
+        metadata,
     )?;
     Ok(output)
 }

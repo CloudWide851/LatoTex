@@ -124,7 +124,7 @@ export type EventBatch = {
   events: SwarmEvent[];
 };
 
-export type AgentRunStartAccepted = {
+export type AgentExecuteStartAccepted = {
   runId: string;
   status: string;
 };
@@ -603,4 +603,5 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
 
