@@ -4,8 +4,8 @@ import type { SwarmEvent } from "../../shared/types/app";
 import { trimEventsForMemoryPressure } from "./eventMemoryBudget";
 
 const MB = 1024 * 1024;
-const HIGH_WATERMARK_MB = 720;
-const CRITICAL_WATERMARK_MB = 980;
+const HIGH_WATERMARK_MB = 560;
+const CRITICAL_WATERMARK_MB = 760;
 const LOG_COOLDOWN_MS = 90_000;
 
 type MemoryLevel = "normal" | "high" | "critical";
@@ -111,7 +111,7 @@ export function useRuntimeMemoryGuard(params: {
         // ignore guard sampling failure
       } finally {
         const hidden = typeof document !== "undefined" && document.hidden;
-        const intervalMs = hidden ? 90_000 : 45_000;
+        const intervalMs = hidden ? 60_000 : 25_000;
         schedule(intervalMs);
       }
     };
@@ -125,3 +125,4 @@ export function useRuntimeMemoryGuard(params: {
     };
   }, [isTauriRuntime, onCriticalMemory, setEvents, suspended]);
 }
+

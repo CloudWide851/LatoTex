@@ -100,6 +100,15 @@ function resetBusyTexRuntime(resetCacheBase = false) {
   }
 }
 
+export function disposeBusyTeXRuntime(options?: { resetCacheBase?: boolean }) {
+  try {
+    runner?.terminate();
+  } catch {
+    // ignore terminate failures during pressure relief
+  }
+  resetBusyTexRuntime(Boolean(options?.resetCacheBase));
+}
+
 async function resolveCacheBasePaths(): Promise<string[]> {
   if (preparedCacheBasePaths) {
     return preparedCacheBasePaths;
@@ -494,4 +503,5 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+
 

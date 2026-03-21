@@ -1,4 +1,4 @@
-﻿import { isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
@@ -24,6 +24,7 @@ import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
 import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
 import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
 import { useIdleSleep } from "./hooks/useIdleSleep";
+import { useRuntimePressureRelief } from "./hooks/useRuntimePressureRelief";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
@@ -204,6 +205,17 @@ export function AppContainer() {
     blocked: runtimeBusy,
     timeoutMs: 60 * 60 * 1000,
   });
+  const runtimePressureRelief = useRuntimePressureRelief({
+    sleeping: idleSleep.sleeping,
+    pdfUrl: s.pdfUrl,
+    selectedFilePdfUrl: s.selectedFilePdfUrl,
+    selectedImagePreviewUrl: s.selectedImagePreviewUrl,
+    setPdfUrl: s.setPdfUrl,
+    setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
+    setSelectedImagePreviewUrl: s.setSelectedImagePreviewUrl,
+    setCompiledPdfBytes: s.setCompiledPdfBytes,
+    setEvents: s.setEvents,
+  });
   const oomSleepAtRef = useRef(0);
   const handleOutOfMemorySleep = useCallback((_source: "error" | "unhandledrejection" | "memory_guard", _message: string) => {
     const now = Date.now();
@@ -211,8 +223,9 @@ export function AppContainer() {
       return;
     }
     oomSleepAtRef.current = now;
+    runtimePressureRelief.release("oom");
     idleSleep.forceSleep();
-  }, [idleSleep.forceSleep]);
+  }, [idleSleep.forceSleep, runtimePressureRelief]);
   useAppEffects({
     t,
     isTauriRuntime,
@@ -364,6 +377,7 @@ export function AppContainer() {
       }
     },
     t,
+    suspended: idleSleep.sleeping,
   });
   const panels = useAppPanelNodes({
     settings: s.settings,
@@ -580,3 +594,7 @@ export function AppContainer() {
     />
   );
 }
+
+
+
+

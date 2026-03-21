@@ -126,6 +126,7 @@ export function useShareSession(params: {
   onCompile: () => Promise<void>;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;
   t: TranslationFn;
+  suspended?: boolean;
 }) {
   const {
     activeProjectId,
@@ -136,6 +137,7 @@ export function useShareSession(params: {
     onCompile,
     setToast,
     t,
+    suspended = false,
   } = params;
   const [shareSession, setShareSession] = useState<ShareSessionInfo | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
@@ -162,7 +164,7 @@ export function useShareSession(params: {
   useEffect(() => {
     editorContentRef.current = editorContent;
   }, [editorContent]);
-  const active = Boolean(
+  const active = Boolean(!suspended && 
     shareSession?.active &&
       shareSession?.status === "ready" &&
       shareSession?.localUrl &&
@@ -307,11 +309,14 @@ export function useShareSession(params: {
       const hidden = typeof document !== "undefined" && document.hidden;
       statusTimerRef.current = Number(window.setTimeout(run, fast ? 1200 : hidden ? 4600 : 2800));
     };
+    if (suspended) {
+      return;
+    }
     if (shareSession) {
       statusTimerRef.current = Number(window.setTimeout(run, 1100));
     }
     return () => clearTimer(statusTimerRef);
-  }, [refreshShareStatus, shareBusy, shareSession]);
+  }, [refreshShareStatus, shareBusy, shareSession, suspended]);
   useEffect(() => {
     if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
       setSyncing(false);
@@ -588,3 +593,6 @@ export function useShareSession(params: {
     ],
   );
 }
+
+
+

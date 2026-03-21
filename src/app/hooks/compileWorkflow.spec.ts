@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   applySystemFontFallbackToFileMap,
   applySystemFontFallbackToSource,
@@ -80,15 +80,19 @@ hello
     expect(hasFontspecErrorDiagnostics(diagnostics)).toBe(true);
   });
 
-  it("extracts configured font names for conservative fallback", () => {
+  it("extracts configured font names for conservative fallback including CJK families", () => {
     const source = String.raw`\setmainfont{Times New Roman}
 \setsansfont{Arial}
-\newfontfamily\codefont{Consolas}`;
+\setCJKfamilyfont{song}{SimSun}
+\newfontfamily\codefont{Consolas}
+\newCJKfontfamily\myhei{SimHei}`;
 
     expect(extractConfiguredSystemFontsFromSource(source)).toEqual([
       "Times New Roman",
       "Arial",
+      "SimSun",
       "Consolas",
+      "SimHei",
     ]);
   });
 
@@ -129,17 +133,21 @@ hello
     expect(extractMissingSystemFontsFromDiagnostics(diagnostics)).toEqual(["KaiTi"]);
   });
 
-  it("does not rewrite CJK font commands during fallback", () => {
+  it("rewrites CJK font commands during fallback", () => {
     const source = String.raw`\setCJKmainfont{SimSun}
+\setCJKfamilyfont{song}{KaiTi}
+\newCJKfontfamily\myhei{SimHei}
 \setmainfont{Times New Roman}`;
 
-    const output = applySystemFontFallbackToSource(source, ["SimSun", "Times New Roman"]);
+    const output = applySystemFontFallbackToSource(source, ["SimSun", "KaiTi", "SimHei", "Times New Roman"]);
 
-    expect(output.patchedSource).toContain("\\setCJKmainfont{SimSun}");
+    expect(output.patchedSource).toContain("\\setCJKmainfont{FandolSong-Regular}");
+    expect(output.patchedSource).toContain("\\setCJKfamilyfont{song}{FandolSong-Regular}");
+    expect(output.patchedSource).toContain("\\newCJKfontfamily\\myhei{FandolSong-Regular}");
     expect(output.patchedSource).toContain("\\setmainfont{Latin Modern Roman}");
   });
 
-  it("does not patch style files when applying fallback across compile map", () => {
+  it("patches project style files when applying fallback across compile map", () => {
     const fileMap = {
       "main.tex": String.raw`\setmainfont{Times New Roman}`,
       "styles/fontdefs.sty": String.raw`\setmainfont{Times New Roman}`,
@@ -148,6 +156,6 @@ hello
     const patched = applySystemFontFallbackToFileMap(fileMap, "main.tex", ["Times New Roman"]);
 
     expect(patched.mainSource).toContain("\\setmainfont{Latin Modern Roman}");
-    expect(patched.overlays["styles/fontdefs.sty"]).toBeUndefined();
+    expect(patched.overlays["styles/fontdefs.sty"]).toContain("\\setmainfont{Latin Modern Roman}");
   });
 });

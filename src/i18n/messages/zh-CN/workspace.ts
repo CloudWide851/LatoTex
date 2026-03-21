@@ -1,4 +1,4 @@
-﻿export const zhCN_workspace = {
+export const zhCN_workspace = {
   "workspace.analysis": "数据分析工作区即将上线。",
   "workspace.library": "论文库工作区即将上线。",
   "workspace.noProject": "还没有项目，请先打开一个文件夹初始化工作区。",
@@ -19,9 +19,11 @@
   "workspace.compileAssist.hintTitle": "编译修复建议",
   "workspace.compileAssist.hintMissingPackage": "检测到缺少宏包 {package}，请移除相关依赖或替换为 BusyTeX 支持的写法。",
   "workspace.compileAssist.hintMissingCtex": "检测到 ctex.sty 缺失：请避免使用 ctex 相关宏包，改为基础 article + UTF-8 文本。",
+  "workspace.compileAssist.hintFontspecXdv": "fontspec 在生成 XDV/PDF 前失败。请将不受支持的系统字体替换为内置回退字体（Latin Modern/Fandol）后重新编译。",
   "workspace.compileAssist.hintBusytexWorkerOrigin": "检测到 BusyTeX Worker 同源受限：请优先使用应用内置/本地 BusyTeX 资源，避免命中 HTML 回退路径（Unexpected token '<'）。",
   "workspace.compileAssist.hintGeneric": "请先修复缺包/语法报错，再重新编译；建议逐条处理日志中的首个 ERROR。",
-    "workspace.compileAssist.busytexCacheHit": "BusyTeX 已复用本地缓存宏包：{package}。",
+  "workspace.compileAssist.busytexCacheHit": "BusyTeX 已复用本地缓存宏包：{package}。",
+  "workspace.compileAssist.busytexDownloadStart": "BusyTeX 正在下载宏包：{package}。",
   "workspace.compileAssist.busytexDownloadSuccess": "BusyTeX 已下载 {package}，来源：{source}。",
   "workspace.compileAssist.busytexDownloadNoFiles": "BusyTeX 已下载 {package}，但未返回可用文件。",
   "workspace.compileAssist.busytexDownloadFailed": "BusyTeX 下载 {package} 失败：{reason}",
@@ -33,7 +35,7 @@
   "workspace.undo": "撤销",
   "workspace.redo": "重做",
   "workspace.messagePlaceholder": "对话",
-    "workspace.openDrawPage": "在绘图页中打开",
+  "workspace.openDrawPage": "在绘图页中打开",
   "workspace.agentTitle": "任务 Agent 提示词",
   "workspace.agentPlaceholder": "描述任务 Agent 需要在当前 LaTeX 上执行的工作...",
   "workspace.runTaskAgent": "执行",
@@ -42,4 +44,3 @@
   "workspace.integrityHint": "检测到必要工作区文件缺失，请先修复后再打开项目。",
   "workspace.integrityRepair": "修复缺失文件",
 } as const;
-

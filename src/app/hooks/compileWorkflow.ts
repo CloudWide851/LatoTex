@@ -1,4 +1,4 @@
-﻿import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
+import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
 import {
   busytexInstallMissingPackage,
   readFile,
@@ -7,36 +7,21 @@ import {
 } from "../../shared/api/desktop";
 import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
 import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
-const COMPILE_SKIP_EXTENSIONS = new Set([
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "bmp",
-  "webp",
-  "ico",
-  "svg",
-  "zip",
-  "7z",
-  "rar",
-  "mp4",
-  "mp3",
-  "wav",
-  "ogg",
-  "mov",
-  "avi",
-  "wasm",
-  "dll",
-  "exe",
-  "bin",
-]);
+import {
+  type CompileInstallProgress,
+  isLikelyFontFamily,
+  normalizeFontName,
+  shouldIncludeCompileFile,
+  splitDiagnosticLines,
+} from "./compileWorkflowShared";
+export type { CompileInstallProgress } from "./compileWorkflowShared";
+
 const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/i;
 const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/i;
 const FONTSPEC_MISSING_FONT_RE =
   /Package\s+fontspec\s+Error:\s*(?:The\s+)?font\s+["'`]?([^"'`]+?)["'`]?\s+(?:cannot be found|not found)/i;
 const FONTSPEC_ERROR_RE = /Package\s+fontspec\s+Error:/i;
-const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written(?:\.[A-Za-z0-9_-]+)?\.?)/gi;
+
 const SYSTEM_FONT_FALLBACKS: Record<string, string> = {
   timesnewroman: "Latin Modern Roman",
   arial: "Latin Modern Sans",
@@ -49,56 +34,18 @@ const SYSTEM_FONT_FALLBACKS: Record<string, string> = {
   verdana: "Latin Modern Sans",
   tahoma: "Latin Modern Sans",
 };
+
 const DEFAULT_FONT_FALLBACK_BY_COMMAND: Record<string, string> = {
   setmainfont: "Latin Modern Roman",
   setsansfont: "Latin Modern Sans",
   setmonofont: "Latin Modern Mono",
   newfontfamily: "Latin Modern Roman",
+  setcjkmainfont: "FandolSong-Regular",
+  setcjksansfont: "FandolHei-Regular",
+  setcjkmonofont: "FandolFang-Regular",
+  setcjkfamilyfont: "FandolSong-Regular",
+  newcjkfontfamily: "FandolSong-Regular",
 };
-export type CompileInstallProgress = {
-  active: boolean;
-  percent: number;
-  stage: "installing" | "retrying";
-  currentPackage: string | null;
-  completed: number;
-  total: number;
-  message: string;
-};
-function shouldIncludeCompileFile(path: string): boolean {
-  const normalized = path.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-  const dot = normalized.lastIndexOf(".");
-  if (dot < 0 || dot === normalized.length - 1) {
-    return true;
-  }
-  const extension = normalized.slice(dot + 1);
-  return !COMPILE_SKIP_EXTENSIONS.has(extension);
-}
-function splitDiagnosticLines(value: string): string[] {
-  const text = String(value || "").replace(COMBINED_DIAGNOSTIC_SPLIT_RE, "$1\n$2");
-  return text
-    .split(/\r?\n/)
-    .map((line) => String(line || "").trim())
-    .filter((line) => line.length > 0);
-}
-function normalizeFontName(input: string): string {
-  return String(input || "")
-    .toLowerCase()
-    .replace(/["'`]/g, "")
-    .replace(/[^a-z0-9]+/g, "");
-}
-function isLikelyFontFamily(input: string): boolean {
-  const normalized = normalizeFontName(input);
-  if (normalized.length < 3) {
-    return false;
-  }
-  return /[a-z]/i.test(normalized);
-}
-function isCjkFontCommand(commandName: string): boolean {
-  return commandName.toLowerCase().startsWith("setcjk");
-}
 function pickFallbackFont(missingFont: string, commandName: string): string {
   const normalizedMissing = normalizeFontName(missingFont);
   return SYSTEM_FONT_FALLBACKS[normalizedMissing]
@@ -182,8 +129,20 @@ export function extractConfiguredSystemFontsFromSource(source: string): string[]
       collect(match[1]);
     }
   }
+  const setCjkFamilyRe = /\\setCJKfamilyfont\s*\{[^}]+\}(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
+  for (const match of source.matchAll(setCjkFamilyRe)) {
+    if (match?.[1]) {
+      collect(match[1]);
+    }
+  }
   const newFontFamilyRe = /\\newfontfamily\s*\\[A-Za-z@]+(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
   for (const match of source.matchAll(newFontFamilyRe)) {
+    if (match?.[1]) {
+      collect(match[1]);
+    }
+  }
+  const newCjkFontFamilyRe = /\\newCJKfontfamily\s*\\[A-Za-z@]+(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}/gi;
+  for (const match of source.matchAll(newCjkFontFamilyRe)) {
     if (match?.[1]) {
       collect(match[1]);
     }
@@ -221,9 +180,6 @@ export function applySystemFontFallbackToSource(
       }
       const missing = missingByKey.get(normalizedFamily) || family;
       const commandName = commandNameResolver(commandPrefix);
-      if (isCjkFontCommand(commandName)) {
-        return full;
-      }
       const fallback = pickFallbackFont(missing, commandName);
       const replacementKey = `${missing}|${fallback}`;
       if (!replacements.has(replacementKey)) {
@@ -239,8 +195,18 @@ export function applySystemFontFallbackToSource(
   );
   patched = replaceFontCommand(
     patched,
+    /(\\setCJKfamilyfont\s*\{[^}]+\})(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
+    () => "setCJKfamilyfont",
+  );
+  patched = replaceFontCommand(
+    patched,
     /(\\newfontfamily\s*\\[A-Za-z@]+)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
     () => "newfontfamily",
+  );
+  patched = replaceFontCommand(
+    patched,
+    /(\\newCJKfontfamily\s*\\[A-Za-z@]+)(\s*\[[^\]]*])?\s*\{([^}]+)\}/gi,
+    () => "newCJKfontfamily",
   );
   return {
     patchedSource: patched,
@@ -362,7 +328,8 @@ export async function runCompilePass(params: {
     ...baseFileMap,
     [mainPath]: mainContent,
   };
-  const overlayFileMap: Record<string, string> = {};
+  const fontOverlayFileMap: Record<string, string> = {};
+  const packageOverlayFileMap: Record<string, string> = {};
   const installNotes: string[] = [];
   const attemptedPackages = new Set<string>();
   const installProgressState = {
@@ -405,7 +372,7 @@ export async function runCompilePass(params: {
       if (!relativePath) {
         continue;
       }
-      overlayFileMap[relativePath] = String(file.content || "");
+      packageOverlayFileMap[relativePath] = String(file.content || "");
       applied = true;
     }
     return applied;
@@ -413,7 +380,7 @@ export async function runCompilePass(params: {
   try {
     for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
       if (!fontFallbackAttempted) {
-        const mergedCompileMap = { ...baseCompileMap, ...overlayFileMap };
+        const mergedCompileMap = { ...baseCompileMap, ...fontOverlayFileMap };
         const extractedFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
         const hasFontspecError = hasFontspecErrorDiagnostics(result.diagnostics);
         const configuredFonts = hasFontspecError
@@ -426,8 +393,6 @@ export async function runCompilePass(params: {
             const probe = await runtimeSystemFontProbe(probeCandidates);
             if (probe.missingFonts.length > 0) {
               fallbackFonts = probe.missingFonts;
-            } else if (extractedFonts.length === 0) {
-              fallbackFonts = [];
             }
           } catch {
             // Keep fallback heuristic path when probe is unavailable.
@@ -446,12 +411,12 @@ export async function runCompilePass(params: {
               }),
             );
             compileSource = fallback.mainSource;
-            Object.assign(overlayFileMap, fallback.overlays);
+            Object.assign(fontOverlayFileMap, fallback.overlays);
             emitProgressState(
               "retrying",
               formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
             );
-            result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...overlayFileMap }, mainPath);
+            result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...fontOverlayFileMap, ...packageOverlayFileMap }, mainPath);
             continue;
           }
           emitInstallProgress(
@@ -555,7 +520,7 @@ export async function runCompilePass(params: {
         "retrying",
         formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
       );
-      result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...overlayFileMap }, mainPath);
+      result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...fontOverlayFileMap, ...packageOverlayFileMap }, mainPath);
     }
     if (installNotes.length > 0) {
       result = {
@@ -597,3 +562,7 @@ export async function runCompilePass(params: {
     setCompileInstallProgress?.(null);
   }
 }
+
+
+
+

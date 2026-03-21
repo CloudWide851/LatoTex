@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 type TranslationFn = (key: any) => string;
 
@@ -39,14 +40,14 @@ export function CompileAssistPopover(props: {
     }
   };
 
-  return (
-    <div className="absolute right-0 top-11 z-20 w-[min(520px,80vw)] rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 shadow-soft">
+  const content = (
+    <div className="fixed right-4 top-[calc(var(--topbar-height,48px)+12px)] z-[470] w-[min(560px,92vw)] rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 shadow-soft">
       <div className="font-semibold">{t("workspace.compileAssist.title")}</div>
       <div className="mt-1 line-clamp-2 text-[11px]">{t("workspace.compileAssist.description")}</div>
-      <pre className="mt-2 max-h-20 overflow-auto whitespace-pre-wrap rounded border border-amber-200 bg-white p-1 text-[10px] text-slate-700">
+      <pre className="mt-2 max-h-[24vh] overflow-auto whitespace-pre-wrap rounded border border-amber-200 bg-white p-1 text-[10px] text-slate-700">
         {diagnostics.slice(0, 3).join("\n")}
       </pre>
-      <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap rounded border border-amber-200 bg-white p-1 text-[10px] text-slate-700">
+      <pre className="mt-2 max-h-[40vh] overflow-auto whitespace-pre-wrap rounded border border-amber-200 bg-white p-1 text-[10px] text-slate-700">
         {hint}
       </pre>
       <div className="mt-2 flex justify-end gap-1">
@@ -75,4 +76,10 @@ export function CompileAssistPopover(props: {
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return content;
+  }
+
+  return createPortal(content, document.body);
 }

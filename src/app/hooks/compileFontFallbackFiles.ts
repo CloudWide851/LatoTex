@@ -1,9 +1,9 @@
-﻿export type FontFallbackReplacement = {
+export type FontFallbackReplacement = {
   missing: string;
   fallback: string;
 };
 
-const FONT_FALLBACK_TEXT_EXT_RE = /\.(tex|ltx)$/i;
+const FONT_FALLBACK_TEXT_EXT_RE = /\.(tex|ltx|sty|cls)$/i;
 
 export function collectConfiguredFontsFromCompileMap(
   fileMap: Record<string, string>,
