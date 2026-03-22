@@ -486,9 +486,9 @@ export function LibraryDocumentViewer(props: {
             <FileSearch className="h-3.5 w-3.5" />
           </button>
 
-          <div className="group/translation relative">
+          <div className="flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-1">
             <button
-              className={actionBtnClass}
+              className={`${actionBtnClass} h-7 !w-7 border-transparent bg-transparent px-0 hover:bg-slate-100`}
               onClick={() => {
                 if (hasTranslated && translatedPdfUrl) {
                   setViewMode("compare");
@@ -501,16 +501,22 @@ export function LibraryDocumentViewer(props: {
             >
               <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
             </button>
-            {translationBusy && translationProgress ? (
-              <div className="pointer-events-none absolute right-0 top-full z-20 mt-1 hidden w-52 rounded border border-slate-300 bg-white px-2 py-2 text-[11px] text-slate-600 shadow-soft group-hover/translation:block">
-                <div className="flex items-center justify-between gap-2">
-                  <span>{t("library.viewer.translateProgress")}</span>
-                  <span>{translationProgress.currentPage}/{Math.max(translationProgress.totalPages, 0)}</span>
+            {translationBusy ? (
+              <div className="w-28 min-w-0">
+                <div className="flex items-center justify-between gap-1 text-[10px] leading-none text-slate-600">
+                  <span className="truncate">{t("library.viewer.translating")}</span>
+                  {translationProgress ? (
+                    <span className="shrink-0">
+                      {translationProgress.currentPage}/{Math.max(translationProgress.totalPages, 0)}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded bg-slate-200">
                   <div className="h-full bg-primary-600 transition-all" style={{ width: `${translationPercent}%` }} />
                 </div>
-                <div className="mt-1 truncate text-[10px] text-slate-500">{translationProgress.message}</div>
+                {translationProgress?.message ? (
+                  <div className="mt-1 truncate text-[10px] text-slate-500">{translationProgress.message}</div>
+                ) : null}
               </div>
             ) : null}
           </div>

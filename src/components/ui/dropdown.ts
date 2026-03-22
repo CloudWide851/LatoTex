@@ -38,7 +38,8 @@ export function useDropdownDismiss(params: {
 
 export function dropdownSurfaceClassName(extraClassName?: string) {
   return cn(
-    "z-[260] overflow-auto rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 shadow-[0_18px_44px_rgba(15,23,42,0.18)]",
+    "z-[280] overflow-auto rounded-xl border border-slate-300/90 bg-white/95 p-0 backdrop-blur-sm",
+    "shadow-[0_16px_42px_rgba(15,23,42,0.2),0_1px_0_rgba(255,255,255,0.7)_inset]",
     "origin-top motion-fade-in",
     extraClassName,
   );
@@ -46,8 +47,9 @@ export function dropdownSurfaceClassName(extraClassName?: string) {
 
 export function dropdownItemClassName(extraClassName?: string) {
   return cn(
-    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-slate-700 transition",
-    "hover:bg-slate-100 focus-visible:bg-slate-100",
+    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-slate-700 transition duration-150",
+    "hover:bg-slate-100 hover:text-slate-900 focus-visible:bg-slate-100 focus-visible:text-slate-900",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200",
     extraClassName,
   );
 }

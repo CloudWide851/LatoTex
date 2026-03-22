@@ -2,7 +2,7 @@ import { ChevronDown, Check, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { ProjectSummary } from "../../shared/types/app";
-import { dropdownSurfaceClassName, useDropdownDismiss } from "../../components/ui/dropdown";
+import { dropdownItemClassName, dropdownSurfaceClassName, useDropdownDismiss } from "../../components/ui/dropdown";
 
 type TranslationFn = (key: any) => string;
 
@@ -69,12 +69,12 @@ export function ProjectSwitcher(props: {
               return (
                 <button
                   key={project.id}
-                  className={cn(
-                    "mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm transition last:mb-0",
+                  className={dropdownItemClassName(cn(
+                    "mb-1 justify-between text-sm last:mb-0",
                     selected
-                      ? "bg-primary-600 text-white"
-                      : "text-slate-700 hover:bg-slate-100"
-                  )}
+                      ? "bg-primary-600 text-white hover:bg-primary-500 hover:text-white"
+                      : "text-slate-700"
+                  ))}
                   onClick={() => {
                     setOpen(false);
                     setQuery("");

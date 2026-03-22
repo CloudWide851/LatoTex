@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 import type { ProjectSearchHit } from "../../shared/types/app";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
-import { dropdownSurfaceClassName, useDropdownDismiss } from "../../components/ui/dropdown";
+import { dropdownItemClassName, dropdownSurfaceClassName, useDropdownDismiss } from "../../components/ui/dropdown";
 
 type TranslationFn = (key: any) => string;
 
@@ -89,10 +89,10 @@ export function ProjectSearch(props: {
             results.map((hit, index) => (
               <button
                 key={`${hit.relativePath}:${hit.lineNumber}:${index}`}
-                className={cn(
-                  "mb-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-left text-xs transition last:mb-0",
-                  "bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100"
-                )}
+                className={dropdownItemClassName(cn(
+                  "mb-1 flex-col items-start border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs last:mb-0",
+                  "hover:border-slate-300"
+                ))}
                 onClick={() => {
                   setOpen(false);
                   onSelect(hit);

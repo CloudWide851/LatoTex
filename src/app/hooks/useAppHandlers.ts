@@ -120,7 +120,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       closeGuardUnlockedRef.current = true;
       try {
         await appWindow.close();
-        await runtimeLogWrite("INFO", "window closed");
+        void runtimeLogWrite("INFO", "window close requested").catch(() => undefined);
       } catch (error) {
         closeGuardUnlockedRef.current = false;
         throw error;
@@ -132,7 +132,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
       setToast({ type: "info", message: t("toast.minimizedToTray") });
     }
-    await runtimeLogWrite("INFO", "window hidden to tray");
+    void runtimeLogWrite("INFO", "window hidden to tray").catch(() => undefined);
   }, [closeGuardUnlockedRef, setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
@@ -172,12 +172,12 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         return;
       }
       requestCloseBehaviorDecision();
-      await runtimeLogWrite("INFO", "window close decision requested");
+      void runtimeLogWrite("INFO", "window close decision requested").catch(() => undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       closeGuardUnlockedRef.current = false;
       setToast({ type: "error", message: t("toast.windowActionFailed") });
-      await runtimeLogWrite("ERROR", `window action failed: ${message}`);
+      void runtimeLogWrite("ERROR", `window action failed: ${message}`).catch(() => undefined);
     } finally {
       if (shouldTrackBusy) {
         setWindowActionBusy(false);
@@ -213,14 +213,14 @@ export function useAppHandlers(params: UseAppHandlersParams) {
           },
         };
         await persistSettings(nextSettings);
-        await runtimeLogWrite("INFO", `window close behavior remembered: ${behavior}`);
+        void runtimeLogWrite("INFO", `window close behavior remembered: ${behavior}`).catch(() => undefined);
       }
       await runWindowCloseBehavior(behavior);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       closeGuardUnlockedRef.current = false;
       setToast({ type: "error", message: t("toast.windowActionFailed") });
-      await runtimeLogWrite("ERROR", `window close decision failed: ${message}`);
+      void runtimeLogWrite("ERROR", `window close decision failed: ${message}`).catch(() => undefined);
     } finally {
       setCloseDecisionBusy(false);
     }
