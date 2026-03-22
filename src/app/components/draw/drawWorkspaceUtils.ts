@@ -1,6 +1,10 @@
-﻿import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { drawioCachePrepare } from "../../../shared/api/desktop";
-import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+import {
+  buildLocalResourceBaseCandidates,
+  buildLocalResourceEntryCandidates,
+  prioritizeReachableLocalResourceCandidates,
+} from "../../../shared/utils/localResourceProbe";
 
 export type DrawMessage = {
   event?: string;
@@ -28,14 +32,6 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-function normalizeTrailingSlash(input: string): string {
-  return String(input || "").trim().replace(/\/+$/, "");
-}
-
-function uniqueValues(values: string[]): string[] {
-  return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
-}
-
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
     return [DRAWIO_HOST_URL];
@@ -50,9 +46,9 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    return uniqueValues([
-      ...toDrawioHostCandidates(info.actualDir),
+    return prioritizeReachableLocalResourceCandidates([
       ...fallbackCandidates,
+      ...toDrawioHostCandidates(info.actualDir),
     ]);
   } catch {
     return fallbackCandidates;
@@ -112,17 +108,8 @@ export function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
 }
 
 export function toDrawioHostCandidates(actualDir: string): string[] {
-  const originalDir = String(actualDir || "").trim();
-  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
-  const originalConverted = convertFileSrc(originalDir);
-  const slashConverted = convertFileSrc(slashDir);
-  const bases = uniqueValues([
-    normalizeAssetBasePath(originalConverted),
-    normalizeAssetBasePath(slashConverted),
-    originalConverted,
-    slashConverted,
-  ]);
-  return bases.map((base) => `${base}/index.html`);
+  const bases = buildLocalResourceBaseCandidates(actualDir, convertFileSrc);
+  return buildLocalResourceEntryCandidates(bases, "index.html");
 }
 
 export function parseDrawMessage(payload: unknown): DrawMessage | null {
@@ -326,4 +313,7 @@ export async function persistDrawExportToWorkspace(params: {
   await onAfterSave?.(savedPath);
   return savedPath;
 }
+
+
+
 

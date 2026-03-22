@@ -1,4 +1,4 @@
-﻿export type RuntimeLogReadFilters = {
+export type RuntimeLogReadFilters = {
   limit?: number;
   level?: string;
   keyword?: string;
@@ -280,6 +280,24 @@ export type DrawioCacheInfo = {
   usingFallback: boolean;
 };
 
+export type LocalResourceProbeEntry = {
+  key: string;
+  policy: string;
+  requestedDir?: string | null;
+  actualDir?: string | null;
+  installDirWritable?: boolean | null;
+  usingFallback?: boolean | null;
+  ready: boolean;
+  missingAssets: string[];
+  error?: string | null;
+};
+
+export type LocalResourceProbeResponse = {
+  busytex: LocalResourceProbeEntry;
+  pyodide: LocalResourceProbeEntry;
+  drawio: LocalResourceProbeEntry;
+};
+
 export type Ack = {
   ok: boolean;
   message: string;
@@ -289,5 +307,6 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
 
 

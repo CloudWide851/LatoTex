@@ -1,7 +1,7 @@
 import { analysisPyodidePrepare } from "../../../shared/api/desktop";
 import type { AnalysisPyodideCacheInfo } from "../../../shared/types/app";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+import { buildLocalResourceBaseCandidates } from "../../../shared/utils/localResourceProbe";
 
 export type PyodideSourceConfig = {
   moduleUrl: string;
@@ -18,26 +18,8 @@ const CDN_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${CDN_VERSION}/full/`;
 
 let cachedCandidatesPromise: Promise<PyodideSourceCandidate[]> | null = null;
 
-function normalizeBasePath(base: string): string {
-  return String(base || "").trim().replace(/\/+$/, "");
-}
-
-function uniqueValues(values: string[]): string[] {
-  return Array.from(new Set(values.map((item) => normalizeBasePath(item)).filter((item) => item.length > 0)));
-}
-
 function toLocalSourceConfigs(info: AnalysisPyodideCacheInfo): PyodideSourceConfig[] {
-  const originalDir = String(info.actualDir || "").trim();
-  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
-  const originalConverted = convertFileSrc(originalDir);
-  const slashConverted = convertFileSrc(slashDir);
-
-  const basePaths = uniqueValues([
-    normalizeAssetBasePath(originalConverted),
-    normalizeAssetBasePath(slashConverted),
-    originalConverted,
-    slashConverted,
-  ]);
+  const basePaths = buildLocalResourceBaseCandidates(info.actualDir, convertFileSrc);
 
   return basePaths.map((localBase) => ({
     moduleUrl: `${localBase}/pyodide.mjs`,
@@ -90,4 +72,6 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
 
   return cachedCandidatesPromise;
 }
+
+
 

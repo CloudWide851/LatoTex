@@ -11,6 +11,7 @@ import {
 } from "./modelApiKeySave";
 import { getTabIdsByAction } from "./useEditorTabs";
 import { generateGitSummary } from "./useGitSummaryGenerator";
+import { resolveWindowCloseRequestPlan } from "./windowCloseFlow";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 
 export function useAppContainerWorkspaceActions(params: any) {
@@ -72,19 +73,26 @@ export function useAppContainerWorkspaceActions(params: any) {
     return ok;
   }, [editorContent, handleSaveFile, markPathSaved, selectedFile]);
 
+  const handleCloseWindowRequest = useCallback(() => {
+    const candidatePaths = editorTabsRef.current.map((tab: any) => tab.path);
+    const dirtyPaths = collectDirtyPaths(candidatePaths);
+    const plan = resolveWindowCloseRequestPlan(candidatePaths, dirtyPaths);
+    if (plan.type === "request-unsaved-guard") {
+      requestUnsavedGuard("closeWindow", plan.candidatePaths, async () => {
+        await handleWindowControl("close");
+      });
+      return;
+    }
+    void handleWindowControl("close");
+  }, [collectDirtyPaths, editorTabsRef, handleWindowControl, requestUnsavedGuard]);
+
   const handleWindowControlWithGuard = useCallback((action: "minimize" | "toggle" | "close") => {
     if (action !== "close") {
       void handleWindowControl(action);
       return;
     }
-    requestUnsavedGuard(
-      "closeWindow",
-      editorTabsRef.current.map((tab: any) => tab.path),
-      async () => {
-        await handleWindowControl("close");
-      },
-    );
-  }, [handleWindowControl, requestUnsavedGuard, editorTabsRef]);
+    handleCloseWindowRequest();
+  }, [handleCloseWindowRequest, handleWindowControl]);
 
   const handleInitProjectFromFolderWithGuard = useCallback(() => {
     requestUnsavedGuard(
@@ -149,16 +157,8 @@ export function useAppContainerWorkspaceActions(params: any) {
         if (closeGuardUnlockedRef.current) {
           return;
         }
-        const candidatePaths = editorTabsRef.current.map((tab: any) => tab.path);
-        const dirtyPaths = collectDirtyPaths(candidatePaths);
         event.preventDefault();
-        if (dirtyPaths.length === 0) {
-          void handleWindowControl("close");
-          return;
-        }
-        requestUnsavedGuard("closeWindow", candidatePaths, async () => {
-          await handleWindowControl("close");
-        });
+        handleCloseWindowRequest();
       })
       .then((off) => {
         if (disposed) {
@@ -172,7 +172,7 @@ export function useAppContainerWorkspaceActions(params: any) {
       disposed = true;
       unlisten?.();
     };
-  }, [collectDirtyPaths, handleWindowControl, isTauriRuntime, requestUnsavedGuard, editorTabsRef, closeGuardUnlockedRef]);
+  }, [closeGuardUnlockedRef, handleCloseWindowRequest, isTauriRuntime]);
 
   const activateTabById = useCallback((tabId: string) => {
     const target = editorTabsRef.current.find((tab: any) => tab.id === tabId);
@@ -588,5 +588,6 @@ export function useAppContainerWorkspaceActions(params: any) {
     handleModelModalSubmit,
   };
 }
+
 
 

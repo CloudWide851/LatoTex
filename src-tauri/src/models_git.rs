@@ -1,4 +1,4 @@
-﻿#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitStatusEntry {
     pub path: String,
@@ -240,4 +240,33 @@ pub struct DrawioCacheInfo {
 pub struct DrawioCachePrepareInput {
     pub policy: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalResourceProbeEntry {
+    pub key: String,
+    pub policy: String,
+    pub requested_dir: Option<String>,
+    pub actual_dir: Option<String>,
+    pub install_dir_writable: Option<bool>,
+    pub using_fallback: Option<bool>,
+    pub ready: bool,
+    pub missing_assets: Vec<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalResourceProbeResponse {
+    pub busytex: LocalResourceProbeEntry,
+    pub pyodide: LocalResourceProbeEntry,
+    pub drawio: LocalResourceProbeEntry,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalResourceProbeInput {
+    pub policy: Option<String>,
+}
+
 

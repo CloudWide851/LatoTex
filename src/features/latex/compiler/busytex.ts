@@ -1,7 +1,11 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { BusyTexRunner, XeLatex } from "texlyre-busytex";
 import { busytexCachePrepare } from "../../../shared/api/desktop";
-import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+import {
+  appendLocalResourceBaseVariants,
+  buildLocalResourceBaseCandidates,
+  orderLocalResourceCandidatesByOrigin,
+} from "../../../shared/utils/localResourceProbe";
 
 type BusyTexCompileResponse = {
   success?: boolean;
@@ -32,64 +36,6 @@ let preparingCachePromise: Promise<string[]> | null = null;
 
 function normalizeTrailingSlash(input: string): string {
   return String(input || "").trim().replace(/\/+$/, "");
-}
-
-function uniqueValues(values: string[]): string[] {
-  return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
-}
-
-function appendCandidateVariants(target: string[], candidate: string) {
-  if (!candidate) {
-    return;
-  }
-  const base = normalizeTrailingSlash(candidate);
-  if (!base) {
-    return;
-  }
-  target.push(base);
-  target.push(normalizeTrailingSlash(normalizeAssetBasePath(base)));
-}
-
-function resolveRuntimeOrigin() {
-  if (typeof window !== "undefined" && window.location?.origin && window.location?.href) {
-    return {
-      origin: window.location.origin,
-      href: window.location.href,
-    };
-  }
-  return {
-    origin: "http://tauri.localhost",
-    href: "http://tauri.localhost/",
-  };
-}
-
-function isSameOriginBasePath(basePath: string): boolean {
-  const value = normalizeTrailingSlash(basePath);
-  if (!value) {
-    return false;
-  }
-  const runtime = resolveRuntimeOrigin();
-  try {
-    const resolved = new URL(value, runtime.href);
-    return resolved.origin === runtime.origin;
-  } catch {
-    return !/^https?:\/\//i.test(value);
-  }
-}
-
-function buildInitCandidates(basePaths: string[]): BusyTexInitCandidate[] {
-  const sameOrigin: string[] = [];
-  const crossOrigin: string[] = [];
-
-  for (const basePath of basePaths) {
-    if (isSameOriginBasePath(basePath)) {
-      sameOrigin.push(basePath);
-    } else {
-      crossOrigin.push(basePath);
-    }
-  }
-
-  return [...sameOrigin, ...crossOrigin].map((basePath) => ({ basePath }));
 }
 
 function resetBusyTexRuntime(resetCacheBase = false) {
@@ -135,17 +81,7 @@ async function resolveCacheBasePaths(): Promise<string[]> {
         window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
       }
 
-      const originalDir = String(info.actualDir || "").trim();
-      const slashDir = originalDir.replace(/\\/g, "/");
-      const originalConverted = convertFileSrc(originalDir);
-      const slashConverted = convertFileSrc(slashDir);
-
-      preparedCacheBasePaths = uniqueValues([
-        normalizeAssetBasePath(originalConverted),
-        normalizeAssetBasePath(slashConverted),
-        originalConverted,
-        slashConverted,
-      ]);
+      preparedCacheBasePaths = buildLocalResourceBaseCandidates(info.actualDir, convertFileSrc);
       return preparedCacheBasePaths;
     } catch {
       return [];
@@ -168,16 +104,16 @@ async function buildBasePathCandidates(): Promise<string[]> {
   const cachePaths = await resolveCacheBasePaths();
   const withVariants: string[] = [];
 
-  appendCandidateVariants(withVariants, `${normalizedBase}core/busytex`);
-  appendCandidateVariants(withVariants, "/core/busytex");
-  appendCandidateVariants(withVariants, "./core/busytex");
-  appendCandidateVariants(withVariants, "core/busytex");
+  appendLocalResourceBaseVariants(withVariants, `${normalizedBase}core/busytex`);
+  appendLocalResourceBaseVariants(withVariants, "/core/busytex");
+  appendLocalResourceBaseVariants(withVariants, "./core/busytex");
+  appendLocalResourceBaseVariants(withVariants, "core/busytex");
 
   for (const path of cachePaths) {
-    appendCandidateVariants(withVariants, path);
+    appendLocalResourceBaseVariants(withVariants, path);
   }
 
-  return uniqueValues(withVariants);
+  return orderLocalResourceCandidatesByOrigin(withVariants);
 }
 
 function toErrorMessage(error: unknown): string {
@@ -389,7 +325,7 @@ async function getRunner(): Promise<BusyTexRunner> {
   }
 
   const basePaths = await buildBasePathCandidates();
-  const candidates = buildInitCandidates(basePaths);
+  const candidates = orderLocalResourceCandidatesByOrigin(basePaths).map((basePath) => ({ basePath }));
   runner = await initializeRunnerFromCandidates(candidates);
   return runner;
 }
@@ -503,5 +439,7 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+
+
 
 

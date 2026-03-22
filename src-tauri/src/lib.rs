@@ -11,7 +11,7 @@ use commands::analysis::{
 };
 use commands::busytex::{
     analysis_pyodide_prepare, busytex_cache_prepare, busytex_install_missing_package,
-    drawio_cache_prepare,
+    drawio_cache_prepare, local_resource_probe,
 };
 use commands::channels::{channels_telegram_poll, channels_telegram_send};
 use commands::git::{
@@ -182,11 +182,13 @@ pub fn run() {
             busytex_cache_prepare,
             busytex_install_missing_package,
             analysis_pyodide_prepare,
-            drawio_cache_prepare
+            drawio_cache_prepare,
+            local_resource_probe
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
 
 
 

@@ -5,6 +5,9 @@ use crate::models::{
     BusyTexCachePrepareInput,
     DrawioCacheInfo,
     DrawioCachePrepareInput,
+    LocalResourceProbeEntry,
+    LocalResourceProbeInput,
+    LocalResourceProbeResponse,
 };
 use crate::state::AppState;
 use std::fs;
@@ -15,14 +18,30 @@ use tauri::State;
 mod busytex_package;
 pub use busytex_package::busytex_install_missing_package;
 
-const REQUIRED_BUSYTEX_ASSETS: [&str; 5] =
-    ["busytex.js", "busytex.wasm", "busytex_worker.js", "busytex_pipeline.js", "texlive-basic.js"];
+const REQUIRED_BUSYTEX_ASSETS: [&str; 5] = [
+    "busytex.js",
+    "busytex.wasm",
+    "busytex_worker.js",
+    "busytex_pipeline.js",
+    "texlive-basic.js",
+];
 
-const REQUIRED_PYODIDE_ASSETS: [&str; 5] =
-    ["pyodide.mjs", "pyodide.asm.js", "pyodide.asm.wasm", "pyodide-lock.json", "python_stdlib.zip"];
+const REQUIRED_PYODIDE_ASSETS: [&str; 5] = [
+    "pyodide.mjs",
+    "pyodide.asm.js",
+    "pyodide.asm.wasm",
+    "pyodide-lock.json",
+    "python_stdlib.zip",
+];
 
-const REQUIRED_DRAWIO_ASSETS: [&str; 6] =
-    ["index.html", "app.html", "js/app.min.js", "js/bootstrap.js", "js/main.js", "styles/grapheditor.css"];
+const REQUIRED_DRAWIO_ASSETS: [&str; 6] = [
+    "index.html",
+    "app.html",
+    "js/app.min.js",
+    "js/bootstrap.js",
+    "js/main.js",
+    "styles/grapheditor.css",
+];
 
 pub(super) struct CachePrepareResult {
     policy: String,
@@ -54,6 +73,14 @@ fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
 
 fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
     required_assets.iter().all(|name| dir.join(name).exists())
+}
+
+fn missing_required_assets(dir: &Path, required_assets: &[&str]) -> Vec<String> {
+    required_assets
+        .iter()
+        .filter(|name| !dir.join(name).exists())
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 fn candidate_source_dirs(relative_subdir: &str) -> Vec<PathBuf> {
@@ -109,12 +136,7 @@ fn is_permission_denied(message: &str) -> bool {
         || lower.contains("os error 5")
 }
 
-fn write_cache_marker(
-    actual_dir: &Path,
-    policy: &str,
-    requested_dir: &Path,
-    using_fallback: bool,
-) {
+fn write_cache_marker(actual_dir: &Path, policy: &str, requested_dir: &Path, using_fallback: bool) {
     let marker_path = actual_dir.join(".cache-info.json");
     let marker_json = serde_json::json!({
         "policy": policy,
@@ -193,6 +215,77 @@ pub(super) fn ensure_busytex_cache_dir(
     )
 }
 
+fn ensure_pyodide_cache_dir(
+    state: &State<'_, AppState>,
+    policy: &str,
+) -> Result<CachePrepareResult, String> {
+    prepare_cache(
+        state,
+        policy,
+        "analysis-pyodide-cache",
+        "pyodide",
+        &REQUIRED_PYODIDE_ASSETS,
+        "Pyodide source assets were not found in app resources",
+    )
+}
+
+fn ensure_drawio_cache_dir(
+    state: &State<'_, AppState>,
+    policy: &str,
+) -> Result<CachePrepareResult, String> {
+    let prepared = prepare_cache(
+        state,
+        policy,
+        "drawio-cache",
+        "drawio",
+        &REQUIRED_DRAWIO_ASSETS,
+        "Drawio source assets were not found in app resources",
+    )?;
+
+    sync_cache_files(
+        Path::new(&prepared.actual_dir),
+        &prepared.source_dir,
+        &REQUIRED_DRAWIO_ASSETS,
+    )?;
+
+    Ok(prepared)
+}
+
+fn build_local_resource_probe_entry(
+    key: &str,
+    policy: &str,
+    prepare_result: Result<CachePrepareResult, String>,
+    required_assets: &[&str],
+) -> LocalResourceProbeEntry {
+    match prepare_result {
+        Ok(prepared) => {
+            let missing_assets = missing_required_assets(Path::new(&prepared.actual_dir), required_assets);
+            LocalResourceProbeEntry {
+                key: key.to_string(),
+                policy: prepared.policy,
+                requested_dir: Some(prepared.requested_dir),
+                actual_dir: Some(prepared.actual_dir),
+                install_dir_writable: Some(prepared.install_dir_writable),
+                using_fallback: Some(prepared.using_fallback),
+                ready: missing_assets.is_empty(),
+                missing_assets,
+                error: None,
+            }
+        }
+        Err(error) => LocalResourceProbeEntry {
+            key: key.to_string(),
+            policy: policy.to_string(),
+            requested_dir: None,
+            actual_dir: None,
+            install_dir_writable: None,
+            using_fallback: None,
+            ready: false,
+            missing_assets: required_assets.iter().map(|item| (*item).to_string()).collect(),
+            error: Some(error),
+        },
+    }
+}
+
 #[tauri::command]
 pub fn busytex_cache_prepare(
     state: State<'_, AppState>,
@@ -216,14 +309,7 @@ pub fn analysis_pyodide_prepare(
     input: AnalysisPyodidePrepareInput,
 ) -> Result<AnalysisPyodideCacheInfo, String> {
     let policy = input.policy.trim();
-    let prepared = prepare_cache(
-        &state,
-        policy,
-        "analysis-pyodide-cache",
-        "pyodide",
-        &REQUIRED_PYODIDE_ASSETS,
-        "Pyodide source assets were not found in app resources",
-    )?;
+    let prepared = ensure_pyodide_cache_dir(&state, policy)?;
 
     Ok(AnalysisPyodideCacheInfo {
         policy: prepared.policy,
@@ -240,20 +326,7 @@ pub fn drawio_cache_prepare(
     input: DrawioCachePrepareInput,
 ) -> Result<DrawioCacheInfo, String> {
     let policy = input.policy.trim();
-    let prepared = prepare_cache(
-        &state,
-        policy,
-        "drawio-cache",
-        "drawio",
-        &REQUIRED_DRAWIO_ASSETS,
-        "Drawio source assets were not found in app resources",
-    )?;
-
-    sync_cache_files(
-        Path::new(&prepared.actual_dir),
-        &prepared.source_dir,
-        &REQUIRED_DRAWIO_ASSETS,
-    )?;
+    let prepared = ensure_drawio_cache_dir(&state, policy)?;
 
     Ok(DrawioCacheInfo {
         policy: prepared.policy,
@@ -262,4 +335,85 @@ pub fn drawio_cache_prepare(
         install_dir_writable: prepared.install_dir_writable,
         using_fallback: prepared.using_fallback,
     })
+}
+
+#[tauri::command]
+pub fn local_resource_probe(
+    state: State<'_, AppState>,
+    input: LocalResourceProbeInput,
+) -> Result<LocalResourceProbeResponse, String> {
+    let policy = input.policy.unwrap_or_else(|| "install-first".to_string());
+    let normalized_policy = policy.trim();
+
+    Ok(LocalResourceProbeResponse {
+        busytex: build_local_resource_probe_entry(
+            "busytex",
+            normalized_policy,
+            ensure_busytex_cache_dir(&state, normalized_policy),
+            &REQUIRED_BUSYTEX_ASSETS,
+        ),
+        pyodide: build_local_resource_probe_entry(
+            "pyodide",
+            normalized_policy,
+            ensure_pyodide_cache_dir(&state, normalized_policy),
+            &REQUIRED_PYODIDE_ASSETS,
+        ),
+        drawio: build_local_resource_probe_entry(
+            "drawio",
+            normalized_policy,
+            ensure_drawio_cache_dir(&state, normalized_policy),
+            &REQUIRED_DRAWIO_ASSETS,
+        ),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_local_resource_probe_entry, missing_required_assets, CachePrepareResult};
+    use std::fs;
+    use std::path::PathBuf;
+
+    #[test]
+    fn missing_required_assets_reports_only_absent_files() {
+        let root = std::env::temp_dir().join(format!(
+            "latotex-local-resource-probe-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("js")).unwrap();
+        fs::write(root.join("index.html"), "ok").unwrap();
+        fs::write(root.join("js/app.min.js"), "ok").unwrap();
+
+        let missing = missing_required_assets(
+            &root,
+            &["index.html", "js/app.min.js", "styles/grapheditor.css"],
+        );
+
+        assert_eq!(missing, vec!["styles/grapheditor.css".to_string()]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn build_local_resource_probe_entry_marks_ready_only_when_cache_is_complete() {
+        let prepared = CachePrepareResult {
+            policy: "install-first".to_string(),
+            requested_dir: "F:/cache".to_string(),
+            actual_dir: "F:/cache".to_string(),
+            install_dir_writable: true,
+            using_fallback: false,
+            source_dir: PathBuf::from("F:/source"),
+        };
+
+        let entry = build_local_resource_probe_entry(
+            "drawio",
+            "install-first",
+            Ok(prepared),
+            &[],
+        );
+
+        assert_eq!(entry.key, "drawio");
+        assert!(entry.ready);
+        assert!(entry.error.is_none());
+        assert_eq!(entry.actual_dir.as_deref(), Some("F:/cache"));
+    }
 }

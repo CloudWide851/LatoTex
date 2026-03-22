@@ -1,9 +1,10 @@
-﻿import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   AnalysisPyodideCacheInfo,
   BusyTexCacheInfo,
   BusyTexInstallPackageResult,
   DrawioCacheInfo,
+  LocalResourceProbeResponse,
   GitAvailability,
   GitBranchInfo,
   GitCommitFileEntry,
@@ -113,6 +114,11 @@ export function analysisPyodidePrepare(policy: "install-first" | "appdata-only")
 export function drawioCachePrepare(policy: "install-first" | "appdata-only"): Promise<DrawioCacheInfo> {
   return invoke<DrawioCacheInfo>("drawio_cache_prepare", { input: { policy } });
 }
+
+export function localResourceProbe(policy: "install-first" | "appdata-only" = "install-first"): Promise<LocalResourceProbeResponse> {
+  return invoke<LocalResourceProbeResponse>("local_resource_probe", { input: { policy } });
+}
+
 
 
 

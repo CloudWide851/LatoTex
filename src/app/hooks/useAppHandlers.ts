@@ -1,4 +1,4 @@
-﻿import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
 import {
@@ -16,6 +16,7 @@ import { isExcelPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
 import { handleBusyTexCachePolicyChangeAction, handleProtocolPingAction, handleThemeModeChangeAction } from "./settingsUiActions";
+import { resolveWindowControlPlan, type CloseBehavior } from "./windowCloseFlow";
 import { useCompileActions } from "./useCompileActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
@@ -138,21 +139,21 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     if (!isTauriRuntime) {
       return;
     }
-    const closeBehavior = settings?.uiPrefs?.closeBehavior ?? "ask";
-    const shouldTrackBusy = action === "toggle" || (action === "close" && closeBehavior !== "ask");
-    if (shouldTrackBusy && windowActionBusy) {
+    const closeBehavior = (settings?.uiPrefs?.closeBehavior ?? "ask") as CloseBehavior;
+    const plan = resolveWindowControlPlan(action, closeBehavior);
+    if (plan.trackBusy && windowActionBusy) {
       return;
     }
-    if (shouldTrackBusy) {
+    if (plan.trackBusy) {
       setWindowActionBusy(true);
     }
     try {
       const appWindow = getCurrentWindow();
-      if (action === "minimize") {
+      if (plan.type === "minimize") {
         await appWindow.minimize();
         return;
       }
-      if (action === "toggle") {
+      if (plan.type === "toggle") {
         const current = await appWindow.isMaximized();
         if (current) {
           await appWindow.unmaximize();
@@ -163,12 +164,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         }
         return;
       }
-      if (closeBehavior === "exit") {
-        await runWindowCloseBehavior("exit");
-        return;
-      }
-      if (closeBehavior === "tray") {
-        await runWindowCloseBehavior("tray");
+      if (plan.type === "run-close-behavior") {
+        await runWindowCloseBehavior(plan.behavior);
         return;
       }
       requestCloseBehaviorDecision();
@@ -179,7 +176,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       void runtimeLogWrite("ERROR", `window action failed: ${message}`).catch(() => undefined);
     } finally {
-      if (shouldTrackBusy) {
+      if (plan.trackBusy) {
         setWindowActionBusy(false);
       }
     }
@@ -589,3 +586,4 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
+
