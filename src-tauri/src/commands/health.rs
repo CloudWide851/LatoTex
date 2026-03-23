@@ -32,6 +32,16 @@ pub fn window_sync_icon(app: AppHandle, state: State<'_, AppState>) -> Result<Ac
 }
 
 #[tauri::command]
+pub fn app_exit(app: AppHandle, state: State<'_, AppState>) -> Result<Ack, String> {
+    state.log("INFO", "app_exit requested");
+    app.exit(0);
+    Ok(Ack {
+        ok: true,
+        message: "application exit requested".to_string(),
+    })
+}
+
+#[tauri::command]
 pub fn tray_set_labels(
     app: AppHandle,
     state: State<'_, AppState>,

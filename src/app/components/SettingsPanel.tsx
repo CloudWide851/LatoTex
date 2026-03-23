@@ -213,36 +213,24 @@ export function SettingsPanel(props: {
                 </p>
               </div>
             </div>
-            <div
-              className="rounded-lg border border-slate-200 p-4"
-              onClick={() => updateGeneralUiPrefs({ skipDeleteConfirm: deleteConfirmEnabled })}
-            >
-              <div className="flex cursor-pointer items-center justify-between text-sm text-slate-700">
-                <span>{t("settings.deleteConfirm")}</span>
-                <Checkbox
-                  checked={deleteConfirmEnabled}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    updateGeneralUiPrefs({ skipDeleteConfirm: !event.target.checked })
-                  }
-                />
-              </div>
-            </div>
-            <div
-              className="rounded-lg border border-slate-200 p-4"
-              onClick={() => updateGeneralUiPrefs({ closeToTrayNoticeEnabled: !closeToTrayNoticeEnabled })}
-            >
-              <div className="flex cursor-pointer items-center justify-between text-sm text-slate-700">
-                <span>{t("settings.closeToTrayNotice")}</span>
-                <Checkbox
-                  checked={closeToTrayNoticeEnabled}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    updateGeneralUiPrefs({ closeToTrayNoticeEnabled: event.target.checked })
-                  }
-                />
-              </div>
-            </div>
+            <label className="flex cursor-pointer select-none items-center justify-between rounded-lg border border-slate-200 p-4 text-sm text-slate-700">
+              <span>{t("settings.deleteConfirm")}</span>
+              <Checkbox
+                checked={deleteConfirmEnabled}
+                onChange={(event) =>
+                  updateGeneralUiPrefs({ skipDeleteConfirm: !event.target.checked })
+                }
+              />
+            </label>
+            <label className="flex cursor-pointer select-none items-center justify-between rounded-lg border border-slate-200 p-4 text-sm text-slate-700">
+              <span>{t("settings.closeToTrayNotice")}</span>
+              <Checkbox
+                checked={closeToTrayNoticeEnabled}
+                onChange={(event) =>
+                  updateGeneralUiPrefs({ closeToTrayNoticeEnabled: event.target.checked })
+                }
+              />
+            </label>
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
             <div className="rounded-lg border border-slate-200 p-4">
               <h3 className="mb-3 text-sm font-semibold text-slate-800">
@@ -593,6 +581,7 @@ export function SettingsPanel(props: {
     </div>
   );
 }
+
 
 
 

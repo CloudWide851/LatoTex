@@ -29,7 +29,6 @@ export function useAppContainerWorkspaceActions(
     handleWindowControl,
     requestUnsavedGuard,
     editorTabsRef,
-    closeGuardUnlockedRef,
     handleInitProjectFromFolder,
     resetEditorSession,
     handleEditorUndo,
@@ -160,9 +159,6 @@ export function useAppContainerWorkspaceActions(
     let disposed = false;
     getCurrentWindow()
       .onCloseRequested((event) => {
-        if (closeGuardUnlockedRef.current) {
-          return;
-        }
         event.preventDefault();
         handleCloseWindowRequest();
       })
@@ -178,7 +174,7 @@ export function useAppContainerWorkspaceActions(
       disposed = true;
       unlisten?.();
     };
-  }, [closeGuardUnlockedRef, handleCloseWindowRequest, isTauriRuntime]);
+  }, [handleCloseWindowRequest, isTauriRuntime]);
 
   const activateTabById = useCallback((tabId: string) => {
     const target = editorTabsRef.current.find((tab: any) => tab.id === tabId);

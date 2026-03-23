@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { exitApplication } from "../../shared/api/app";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
 import { getLibraryTree } from "../../shared/api/library";
@@ -9,7 +10,11 @@ import { isExcelPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
 import { handleBusyTexCachePolicyChangeAction, handleProtocolPingAction, handleThemeModeChangeAction } from "./settingsUiActions";
-import { resolveWindowControlPlan, type CloseBehavior } from "./windowCloseFlow";
+import {
+  buildRememberedCloseBehaviorSettings,
+  resolveWindowControlPlan,
+  type CloseBehavior,
+} from "./windowCloseFlow";
 import { useCompileActions } from "./useCompileActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
@@ -35,7 +40,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     deleteDontAskAgain,
     requestCloseBehaviorDecision,
     setCloseDecisionBusy,
-    closeGuardUnlockedRef,
     setBusy,
     setTree,
     setLibraryTree,
@@ -109,25 +113,17 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     refreshGitWorkspace,
   });
   const runWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {
-    const appWindow = getCurrentWindow();
     if (behavior === "exit") {
-      closeGuardUnlockedRef.current = true;
-      try {
-        await appWindow.close();
-        void runtimeLogWrite("INFO", "window close requested").catch(() => undefined);
-      } catch (error) {
-        closeGuardUnlockedRef.current = false;
-        throw error;
-      }
+      await exitApplication();
       return;
     }
-    closeGuardUnlockedRef.current = false;
+    const appWindow = getCurrentWindow();
     await appWindow.hide();
     if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
       setToast({ type: "info", message: t("toast.minimizedToTray") });
     }
     void runtimeLogWrite("INFO", "window hidden to tray").catch(() => undefined);
-  }, [closeGuardUnlockedRef, setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
+  }, [setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
       return;
@@ -165,7 +161,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       void runtimeLogWrite("INFO", "window close decision requested").catch(() => undefined);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      closeGuardUnlockedRef.current = false;
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       void runtimeLogWrite("ERROR", `window action failed: ${message}`).catch(() => undefined);
     } finally {
@@ -174,7 +169,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       }
     }
   }, [
-    closeGuardUnlockedRef,
     isTauriRuntime,
     setIsMaximized,
     setToast,
@@ -192,30 +186,19 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setCloseDecisionBusy(true);
     try {
       if (remember && settings) {
-        const nextSettings: AppSettings = {
-          ...settings,
-          uiPrefs: {
-            ...(settings.uiPrefs ?? {}),
-            language: settings.uiPrefs?.language ?? locale,
-            closeBehavior: behavior,
-            closeBehaviorRemember: true,
-            panelLayout: settings.uiPrefs?.panelLayout,
-          },
-        };
+        const nextSettings = buildRememberedCloseBehaviorSettings(settings, locale, behavior);
         await persistSettings(nextSettings);
         void runtimeLogWrite("INFO", `window close behavior remembered: ${behavior}`).catch(() => undefined);
       }
       await runWindowCloseBehavior(behavior);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      closeGuardUnlockedRef.current = false;
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       void runtimeLogWrite("ERROR", `window close decision failed: ${message}`).catch(() => undefined);
     } finally {
       setCloseDecisionBusy(false);
     }
   }, [
-    closeGuardUnlockedRef,
     isTauriRuntime,
     locale,
     persistSettings,
@@ -579,4 +562,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
+
+
+
 

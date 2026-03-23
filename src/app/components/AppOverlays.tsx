@@ -306,7 +306,7 @@ export function AppOverlays(props: {
             <p className="mt-2 text-xs text-slate-600">
               {t("window.closeConfirmHint")}
             </p>
-            <label className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+            <label className="mt-3 flex cursor-pointer select-none items-center gap-2 text-xs text-slate-600">
               <Checkbox
                 checked={closeBehaviorRemember}
                 onChange={(event) => onCloseBehaviorRememberChange(event.target.checked)}

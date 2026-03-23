@@ -166,7 +166,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const dirtyByPathRef = useRef<Record<string, boolean>>({});
   const savedContentByPathRef = useRef<Record<string, string>>({});
   const workingContentByPathRef = useRef<Record<string, string>>({});
-  const closeGuardUnlockedRef = useRef(false);
 
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
   const pageRailItems = useMemo(
@@ -370,7 +369,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     dirtyByPathRef,
     savedContentByPathRef,
     workingContentByPathRef,
-    closeGuardUnlockedRef,
     fileList,
     pageRailItems,
     fileSet,

@@ -20,7 +20,7 @@ use commands::git::{
     git_diff_file, git_download_installer_start, git_download_status, git_fetch, git_init_repo,
     git_log, git_pull, git_push, git_run_installer, git_stage, git_status, git_unstage,
 };
-use commands::health::{health_check, tray_set_labels, window_sync_icon};
+use commands::health::{app_exit, health_check, tray_set_labels, window_sync_icon};
 use commands::projects::{
     file_read, file_read_binary, file_write, file_write_binary, fs_operation, library_import_link, library_import_pdf,
     library_zotero_sync,
@@ -102,6 +102,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             health_check,
             window_sync_icon,
+            app_exit,
             tray_set_labels,
             project_list,
             project_create,
@@ -189,6 +190,7 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
 
 
 

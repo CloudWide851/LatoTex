@@ -34,7 +34,6 @@ export type UseAppHandlersParams = {
   deleteDontAskAgain: boolean;
   requestCloseBehaviorDecision: () => void;
   setCloseDecisionBusy: (value: boolean) => void;
-  closeGuardUnlockedRef: React.MutableRefObject<boolean>;
   setBusy: (value: boolean) => void;
   setTree: (value: ResourceNode[]) => void;
   setLibraryTree: (value: ResourceNode[]) => void;

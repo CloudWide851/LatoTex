@@ -17,7 +17,6 @@ export type UseAppContainerWorkspaceActionsParams = {
     onContinue: () => void | Promise<void>,
   ) => void;
   editorTabsRef: MutableRefObject<EditorTab[]>;
-  closeGuardUnlockedRef: MutableRefObject<boolean>;
   handleInitProjectFromFolder: () => Promise<void>;
   resetEditorSession: () => void;
   handleEditorUndo: () => void;

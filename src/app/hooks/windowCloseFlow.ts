@@ -1,3 +1,6 @@
+import type { Locale } from "../../i18n";
+import type { AppSettings } from "../../shared/types/app";
+
 export type WindowAction = "minimize" | "toggle" | "close";
 export type CloseBehavior = "ask" | "tray" | "exit";
 
@@ -45,5 +48,22 @@ export function resolveWindowCloseRequestPlan(
   return {
     type: "continue-close",
     candidatePaths,
+  };
+}
+
+export function buildRememberedCloseBehaviorSettings(
+  settings: AppSettings,
+  locale: Locale,
+  behavior: Exclude<CloseBehavior, "ask">,
+): AppSettings {
+  return {
+    ...settings,
+    uiPrefs: {
+      ...(settings.uiPrefs ?? {}),
+      language: settings.uiPrefs?.language ?? locale,
+      closeBehavior: behavior,
+      closeBehaviorRemember: true,
+      panelLayout: settings.uiPrefs?.panelLayout,
+    },
   };
 }

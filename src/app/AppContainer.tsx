@@ -136,7 +136,6 @@ export function AppContainer() {
       setCloseBehaviorDialogOpen(true);
     },
     setCloseDecisionBusy,
-    closeGuardUnlockedRef: s.closeGuardUnlockedRef,
     setBusy: s.setBusy,
     setTree: s.setTree,
     setLibraryTree: s.setLibraryTree,
@@ -301,7 +300,6 @@ export function AppContainer() {
     handleWindowControl: handlers.handleWindowControl,
     requestUnsavedGuard: unsaved.requestUnsavedGuard,
     editorTabsRef: s.editorTabsRef,
-    closeGuardUnlockedRef: s.closeGuardUnlockedRef,
     handleInitProjectFromFolder: handlers.handleInitProjectFromFolder,
     resetEditorSession: unsaved.resetEditorSession,
     handleEditorUndo: handlers.handleEditorUndo,
