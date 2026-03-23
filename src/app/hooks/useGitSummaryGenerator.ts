@@ -1,4 +1,5 @@
-import { executeWorkflowStart, gitDiffFile } from "../../shared/api/desktop";
+import { executeWorkflowStart } from "../../shared/api/agent";
+import { gitDiffFile } from "../../shared/api/git";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export async function generateGitSummary(

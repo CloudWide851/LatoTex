@@ -26,8 +26,6 @@ type PyodideInstance = {
   runPythonAsync: (code: string) => Promise<unknown>;
 };
 
-const DEFAULT_CDN_INDEX = "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/";
-
 let pyodidePromise: Promise<PyodideInstance> | null = null;
 let pyodideSourceKey: string | null = null;
 let activeSource: PyodideSourceConfig | null = null;
@@ -96,11 +94,10 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       return;
     }
 
-    const source = activeSource ?? {
-      moduleUrl: `${DEFAULT_CDN_INDEX}pyodide.mjs`,
-      indexURL: DEFAULT_CDN_INDEX,
-    };
-    const pyodide = await loadPyodideInstance(source);
+    if (!activeSource) {
+      throw new Error("pyodide.init.required");
+    }
+    const pyodide = await loadPyodideInstance(activeSource);
 
     const contextBase64 = encodeUtf8Base64(JSON.stringify(message.context ?? {}));
     const wrappedScript = [
@@ -127,3 +124,5 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     (self as unknown as Worker).postMessage(response);
   }
 };
+
+

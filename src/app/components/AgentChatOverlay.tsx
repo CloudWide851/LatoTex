@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { getEvents } from "../../shared/api/desktop";
+import { getEvents } from "../../shared/api/agent";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
 import { AgentSessionPicker } from "./agent/AgentSessionPicker";

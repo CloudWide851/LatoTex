@@ -1,13 +1,8 @@
-﻿import { Send, Square } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  channelsTelegramPoll,
-  channelsTelegramSend,
-  getEvents,
-  readFile,
-  executeWorkflowCancel,
-  executeWorkflowStart,
-} from "../../../shared/api/desktop";
+import { executeWorkflowCancel, executeWorkflowStart, getEvents } from "../../../shared/api/agent";
+import { channelsTelegramPoll, channelsTelegramSend } from "../../../shared/api/share";
+import { readFile } from "../../../shared/api/workspace";
 import { cn } from "../../../lib/utils";
 import type { ChannelPrefs } from "../../../shared/types/app";
 import {
@@ -19,6 +14,7 @@ import {
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
+
 type TranslationFn = (key: any) => string;
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
 type ChatAutoFixRequest = {

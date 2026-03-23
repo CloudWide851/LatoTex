@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   gitCommitFiles,
   gitCheckout,
@@ -11,14 +11,27 @@ import {
   gitStage,
   gitStatus,
   gitUnstage,
+} from "../../shared/api/git";
+import {
   runtimeLogClearCurrentSession,
   runtimeLogListSessions,
   runtimeLogRead,
-} from "../../shared/api/desktop";
+} from "../../shared/api/runtime";
 import { clampLayout, DEFAULT_PANEL_LAYOUT } from "../app-config";
-import { GitWorkspace } from "../components/GitWorkspace";
-import { AnalysisWorkspace } from "../components/analysis/AnalysisWorkspace";
-import { SettingsPanel } from "../components/SettingsPanel";
+const LazyGitWorkspace = lazy(async () => {
+  const module = await import("../components/GitWorkspace");
+  return { default: module.GitWorkspace };
+});
+
+const LazyAnalysisWorkspace = lazy(async () => {
+  const module = await import("../components/analysis/AnalysisWorkspace");
+  return { default: module.AnalysisWorkspace };
+});
+
+const LazySettingsPanel = lazy(async () => {
+  const module = await import("../components/SettingsPanel");
+  return { default: module.SettingsPanel };
+});
 
 export function useAppPanelNodes(params: any) {
   const {
@@ -212,7 +225,8 @@ export function useAppPanelNodes(params: any) {
   const activeModelCatalog = settings?.modelCatalog ?? [];
 
   const analysisPanel = (
-    <AnalysisWorkspace
+    <Suspense fallback={<section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">{t("common.loading")}</section>}>
+      <LazyAnalysisWorkspace
       busy={busy}
       prompt={analysisWorkspace.prompt}
       canRun={analysisWorkspace.canRun}
@@ -243,8 +257,9 @@ export function useAppPanelNodes(params: any) {
       onRevealArtifact={(relativePath: string) => {
         void analysisWorkspace.revealArtifact(relativePath);
       }}
-      t={t}
-    />
+        t={t}
+      />
+    </Suspense>
   );
 
   const recoverWorkspaceLayout = useCallback(() => {
@@ -276,7 +291,8 @@ export function useAppPanelNodes(params: any) {
   }, [locale, page, setSettings, setToast, t]);
 
   const settingsPanel = (
-    <SettingsPanel
+    <Suspense fallback={<section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">{t("common.loading")}</section>}>
+      <LazySettingsPanel
       settings={settings}
       activeProjectId={activeProjectId}
       locale={locale}
@@ -313,8 +329,9 @@ export function useAppPanelNodes(params: any) {
       onTestModel={(modelId) => void handleTestModel(modelId)}
       onTestAllModels={() => void handleTestAllModels()}
       setSettings={setSettings}
-      t={t}
-    />
+        t={t}
+      />
+    </Suspense>
   );
 
   const loadGitDiff = useCallback(
@@ -335,7 +352,8 @@ export function useAppPanelNodes(params: any) {
   );
 
   const gitPanel = activeProjectId ? (
-    <GitWorkspace
+    <Suspense fallback={<section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">{t("common.loading")}</section>}>
+      <LazyGitWorkspace
       status={gitStatusState}
       branches={gitBranchesState}
       commits={gitCommits}
@@ -397,9 +415,10 @@ export function useAppPanelNodes(params: any) {
       onOpenFile={openGitFile}
       onStartGitInstall={handleGitInstallerDownloadStart}
       onCancelDownload={handleGitInstallerCancel}
-      onRunInstaller={handleGitRunInstaller}
-      t={t}
-    />
+        onRunInstaller={handleGitRunInstaller}
+        t={t}
+      />
+    </Suspense>
   ) : null;
 
   return {
@@ -416,4 +435,5 @@ export function useAppPanelNodes(params: any) {
     recoverWorkspaceLayout,
   };
 }
+
 

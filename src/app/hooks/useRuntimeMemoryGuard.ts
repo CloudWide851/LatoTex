@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { runtimeLogWrite, runtimeMemorySnapshot } from "../../shared/api/desktop";
+import { runtimeLogWrite, runtimeMemorySnapshot } from "../../shared/api/runtime";
 import type { SwarmEvent } from "../../shared/types/app";
 import { trimEventsForMemoryPressure } from "./eventMemoryBudget";
 

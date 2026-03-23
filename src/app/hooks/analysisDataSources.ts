@@ -1,14 +1,8 @@
-import { Workbook } from "exceljs";
 import Papa from "papaparse";
 import { pdfjs } from "react-pdf";
-import {
-  libraryCitationSummary,
-  libraryResolvePdfPreview,
-  readFile,
-  readFileBinary,
-} from "../../shared/api/desktop";
+import { libraryCitationSummary, libraryResolvePdfPreview } from "../../shared/api/library";
+import { readFile, readFileBinary } from "../../shared/api/workspace";
 import { ensureReactPdfWorker } from "../components/pdf/reactPdfSetup";
-
 export type AnalysisSourceSnapshot = {
   path: string;
   kind: "csv" | "excel" | "json" | "text" | "paper";
@@ -111,6 +105,7 @@ async function loadExcelSnapshot(
   path: string,
 ): Promise<AnalysisSourceSnapshot> {
   const binary = await readFileBinary(projectId, path);
+  const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
   const bytes = Uint8Array.from(binary.bytes);
   await workbook.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));

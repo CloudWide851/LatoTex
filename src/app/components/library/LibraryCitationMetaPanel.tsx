@@ -1,4 +1,4 @@
-import { openExternalLink } from "../../../shared/api/desktop";
+import { openExternalLink } from "../../../shared/api/app";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;

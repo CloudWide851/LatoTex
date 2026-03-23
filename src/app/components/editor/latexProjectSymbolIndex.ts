@@ -1,4 +1,4 @@
-import { readFile } from "../../../shared/api/desktop";
+import { readFile } from "../../../shared/api/workspace";
 
 const INDEXABLE_FILE = /\.(tex|bib|sty|cls|bst|bbx|cbx|ltx|tikz|pgf|md|txt|csv|tsv|json|jsonl)$/i;
 const MAX_FILES = 180;

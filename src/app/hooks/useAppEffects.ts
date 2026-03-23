@@ -1,17 +1,12 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
 import { resolveLocale } from "../../i18n";
-import {
-  busytexCachePrepare,
-  getEvents,
-  getHealthCheck,
-  getSettings,
-  listProjects,
-  openProject,
-  runtimeLogInfo,
-  runtimeLogWrite,
-  windowSyncIcon,
-} from "../../shared/api/desktop";
+import { getEvents } from "../../shared/api/agent";
+import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
+import { busytexCachePrepare } from "../../shared/api/local-resources";
+import { listProjects, openProject } from "../../shared/api/projects";
+import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
+import { getSettings } from "../../shared/api/settings";
 import type {
   AppSettings,
   SwarmEvent,

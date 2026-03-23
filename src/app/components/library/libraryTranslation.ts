@@ -1,7 +1,7 @@
 import {
   translateLibraryDocumentStart,
   translateLibraryDocumentStatus,
-} from "../../../shared/api/desktop";
+} from "../../../shared/api/library";
 import type {
   LibraryTranslateResult,
   LibraryTranslateStatus,

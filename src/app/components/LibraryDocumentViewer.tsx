@@ -7,14 +7,9 @@ import {
   Languages,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  libraryCitationSummary,
-  libraryResolvePdfPreview,
-  openExternalLink,
-  readFile,
-  readFileBinary,
-  writeFile,
-} from "../../shared/api/desktop";
+import { openExternalLink } from "../../shared/api/app";
+import { libraryCitationSummary, libraryResolvePdfPreview } from "../../shared/api/library";
+import { readFile, readFileBinary, writeFile } from "../../shared/api/workspace";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
 import {

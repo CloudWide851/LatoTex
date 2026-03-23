@@ -18,7 +18,7 @@ describe("drawWorkspaceUtils", () => {
     await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual(["/drawio/index.html"]);
   });
 
-  it("promotes the first reachable drawio candidate when fallback host probe fails", async () => {
+  it("returns only local drawio candidates in tauri mode", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
       convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fdrawio-cache",
@@ -32,18 +32,28 @@ describe("drawWorkspaceUtils", () => {
         usingFallback: false,
       })),
     }));
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      if (url === "/drawio/index.html") {
-        throw new Error("connection refused");
-      }
-      return { ok: false, type: "opaque" };
-    }));
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, type: "opaque" })));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     const candidates = await resolveDrawioHostFrameCandidates();
 
     expect(candidates[0]).toBe("http://asset.localhost/F:/LatoTex/drawio-cache/index.html");
-    expect(candidates).toContain("/drawio/index.html");
+    expect(candidates.every((item) => item.includes("asset.localhost"))).toBe(true);
+    expect(candidates).not.toContain("/drawio/index.html");
+  });
+
+  it("returns no drawio candidates when tauri cache prepare fails", async () => {
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+      convertFileSrc: (value: string) => value,
+    }));
+    vi.doMock("../../../shared/api/local-resources", () => ({
+      drawioCachePrepare: vi.fn(async () => {
+        throw new Error("prepare failed");
+      }),
+    }));
+
+    const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
+    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([]);
   });
 });
-

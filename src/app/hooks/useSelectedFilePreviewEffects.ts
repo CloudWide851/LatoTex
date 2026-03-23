@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { readFile, readFileBinary } from "../../shared/api/desktop";
+import { readFile, readFileBinary } from "../../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;

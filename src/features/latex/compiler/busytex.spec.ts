@@ -121,7 +121,7 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.join(" ")).toContain("BusyTeX assets missing");
   });
 
-  it("prefers same-origin /core candidates before cross-origin cache paths", async () => {
+  it("uses local cache candidates only in tauri mode", async () => {
     mockCompilePayload = {
       success: true,
       pdf: [1, 2, 3],
@@ -129,7 +129,7 @@ describe("BusyTeX compile adapter", () => {
       exitCode: 0,
     };
     runnerInitFailureResolver = (basePath) => {
-      if (basePath.includes("/core/busytex")) {
+      if (basePath.includes("busytex-cache")) {
         return null;
       }
       return "failed to fetch";
@@ -154,8 +154,8 @@ describe("BusyTeX compile adapter", () => {
     const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
 
     expect(result.status).toBe("success");
-    expect(runnerInitCalls.some((call) => call.basePath.includes("/core/busytex"))).toBe(true);
-    expect(runnerInitCalls.some((call) => call.basePath.includes("asset.localhost"))).toBe(false);
+    expect(runnerInitCalls.some((call) => call.basePath.includes("asset.localhost"))).toBe(true);
+    expect(runnerInitCalls.some((call) => call.basePath.includes("/core/busytex"))).toBe(false);
     expect(runnerInitCalls.every((call) => call.useWorker)).toBe(true);
   });
 

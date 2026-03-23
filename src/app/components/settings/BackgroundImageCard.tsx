@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Trash2 } from "lucide-react";
-import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/desktop";
+import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/settings";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
 import type { AppSettings } from "../../../shared/types/app";
 

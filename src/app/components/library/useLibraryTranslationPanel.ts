@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { libraryResolvePdfPreview } from "../../../shared/api/desktop";
+import { libraryResolvePdfPreview } from "../../../shared/api/library";
 import {
   ensureTranslationResult,
   queryLibraryTranslationTask,

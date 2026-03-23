@@ -1,4 +1,5 @@
-import { analysisExportArtifact, workspaceRevealInSystem } from "../../shared/api/desktop";
+import { analysisExportArtifact } from "../../shared/api/analysis";
+import { workspaceRevealInSystem } from "../../shared/api/workspace";
 import type { MutableRefObject } from "react";
 import type { AnalysisTask } from "./analysisTypes";
 import { nowIso } from "./analysisTypes";

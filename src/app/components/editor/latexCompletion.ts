@@ -1,4 +1,4 @@
-import { executeWorkflowStart } from "../../../shared/api/desktop";
+import { executeWorkflowStart } from "../../../shared/api/agent";
 import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 

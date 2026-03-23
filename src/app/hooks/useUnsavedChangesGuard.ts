@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import { runtimeLogWrite, writeFile } from "../../shared/api/desktop";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { writeFile } from "../../shared/api/workspace";
 import type { EditorTab, PendingNavigationIntent, UnsavedChangeItem } from "../../shared/types/app";
 
 type UnsavedGuardParams = {

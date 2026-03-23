@@ -1,4 +1,4 @@
-import { getEvents } from "../../shared/api/desktop";
+import { getEvents } from "../../shared/api/agent";
 
 type RunWaitOptions = {
   runId: string;

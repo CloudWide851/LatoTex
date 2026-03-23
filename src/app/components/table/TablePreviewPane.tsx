@@ -2,7 +2,7 @@ import { Workbook, type CellValue, type Worksheet } from "exceljs";
 import Papa from "papaparse";
 import { Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readFileBinary, writeFileBinary } from "../../../shared/api/desktop";
+import { readFileBinary, writeFileBinary } from "../../../shared/api/workspace";
 import { isCsvPath, isExcelPath } from "../../../shared/utils/fileKind";
 import { cn } from "../../../lib/utils";
 

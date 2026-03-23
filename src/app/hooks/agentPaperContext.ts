@@ -1,8 +1,4 @@
-import {
-  getLibraryTree,
-  importLibraryLink,
-  libraryResolvePdfPreview,
-} from "../../shared/api/desktop";
+import { getLibraryTree, importLibraryLink, libraryResolvePdfPreview } from "../../shared/api/library";
 import type { ResourceNode } from "../../shared/types/app";
 import { buildPaperAnalysisContext } from "./analysisDataSources";
 

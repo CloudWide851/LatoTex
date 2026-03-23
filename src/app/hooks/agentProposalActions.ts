@@ -1,11 +1,7 @@
-import {
-  gitCommit,
-  gitStage,
-  openProject,
-  readFile,
-  runtimeLogWrite,
-  writeFile,
-} from "../../shared/api/desktop";
+import { gitCommit, gitStage } from "../../shared/api/git";
+import { openProject } from "../../shared/api/projects";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { readFile, writeFile } from "../../shared/api/workspace";
 import { generateGitSummary } from "./useGitSummaryGenerator";
 import { isLatexPath } from "./agentPatchEdits";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";

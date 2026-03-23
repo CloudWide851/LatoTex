@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { setModelApiKey, updateSettings } from "../../shared/api/desktop";
+import { setModelApiKey, updateSettings } from "../../shared/api/settings";
 import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
 

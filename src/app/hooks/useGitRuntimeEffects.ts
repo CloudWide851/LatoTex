@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { gitDownloadStatus } from "../../shared/api/desktop";
+import { gitDownloadStatus } from "../../shared/api/git";
 
 export function useGitRuntimeEffects(params: {
   page: string;

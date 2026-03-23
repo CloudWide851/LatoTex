@@ -1,4 +1,4 @@
-import { executeWorkflowStart } from "../../shared/api/desktop";
+import { executeWorkflowStart } from "../../shared/api/agent";
 import type { MutableRefObject } from "react";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";

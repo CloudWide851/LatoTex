@@ -123,6 +123,9 @@ export async function buildPyodideAnalysisProfile(input: {
 }): Promise<PyodideAnalysisProfile> {
   const runner = getPyodideRunner();
   const candidates = await resolvePyodideSourceCandidates();
+  if (candidates.length === 0) {
+    throw new Error("pyodide.init.failed");
+  }
   let lastError: unknown = null;
 
   for (const candidate of candidates) {
@@ -177,3 +180,4 @@ export async function buildPyodideAnalysisProfile(input: {
 
   throw new Error(lastError instanceof Error ? lastError.message : String(lastError ?? "pyodide.init.failed"));
 }
+

@@ -1,8 +1,5 @@
-import {
-  readFile,
-  runtimeLogWrite,
-  writeFile,
-} from "../../shared/api/desktop";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { readFile, writeFile } from "../../shared/api/workspace";
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { extractReferenceQueries, parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";

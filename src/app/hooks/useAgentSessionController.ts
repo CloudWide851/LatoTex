@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { executeWorkflowCancel } from "../../shared/api/desktop";
+import { executeWorkflowCancel } from "../../shared/api/agent";
 import type { AgentStatusKey } from "../app-config";
 import { parseAgentPrompt } from "./agentCommands";
 import type { AgentChatMessage, AgentRunRollback, AgentSessionSummary } from "./agentTypes";

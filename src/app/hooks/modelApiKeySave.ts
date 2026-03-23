@@ -1,7 +1,7 @@
-import { getModelApiKey } from "../../shared/api/desktop";
+import { getModelApiKey } from "../../shared/api/settings";
 import type { CredentialSaveResult } from "../../shared/types/app";
-
-type TranslationFn = (key: string) => string;
+import type { TranslationFn } from "../types/i18n";
+import type { MessageKey } from "../../i18n/messages/en-US/index";
 
 export type ModelApiKeyReadbackResult = {
   ok: boolean;
@@ -11,7 +11,7 @@ export type ModelApiKeyReadbackResult = {
   diagnosticCode?: string;
 };
 
-const SAVE_DIAGNOSTIC_MESSAGE_MAP: Record<string, string> = {
+const SAVE_DIAGNOSTIC_MESSAGE_MAP: Record<string, MessageKey> = {
   SECURE_STORE_WRITE_FAILED: "settings.modal.saveFailedStorageUnavailable",
   SECURE_STORE_READ_FAILED: "settings.modal.saveFailedReadback",
   KEY_READ_EMPTY_AFTER_WRITE: "settings.modal.saveFailedReadbackEmpty",
@@ -26,7 +26,7 @@ const SAVE_DIAGNOSTIC_MESSAGE_MAP: Record<string, string> = {
   MASTER_KEY_MISMATCH_RECOVER_WRITE_FAILED: "settings.modal.saveFailedReadback",
 };
 
-const READBACK_DIAGNOSTIC_MESSAGE_MAP: Record<string, string> = {
+const READBACK_DIAGNOSTIC_MESSAGE_MAP: Record<string, MessageKey> = {
   KEYRING_READ_FAILED: "settings.modal.saveFailedReadback",
   KEYRING_READ_FAILED_FALLBACK_DB: "settings.modal.saveFailedReadback",
   KEYRING_EMPTY_FALLBACK_DB: "settings.modal.saveFailedReadback",

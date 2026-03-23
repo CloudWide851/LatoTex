@@ -1,7 +1,10 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
-import { getModelApiKey, getSettings, projectIntegrityRepair, projectIntegrityStatus, runtimeLogWrite, saveModelApiKeyVerified, testModel, windowSyncIcon } from "../../shared/api/desktop";
+import { windowSyncIcon } from "../../shared/api/app";
+import { projectIntegrityRepair, projectIntegrityStatus } from "../../shared/api/projects";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { getModelApiKey, getSettings, saveModelApiKeyVerified, testModel } from "../../shared/api/settings";
 import { isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction, ModelCatalogItem } from "../../shared/types/app";
 import {
@@ -11,10 +14,13 @@ import {
 } from "./modelApiKeySave";
 import { getTabIdsByAction } from "./useEditorTabs";
 import { generateGitSummary } from "./useGitSummaryGenerator";
+import type { AppContainerWorkspaceActionsResult, UseAppContainerWorkspaceActionsParams } from "./useAppContainerWorkspaceActions.types";
 import { resolveWindowCloseRequestPlan } from "./windowCloseFlow";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 
-export function useAppContainerWorkspaceActions(params: any) {
+export function useAppContainerWorkspaceActions(
+  params: UseAppContainerWorkspaceActionsParams,
+): AppContainerWorkspaceActionsResult {
   const {
     selectedFile,
     editorContent,

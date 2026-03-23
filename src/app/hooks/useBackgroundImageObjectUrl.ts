@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { readBackgroundImage } from "../../shared/api/desktop";
+import { readBackgroundImage } from "../../shared/api/settings";
 
 export function useBackgroundImageObjectUrl(pathValue: string | null | undefined) {
   const normalizedPath = String(pathValue ?? "").trim();

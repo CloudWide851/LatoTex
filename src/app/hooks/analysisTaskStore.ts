@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "../../shared/api/desktop";
+import { readFile, writeFile } from "../../shared/api/workspace";
 import type { AnalysisTask, AnalysisTaskState } from "./analysisTypes";
 import { nowIso, newTaskId } from "./analysisTypes";
 

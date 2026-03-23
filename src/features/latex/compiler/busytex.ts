@@ -96,13 +96,21 @@ async function resolveCacheBasePaths(): Promise<string[]> {
 }
 
 async function buildBasePathCandidates(): Promise<string[]> {
+  const cachePaths = await resolveCacheBasePaths();
+  const withVariants: string[] = [];
+
+  if (isTauri()) {
+    for (const path of cachePaths) {
+      appendLocalResourceBaseVariants(withVariants, path);
+    }
+    return orderLocalResourceCandidatesByOrigin(withVariants);
+  }
+
   const baseUrl =
     typeof import.meta !== "undefined" && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
       : "/";
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  const cachePaths = await resolveCacheBasePaths();
-  const withVariants: string[] = [];
 
   appendLocalResourceBaseVariants(withVariants, `${normalizedBase}core/busytex`);
   appendLocalResourceBaseVariants(withVariants, "/core/busytex");
@@ -439,6 +447,8 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+
+
 
 
 

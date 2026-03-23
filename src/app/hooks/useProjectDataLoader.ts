@@ -1,14 +1,8 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import {
-  getLibraryTree,
-  gitBranches,
-  gitCheckInstalled,
-  gitLog,
-  gitStatus,
-  openProject,
-  projectIntegrityStatus,
-} from "../../shared/api/desktop";
+import { gitBranches, gitCheckInstalled, gitLog, gitStatus } from "../../shared/api/git";
+import { getLibraryTree } from "../../shared/api/library";
+import { openProject, projectIntegrityStatus } from "../../shared/api/projects";
 import type { WorkspacePage } from "../../shared/types/app";
 
 export type ProjectIntegrityIssue = { projectId: string; missingRequired: string[] };

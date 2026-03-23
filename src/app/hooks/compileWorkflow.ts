@@ -1,10 +1,8 @@
 import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
-import {
-  busytexInstallMissingPackage,
-  readFile,
-  recordCompile,
-  runtimeLogWrite,
-} from "../../shared/api/desktop";
+import { recordCompile } from "../../shared/api/latex";
+import { busytexInstallMissingPackage } from "../../shared/api/local-resources";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { readFile } from "../../shared/api/workspace";
 import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
 import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
 import {

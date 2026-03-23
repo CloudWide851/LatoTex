@@ -1,17 +1,10 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
-import {
-  fsOperation,
-  getLibraryTree,
-  initProjectFromFolder,
-  openProject,
-  projectSearchContent,
-  runtimeLogWrite,
-  workspaceOpenTerminal,
-  workspaceRevealInSystem,
-  writeFile,
-} from "../../shared/api/desktop";
+import { getLibraryTree } from "../../shared/api/library";
+import { initProjectFromFolder, openProject, projectSearchContent } from "../../shared/api/projects";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { fsOperation, workspaceOpenTerminal, workspaceRevealInSystem, writeFile } from "../../shared/api/workspace";
 import { isExcelPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";

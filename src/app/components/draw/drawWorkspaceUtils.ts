@@ -37,7 +37,6 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     return [DRAWIO_HOST_URL];
   }
 
-  const fallbackCandidates = [DRAWIO_HOST_URL];
   try {
     const policy = typeof window !== "undefined"
       ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
@@ -46,12 +45,9 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    return prioritizeReachableLocalResourceCandidates([
-      ...fallbackCandidates,
-      ...toDrawioHostCandidates(info.actualDir),
-    ]);
+    return prioritizeReachableLocalResourceCandidates(toDrawioHostCandidates(info.actualDir));
   } catch {
-    return fallbackCandidates;
+    return [];
   }
 }
 
@@ -313,6 +309,7 @@ export async function persistDrawExportToWorkspace(params: {
   await onAfterSave?.(savedPath);
   return savedPath;
 }
+
 
 
 

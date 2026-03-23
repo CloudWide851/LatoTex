@@ -1,4 +1,4 @@
-import { translateLibraryDocument } from "../../shared/api/desktop";
+import { translateLibraryDocument } from "../../shared/api/library";
 import {
   buildAgentPaperContextBlock,
   importPaperLinkAndResolveContext,

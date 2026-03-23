@@ -8,7 +8,7 @@ describe("resolvePyodideSourceCandidates", () => {
     vi.resetModules();
   });
 
-  it("normalizes encoded windows local-cache paths and keeps CDN fallback", async () => {
+  it("normalizes encoded windows local-cache paths and stays local-only in tauri", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
       convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fanalysis-pyodide-cache",
@@ -31,10 +31,10 @@ describe("resolvePyodideSourceCandidates", () => {
       "http://asset.localhost/F:/LatoTex/analysis-pyodide-cache/pyodide.mjs",
     );
     expect(candidates[0]?.source.indexURL).toBe("http://asset.localhost/F:/LatoTex/analysis-pyodide-cache/");
-    expect(candidates.some((item) => item.name === "cdn-fallback")).toBe(true);
+    expect(candidates.some((item) => item.name === "cdn-fallback")).toBe(false);
   });
 
-  it("returns CDN candidate when local cache prepare fails", async () => {
+  it("returns no candidates when desktop local cache prepare fails", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
       convertFileSrc: (input: string) => input,
@@ -48,9 +48,20 @@ describe("resolvePyodideSourceCandidates", () => {
     const { resolvePyodideSourceCandidates } = await import("./source");
     const candidates = await resolvePyodideSourceCandidates();
 
+    expect(candidates).toEqual([]);
+  });
+
+  it("returns CDN candidate in non-tauri runtime", async () => {
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => false,
+      convertFileSrc: (input: string) => input,
+    }));
+
+    const { resolvePyodideSourceCandidates } = await import("./source");
+    const candidates = await resolvePyodideSourceCandidates();
+
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.name).toBe("cdn-fallback");
     expect(candidates[0]?.source.moduleUrl).toContain("cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.mjs");
   });
 });
-

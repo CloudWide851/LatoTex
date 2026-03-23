@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { disposePyodideRunner } from "../../features/analysis/pyodide/runner";
 import { disposeBusyTeXRuntime } from "../../features/latex/compiler/busytex";
-import { runtimeLogWrite } from "../../shared/api/desktop";
+import { runtimeLogWrite } from "../../shared/api/runtime";
 import type { SwarmEvent } from "../../shared/types/app";
 import { trimEventsForMemoryPressure } from "./eventMemoryBudget";
 

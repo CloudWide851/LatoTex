@@ -1,6 +1,6 @@
-﻿import { Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readFile, writeFile, writeFileBinary } from "../../../shared/api/desktop";
+import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
   buildRenamedDrawPath,

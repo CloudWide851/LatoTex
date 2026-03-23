@@ -1,9 +1,7 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  analysisSaveReport,
-  readFile,
-  runtimeLogWrite,
-} from "../../shared/api/desktop";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { analysisSaveReport } from "../../shared/api/analysis";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { readFile } from "../../shared/api/workspace";
 import {
   buildPaperAnalysisContext,
   listCandidateDataFiles,
@@ -17,8 +15,7 @@ import { buildPyodideAnalysisProfile } from "../../features/analysis/pyodide/pro
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
 import { ensureAnalysisTasksLoaded, runRolePromptWithAgent } from "./analysisRunHelpers";
-import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
-import { newRunId, nowIso } from "./analysisTypes";
+import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";import { newRunId, nowIso } from "./analysisTypes";
 import {
   buildReportHtml,
   clampChart,

@@ -41,6 +41,7 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
 
   cachedCandidatesPromise = (async () => {
     const candidates: PyodideSourceCandidate[] = [];
+
     if (isTauri()) {
       try {
         const policyRaw = typeof window !== "undefined"
@@ -59,8 +60,9 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
           });
         }
       } catch {
-        // fallback to CDN candidate below
+        return [];
       }
+      return candidates;
     }
 
     candidates.push({
@@ -72,7 +74,3 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
 
   return cachedCandidatesPromise;
 }
-
-
-
-

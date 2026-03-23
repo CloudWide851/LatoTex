@@ -1,9 +1,6 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import { PenTool, Play, Redo2, Save, Undo2 } from "lucide-react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { AgentChatOverlay } from "./AgentChatOverlay";
-import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 import { PageRail } from "./PageRail";
 import { isCsvPath, isExcelPath, isImagePath, isMarkdownPath, isPdfPath, isSvgPath, isTabularPath } from "../../shared/utils/fileKind";
 import { EditorTabsBar } from "./editor/EditorTabsBar";
@@ -11,15 +8,18 @@ import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
 import { configureLatexCompletionRuntime, ensureLatexCompletionProvider } from "./editor/latexCompletion";
 import { buildCompileAssistHint } from "./editor/compileAssistHint";
-import { LibraryExplorerPanel } from "./workspace/LibraryExplorerPanel";
-import { WorkspaceExplorerPanel } from "./workspace/WorkspaceExplorerPanel";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
+import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import { NoProjectPanel } from "./workspace/NoProjectPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
-import { ChatWorkspace } from "./chat/ChatWorkspace";
 import { ChatTopbarSessionControl } from "./chat/ChatTopbarSessionControl";
-import { DrawWorkspace } from "./draw/DrawWorkspace";
 import { buildAgentCommandItems, composeTitleWithShortcut, dispatchCompileAssistAutoFix } from "./workspace/workspaceShellUtils";
+import {
+  LazyAgentChatOverlay,
+  LazyChatWorkspace,
+  LazyDrawWorkspace,
+  WorkspacePanelFallback,
+} from "./workspace/workspaceShellLazy";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -255,13 +255,15 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     }
     if (page === "draw") {
       return (
-        <DrawWorkspace
-          projectId={activeProjectId}
-          selectedPath={selectedFile}
-          onSelectPath={onSelectFile}
-          onRunFsAction={onRunFsAction}
-          t={t}
-        />
+        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+          <LazyDrawWorkspace
+            projectId={activeProjectId}
+            selectedPath={selectedFile}
+            onSelectPath={onSelectFile}
+            onRunFsAction={onRunFsAction}
+            t={t}
+          />
+        </Suspense>
       );
     }
     if (page === "library") {
@@ -391,12 +393,14 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             />
           ) : null}
           {showChatWorkspace ? (
-            <ChatWorkspace
-              projectId={activeProjectId}
-              modelOverride={completionModelId}
-              channelPrefs={channelPrefs}
-              t={t}
-            />
+            <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+              <LazyChatWorkspace
+                projectId={activeProjectId}
+                modelOverride={completionModelId}
+                channelPrefs={channelPrefs}
+                t={t}
+              />
+            </Suspense>
           ) : selectedIsExcel ? (
             <div className="flex h-full items-center justify-center rounded-md bg-slate-50 text-xs text-slate-500">
               {t("editor.excelPreviewOnly")}
@@ -428,53 +432,55 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             />
           )}
           {showChatWorkspace ? null : (
-          <AgentChatOverlay
-            collapsed={agentCollapsed}
-            phase={agentPhase}
-            statusLine={t(agentStatusKey)}
-            title={t("agent.chatTitle")}
-            collapseLabel={t("agent.collapse")}
-            prompt={agentPrompt}
-            busy={busy}
-            messages={agentMessages}
-            proposal={agentProposal}
-            pendingAction={agentPendingAction}
-            runId={agentRunId}
-            sessions={agentSessions}
-            sessionPickerOpen={agentSessionPickerOpen}
-            sessionPickerIndex={agentSessionPickerIndex}
-            rollbackVisible={agentRollbackVisible}
-            events={events}
-            onPromptChange={onAgentPromptChange}
-            onRun={onAgentRun}
-            onSessionPickerOpenChange={onAgentSessionPickerOpenChange}
-            onSessionPickerIndexChange={onAgentSessionPickerIndexChange}
-            onSessionConfirm={onAgentSessionConfirm}
-            onRollback={onAgentRollback}
-            onToggle={onAgentToggle}
-            onAcceptProposal={onAgentAcceptProposal}
-            onRejectProposal={onAgentRejectProposal}
-            onPendingActionResolve={onAgentPendingActionResolve}
-            runLabel={agentPhase === "running" ? t("agent.run.cancel") : t("workspace.runTaskAgent")}
-            placeholder={t("workspace.agentPlaceholder")}
-            activityShowLabel={t("agent.activityShow")}
-            activityHideLabel={t("agent.activityHide")}
-            applyLabel={t("agent.proposalApply")}
-            rejectLabel={t("agent.proposalReject")}
-            autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
-            showMoreLabel={t("agent.showMore")}
-            showLessLabel={t("agent.showLess")}
-            commands={agentCommandItems}
-            resumeTitle={t("agent.resume.title")}
-            resumeHint={t("agent.resume.hint")}
-            resumeEmptyLabel={t("agent.resume.empty")}
-            rollbackLabel={t("agent.rollback.restore")}
-            pendingActionTitle={t("agent.autoCommit.title")}
-            pendingActionDesc={t("agent.autoCommit.desc")}
-            pendingActionWaitLabel={t("agent.pendingAction.waiting")}
-            pendingActionYesLabel={t("agent.autoCommit.yes")}
-            pendingActionNoLabel={t("agent.autoCommit.no")}
-          />
+          <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+            <LazyAgentChatOverlay
+              collapsed={agentCollapsed}
+              phase={agentPhase}
+              statusLine={t(agentStatusKey)}
+              title={t("agent.chatTitle")}
+              collapseLabel={t("agent.collapse")}
+              prompt={agentPrompt}
+              busy={busy}
+              messages={agentMessages}
+              proposal={agentProposal}
+              pendingAction={agentPendingAction}
+              runId={agentRunId}
+              sessions={agentSessions}
+              sessionPickerOpen={agentSessionPickerOpen}
+              sessionPickerIndex={agentSessionPickerIndex}
+              rollbackVisible={agentRollbackVisible}
+              events={events}
+              onPromptChange={onAgentPromptChange}
+              onRun={onAgentRun}
+              onSessionPickerOpenChange={onAgentSessionPickerOpenChange}
+              onSessionPickerIndexChange={onAgentSessionPickerIndexChange}
+              onSessionConfirm={onAgentSessionConfirm}
+              onRollback={onAgentRollback}
+              onToggle={onAgentToggle}
+              onAcceptProposal={onAgentAcceptProposal}
+              onRejectProposal={onAgentRejectProposal}
+              onPendingActionResolve={onAgentPendingActionResolve}
+              runLabel={agentPhase === "running" ? t("agent.run.cancel") : t("workspace.runTaskAgent")}
+              placeholder={t("workspace.agentPlaceholder")}
+              activityShowLabel={t("agent.activityShow")}
+              activityHideLabel={t("agent.activityHide")}
+              applyLabel={t("agent.proposalApply")}
+              rejectLabel={t("agent.proposalReject")}
+              autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
+              showMoreLabel={t("agent.showMore")}
+              showLessLabel={t("agent.showLess")}
+              commands={agentCommandItems}
+              resumeTitle={t("agent.resume.title")}
+              resumeHint={t("agent.resume.hint")}
+              resumeEmptyLabel={t("agent.resume.empty")}
+              rollbackLabel={t("agent.rollback.restore")}
+              pendingActionTitle={t("agent.autoCommit.title")}
+              pendingActionDesc={t("agent.autoCommit.desc")}
+              pendingActionWaitLabel={t("agent.pendingAction.waiting")}
+              pendingActionYesLabel={t("agent.autoCommit.yes")}
+              pendingActionNoLabel={t("agent.autoCommit.no")}
+            />
+          </Suspense>
           )}
         </div>
       </div>
@@ -487,110 +493,37 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
           <PageRail items={pageRailItems} activePage={page} onChange={onPageChange} />
         </div>
         <div className="min-w-0 flex-1">
-          {page === "latex" && activeProjectId ? (
-            <PanelGroup
-              key={`panelgroup-latex-${activeProjectId}`}
-              direction="horizontal"
-              className="h-full gap-px"
-              onLayout={(layout) => onSavePanelLayout("latex", layout)}
-            >
-              <Panel className="min-w-0" id={`latex-explorer-${activeProjectId}`} order={1} defaultSize={latexLayout[0]} minSize={16}>
-                <WorkspaceExplorerPanel
-                  activeProjectId={activeProjectId}
-                  tree={tree}
-                  selectedFile={selectedFile}
-                  dirtyByPath={dirtyByPath}
-                  explorerGitDecorations={explorerGitDecorations}
-                  busy={busy}
-                  onSelectFile={handleSelectWorkspaceFile}
-                  onFsAction={onFsAction}
-                  onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
-                  onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
-                  onWorkspaceRescan={onWorkspaceRescan}
-                  t={t}
-                />
-              </Panel>
-              <PanelResizeHandle className="resizable-handle" />
-              <Panel className="min-w-0" id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
-                <section className="h-full min-h-0 min-w-0 motion-page-in">
-                  {renderMainPanel()}
-                </section>
-              </Panel>
-              <PanelResizeHandle className="resizable-handle" />
-              <Panel className="min-w-0" id={`latex-preview-${activeProjectId}`} order={3} defaultSize={latexLayout[2]} minSize={20}>
-                {renderPdfPreviewPanel()}
-              </Panel>
-            </PanelGroup>
-          ) : page === "analysis" ? (
-            <PanelGroup
-              key={`panelgroup-analysis-${activeProjectId ?? "none"}`}
-              direction="horizontal"
-              className="h-full gap-px"
-              onLayout={(layout) => onSavePanelLayout("analysis", layout)}
-            >
-              <Panel className="min-w-0" id={`analysis-explorer-${activeProjectId ?? "none"}`} order={1} defaultSize={analysisLayout[0]} minSize={18}>
-                <WorkspaceExplorerPanel
-                  activeProjectId={activeProjectId}
-                  tree={tree}
-                  selectedFile={selectedFile}
-                  dirtyByPath={dirtyByPath}
-                  explorerGitDecorations={explorerGitDecorations}
-                  busy={busy}
-                  onSelectFile={handleSelectWorkspaceFile}
-                  onFsAction={onFsAction}
-                  onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
-                  onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
-                  onWorkspaceRescan={onWorkspaceRescan}
-                  t={t}
-                />
-              </Panel>
-              <PanelResizeHandle className="resizable-handle" />
-              <Panel className="min-w-0" id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
-                <section className="h-full min-h-0 min-w-0 motion-page-in">
-                  {renderMainPanel()}
-                </section>
-              </Panel>
-            </PanelGroup>
-          ) : page === "library" && activeProjectId ? (
-            <PanelGroup
-              key={`panelgroup-library-${activeProjectId}`}
-              direction="horizontal"
-              className="h-full gap-px"
-              onLayout={(layout) => onSavePanelLayout("library", layout)}
-            >
-              <Panel className="min-w-0" id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
-                <LibraryExplorerPanel
-                  libraryTree={libraryTree}
-                  selectedLibraryPath={selectedLibraryPath}
-                  busy={busy}
-                  onSelectLibraryPath={onSelectLibraryPath}
-                  onFsAction={onFsAction}
-                  onLibraryRescan={onLibraryRescan}
-                  onLibraryImportPdf={onLibraryImportPdf}
-                  onLibraryImportLink={onLibraryImportLink}
-                  onLibrarySyncZotero={onLibrarySyncZotero}
-                  t={t}
-                />
-              </Panel>
-              <PanelResizeHandle className="resizable-handle" />
-              <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
-                <section className="h-full min-h-0 min-w-0 motion-page-in">
-                  <LibraryDocumentViewer
-                    projectId={activeProjectId}
-                    selectedPath={selectedLibraryPath}
-                    onAnalyzePaper={onLibraryAnalyzePaper}
-                    analysisRunning={analysisRunning}
-                    translationModelId={translationModelId}
-                    t={t}
-                  />
-                </section>
-              </Panel>
-            </PanelGroup>
-          ) : (
-            <section className="h-full min-h-0 min-w-0 motion-page-in">
-              {renderMainPanel()}
-            </section>
-          )}
+          <WorkspacePageLayout
+            page={page}
+            activeProjectId={activeProjectId}
+            busy={busy}
+            latexLayout={latexLayout}
+            analysisLayout={analysisLayout}
+            libraryLayout={libraryLayout}
+            tree={tree}
+            libraryTree={libraryTree}
+            selectedFile={selectedFile}
+            selectedLibraryPath={selectedLibraryPath}
+            dirtyByPath={dirtyByPath}
+            explorerGitDecorations={explorerGitDecorations}
+            onSelectLibraryPath={onSelectLibraryPath}
+            onFsAction={onFsAction}
+            onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
+            onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
+            onWorkspaceRescan={onWorkspaceRescan}
+            onLibraryRescan={onLibraryRescan}
+            onLibraryImportPdf={onLibraryImportPdf}
+            onLibraryImportLink={onLibraryImportLink}
+            onLibrarySyncZotero={onLibrarySyncZotero}
+            onLibraryAnalyzePaper={onLibraryAnalyzePaper}
+            analysisRunning={analysisRunning}
+            translationModelId={translationModelId}
+            onSavePanelLayout={onSavePanelLayout}
+            renderMainPanel={renderMainPanel}
+            renderPdfPreviewPanel={renderPdfPreviewPanel}
+            onSelectWorkspaceFile={handleSelectWorkspaceFile}
+            t={t}
+          />
         </div>
       </div>
     </main>
