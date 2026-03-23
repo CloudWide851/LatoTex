@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/ensure-busytex-assets.mjs && node scripts/ensure-pyodide-assets.mjs && node scripts/ensure-drawio-assets.mjs && tsc && vite build",
+    "build": "node scripts/ensure-busytex-assets.mjs && node scripts/ensure-pyodide-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -17,7 +17,8 @@
     "soak:6h-sim": "node scripts/soak-6h-sim.mjs",
     "audit:debt": "node scripts/audit-historical-debt.mjs",
     "tauri": "node scripts/ensure-brand-icons.mjs && tauri",
-    "pyodide:assets": "node scripts/ensure-pyodide-assets.mjs"
+    "pyodide:assets": "node scripts/ensure-pyodide-assets.mjs",
+    "pdf-tools:assets": "node scripts/ensure-pdf-tools.mjs"
   },
   "packageManager": "pnpm@10.29.2",
   "dependencies": {

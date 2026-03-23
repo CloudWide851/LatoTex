@@ -1,8 +1,7 @@
 import Papa from "papaparse";
-import { pdfjs } from "react-pdf";
-import { libraryCitationSummary, libraryResolvePdfPreview } from "../../shared/api/library";
+import { libraryExtractPaperContext } from "../../shared/api/library";
 import { readFile, readFileBinary } from "../../shared/api/workspace";
-import { ensureReactPdfWorker } from "../components/pdf/reactPdfSetup";
+
 export type AnalysisSourceSnapshot = {
   path: string;
   kind: "csv" | "excel" | "json" | "text" | "paper";
@@ -199,7 +198,7 @@ export async function loadDataSnapshots(
   return out;
 }
 
-type PaperChunk = {
+export type PaperChunk = {
   chunkIndex: number;
   pageStart: number;
   pageEnd: number;
@@ -212,104 +211,33 @@ export type PaperAnalysisContext = {
   metadataBlock: string;
   chunks: PaperChunk[];
   pdfRelativePath?: string;
+  detectedLanguage?: string | null;
+  extractionEngine?: string | null;
+  extractionMode?: string | null;
+  pageCount: number;
+  ocrPageCount: number;
 };
-
-function normalizePdfPageText(raw: string): string {
-  return raw
-    .replace(/\s+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
-}
-
-function chunkPaperTextByPages(
-  pages: Array<{ page: number; text: string }>,
-  maxCharsPerChunk = 10_000,
-): PaperChunk[] {
-  const chunks: PaperChunk[] = [];
-  let buffer = "";
-  let start = 1;
-  let end = 1;
-  let chunkIndex = 0;
-  for (const item of pages) {
-    const pageBlock = `\n\n[Page ${item.page}]\n${item.text}`;
-    if (buffer.length > 0 && buffer.length + pageBlock.length > maxCharsPerChunk) {
-      chunks.push({
-        chunkIndex,
-        pageStart: start,
-        pageEnd: end,
-        text: buffer.trim(),
-      });
-      chunkIndex += 1;
-      buffer = pageBlock;
-      start = item.page;
-      end = item.page;
-    } else {
-      if (!buffer) {
-        start = item.page;
-      }
-      buffer += pageBlock;
-      end = item.page;
-    }
-  }
-  if (buffer.trim()) {
-    chunks.push({
-      chunkIndex,
-      pageStart: start,
-      pageEnd: end,
-      text: buffer.trim(),
-    });
-  }
-  return chunks;
-}
 
 export async function buildPaperAnalysisContext(
   projectId: string,
   sourcePath: string,
 ): Promise<PaperAnalysisContext> {
-  const citation = await libraryCitationSummary(projectId, sourcePath);
-  const preview = await libraryResolvePdfPreview(projectId, sourcePath);
-  const title = citation.title?.trim() || sourcePath.split("/").pop() || sourcePath;
-  const metadata = [
-    `Title: ${citation.title ?? "-"}`,
-    `Authors: ${(citation.authors ?? []).join(", ") || "-"}`,
-    `Published: ${citation.publishedAt ?? "-"}`,
-    `DOI: ${citation.doi ?? "-"}`,
-    `ArXiv: ${citation.arxivId ?? "-"}`,
-    `Source: ${citation.source ?? "-"}`,
-    `URLs: ${(citation.urls ?? []).join(", ") || "-"}`,
-  ].join("\n");
-  if (!preview.relativePath) {
-    return {
-      sourcePath,
-      title,
-      metadataBlock: metadata,
-      chunks: [],
-    };
-  }
-  ensureReactPdfWorker();
-  const binary = await readFileBinary(projectId, preview.relativePath);
-  const bytes = Uint8Array.from(binary.bytes);
-  const loadingTask = pdfjs.getDocument({ data: bytes });
-  const pdf = await loadingTask.promise;
-  const pages: Array<{ page: number; text: string }> = [];
-  for (let i = 1; i <= pdf.numPages; i += 1) {
-    const page = await pdf.getPage(i);
-    const textContent = await page.getTextContent();
-    const text = normalizePdfPageText(
-      textContent.items
-        .map((item) => ("str" in item ? String(item.str ?? "") : ""))
-        .join(" "),
-    );
-    pages.push({ page: i, text });
-  }
-  const chunks = chunkPaperTextByPages(pages);
+  const result = await libraryExtractPaperContext(projectId, sourcePath);
   return {
-    sourcePath,
-    title,
-    metadataBlock: metadata,
-    chunks,
-    pdfRelativePath: preview.relativePath ?? undefined,
+    sourcePath: result.sourcePath || sourcePath,
+    title: result.title,
+    metadataBlock: result.metadataBlock,
+    chunks: (result.chunks ?? []).map((chunk) => ({
+      chunkIndex: Number(chunk.chunkIndex ?? 0),
+      pageStart: Number(chunk.pageStart ?? 1),
+      pageEnd: Number(chunk.pageEnd ?? chunk.pageStart ?? 1),
+      text: String(chunk.text ?? "").trim(),
+    })),
+    pdfRelativePath: result.pdfRelativePath ?? undefined,
+    detectedLanguage: result.detectedLanguage,
+    extractionEngine: result.extractionEngine,
+    extractionMode: result.extractionMode,
+    pageCount: Number(result.pageCount ?? 0),
+    ocrPageCount: Number(result.ocrPageCount ?? 0),
   };
 }
-

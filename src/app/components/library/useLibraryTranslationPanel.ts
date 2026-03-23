@@ -3,6 +3,7 @@ import { libraryResolvePdfPreview } from "../../../shared/api/library";
 import {
   ensureTranslationResult,
   queryLibraryTranslationTask,
+  resolveTranslationStageLabel,
   startLibraryTranslationTask,
 } from "./libraryTranslation";
 
@@ -13,6 +14,8 @@ export type LibraryTranslationProgress = {
   status: string;
   currentPage: number;
   totalPages: number;
+  stage: string;
+  stageLabel: string;
   message: string;
 };
 
@@ -112,6 +115,8 @@ export function useLibraryTranslationPanel(params: {
           status: "running",
           currentPage: 0,
           totalPages: 0,
+          stage: "queued",
+          stageLabel: resolveTranslationStageLabel("queued", "queued", t),
           message: "queued",
         });
 
@@ -147,12 +152,16 @@ export function useLibraryTranslationPanel(params: {
             return;
           }
 
+          const stage = String(status.stage || status.message || "running");
+          const message = String(status.message || stage || "running");
           setTranslationProgress({
             taskId: started.taskId,
             status: String(status.status || "running"),
             currentPage: Number(status.currentPage || 0),
             totalPages: Number(status.totalPages || 0),
-            message: String(status.message || "running"),
+            stage,
+            stageLabel: resolveTranslationStageLabel(stage, message, t),
+            message,
           });
 
           if (status.status === "completed") {
@@ -201,4 +210,3 @@ export function useLibraryTranslationPanel(params: {
     runTranslation,
   };
 }
-

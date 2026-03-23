@@ -13,7 +13,7 @@ pub(super) struct OcrExtractionCandidate {
     pub confidence: f32,
 }
 
-fn normalize_for_blocks(raw: &str, max_chars: usize) -> String {
+pub(super) fn normalize_for_blocks(raw: &str, max_chars: usize) -> String {
     let mut out = String::new();
     let mut line = String::new();
     for ch in raw.chars() {
@@ -236,7 +236,7 @@ fn punctuation_ratio(input: &str) -> f32 {
     }
 }
 
-fn text_quality_score(input: &str) -> f32 {
+pub(super) fn text_quality_score(input: &str) -> f32 {
     let char_count = input.chars().count() as f32;
     if char_count < 40.0 {
         return 0.0;
@@ -404,5 +404,6 @@ pub(super) fn extract_pdf_text_with_local_ocr(
 
     None
 }
+
 
 

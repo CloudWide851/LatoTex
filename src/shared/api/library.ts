@@ -1,6 +1,7 @@
 import type {
   Ack,
   LibraryCitationSummary,
+  LibraryPaperExtractResult,
   LibraryPdfPreview,
   LibraryTranslateResult,
   LibraryTranslateStartResult,
@@ -77,6 +78,15 @@ export function translateLibraryDocumentStart(input: {
 export function translateLibraryDocumentStatus(taskId: string): Promise<LibraryTranslateStatus> {
   return invokeCommand<LibraryTranslateStatus>("library_translate_status", {
     input: { taskId },
+  });
+}
+
+export function libraryExtractPaperContext(
+  projectId: string,
+  relativePath: string,
+): Promise<LibraryPaperExtractResult> {
+  return invokeCommand<LibraryPaperExtractResult>("library_extract_paper_context", {
+    input: { projectId, relativePath },
   });
 }
 

@@ -27,6 +27,7 @@ import {
 } from "./library/annotationModel";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
+import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
 import { filenameFromPath } from "./library/viewerUtils";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
 
@@ -107,12 +108,6 @@ export function LibraryDocumentViewer(props: {
     [annotationTextBoxes, currentPage],
   );
   const hasComparePair = Boolean(sourcePdfRelativePath && translatedPdfRelativePath && pdfUrl && translatedPdfUrl);
-  const translationPercent = useMemo(() => {
-    if (!translationProgress || translationProgress.totalPages <= 0) {
-      return 0;
-    }
-    return Math.max(0, Math.min(100, Math.round((translationProgress.currentPage / translationProgress.totalPages) * 100)));
-  }, [translationProgress]);
 
   useEffect(() => {
     return () => {
@@ -481,40 +476,20 @@ export function LibraryDocumentViewer(props: {
             <FileSearch className="h-3.5 w-3.5" />
           </button>
 
-          <div className="flex items-center gap-1 rounded border border-slate-300 bg-white px-1.5 py-1">
-            <button
-              className={`${actionBtnClass} h-7 !w-7 border-transparent bg-transparent px-0 hover:bg-slate-100`}
-              onClick={() => {
-                if (hasTranslated && translatedPdfUrl) {
-                  setViewMode("compare");
-                  return;
-                }
-                void runTranslation(() => setViewMode("compare"));
-              }}
-              title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
-              disabled={!selectedPath || loading || translationBusy}
-            >
-              <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
-            </button>
-            {translationBusy ? (
-              <div className="w-28 min-w-0">
-                <div className="flex items-center justify-between gap-1 text-[10px] leading-none text-slate-600">
-                  <span className="truncate">{t("library.viewer.translating")}</span>
-                  {translationProgress ? (
-                    <span className="shrink-0">
-                      {translationProgress.currentPage}/{Math.max(translationProgress.totalPages, 0)}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded bg-slate-200">
-                  <div className="h-full bg-primary-600 transition-all" style={{ width: `${translationPercent}%` }} />
-                </div>
-                {translationProgress?.message ? (
-                  <div className="mt-1 truncate text-[10px] text-slate-500">{translationProgress.message}</div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          <button
+            className={actionBtnClass}
+            onClick={() => {
+              if (hasTranslated && translatedPdfUrl) {
+                setViewMode("compare");
+                return;
+              }
+              void runTranslation(() => setViewMode("compare"));
+            }}
+            title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
+            disabled={!selectedPath || loading || translationBusy}
+          >
+            <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
+          </button>
 
           {viewMode === "pdf" ? (
             <>
@@ -545,7 +520,9 @@ export function LibraryDocumentViewer(props: {
         </div>
       ) : null}
 
-      <LibraryViewerContentPanel
+      <div className="relative min-h-0">
+        <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
+        <LibraryViewerContentPanel
         viewMode={viewMode}
         loading={loading}
         loadError={loadError}
@@ -594,6 +571,7 @@ export function LibraryDocumentViewer(props: {
         linkError={linkError}
         t={t}
       />
+      </div>
     </div>
   );
 }

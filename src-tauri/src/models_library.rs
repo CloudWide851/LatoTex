@@ -85,10 +85,14 @@ pub struct LibraryTranslateResponse {
     pub artifact_paths: Vec<String>,
     pub detected_language: Option<String>,
     pub extraction_engine: Option<String>,
+    pub extraction_mode: Option<String>,
     pub refined_by_search: bool,
     pub glossary_count: u32,
     pub translated_pdf_relative_path: String,
     pub source_pdf_relative_path: String,
+    pub page_count: u32,
+    pub ocr_page_count: u32,
+    pub layout_mode: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,9 +114,41 @@ pub struct LibraryTranslateStatusResponse {
     pub status: String,
     pub current_page: u32,
     pub total_pages: u32,
+    pub stage: Option<String>,
     pub message: Option<String>,
     pub error: Option<String>,
     pub result: Option<LibraryTranslateResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPaperExtractInput {
+    pub project_id: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPaperExtractChunk {
+    pub chunk_index: u32,
+    pub page_start: u32,
+    pub page_end: u32,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPaperExtractResponse {
+    pub source_path: String,
+    pub title: String,
+    pub metadata_block: String,
+    pub chunks: Vec<LibraryPaperExtractChunk>,
+    pub pdf_relative_path: Option<String>,
+    pub detected_language: Option<String>,
+    pub extraction_engine: Option<String>,
+    pub extraction_mode: Option<String>,
+    pub page_count: u32,
+    pub ocr_page_count: u32,
 }
 
 #[derive(Debug, Deserialize)]

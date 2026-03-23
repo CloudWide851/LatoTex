@@ -17,7 +17,7 @@ fn detect_semantic_role(block: &TranslationBlock) -> &'static str {
         || lower.contains("\\end{equation}")
         || lower.contains("\\[")
         || lower.contains("\\]")
-        || lower.contains("$")
+        || lower.contains('$')
     {
         return "Formula";
     }
@@ -35,7 +35,7 @@ fn detect_semantic_role(block: &TranslationBlock) -> &'static str {
         return "Citation";
     }
     let has_table_markers = text.matches('|').count() >= 3
-        || text.contains("\t")
+        || text.contains('\t')
         || lower.contains("\\begin{table}")
         || lower.contains("table ");
     if has_table_markers {
@@ -63,6 +63,23 @@ fn section_title(page: Option<u32>, semantic_role: &str) -> String {
 }
 
 pub(super) fn build_layout_plan(extraction: &TranslationExtraction) -> TranslationLayoutPlan {
+    if extraction.source_kind == "pdf" {
+        let sections = extraction
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| TranslationLayoutSection {
+                id: format!("s-{}", index + 1),
+                title: section_title(block.page, detect_semantic_role(block)),
+                block_ids: vec![block.id.clone()],
+            })
+            .collect();
+        return TranslationLayoutPlan {
+            source_kind: extraction.source_kind.clone(),
+            sections,
+        };
+    }
+
     let mut sections: Vec<TranslationLayoutSection> = Vec::new();
     let mut current_ids: Vec<String> = Vec::new();
     let mut current_page: Option<u32> = None;

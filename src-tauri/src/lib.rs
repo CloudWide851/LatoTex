@@ -30,7 +30,7 @@ use commands::projects::{
     workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::projects_translation::{
-    library_translate_document, library_translate_start, library_translate_status,
+    library_extract_paper_context, library_translate_document, library_translate_start, library_translate_status,
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::settings::{
@@ -128,6 +128,7 @@ pub fn run() {
             library_import_pdf,
             library_import_link,
             library_translate_document,
+            library_extract_paper_context,
             library_translate_start,
             library_translate_status,
             library_zotero_sync,

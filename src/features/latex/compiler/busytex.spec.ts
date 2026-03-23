@@ -159,6 +159,39 @@ describe("BusyTeX compile adapter", () => {
     expect(runnerInitCalls.every((call) => call.useWorker)).toBe(true);
   });
 
+  it("falls back to direct initialization in tauri when worker bootstrap hits origin errors", async () => {
+    mockCompilePayload = {
+      success: true,
+      pdf: [5, 6, 7],
+      logs: [],
+      exitCode: 0,
+    };
+
+    runnerInitFailureResolver = (_basePath, _attempt, useWorker) =>
+      useWorker ? "Failed to construct 'Worker': Script at http://asset.localhost/busytex_worker.js cannot be accessed from origin" : null;
+
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+      convertFileSrc: (value: string) => `http://asset.localhost/${value.replace(/\\/g, "/")}`,
+    }));
+    vi.doMock("../../../shared/api/local-resources", () => ({
+      busytexCachePrepare: vi.fn(async () => ({
+        policy: "install-first",
+        requestedDir: "F:\\busytex-cache",
+        actualDir: "F:\\busytex-cache",
+        installDirWritable: true,
+        usingFallback: false,
+      })),
+    }));
+
+    vi.resetModules();
+    const { compileWithBusyTeX } = await import("./busytex");
+    const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
+
+    expect(result.status).toBe("success");
+    expect(runnerInitCalls.some((call) => call.useWorker)).toBe(true);
+    expect(runnerInitCalls.some((call) => !call.useWorker)).toBe(true);
+  });
   it("re-prepares cache and retries once for recoverable asset errors", async () => {
     mockCompilePayload = {
       success: true,

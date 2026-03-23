@@ -1,4 +1,5 @@
-use super::library_translation_ocr::{detect_source_language, extract_pdf_text_with_local_ocr};
+use super::library_translation_ocr::detect_source_language;
+use super::library_translation_pdf_extract::extract_pdf_blocks_with_layout;
 use super::library_translation_types::{TranslationBlock, TranslationExtraction};
 use std::fs;
 use std::path::Path;
@@ -39,7 +40,6 @@ fn split_pdf_blocks(source: &str) -> Vec<String> {
         return chunks;
     }
 
-    // Merge very short neighboring chunks for stable paragraph context.
     let mut merged = Vec::<String>::new();
     let mut pending = String::new();
     for item in chunks {
@@ -72,6 +72,15 @@ pub(super) fn normalize_target_language(target_language: Option<&str>) -> String
     } else {
         value.to_string()
     }
+}
+
+pub(super) fn split_extraction_blocks_to_chunks(blocks: &[TranslationBlock]) -> Vec<String> {
+    let joined = blocks
+        .iter()
+        .map(|item| item.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    split_pdf_blocks(&joined)
 }
 
 pub(super) fn extract_translation_source(
@@ -116,12 +125,17 @@ pub(super) fn extract_translation_source(
             title_hint: stem,
             detected_language: detect_source_language(&content),
             extraction_engine: Some("native.text".to_string()),
+            extraction_mode: Some("native".to_string()),
+            page_count: 1,
+            ocr_page_count: 0,
             blocks: vec![TranslationBlock {
                 id: "b1".to_string(),
                 page: None,
                 role: "body".to_string(),
                 text: content,
                 confidence: Some(0.96),
+                bounds: None,
+                text_source: Some("native".to_string()),
             }],
         });
     }
@@ -138,47 +152,32 @@ pub(super) fn extract_translation_source(
                     role: "metadata".to_string(),
                     text: bib_text.trim().to_string(),
                     confidence: Some(0.90),
+                    bounds: None,
+                    text_source: Some("native".to_string()),
                 });
             }
         }
 
-        let binary = fs::read(&source_path).map_err(|e| e.to_string())?;
-        let ocr = extract_pdf_text_with_local_ocr(&source_path, &binary, PDF_FALLBACK_MAX_CHARS)
-            .ok_or_else(|| "translation.ocr_unavailable".to_string())?;
-
-        let chunks = split_pdf_blocks(&ocr.text);
-        for (index, chunk) in chunks.iter().enumerate() {
-            blocks.push(TranslationBlock {
-                id: format!("pdf-{}", index + 1),
-                page: Some((index + 1) as u32),
-                role: "paragraph".to_string(),
-                text: chunk.clone(),
-                confidence: Some(ocr.confidence),
-            });
-        }
-
+        let pdf_extraction = extract_pdf_blocks_with_layout(&source_path, PDF_FALLBACK_MAX_CHARS)?;
+        blocks.extend(pdf_extraction.blocks);
         if blocks.is_empty() {
             return Err("translation.ocr_unavailable".to_string());
         }
-
-        let combined = blocks
-            .iter()
-            .map(|item| item.text.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
 
         let _ = project_root;
         return Ok(TranslationExtraction {
             normalized_relative_path: normalized,
             source_kind: "pdf".to_string(),
-            output_ext: "md".to_string(),
+            output_ext: "pdf".to_string(),
             title_hint: stem,
-            detected_language: detect_source_language(&combined),
-            extraction_engine: Some(ocr.engine),
+            detected_language: pdf_extraction.detected_language,
+            extraction_engine: pdf_extraction.extraction_engine,
+            extraction_mode: Some(pdf_extraction.extraction_mode),
+            page_count: pdf_extraction.page_count,
+            ocr_page_count: pdf_extraction.ocr_page_count,
             blocks,
         });
     }
 
     Err(format!("translation.unsupported_source_type: {source_ext}"))
 }
-

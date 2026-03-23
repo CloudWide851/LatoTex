@@ -42,6 +42,7 @@ export type LibraryTranslateStatus = {
   status: string;
   currentPage: number;
   totalPages: number;
+  stage?: string | null;
   message?: string | null;
   error?: string | null;
   result?: LibraryTranslateResult | null;
@@ -53,10 +54,34 @@ export type LibraryTranslateResult = {
   artifactPaths?: string[];
   detectedLanguage?: string | null;
   extractionEngine?: string | null;
+  extractionMode?: string | null;
   refinedBySearch?: boolean;
   glossaryCount?: number;
   translatedPdfRelativePath: string;
   sourcePdfRelativePath: string;
+  pageCount: number;
+  ocrPageCount: number;
+  layoutMode: string;
+};
+
+export type LibraryPaperExtractChunk = {
+  chunkIndex: number;
+  pageStart: number;
+  pageEnd: number;
+  text: string;
+};
+
+export type LibraryPaperExtractResult = {
+  sourcePath: string;
+  title: string;
+  metadataBlock: string;
+  chunks: LibraryPaperExtractChunk[];
+  pdfRelativePath?: string | null;
+  detectedLanguage?: string | null;
+  extractionEngine?: string | null;
+  extractionMode?: string | null;
+  pageCount: number;
+  ocrPageCount: number;
 };
 
 export type CompileRecord = {

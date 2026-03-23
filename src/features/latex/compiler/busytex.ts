@@ -139,6 +139,33 @@ function buildMissingAssetsError(candidates: BusyTexInitCandidate[], reasons: st
   );
 }
 
+function shouldFallbackToDirectMode(error: unknown): boolean {
+  const message = toErrorMessage(error).toLowerCase();
+  return (
+    message.includes("worker")
+    || message.includes("asset.localhost")
+    || message.includes("origin")
+    || message.includes("unexpected token <")
+    || message.includes("syntaxerror")
+    || message.includes("scriptloaderdocument")
+    || message.includes("failed to construct 'worker'")
+    || message.includes('failed to construct "worker"')
+    || message.includes("cannot be accessed from origin")
+  );
+}
+
+async function initializeCandidateRunner(candidateRunner: BusyTexRunner): Promise<void> {
+  try {
+    await candidateRunner.initialize(true);
+    return;
+  } catch (error) {
+    if (!(isTauri() && shouldFallbackToDirectMode(error))) {
+      throw error;
+    }
+  }
+  await candidateRunner.initialize(false);
+}
+
 async function initializeRunnerFromCandidates(candidates: BusyTexInitCandidate[]): Promise<BusyTexRunner> {
   const reasons: string[] = [];
 
@@ -148,7 +175,7 @@ async function initializeRunnerFromCandidates(candidates: BusyTexInitCandidate[]
     });
     try {
       if (!candidateRunner.isInitialized()) {
-        await candidateRunner.initialize(true);
+        await initializeCandidateRunner(candidateRunner);
       }
       runnerBasePath = candidate.basePath;
       return candidateRunner;
@@ -324,7 +351,7 @@ async function getRunner(): Promise<BusyTexRunner> {
   if (runner) {
     try {
       if (!runner.isInitialized()) {
-        await runner.initialize(true);
+        await initializeCandidateRunner(runner);
       }
       return runner;
     } catch {

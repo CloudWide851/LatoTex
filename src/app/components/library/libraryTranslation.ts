@@ -9,6 +9,20 @@ import type {
 
 type TranslationFn = (key: any) => string;
 
+const STAGE_KEY_MAP: Record<string, string> = {
+  queued: "library.viewer.translationStage.queued",
+  starting: "library.viewer.translationStage.starting",
+  preparing: "library.viewer.translationStage.preparing",
+  extracting: "library.viewer.translationStage.extracting",
+  ocr: "library.viewer.translationStage.ocr",
+  translating: "library.viewer.translationStage.translating",
+  translated: "library.viewer.translationStage.translated",
+  rendering: "library.viewer.translationStage.rendering",
+  completed: "library.viewer.translationStage.completed",
+  failed: "library.viewer.translateFailed",
+  model: "library.viewer.translationStage.model",
+};
+
 export function resolveTranslationTargetLanguage(t: TranslationFn): string {
   if (typeof window === "undefined") {
     return t("library.translation.target.enUS");
@@ -17,6 +31,25 @@ export function resolveTranslationTargetLanguage(t: TranslationFn): string {
   return locale === "zh-CN"
     ? t("library.translation.target.zhCN")
     : t("library.translation.target.enUS");
+}
+
+export function resolveTranslationStageLabel(
+  stage: string | null | undefined,
+  message: string | null | undefined,
+  t: TranslationFn,
+): string {
+  const normalizedStage = String(stage || "").trim().toLowerCase();
+  const normalizedMessage = String(message || "").trim();
+  if (normalizedStage && STAGE_KEY_MAP[normalizedStage]) {
+    if (normalizedStage === "model") {
+      return `${t(STAGE_KEY_MAP.model)} ${normalizedMessage.replace(/^model:/i, "").trim()}`.trim();
+    }
+    return t(STAGE_KEY_MAP[normalizedStage]);
+  }
+  if (/^model:/i.test(normalizedMessage)) {
+    return `${t(STAGE_KEY_MAP.model)} ${normalizedMessage.replace(/^model:/i, "").trim()}`.trim();
+  }
+  return normalizedMessage || t("library.viewer.translating");
 }
 
 export async function startLibraryTranslationTask(input: {
@@ -56,6 +89,10 @@ export function ensureTranslationResult(result: LibraryTranslateResult | null | 
     result?.engine ? `engine=${result.engine}` : "",
     result?.detectedLanguage ? `source=${result.detectedLanguage}` : "",
     result?.extractionEngine ? `extract=${result.extractionEngine}` : "",
+    result?.extractionMode ? `mode=${result.extractionMode}` : "",
+    result?.layoutMode ? `layout=${result.layoutMode}` : "",
+    typeof result?.pageCount === "number" ? `pages=${result.pageCount}` : "",
+    typeof result?.ocrPageCount === "number" ? `ocr=${result.ocrPageCount}` : "",
     typeof result?.glossaryCount === "number" ? `glossary=${result.glossaryCount}` : "",
     result?.refinedBySearch ? "search-refined=true" : "",
   ].filter((item) => item.length > 0);

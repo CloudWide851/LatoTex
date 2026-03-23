@@ -1,6 +1,7 @@
 use crate::models::{
-    LibraryTranslateInput, LibraryTranslateResponse, LibraryTranslateStartResponse,
-    LibraryTranslateStatusInput, LibraryTranslateStatusResponse,
+    LibraryPaperExtractInput, LibraryPaperExtractResponse, LibraryTranslateInput,
+    LibraryTranslateResponse, LibraryTranslateStartResponse, LibraryTranslateStatusInput,
+    LibraryTranslateStatusResponse,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -46,6 +47,31 @@ pub async fn library_translate_document(
 }
 
 #[tauri::command]
+pub async fn library_extract_paper_context(
+    state: State<'_, AppState>,
+    input: LibraryPaperExtractInput,
+) -> Result<LibraryPaperExtractResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "library_extract_paper_context: project={}, path={}",
+            input.project_id,
+            input.relative_path,
+        ),
+    );
+
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        storage::extract_library_paper_context(&db_path, &project_id, &relative_path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub fn library_translate_start(
     state: State<'_, AppState>,
     input: LibraryTranslateInput,
@@ -64,6 +90,7 @@ pub fn library_translate_start(
     let task = crate::state::LibraryTranslateTask {
         id: task_id.clone(),
         status: Arc::new(Mutex::new("running".to_string())),
+        stage: Arc::new(Mutex::new(Some("queued".to_string()))),
         message: Arc::new(Mutex::new(Some("queued".to_string()))),
         error: Arc::new(Mutex::new(None)),
         current_page: Arc::new(AtomicU64::new(0)),
@@ -94,6 +121,9 @@ pub fn library_translate_start(
         };
 
         with_task(&|task_ref| {
+            if let Ok(mut stage) = task_ref.stage.lock() {
+                *stage = Some("starting".to_string());
+            }
             if let Ok(mut message) = task_ref.message.lock() {
                 *message = Some("starting".to_string());
             }
@@ -108,10 +138,19 @@ pub fn library_translate_start(
             model_override.as_deref(),
             |current, total, stage| {
                 with_task(&|task_ref| {
+                    let stage_value = stage.to_string();
+                    let stage_key = if stage_value.starts_with("model:") {
+                        "model".to_string()
+                    } else {
+                        stage_value.clone()
+                    };
                     task_ref.current_page.store(current as u64, Ordering::Relaxed);
                     task_ref.total_pages.store(total as u64, Ordering::Relaxed);
+                    if let Ok(mut stage_slot) = task_ref.stage.lock() {
+                        *stage_slot = Some(stage_key);
+                    }
                     if let Ok(mut message) = task_ref.message.lock() {
-                        *message = Some(stage.to_string());
+                        *message = Some(stage_value);
                     }
                 });
             },
@@ -122,6 +161,9 @@ pub fn library_translate_start(
                 with_task(&|task_ref| {
                     if let Ok(mut status) = task_ref.status.lock() {
                         *status = "completed".to_string();
+                    }
+                    if let Ok(mut stage) = task_ref.stage.lock() {
+                        *stage = Some("completed".to_string());
                     }
                     if let Ok(mut message) = task_ref.message.lock() {
                         *message = Some("completed".to_string());
@@ -135,6 +177,9 @@ pub fn library_translate_start(
                 with_task(&|task_ref| {
                     if let Ok(mut status) = task_ref.status.lock() {
                         *status = "failed".to_string();
+                    }
+                    if let Ok(mut stage) = task_ref.stage.lock() {
+                        *stage = Some("failed".to_string());
                     }
                     if let Ok(mut error_slot) = task_ref.error.lock() {
                         *error_slot = Some(error.clone());
@@ -168,6 +213,7 @@ pub fn library_translate_status(
         .lock()
         .map(|value| value.clone())
         .unwrap_or_else(|_| "failed".to_string());
+    let stage = task.stage.lock().ok().and_then(|value| value.clone());
     let message = task.message.lock().ok().and_then(|value| value.clone());
     let error = task.error.lock().ok().and_then(|value| value.clone());
     let result = task.result.lock().ok().and_then(|value| value.clone());
@@ -177,9 +223,9 @@ pub fn library_translate_status(
         status,
         current_page: task.current_page.load(Ordering::Relaxed) as u32,
         total_pages: task.total_pages.load(Ordering::Relaxed) as u32,
+        stage,
         message,
         error,
         result,
     })
 }
-

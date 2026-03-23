@@ -2,12 +2,25 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TranslationBlockBounds {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub page_width: f32,
+    pub page_height: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TranslationBlock {
     pub id: String,
     pub page: Option<u32>,
     pub role: String,
     pub text: String,
     pub confidence: Option<f32>,
+    pub bounds: Option<TranslationBlockBounds>,
+    pub text_source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +32,9 @@ pub struct TranslationExtraction {
     pub title_hint: String,
     pub detected_language: Option<String>,
     pub extraction_engine: Option<String>,
+    pub extraction_mode: Option<String>,
+    pub page_count: u32,
+    pub ocr_page_count: u32,
     pub blocks: Vec<TranslationBlock>,
 }
 

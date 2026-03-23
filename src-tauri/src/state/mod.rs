@@ -31,6 +31,7 @@ pub struct GitDownloadTask {
 pub struct LibraryTranslateTask {
     pub id: String,
     pub status: Arc<Mutex<String>>,
+    pub stage: Arc<Mutex<Option<String>>>,
     pub message: Arc<Mutex<Option<String>>>,
     pub error: Arc<Mutex<Option<String>>>,
     pub current_page: Arc<AtomicU64>,
