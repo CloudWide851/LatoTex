@@ -1,4 +1,4 @@
-import { analysisPyodidePrepare } from "../../../shared/api/desktop";
+import { analysisPyodidePrepare } from "../../../shared/api/local-resources";
 import type { AnalysisPyodideCacheInfo } from "../../../shared/types/app";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { buildLocalResourceBaseCandidates } from "../../../shared/utils/localResourceProbe";
@@ -72,6 +72,7 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
 
   return cachedCandidatesPromise;
 }
+
 
 
 

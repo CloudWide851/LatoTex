@@ -1,5 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect } from "react";
-import { setTrayLabels } from "../../shared/api/desktop";
+import { setTrayLabels } from "../../shared/api/app";
 
 type TranslationFn = (key: any) => string;
 

@@ -5,6 +5,7 @@ import path from "node:path";
 const sideLoadRoot = "src-tauri/resources/core";
 const sideLoadBusytexDir = path.resolve(sideLoadRoot, "busytex");
 const publicBusytexDir = path.resolve("public/core/busytex");
+const shouldMirrorPublic = process.env.LATOTEX_MIRROR_PUBLIC_BUSYTEX === "1";
 
 const requiredFiles = [
   path.join(sideLoadBusytexDir, "busytex.js"),
@@ -29,15 +30,20 @@ function copyDirectory(sourceDir, targetDir) {
   }
 }
 
-function mirrorToPublicBusytex() {
+function syncOptionalPublicMirror() {
+  if (!shouldMirrorPublic) {
+    fs.rmSync(publicBusytexDir, { recursive: true, force: true });
+    console.log("BusyTeX side-load assets ready (public mirror disabled)");
+    return;
+  }
   fs.rmSync(publicBusytexDir, { recursive: true, force: true });
   copyDirectory(sideLoadBusytexDir, publicBusytexDir);
+  console.log("BusyTeX side-load assets ready (mirrored to public/core/busytex)");
 }
 
 const missing = requiredFiles.filter((file) => !fs.existsSync(file));
 if (missing.length === 0) {
-  mirrorToPublicBusytex();
-  console.log("BusyTeX side-load assets ready (mirrored to public/core/busytex)");
+  syncOptionalPublicMirror();
   process.exit(0);
 }
 
@@ -64,5 +70,4 @@ if (unresolved.length > 0) {
   process.exit(0);
 }
 
-mirrorToPublicBusytex();
-console.log("BusyTeX side-load assets downloaded, verified, and mirrored to public/core/busytex");
+syncOptionalPublicMirror();

@@ -4,7 +4,7 @@ describe("drawWorkspaceUtils", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.doUnmock("@tauri-apps/api/core");
-    vi.doUnmock("../../../shared/api/desktop");
+    vi.doUnmock("../../../shared/api/local-resources");
     vi.resetModules();
   });
 
@@ -23,7 +23,7 @@ describe("drawWorkspaceUtils", () => {
       isTauri: () => true,
       convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fdrawio-cache",
     }));
-    vi.doMock("../../../shared/api/desktop", () => ({
+    vi.doMock("../../../shared/api/local-resources", () => ({
       drawioCachePrepare: vi.fn(async () => ({
         policy: "install-first",
         requestedDir: "F:\\LatoTex\\drawio-cache",
@@ -46,3 +46,4 @@ describe("drawWorkspaceUtils", () => {
     expect(candidates).toContain("/drawio/index.html");
   });
 });
+

@@ -71,7 +71,7 @@ describe("BusyTeX compile adapter", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.doUnmock("@tauri-apps/api/core");
-    vi.doUnmock("../../../shared/api/desktop");
+    vi.doUnmock("../../../shared/api/local-resources");
     vi.resetModules();
   });
 
@@ -139,7 +139,7 @@ describe("BusyTeX compile adapter", () => {
       isTauri: () => true,
       convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fbusytex-cache",
     }));
-    vi.doMock("../../../shared/api/desktop", () => ({
+    vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => ({
         policy: "install-first",
         requestedDir: "F:\\LatoTex\\busytex-cache",
@@ -179,7 +179,7 @@ describe("BusyTeX compile adapter", () => {
       isTauri: () => true,
       convertFileSrc: (value: string) => `http://asset.localhost/${value.replace(/\\/g, "/")}`,
     }));
-    vi.doMock("../../../shared/api/desktop", () => ({
+    vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => {
         cachePrepareCount += 1;
         const dir = cachePrepareCount === 1 ? "F:\\bad-cache" : "F:\\good-cache";
@@ -222,7 +222,7 @@ describe("BusyTeX compile adapter", () => {
       isTauri: () => true,
       convertFileSrc: (value: string) => "http://asset.localhost/" + value.replace(/\\/g, "/"),
     }));
-    vi.doMock("../../../shared/api/desktop", () => ({
+    vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => {
         cachePrepareCount += 1;
         const dir = cachePrepareCount === 1 ? "F:\\bad-cache" : "F:\\good-cache";
@@ -266,5 +266,6 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.some((line) => /keepRuntimeAlive/i.test(line))).toBe(false);
   });
 });
+
 
 

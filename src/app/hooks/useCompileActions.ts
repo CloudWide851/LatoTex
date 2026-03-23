@@ -1,8 +1,10 @@
 import { useCallback } from "react";
-import { openProject, runtimeLogWrite, workspaceExportPdf } from "../../shared/api/desktop";
+import { openProject } from "../../shared/api/projects";
+import { workspaceExportPdf } from "../../shared/api/workspace";
 import { isPdfPath } from "../../shared/utils/fileKind";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
 import type { CompileInstallProgress } from "./compileWorkflow";
+import { runAppAction, writeRuntimeLog } from "./appActionRuntime";
 
 type TranslationFn = (key: any) => string;
 
@@ -96,24 +98,27 @@ export function useCompileActions(params: {
     if (!activeProjectId || !selectedFile) {
       return;
     }
-    setBusy(true);
     setCompileDiagnostics([]);
     setCompileInstallProgress(null);
-    try {
-      await runCompilePass(activeProjectId, selectedFile, editorContent, {
-        updatePreview: true,
-        emitToast: true,
-      });
-    } catch (error) {
-      setLastCompileFailed(true);
-      setToast({ type: "error", message: String(error) });
-      setCompileDiagnostics([String(error)]);
-      setCompiledPdfBytes(null);
-      setCompileInstallProgress(null);
-    } finally {
-      setCompileInstallProgress(null);
-      setBusy(false);
-    }
+    await runAppAction({
+      action: async () => {
+        await runCompilePass(activeProjectId, selectedFile, editorContent, {
+          updatePreview: true,
+          emitToast: true,
+        });
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      errorLogLabel: "latex.compile",
+      onError: (error) => {
+        setLastCompileFailed(true);
+        setCompileDiagnostics([String(error)]);
+        setCompiledPdfBytes(null);
+        setCompileInstallProgress(null);
+      },
+    });
+    setCompileInstallProgress(null);
   }, [
     activeProjectId,
     editorContent,
@@ -135,22 +140,23 @@ export function useCompileActions(params: {
     const fallbackName = isPdfPath(selectedFile)
       ? selectedFile!.split("/").pop() ?? "compiled.pdf"
       : `${(selectedFile ?? "compiled").replace(/\.[^/.]+$/, "")}.pdf`;
-    setBusy(true);
-    try {
-      const saved = await workspaceExportPdf(activeProjectId, fallbackName, compiledPdfBytes);
-      if (!saved) {
-        return;
-      }
-      await runtimeLogWrite("INFO", `compiled pdf exported: ${saved.savedPath}`);
-      const snapshot = await openProject(activeProjectId);
-      setTree(snapshot.tree);
-      setSelectedFile(saved.savedPath);
-      setToast({ type: "info", message: t("toast.pdfSaved") });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
+    const saved = await runAppAction({
+      action: async () => {
+        return workspaceExportPdf(activeProjectId, fallbackName, compiledPdfBytes);
+      },
+      fallbackValue: null,
+      setBusy,
+      setToast,
+      errorLogLabel: "latex.export_pdf",
+    });
+    if (!saved) {
+      return;
     }
+    await writeRuntimeLog("INFO", `compiled pdf exported: ${saved.savedPath}`);
+    const snapshot = await openProject(activeProjectId);
+    setTree(snapshot.tree);
+    setSelectedFile(saved.savedPath);
+    setToast({ type: "info", message: t("toast.pdfSaved") });
   }, [
     activeProjectId,
     compiledPdfBytes,
@@ -178,4 +184,3 @@ export function useCompileActions(params: {
     handleEditorRedo,
   };
 }
-

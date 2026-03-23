@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/desktop";
+import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/share";
 import type { ShareCommentItem, ShareSessionInfo } from "../../shared/types/app";
 type TranslationFn = (key: any) => string;
 type ShareMode = "local" | "remote";
@@ -593,6 +593,7 @@ export function useShareSession(params: {
     ],
   );
 }
+
 
 
 

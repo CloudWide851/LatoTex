@@ -3,14 +3,16 @@ import {
   getLibraryTree,
   importLibraryLink,
   importLibraryPdf,
+  rescanLibrary,
   syncLibraryZotero,
+} from "../../shared/api/library";
+import {
   gitDownloadCancel,
   gitDownloadInstallerStart,
   gitRunInstaller,
-  rescanLibrary,
-  runtimeLogWrite,
-} from "../../shared/api/desktop";
+} from "../../shared/api/git";
 import type { GitDownloadStatus } from "../../shared/types/app";
+import { runAppAction } from "./appActionRuntime";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -49,42 +51,42 @@ export function useGitHandlers(params: {
     action: () => Promise<unknown>,
     actionLabel = "git.action",
   ) => {
-    setBusy(true);
-    try {
-      await action();
-      await runtimeLogWrite("INFO", `${actionLabel}: success`).catch(() => undefined);
-      await refreshGitWorkspace();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await runtimeLogWrite("ERROR", `${actionLabel}: failed: ${message}`).catch(() => undefined);
-      setToast({ type: "error", message });
-    } finally {
-      setBusy(false);
-    }
+    await runAppAction({
+      action: async () => {
+        await action();
+        await refreshGitWorkspace();
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      successLogMessage: `${actionLabel}: success`,
+      errorLogLabel: actionLabel,
+    });
   }, [refreshGitWorkspace, setBusy, setToast]);
 
   const handleGitInstallerDownloadStart = useCallback(async () => {
-    setBusy(true);
-    try {
-      const started = await gitDownloadInstallerStart();
-      setSuppressAutoGitInstall(false);
-      setGitInstallerLaunched(false);
-      setGitDownloadTaskId(started.taskId);
-      setGitDownloadState({
-        taskId: started.taskId,
-        status: "downloading",
-        fileName: started.fileName,
-        downloadedBytes: 0,
-        totalBytes: 0,
-        speedBps: 0,
-        progressPercent: 0,
-        installerPath: "",
-      });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
+    await runAppAction({
+      action: async () => {
+        const started = await gitDownloadInstallerStart();
+        setSuppressAutoGitInstall(false);
+        setGitInstallerLaunched(false);
+        setGitDownloadTaskId(started.taskId);
+        setGitDownloadState({
+          taskId: started.taskId,
+          status: "downloading",
+          fileName: started.fileName,
+          downloadedBytes: 0,
+          totalBytes: 0,
+          speedBps: 0,
+          progressPercent: 0,
+          installerPath: "",
+        });
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      errorLogLabel: "git.installer.download_start",
+    });
   }, [
     setBusy,
     setGitDownloadState,
@@ -98,62 +100,76 @@ export function useGitHandlers(params: {
     if (!gitDownloadTaskId) {
       return;
     }
-    try {
-      await gitDownloadCancel(gitDownloadTaskId);
-      setSuppressAutoGitInstall(true);
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    }
+    await runAppAction({
+      action: async () => {
+        await gitDownloadCancel(gitDownloadTaskId);
+        setSuppressAutoGitInstall(true);
+      },
+      fallbackValue: undefined,
+      setToast,
+      errorLogLabel: "git.installer.cancel",
+    });
   }, [gitDownloadTaskId, setSuppressAutoGitInstall, setToast]);
 
   const handleGitRunInstaller = useCallback(async () => {
     if (!gitDownloadTaskId || gitInstallerLaunched) {
       return;
     }
-    try {
-      await gitRunInstaller(gitDownloadTaskId);
-      setGitInstallerLaunched(true);
-      setToast({ type: "info", message: t("git.installerStarted") });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    }
+    await runAppAction({
+      action: async () => {
+        await gitRunInstaller(gitDownloadTaskId);
+        setGitInstallerLaunched(true);
+      },
+      fallbackValue: undefined,
+      setToast,
+      successMessage: t("git.installerStarted"),
+      errorLogLabel: "git.installer.run",
+    });
   }, [gitDownloadTaskId, gitInstallerLaunched, setGitInstallerLaunched, setToast, t]);
+
+  const refreshLibraryTree = useCallback(async () => {
+    if (!activeProjectId) {
+      return;
+    }
+    const nextTree = await getLibraryTree(activeProjectId);
+    setLibraryTree(nextTree);
+  }, [activeProjectId, setLibraryTree]);
 
   const handleLibraryRescan = useCallback(async () => {
     if (!activeProjectId) {
       return;
     }
-    setBusy(true);
-    try {
-      await rescanLibrary(activeProjectId);
-      const nextTree = await getLibraryTree(activeProjectId);
-      setLibraryTree(nextTree);
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
-  }, [activeProjectId, setBusy, setLibraryTree, setToast]);
+    await runAppAction({
+      action: async () => {
+        await rescanLibrary(activeProjectId);
+        await refreshLibraryTree();
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      errorLogLabel: "library.rescan",
+    });
+  }, [activeProjectId, refreshLibraryTree, setBusy, setToast]);
 
   const handleLibraryImportPdf = useCallback(async () => {
     if (!activeProjectId) {
       return;
     }
-    setBusy(true);
-    try {
-      const result = await importLibraryPdf(activeProjectId);
-      if (!result) {
-        return;
-      }
-      const nextTree = await getLibraryTree(activeProjectId);
-      setLibraryTree(nextTree);
-      setToast({ type: "info", message: t("toast.fsUpdated") });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
-  }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
+    await runAppAction({
+      action: async () => {
+        const result = await importLibraryPdf(activeProjectId);
+        if (!result) {
+          return;
+        }
+        await refreshLibraryTree();
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      successMessage: t("toast.fsUpdated"),
+      errorLogLabel: "library.import_pdf",
+    });
+  }, [activeProjectId, refreshLibraryTree, setBusy, setToast, t]);
 
   const handleLibraryImportLink = useCallback(async (link: string) => {
     if (!activeProjectId) {
@@ -163,18 +179,18 @@ export function useGitHandlers(params: {
     if (!normalized) {
       return;
     }
-    setBusy(true);
-    try {
-      await importLibraryLink(activeProjectId, normalized);
-      const nextTree = await getLibraryTree(activeProjectId);
-      setLibraryTree(nextTree);
-      setToast({ type: "info", message: t("toast.fsUpdated") });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
-  }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
+    await runAppAction({
+      action: async () => {
+        await importLibraryLink(activeProjectId, normalized);
+        await refreshLibraryTree();
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      successMessage: t("toast.fsUpdated"),
+      errorLogLabel: "library.import_link",
+    });
+  }, [activeProjectId, refreshLibraryTree, setBusy, setToast, t]);
 
   const handleLibrarySyncZotero = useCallback(async (input: {
     ownerId: string;
@@ -189,23 +205,23 @@ export function useGitHandlers(params: {
     if (!ownerId || !apiKey) {
       return;
     }
-    setBusy(true);
-    try {
-      await syncLibraryZotero({
-        projectId: activeProjectId,
-        ownerId,
-        apiKey,
-        scope: input.scope ?? "users",
-      });
-      const nextTree = await getLibraryTree(activeProjectId);
-      setLibraryTree(nextTree);
-      setToast({ type: "info", message: t("library.zoteroSyncDone") });
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
-  }, [activeProjectId, setBusy, setLibraryTree, setToast, t]);
+    await runAppAction({
+      action: async () => {
+        await syncLibraryZotero({
+          projectId: activeProjectId,
+          ownerId,
+          apiKey,
+          scope: input.scope ?? "users",
+        });
+        await refreshLibraryTree();
+      },
+      fallbackValue: undefined,
+      setBusy,
+      setToast,
+      successMessage: t("library.zoteroSyncDone"),
+      errorLogLabel: "library.zotero_sync",
+    });
+  }, [activeProjectId, refreshLibraryTree, setBusy, setToast, t]);
 
   return {
     handleGitAction,

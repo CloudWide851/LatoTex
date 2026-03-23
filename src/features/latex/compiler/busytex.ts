@@ -1,6 +1,6 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { BusyTexRunner, XeLatex } from "texlyre-busytex";
-import { busytexCachePrepare } from "../../../shared/api/desktop";
+import { busytexCachePrepare } from "../../../shared/api/local-resources";
 import {
   appendLocalResourceBaseVariants,
   buildLocalResourceBaseCandidates,
@@ -439,6 +439,7 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+
 
 
 

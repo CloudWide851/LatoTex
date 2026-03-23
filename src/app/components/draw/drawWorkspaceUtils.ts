@@ -1,5 +1,5 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { drawioCachePrepare } from "../../../shared/api/desktop";
+import { drawioCachePrepare } from "../../../shared/api/local-resources";
 import {
   buildLocalResourceBaseCandidates,
   buildLocalResourceEntryCandidates,
@@ -313,6 +313,7 @@ export async function persistDrawExportToWorkspace(params: {
   await onAfterSave?.(savedPath);
   return savedPath;
 }
+
 
 
 

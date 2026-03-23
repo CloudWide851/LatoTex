@@ -4,7 +4,7 @@ describe("resolvePyodideSourceCandidates", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.doUnmock("@tauri-apps/api/core");
-    vi.doUnmock("../../../shared/api/desktop");
+    vi.doUnmock("../../../shared/api/local-resources");
     vi.resetModules();
   });
 
@@ -13,7 +13,7 @@ describe("resolvePyodideSourceCandidates", () => {
       isTauri: () => true,
       convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fanalysis-pyodide-cache",
     }));
-    vi.doMock("../../../shared/api/desktop", () => ({
+    vi.doMock("../../../shared/api/local-resources", () => ({
       analysisPyodidePrepare: vi.fn(async () => ({
         policy: "install-first",
         requestedDir: "F:\\LatoTex\\analysis-pyodide-cache",
@@ -39,7 +39,7 @@ describe("resolvePyodideSourceCandidates", () => {
       isTauri: () => true,
       convertFileSrc: (input: string) => input,
     }));
-    vi.doMock("../../../shared/api/desktop", () => ({
+    vi.doMock("../../../shared/api/local-resources", () => ({
       analysisPyodidePrepare: vi.fn(async () => {
         throw new Error("prepare failed");
       }),
@@ -53,3 +53,4 @@ describe("resolvePyodideSourceCandidates", () => {
     expect(candidates[0]?.source.moduleUrl).toContain("cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.mjs");
   });
 });
+

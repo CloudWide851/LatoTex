@@ -1,4 +1,6 @@
-import { busytexCachePrepare, runtimeLogWrite, testModelDraft, testProtocol } from "../../shared/api/desktop";
+import { busytexCachePrepare } from "../../shared/api/local-resources";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import { testModelDraft, testProtocol } from "../../shared/api/settings";
 import type { Dispatch, SetStateAction } from "react";
 import type { ModelTestResult } from "../../shared/types/app";
 import { applyTheme, resolveTheme, THEME_TRANSITION_MS, type ThemeMode } from "../app-config";
