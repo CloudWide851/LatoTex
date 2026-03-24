@@ -1,6 +1,6 @@
 import { Send, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { executeWorkflowCancel, executeWorkflowStart, getEvents } from "../../../shared/api/agent";
+import { executeWorkflowCancel, getEvents, startChatWorkflow } from "../../../shared/api/agent";
 import { channelsTelegramPoll, channelsTelegramSend } from "../../../shared/api/share";
 import { readFile } from "../../../shared/api/workspace";
 import { cn } from "../../../lib/utils";
@@ -64,9 +64,10 @@ export function ChatWorkspace(props: {
   projectId: string | null;
   modelOverride?: string | null;
   channelPrefs?: ChannelPrefs | null;
+  suspended?: boolean;
   t: TranslationFn;
 }) {
-  const { projectId, modelOverride, channelPrefs, t } = props;
+  const { projectId, modelOverride, channelPrefs, suspended = false, t } = props;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -182,7 +183,7 @@ export function ChatWorkspace(props: {
     },
   ) => {
     const prompt = promptRaw.trim();
-    if (!projectId || !prompt || running) {
+    if (!projectId || !prompt || running || suspended) {
       return;
     }
     const parsed = parseAgentPrompt(prompt);
@@ -259,12 +260,9 @@ export function ChatWorkspace(props: {
     });
     setRunning(true);
     try {
-      const accepted = await executeWorkflowStart({
+      const accepted = await startChatWorkflow({
         projectId,
-        workflowId: "chat.general",
-        callsite: "chat.workspace",
         prompt,
-        contextRefs: [],
         modelOverride: modelOverride ?? undefined,
       });
       setPendingRunId(accepted.runId);
@@ -320,21 +318,32 @@ export function ChatWorkspace(props: {
       }
       throw new Error("agent.run.timeout.total");
     } catch (error) {
-      const failureText = renderRunFailureMessage(t, error);
-      setLastError(failureText);
-      updateMessageText(sessionId, assistantMessageId, failureText);
-      if (options?.telegramChatId) {
-        await channelsTelegramSend({
-          chatId: options.telegramChatId,
-          text: failureText.slice(0, 3900),
-          replyToMessageId: options.telegramMessageId,
-        }).catch(() => undefined);
+      if (String(error ?? "") === "agent.run.cancelled" && suspended) {
+        updateMessageText(sessionId, assistantMessageId, "");
+      } else {
+        const failureText = renderRunFailureMessage(t, error);
+        setLastError(failureText);
+        updateMessageText(sessionId, assistantMessageId, failureText);
+        if (options?.telegramChatId) {
+          await channelsTelegramSend({
+            chatId: options.telegramChatId,
+            text: failureText.slice(0, 3900),
+            replyToMessageId: options.telegramMessageId,
+          }).catch(() => undefined);
+        }
       }
     } finally {
       setRunning(false);
       setPendingRunId(null);
     }
-  }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, t, updateMessageText]);
+  }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, suspended, t, updateMessageText]);
+  useEffect(() => {
+    if (!suspended || !pendingRunId) {
+      return;
+    }
+    void executeWorkflowCancel(pendingRunId).catch(() => undefined);
+  }, [pendingRunId, suspended]);
+
   const sendMessage = async () => {
     await runPrompt(draft);
   };
@@ -373,7 +382,7 @@ export function ChatWorkspace(props: {
     }
   }, [projectId, runPrompt, running, t]);
   useEffect(() => {
-    if (!projectId || !channelPrefs?.telegramEnabled) {
+    if (!projectId || !channelPrefs?.telegramEnabled || suspended) {
       return;
     }
     let cancelled = false;
@@ -574,3 +583,9 @@ export function ChatWorkspace(props: {
     </section>
   );
 }
+
+
+
+
+
+

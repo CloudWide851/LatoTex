@@ -1,9 +1,14 @@
+import {
+  startLatexEdit,
+  startLatexReferenceCheck,
+  startLatexReviewFix,
+} from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile, writeFile } from "../../shared/api/workspace";
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
-import { extractReferenceQueries, parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";
-import { buildToolSearchQueryBlock } from "./agentToolSearch";
+import { parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";
+
 import {
   computeDiffStats,
   isLatexPath,
@@ -22,7 +27,7 @@ import {
   resolvePaperFlowAction,
 } from "./agentPaperActions";
 import { compileProposalPreviewWithAutoFix } from "./agentProposalPreviewCompile";
-import { buildAnalysisPrompt, buildTaskExecutionPrompt } from "./agentTaskPrompt";
+import { buildAnalysisPrompt } from "./agentTaskPrompt";
 import { runAgentThroughEvents } from "./agentRunEvents";
 
 const MAX_AGENT_MESSAGES = 200;
@@ -238,7 +243,6 @@ export async function runAgentWorkflow(params: {
   const parsed = parseAgentPrompt(prompt);
   const commitIntent = resolveAgentCommitIntent(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
-  const withMemoryContext = (basePrompt: string) => basePrompt;
 
   setAgentProposal(null);
   setAgentRunId(null);
@@ -279,33 +283,20 @@ export async function runAgentWorkflow(params: {
         return;
       }
 
-      const extraInstruction = parsed.args
-        ? `\nAdditional instruction: ${parsed.args}`
-        : "";
+      const extraInstruction = parsed.args.trim();
       let fixed = false;
       let fixedContent = "";
       for (let round = 0; round < 3; round += 1) {
-        const reviewPrompt = [
-          "You are a LaTeX fixer.",
-          "Apply minimal changes so the document compiles.",
-          "Return IDE-style SEARCH/REPLACE edit blocks inside ```edit fences.",
-          "Each edit block must include path, SEARCH, REPLACE.",
-          "Only edit the requested target file.",
-          "",
-          `Compile diagnostics:\n${compileResult.diagnostics.join("\n")}`,
-          extraInstruction,
-          "",
-          "Current LaTeX content:",
-          workingContent,
-        ].join("\n");
         const response = await runAgentThroughEvents({
-          activeProjectId,
-          workflowId: "latex.review_fix",
-          callsite: "latex.overlay",
-          prompt: withMemoryContext(reviewPrompt),
-          contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+          startRun: () => startLatexReviewFix({
+            projectId: activeProjectId,
+            selectedFile,
+            workingContent,
+            diagnostics: compileResult.diagnostics,
+            extraInstruction,
+            modelOverride: taskModelOverride ?? undefined,
+          }),
           setAgentRunId,
-          modelOverride: taskModelOverride ?? undefined,
         });
         const normalized = cleanAgentOutput(response.output);
         const resolved = resolveCandidateFromOutput({
@@ -372,41 +363,21 @@ export async function runAgentWorkflow(params: {
     }
 
     if (parsed.kind === "command" && parsed.command === "check-ref") {
-      const queries = extractReferenceQueries(editorContent, parsed.args);
-      if (queries.length === 0) {
-        pushAgentMessage(t("agent.command.checkRef.noTargets"));
-        setAgentPhase("done");
-        setAgentStatusKey("agent.statusDone");
-        return;
-      }
-      const queryLines = queries.map((item) => `- ${item}`).join("\n");
-      const queryBlock = buildToolSearchQueryBlock(queries);
-      const analysisPrompt = [
-        "You are a citation verifier with an internal programmatic tool runtime.",
-        "The runtime will execute tool_search in a provider-agnostic way.",
-        "Assess if each reference appears real and linked to evidence.",
-        "Return concise sections: PASS, WARNING, ACTION, SOURCES.",
-        "",
-        "Reference queries:",
-        queryLines,
-        "",
-        queryBlock,
-      ].join("\n");
       const response = await runAgentThroughEvents({
-        activeProjectId,
-        workflowId: "latex.reference_check",
-        callsite: "latex.overlay",
-        prompt: withMemoryContext(analysisPrompt),
-        contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+        startRun: () => startLatexReferenceCheck({
+          projectId: activeProjectId,
+          selectedFile,
+          editorContent,
+          userHint: parsed.args,
+          modelOverride: taskModelOverride ?? undefined,
+        }),
         setAgentRunId,
-        modelOverride: taskModelOverride ?? undefined,
       });
       pushAgentMessage(cleanAgentOutput(response.output), "markdown");
       setAgentPhase("done");
       setAgentStatusKey("agent.statusDone");
       return;
     }
-
     if (parsed.kind === "command" && parsed.command === "paper") {
       const link = resolvePaperCommandLink(parsed.args);
       if (!link) {
@@ -418,7 +389,6 @@ export async function runAgentWorkflow(params: {
         action: resolvePaperFlowAction(parsed.args),
         instruction: parsed.args,
         t,
-        withMemoryContext,
         setAgentRunId,
         modelOverride: taskModelOverride ?? undefined,
         pushAgentMessage,
@@ -438,7 +408,6 @@ export async function runAgentWorkflow(params: {
         action: resolvePaperFlowAction(prompt),
         instruction: prompt,
         t,
-        withMemoryContext,
         setAgentRunId,
         modelOverride: taskModelOverride ?? undefined,
         pushAgentMessage,
@@ -468,33 +437,23 @@ export async function runAgentWorkflow(params: {
       selectedFile,
       editorContent,
     });
-    const { paperContextBlock, paperContextRef } = await resolveAgentPaperContextForPrompt({
+    const { paperContextRef } = await resolveAgentPaperContextForPrompt({
       projectId: activeProjectId,
       prompt,
       t,
     });
 
-    const taskPrompt = buildTaskExecutionPrompt({
-      userPrompt: prompt,
-      targetPath,
-      fileContent: originalContent,
-      paperContext: paperContextBlock,
-    });
-    const taskRefs = Array.from(
-      new Set([
-        `file:${targetPath}`,
-        ...(selectedFile ? [`file:${selectedFile}`] : []),
-        ...(paperContextRef ? [`paper:${paperContextRef}`] : []),
-      ]),
-    );
     const response = await runAgentThroughEvents({
-      activeProjectId,
-      workflowId: "latex.edit",
-      callsite: "latex.overlay",
-      prompt: withMemoryContext(taskPrompt),
-      contextRefs: taskRefs,
+      startRun: () => startLatexEdit({
+        projectId: activeProjectId,
+        userPrompt: prompt,
+        targetPath,
+        fileContent: originalContent,
+        selectedFile,
+        paperContextSourcePath: paperContextRef,
+        modelOverride: taskModelOverride ?? undefined,
+      }),
       setAgentRunId,
-      modelOverride: taskModelOverride ?? undefined,
     });
     await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);
     const normalizedOutput = cleanAgentOutput(response.output);
@@ -516,7 +475,6 @@ export async function runAgentWorkflow(params: {
             activeProjectId,
             targetPath,
             candidateContent: resolved.candidate,
-            withMemoryContext,
             setAgentRunId,
             runCompilePass,
             normalizeOutput: cleanAgentOutput,
@@ -577,6 +535,15 @@ export async function runAgentWorkflow(params: {
     setToast({ type: "error", message: toastMessage });
   }
 }
+
+
+
+
+
+
+
+
+
 
 
 

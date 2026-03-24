@@ -25,6 +25,7 @@ export type AppWorkspaceShellProps = {
   pageRailItems: Array<{ id: WorkspacePage; icon: any; label: string }>;
   activeProjectId: string | null;
   busy: boolean;
+  suspended?: boolean;
   shellLayout: number[];
   latexLayout: number[];
   analysisLayout: number[];
@@ -134,4 +135,7 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
+
+
+
 

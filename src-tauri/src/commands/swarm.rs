@@ -41,7 +41,14 @@ pub fn agent_execute_start(
     state: State<'_, AppState>,
     input: AgentExecuteRequest,
 ) -> Result<AgentExecuteStartAccepted, String> {
-    swarm_pipeline::agent_execute_start(&state, input)
+    start_agent_execution(&state, input)
+}
+
+pub(crate) fn start_agent_execution(
+    state: &AppState,
+    input: AgentExecuteRequest,
+) -> Result<AgentExecuteStartAccepted, String> {
+    swarm_pipeline::agent_execute_start(state, input)
 }
 
 #[tauri::command]
@@ -87,3 +94,4 @@ pub fn events_subscribe(
         thread::sleep(Duration::from_millis(120));
     }
 }
+

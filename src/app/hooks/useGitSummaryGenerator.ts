@@ -1,4 +1,4 @@
-import { executeWorkflowStart } from "../../shared/api/agent";
+import { startGitSummaryWorkflow } from "../../shared/api/agent";
 import { gitDiffFile } from "../../shared/api/git";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
@@ -40,28 +40,10 @@ export async function generateGitSummary(
   );
 
   const joinedPatch = patches.filter((item) => item.length > 0).join("\n\n").slice(0, 48_000);
-  const prompt = [
-    "Summarize the staged Git changes and return a commit message proposal.",
-    "Output format:",
-    "TITLE: <single line, <=72 chars>",
-    "BODY:",
-    "- <bullet 1>",
-    "- <bullet 2>",
-    "Use concise, technical wording.",
-    "",
-    `Files: ${files.join(", ")}`,
-    "",
-    "Patch:",
-    joinedPatch || "(empty patch text)",
-  ].join("\n");
-
-  const accepted = await executeWorkflowStart({
+  const accepted = await startGitSummaryWorkflow({
     projectId: activeProjectId,
-    workflowId: "git.summary",
-    callsite: "git.summary",
-    prompt,
-    contextRefs: toGitSummaryContextRefs(files),
-    bypassCache: true,
+    files,
+    joinedPatch,
   });
   const output = (await waitForRunOutputWithPolicy({
     runId: accepted.runId,
@@ -81,3 +63,5 @@ export async function generateGitSummary(
   }
   return output.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
 }
+
+

@@ -573,5 +573,8 @@ pub struct ModelTestResult {
 }
 include!("models_library.rs");
 include!("models_git.rs");
+include!("models_agent_workflows.rs");
+
+
 
 

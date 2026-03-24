@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analysisSaveReport } from "../../shared/api/analysis";
+import { executeWorkflowCancel } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import {
@@ -47,6 +48,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     fileList,
     locale,
     analysisModelOverride,
+    suspended = false,
     events,
     setToast,
     t,
@@ -185,7 +187,16 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }
     };
   }, [activeTaskId, projectId, setToast, tasks]);
-  const canRun = useMemo(() => Boolean(projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt]);
+  const canRun = useMemo(() => Boolean(!suspended && projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt, suspended]);
+  useEffect(() => {
+    if (!suspended || liveRunIds.length === 0) {
+      return;
+    }
+    const runIds = Array.from(new Set(liveRunIds));
+    for (const runId of runIds) {
+      void executeWorkflowCancel(runId).catch(() => undefined);
+    }
+  }, [liveRunIds, suspended]);
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
     setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
@@ -261,6 +272,10 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     },
   ) => {
     const normalizedPrompt = inputPrompt.trim();
+    if (suspended) {
+      setToast({ type: "info", message: t("sleep.title") });
+      return;
+    }
     if (runInFlightRef.current) {
       setToast({ type: "info", message: t("analysis.running") });
       return;
@@ -497,6 +512,14 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
       const rawMessage = String(error);
+      if (rawMessage === "agent.run.cancelled" && suspended) {
+        updateTaskById(task.id, (item) => ({
+          ...item,
+          lastError: null,
+          updatedAt: nowIso(),
+        }));
+        return;
+      }
       const reason = rawMessage === "agent.run.timeout.total"
         ? t("agent.run.timeout")
         : rawMessage === "agent.run.timeout.inactive"
@@ -567,6 +590,11 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+
+
+
+
+
 
 
 

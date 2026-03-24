@@ -6,6 +6,10 @@ mod single_instance;
 mod state;
 mod storage;
 
+use commands::agent_workflows::{
+    chat_workflow_start, completion_latex_start, git_summary_workflow_start, latex_edit_start,
+    latex_paper_analyze_start, latex_reference_check_start, latex_review_fix_start,
+};
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
@@ -144,6 +148,13 @@ pub fn run() {
             latex_compile_record,
             agent_execute_start,
             agent_execute_cancel,
+            latex_edit_start,
+            latex_review_fix_start,
+            latex_reference_check_start,
+            latex_paper_analyze_start,
+            chat_workflow_start,
+            completion_latex_start,
+            git_summary_workflow_start,
             events_subscribe,
             settings_get,
             settings_update,
@@ -190,6 +201,8 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
 
 
 

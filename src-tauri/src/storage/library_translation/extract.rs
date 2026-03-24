@@ -5,65 +5,6 @@ use std::fs;
 use std::path::Path;
 
 const PDF_FALLBACK_MAX_CHARS: usize = 36_000;
-const PDF_CHUNK_TARGET: usize = 1_600;
-
-fn split_pdf_blocks(source: &str) -> Vec<String> {
-    let mut chunks: Vec<String> = Vec::new();
-    let mut current = String::new();
-
-    for line in source.lines() {
-        let text = line.trim();
-        if text.is_empty() {
-            if current.chars().count() >= 140 {
-                chunks.push(current.trim().to_string());
-            }
-            current.clear();
-            continue;
-        }
-
-        let next_len = current.chars().count() + text.chars().count() + 1;
-        if next_len > PDF_CHUNK_TARGET && !current.is_empty() {
-            chunks.push(current.trim().to_string());
-            current.clear();
-        }
-        if !current.is_empty() {
-            current.push('\n');
-        }
-        current.push_str(text);
-    }
-
-    if !current.trim().is_empty() {
-        chunks.push(current.trim().to_string());
-    }
-
-    if chunks.len() <= 1 {
-        return chunks;
-    }
-
-    let mut merged = Vec::<String>::new();
-    let mut pending = String::new();
-    for item in chunks {
-        if item.chars().count() < 90 {
-            if !pending.is_empty() {
-                pending.push('\n');
-            }
-            pending.push_str(&item);
-            continue;
-        }
-        if !pending.is_empty() {
-            pending.push('\n');
-            pending.push_str(&item);
-            merged.push(pending.trim().to_string());
-            pending.clear();
-        } else {
-            merged.push(item);
-        }
-    }
-    if !pending.trim().is_empty() {
-        merged.push(pending.trim().to_string());
-    }
-    merged
-}
 
 pub(super) fn normalize_target_language(target_language: Option<&str>) -> String {
     let value = target_language.unwrap_or("").trim();
@@ -72,15 +13,6 @@ pub(super) fn normalize_target_language(target_language: Option<&str>) -> String
     } else {
         value.to_string()
     }
-}
-
-pub(super) fn split_extraction_blocks_to_chunks(blocks: &[TranslationBlock]) -> Vec<String> {
-    let joined = blocks
-        .iter()
-        .map(|item| item.text.as_str())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    split_pdf_blocks(&joined)
 }
 
 pub(super) fn extract_translation_source(

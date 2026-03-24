@@ -19,6 +19,7 @@ export function useAgentSessionController(params: {
   setPage: React.Dispatch<React.SetStateAction<any>>;
   setSelectedFile: React.Dispatch<React.SetStateAction<string | null>>;
   setToast: React.Dispatch<React.SetStateAction<{ type: "info" | "error"; message: string } | null>>;
+  suspended?: boolean;
   runTaskAgent: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void>;
   t: (key: any) => string;
 }) {
@@ -35,6 +36,7 @@ export function useAgentSessionController(params: {
     setAgentPhase,
     setAgentStatusKey,
     setToast,
+    suspended = false,
     runTaskAgent,
     t,
   } = params;
@@ -53,6 +55,13 @@ export function useAgentSessionController(params: {
     setAgentRollbackVisible(false);
     setAgentMessages([]);
   }, [activeProjectId, selectedFile, setAgentMessages]);
+
+  useEffect(() => {
+    if (!suspended || agentPhase !== "running" || !agentRunId) {
+      return;
+    }
+    void executeWorkflowCancel(agentRunId).catch(() => undefined);
+  }, [agentPhase, agentRunId, suspended]);
 
   const handleAgentRollback = useCallback(() => {
     if (!agentRollback) {
@@ -78,7 +87,7 @@ export function useAgentSessionController(params: {
 
   const handleAgentRun = useCallback(async (promptOverride?: string, options?: { forceNewSession?: boolean }) => {
     const projectId = activeProjectId;
-    if (!projectId) {
+    if (!projectId || suspended) {
       return;
     }
     if (agentPhase === "running" && agentRunId) {
@@ -133,6 +142,7 @@ export function useAgentSessionController(params: {
     setAgentMessages,
     setAgentPrompt,
     setToast,
+    suspended,
     t,
   ]);
 
@@ -152,5 +162,3 @@ export function useAgentSessionController(params: {
     handleAgentSessionConfirm,
   };
 }
-
-

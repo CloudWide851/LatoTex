@@ -1,4 +1,4 @@
-import { executeWorkflowStart } from "../../../shared/api/agent";
+import { startCompletionLatex } from "../../../shared/api/agent";
 import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
 import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 
@@ -318,31 +318,13 @@ async function fetchRemoteSuggestions(params: {
         prefix: symbolHintPrefix.replace(/^\\/, ""),
         limit: 20,
       });
-      const prompt = [
-        "You are a LaTeX autocomplete engine.",
-        "Return strict JSON only.",
-        "Schema:",
-        "{\"suggestions\":[{\"label\":\"\\\\command\",\"insertText\":\"\\\\command{${1}}\",\"kind\":\"snippet|text\"}]}",
-        `Maximum ${REMOTE_COMPLETION_MAX} suggestions.`,
-        "Only include suggestions that start with '\\\\' and match the current prefix.",
-        "",
-        "Current line prefix:",
-        focusedLine,
-        "",
-        "Known project symbols (high confidence):",
-        projectSymbols.join(", "),
-        "",
-        "Current document context (tail):",
-        params.fullText.slice(Math.max(0, params.fullText.length - 720)),
-      ].join("\n");
-      const accepted = await executeWorkflowStart({
+      const accepted = await startCompletionLatex({
         projectId,
-        workflowId: "completion.latex",
-        callsite: "completion.inline",
-        prompt,
-        contextRefs: selectedFile ? [`file:${selectedFile}`] : [],
+        selectedFile,
+        linePrefix: focusedLine,
+        fullText: params.fullText,
+        projectSymbols,
         modelOverride: completionModelId,
-        bypassCache: false,
       });
       const output = await waitCompletionRunOutput(accepted.runId);
       const suggestions = parseRemoteSuggestions(output);
@@ -549,5 +531,8 @@ export function ensureLatexCompletionProvider(monaco: any) {
     },
   });
 }
+
+
+
 
 

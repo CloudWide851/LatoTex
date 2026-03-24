@@ -101,6 +101,11 @@ export function AppContainer() {
     setCompiledPdfBytes: s.setCompiledPdfBytes,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
   });
+  const runtimeBusy = s.busy || Boolean(s.agentRunId) || Boolean(s.gitDownloadTaskId);
+  const idleSleep = useIdleSleep({
+    blocked: runtimeBusy,
+    timeoutMs: 60 * 60 * 1000,
+  });
   const analysisWorkspace = useAnalysisWorkspace({
     projectId: s.activeProjectId,
     selectedFile: s.selectedFile,
@@ -108,6 +113,7 @@ export function AppContainer() {
     fileList: s.fileList,
     locale,
     analysisModelOverride: s.settings?.uiPrefs?.featureModelBindings?.analysisAgentModelId ?? null,
+    suspended: idleSleep.sleeping,
     events: s.events,
     t,
     setToast: s.setToast,
@@ -198,11 +204,6 @@ export function AppContainer() {
     workingContentByPathRef: s.workingContentByPathRef,
     savedContentByPathRef: s.savedContentByPathRef,
     dirtyByPathRef: s.dirtyByPathRef,
-  });
-  const runtimeBusy = s.busy || Boolean(s.agentRunId) || analysisWorkspace.running || Boolean(s.gitDownloadTaskId);
-  const idleSleep = useIdleSleep({
-    blocked: runtimeBusy,
-    timeoutMs: 60 * 60 * 1000,
   });
   const runtimePressureRelief = useRuntimePressureRelief({
     sleeping: idleSleep.sleeping,
@@ -358,6 +359,7 @@ export function AppContainer() {
     setPage: s.setPage,
     setSelectedFile: s.setSelectedFile,
     setToast: s.setToast,
+    suspended: idleSleep.sleeping,
     runTaskAgent: handlers.handleRunAgent,
     t,
   });
@@ -589,10 +591,8 @@ export function AppContainer() {
       setCloseBehaviorRememberChoice={setCloseBehaviorRememberChoice}
       handleCloseBehaviorDialogCancel={handleCloseBehaviorDialogCancel}
       handleCloseBehaviorDialogResolve={handleCloseBehaviorDialogResolve}
+      suspended={idleSleep.sleeping}
     />
   );
 }
-
-
-
 

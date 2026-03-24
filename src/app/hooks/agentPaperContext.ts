@@ -271,10 +271,10 @@ export async function resolveAgentPaperContextForPrompt(params: {
   projectId: string;
   prompt: string;
   t: (key: any) => string;
-}): Promise<{ paperContextBlock: string; paperContextRef: string | null }> {
+}): Promise<{ paperContextRef: string | null }> {
   const { projectId, prompt, t } = params;
   if (!promptNeedsPaperContext(prompt)) {
-    return { paperContextBlock: "", paperContextRef: null };
+    return { paperContextRef: null };
   }
 
   let sourcePath: string | null = null;
@@ -299,7 +299,8 @@ export async function resolveAgentPaperContextForPrompt(params: {
   }
 
   return {
-    paperContextBlock: await buildAgentPaperContextBlock(projectId, sourcePath),
     paperContextRef: sourcePath,
   };
 }
+
+

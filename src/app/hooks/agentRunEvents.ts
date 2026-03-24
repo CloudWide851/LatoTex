@@ -1,14 +1,9 @@
-import { executeWorkflowStart } from "../../shared/api/agent";
+import type { AgentExecuteStartAccepted } from "../../shared/types/app";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export async function runAgentThroughEvents(params: {
-  activeProjectId: string;
-  workflowId: string;
-  callsite: string;
-  prompt: string;
-  contextRefs: string[];
+  startRun: (bypassCache: boolean) => Promise<AgentExecuteStartAccepted>;
   setAgentRunId: (value: string | null) => void;
-  modelOverride?: string;
   bypassCache?: boolean;
 }): Promise<{ runId: string; output: string }> {
   const isRetryableProviderError = (message: string) =>
@@ -26,15 +21,7 @@ export async function runAgentThroughEvents(params: {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const retryAttempt = attempt > 0;
     try {
-      const accepted = await executeWorkflowStart({
-        projectId: params.activeProjectId,
-        workflowId: params.workflowId,
-        callsite: params.callsite,
-        prompt: params.prompt,
-        contextRefs: params.contextRefs,
-        modelOverride: params.modelOverride,
-        bypassCache: retryAttempt || (params.bypassCache ?? false),
-      });
+      const accepted = await params.startRun(retryAttempt || (params.bypassCache ?? false));
       params.setAgentRunId(accepted.runId);
       const output = await waitForRunOutputWithPolicy({
         runId: accepted.runId,

@@ -1,3 +1,4 @@
+import { startLatexReviewFix } from "../../shared/api/agent";
 import { resolveCandidateFromOutput } from "./agentPatchEdits";
 import { runAgentThroughEvents } from "./agentRunEvents";
 
@@ -5,7 +6,6 @@ export async function compileProposalPreviewWithAutoFix(params: {
   activeProjectId: string;
   targetPath: string;
   candidateContent: string;
-  withMemoryContext: (prompt: string) => string;
   setAgentRunId: (value: string | null) => void;
   runCompilePass: (params: {
     projectId: string;
@@ -19,7 +19,6 @@ export async function compileProposalPreviewWithAutoFix(params: {
     activeProjectId,
     targetPath,
     candidateContent,
-    withMemoryContext,
     setAgentRunId,
     runCompilePass,
     normalizeOutput,
@@ -35,25 +34,13 @@ export async function compileProposalPreviewWithAutoFix(params: {
     return candidateContent;
   }
 
-  const repairPrompt = [
-    "You are a LaTeX fixer.",
-    "Apply minimal changes so the document compiles.",
-    "Return IDE-style SEARCH/REPLACE edit blocks inside ```edit fences.",
-    "Each edit block must include path, SEARCH, and REPLACE.",
-    "Only edit the provided target file.",
-    "",
-    `Compile diagnostics:\n${initialCompile.diagnostics.join("\n")}`,
-    "",
-    "Current LaTeX content:",
-    candidateContent,
-  ].join("\n");
-
   const repairResult = await runAgentThroughEvents({
-    activeProjectId,
-    workflowId: "latex.review_fix",
-    callsite: "latex.overlay",
-    prompt: withMemoryContext(repairPrompt),
-    contextRefs: [`file:${targetPath}`],
+    startRun: (bypassCache) => startLatexReviewFix({
+      projectId: activeProjectId,
+      selectedFile: targetPath,
+      workingContent: candidateContent,
+      diagnostics: initialCompile.diagnostics,
+    }),
     setAgentRunId,
     bypassCache: true,
   });
@@ -76,4 +63,3 @@ export async function compileProposalPreviewWithAutoFix(params: {
   });
   return fixedCandidate;
 }
-

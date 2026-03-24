@@ -27,6 +27,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     pageRailItems,
     activeProjectId,
     busy,
+    suspended = false,
     shellLayout,
     latexLayout,
     analysisLayout,
@@ -398,6 +399,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 projectId={activeProjectId}
                 modelOverride={completionModelId}
                 channelPrefs={channelPrefs}
+                suspended={suspended}
                 t={t}
               />
             </Suspense>
@@ -529,3 +531,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
+
+
+

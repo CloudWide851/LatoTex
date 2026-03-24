@@ -9,6 +9,7 @@ export type UseAnalysisWorkspaceParams = {
   fileList: string[];
   locale: "zh-CN" | "en-US";
   analysisModelOverride?: string | null;
+  suspended?: boolean;
   events: SwarmEvent[];
   t: TranslationFn;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;

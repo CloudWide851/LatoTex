@@ -23,6 +23,130 @@ export function executeWorkflowStart(input: {
   });
 }
 
+export function startLatexEdit(input: {
+  projectId: string;
+  userPrompt: string;
+  targetPath: string;
+  fileContent: string;
+  selectedFile?: string | null;
+  paperContextSourcePath?: string | null;
+  modelOverride?: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("latex_edit_start", {
+    input: {
+      projectId: input.projectId,
+      userPrompt: input.userPrompt,
+      targetPath: input.targetPath,
+      fileContent: input.fileContent,
+      selectedFile: input.selectedFile ?? null,
+      paperContextSourcePath: input.paperContextSourcePath ?? null,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function startLatexReviewFix(input: {
+  projectId: string;
+  selectedFile: string;
+  workingContent: string;
+  diagnostics: string[];
+  extraInstruction?: string;
+  modelOverride?: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("latex_review_fix_start", {
+    input: {
+      projectId: input.projectId,
+      selectedFile: input.selectedFile,
+      workingContent: input.workingContent,
+      diagnostics: input.diagnostics,
+      extraInstruction: input.extraInstruction,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function startLatexReferenceCheck(input: {
+  projectId: string;
+  selectedFile?: string | null;
+  editorContent: string;
+  userHint?: string;
+  modelOverride?: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("latex_reference_check_start", {
+    input: {
+      projectId: input.projectId,
+      selectedFile: input.selectedFile ?? null,
+      editorContent: input.editorContent,
+      userHint: input.userHint,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function startLatexPaperAnalyze(input: {
+  projectId: string;
+  sourcePath: string;
+  instruction?: string;
+  modelOverride?: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("latex_paper_analyze_start", {
+    input: {
+      projectId: input.projectId,
+      sourcePath: input.sourcePath,
+      instruction: input.instruction,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function startChatWorkflow(input: {
+  projectId: string;
+  prompt: string;
+  modelOverride?: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("chat_workflow_start", {
+    input: {
+      projectId: input.projectId,
+      prompt: input.prompt,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function startCompletionLatex(input: {
+  projectId: string;
+  selectedFile?: string | null;
+  linePrefix: string;
+  fullText: string;
+  projectSymbols: string[];
+  modelOverride?: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("completion_latex_start", {
+    input: {
+      projectId: input.projectId,
+      selectedFile: input.selectedFile ?? null,
+      linePrefix: input.linePrefix,
+      fullText: input.fullText,
+      projectSymbols: input.projectSymbols,
+      modelOverride: input.modelOverride,
+    },
+  });
+}
+
+export function startGitSummaryWorkflow(input: {
+  projectId: string;
+  files: string[];
+  joinedPatch: string;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("git_summary_workflow_start", {
+    input: {
+      projectId: input.projectId,
+      files: input.files,
+      joinedPatch: input.joinedPatch,
+    },
+  });
+}
+
 export function executeWorkflowCancel(runId: string): Promise<Ack> {
   return invokeCommand<Ack>("agent_execute_cancel", { input: { runId } });
 }

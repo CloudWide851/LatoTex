@@ -17,6 +17,7 @@ export function AppContainerView(props: any) {
     status,
     sleeping,
     onWakeFromSleep,
+    suspended,
     logoMark,
     projects,
     activeProjectId,
@@ -352,6 +353,7 @@ export function AppContainerView(props: any) {
                 runFsAction(scope, action, path, targetPath, content)
               }
               t={t}
+              suspended={suspended}
             />
           </Suspense>
         </AppErrorBoundary>
@@ -411,5 +413,4 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
-
 
