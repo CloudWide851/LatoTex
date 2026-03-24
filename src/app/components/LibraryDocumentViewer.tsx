@@ -12,10 +12,7 @@ import { libraryCitationSummary, libraryResolvePdfPreview } from "../../shared/a
 import { readFile, readFileBinary, writeFile } from "../../shared/api/workspace";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
-import {
-  LibraryPdfScrollViewer,
-  type LibraryPdfScrollViewerHandle,
-} from "./library/LibraryPdfScrollViewer";
+import type { LibraryPdfScrollViewerHandle } from "./library/LibraryPdfScrollViewer";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./library/annotationPalette";
 import {
   parseAnnotationPayload,
@@ -71,6 +68,7 @@ export function LibraryDocumentViewer(props: {
   const lastAnnotationPayloadRef = useRef<string>("");
   const hasPdf = Boolean(pdfUrl);
   const [translatedPdfUrl, setTranslatedPdfUrl] = useState<string | null>(null);
+  const [compareScrollTop, setCompareScrollTop] = useState(0);
 
   const {
     translationBusy,
@@ -566,6 +564,8 @@ export function LibraryDocumentViewer(props: {
         runTranslation={runTranslation}
         hasComparePair={hasComparePair}
         translatedPdfUrl={translatedPdfUrl}
+        compareScrollTop={compareScrollTop}
+        setCompareScrollTop={setCompareScrollTop}
         bibPreview={bibPreview}
         citation={citation}
         linkError={linkError}
@@ -575,5 +575,10 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
+
+
+
+
+
 
 

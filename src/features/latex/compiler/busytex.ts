@@ -1,9 +1,8 @@
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "@tauri-apps/api/core";
 import { BusyTexRunner, XeLatex } from "texlyre-busytex";
 import { busytexCachePrepare } from "../../../shared/api/local-resources";
 import {
   appendLocalResourceBaseVariants,
-  buildLocalResourceBaseCandidates,
   orderLocalResourceCandidatesByOrigin,
 } from "../../../shared/utils/localResourceProbe";
 
@@ -15,8 +14,11 @@ type BusyTexCompileResponse = {
   exitCode?: number;
 };
 
+type BusyTexInitMode = "worker" | "direct";
+
 type BusyTexInitCandidate = {
   basePath: string;
+  initMode: BusyTexInitMode;
 };
 
 export type BusyTeXCompileResult = {
@@ -31,8 +33,8 @@ const BUSYTEX_ASSET_HINT =
 
 let runner: BusyTexRunner | null = null;
 let runnerBasePath = "";
-let preparedCacheBasePaths: string[] | null = null;
-let preparingCachePromise: Promise<string[]> | null = null;
+let preparedCacheCandidate: BusyTexInitCandidate | null = null;
+let preparingCachePromise: Promise<BusyTexInitCandidate | null> | null = null;
 
 function normalizeTrailingSlash(input: string): string {
   return String(input || "").trim().replace(/\/+$/, "");
@@ -42,7 +44,7 @@ function resetBusyTexRuntime(resetCacheBase = false) {
   runner = null;
   runnerBasePath = "";
   if (resetCacheBase) {
-    preparedCacheBasePaths = null;
+    preparedCacheCandidate = null;
   }
 }
 
@@ -55,12 +57,16 @@ export function disposeBusyTeXRuntime(options?: { resetCacheBase?: boolean }) {
   resetBusyTexRuntime(Boolean(options?.resetCacheBase));
 }
 
-async function resolveCacheBasePaths(): Promise<string[]> {
-  if (preparedCacheBasePaths) {
-    return preparedCacheBasePaths;
+function normalizeInitMode(value: string | null | undefined): BusyTexInitMode {
+  return value === "worker" ? "worker" : "direct";
+}
+
+async function resolveCacheCandidate(): Promise<BusyTexInitCandidate | null> {
+  if (preparedCacheCandidate) {
+    return preparedCacheCandidate;
   }
   if (!isTauri()) {
-    return [];
+    return null;
   }
   if (preparingCachePromise) {
     return preparingCachePromise;
@@ -81,10 +87,16 @@ async function resolveCacheBasePaths(): Promise<string[]> {
         window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
       }
 
-      preparedCacheBasePaths = buildLocalResourceBaseCandidates(info.actualDir, convertFileSrc);
-      return preparedCacheBasePaths;
+      const basePath = normalizeTrailingSlash(info.baseUrl ?? "");
+      preparedCacheCandidate = basePath
+        ? {
+            basePath,
+            initMode: normalizeInitMode(info.preferredInitMode),
+          }
+        : null;
+      return preparedCacheCandidate;
     } catch {
-      return [];
+      return null;
     }
   })();
 
@@ -95,17 +107,13 @@ async function resolveCacheBasePaths(): Promise<string[]> {
   }
 }
 
-async function buildBasePathCandidates(): Promise<string[]> {
-  const cachePaths = await resolveCacheBasePaths();
-  const withVariants: string[] = [];
-
+async function buildBasePathCandidates(): Promise<BusyTexInitCandidate[]> {
   if (isTauri()) {
-    for (const path of cachePaths) {
-      appendLocalResourceBaseVariants(withVariants, path);
-    }
-    return orderLocalResourceCandidatesByOrigin(withVariants);
+    const cacheCandidate = await resolveCacheCandidate();
+    return cacheCandidate ? [cacheCandidate] : [];
   }
 
+  const withVariants: string[] = [];
   const baseUrl =
     typeof import.meta !== "undefined" && import.meta.env?.BASE_URL
       ? import.meta.env.BASE_URL
@@ -117,11 +125,10 @@ async function buildBasePathCandidates(): Promise<string[]> {
   appendLocalResourceBaseVariants(withVariants, "./core/busytex");
   appendLocalResourceBaseVariants(withVariants, "core/busytex");
 
-  for (const path of cachePaths) {
-    appendLocalResourceBaseVariants(withVariants, path);
-  }
-
-  return orderLocalResourceCandidatesByOrigin(withVariants);
+  return orderLocalResourceCandidatesByOrigin(withVariants).map((basePath) => ({
+    basePath,
+    initMode: "worker",
+  }));
 }
 
 function toErrorMessage(error: unknown): string {
@@ -154,7 +161,14 @@ function shouldFallbackToDirectMode(error: unknown): boolean {
   );
 }
 
-async function initializeCandidateRunner(candidateRunner: BusyTexRunner): Promise<void> {
+async function initializeCandidateRunner(
+  candidateRunner: BusyTexRunner,
+  initMode: BusyTexInitMode,
+): Promise<void> {
+  if (initMode === "direct") {
+    await candidateRunner.initialize(false);
+    return;
+  }
   try {
     await candidateRunner.initialize(true);
     return;
@@ -175,7 +189,7 @@ async function initializeRunnerFromCandidates(candidates: BusyTexInitCandidate[]
     });
     try {
       if (!candidateRunner.isInitialized()) {
-        await initializeCandidateRunner(candidateRunner);
+        await initializeCandidateRunner(candidateRunner, candidate.initMode);
       }
       runnerBasePath = candidate.basePath;
       return candidateRunner;
@@ -351,7 +365,7 @@ async function getRunner(): Promise<BusyTexRunner> {
   if (runner) {
     try {
       if (!runner.isInitialized()) {
-        await initializeCandidateRunner(runner);
+        await initializeCandidateRunner(runner, isTauri() ? "direct" : "worker");
       }
       return runner;
     } catch {
@@ -359,8 +373,7 @@ async function getRunner(): Promise<BusyTexRunner> {
     }
   }
 
-  const basePaths = await buildBasePathCandidates();
-  const candidates = orderLocalResourceCandidatesByOrigin(basePaths).map((basePath) => ({ basePath }));
+  const candidates = await buildBasePathCandidates();
   runner = await initializeRunnerFromCandidates(candidates);
   return runner;
 }
@@ -451,7 +464,7 @@ async function compileInternal(
 
     if (allowRetry && isRecoverableAssetError(message)) {
       resetBusyTexRuntime(true);
-      await resolveCacheBasePaths().catch(() => []);
+      await resolveCacheCandidate().catch(() => null);
       return compileInternal(mainSource, files, mainFilePath, false, startAt);
     }
 
@@ -474,6 +487,10 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+
+
+
+
 
 
 

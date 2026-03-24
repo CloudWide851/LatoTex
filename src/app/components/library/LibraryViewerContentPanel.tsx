@@ -61,6 +61,8 @@ type LibraryViewerContentPanelProps = {
   runTranslation: (onSuccess?: () => void) => void;
   hasComparePair: boolean;
   translatedPdfUrl: string | null;
+  compareScrollTop: number;
+  setCompareScrollTop: (next: number) => void;
   bibPreview: string;
   citation: LibraryCitationSummary | null;
   linkError: string | null;
@@ -112,6 +114,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     runTranslation,
     hasComparePair,
     translatedPdfUrl,
+    compareScrollTop,
+    setCompareScrollTop,
     bibPreview,
     citation,
     linkError,
@@ -216,15 +220,63 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             {t("library.viewer.translatePaper")}
           </button>
         </div>
-        {hasComparePair ? (
+        {hasComparePair && pdfUrl && translatedPdfUrl ? (
           <div className="grid h-full min-h-0 grid-cols-2 gap-2">
             <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50">
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareOriginal")}</div>
-              <iframe title={t("library.viewer.compareOriginal")} src={pdfUrl ?? undefined} className="h-full min-h-0 w-full border-0 bg-white" />
+              <LibraryPdfScrollViewer
+                pdfUrl={pdfUrl}
+                pageCount={pageCount}
+                zoom={pdfZoom}
+                mode="select"
+                highlightColor={highlightColor}
+                highlightWidth={highlightWidth}
+                highlightOpacity={highlightOpacity}
+                textColor={textColor}
+                textBoxStylePreset={textBoxStylePreset}
+                strokes={[]}
+                textBoxes={[]}
+                onStrokesChange={() => undefined}
+                onTextBoxesChange={() => undefined}
+                onVisiblePageChange={(page) => {
+                  setCurrentPage(page);
+                  setPageInput(String(page));
+                }}
+                onPageCountChange={setPageCount}
+                readOnly
+                scrollTopSync={compareScrollTop}
+                onScrollTopChange={setCompareScrollTop}
+                containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
+                t={t}
+              />
             </div>
             <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50">
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareTranslated")}</div>
-              <iframe title={t("library.viewer.compareTranslated")} src={translatedPdfUrl ?? undefined} className="h-full min-h-0 w-full border-0 bg-white" />
+              <LibraryPdfScrollViewer
+                pdfUrl={translatedPdfUrl}
+                pageCount={pageCount}
+                zoom={pdfZoom}
+                mode="select"
+                highlightColor={highlightColor}
+                highlightWidth={highlightWidth}
+                highlightOpacity={highlightOpacity}
+                textColor={textColor}
+                textBoxStylePreset={textBoxStylePreset}
+                strokes={[]}
+                textBoxes={[]}
+                onStrokesChange={() => undefined}
+                onTextBoxesChange={() => undefined}
+                onVisiblePageChange={(page) => {
+                  setCurrentPage(page);
+                  setPageInput(String(page));
+                }}
+                onPageCountChange={setPageCount}
+                readOnly
+                scrollTopSync={compareScrollTop}
+                onScrollTopChange={setCompareScrollTop}
+                containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
+                t={t}
+              />
             </div>
           </div>
         ) : (
@@ -257,3 +309,5 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     </div>
   );
 }
+
+

@@ -73,16 +73,9 @@ fn wrap_text_block(text: &str, max_units: usize) -> Vec<String> {
 }
 
 fn to_utf16be_hex(text: &str) -> String {
-    let mut bytes = Vec::<u8>::new();
-    bytes.push(0xFE);
-    bytes.push(0xFF);
+    let mut out = String::with_capacity(text.len() * 4);
     for unit in text.encode_utf16() {
-        bytes.push((unit >> 8) as u8);
-        bytes.push((unit & 0xFF) as u8);
-    }
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push_str(&format!("{byte:02X}"));
+        out.push_str(&format!("{unit:04X}"));
     }
     out
 }
@@ -442,4 +435,15 @@ pub(super) fn persist_translation_result(
         primary_relative_path: primary_relative,
         artifact_paths: Vec::new(),
     })
+}
+#[cfg(test)]
+mod tests {
+    use super::to_utf16be_hex;
+
+    #[test]
+    fn utf16_hex_omits_bom_prefix() {
+        assert_eq!(to_utf16be_hex("A"), "0041");
+        assert_eq!(to_utf16be_hex("你"), "4F60");
+        assert!(!to_utf16be_hex("Hello").starts_with("FEFF"));
+    }
 }

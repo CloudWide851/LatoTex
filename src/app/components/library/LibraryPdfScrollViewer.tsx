@@ -20,33 +20,39 @@ const PDF_VIRTUAL_PADDING_PAGES = 1;
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
+type TranslationFn = (key: any) => string;
+
+type LibraryPdfScrollViewerProps = {
+  pdfUrl: string;
+  pageCount: number;
+  zoom: number;
+  mode: ToolMode;
+  highlightColor: string;
+  highlightWidth: number;
+  highlightOpacity: number;
+  textColor: string;
+  textBoxStylePreset: AnnotationTextStylePreset;
+  strokes: AnnotationStroke[];
+  textBoxes: AnnotationTextBox[];
+  onStrokesChange: (next: AnnotationStroke[]) => void;
+  onTextBoxesChange: (next: AnnotationTextBox[]) => void;
+  onVisiblePageChange: (page: number) => void;
+  onPageCountChange: (count: number) => void;
+  onRequestToolConfig?: () => void;
+  readOnly?: boolean;
+  scrollTopSync?: number | null;
+  onScrollTopChange?: (scrollTop: number) => void;
+  containerClassName?: string;
+  t: TranslationFn;
+};
+
 export type LibraryPdfScrollViewerHandle = {
   scrollToPage: (page: number) => void;
 };
 
-type TranslationFn = (key: any) => string;
-
 export const LibraryPdfScrollViewer = forwardRef<
   LibraryPdfScrollViewerHandle,
-  {
-    pdfUrl: string;
-    pageCount: number;
-    zoom: number;
-    mode: ToolMode;
-    highlightColor: string;
-    highlightWidth: number;
-    highlightOpacity: number;
-    textColor: string;
-    textBoxStylePreset: AnnotationTextStylePreset;
-    strokes: AnnotationStroke[];
-    textBoxes: AnnotationTextBox[];
-    onStrokesChange: (next: AnnotationStroke[]) => void;
-    onTextBoxesChange: (next: AnnotationTextBox[]) => void;
-    onVisiblePageChange: (page: number) => void;
-    onPageCountChange: (count: number) => void;
-    onRequestToolConfig?: () => void;
-    t: TranslationFn;
-  }
+  LibraryPdfScrollViewerProps
 >(function LibraryPdfScrollViewer(props, ref) {
   const {
     pdfUrl,
@@ -65,12 +71,17 @@ export const LibraryPdfScrollViewer = forwardRef<
     onVisiblePageChange,
     onPageCountChange,
     onRequestToolConfig,
+    readOnly = false,
+    scrollTopSync,
+    onScrollTopChange,
+    containerClassName = "h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7",
     t,
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const pendingScrollPageRef = useRef<number | null>(null);
   const scrollRafRef = useRef<number | null>(null);
+  const syncingScrollRef = useRef(false);
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [visiblePage, setVisiblePage] = useState(1);
@@ -147,6 +158,9 @@ export const LibraryPdfScrollViewer = forwardRef<
       scrollRafRef.current = window.requestAnimationFrame(() => {
         scrollRafRef.current = null;
         updateVisiblePage();
+        if (!syncingScrollRef.current) {
+          onScrollTopChange?.(root.scrollTop);
+        }
       });
     };
     root.addEventListener("scroll", onScroll, { passive: true });
@@ -157,7 +171,23 @@ export const LibraryPdfScrollViewer = forwardRef<
         scrollRafRef.current = null;
       }
     };
-  }, [documentPages, estimatedPageHeight, onVisiblePageChange]);
+  }, [documentPages, estimatedPageHeight, onScrollTopChange, onVisiblePageChange]);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || typeof scrollTopSync !== "number") {
+      return;
+    }
+    if (Math.abs(root.scrollTop - scrollTopSync) < 2) {
+      return;
+    }
+    syncingScrollRef.current = true;
+    root.scrollTop = scrollTopSync;
+    const resetId = window.requestAnimationFrame(() => {
+      syncingScrollRef.current = false;
+    });
+    return () => window.cancelAnimationFrame(resetId);
+  }, [scrollTopSync]);
 
   useEffect(() => {
     const pending = pendingScrollPageRef.current;
@@ -175,11 +205,13 @@ export const LibraryPdfScrollViewer = forwardRef<
   return (
     <div
       ref={scrollRef}
-      className="h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7"
-      onContextMenu={(event) => {
-        event.preventDefault();
-        onRequestToolConfig?.();
-      }}
+      className={containerClassName}
+      onContextMenu={readOnly || !onRequestToolConfig
+        ? undefined
+        : (event) => {
+            event.preventDefault();
+            onRequestToolConfig();
+          }}
     >
       <Document
         file={pdfUrl}
@@ -227,8 +259,8 @@ export const LibraryPdfScrollViewer = forwardRef<
               className="relative mx-auto rounded bg-white shadow-sm"
               style={{ width: `${frameWidth}px` }}
             >
-              {page >= Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES) &&
-              page <= Math.min(documentPages, visiblePage + PDF_VIRTUAL_PADDING_PAGES) ? (
+              {page >= Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES)
+              && page <= Math.min(documentPages, visiblePage + PDF_VIRTUAL_PADDING_PAGES) ? (
                 <>
                   <Page
                     pageNumber={page}
@@ -237,20 +269,22 @@ export const LibraryPdfScrollViewer = forwardRef<
                     renderAnnotationLayer={false}
                     loading={null}
                   />
-                  <PdfAnnotationLayer
-                    page={page}
-                    mode={mode}
-                    highlightColor={highlightColor}
-                    highlightWidth={highlightWidth}
-                    highlightOpacity={highlightOpacity}
-                    textColor={textColor}
-                    textBoxStylePreset={textBoxStylePreset}
-                    strokes={strokes}
-                    textBoxes={textBoxes}
-                    onStrokesChange={onStrokesChange}
-                    onTextBoxesChange={onTextBoxesChange}
-                    t={t}
-                  />
+                  {readOnly ? null : (
+                    <PdfAnnotationLayer
+                      page={page}
+                      mode={mode}
+                      highlightColor={highlightColor}
+                      highlightWidth={highlightWidth}
+                      highlightOpacity={highlightOpacity}
+                      textColor={textColor}
+                      textBoxStylePreset={textBoxStylePreset}
+                      strokes={strokes}
+                      textBoxes={textBoxes}
+                      onStrokesChange={onStrokesChange}
+                      onTextBoxesChange={onTextBoxesChange}
+                      t={t}
+                    />
+                  )}
                 </>
               ) : (
                 <div style={{ height: `${estimatedPageHeight}px` }} />
@@ -262,3 +296,4 @@ export const LibraryPdfScrollViewer = forwardRef<
     </div>
   );
 });
+

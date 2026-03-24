@@ -175,6 +175,8 @@ pub struct BusyTexCacheInfo {
     pub actual_dir: String,
     pub install_dir_writable: bool,
     pub using_fallback: bool,
+    pub base_url: Option<String>,
+    pub preferred_init_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -250,6 +252,8 @@ pub struct LocalResourceProbeEntry {
     pub actual_dir: Option<String>,
     pub install_dir_writable: Option<bool>,
     pub using_fallback: Option<bool>,
+    pub base_url: Option<String>,
+    pub preferred_init_mode: Option<String>,
     pub ready: bool,
     pub missing_assets: Vec<String>,
     pub error: Option<String>,
@@ -268,5 +272,6 @@ pub struct LocalResourceProbeResponse {
 pub struct LocalResourceProbeInput {
     pub policy: Option<String>,
 }
+
 
 

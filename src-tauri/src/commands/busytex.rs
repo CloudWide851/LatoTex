@@ -13,6 +13,7 @@ use crate::state::AppState;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
+use urlencoding::encode;
 
 #[path = "busytex_package.rs"]
 mod busytex_package;
@@ -251,6 +252,21 @@ fn ensure_drawio_cache_dir(
     Ok(prepared)
 }
 
+fn build_asset_localhost_base_url(actual_dir: &str) -> Option<String> {
+    let normalized = actual_dir.trim().replace('\\', "/");
+    if normalized.is_empty() {
+        return None;
+    }
+    Some(format!("http://asset.localhost/{}", encode(&normalized)))
+}
+
+fn preferred_init_mode_for_resource(key: &str) -> Option<String> {
+    if key == "busytex" {
+        return Some("direct".to_string());
+    }
+    None
+}
+
 fn build_local_resource_probe_entry(
     key: &str,
     policy: &str,
@@ -260,13 +276,16 @@ fn build_local_resource_probe_entry(
     match prepare_result {
         Ok(prepared) => {
             let missing_assets = missing_required_assets(Path::new(&prepared.actual_dir), required_assets);
+            let actual_dir = prepared.actual_dir;
             LocalResourceProbeEntry {
                 key: key.to_string(),
                 policy: prepared.policy,
                 requested_dir: Some(prepared.requested_dir),
-                actual_dir: Some(prepared.actual_dir),
+                actual_dir: Some(actual_dir.clone()),
                 install_dir_writable: Some(prepared.install_dir_writable),
                 using_fallback: Some(prepared.using_fallback),
+                base_url: build_asset_localhost_base_url(&actual_dir),
+                preferred_init_mode: preferred_init_mode_for_resource(key),
                 ready: missing_assets.is_empty(),
                 missing_assets,
                 error: None,
@@ -279,6 +298,8 @@ fn build_local_resource_probe_entry(
             actual_dir: None,
             install_dir_writable: None,
             using_fallback: None,
+            base_url: None,
+            preferred_init_mode: preferred_init_mode_for_resource(key),
             ready: false,
             missing_assets: required_assets.iter().map(|item| (*item).to_string()).collect(),
             error: Some(error),
@@ -294,12 +315,15 @@ pub fn busytex_cache_prepare(
     let policy = input.policy.trim();
     let prepared = ensure_busytex_cache_dir(&state, policy)?;
 
+    let actual_dir = prepared.actual_dir;
     Ok(BusyTexCacheInfo {
         policy: prepared.policy,
         requested_dir: prepared.requested_dir,
-        actual_dir: prepared.actual_dir,
+        actual_dir: actual_dir.clone(),
         install_dir_writable: prepared.install_dir_writable,
         using_fallback: prepared.using_fallback,
+        base_url: build_asset_localhost_base_url(&actual_dir),
+        preferred_init_mode: Some("direct".to_string()),
     })
 }
 
@@ -417,3 +441,5 @@ mod tests {
         assert_eq!(entry.actual_dir.as_deref(), Some("F:/cache"));
     }
 }
+
+

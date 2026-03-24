@@ -14,21 +14,31 @@ import { applyPromptRefSuggestion, resolvePromptInputFiles } from "./analysisPro
 import { buildPyodideAnalysisProfile } from "../../features/analysis/pyodide/profile";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
-import { ensureAnalysisTasksLoaded, runRolePromptWithAgent } from "./analysisRunHelpers";
-import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";import { newRunId, nowIso } from "./analysisTypes";
+import { ensureAnalysisTasksLoaded, isRetryableAnalysisProviderError, runRolePromptWithAgent } from "./analysisRunHelpers";
+import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
+import { nowIso } from "./analysisTypes";
 import {
-  buildReportHtml,
-  clampChart,
-  deriveSections,
-  extractEventCards,
   parsePayloadJson,
   summarizeSnapshotsForPrompt,
-  toChartFromSnapshots,
   upsertRun,
 } from "./analysisWorkspaceHelpers";
 import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
 import { useAnalysisLiveState } from "./useAnalysisLiveState";
+import {
+  buildAnalysisJsonRepairPrompt,
+  buildAnalysisSynthesisPrompt,
+  buildCondensedPaperSourceBlock,
+  buildFallbackPaperSourceBlock,
+  buildPaperCondensePrompt,
+  buildPaperSourceBlock,
+  shouldCondensePaperSource,
+  summarizePaperChunks,
+} from "./analysisPaperSynthesis";
+import {
+  buildCompletedAnalysisRun,
+  hasStructuredAnalysisOutput,
+} from "./analysisWorkspaceRunResult";
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const {
     projectId,
@@ -317,43 +327,53 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }
       let snapshots: AnalysisSourceSnapshot[] = [];
       let sourceBlock = "";
+      let synthesisFallbackSourceBlock: string | null = null;
       let resolvedInputFiles: string[] = [];
       const steps: string[] = [];
       if (task.sourceType === "paper" && task.sourcePath) {
         setStage(t("analysis.step.paperExtract"));
         steps.push(currentStage);
         const paperContext = await buildPaperAnalysisContext(projectId, task.sourcePath);
-        const chunkSummaries: string[] = [];
-        let chunkFailures = 0;
-        for (const chunk of paperContext.chunks) {
-          const chunkPrompt = [
-            `Summarize the following paper segment in ${outputLanguageLabel}.`,
-            "Return concise markdown bullet points of methods, findings, and limitations.",
-            `Chunk pages: ${chunk.pageStart}-${chunk.pageEnd}`,
-            chunk.text,
-          ].join("\n\n");
-          try {
-            const chunkResult = await runRolePromptWithTrace("analysis.explore_chunk", chunkPrompt, contextRefs);
-            chunkSummaries.push(`[Chunk ${chunk.chunkIndex + 1} | pages ${chunk.pageStart}-${chunk.pageEnd}]\n${chunkResult.output}`);
-          } catch (error) {
-            chunkFailures += 1;
+        const { chunkSummaries, chunkFailures } = await summarizePaperChunks({
+          chunks: paperContext.chunks,
+          outputLanguageLabel,
+          runChunkPrompt: (promptText) =>
+            runRolePromptWithTrace("analysis.explore_chunk", promptText, contextRefs).then((result) => result.output),
+          onChunkFailure: async (chunk, reason) => {
             await runtimeLogWrite(
               "WARN",
-              `analysis paper chunk failed: path=${task.sourcePath}, chunk=${chunk.chunkIndex + 1}, reason=${String(error)}`,
+              `analysis paper chunk failed: path=${task.sourcePath}, chunk=${chunk.chunkIndex + 1}, reason=${reason}`,
             ).catch(() => undefined);
-          }
-        }
+          },
+        });
         if (paperContext.chunks.length > 0 && chunkSummaries.length === 0) {
           throw new Error(`analysis.paper.chunk_failed_all(${chunkFailures})`);
         }
-        sourceBlock = [
-          `Paper source: ${paperContext.sourcePath}`,
-          `Title: ${paperContext.title}`,
-          "Metadata:",
-          paperContext.metadataBlock,
-          "Chunk summaries:",
-          chunkSummaries.join("\n\n"),
-        ].join("\n\n");
+        const rawPaperSourceBlock = buildPaperSourceBlock(paperContext, chunkSummaries);
+        sourceBlock = rawPaperSourceBlock;
+        synthesisFallbackSourceBlock = buildFallbackPaperSourceBlock(rawPaperSourceBlock);
+        if (shouldCondensePaperSource(rawPaperSourceBlock, paperContext.chunks.length)) {
+          setStage(t("analysis.step.crossFile"));
+          steps.push(currentStage);
+          try {
+            const condensedResult = await runRolePromptWithTrace(
+              "analysis.synthesize",
+              buildPaperCondensePrompt({
+                outputLanguageLabel,
+                normalizedPrompt,
+                paperContext,
+                chunkSummaries,
+              }),
+              contextRefs,
+              true,
+            );
+            sourceBlock = buildCondensedPaperSourceBlock(paperContext, condensedResult.output);
+            synthesisFallbackSourceBlock = buildFallbackPaperSourceBlock(sourceBlock);
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            await runtimeLogWrite("WARN", `analysis paper condense failed: ${reason}`).catch(() => undefined);
+          }
+        }
         snapshots = [
           {
             path: paperContext.sourcePath,
@@ -411,106 +431,63 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }
       setStage(t("analysis.step.agentSynthesis"));
       steps.push(currentStage);
-      const agentPrompt = [
-        `You are a senior data analyst. Output language must be ${outputLanguageLabel}.`,
-        "Return strict JSON only with keys:",
-        "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
-        "The report must be complete, practical, and visually-oriented.",
-        "If user asks another language explicitly, honor user request.",
-        "User request:",
-        normalizedPrompt,
-        "\nSource material:",
-        sourceBlock,
-      ].join("\n\n");
-      const finalResult = await runRolePromptWithTrace("analysis.synthesize", agentPrompt, contextRefs);
-      const hasStructuredOutput = (parsed: Record<string, unknown>) => Boolean(
-        (typeof parsed.title === "string" && parsed.title.trim().length > 0)
-        || (typeof parsed.summary === "string" && parsed.summary.trim().length > 0)
-        || (Array.isArray(parsed.sections) && parsed.sections.length > 0)
-        || (Array.isArray(parsed.insights) && parsed.insights.length > 0),
-      );
+      const runSynthesisPrompt = (promptText: string, bypassCache = false) =>
+        runRolePromptWithTrace("analysis.synthesize", promptText, contextRefs, bypassCache);
+      let finalResult;
+      try {
+        finalResult = await runSynthesisPrompt(
+          buildAnalysisSynthesisPrompt(outputLanguageLabel, normalizedPrompt, sourceBlock),
+        );
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        if (!synthesisFallbackSourceBlock || !isRetryableAnalysisProviderError(reason)) {
+          throw error;
+        }
+        finalResult = await runSynthesisPrompt(
+          buildAnalysisSynthesisPrompt(outputLanguageLabel, normalizedPrompt, synthesisFallbackSourceBlock),
+          true,
+        );
+      }
       let parsed = parsePayloadJson(finalResult.output);
-      if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
+      if (!hasStructuredAnalysisOutput(parsed)) {
         setStage(t("analysis.step.jsonRepair"));
         steps.push(currentStage);
-        const repairPrompt = [
-          `Output language must be ${outputLanguageLabel}.`,
-          "You are a strict JSON formatter.",
-          "Transform the source text into a strict JSON object only (no markdown code block).",
-          "Allowed keys only:",
-          "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
-          "If unknown, use empty strings/arrays. Do not omit keys.",
-          "Source output to normalize:",
-          finalResult.output.slice(0, 14_000),
-        ].join("\n\n");
-        const repairResult = await runRolePromptWithTrace("analysis.synthesize", repairPrompt, contextRefs, true);
+        const repairResult = await runRolePromptWithTrace(
+          "analysis.synthesize",
+          buildAnalysisJsonRepairPrompt(outputLanguageLabel, finalResult.output),
+          contextRefs,
+          true,
+        );
         parsed = parsePayloadJson(repairResult.output);
       }
-      if (!hasStructuredOutput(parsed as unknown as Record<string, unknown>)) {
+      if (!hasStructuredAnalysisOutput(parsed)) {
         throw new Error("analysis.output.invalid_json");
       }
-      const chartSource = clampChart(
-        Array.isArray(parsed.chart)
-          ? parsed.chart
-              .map((item) => ({ label: String(item.label ?? ""), value: Number(item.value ?? Number.NaN) }))
-              .filter((item) => item.label && Number.isFinite(item.value))
-          : [],
-      );
-      const fallbackChart = toChartFromSnapshots(snapshots);
-      const chart = chartSource.length > 0 ? chartSource : fallbackChart;
-      const labels = chart.map((item) => item.label);
-      const values = chart.map((item) => item.value);
-      const mergedSteps = Array.from(
-        new Set([
-          ...steps,
-          ...(Array.isArray(parsed.steps) ? parsed.steps.map((item) => String(item)) : []),
-        ]),
-      ).slice(0, 20);
-      const insights = (Array.isArray(parsed.insights) ? parsed.insights.map((item) => String(item)) : [])
-        .filter((item) => item.trim())
-        .slice(0, 24);
-      const sections = deriveSections(parsed);
-      const runRecordId = newRunId("analysis-run");
-      const resultTitle = (parsed.title?.trim() || `${task.name} - ${t("analysis.defaultTitle")}`).slice(0, 120);
-      const resultSummary = parsed.summary?.trim() || t("analysis.defaultSummary");
-      const report = buildReportHtml({
-        language: outputLanguage,
-        title: resultTitle,
-        summary: resultSummary,
-        steps: mergedSteps.length > 0 ? mergedSteps : [t("analysis.defaultStep")],
-        insights: insights.length > 0 ? insights : [t("analysis.defaultInsight")],
-        sections,
-        labels,
-        values,
+      const completed = buildCompletedAnalysisRun({
+        task,
+        parsed,
+        snapshots,
+        outputLanguage,
+        resolvedInputFiles,
+        eventRunIds: runIds,
+        agentRunId: finalResult.runId,
+        prompt: normalizedPrompt,
+        steps,
+        t,
       });
       const saved = await analysisSaveReport({
         projectId,
-        runId: runRecordId,
-        title: resultTitle,
-        reportHtml: report.html,
-        assets: [{ fileName: "chart.svg", dataUrl: report.chartDataUrl }],
+        runId: completed.runRecord.id,
+        title: completed.runRecord.title,
+        reportHtml: completed.reportHtml,
+        assets: [{ fileName: "chart.svg", dataUrl: completed.chartDataUrl }],
       });
       const runRecord: AnalysisTaskRun = {
-        id: runRecordId,
-        prompt: normalizedPrompt,
-        title: resultTitle,
-        summary: resultSummary,
+        ...completed.runRecord,
         reportRelativePath: saved.reportRelativePath,
         assetRelativePaths: saved.assetRelativePaths,
-        labels,
-        values,
-        insights,
-        steps: mergedSteps,
-        sourceType: task.sourceType,
-        sourcePath: task.sourcePath,
-        inputFiles: resolvedInputFiles,
-        outputLanguage,
-        agentRunId: finalResult.runId,
-        eventRunIds: Array.from(new Set(runIds)),
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
       };
-      setActiveRunHtml(report.html);
+      setActiveRunHtml(completed.reportHtml);
       updateTaskById(task.id, (item) => ({
         ...upsertRun(item, runRecord),
         lastError: null,
@@ -547,7 +524,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     ensureTasksReady,
     locale,
     projectId,
-    runRolePromptWithAgent,
     selectedFile,
     setToast,
     t,
@@ -591,3 +567,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+
+
+
+
+
+
+
+
+

@@ -280,6 +280,8 @@ export type BusyTexCacheInfo = {
   actualDir: string;
   installDirWritable: boolean;
   usingFallback: boolean;
+  baseUrl?: string | null;
+  preferredInitMode?: "worker" | "direct" | null;
 };
 
 export type BusyTexInstalledOverlayFile = {
@@ -312,6 +314,8 @@ export type LocalResourceProbeEntry = {
   actualDir?: string | null;
   installDirWritable?: boolean | null;
   usingFallback?: boolean | null;
+  baseUrl?: string | null;
+  preferredInitMode?: "worker" | "direct" | null;
   ready: boolean;
   missingAssets: string[];
   error?: string | null;
@@ -332,6 +336,8 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
+
 
 
 

@@ -3,6 +3,19 @@ import type { MutableRefObject } from "react";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";
 
+export function isRetryableAnalysisProviderError(message: string): boolean {
+  return (
+    message.includes("provider.empty_body")
+    || message.includes("provider.parse_eof")
+    || message.includes("provider.parse_invalid_json")
+    || message.includes("provider.empty_output")
+    || message.includes("provider.transport_error")
+    || message.includes("provider.server_error")
+    || message.includes("provider.rate_limited")
+    || message.includes("provider.endpoint_mismatch")
+  );
+}
+
 export async function ensureAnalysisTasksLoaded(
   loadedRef: MutableRefObject<boolean>,
   timeoutMs = 3500,
@@ -35,15 +48,6 @@ export async function runRolePromptWithAgent(params: {
   const promptRefContext = extractPromptRefValues(promptText).map((path) => `file:${path}`);
   const mergedContextRefs = Array.from(new Set([...contextRefs, ...promptRefContext]));
   const maxAttempts = 3;
-  const isRetryableProviderError = (message: string) =>
-    message.includes("provider.empty_body")
-    || message.includes("provider.parse_eof")
-    || message.includes("provider.parse_invalid_json")
-    || message.includes("provider.empty_output")
-    || message.includes("provider.transport_error")
-    || message.includes("provider.server_error")
-    || message.includes("provider.rate_limited")
-    || message.includes("provider.endpoint_mismatch");
   let lastError: unknown = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const retryAttempt = attempt > 0;
@@ -65,7 +69,7 @@ export async function runRolePromptWithAgent(params: {
     } catch (error) {
       lastError = error;
       const message = String(error ?? "");
-      const retryable = isRetryableProviderError(message);
+      const retryable = isRetryableAnalysisProviderError(message);
       if (!retryable || attempt >= maxAttempts - 1) {
         break;
       }
@@ -75,3 +79,4 @@ export async function runRolePromptWithAgent(params: {
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "analysis.run.failed"));
 }
+

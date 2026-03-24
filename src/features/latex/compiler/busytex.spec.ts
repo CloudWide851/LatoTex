@@ -137,7 +137,9 @@ describe("BusyTeX compile adapter", () => {
 
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fbusytex-cache",
+      convertFileSrc: () => {
+        throw new Error("convertFileSrc should not be used for BusyTeX desktop init");
+      },
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => ({
@@ -146,6 +148,8 @@ describe("BusyTeX compile adapter", () => {
         actualDir: "F:\\LatoTex\\busytex-cache",
         installDirWritable: true,
         usingFallback: false,
+        baseUrl: "http://asset.localhost/F%3A%2FLatoTex%2Fbusytex-cache",
+        preferredInitMode: "direct",
       })),
     }));
     vi.resetModules();
@@ -156,7 +160,7 @@ describe("BusyTeX compile adapter", () => {
     expect(result.status).toBe("success");
     expect(runnerInitCalls.some((call) => call.basePath.includes("asset.localhost"))).toBe(true);
     expect(runnerInitCalls.some((call) => call.basePath.includes("/core/busytex"))).toBe(false);
-    expect(runnerInitCalls.every((call) => call.useWorker)).toBe(true);
+    expect(runnerInitCalls.every((call) => !call.useWorker)).toBe(true);
   });
 
   it("falls back to direct initialization in tauri when worker bootstrap hits origin errors", async () => {
@@ -172,7 +176,6 @@ describe("BusyTeX compile adapter", () => {
 
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: (value: string) => `http://asset.localhost/${value.replace(/\\/g, "/")}`,
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => ({
@@ -181,6 +184,8 @@ describe("BusyTeX compile adapter", () => {
         actualDir: "F:\\busytex-cache",
         installDirWritable: true,
         usingFallback: false,
+        baseUrl: "http://asset.localhost/F%3A%2Fbusytex-cache",
+        preferredInitMode: "worker",
       })),
     }));
 
@@ -210,7 +215,6 @@ describe("BusyTeX compile adapter", () => {
 
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: (value: string) => `http://asset.localhost/${value.replace(/\\/g, "/")}`,
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => {
@@ -222,6 +226,8 @@ describe("BusyTeX compile adapter", () => {
           actualDir: dir,
           installDirWritable: true,
           usingFallback: false,
+          baseUrl: `http://asset.localhost/${dir.replace(/\\/g, "/")}`,
+          preferredInitMode: "direct",
         };
       }),
     }));
@@ -253,7 +259,6 @@ describe("BusyTeX compile adapter", () => {
 
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: (value: string) => "http://asset.localhost/" + value.replace(/\\/g, "/"),
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
       busytexCachePrepare: vi.fn(async () => {
@@ -265,6 +270,8 @@ describe("BusyTeX compile adapter", () => {
           actualDir: dir,
           installDirWritable: true,
           usingFallback: false,
+          baseUrl: `http://asset.localhost/${dir.replace(/\\/g, "/")}`,
+          preferredInitMode: "direct",
         };
       }),
     }));
@@ -299,6 +306,8 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.some((line) => /keepRuntimeAlive/i.test(line))).toBe(false);
   });
 });
+
+
 
 
 
