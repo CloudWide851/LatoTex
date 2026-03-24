@@ -11,17 +11,15 @@ describe("drawWorkspaceUtils", () => {
   it("keeps fallback drawio host for non-tauri runtime", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => false,
-      convertFileSrc: (value: string) => value,
     }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual(["/drawio/index.html"]);
   });
 
-  it("returns only local drawio candidates in tauri mode", async () => {
+  it("uses backend-provided local drawio host URL in tauri mode", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: () => "http://asset.localhost/F%3A%2FLatoTex%2Fdrawio-cache",
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
       drawioCachePrepare: vi.fn(async () => ({
@@ -30,22 +28,20 @@ describe("drawWorkspaceUtils", () => {
         actualDir: "F:\\LatoTex\\drawio-cache",
         installDirWritable: true,
         usingFallback: false,
+        baseUrl: "http://asset.localhost/F:/LatoTex/drawio-cache",
+        hostUrl: "http://asset.localhost/F:/LatoTex/drawio-cache/index.html",
       })),
     }));
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, type: "opaque" })));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     const candidates = await resolveDrawioHostFrameCandidates();
 
-    expect(candidates[0]).toBe("http://asset.localhost/F:/LatoTex/drawio-cache/index.html");
-    expect(candidates.every((item) => item.includes("asset.localhost"))).toBe(true);
-    expect(candidates).not.toContain("/drawio/index.html");
+    expect(candidates).toEqual(["http://asset.localhost/F:/LatoTex/drawio-cache/index.html"]);
   });
 
   it("returns no drawio candidates when tauri cache prepare fails", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
-      convertFileSrc: (value: string) => value,
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
       drawioCachePrepare: vi.fn(async () => {

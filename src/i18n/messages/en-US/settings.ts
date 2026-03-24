@@ -25,6 +25,7 @@ export const enUS_settings = {
   "settings.agentHint": "Configure models by function. Legacy role bindings remain compatible.",
   "settings.featureModel.latexAgent": "LaTeX Agent",
   "settings.featureModel.analysisAgent": "Analysis Agent",
+  "settings.featureModel.gitSummary": "Git Summary",
   "settings.featureModel.translation": "Translation",
   "settings.featureModel.completion": "Completion",
   "settings.channels.telegram": "Telegram Channel",
@@ -137,3 +138,5 @@ export const enUS_settings = {
   "settings.installMode": "Install mode",
   "settings.version": "Version",
 } as const;
+
+

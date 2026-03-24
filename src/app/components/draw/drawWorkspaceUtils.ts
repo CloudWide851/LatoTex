@@ -1,10 +1,5 @@
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
+import { isTauri } from "@tauri-apps/api/core";
 import { drawioCachePrepare } from "../../../shared/api/local-resources";
-import {
-  buildLocalResourceBaseCandidates,
-  buildLocalResourceEntryCandidates,
-  prioritizeReachableLocalResourceCandidates,
-} from "../../../shared/utils/localResourceProbe";
 
 export type DrawMessage = {
   event?: string;
@@ -45,7 +40,8 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    return prioritizeReachableLocalResourceCandidates(toDrawioHostCandidates(info.actualDir));
+    const hostUrl = String(info.hostUrl ?? "").trim();
+    return hostUrl ? [hostUrl] : [];
   } catch {
     return [];
   }
@@ -101,11 +97,6 @@ export function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
   } catch {
     // ignore storage quota errors
   }
-}
-
-export function toDrawioHostCandidates(actualDir: string): string[] {
-  const bases = buildLocalResourceBaseCandidates(actualDir, convertFileSrc);
-  return buildLocalResourceEntryCandidates(bases, "index.html");
 }
 
 export function parseDrawMessage(payload: unknown): DrawMessage | null {
@@ -309,9 +300,3 @@ export async function persistDrawExportToWorkspace(params: {
   await onAfterSave?.(savedPath);
   return savedPath;
 }
-
-
-
-
-
-

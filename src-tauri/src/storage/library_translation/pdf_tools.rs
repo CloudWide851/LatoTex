@@ -40,6 +40,21 @@ pub(super) fn resolve_poppler_tool(tool_name: &str) -> PathBuf {
     PathBuf::from(normalized)
 }
 
+pub(super) fn resolve_ocr_tool(tool_name: &str) -> PathBuf {
+    let normalized = tool_name.trim();
+    if let Some(path) = bundled_tool_path(&format!("ocr/{normalized}")) {
+        return path;
+    }
+    PathBuf::from(normalized)
+}
+
+pub(super) fn resolve_ocr_tessdata_dir() -> Option<PathBuf> {
+    tools_dir_candidates()
+        .into_iter()
+        .map(|root| root.join("ocr/tessdata"))
+        .find(|candidate| candidate.exists() && candidate.is_dir())
+}
+
 #[cfg(target_os = "windows")]
 pub(super) fn resolve_powershell() -> PathBuf {
     for candidate in POWERSHELL_CANDIDATES {
@@ -72,3 +87,4 @@ pub(super) fn run_command_capture(command_path: &Path, args: &[&str]) -> Result<
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
+

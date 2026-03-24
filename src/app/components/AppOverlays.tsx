@@ -2,8 +2,8 @@ import type { CSSProperties } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
-import { Checkbox } from "../../components/ui/checkbox";
 import { ModelModal } from "./ModelModal";
+import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { normalizeLogLevel, resolveLineTone } from "./logTone";
 import type {
   AppSettings,
@@ -306,13 +306,13 @@ export function AppOverlays(props: {
             <p className="mt-2 text-xs text-slate-600">
               {t("window.closeConfirmHint")}
             </p>
-            <label className="mt-3 flex cursor-pointer select-none items-center gap-2 text-xs text-slate-600">
-              <Checkbox
-                checked={closeBehaviorRemember}
-                onChange={(event) => onCloseBehaviorRememberChange(event.target.checked)}
-              />
-              {t("window.closeRemember")}
-            </label>
+            <SettingsBooleanRow
+              label={t("window.closeRemember")}
+              checked={closeBehaviorRemember}
+              disabled={closeBehaviorDialogBusy}
+              className="mt-3 rounded-md border-transparent bg-slate-50 p-2 text-xs text-slate-600 shadow-none"
+              onCheckedChange={onCloseBehaviorRememberChange}
+            />
             <div className="mt-4 flex justify-end gap-2">
               <Button
                 variant="secondary"
@@ -375,3 +375,6 @@ export function AppOverlays(props: {
     </>
   );
 }
+
+
+

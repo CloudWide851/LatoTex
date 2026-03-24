@@ -2,6 +2,10 @@ import { executeWorkflowStart } from "../../shared/api/agent";
 import { gitDiffFile } from "../../shared/api/git";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
+export function toGitSummaryContextRefs(paths: string[]): string[] {
+  return paths.map((path) => `file:${path}`);
+}
+
 export async function generateGitSummary(
   activeProjectId: string | null,
   includedPaths: string[],
@@ -56,7 +60,7 @@ export async function generateGitSummary(
     workflowId: "git.summary",
     callsite: "git.summary",
     prompt,
-    contextRefs: files,
+    contextRefs: toGitSummaryContextRefs(files),
     bypassCache: true,
   });
   const output = (await waitForRunOutputWithPolicy({
@@ -77,5 +81,3 @@ export async function generateGitSummary(
   }
   return output.split(/\r?\n/).find((line) => line.trim().length > 0)?.trim() ?? "";
 }
-
-

@@ -25,6 +25,7 @@ export const zhCN_settings = {
   "settings.agentHint": "按功能配置模型，旧的角色绑定保持兼容。",
   "settings.featureModel.latexAgent": "LaTeX Agent",
   "settings.featureModel.analysisAgent": "数据分析 Agent",
+  "settings.featureModel.gitSummary": "Git 总结",
   "settings.featureModel.translation": "翻译模型",
   "settings.featureModel.completion": "补全模型",
   "settings.channels.telegram": "Telegram 通道",
@@ -137,3 +138,5 @@ export const zhCN_settings = {
   "settings.installMode": "安装模式",
   "settings.version": "版本",
 } as const;
+
+

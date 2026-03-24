@@ -219,6 +219,9 @@ pub struct AnalysisPyodideCacheInfo {
     pub actual_dir: String,
     pub install_dir_writable: bool,
     pub using_fallback: bool,
+    pub base_url: Option<String>,
+    pub module_url: Option<String>,
+    pub index_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -235,6 +238,8 @@ pub struct DrawioCacheInfo {
     pub actual_dir: String,
     pub install_dir_writable: bool,
     pub using_fallback: bool,
+    pub base_url: Option<String>,
+    pub host_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -253,6 +258,9 @@ pub struct LocalResourceProbeEntry {
     pub install_dir_writable: Option<bool>,
     pub using_fallback: Option<bool>,
     pub base_url: Option<String>,
+    pub module_url: Option<String>,
+    pub index_url: Option<String>,
+    pub host_url: Option<String>,
     pub preferred_init_mode: Option<String>,
     pub ready: bool,
     pub missing_assets: Vec<String>,
@@ -272,6 +280,7 @@ pub struct LocalResourceProbeResponse {
 pub struct LocalResourceProbeInput {
     pub policy: Option<String>,
 }
+
 
 
 

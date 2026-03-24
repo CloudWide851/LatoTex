@@ -1,7 +1,6 @@
 import { analysisPyodidePrepare } from "../../../shared/api/local-resources";
 import type { AnalysisPyodideCacheInfo } from "../../../shared/types/app";
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { buildLocalResourceBaseCandidates } from "../../../shared/utils/localResourceProbe";
+import { isTauri } from "@tauri-apps/api/core";
 
 export type PyodideSourceConfig = {
   moduleUrl: string;
@@ -18,13 +17,16 @@ const CDN_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${CDN_VERSION}/full/`;
 
 let cachedCandidatesPromise: Promise<PyodideSourceCandidate[]> | null = null;
 
-function toLocalSourceConfigs(info: AnalysisPyodideCacheInfo): PyodideSourceConfig[] {
-  const basePaths = buildLocalResourceBaseCandidates(info.actualDir, convertFileSrc);
-
-  return basePaths.map((localBase) => ({
-    moduleUrl: `${localBase}/pyodide.mjs`,
-    indexURL: `${localBase}/`,
-  }));
+function toLocalSourceConfig(info: AnalysisPyodideCacheInfo): PyodideSourceConfig | null {
+  const moduleUrl = String(info.moduleUrl ?? "").trim();
+  const indexURL = String(info.indexUrl ?? "").trim();
+  if (!moduleUrl || !indexURL) {
+    return null;
+  }
+  return {
+    moduleUrl,
+    indexURL,
+  };
 }
 
 function buildCdnSource(): PyodideSourceConfig {
@@ -52,13 +54,14 @@ export async function resolvePyodideSourceCandidates(): Promise<PyodideSourceCan
           window.localStorage.setItem("latotex.pyodide.cacheDir", info.actualDir);
           window.localStorage.setItem("latotex.pyodide.cachePolicy", info.policy);
         }
-        const localSources = toLocalSourceConfigs(info);
-        for (const source of localSources) {
-          candidates.push({
-            name: "local-cache",
-            source,
-          });
+        const localSource = toLocalSourceConfig(info);
+        if (!localSource) {
+          return [];
         }
+        candidates.push({
+          name: "local-cache",
+          source: localSource,
+        });
       } catch {
         return [];
       }

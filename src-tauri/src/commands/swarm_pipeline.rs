@@ -115,7 +115,10 @@ fn pick_feature_binding(settings: &AppSettings, callsite: &str) -> Option<String
         "analysis.workspace" => bindings.analysis_agent_model_id.clone(),
         "chat.workspace" => bindings.translation_model_id.clone(),
         "completion.inline" => bindings.completion_model_id.clone(),
-        "git.summary" => bindings.analysis_agent_model_id.clone(),
+        "git.summary" => bindings
+            .git_summary_model_id
+            .clone()
+            .or_else(|| bindings.analysis_agent_model_id.clone()),
         _ => None,
     }
 }
@@ -513,4 +516,5 @@ pub fn agent_execute_start(
         status: "accepted".to_string(),
     })
 }
+
 

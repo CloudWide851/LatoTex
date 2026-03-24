@@ -5,6 +5,7 @@ import {
   appendLocalResourceBaseVariants,
   orderLocalResourceCandidatesByOrigin,
 } from "../../../shared/utils/localResourceProbe";
+import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
 
 type BusyTexCompileResponse = {
   success?: boolean;
@@ -87,7 +88,7 @@ async function resolveCacheCandidate(): Promise<BusyTexInitCandidate | null> {
         window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
       }
 
-      const basePath = normalizeTrailingSlash(info.baseUrl ?? "");
+      const basePath = normalizeTrailingSlash(normalizeAssetBasePath(info.baseUrl ?? ""));
       preparedCacheCandidate = basePath
         ? {
             basePath,
@@ -487,6 +488,8 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
+
+
 
 
 

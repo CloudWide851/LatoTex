@@ -4,7 +4,6 @@ import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import telegramIcon from "../../assets/brands/telegram.svg";
 import { Button } from "../../components/ui/button";
-import { Checkbox } from "../../components/ui/checkbox";
 import { Select } from "../../components/ui/select";
 import type {
   AppSettings,
@@ -24,6 +23,7 @@ import {
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
 import { BackgroundImageCard } from "./settings/BackgroundImageCard";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
+import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 
 type TranslationFn = (key: any) => string;
 
@@ -213,24 +213,20 @@ export function SettingsPanel(props: {
                 </p>
               </div>
             </div>
-            <label className="flex cursor-pointer select-none items-center justify-between rounded-lg border border-slate-200 p-4 text-sm text-slate-700">
-              <span>{t("settings.deleteConfirm")}</span>
-              <Checkbox
-                checked={deleteConfirmEnabled}
-                onChange={(event) =>
-                  updateGeneralUiPrefs({ skipDeleteConfirm: !event.target.checked })
-                }
-              />
-            </label>
-            <label className="flex cursor-pointer select-none items-center justify-between rounded-lg border border-slate-200 p-4 text-sm text-slate-700">
-              <span>{t("settings.closeToTrayNotice")}</span>
-              <Checkbox
-                checked={closeToTrayNoticeEnabled}
-                onChange={(event) =>
-                  updateGeneralUiPrefs({ closeToTrayNoticeEnabled: event.target.checked })
-                }
-              />
-            </label>
+                        <SettingsBooleanRow
+              label={t("settings.deleteConfirm")}
+              checked={deleteConfirmEnabled}
+              onCheckedChange={(nextValue) =>
+                updateGeneralUiPrefs({ skipDeleteConfirm: !nextValue })
+              }
+            />
+            <SettingsBooleanRow
+              label={t("settings.closeToTrayNotice")}
+              checked={closeToTrayNoticeEnabled}
+              onCheckedChange={(nextValue) =>
+                updateGeneralUiPrefs({ closeToTrayNoticeEnabled: nextValue })
+              }
+            />
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
             <div className="rounded-lg border border-slate-200 p-4">
               <h3 className="mb-3 text-sm font-semibold text-slate-800">
@@ -435,6 +431,10 @@ export function SettingsPanel(props: {
                 label: t("settings.featureModel.analysisAgent"),
               },
               {
+                key: "gitSummaryModelId",
+                label: t("settings.featureModel.gitSummary"),
+              },
+              {
                 key: "translationModelId",
                 label: t("settings.featureModel.translation"),
               },
@@ -492,28 +492,28 @@ export function SettingsPanel(props: {
                 <img src={telegramIcon} alt="" className="h-4 w-4 rounded-sm" />
                 <span>{t("settings.channels.telegram")}</span>
               </div>
-              <label className="mb-2 flex items-center justify-between text-xs text-slate-600">
-                <span>{t("settings.channels.telegramEnabled")}</span>
-                <Checkbox
-                  checked={Boolean(localSettings.uiPrefs?.channels?.telegramEnabled)}
-                  onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            uiPrefs: {
-                              ...(prev.uiPrefs ?? {}),
-                              channels: {
-                                ...(prev.uiPrefs?.channels ?? {}),
-                                telegramEnabled: event.target.checked,
-                              },
+                            <SettingsBooleanRow
+                label={t("settings.channels.telegramEnabled")}
+                checked={Boolean(localSettings.uiPrefs?.channels?.telegramEnabled)}
+                className="mb-2 rounded-md border-transparent bg-slate-50 px-0 py-0 text-xs text-slate-600 shadow-none focus-visible:ring-0"
+                textClassName="px-0"
+                onCheckedChange={(nextValue) =>
+                  setSettings((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          uiPrefs: {
+                            ...(prev.uiPrefs ?? {}),
+                            channels: {
+                              ...(prev.uiPrefs?.channels ?? {}),
+                              telegramEnabled: nextValue,
                             },
-                          }
-                        : prev,
-                    )
-                  }
-                />
-              </label>
+                          },
+                        }
+                      : prev,
+                  )
+                }
+              />
               <div className="grid gap-2">
                 <input
                   value={localSettings.uiPrefs?.channels?.telegramBotToken ?? ""}
@@ -581,6 +581,7 @@ export function SettingsPanel(props: {
     </div>
   );
 }
+
 
 
 

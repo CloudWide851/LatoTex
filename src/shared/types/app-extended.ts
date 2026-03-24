@@ -272,6 +272,9 @@ export type AnalysisPyodideCacheInfo = {
   actualDir: string;
   installDirWritable: boolean;
   usingFallback: boolean;
+  baseUrl?: string | null;
+  moduleUrl?: string | null;
+  indexUrl?: string | null;
 };
 
 export type BusyTexCacheInfo = {
@@ -305,6 +308,8 @@ export type DrawioCacheInfo = {
   actualDir: string;
   installDirWritable: boolean;
   usingFallback: boolean;
+  baseUrl?: string | null;
+  hostUrl?: string | null;
 };
 
 export type LocalResourceProbeEntry = {
@@ -336,6 +341,9 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
+
+
 
 
 

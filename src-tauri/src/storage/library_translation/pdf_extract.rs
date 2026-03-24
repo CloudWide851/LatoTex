@@ -1,6 +1,7 @@
 use super::library_translation_ocr::{detect_source_language, normalize_for_blocks, text_quality_score};
 use super::library_translation_pdf_tools::{
-    bundled_tool_path, resolve_poppler_tool, resolve_powershell, run_command_capture,
+    bundled_tool_path, resolve_ocr_tessdata_dir, resolve_ocr_tool, resolve_poppler_tool,
+    resolve_powershell, run_command_capture,
 };
 use super::library_translation_types::{TranslationBlock, TranslationBlockBounds};
 use regex::Regex;
@@ -23,6 +24,11 @@ pub(super) struct PdfExtractionResult {
 type NativePage = (u32, f32, f32, Vec<TranslationBlock>);
 
 type OcrLine = (String, f32, f32, f32, f32);
+
+struct OcrPageExtractResult {
+    blocks: Vec<TranslationBlock>,
+    engine: &'static str,
+}
 
 fn decode_html_text(input: &str) -> String {
     input
@@ -258,7 +264,14 @@ fn run_windows_ocr(_image_path: &Path) -> Result<Value, String> {
     Err("winocr.unsupported_platform".to_string())
 }
 
-fn group_ocr_lines_to_blocks(lines: &[OcrLine], page_number: u32, page_width: f32, page_height: f32, max_chars: usize) -> Vec<TranslationBlock> {
+fn group_ocr_lines_to_blocks(
+    lines: &[OcrLine],
+    page_number: u32,
+    page_width: f32,
+    page_height: f32,
+    max_chars: usize,
+    text_source: &str,
+) -> Vec<TranslationBlock> {
     let mut sorted = lines.to_vec();
     sorted.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
     let mut blocks = Vec::<TranslationBlock>::new();
@@ -294,7 +307,7 @@ fn group_ocr_lines_to_blocks(lines: &[OcrLine], page_number: u32, page_width: f3
             text,
             confidence: Some(0.78),
             bounds: build_bounds(min_x, min_y, max_x, max_y, page_width, page_height),
-            text_source: Some("ocr".to_string()),
+            text_source: Some(text_source.to_string()),
         });
         items.clear();
     };
@@ -303,7 +316,8 @@ fn group_ocr_lines_to_blocks(lines: &[OcrLine], page_number: u32, page_width: f3
         if let Some((_, last_x, last_y, _, last_height)) = current_lines.last() {
             let vertical_gap = line.2 - (*last_y + *last_height);
             let horizontal_shift = (line.1 - *last_x).abs();
-            let should_break = vertical_gap > (line.4.max(*last_height) * 0.9 + 6.0) || horizontal_shift > (page_width * 0.2);
+            let should_break = vertical_gap > (line.4.max(*last_height) * 0.9 + 6.0)
+                || horizontal_shift > (page_width * 0.2);
             if should_break {
                 flush(&mut current_lines, &mut blocks);
             }
@@ -314,36 +328,190 @@ fn group_ocr_lines_to_blocks(lines: &[OcrLine], page_number: u32, page_width: f3
     blocks
 }
 
-fn extract_ocr_page_blocks(pdf_path: &Path, page_number: u32, max_chars: usize) -> Result<Vec<TranslationBlock>, String> {
-    let image_path = render_pdf_page_to_png(pdf_path, page_number)?;
-    let ocr_json = run_windows_ocr(&image_path)?;
-    let page_width = ocr_json.get("width").and_then(Value::as_f64).unwrap_or(1240.0) as f32;
-    let page_height = ocr_json.get("height").and_then(Value::as_f64).unwrap_or(1754.0) as f32;
-    let mut lines = Vec::<OcrLine>::new();
-    if let Some(items) = ocr_json.get("lines").and_then(Value::as_array) {
-        for item in items {
-            let text = item.get("text").and_then(Value::as_str).unwrap_or_default().trim().to_string();
-            if text.is_empty() {
-                continue;
-            }
-            let x = item.get("x").and_then(Value::as_f64).unwrap_or(0.0) as f32;
-            let y = item.get("y").and_then(Value::as_f64).unwrap_or(0.0) as f32;
-            let width = item.get("width").and_then(Value::as_f64).unwrap_or(0.0) as f32;
-            let height = item.get("height").and_then(Value::as_f64).unwrap_or(0.0) as f32;
-            lines.push((text, x, y, width.max(1.0), height.max(1.0)));
+fn parse_tesseract_tsv_lines(tsv: &str) -> Vec<OcrLine> {
+    let mut grouped = std::collections::BTreeMap::<(u32, u32, u32), Vec<(String, f32, f32, f32, f32)>>::new();
+
+    for line in tsv.lines().skip(1) {
+        let columns = line.split('\t').collect::<Vec<_>>();
+        if columns.len() < 12 {
+            continue;
         }
+        let level = columns[0].trim().parse::<u32>().unwrap_or(0);
+        if level != 5 {
+            continue;
+        }
+        let text = columns[11].trim().to_string();
+        if text.is_empty() {
+            continue;
+        }
+        let confidence = columns[10].trim().parse::<f32>().unwrap_or(-1.0);
+        if confidence < 0.0 {
+            continue;
+        }
+        let block_num = columns[2].trim().parse::<u32>().unwrap_or(0);
+        let par_num = columns[3].trim().parse::<u32>().unwrap_or(0);
+        let line_num = columns[4].trim().parse::<u32>().unwrap_or(0);
+        let left = columns[6].trim().parse::<f32>().unwrap_or(0.0);
+        let top = columns[7].trim().parse::<f32>().unwrap_or(0.0);
+        let width = columns[8].trim().parse::<f32>().unwrap_or(0.0).max(1.0);
+        let height = columns[9].trim().parse::<f32>().unwrap_or(0.0).max(1.0);
+        grouped
+            .entry((block_num, par_num, line_num))
+            .or_default()
+            .push((text, left, top, width, height));
     }
+
+    let mut lines = Vec::<OcrLine>::new();
+    for words in grouped.into_values() {
+        let mut text_parts = Vec::<String>::new();
+        let mut min_x = f32::MAX;
+        let mut min_y = f32::MAX;
+        let mut max_x = 0.0_f32;
+        let mut max_y = 0.0_f32;
+        for (text, left, top, width, height) in words {
+            text_parts.push(text);
+            min_x = min_x.min(left);
+            min_y = min_y.min(top);
+            max_x = max_x.max(left + width);
+            max_y = max_y.max(top + height);
+        }
+        if text_parts.is_empty() {
+            continue;
+        }
+        lines.push((
+            text_parts.join(" "),
+            min_x,
+            min_y,
+            (max_x - min_x).max(1.0),
+            (max_y - min_y).max(1.0),
+        ));
+    }
+    lines
+}
+
+fn run_tesseract_ocr(image_path: &Path) -> Result<Vec<OcrLine>, String> {
+    let tool = resolve_ocr_tool("tesseract.exe");
+    let mut command = Command::new(&tool);
+    command.args([
+        &image_path.to_string_lossy(),
+        "stdout",
+        "--dpi",
+        "300",
+        "-l",
+        "chi_sim+eng",
+        "tsv",
+    ]);
+    if let Some(tessdata_dir) = resolve_ocr_tessdata_dir() {
+        command.env("TESSDATA_PREFIX", tessdata_dir);
+    }
+    let output = command.output().map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "tesseract.failed".to_string()
+        } else {
+            stderr
+        });
+    }
+    let tsv = String::from_utf8_lossy(&output.stdout).to_string();
+    let lines = parse_tesseract_tsv_lines(&tsv);
+    if lines.is_empty() {
+        return Err("tesseract.empty_output".to_string());
+    }
+    Ok(lines)
+}
+
+fn estimate_ocr_page_size(lines: &[OcrLine]) -> (f32, f32) {
+    let page_width = lines
+        .iter()
+        .map(|(_, x, _, width, _)| x + width)
+        .fold(1240.0_f32, f32::max);
+    let page_height = lines
+        .iter()
+        .map(|(_, _, y, _, height)| y + height)
+        .fold(1754.0_f32, f32::max);
+    (page_width, page_height)
+}
+
+fn build_ocr_result_from_lines(
+    lines: Vec<OcrLine>,
+    page_number: u32,
+    max_chars: usize,
+    engine: &'static str,
+    text_source: &str,
+    page_width: Option<f32>,
+    page_height: Option<f32>,
+) -> Result<OcrPageExtractResult, String> {
+    let (resolved_width, resolved_height) = match (page_width, page_height) {
+        (Some(width), Some(height)) => (width, height),
+        _ => estimate_ocr_page_size(&lines),
+    };
+    let blocks = group_ocr_lines_to_blocks(
+        &lines,
+        page_number,
+        resolved_width,
+        resolved_height,
+        max_chars,
+        text_source,
+    );
+    if blocks.is_empty() {
+        return Err(format!("ocr produced no usable text for page {page_number}"));
+    }
+    Ok(OcrPageExtractResult { blocks, engine })
+}
+
+fn extract_ocr_page_blocks(
+    pdf_path: &Path,
+    page_number: u32,
+    max_chars: usize,
+) -> Result<OcrPageExtractResult, String> {
+    let image_path = render_pdf_page_to_png(pdf_path, page_number)?;
+    let result = run_tesseract_ocr(&image_path)
+        .and_then(|lines| {
+            build_ocr_result_from_lines(
+                lines,
+                page_number,
+                max_chars,
+                "ocr.tesseract",
+                "ocr.tesseract",
+                None,
+                None,
+            )
+        })
+        .or_else(|_| {
+            let ocr_json = run_windows_ocr(&image_path)?;
+            let page_width = ocr_json.get("width").and_then(Value::as_f64).unwrap_or(1240.0) as f32;
+            let page_height = ocr_json.get("height").and_then(Value::as_f64).unwrap_or(1754.0) as f32;
+            let mut lines = Vec::<OcrLine>::new();
+            if let Some(items) = ocr_json.get("lines").and_then(Value::as_array) {
+                for item in items {
+                    let text = item.get("text").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+                    if text.is_empty() {
+                        continue;
+                    }
+                    let x = item.get("x").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                    let y = item.get("y").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                    let width = item.get("width").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                    let height = item.get("height").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                    lines.push((text, x, y, width.max(1.0), height.max(1.0)));
+                }
+            }
+            build_ocr_result_from_lines(
+                lines,
+                page_number,
+                max_chars,
+                "ocr.winocr",
+                "ocr.winocr",
+                Some(page_width),
+                Some(page_height),
+            )
+        });
     let _ = fs::remove_file(&image_path);
     if let Some(parent) = image_path.parent() {
         let _ = fs::remove_dir_all(parent);
     }
-    let blocks = group_ocr_lines_to_blocks(&lines, page_number, page_width, page_height, max_chars);
-    if blocks.is_empty() {
-        return Err(format!("ocr produced no usable text for page {page_number}"));
-    }
-    Ok(blocks)
+    result
 }
-
 fn page_quality(blocks: &[TranslationBlock]) -> f32 {
     let text = blocks.iter().map(|item| item.text.as_str()).collect::<Vec<_>>().join("\n");
     text_quality_score(&text)
@@ -356,6 +524,7 @@ pub(super) fn extract_pdf_blocks_with_layout(pdf_path: &Path, max_chars: usize) 
     let mut final_blocks = Vec::<TranslationBlock>::new();
     let mut ocr_page_count = 0_u32;
     let mut used_native = 0_u32;
+    let mut ocr_engines = Vec::<String>::new();
 
     for page_number in 1..=total_pages {
         let native_blocks = native_pages
@@ -370,17 +539,25 @@ pub(super) fn extract_pdf_blocks_with_layout(pdf_path: &Path, max_chars: usize) 
             final_blocks.extend(native_blocks);
             continue;
         }
-        let ocr_blocks = extract_ocr_page_blocks(pdf_path, page_number, max_chars).or_else(|ocr_error| {
+        let ocr_result = extract_ocr_page_blocks(pdf_path, page_number, max_chars).or_else(|ocr_error| {
             if native_blocks.is_empty() {
                 Err(ocr_error)
             } else {
-                Ok(native_blocks)
+                Ok(OcrPageExtractResult {
+                    blocks: native_blocks,
+                    engine: "native.fallback",
+                })
             }
         })?;
-        if ocr_blocks.iter().any(|item| item.text_source.as_deref() == Some("ocr")) {
+        if ocr_result
+            .blocks
+            .iter()
+            .any(|item| item.text_source.as_deref().unwrap_or_default().starts_with("ocr"))
+        {
             ocr_page_count += 1;
+            ocr_engines.push(ocr_result.engine.to_string());
         }
-        final_blocks.extend(ocr_blocks);
+        final_blocks.extend(ocr_result.blocks);
     }
 
     if final_blocks.is_empty() {
@@ -399,10 +576,19 @@ pub(super) fn extract_pdf_blocks_with_layout(pdf_path: &Path, max_chars: usize) 
     } else {
         "hybrid"
     };
+    let ocr_engine_suffix = if ocr_engines.is_empty() {
+        None
+    } else if ocr_engines.iter().all(|item| item == "ocr.tesseract") {
+        Some("tesseract")
+    } else if ocr_engines.iter().all(|item| item == "ocr.winocr") {
+        Some("winocr")
+    } else {
+        Some("tesseract+winocr")
+    };
     let extraction_engine = match extraction_mode {
         "native" => Some("poppler.bbox".to_string()),
-        "ocr" => Some("pdftoppm+winocr".to_string()),
-        _ => Some("poppler.bbox+pdftoppm+winocr".to_string()),
+        "ocr" => Some(format!("pdftoppm+{}", ocr_engine_suffix.unwrap_or("winocr"))),
+        _ => Some(format!("poppler.bbox+pdftoppm+{}", ocr_engine_suffix.unwrap_or("winocr"))),
     };
 
     Ok(PdfExtractionResult {
@@ -413,4 +599,28 @@ pub(super) fn extract_pdf_blocks_with_layout(pdf_path: &Path, max_chars: usize) 
         page_count: total_pages,
         ocr_page_count,
     })
+}
+#[cfg(test)]
+mod tests {
+    use super::parse_tesseract_tsv_lines;
+
+    #[test]
+    fn parse_tesseract_tsv_lines_groups_words_by_line() {
+        let tsv = concat!(
+            "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n",
+            "5\t1\t1\t1\t1\t1\t10\t20\t30\t12\t95\tHello\n",
+            "5\t1\t1\t1\t1\t2\t45\t20\t22\t12\t93\tWorld\n",
+            "5\t1\t1\t1\t2\t1\t12\t40\t28\t12\t90\tNext\n"
+        );
+
+        let lines = parse_tesseract_tsv_lines(tsv);
+
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].0, "Hello World");
+        assert_eq!(lines[0].1, 10.0);
+        assert_eq!(lines[0].2, 20.0);
+        assert_eq!(lines[0].3, 57.0);
+        assert_eq!(lines[0].4, 12.0);
+        assert_eq!(lines[1].0, "Next");
+    }
 }

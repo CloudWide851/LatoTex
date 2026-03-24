@@ -37,6 +37,7 @@ export function updateSettings(input: {
     featureModelBindings?: {
       latexAgentModelId?: string;
       analysisAgentModelId?: string;
+      gitSummaryModelId?: string;
       translationModelId?: string;
       completionModelId?: string;
     };
@@ -119,3 +120,5 @@ export function saveModelApiKeyVerified(input: {
     },
   });
 }
+
+

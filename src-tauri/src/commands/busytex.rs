@@ -252,12 +252,73 @@ fn ensure_drawio_cache_dir(
     Ok(prepared)
 }
 
+fn normalize_asset_localhost_path(actual_dir: &str) -> String {
+    actual_dir.trim().replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+fn encode_asset_path_segment(segment: &str, index: usize) -> String {
+    if segment.is_empty() {
+        return String::new();
+    }
+    if index == 0
+        && segment.len() == 2
+        && segment.ends_with(':')
+        && segment
+            .chars()
+            .next()
+            .map(|value| value.is_ascii_alphabetic())
+            .unwrap_or(false)
+    {
+        return segment.to_string();
+    }
+    encode(segment).into_owned()
+}
+
 fn build_asset_localhost_base_url(actual_dir: &str) -> Option<String> {
-    let normalized = actual_dir.trim().replace('\\', "/");
+    let normalized = normalize_asset_localhost_path(actual_dir);
     if normalized.is_empty() {
         return None;
     }
-    Some(format!("http://asset.localhost/{}", encode(&normalized)))
+    let encoded = normalized
+        .split('/')
+        .enumerate()
+        .map(|(index, segment)| encode_asset_path_segment(segment, index))
+        .collect::<Vec<_>>()
+        .join("/");
+    Some(format!("http://asset.localhost/{encoded}"))
+}
+
+fn build_asset_entry_url(base_url: Option<&str>, relative_path: &str) -> Option<String> {
+    let base = base_url?.trim().trim_end_matches('/');
+    let relative = relative_path.trim().trim_start_matches('/');
+    if base.is_empty() || relative.is_empty() {
+        return None;
+    }
+    Some(format!("{base}/{relative}"))
+}
+
+fn module_url_for_resource(key: &str, base_url: Option<&str>) -> Option<String> {
+    if key == "pyodide" {
+        return build_asset_entry_url(base_url, "pyodide.mjs");
+    }
+    None
+}
+
+fn index_url_for_resource(key: &str, base_url: Option<&str>) -> Option<String> {
+    if key == "pyodide" {
+        return base_url
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .map(|value| format!("{value}/"));
+    }
+    None
+}
+
+fn host_url_for_resource(key: &str, base_url: Option<&str>) -> Option<String> {
+    if key == "drawio" {
+        return build_asset_entry_url(base_url, "index.html");
+    }
+    None
 }
 
 fn preferred_init_mode_for_resource(key: &str) -> Option<String> {
@@ -277,6 +338,7 @@ fn build_local_resource_probe_entry(
         Ok(prepared) => {
             let missing_assets = missing_required_assets(Path::new(&prepared.actual_dir), required_assets);
             let actual_dir = prepared.actual_dir;
+            let base_url = build_asset_localhost_base_url(&actual_dir);
             LocalResourceProbeEntry {
                 key: key.to_string(),
                 policy: prepared.policy,
@@ -284,7 +346,10 @@ fn build_local_resource_probe_entry(
                 actual_dir: Some(actual_dir.clone()),
                 install_dir_writable: Some(prepared.install_dir_writable),
                 using_fallback: Some(prepared.using_fallback),
-                base_url: build_asset_localhost_base_url(&actual_dir),
+                base_url: base_url.clone(),
+                module_url: module_url_for_resource(key, base_url.as_deref()),
+                index_url: index_url_for_resource(key, base_url.as_deref()),
+                host_url: host_url_for_resource(key, base_url.as_deref()),
                 preferred_init_mode: preferred_init_mode_for_resource(key),
                 ready: missing_assets.is_empty(),
                 missing_assets,
@@ -299,6 +364,9 @@ fn build_local_resource_probe_entry(
             install_dir_writable: None,
             using_fallback: None,
             base_url: None,
+            module_url: None,
+            index_url: None,
+            host_url: None,
             preferred_init_mode: preferred_init_mode_for_resource(key),
             ready: false,
             missing_assets: required_assets.iter().map(|item| (*item).to_string()).collect(),
@@ -335,12 +403,17 @@ pub fn analysis_pyodide_prepare(
     let policy = input.policy.trim();
     let prepared = ensure_pyodide_cache_dir(&state, policy)?;
 
+    let base_url = build_asset_localhost_base_url(&prepared.actual_dir);
+
     Ok(AnalysisPyodideCacheInfo {
         policy: prepared.policy,
         requested_dir: prepared.requested_dir,
         actual_dir: prepared.actual_dir,
         install_dir_writable: prepared.install_dir_writable,
         using_fallback: prepared.using_fallback,
+        base_url: base_url.clone(),
+        module_url: module_url_for_resource("pyodide", base_url.as_deref()),
+        index_url: index_url_for_resource("pyodide", base_url.as_deref()),
     })
 }
 
@@ -352,12 +425,16 @@ pub fn drawio_cache_prepare(
     let policy = input.policy.trim();
     let prepared = ensure_drawio_cache_dir(&state, policy)?;
 
+    let base_url = build_asset_localhost_base_url(&prepared.actual_dir);
+
     Ok(DrawioCacheInfo {
         policy: prepared.policy,
         requested_dir: prepared.requested_dir,
         actual_dir: prepared.actual_dir,
         install_dir_writable: prepared.install_dir_writable,
         using_fallback: prepared.using_fallback,
+        base_url: base_url.clone(),
+        host_url: host_url_for_resource("drawio", base_url.as_deref()),
     })
 }
 
@@ -393,9 +470,22 @@ pub fn local_resource_probe(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_local_resource_probe_entry, missing_required_assets, CachePrepareResult};
+    use super::{
+        build_asset_localhost_base_url, build_local_resource_probe_entry, missing_required_assets,
+        CachePrepareResult,
+    };
     use std::fs;
     use std::path::PathBuf;
+
+    #[test]
+    fn build_asset_localhost_base_url_keeps_windows_drive_unescaped() {
+        let base_url = build_asset_localhost_base_url("F:\\LatoTex\\drawio-cache");
+
+        assert_eq!(
+            base_url.as_deref(),
+            Some("http://asset.localhost/F:/LatoTex/drawio-cache")
+        );
+    }
 
     #[test]
     fn missing_required_assets_reports_only_absent_files() {
@@ -441,5 +531,9 @@ mod tests {
         assert_eq!(entry.actual_dir.as_deref(), Some("F:/cache"));
     }
 }
+
+
+
+
 
 

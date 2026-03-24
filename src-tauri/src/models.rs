@@ -417,6 +417,7 @@ pub struct UiPrefs {
 pub struct FeatureModelBindings {
     pub latex_agent_model_id: Option<String>,
     pub analysis_agent_model_id: Option<String>,
+    pub git_summary_model_id: Option<String>,
     pub translation_model_id: Option<String>,
     pub completion_model_id: Option<String>,
 }
@@ -572,4 +573,5 @@ pub struct ModelTestResult {
 }
 include!("models_library.rs");
 include!("models_git.rs");
+
 

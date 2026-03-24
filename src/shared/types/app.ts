@@ -1,4 +1,4 @@
-﻿export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -222,6 +222,7 @@ export type AppSettings = {
 export type FeatureModelBindings = {
   latexAgentModelId?: string;
   analysisAgentModelId?: string;
+  gitSummaryModelId?: string;
   translationModelId?: string;
   completionModelId?: string;
 };
@@ -313,3 +314,5 @@ export type AppBackgroundImagePayload = {
 };
 
 export * from "./app-extended";
+
+
