@@ -89,6 +89,11 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
         ? Math.max(4, Math.min(32, rawBackgroundBlur))
         : 18;
+      const normalizedAnalysisEnvRootsByProject = Object.fromEntries(
+        Object.entries(nextSettings.uiPrefs?.analysisEnvRootsByProject ?? {})
+          .map(([projectId, rootPath]) => [String(projectId).trim(), String(rootPath ?? "").trim()])
+          .filter(([projectId, rootPath]) => projectId.length > 0 && rootPath.length > 0),
+      );
       const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
@@ -118,6 +123,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           backgroundImagePath: normalizedBackgroundPath,
           backgroundImagePaths: normalizedBackgroundPaths,
           backgroundBlurPx: normalizedBackgroundBlur,
+          analysisEnvRootsByProject: normalizedAnalysisEnvRootsByProject,
         },
       });
 

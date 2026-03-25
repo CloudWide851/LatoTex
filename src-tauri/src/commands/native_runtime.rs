@@ -4,6 +4,7 @@ use crate::models::{
 };
 use crate::state::AppState;
 use crate::storage;
+use rfd::FileDialog;
 use ring::digest::{digest, SHA256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -164,27 +165,66 @@ pub(crate) fn project_env_key(project_root: &Path) -> Result<String, String> {
     Ok(hex_digest(&hashed.as_ref()[..12]))
 }
 
-fn managed_env_root(app_data_dir: &Path, project_root: &Path) -> Result<PathBuf, String> {
-    Ok(managed_analysis_root(app_data_dir).join(project_env_key(project_root)?))
+struct ResolvedAnalysisEnvPaths {
+    env_key: String,
+    managed_root: PathBuf,
+    venv_path: PathBuf,
+    python_path: PathBuf,
 }
 
-pub(crate) fn venv_root(app_data_dir: &Path, project_root: &Path) -> Result<PathBuf, String> {
-    Ok(managed_env_root(app_data_dir, project_root)?.join("venv"))
+fn configured_analysis_base_root(
+    db_path: &Path,
+    runtime_root: &Path,
+    project_id: &str,
+) -> Option<PathBuf> {
+    let settings = storage::load_settings(db_path, runtime_root).ok()?;
+    let raw = settings
+        .ui_prefs?
+        .analysis_env_roots_by_project?
+        .get(project_id)?
+        .trim()
+        .to_string();
+    if raw.is_empty() {
+        return None;
+    }
+    let path = PathBuf::from(raw);
+    if path.is_absolute() {
+        Some(path)
+    } else {
+        None
+    }
 }
 
-pub(crate) fn venv_python_path(
-    app_data_dir: &Path,
-    project_root: &Path,
-) -> Result<PathBuf, String> {
-    let root = venv_root(app_data_dir, project_root)?;
+fn venv_python_path_from_venv_root(root: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        return Ok(root.join("Scripts/python.exe"));
+        return root.join("Scripts/python.exe");
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Ok(root.join("bin/python"))
+        root.join("bin/python")
     }
+}
+
+fn resolve_analysis_env_paths(
+    db_path: &Path,
+    runtime_root: &Path,
+    app_data_dir: &Path,
+    project_id: &str,
+    project_root: &Path,
+) -> Result<ResolvedAnalysisEnvPaths, String> {
+    let env_key = project_env_key(project_root)?;
+    let base_root = configured_analysis_base_root(db_path, runtime_root, project_id)
+        .unwrap_or_else(|| managed_analysis_root(app_data_dir));
+    let managed_root = base_root.join(&env_key);
+    let venv_path = managed_root.join("venv");
+    let python_path = venv_python_path_from_venv_root(&venv_path);
+    Ok(ResolvedAnalysisEnvPaths {
+        env_key,
+        managed_root,
+        venv_path,
+        python_path,
+    })
 }
 
 fn append_fingerprint_entries(
@@ -355,29 +395,29 @@ fn runtime_packages_ready(
 }
 
 fn build_env_status(
-    app_data_dir: &Path,
-    project_root: &Path,
+    env_paths: &ResolvedAnalysisEnvPaths,
     runtime_root: &Path,
     vendor_root: Option<&Path>,
     uv_path: Option<&Path>,
     last_error: Option<String>,
 ) -> Result<AnalysisEnvStatusResponse, String> {
-    let env_key = project_env_key(project_root)?;
-    let managed_root = managed_env_root(app_data_dir, project_root)?;
-    let venv_path = venv_root(app_data_dir, project_root)?;
-    let python_path = venv_python_path(app_data_dir, project_root)?;
-    let exists = managed_root.exists() || venv_path.exists();
-    let python_exists = python_path.exists();
-    let ready = runtime_packages_ready(runtime_root, vendor_root, &managed_root, &python_path)
-        .unwrap_or(false);
+    let exists = env_paths.managed_root.exists() || env_paths.venv_path.exists();
+    let python_exists = env_paths.python_path.exists();
+    let ready = runtime_packages_ready(
+        runtime_root,
+        vendor_root,
+        &env_paths.managed_root,
+        &env_paths.python_path,
+    )
+    .unwrap_or(false);
     let uv_version = uv_path.and_then(|path| try_version_command(path, &["--version"]));
     let python_version = if python_exists {
-        try_version_command(&python_path, &["--version"])
+        try_version_command(&env_paths.python_path, &["--version"])
     } else {
         None
     };
     let pdf_math_translate_version = if python_exists {
-        python_module_version(&python_path, "pdf2zh")
+        python_module_version(&env_paths.python_path, "pdf2zh")
     } else {
         None
     };
@@ -385,40 +425,49 @@ fn build_env_status(
     Ok(AnalysisEnvStatusResponse {
         ready,
         exists,
-        env_key,
-        managed_root: managed_root.to_string_lossy().to_string(),
+        env_key: env_paths.env_key.clone(),
+        managed_root: env_paths.managed_root.to_string_lossy().to_string(),
         uv_path: uv_path.map(|path| path.to_string_lossy().to_string()),
         uv_version,
         python_path: if python_exists {
-            Some(python_path.to_string_lossy().to_string())
+            Some(env_paths.python_path.to_string_lossy().to_string())
         } else {
             None
         },
         python_version,
         pdf_math_translate_version,
-        venv_path: venv_path.to_string_lossy().to_string(),
+        venv_path: env_paths.venv_path.to_string_lossy().to_string(),
         runtime_root: runtime_root.to_string_lossy().to_string(),
         last_error,
     })
 }
 
 pub(crate) fn analysis_env_status_blocking(
+    db_path: &Path,
+    runtime_root: &Path,
     app_data_dir: &Path,
+    project_id: &str,
     project_root: &Path,
 ) -> Result<AnalysisEnvStatusResponse, String> {
-    let runtime_root = resolve_analysis_runtime_root()
+    let analysis_runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
     let uv_path = resolve_uv_path();
-    let last_error = match venv_python_path(app_data_dir, project_root) {
-        Ok(path) if path.exists() => None,
-        Ok(_) => Some("python.env.not_prepared".to_string()),
-        Err(error) => Some(error),
+    let env_paths = resolve_analysis_env_paths(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
+        project_root,
+    )?;
+    let last_error = if env_paths.python_path.exists() {
+        None
+    } else {
+        Some("python.env.not_prepared".to_string())
     };
     let mut status = build_env_status(
-        app_data_dir,
-        project_root,
-        &runtime_root,
+        &env_paths,
+        &analysis_runtime_root,
         vendor_root.as_deref(),
         uv_path.as_deref(),
         last_error,
@@ -430,24 +479,31 @@ pub(crate) fn analysis_env_status_blocking(
 }
 
 pub(crate) fn ensure_analysis_env_blocking(
+    db_path: &Path,
+    runtime_root: &Path,
     app_data_dir: &Path,
+    project_id: &str,
     project_root: &Path,
 ) -> Result<AnalysisEnvStatusResponse, String> {
-    let runtime_root = resolve_analysis_runtime_root()
+    let analysis_runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
     let uv_path = resolve_uv_path().ok_or_else(|| "uv executable was not found".to_string())?;
-    let managed_root = managed_env_root(app_data_dir, project_root)?;
-    let venv_path = venv_root(app_data_dir, project_root)?;
-    let python_path = venv_python_path(app_data_dir, project_root)?;
+    let env_paths = resolve_analysis_env_paths(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
+        project_root,
+    )?;
 
-    if !python_path.exists() {
-        fs::create_dir_all(&managed_root).map_err(|e| e.to_string())?;
+    if !env_paths.python_path.exists() {
+        fs::create_dir_all(&env_paths.managed_root).map_err(|e| e.to_string())?;
         let mut command = Command::new(&uv_path);
         configure_hidden_process(&mut command);
         let output = command
             .arg("venv")
-            .arg(&venv_path)
+            .arg(&env_paths.venv_path)
             .arg("--python")
             .arg("3.12")
             .output()
@@ -462,15 +518,14 @@ pub(crate) fn ensure_analysis_env_blocking(
 
     ensure_runtime_packages(
         &uv_path,
-        &python_path,
-        &runtime_root,
+        &env_paths.python_path,
+        &analysis_runtime_root,
         vendor_root.as_deref(),
-        &managed_root,
+        &env_paths.managed_root,
     )?;
     build_env_status(
-        app_data_dir,
-        project_root,
-        &runtime_root,
+        &env_paths,
+        &analysis_runtime_root,
         vendor_root.as_deref(),
         Some(&uv_path),
         None,
@@ -480,19 +535,9 @@ fn latex_tool_exists(name: &str) -> bool {
     try_version_command(&command_from_path_or_name(name), &["--version"]).is_some()
 }
 
-fn detect_latex_engine(prefer_engine: Option<&str>) -> String {
-    let preferred = prefer_engine.unwrap_or("tectonic").trim().to_lowercase();
-    if preferred == "tectonic" && latex_tool_exists("tectonic") {
+fn detect_latex_engine(_prefer_engine: Option<&str>) -> String {
+    if latex_tool_exists("tectonic") {
         return "tectonic".to_string();
-    }
-    if latex_tool_exists("latexmk") {
-        return "latexmk".to_string();
-    }
-    if latex_tool_exists("xelatex") {
-        return "xelatex".to_string();
-    }
-    if latex_tool_exists("pdflatex") {
-        return "pdflatex".to_string();
     }
     "missing".to_string()
 }
@@ -534,66 +579,17 @@ fn run_compile_command(
     run_root: &Path,
     main_path: &str,
 ) -> Result<(std::process::Output, Option<std::process::Output>), String> {
-    let mut command = match engine {
-        "tectonic" => {
-            let mut command = Command::new("tectonic");
-            command.arg("-X").arg("compile").arg(main_path);
-            command
-        }
-        "latexmk" => {
-            let mut command = Command::new("latexmk");
-            command
-                .arg("-xelatex")
-                .arg("-quiet")
-                .arg("-rc-report-")
-                .arg("-interaction=nonstopmode")
-                .arg("-file-line-error")
-                .arg("-halt-on-error")
-                .arg(main_path);
-            command
-        }
-        "xelatex" => {
-            let mut command = Command::new("xelatex");
-            command
-                .arg("-interaction=nonstopmode")
-                .arg("-file-line-error")
-                .arg("-halt-on-error")
-                .arg(main_path);
-            command
-        }
-        "pdflatex" => {
-            let mut command = Command::new("pdflatex");
-            command
-                .arg("-interaction=nonstopmode")
-                .arg("-file-line-error")
-                .arg("-halt-on-error")
-                .arg(main_path);
-            command
-        }
-        _ => return Err("compile.engine.missing".to_string()),
-    };
+    if engine != "tectonic" {
+        return Err("compile.engine.missing".to_string());
+    }
+    let mut command = Command::new("tectonic");
+    command.arg("-X").arg("compile").arg(main_path);
     configure_hidden_process(&mut command);
     command.current_dir(run_root);
-    let first = command
+    let output = command
         .output()
         .map_err(|e| format!("compile.spawn_failed: {e}"))?;
-
-    if engine == "xelatex" || engine == "pdflatex" {
-        let mut second = Command::new(engine);
-        configure_hidden_process(&mut second);
-        second
-            .current_dir(run_root)
-            .arg("-interaction=nonstopmode")
-            .arg("-file-line-error")
-            .arg("-halt-on-error")
-            .arg(main_path);
-        let second_output = second
-            .output()
-            .map_err(|e| format!("compile.spawn_failed: {e}"))?;
-        return Ok((first, Some(second_output)));
-    }
-
-    Ok((first, None))
+    Ok((output, None))
 }
 
 fn compile_blocking(
@@ -625,7 +621,7 @@ fn compile_blocking(
             status: "error".to_string(),
             engine,
             diagnostics: vec![
-                "No native LaTeX engine found. Install tectonic, latexmk, xelatex, or pdflatex."
+                "Tectonic was not found. Install Tectonic and retry."
                     .to_string(),
             ],
             duration_ms: 0,
@@ -731,14 +727,22 @@ pub async fn analysis_env_prepare(
     );
     let db_path = state.db_path.clone();
     let app_data_dir = state.app_data_dir.clone();
+    let runtime_root = state.runtime_root.clone();
     let project_id = input.project_id;
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &project_id)?;
-        ensure_analysis_env_blocking(&app_data_dir, &project_root)
+        ensure_analysis_env_blocking(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &project_id,
+            &project_root,
+        )
     })
     .await
     .map_err(|e| e.to_string())?
 }
+
 #[tauri::command]
 pub async fn analysis_env_status(
     state: State<'_, AppState>,
@@ -750,37 +754,71 @@ pub async fn analysis_env_status(
     );
     let db_path = state.db_path.clone();
     let app_data_dir = state.app_data_dir.clone();
+    let runtime_root = state.runtime_root.clone();
     let project_id = input.project_id;
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &project_id)?;
-        match analysis_env_status_blocking(&app_data_dir, &project_root) {
+        match analysis_env_status_blocking(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &project_id,
+            &project_root,
+        ) {
             Ok(status) => Ok(status),
-            Err(error) => Ok(AnalysisEnvStatusResponse {
-                ready: false,
-                exists: false,
-                env_key: project_env_key(&project_root).unwrap_or_else(|_| "unknown".to_string()),
-                managed_root: managed_env_root(&app_data_dir, &project_root)
-                    .map(|path| path.to_string_lossy().to_string())
-                    .unwrap_or_default(),
-                uv_path: resolve_uv_path().map(|path| path.to_string_lossy().to_string()),
-                uv_version: resolve_uv_path()
-                    .and_then(|path| try_version_command(&path, &["--version"])),
-                python_path: None,
-                python_version: None,
-                pdf_math_translate_version: None,
-                venv_path: venv_root(&app_data_dir, &project_root)
-                    .map(|path| path.to_string_lossy().to_string())
-                    .unwrap_or_default(),
-                runtime_root: resolve_analysis_runtime_root()
-                    .map(|path| path.to_string_lossy().to_string())
-                    .unwrap_or_default(),
-                last_error: Some(error),
-            }),
+            Err(error) => {
+                let resolved_paths = resolve_analysis_env_paths(
+                    &db_path,
+                    &runtime_root,
+                    &app_data_dir,
+                    &project_id,
+                    &project_root,
+                )
+                .ok();
+                Ok(AnalysisEnvStatusResponse {
+                    ready: false,
+                    exists: false,
+                    env_key: resolved_paths
+                        .as_ref()
+                        .map(|paths| paths.env_key.clone())
+                        .unwrap_or_else(|| {
+                            project_env_key(&project_root)
+                                .unwrap_or_else(|_| "unknown".to_string())
+                        }),
+                    managed_root: resolved_paths
+                        .as_ref()
+                        .map(|paths| paths.managed_root.to_string_lossy().to_string())
+                        .unwrap_or_default(),
+                    uv_path: resolve_uv_path().map(|path| path.to_string_lossy().to_string()),
+                    uv_version: resolve_uv_path()
+                        .and_then(|path| try_version_command(&path, &["--version"])),
+                    python_path: None,
+                    python_version: None,
+                    pdf_math_translate_version: None,
+                    venv_path: resolved_paths
+                        .as_ref()
+                        .map(|paths| paths.venv_path.to_string_lossy().to_string())
+                        .unwrap_or_default(),
+                    runtime_root: resolve_analysis_runtime_root()
+                        .map(|path| path.to_string_lossy().to_string())
+                        .unwrap_or_default(),
+                    last_error: Some(error),
+                })
+            }
         }
     })
     .await
     .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub fn analysis_env_pick_directory(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    state.log("INFO", "analysis_env_pick_directory");
+    Ok(FileDialog::new()
+        .pick_folder()
+        .map(|path| path.to_string_lossy().to_string()))
+}
+
 #[tauri::command]
 pub async fn analysis_run_python(
     state: State<'_, AppState>,
@@ -797,9 +835,16 @@ pub async fn analysis_run_python(
     );
     let db_path = state.db_path.clone();
     let app_data_dir = state.app_data_dir.clone();
+    let runtime_root = state.runtime_root.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &input.project_id)?;
-        let env_status = ensure_analysis_env_blocking(&app_data_dir, &project_root)?;
+        let env_status = ensure_analysis_env_blocking(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &input.project_id,
+            &project_root,
+        )?;
         let python_path = PathBuf::from(
             env_status
                 .python_path

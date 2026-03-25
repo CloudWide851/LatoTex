@@ -182,6 +182,7 @@ fn run_extract_bridge(
 
 pub(super) fn extract_library_paper_context(
     db_path: &Path,
+    app_runtime_root: &Path,
     app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
@@ -203,7 +204,13 @@ pub(super) fn extract_library_paper_context(
         return Err("translation.source_pdf_not_found".to_string());
     }
 
-    let env_status = ensure_analysis_env_blocking(app_data_dir, &project_root)?;
+    let env_status = ensure_analysis_env_blocking(
+        db_path,
+        app_runtime_root,
+        app_data_dir,
+        project_id,
+        &project_root,
+    )?;
     let python_path = PathBuf::from(
         env_status
             .python_path

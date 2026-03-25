@@ -197,12 +197,14 @@ where
 
 pub fn extract_library_paper_context(
     db_path: &Path,
+    runtime_root: &Path,
     app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
 ) -> Result<crate::models::LibraryPaperExtractResponse, String> {
     library_translation_paper_analysis_engine::extract_library_paper_context(
         db_path,
+        runtime_root,
         app_data_dir,
         project_id,
         relative_path,

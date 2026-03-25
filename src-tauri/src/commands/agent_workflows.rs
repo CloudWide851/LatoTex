@@ -327,12 +327,18 @@ fn build_task_execution_prompt(
 
 fn build_paper_context_block(
     db_path: &std::path::Path,
+    runtime_root: &std::path::Path,
     app_data_dir: &std::path::Path,
     project_id: &str,
     source_path: &str,
 ) -> Result<(String, String), String> {
-    let context =
-        storage::extract_library_paper_context(db_path, app_data_dir, project_id, source_path)?;
+    let context = storage::extract_library_paper_context(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
+        source_path,
+    )?;
     let title = context.title.trim().to_string();
     if context.chunks.is_empty() {
         return Ok((
@@ -463,6 +469,7 @@ pub fn latex_edit_start(
         dedupe_push(&mut context_refs, format!("paper:{source_path}"));
         let (context, title) = build_paper_context_block(
             &state.db_path,
+            &state.runtime_root,
             &state.app_data_dir,
             &input.project_id,
             source_path,
@@ -592,6 +599,7 @@ pub fn latex_paper_analyze_start(
 ) -> Result<AgentExecuteStartAccepted, String> {
     let (paper_context, _) = build_paper_context_block(
         &state.db_path,
+        &state.runtime_root,
         &state.app_data_dir,
         &input.project_id,
         &input.source_path,

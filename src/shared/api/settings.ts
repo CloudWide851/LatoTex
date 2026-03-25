@@ -49,6 +49,7 @@ export function updateSettings(input: {
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
+    analysisEnvRootsByProject?: Record<string, string>;
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });

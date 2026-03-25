@@ -214,6 +214,7 @@ export type AppSettings = {
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
+    analysisEnvRootsByProject?: Record<string, string>;
   };
 };
 

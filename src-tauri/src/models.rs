@@ -408,6 +408,7 @@ pub struct UiPrefs {
     pub background_image_path: Option<String>,
     pub background_image_paths: Option<Vec<String>>,
     pub background_blur_px: Option<f64>,
+    pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

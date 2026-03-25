@@ -119,7 +119,13 @@ export function AppContainer() {
     t,
     setToast: s.setToast,
   });
-  const analysisEnvPrompt = useAnalysisEnvPrompt({ activeProjectId: s.activeProjectId, t, setToast: s.setToast });
+  const analysisEnvPrompt = useAnalysisEnvPrompt({
+    activeProjectId: s.activeProjectId,
+    settings: s.settings,
+    persistSettings,
+    t,
+    setToast: s.setToast,
+  });
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,

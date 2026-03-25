@@ -65,6 +65,10 @@ export function analysisEnvStatus(projectId: string): Promise<AnalysisEnvStatus>
   });
 }
 
+export function pickAnalysisEnvDirectory(): Promise<string | null> {
+  return invokeCommand<string | null>("analysis_env_pick_directory");
+}
+
 export function analysisRunPython(input: {
   projectId: string;
   taskId?: string;

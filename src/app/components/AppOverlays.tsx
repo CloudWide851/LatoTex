@@ -57,6 +57,7 @@ export function AppOverlays(props: {
     envPromptBusy: boolean;
     envPromptStatus: AnalysisEnvStatus | null;
     handleEnvPromptLater: () => void;
+    handleEnvPromptPickLocation: () => void;
     handleEnvPromptCreate: () => void;
   };
   onOverlayClose: () => void;
@@ -374,7 +375,7 @@ export function AppOverlays(props: {
                 {envPromptStatus.lastError}
               </div>
             )}
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
               <Button
                 variant="secondary"
                 size="sm"
@@ -382,6 +383,16 @@ export function AppOverlays(props: {
                 disabled={analysisEnvPrompt.envPromptBusy}
               >
                 {t("analysis.envPromptLater")}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  void analysisEnvPrompt.handleEnvPromptPickLocation();
+                }}
+                disabled={analysisEnvPrompt.envPromptBusy}
+              >
+                {t("analysis.envPromptChooseLocation")}
               </Button>
               <Button
                 size="sm"

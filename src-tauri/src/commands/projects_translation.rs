@@ -63,11 +63,18 @@ pub async fn library_extract_paper_context(
 
     let db_path = state.db_path.clone();
     let app_data_dir = state.app_data_dir.clone();
+    let runtime_root = state.runtime_root.clone();
     let project_id = input.project_id;
     let relative_path = input.relative_path;
 
     tauri::async_runtime::spawn_blocking(move || {
-        storage::extract_library_paper_context(&db_path, &app_data_dir, &project_id, &relative_path)
+        storage::extract_library_paper_context(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &project_id,
+            &relative_path,
+        )
     })
     .await
     .map_err(|e| e.to_string())?

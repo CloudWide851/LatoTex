@@ -226,7 +226,13 @@ where
     }
 
     on_progress(0, 0, "preparing");
-    let env_status = ensure_analysis_env_blocking(app_data_dir, &project_root)?;
+    let env_status = ensure_analysis_env_blocking(
+        db_path,
+        app_runtime_root,
+        app_data_dir,
+        project_id,
+        &project_root,
+    )?;
     let python_path = PathBuf::from(
         env_status
             .python_path
