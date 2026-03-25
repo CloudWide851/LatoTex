@@ -1,13 +1,17 @@
 use std::env;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[cfg(target_os = "windows")]
 const POWERSHELL_CANDIDATES: [&str; 3] = [
-    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
     "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
     "powershell.exe",
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
 ];
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn tools_dir_candidates() -> Vec<PathBuf> {
     let mut candidates = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools")];
@@ -70,8 +74,19 @@ pub(super) fn resolve_powershell() -> PathBuf {
     PathBuf::from("powershell.exe")
 }
 
+#[cfg(target_os = "windows")]
+pub(super) fn hide_console_window(command: &mut Command) -> &mut Command {
+    command.creation_flags(CREATE_NO_WINDOW)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(super) fn hide_console_window(command: &mut Command) -> &mut Command {
+    command
+}
+
 pub(super) fn run_command_capture(command_path: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new(command_path)
+    let mut command = Command::new(command_path);
+    let output = hide_console_window(&mut command)
         .args(args)
         .output()
         .map_err(|e| e.to_string())?;
@@ -88,3 +103,15 @@ pub(super) fn run_command_capture(command_path: &Path, args: &[&str]) -> Result<
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::POWERSHELL_CANDIDATES;
+
+    #[test]
+    fn winocr_prefers_windows_powershell_before_pwsh() {
+        assert_eq!(
+            POWERSHELL_CANDIDATES[0],
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        );
+    }
+}

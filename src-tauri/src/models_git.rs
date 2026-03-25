@@ -176,6 +176,7 @@ pub struct BusyTexCacheInfo {
     pub install_dir_writable: bool,
     pub using_fallback: bool,
     pub base_url: Option<String>,
+    pub candidate_base_urls: Vec<String>,
     pub preferred_init_mode: Option<String>,
 }
 
@@ -240,6 +241,7 @@ pub struct DrawioCacheInfo {
     pub using_fallback: bool,
     pub base_url: Option<String>,
     pub host_url: Option<String>,
+    pub candidate_host_urls: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -280,7 +282,3 @@ pub struct LocalResourceProbeResponse {
 pub struct LocalResourceProbeInput {
     pub policy: Option<String>,
 }
-
-
-
-

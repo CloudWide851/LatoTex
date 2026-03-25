@@ -16,6 +16,7 @@ type BusyTexCompileResponse = {
 };
 
 type BusyTexInitMode = "worker" | "direct";
+type BusyTexCachePolicy = "install-first" | "appdata-only";
 
 type BusyTexInitCandidate = {
   basePath: string;
@@ -31,21 +32,47 @@ export type BusyTeXCompileResult = {
 
 const BUSYTEX_ASSET_HINT =
   "BusyTeX assets missing. Run `pnpm run busytex:assets` to prepare src-tauri/resources/core/busytex.";
+const BUSYTEX_CACHE_POLICY_KEY = "latotex.busytex.cachePolicy";
+const BUSYTEX_CACHE_DIR_KEY = "latotex.busytex.cacheDir";
 
 let runner: BusyTexRunner | null = null;
 let runnerBasePath = "";
-let preparedCacheCandidate: BusyTexInitCandidate | null = null;
-let preparingCachePromise: Promise<BusyTexInitCandidate | null> | null = null;
+let preparedCacheCandidates: BusyTexInitCandidate[] | null = null;
+let preparedCachePolicy: BusyTexCachePolicy | null = null;
+let preparingCachePromise: Promise<BusyTexInitCandidate[]> | null = null;
+let preparingCachePolicy: BusyTexCachePolicy | null = null;
 
 function normalizeTrailingSlash(input: string): string {
   return String(input || "").trim().replace(/\/+$/, "");
+}
+
+function uniqueInitCandidates(candidates: BusyTexInitCandidate[]): BusyTexInitCandidate[] {
+  const seen = new Set<string>();
+  const output: BusyTexInitCandidate[] = [];
+  for (const candidate of candidates) {
+    const basePath = normalizeTrailingSlash(candidate.basePath);
+    if (!basePath) {
+      continue;
+    }
+    const key = `${basePath}::${candidate.initMode}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    output.push({
+      basePath,
+      initMode: candidate.initMode,
+    });
+  }
+  return output;
 }
 
 function resetBusyTexRuntime(resetCacheBase = false) {
   runner = null;
   runnerBasePath = "";
   if (resetCacheBase) {
-    preparedCacheCandidate = null;
+    preparedCacheCandidates = null;
+    preparedCachePolicy = null;
   }
 }
 
@@ -62,56 +89,93 @@ function normalizeInitMode(value: string | null | undefined): BusyTexInitMode {
   return value === "worker" ? "worker" : "direct";
 }
 
-async function resolveCacheCandidate(): Promise<BusyTexInitCandidate | null> {
-  if (preparedCacheCandidate) {
-    return preparedCacheCandidate;
+function getBusyTexCachePolicy(): BusyTexCachePolicy {
+  if (typeof window === "undefined") {
+    return "install-first";
   }
+  const raw = window.localStorage.getItem(BUSYTEX_CACHE_POLICY_KEY);
+  return raw === "appdata-only" ? "appdata-only" : "install-first";
+}
+
+function persistCacheMetadata(
+  info: { actualDir: string; policy: string },
+  persistPolicy: boolean,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(BUSYTEX_CACHE_DIR_KEY, info.actualDir);
+  if (persistPolicy) {
+    window.localStorage.setItem(BUSYTEX_CACHE_POLICY_KEY, info.policy);
+  }
+}
+
+function buildCacheInitCandidates(info: {
+  candidateBaseUrls?: string[] | null;
+  baseUrl?: string | null;
+  preferredInitMode?: string | null;
+}): BusyTexInitCandidate[] {
+  const candidates: string[] = [];
+  if (Array.isArray(info.candidateBaseUrls)) {
+    for (const value of info.candidateBaseUrls) {
+      const normalized = normalizeTrailingSlash(normalizeAssetBasePath(String(value || "")));
+      if (normalized) {
+        candidates.push(normalized);
+      }
+    }
+  }
+  const baseUrl = normalizeTrailingSlash(normalizeAssetBasePath(info.baseUrl ?? ""));
+  if (baseUrl) {
+    candidates.push(baseUrl);
+  }
+  return uniqueInitCandidates(
+    orderLocalResourceCandidatesByOrigin(candidates).map((basePath) => ({
+      basePath,
+      initMode: normalizeInitMode(info.preferredInitMode),
+    })),
+  );
+}
+
+async function resolveCacheCandidates(policyOverride?: BusyTexCachePolicy): Promise<BusyTexInitCandidate[]> {
   if (!isTauri()) {
-    return null;
+    return [];
   }
-  if (preparingCachePromise) {
+
+  const requestedPolicy = policyOverride ?? getBusyTexCachePolicy();
+  if (preparedCacheCandidates && preparedCachePolicy === requestedPolicy) {
+    return preparedCacheCandidates;
+  }
+  if (preparingCachePromise && preparingCachePolicy === requestedPolicy) {
     return preparingCachePromise;
   }
 
+  preparingCachePolicy = requestedPolicy;
   preparingCachePromise = (async () => {
     try {
-      const policy =
-        typeof window !== "undefined"
-          ? (window.localStorage.getItem("latotex.busytex.cachePolicy") as
-              | "install-first"
-              | "appdata-only"
-              | null)
-          : null;
-      const info = await busytexCachePrepare(policy ?? "install-first");
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
-        window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
-      }
-
-      const basePath = normalizeTrailingSlash(normalizeAssetBasePath(info.baseUrl ?? ""));
-      preparedCacheCandidate = basePath
-        ? {
-            basePath,
-            initMode: normalizeInitMode(info.preferredInitMode),
-          }
-        : null;
-      return preparedCacheCandidate;
+      const info = await busytexCachePrepare(requestedPolicy);
+      persistCacheMetadata(info, !policyOverride);
+      const resolvedCandidates = buildCacheInitCandidates(info);
+      preparedCacheCandidates = resolvedCandidates;
+      preparedCachePolicy = requestedPolicy;
+      return resolvedCandidates;
     } catch {
-      return null;
+      return [];
     }
   })();
 
   try {
     return await preparingCachePromise;
   } finally {
-    preparingCachePromise = null;
+    if (preparingCachePolicy === requestedPolicy) {
+      preparingCachePromise = null;
+      preparingCachePolicy = null;
+    }
   }
 }
 
-async function buildBasePathCandidates(): Promise<BusyTexInitCandidate[]> {
+async function buildBasePathCandidates(policyOverride?: BusyTexCachePolicy): Promise<BusyTexInitCandidate[]> {
   if (isTauri()) {
-    const cacheCandidate = await resolveCacheCandidate();
-    return cacheCandidate ? [cacheCandidate] : [];
+    return resolveCacheCandidates(policyOverride);
   }
 
   const withVariants: string[] = [];
@@ -126,10 +190,12 @@ async function buildBasePathCandidates(): Promise<BusyTexInitCandidate[]> {
   appendLocalResourceBaseVariants(withVariants, "./core/busytex");
   appendLocalResourceBaseVariants(withVariants, "core/busytex");
 
-  return orderLocalResourceCandidatesByOrigin(withVariants).map((basePath) => ({
-    basePath,
-    initMode: "worker",
-  }));
+  return uniqueInitCandidates(
+    orderLocalResourceCandidatesByOrigin(withVariants).map((basePath) => ({
+      basePath,
+      initMode: "worker",
+    })),
+  );
 }
 
 function toErrorMessage(error: unknown): string {
@@ -362,7 +428,7 @@ function isRecoverableAssetError(message: string): boolean {
   );
 }
 
-async function getRunner(): Promise<BusyTexRunner> {
+async function getRunner(policyOverride?: BusyTexCachePolicy): Promise<BusyTexRunner> {
   if (runner) {
     try {
       if (!runner.isInitialized()) {
@@ -374,7 +440,7 @@ async function getRunner(): Promise<BusyTexRunner> {
     }
   }
 
-  const candidates = await buildBasePathCandidates();
+  const candidates = await buildBasePathCandidates(policyOverride);
   runner = await initializeRunnerFromCandidates(candidates);
   return runner;
 }
@@ -422,9 +488,10 @@ async function compileInternal(
   mainFilePath: string,
   allowRetry: boolean,
   startAt: number,
+  policyOverride?: BusyTexCachePolicy,
 ): Promise<BusyTeXCompileResult> {
   try {
-    const currentRunner = await getRunner();
+    const currentRunner = await getRunner(policyOverride);
     const compiler = new XeLatex(currentRunner);
     const additionalFiles = Object.entries(files)
       .filter(([path]) => path !== mainFilePath)
@@ -464,9 +531,13 @@ async function compileInternal(
     const message = toErrorMessage(error);
 
     if (allowRetry && isRecoverableAssetError(message)) {
+      const retryPolicy =
+        isTauri() && !policyOverride && getBusyTexCachePolicy() === "install-first"
+          ? "appdata-only"
+          : policyOverride;
       resetBusyTexRuntime(true);
-      await resolveCacheCandidate().catch(() => null);
-      return compileInternal(mainSource, files, mainFilePath, false, startAt);
+      await resolveCacheCandidates(retryPolicy).catch(() => []);
+      return compileInternal(mainSource, files, mainFilePath, false, startAt, retryPolicy);
     }
 
     const needsHint = isRecoverableAssetError(message) && !message.includes(BUSYTEX_ASSET_HINT);
@@ -488,16 +559,3 @@ export async function compileWithBusyTeX(
   const startedAt = performance.now();
   return compileInternal(mainSource, files, mainFilePath, true, startedAt);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -7,6 +7,7 @@ import {
   extractMissingStyleCandidatesFromDiagnostics,
   extractMissingSystemFontsFromDiagnostics,
   hasFontspecErrorDiagnostics,
+  resolveFontFallbackCandidates,
 } from "./compileWorkflow";
 
 describe("compile workflow missing package detection", () => {
@@ -55,6 +56,14 @@ describe("compile workflow fontspec fallback", () => {
 
     const fonts = extractMissingSystemFontsFromDiagnostics(diagnostics);
     expect(fonts).toEqual(["Times New Roman", "Arial"]);
+  });
+
+  it("keeps extracted and configured fonts even when probe only reports a subset", () => {
+    expect(resolveFontFallbackCandidates({
+      extractedFonts: ["SimSun"],
+      configuredFonts: ["Times New Roman", "Arial"],
+      probeMissingFonts: ["Arial"],
+    })).toEqual(["SimSun", "Times New Roman", "Arial"]);
   });
 
   it("replaces setmainfont and newfontfamily with fallback fonts", () => {

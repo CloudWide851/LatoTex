@@ -1,7 +1,7 @@
 use super::library_translation_ocr::{detect_source_language, normalize_for_blocks, text_quality_score};
 use super::library_translation_pdf_tools::{
-    bundled_tool_path, resolve_ocr_tessdata_dir, resolve_ocr_tool, resolve_poppler_tool,
-    resolve_powershell, run_command_capture,
+    bundled_tool_path, hide_console_window, resolve_ocr_tessdata_dir, resolve_ocr_tool,
+    resolve_poppler_tool, resolve_powershell, run_command_capture,
 };
 use super::library_translation_types::{TranslationBlock, TranslationBlockBounds};
 use regex::Regex;
@@ -209,7 +209,8 @@ fn render_pdf_page_to_png(pdf_path: &Path, page_number: u32) -> Result<PathBuf, 
     let temp_dir = create_temp_dir("latotex-paper-ocr")?;
     let prefix = temp_dir.join("page");
     let prefix_str = prefix.to_string_lossy().to_string();
-    let status = Command::new(&tool)
+    let mut command = Command::new(&tool);
+    let status = hide_console_window(&mut command)
         .args([
             "-png",
             "-r",
@@ -240,7 +241,8 @@ fn render_pdf_page_to_png(pdf_path: &Path, page_number: u32) -> Result<PathBuf, 
 #[cfg(target_os = "windows")]
 fn run_windows_ocr(image_path: &Path) -> Result<Value, String> {
     let script = bundled_tool_path("winocr_image.ps1").ok_or_else(|| "winocr.script_missing".to_string())?;
-    let output = Command::new(resolve_powershell())
+    let mut command = Command::new(resolve_powershell());
+    let output = hide_console_window(&mut command)
         .args([
             "-NoProfile",
             "-ExecutionPolicy",
@@ -392,6 +394,7 @@ fn parse_tesseract_tsv_lines(tsv: &str) -> Vec<OcrLine> {
 fn run_tesseract_ocr(image_path: &Path) -> Result<Vec<OcrLine>, String> {
     let tool = resolve_ocr_tool("tesseract.exe");
     let mut command = Command::new(&tool);
+    hide_console_window(&mut command);
     command.args([
         &image_path.to_string_lossy(),
         "stdout",

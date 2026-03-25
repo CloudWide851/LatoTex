@@ -50,6 +50,8 @@ pub(super) struct CachePrepareResult {
     actual_dir: String,
     install_dir_writable: bool,
     using_fallback: bool,
+    install_dir: String,
+    appdata_dir: String,
     source_dir: PathBuf,
 }
 
@@ -198,6 +200,8 @@ fn prepare_cache(
         actual_dir: actual_dir.to_string_lossy().to_string(),
         install_dir_writable,
         using_fallback,
+        install_dir: install_dir.to_string_lossy().to_string(),
+        appdata_dir: appdata_dir.to_string_lossy().to_string(),
         source_dir,
     })
 }
@@ -286,6 +290,34 @@ fn build_asset_localhost_base_url(actual_dir: &str) -> Option<String> {
         .collect::<Vec<_>>()
         .join("/");
     Some(format!("http://asset.localhost/{encoded}"))
+}
+
+fn push_cache_candidate_dir(candidate_dirs: &mut Vec<String>, dir: &str, required_assets: &[&str]) {
+    let normalized = dir.trim();
+    if normalized.is_empty() || !has_required_assets(Path::new(normalized), required_assets) {
+        return;
+    }
+    if candidate_dirs.iter().any(|item| item == normalized) {
+        return;
+    }
+    candidate_dirs.push(normalized.to_string());
+}
+
+fn build_cache_candidate_base_urls(prepared: &CachePrepareResult, required_assets: &[&str]) -> Vec<String> {
+    let mut candidate_dirs = Vec::<String>::new();
+    if prepared.policy == "appdata-only" {
+        push_cache_candidate_dir(&mut candidate_dirs, &prepared.appdata_dir, required_assets);
+        push_cache_candidate_dir(&mut candidate_dirs, &prepared.actual_dir, required_assets);
+    } else {
+        push_cache_candidate_dir(&mut candidate_dirs, &prepared.install_dir, required_assets);
+        push_cache_candidate_dir(&mut candidate_dirs, &prepared.actual_dir, required_assets);
+        push_cache_candidate_dir(&mut candidate_dirs, &prepared.appdata_dir, required_assets);
+    }
+
+    candidate_dirs
+        .into_iter()
+        .filter_map(|dir| build_asset_localhost_base_url(&dir))
+        .collect()
 }
 
 fn build_asset_entry_url(base_url: Option<&str>, relative_path: &str) -> Option<String> {
@@ -383,7 +415,8 @@ pub fn busytex_cache_prepare(
     let policy = input.policy.trim();
     let prepared = ensure_busytex_cache_dir(&state, policy)?;
 
-    let actual_dir = prepared.actual_dir;
+    let candidate_base_urls = build_cache_candidate_base_urls(&prepared, &REQUIRED_BUSYTEX_ASSETS);
+    let actual_dir = prepared.actual_dir.clone();
     Ok(BusyTexCacheInfo {
         policy: prepared.policy,
         requested_dir: prepared.requested_dir,
@@ -391,6 +424,7 @@ pub fn busytex_cache_prepare(
         install_dir_writable: prepared.install_dir_writable,
         using_fallback: prepared.using_fallback,
         base_url: build_asset_localhost_base_url(&actual_dir),
+        candidate_base_urls,
         preferred_init_mode: Some("direct".to_string()),
     })
 }
@@ -425,7 +459,12 @@ pub fn drawio_cache_prepare(
     let policy = input.policy.trim();
     let prepared = ensure_drawio_cache_dir(&state, policy)?;
 
+    let candidate_base_urls = build_cache_candidate_base_urls(&prepared, &REQUIRED_DRAWIO_ASSETS);
     let base_url = build_asset_localhost_base_url(&prepared.actual_dir);
+    let candidate_host_urls = candidate_base_urls
+        .iter()
+        .filter_map(|candidate| host_url_for_resource("drawio", Some(candidate.as_str())))
+        .collect::<Vec<_>>();
 
     Ok(DrawioCacheInfo {
         policy: prepared.policy,
@@ -435,6 +474,7 @@ pub fn drawio_cache_prepare(
         using_fallback: prepared.using_fallback,
         base_url: base_url.clone(),
         host_url: host_url_for_resource("drawio", base_url.as_deref()),
+        candidate_host_urls,
     })
 }
 
@@ -471,8 +511,8 @@ pub fn local_resource_probe(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_asset_localhost_base_url, build_local_resource_probe_entry, missing_required_assets,
-        CachePrepareResult,
+        build_asset_localhost_base_url, build_cache_candidate_base_urls, build_local_resource_probe_entry,
+        missing_required_assets, CachePrepareResult,
     };
     use std::fs;
     use std::path::PathBuf;
@@ -515,6 +555,8 @@ mod tests {
             actual_dir: "F:/cache".to_string(),
             install_dir_writable: true,
             using_fallback: false,
+            install_dir: "F:/cache".to_string(),
+            appdata_dir: "C:/Users/test/AppData/Roaming/LatoTex/cache".to_string(),
             source_dir: PathBuf::from("F:/source"),
         };
 
@@ -530,10 +572,37 @@ mod tests {
         assert!(entry.error.is_none());
         assert_eq!(entry.actual_dir.as_deref(), Some("F:/cache"));
     }
+
+    #[test]
+    fn build_cache_candidate_base_urls_prefers_install_then_appdata_when_available() {
+        let root = std::env::temp_dir().join(format!(
+            "latotex-cache-candidates-{}",
+            std::process::id()
+        ));
+        let install_dir = root.join("install-cache");
+        let appdata_dir = root.join("appdata-cache");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&install_dir).unwrap();
+        fs::create_dir_all(&appdata_dir).unwrap();
+        fs::write(install_dir.join("index.html"), "ok").unwrap();
+        fs::write(appdata_dir.join("index.html"), "ok").unwrap();
+
+        let prepared = CachePrepareResult {
+            policy: "install-first".to_string(),
+            requested_dir: install_dir.to_string_lossy().to_string(),
+            actual_dir: install_dir.to_string_lossy().to_string(),
+            install_dir_writable: true,
+            using_fallback: false,
+            install_dir: install_dir.to_string_lossy().to_string(),
+            appdata_dir: appdata_dir.to_string_lossy().to_string(),
+            source_dir: PathBuf::from("F:/source"),
+        };
+
+        let candidates = build_cache_candidate_base_urls(&prepared, &["index.html"]);
+
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0], format!("http://asset.localhost/{}", install_dir.to_string_lossy().replace('\\', "/")));
+        assert_eq!(candidates[1], format!("http://asset.localhost/{}", appdata_dir.to_string_lossy().replace('\\', "/")));
+        let _ = fs::remove_dir_all(&root);
+    }
 }
-
-
-
-
-
-

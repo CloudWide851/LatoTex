@@ -27,21 +27,58 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
+function uniqueHostCandidates(values: string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    output.push(normalized);
+  }
+  return output;
+}
+
+function collectDrawioHostCandidates(info: {
+  candidateHostUrls?: string[] | null;
+  hostUrl?: string | null;
+}): string[] {
+  return uniqueHostCandidates([
+    ...(Array.isArray(info.candidateHostUrls) ? info.candidateHostUrls : []),
+    String(info.hostUrl || "").trim(),
+  ]);
+}
+
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
     return [DRAWIO_HOST_URL];
   }
 
   try {
-    const policy = typeof window !== "undefined"
+    const preferredPolicy = typeof window !== "undefined"
       ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
       : null;
-    const info = await drawioCachePrepare(policy ?? "install-first");
+    const policy = preferredPolicy ?? "install-first";
+    const info = await drawioCachePrepare(policy);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    const hostUrl = String(info.hostUrl ?? "").trim();
-    return hostUrl ? [hostUrl] : [];
+
+    let candidates = collectDrawioHostCandidates(info);
+    if (policy === "install-first" && !info.usingFallback && candidates.length <= 1) {
+      try {
+        const appdataInfo = await drawioCachePrepare("appdata-only");
+        candidates = uniqueHostCandidates([
+          ...candidates,
+          ...collectDrawioHostCandidates(appdataInfo),
+        ]);
+      } catch {
+        // Keep install-first candidates when appdata fallback preparation fails.
+      }
+    }
+    return candidates;
   } catch {
     return [];
   }
@@ -51,6 +88,7 @@ export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
   const candidates = await resolveDrawioHostFrameCandidates();
   return candidates[0] ?? null;
 }
+
 export function normalizePath(value: string | null | undefined): string {
   return String(value ?? "").trim().replace(/\\/g, "/");
 }

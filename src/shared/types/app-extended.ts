@@ -284,6 +284,7 @@ export type BusyTexCacheInfo = {
   installDirWritable: boolean;
   usingFallback: boolean;
   baseUrl?: string | null;
+  candidateBaseUrls?: string[];
   preferredInitMode?: "worker" | "direct" | null;
 };
 
@@ -310,6 +311,7 @@ export type DrawioCacheInfo = {
   usingFallback: boolean;
   baseUrl?: string | null;
   hostUrl?: string | null;
+  candidateHostUrls?: string[];
 };
 
 export type LocalResourceProbeEntry = {
@@ -320,6 +322,9 @@ export type LocalResourceProbeEntry = {
   installDirWritable?: boolean | null;
   usingFallback?: boolean | null;
   baseUrl?: string | null;
+  moduleUrl?: string | null;
+  indexUrl?: string | null;
+  hostUrl?: string | null;
   preferredInitMode?: "worker" | "direct" | null;
   ready: boolean;
   missingAssets: string[];
@@ -341,11 +346,3 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
-
-
-
-
-
-
-
-

@@ -109,6 +109,28 @@ export function hasFontspecErrorDiagnostics(diagnostics: string[]): boolean {
     splitDiagnosticLines(raw).some((line) => FONTSPEC_ERROR_RE.test(line)),
   );
 }
+export function resolveFontFallbackCandidates(params: {
+  extractedFonts: string[];
+  configuredFonts?: string[];
+  probeMissingFonts?: string[] | null;
+}): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const font of [
+    ...params.extractedFonts,
+    ...(params.configuredFonts ?? []),
+    ...(params.probeMissingFonts ?? []),
+  ]) {
+    const value = String(font || '').trim();
+    const key = normalizeFontName(value);
+    if (!key || seen.has(key) || !isLikelyFontFamily(value)) {
+      continue;
+    }
+    seen.add(key);
+    output.push(value);
+  }
+  return output;
+}
 export function extractConfiguredSystemFontsFromSource(source: string): string[] {
   const seen = new Set<string>();
   const output: string[] = [];
@@ -384,18 +406,24 @@ export async function runCompilePass(params: {
         const configuredFonts = hasFontspecError
           ? collectConfiguredSystemFontsFromFileMap(mergedCompileMap)
           : [];
-        const probeCandidates = Array.from(new Set([...extractedFonts, ...configuredFonts]));
-        let fallbackFonts = extractedFonts.length > 0 ? extractedFonts : configuredFonts;
+        const probeCandidates = resolveFontFallbackCandidates({
+          extractedFonts,
+          configuredFonts,
+        });
+        let probeMissingFonts: string[] = [];
         if (hasFontspecError && probeCandidates.length > 0) {
           try {
             const probe = await runtimeSystemFontProbe(probeCandidates);
-            if (probe.missingFonts.length > 0) {
-              fallbackFonts = probe.missingFonts;
-            }
+            probeMissingFonts = probe.missingFonts;
           } catch {
             // Keep fallback heuristic path when probe is unavailable.
           }
         }
+        const fallbackFonts = resolveFontFallbackCandidates({
+          extractedFonts,
+          configuredFonts,
+          probeMissingFonts,
+        });
         if (fallbackFonts.length > 0 || hasFontspecError) {
           fontFallbackAttempted = true;
           const fallback = applySystemFontFallbackToFileMap(mergedCompileMap, mainPath, fallbackFonts);
@@ -560,7 +588,3 @@ export async function runCompilePass(params: {
     setCompileInstallProgress?.(null);
   }
 }
-
-
-
-

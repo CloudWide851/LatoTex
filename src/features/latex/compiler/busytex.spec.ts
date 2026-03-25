@@ -149,6 +149,7 @@ describe("BusyTeX compile adapter", () => {
         installDirWritable: true,
         usingFallback: false,
         baseUrl: "http://asset.localhost/F%3A%2FLatoTex%2Fbusytex-cache",
+        candidateBaseUrls: ["http://asset.localhost/F:/LatoTex/busytex-cache"],
         preferredInitMode: "direct",
       })),
     }));
@@ -161,6 +162,44 @@ describe("BusyTeX compile adapter", () => {
     expect(runnerInitCalls.some((call) => call.basePath.includes("asset.localhost"))).toBe(true);
     expect(runnerInitCalls.some((call) => call.basePath.includes("/core/busytex"))).toBe(false);
     expect(runnerInitCalls.every((call) => !call.useWorker)).toBe(true);
+  });
+
+  it("tries backend-provided install and appdata cache candidates in order", async () => {
+    mockCompilePayload = {
+      success: true,
+      pdf: [2, 4, 6],
+      logs: [],
+      exitCode: 0,
+    };
+    runnerInitFailureResolver = (basePath) =>
+      basePath.includes("install-cache") ? "busytex_worker.js not found" : null;
+
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+    }));
+    vi.doMock("../../../shared/api/local-resources", () => ({
+      busytexCachePrepare: vi.fn(async () => ({
+        policy: "install-first",
+        requestedDir: "F:\\install-cache",
+        actualDir: "F:\\install-cache",
+        installDirWritable: true,
+        usingFallback: false,
+        baseUrl: "http://asset.localhost/F:/install-cache",
+        candidateBaseUrls: [
+          "http://asset.localhost/F:/install-cache",
+          "http://asset.localhost/C:/Users/test/AppData/Roaming/LatoTex/busytex-cache",
+        ],
+        preferredInitMode: "direct",
+      })),
+    }));
+
+    vi.resetModules();
+    const { compileWithBusyTeX } = await import("./busytex");
+    const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
+
+    expect(result.status).toBe("success");
+    expect(runnerInitCalls[0]?.basePath).toContain("install-cache");
+    expect(runnerInitCalls[1]?.basePath).toContain("AppData");
   });
 
   it("falls back to direct initialization in tauri when worker bootstrap hits origin errors", async () => {
@@ -197,14 +236,14 @@ describe("BusyTeX compile adapter", () => {
     expect(runnerInitCalls.some((call) => call.useWorker)).toBe(true);
     expect(runnerInitCalls.some((call) => !call.useWorker)).toBe(true);
   });
-  it("re-prepares cache and retries once for recoverable asset errors", async () => {
+
+  it("re-prepares cache and retries once with appdata fallback for recoverable asset errors", async () => {
     mockCompilePayload = {
       success: true,
       pdf: [1, 2, 3],
       logs: [],
       exitCode: 0,
     };
-    let cachePrepareCount = 0;
 
     runnerInitFailureResolver = (basePath) => {
       if (basePath.includes("good-cache")) {
@@ -213,23 +252,24 @@ describe("BusyTeX compile adapter", () => {
       return "busytex_worker.js not found";
     };
 
+    const busytexCachePrepareMock = vi.fn(async (policy: "install-first" | "appdata-only") => {
+      const dir = policy === "install-first" ? "F:\\bad-cache" : "C:\\Users\\test\\AppData\\Roaming\\LatoTex\\good-cache";
+      return {
+        policy,
+        requestedDir: dir,
+        actualDir: dir,
+        installDirWritable: true,
+        usingFallback: false,
+        baseUrl: `http://asset.localhost/${dir.replace(/\\/g, "/")}`,
+        preferredInitMode: "direct",
+      };
+    });
+
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
     }));
     vi.doMock("../../../shared/api/local-resources", () => ({
-      busytexCachePrepare: vi.fn(async () => {
-        cachePrepareCount += 1;
-        const dir = cachePrepareCount === 1 ? "F:\\bad-cache" : "F:\\good-cache";
-        return {
-          policy: "install-first",
-          requestedDir: dir,
-          actualDir: dir,
-          installDirWritable: true,
-          usingFallback: false,
-          baseUrl: `http://asset.localhost/${dir.replace(/\\/g, "/")}`,
-          preferredInitMode: "direct",
-        };
-      }),
+      busytexCachePrepare: busytexCachePrepareMock,
     }));
 
     vi.resetModules();
@@ -237,7 +277,10 @@ describe("BusyTeX compile adapter", () => {
     const result = await compileWithBusyTeX("\\begin{document}Hi\\end{document}", {}, "main.tex");
 
     expect(result.status).toBe("success");
-    expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
+    expect(busytexCachePrepareMock.mock.calls.map((call) => call[0])).toEqual([
+      "install-first",
+      "appdata-only",
+    ]);
     expect(runnerInitCalls.some((call) => call.basePath.includes("good-cache"))).toBe(true);
   });
 
@@ -283,6 +326,7 @@ describe("BusyTeX compile adapter", () => {
     expect(result.status).toBe("success");
     expect(cachePrepareCount).toBeGreaterThanOrEqual(2);
   });
+
   it("filters noisy busytex command logs and keeps actionable latex diagnostics", async () => {
     mockCompilePayload = {
       success: false,
@@ -306,8 +350,3 @@ describe("BusyTeX compile adapter", () => {
     expect(result.diagnostics.some((line) => /keepRuntimeAlive/i.test(line))).toBe(false);
   });
 });
-
-
-
-
-
