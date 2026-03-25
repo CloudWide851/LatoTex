@@ -1,11 +1,11 @@
 use crate::models::{
-    Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteBinaryInput,
-    FileWriteInput,
-    FsOperationInput, FsOperationResult, LibraryLinkImportInput, LibraryRefInput, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
-    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
-    OpenExternalLinkInput, ProjectPathActionInput,
-    ProjectIntegrityStatus, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
-    ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
+    Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse,
+    FileWriteBinaryInput, FileWriteInput, FsOperationInput, FsOperationResult,
+    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryLinkImportInput,
+    LibraryPdfPreviewInput, LibraryPdfPreviewResponse, LibraryRefInput, LibraryZoteroSyncInput,
+    LibraryZoteroSyncResponse, OpenExternalLinkInput, ProjectIntegrityStatus,
+    ProjectPathActionInput, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot,
+    ProjectSummary, ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -69,7 +69,9 @@ pub fn project_integrity_repair(
 }
 
 #[tauri::command]
-pub fn project_init_from_folder(state: State<'_, AppState>) -> Result<Option<ProjectSnapshot>, String> {
+pub fn project_init_from_folder(
+    state: State<'_, AppState>,
+) -> Result<Option<ProjectSnapshot>, String> {
     state.log("INFO", "project_init_from_folder");
     let selected = FileDialog::new().pick_folder();
     match selected {
@@ -110,7 +112,10 @@ pub fn file_read_binary(
 ) -> Result<FileReadBinaryResponse, String> {
     state.log(
         "INFO",
-        &format!("file_read_binary: {} ({})", input.relative_path, input.project_id),
+        &format!(
+            "file_read_binary: {} ({})",
+            input.relative_path, input.project_id
+        ),
     );
     storage::read_project_file_binary(&state.db_path, &input.project_id, &input.relative_path)
 }
@@ -239,11 +244,11 @@ pub fn library_import_pdf(
     input: LibraryRefInput,
 ) -> Result<Option<Ack>, String> {
     state.log("INFO", &format!("library_import_pdf: {}", input.project_id));
-    let selected = FileDialog::new()
-        .add_filter("PDF", &["pdf"])
-        .pick_file();
+    let selected = FileDialog::new().add_filter("PDF", &["pdf"]).pick_file();
     match selected {
-        Some(path) => storage::import_library_pdf(&state.db_path, &input.project_id, &path).map(Some),
+        Some(path) => {
+            storage::import_library_pdf(&state.db_path, &input.project_id, &path).map(Some)
+        }
         None => Ok(None),
     }
 }
@@ -253,7 +258,10 @@ pub fn library_import_link(
     state: State<'_, AppState>,
     input: LibraryLinkImportInput,
 ) -> Result<Ack, String> {
-    state.log("INFO", &format!("library_import_link: {}", input.project_id));
+    state.log(
+        "INFO",
+        &format!("library_import_link: {}", input.project_id),
+    );
     storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())
 }
 
@@ -553,6 +561,3 @@ pub fn open_external_link(
         message: "External link opened".to_string(),
     })
 }
-
-
-

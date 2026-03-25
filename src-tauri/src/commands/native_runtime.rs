@@ -1,11 +1,10 @@
 use crate::models::{
-    AnalysisEnvStatusResponse, AnalysisRunPythonInput, AnalysisRunPythonResponse, LatexCompileInput,
-    LatexCompileResponse,
+    AnalysisEnvStatusResponse, AnalysisRunPythonInput, AnalysisRunPythonResponse,
+    LatexCompileInput, LatexCompileResponse,
 };
 use crate::state::AppState;
 use crate::storage;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use ring::digest::{digest, SHA256};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -41,14 +40,23 @@ fn safe_relative_path(input: &str) -> Result<PathBuf, String> {
     Ok(out)
 }
 
+fn is_noise_log_line(line: &str) -> bool {
+    let normalized = line.trim();
+    normalized.is_empty()
+        || normalized.starts_with("This is ")
+        || normalized.starts_with("entering extended mode")
+        || normalized.starts_with("Initial Win CP for")
+        || normalized.starts_with("I changed them all to CP")
+        || normalized.starts_with("Rc files read:")
+        || normalized.starts_with("Latexmk: This is Latexmk")
+        || normalized.starts_with("No existing .aux file")
+}
+
 fn sanitize_log_lines(text: &str) -> Vec<String> {
     let mut lines = Vec::new();
     for raw in text.lines() {
         let line = raw.trim();
-        if line.is_empty() {
-            continue;
-        }
-        if line.starts_with("This is ") || line.starts_with("entering extended mode") {
+        if is_noise_log_line(line) {
             continue;
         }
         if lines.iter().any(|item: &String| item == line) {
@@ -88,7 +96,8 @@ fn command_from_path_or_name(value: &str) -> PathBuf {
 pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
     let candidates = [
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/uv/windows-x64/uv.exe"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/resources/tools/uv/windows-x64/uv.exe"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../src-tauri/resources/tools/uv/windows-x64/uv.exe"),
     ];
     for candidate in candidates {
         if candidate.exists() {
@@ -106,39 +115,125 @@ pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
 pub(crate) fn resolve_analysis_runtime_root() -> Option<PathBuf> {
     let candidates = [
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/python/analysis_runtime"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/resources/python/analysis_runtime"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../src-tauri/resources/python/analysis_runtime"),
     ];
-    candidates.into_iter().find(|candidate| candidate.join("analysis_runner.py").exists())
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.join("analysis_runner.py").exists())
 }
 
-pub(crate) fn venv_root(project_root: &Path) -> PathBuf {
-    project_root.join(".venv")
+pub(crate) fn resolve_pdfmathtranslate_vendor_root() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/python/vendor/pdf2zh"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../src-tauri/resources/python/vendor/pdf2zh"),
+    ];
+    candidates.into_iter().find(|candidate| {
+        candidate.join("pyproject.toml").exists() && candidate.join("pdf2zh/__init__.py").exists()
+    })
 }
 
-pub(crate) fn venv_python_path(project_root: &Path) -> PathBuf {
+pub(crate) fn managed_analysis_root(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join("python-envs")
+}
+
+fn normalized_project_root(project_root: &Path) -> Result<String, String> {
+    let canonical = project_root.canonicalize().map_err(|e| e.to_string())?;
+    let text = canonical.to_string_lossy().replace('\\', "/");
     #[cfg(target_os = "windows")]
     {
-        return venv_root(project_root).join("Scripts/python.exe");
+        return Ok(text.to_lowercase());
     }
     #[cfg(not(target_os = "windows"))]
     {
-        venv_root(project_root).join("bin/python")
+        Ok(text)
     }
 }
 
-fn runtime_dependency_fingerprint(runtime_root: &Path) -> Result<String, String> {
-    let pyproject = fs::read_to_string(runtime_root.join("pyproject.toml")).map_err(|e| e.to_string())?;
-    let analysis_runner = fs::read_to_string(runtime_root.join("analysis_runner.py")).unwrap_or_default();
-    let paper_runtime = fs::read_to_string(runtime_root.join("paper_runtime.py")).unwrap_or_default();
-    let mut hasher = DefaultHasher::new();
-    pyproject.hash(&mut hasher);
-    analysis_runner.hash(&mut hasher);
-    paper_runtime.hash(&mut hasher);
-    Ok(format!("{:x}", hasher.finish()))
+fn hex_digest(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|value| format!("{value:02x}"))
+        .collect::<String>()
 }
 
-fn runtime_dependency_stamp_path(project_root: &Path) -> PathBuf {
-    venv_root(project_root).join(".latotex-runtime-stamp")
+pub(crate) fn project_env_key(project_root: &Path) -> Result<String, String> {
+    let normalized = normalized_project_root(project_root)?;
+    let hashed = digest(&SHA256, normalized.as_bytes());
+    Ok(hex_digest(&hashed.as_ref()[..12]))
+}
+
+fn managed_env_root(app_data_dir: &Path, project_root: &Path) -> Result<PathBuf, String> {
+    Ok(managed_analysis_root(app_data_dir).join(project_env_key(project_root)?))
+}
+
+pub(crate) fn venv_root(app_data_dir: &Path, project_root: &Path) -> Result<PathBuf, String> {
+    Ok(managed_env_root(app_data_dir, project_root)?.join("venv"))
+}
+
+pub(crate) fn venv_python_path(
+    app_data_dir: &Path,
+    project_root: &Path,
+) -> Result<PathBuf, String> {
+    let root = venv_root(app_data_dir, project_root)?;
+    #[cfg(target_os = "windows")]
+    {
+        return Ok(root.join("Scripts/python.exe"));
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(root.join("bin/python"))
+    }
+}
+
+fn append_fingerprint_entries(
+    root: &Path,
+    prefix: &Path,
+    entries: &mut Vec<String>,
+) -> Result<(), String> {
+    let mut items = fs::read_dir(root)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    items.sort_by_key(|item| item.file_name());
+    for item in items {
+        let path = item.path();
+        if path.is_dir() {
+            append_fingerprint_entries(&path, prefix, entries)?;
+            continue;
+        }
+        let relative = path
+            .strip_prefix(prefix)
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+        let digest_value = digest(&SHA256, &bytes);
+        entries.push(format!(
+            "{relative}:{}:{}",
+            bytes.len(),
+            hex_digest(digest_value.as_ref())
+        ));
+    }
+    Ok(())
+}
+
+fn runtime_dependency_fingerprint(
+    runtime_root: &Path,
+    vendor_root: Option<&Path>,
+) -> Result<String, String> {
+    let mut entries = Vec::<String>::new();
+    append_fingerprint_entries(runtime_root, runtime_root, &mut entries)?;
+    if let Some(vendor_root) = vendor_root {
+        append_fingerprint_entries(vendor_root, vendor_root, &mut entries)?;
+    }
+    let joined = entries.join("\n");
+    Ok(hex_digest(digest(&SHA256, joined.as_bytes()).as_ref()))
+}
+
+fn runtime_dependency_stamp_path(managed_root: &Path) -> PathBuf {
+    managed_root.join(".latotex-runtime-stamp")
 }
 
 fn python_module_version(python_path: &Path, package_name: &str) -> Option<String> {
@@ -162,22 +257,24 @@ fn python_module_version(python_path: &Path, package_name: &str) -> Option<Strin
     }
 }
 
-fn ensure_runtime_packages(uv_path: &Path, python_path: &Path, runtime_root: &Path, project_root: &Path) -> Result<(), String> {
-    let fingerprint = runtime_dependency_fingerprint(runtime_root)?;
-    let stamp_path = runtime_dependency_stamp_path(project_root);
-    if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str()) {
-        return Ok(());
-    }
-
+fn install_python_package(
+    uv_path: &Path,
+    python_path: &Path,
+    package_spec: &Path,
+    editable: bool,
+) -> Result<(), String> {
     let mut command = Command::new(uv_path);
     configure_hidden_process(&mut command);
-    let output = command
+    command
         .arg("pip")
         .arg("install")
         .arg("--python")
-        .arg(python_path)
-        .arg("-e")
-        .arg(runtime_root)
+        .arg(python_path);
+    if editable {
+        command.arg("-e");
+    }
+    let output = command
+        .arg(package_spec)
         .output()
         .map_err(|e| format!("python.env.install_spawn_failed: {e}"))?;
     if !output.status.success() {
@@ -186,19 +283,166 @@ fn ensure_runtime_packages(uv_path: &Path, python_path: &Path, runtime_root: &Pa
         let detail = if !stderr.is_empty() { stderr } else { stdout };
         return Err(format!("python.env.install_failed: {detail}"));
     }
+    Ok(())
+}
+
+fn install_python_requirement(
+    uv_path: &Path,
+    python_path: &Path,
+    requirement: &str,
+) -> Result<(), String> {
+    let mut command = Command::new(uv_path);
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg("pip")
+        .arg("install")
+        .arg("--python")
+        .arg(python_path)
+        .arg(requirement)
+        .output()
+        .map_err(|e| format!("python.env.install_spawn_failed: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("python.env.install_failed: {detail}"));
+    }
+    Ok(())
+}
+
+fn ensure_runtime_packages(
+    uv_path: &Path,
+    python_path: &Path,
+    runtime_root: &Path,
+    vendor_root: Option<&Path>,
+    managed_root: &Path,
+) -> Result<(), String> {
+    let fingerprint = runtime_dependency_fingerprint(runtime_root, vendor_root)?;
+    let stamp_path = runtime_dependency_stamp_path(managed_root);
+    if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str()) {
+        return Ok(());
+    }
+
+    if let Some(vendor_root) = vendor_root {
+        install_python_package(uv_path, python_path, vendor_root, false)?;
+    } else {
+        install_python_requirement(uv_path, python_path, "pdf2zh>=1.9.11,<2")?;
+    }
+    install_python_package(uv_path, python_path, runtime_root, true)?;
     fs::write(stamp_path, fingerprint).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-pub(crate) fn ensure_analysis_env_blocking(project_root: &Path) -> Result<AnalysisEnvStatusResponse, String> {
+fn runtime_packages_ready(
+    runtime_root: &Path,
+    vendor_root: Option<&Path>,
+    managed_root: &Path,
+    python_path: &Path,
+) -> Result<bool, String> {
+    if !python_path.exists() {
+        return Ok(false);
+    }
+    let fingerprint = runtime_dependency_fingerprint(runtime_root, vendor_root)?;
+    let stamp_matches = fs::read_to_string(runtime_dependency_stamp_path(managed_root))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .as_deref()
+        == Some(fingerprint.as_str());
+    if !stamp_matches {
+        return Ok(false);
+    }
+    Ok(python_module_version(python_path, "pdf2zh").is_some())
+}
+
+fn build_env_status(
+    app_data_dir: &Path,
+    project_root: &Path,
+    runtime_root: &Path,
+    vendor_root: Option<&Path>,
+    uv_path: Option<&Path>,
+    last_error: Option<String>,
+) -> Result<AnalysisEnvStatusResponse, String> {
+    let env_key = project_env_key(project_root)?;
+    let managed_root = managed_env_root(app_data_dir, project_root)?;
+    let venv_path = venv_root(app_data_dir, project_root)?;
+    let python_path = venv_python_path(app_data_dir, project_root)?;
+    let exists = managed_root.exists() || venv_path.exists();
+    let python_exists = python_path.exists();
+    let ready = runtime_packages_ready(runtime_root, vendor_root, &managed_root, &python_path)
+        .unwrap_or(false);
+    let uv_version = uv_path.and_then(|path| try_version_command(path, &["--version"]));
+    let python_version = if python_exists {
+        try_version_command(&python_path, &["--version"])
+    } else {
+        None
+    };
+    let pdf_math_translate_version = if python_exists {
+        python_module_version(&python_path, "pdf2zh")
+    } else {
+        None
+    };
+
+    Ok(AnalysisEnvStatusResponse {
+        ready,
+        exists,
+        env_key,
+        managed_root: managed_root.to_string_lossy().to_string(),
+        uv_path: uv_path.map(|path| path.to_string_lossy().to_string()),
+        uv_version,
+        python_path: if python_exists {
+            Some(python_path.to_string_lossy().to_string())
+        } else {
+            None
+        },
+        python_version,
+        pdf_math_translate_version,
+        venv_path: venv_path.to_string_lossy().to_string(),
+        runtime_root: runtime_root.to_string_lossy().to_string(),
+        last_error,
+    })
+}
+
+pub(crate) fn analysis_env_status_blocking(
+    app_data_dir: &Path,
+    project_root: &Path,
+) -> Result<AnalysisEnvStatusResponse, String> {
     let runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
+    let vendor_root = resolve_pdfmathtranslate_vendor_root();
+    let uv_path = resolve_uv_path();
+    let last_error = match venv_python_path(app_data_dir, project_root) {
+        Ok(path) if path.exists() => None,
+        Ok(_) => Some("python.env.not_prepared".to_string()),
+        Err(error) => Some(error),
+    };
+    let mut status = build_env_status(
+        app_data_dir,
+        project_root,
+        &runtime_root,
+        vendor_root.as_deref(),
+        uv_path.as_deref(),
+        last_error,
+    )?;
+    if !status.ready && status.last_error.is_none() {
+        status.last_error = Some("python.env.runtime_missing".to_string());
+    }
+    Ok(status)
+}
+
+pub(crate) fn ensure_analysis_env_blocking(
+    app_data_dir: &Path,
+    project_root: &Path,
+) -> Result<AnalysisEnvStatusResponse, String> {
+    let runtime_root = resolve_analysis_runtime_root()
+        .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
+    let vendor_root = resolve_pdfmathtranslate_vendor_root();
     let uv_path = resolve_uv_path().ok_or_else(|| "uv executable was not found".to_string())?;
-    let venv_path = venv_root(project_root);
-    let python_path = venv_python_path(project_root);
+    let managed_root = managed_env_root(app_data_dir, project_root)?;
+    let venv_path = venv_root(app_data_dir, project_root)?;
+    let python_path = venv_python_path(app_data_dir, project_root)?;
 
     if !python_path.exists() {
-        fs::create_dir_all(project_root).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&managed_root).map_err(|e| e.to_string())?;
         let mut command = Command::new(&uv_path);
         configure_hidden_process(&mut command);
         let output = command
@@ -216,25 +460,22 @@ pub(crate) fn ensure_analysis_env_blocking(project_root: &Path) -> Result<Analys
         }
     }
 
-    ensure_runtime_packages(&uv_path, &python_path, &runtime_root, project_root)?;
-
-    let uv_version = try_version_command(&uv_path, &["--version"]);
-    let python_version = try_version_command(&python_path, &["--version"]);
-    let pdf_math_translate_version = python_module_version(&python_path, "pdf2zh");
-
-    Ok(AnalysisEnvStatusResponse {
-        ready: python_path.exists(),
-        uv_path: Some(uv_path.to_string_lossy().to_string()),
-        uv_version,
-        python_path: Some(python_path.to_string_lossy().to_string()),
-        python_version,
-        pdf_math_translate_version,
-        venv_path: venv_path.to_string_lossy().to_string(),
-        runtime_root: runtime_root.to_string_lossy().to_string(),
-        last_error: None,
-    })
+    ensure_runtime_packages(
+        &uv_path,
+        &python_path,
+        &runtime_root,
+        vendor_root.as_deref(),
+        &managed_root,
+    )?;
+    build_env_status(
+        app_data_dir,
+        project_root,
+        &runtime_root,
+        vendor_root.as_deref(),
+        Some(&uv_path),
+        None,
+    )
 }
-
 fn latex_tool_exists(name: &str) -> bool {
     try_version_command(&command_from_path_or_name(name), &["--version"]).is_some()
 }
@@ -256,7 +497,12 @@ fn detect_latex_engine(prefer_engine: Option<&str>) -> String {
     "missing".to_string()
 }
 
-fn write_compile_workspace(root: &Path, file_map: &std::collections::HashMap<String, String>, main_path: &str, entry_content: &str) -> Result<(), String> {
+fn write_compile_workspace(
+    root: &Path,
+    file_map: &std::collections::HashMap<String, String>,
+    main_path: &str,
+    entry_content: &str,
+) -> Result<(), String> {
     for (relative, content) in file_map {
         let target = root.join(safe_relative_path(relative)?);
         if let Some(parent) = target.parent() {
@@ -283,7 +529,11 @@ fn copy_if_exists(source: &Path, target: &Path) -> Result<Option<String>, String
     Ok(Some(target.to_string_lossy().replace('\\', "/")))
 }
 
-fn run_compile_command(engine: &str, run_root: &Path, main_path: &str) -> Result<(std::process::Output, Option<std::process::Output>), String> {
+fn run_compile_command(
+    engine: &str,
+    run_root: &Path,
+    main_path: &str,
+) -> Result<(std::process::Output, Option<std::process::Output>), String> {
     let mut command = match engine {
         "tectonic" => {
             let mut command = Command::new("tectonic");
@@ -294,6 +544,8 @@ fn run_compile_command(engine: &str, run_root: &Path, main_path: &str) -> Result
             let mut command = Command::new("latexmk");
             command
                 .arg("-xelatex")
+                .arg("-quiet")
+                .arg("-rc-report-")
                 .arg("-interaction=nonstopmode")
                 .arg("-file-line-error")
                 .arg("-halt-on-error")
@@ -322,7 +574,9 @@ fn run_compile_command(engine: &str, run_root: &Path, main_path: &str) -> Result
     };
     configure_hidden_process(&mut command);
     command.current_dir(run_root);
-    let first = command.output().map_err(|e| format!("compile.spawn_failed: {e}"))?;
+    let first = command
+        .output()
+        .map_err(|e| format!("compile.spawn_failed: {e}"))?;
 
     if engine == "xelatex" || engine == "pdflatex" {
         let mut second = Command::new(engine);
@@ -333,21 +587,31 @@ fn run_compile_command(engine: &str, run_root: &Path, main_path: &str) -> Result
             .arg("-file-line-error")
             .arg("-halt-on-error")
             .arg(main_path);
-        let second_output = second.output().map_err(|e| format!("compile.spawn_failed: {e}"))?;
+        let second_output = second
+            .output()
+            .map_err(|e| format!("compile.spawn_failed: {e}"))?;
         return Ok((first, Some(second_output)));
     }
 
     Ok((first, None))
 }
 
-fn compile_blocking(db_path: &Path, input: LatexCompileInput) -> Result<LatexCompileResponse, String> {
+fn compile_blocking(
+    db_path: &Path,
+    input: LatexCompileInput,
+) -> Result<LatexCompileResponse, String> {
     let project_root = storage::load_project_root(db_path, &input.project_id)?;
     let compile_root = project_root.join(".latotex/build/native");
     let run_id = Uuid::new_v4().to_string();
     let run_root = compile_root.join(&run_id);
     fs::create_dir_all(&run_root).map_err(|e| e.to_string())?;
 
-    write_compile_workspace(&run_root, &input.file_map, &input.main_path, &input.entry_content)?;
+    write_compile_workspace(
+        &run_root,
+        &input.file_map,
+        &input.main_path,
+        &input.entry_content,
+    )?;
 
     let normalized_main = safe_relative_path(&input.main_path)?;
     let main_pdf = run_root.join(&normalized_main).with_extension("pdf");
@@ -360,7 +624,10 @@ fn compile_blocking(db_path: &Path, input: LatexCompileInput) -> Result<LatexCom
         return Ok(LatexCompileResponse {
             status: "error".to_string(),
             engine,
-            diagnostics: vec!["No native LaTeX engine found. Install tectonic, latexmk, xelatex, or pdflatex.".to_string()],
+            diagnostics: vec![
+                "No native LaTeX engine found. Install tectonic, latexmk, xelatex, or pdflatex."
+                    .to_string(),
+            ],
             duration_ms: 0,
             pdf_relative_path: None,
             log_relative_path: None,
@@ -371,7 +638,8 @@ fn compile_blocking(db_path: &Path, input: LatexCompileInput) -> Result<LatexCom
     }
 
     let started = Instant::now();
-    let (first_output, second_output) = run_compile_command(&engine, &run_root, &normalized_main.to_string_lossy())?;
+    let (first_output, second_output) =
+        run_compile_command(&engine, &run_root, &normalized_main.to_string_lossy())?;
     let duration_ms = started.elapsed().as_millis() as u64;
     let mut combined_log = String::new();
     combined_log.push_str(&String::from_utf8_lossy(&first_output.stdout));
@@ -394,12 +662,21 @@ fn compile_blocking(db_path: &Path, input: LatexCompileInput) -> Result<LatexCom
     let diagnostics = sanitize_log_lines(&combined_log);
     let success = main_pdf.exists()
         && first_output.status.success()
-        && second_output.as_ref().map(|item| item.status.success()).unwrap_or(true);
+        && second_output
+            .as_ref()
+            .map(|item| item.status.success())
+            .unwrap_or(true);
 
-    let pdf_relative_path = copy_if_exists(&main_pdf, &artifact_pdf)?
-        .map(|full| full.replace(project_root.to_string_lossy().as_ref(), "").trim_start_matches('/').to_string());
-    let log_relative_path = copy_if_exists(&main_log, &artifact_log)?
-        .map(|full| full.replace(project_root.to_string_lossy().as_ref(), "").trim_start_matches('/').to_string());
+    let pdf_relative_path = copy_if_exists(&main_pdf, &artifact_pdf)?.map(|full| {
+        full.replace(project_root.to_string_lossy().as_ref(), "")
+            .trim_start_matches('/')
+            .to_string()
+    });
+    let log_relative_path = copy_if_exists(&main_log, &artifact_log)?.map(|full| {
+        full.replace(project_root.to_string_lossy().as_ref(), "")
+            .trim_start_matches('/')
+            .to_string()
+    });
     let pdf_bytes = if success {
         Some(fs::read(&main_pdf).map_err(|e| e.to_string())?)
     } else {
@@ -407,7 +684,11 @@ fn compile_blocking(db_path: &Path, input: LatexCompileInput) -> Result<LatexCom
     };
 
     Ok(LatexCompileResponse {
-        status: if success { "success".to_string() } else { "error".to_string() },
+        status: if success {
+            "success".to_string()
+        } else {
+            "error".to_string()
+        },
         engine,
         diagnostics,
         duration_ms,
@@ -444,37 +725,52 @@ pub async fn analysis_env_prepare(
     state: State<'_, AppState>,
     input: crate::models::ProjectRefInput,
 ) -> Result<AnalysisEnvStatusResponse, String> {
-    state.log("INFO", &format!("analysis_env_prepare: project={}", input.project_id));
+    state.log(
+        "INFO",
+        &format!("analysis_env_prepare: project={}", input.project_id),
+    );
     let db_path = state.db_path.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let project_id = input.project_id;
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &project_id)?;
-        ensure_analysis_env_blocking(&project_root)
+        ensure_analysis_env_blocking(&app_data_dir, &project_root)
     })
     .await
     .map_err(|e| e.to_string())?
 }
-
 #[tauri::command]
 pub async fn analysis_env_status(
     state: State<'_, AppState>,
     input: crate::models::ProjectRefInput,
 ) -> Result<AnalysisEnvStatusResponse, String> {
-    state.log("INFO", &format!("analysis_env_status: project={}", input.project_id));
+    state.log(
+        "INFO",
+        &format!("analysis_env_status: project={}", input.project_id),
+    );
     let db_path = state.db_path.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let project_id = input.project_id;
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &project_id)?;
-        match ensure_analysis_env_blocking(&project_root) {
+        match analysis_env_status_blocking(&app_data_dir, &project_root) {
             Ok(status) => Ok(status),
             Err(error) => Ok(AnalysisEnvStatusResponse {
                 ready: false,
+                exists: false,
+                env_key: project_env_key(&project_root).unwrap_or_else(|_| "unknown".to_string()),
+                managed_root: managed_env_root(&app_data_dir, &project_root)
+                    .map(|path| path.to_string_lossy().to_string())
+                    .unwrap_or_default(),
                 uv_path: resolve_uv_path().map(|path| path.to_string_lossy().to_string()),
-                uv_version: resolve_uv_path().and_then(|path| try_version_command(&path, &["--version"])),
+                uv_version: resolve_uv_path()
+                    .and_then(|path| try_version_command(&path, &["--version"])),
                 python_path: None,
                 python_version: None,
                 pdf_math_translate_version: None,
-                venv_path: venv_root(&project_root).to_string_lossy().to_string(),
+                venv_path: venv_root(&app_data_dir, &project_root)
+                    .map(|path| path.to_string_lossy().to_string())
+                    .unwrap_or_default(),
                 runtime_root: resolve_analysis_runtime_root()
                     .map(|path| path.to_string_lossy().to_string())
                     .unwrap_or_default(),
@@ -485,7 +781,6 @@ pub async fn analysis_env_status(
     .await
     .map_err(|e| e.to_string())?
 }
-
 #[tauri::command]
 pub async fn analysis_run_python(
     state: State<'_, AppState>,
@@ -501,9 +796,10 @@ pub async fn analysis_run_python(
         ),
     );
     let db_path = state.db_path.clone();
+    let app_data_dir = state.app_data_dir.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &input.project_id)?;
-        let env_status = ensure_analysis_env_blocking(&project_root)?;
+        let env_status = ensure_analysis_env_blocking(&app_data_dir, &project_root)?;
         let python_path = PathBuf::from(
             env_status
                 .python_path
@@ -545,7 +841,10 @@ pub async fn analysis_run_python(
             let diagnostics = sanitize_log_lines(&format!("{}\n{}", stdout, stderr));
             return Err(format!(
                 "python.run.failed: {}",
-                diagnostics.first().cloned().unwrap_or_else(|| "analysis runner failed".to_string())
+                diagnostics
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "analysis runner failed".to_string())
             ));
         }
         let profile_json = if output_json.trim().is_empty() {
@@ -554,7 +853,8 @@ pub async fn analysis_run_python(
                 "status": "empty"
             })
         } else {
-            serde_json::from_str(&output_json).map_err(|e| format!("python.run.invalid_json: {e}"))?
+            serde_json::from_str(&output_json)
+                .map_err(|e| format!("python.run.invalid_json: {e}"))?
         };
 
         Ok(AnalysisRunPythonResponse {

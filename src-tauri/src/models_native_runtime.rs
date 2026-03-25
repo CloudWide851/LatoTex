@@ -29,6 +29,9 @@ pub struct LatexCompileResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisEnvStatusResponse {
     pub ready: bool,
+    pub exists: bool,
+    pub env_key: String,
+    pub managed_root: String,
     pub uv_path: Option<String>,
     pub uv_version: Option<String>,
     pub python_path: Option<String>,
@@ -38,7 +41,6 @@ pub struct AnalysisEnvStatusResponse {
     pub runtime_root: String,
     pub last_error: Option<String>,
 }
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisNumericSeriesItem {
@@ -80,3 +82,8 @@ pub struct AnalysisRunPythonResponse {
     pub diagnostics: Vec<String>,
     pub profile_json: Value,
 }
+
+
+
+
+

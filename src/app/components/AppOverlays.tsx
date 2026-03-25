@@ -6,6 +6,7 @@ import { ModelModal } from "./ModelModal";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { normalizeLogLevel, resolveLineTone } from "./logTone";
 import type {
+  AnalysisEnvStatus,
   AppSettings,
   ModelCatalogItem,
   SwarmEvent,
@@ -51,6 +52,13 @@ export function AppOverlays(props: {
   integrityIssue: { projectId: string; missingRequired: string[] } | null;
   themeTransition: ThemeTransition | null;
   toast: Toast;
+  analysisEnvPrompt: {
+    envPromptOpen: boolean;
+    envPromptBusy: boolean;
+    envPromptStatus: AnalysisEnvStatus | null;
+    handleEnvPromptLater: () => void;
+    handleEnvPromptCreate: () => void;
+  };
   onOverlayClose: () => void;
   onLogsTabChange: (tab: LogTab) => void;
   onModelModalClose: () => void;
@@ -94,6 +102,7 @@ export function AppOverlays(props: {
     integrityIssue,
     themeTransition,
     toast,
+    analysisEnvPrompt,
     onOverlayClose,
     onLogsTabChange,
     onModelModalClose,
@@ -147,6 +156,11 @@ export function AppOverlays(props: {
         };
       })
     : [];
+  const envPromptStatus = analysisEnvPrompt.envPromptStatus;
+  const envPromptPath = envPromptStatus?.venvPath || envPromptStatus?.managedRoot || "";
+  const envPromptActionLabel = envPromptStatus?.exists
+    ? t("analysis.envPromptRepair")
+    : t("analysis.envPromptCreate");
 
   return (
     <>
@@ -342,6 +356,46 @@ export function AppOverlays(props: {
         </div>
       )}
 
+      {analysisEnvPrompt.envPromptOpen && envPromptStatus && (
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
+          <div className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-4 shadow-soft motion-card-pop motion-panel-glow">
+            <h3 className="text-sm font-semibold text-slate-800">{t("analysis.envPromptTitle")}</h3>
+            <p className="mt-2 text-xs text-slate-600">
+              {envPromptStatus.exists ? t("analysis.envPromptRepairHint") : t("analysis.envPromptCreateHint")}
+            </p>
+            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                {t("analysis.envPromptPathLabel")}
+              </div>
+              <div className="mt-1 break-all font-mono text-xs text-slate-700">{envPromptPath}</div>
+            </div>
+            {envPromptStatus.lastError && (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {envPromptStatus.lastError}
+              </div>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={analysisEnvPrompt.handleEnvPromptLater}
+                disabled={analysisEnvPrompt.envPromptBusy}
+              >
+                {t("analysis.envPromptLater")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  void analysisEnvPrompt.handleEnvPromptCreate();
+                }}
+                disabled={analysisEnvPrompt.envPromptBusy}
+              >
+                {envPromptActionLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {themeTransition && (
         <div className="theme-ripple-overlay" aria-hidden>
           <div
@@ -375,3 +429,8 @@ export function AppOverlays(props: {
     </>
   );
 }
+
+
+
+
+

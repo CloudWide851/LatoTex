@@ -26,7 +26,6 @@ pub struct GitDownloadTask {
     pub error: Arc<Mutex<Option<String>>>,
 }
 
-
 #[derive(Clone)]
 pub struct LibraryTranslateTask {
     pub id: String,
@@ -280,7 +279,10 @@ fn read_runtime_root_pointer(app_data_dir: &PathBuf) -> Option<PathBuf> {
     }
 }
 
-fn persist_runtime_root_pointer(app_data_dir: &PathBuf, runtime_root: &PathBuf) -> Result<(), String> {
+fn persist_runtime_root_pointer(
+    app_data_dir: &PathBuf,
+    runtime_root: &PathBuf,
+) -> Result<(), String> {
     fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
     let pointer = RuntimeRootPointer {
         runtime_root: runtime_root.to_string_lossy().to_string(),
@@ -306,7 +308,10 @@ fn migrate_previous_runtime_data_if_needed(
     copy_runtime_candidates(previous_root, runtime_root)
 }
 
-fn migrate_legacy_data_if_needed(legacy_data_dir: &PathBuf, runtime_root: &PathBuf) -> Result<(), String> {
+fn migrate_legacy_data_if_needed(
+    legacy_data_dir: &PathBuf,
+    runtime_root: &PathBuf,
+) -> Result<(), String> {
     if legacy_data_dir == runtime_root {
         return Ok(());
     }
@@ -393,7 +398,3 @@ fn write_install_state(path: &PathBuf, state: &InstallState) -> Result<(), Strin
     let serialized = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
     fs::write(path, serialized).map_err(|e| e.to_string())
 }
-
-
-
-

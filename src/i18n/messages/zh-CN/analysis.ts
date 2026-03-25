@@ -46,5 +46,15 @@ export const zhCN_analysis = {
   "analysis.error.noInputFiles": "当前没有可用于分析的输入文件。",
   "analysis.error.invalidInputRefs": "当前提示词中未找到有效的 @文件 引用",
   "analysis.error.failed": "分析失败",
+  "analysis.envPromptTitle": "准备分析环境",
+  "analysis.envPromptCreateHint": "当前项目还没有对应的托管 Python 分析环境。现在将在应用托管目录中创建。",
+  "analysis.envPromptRepairHint": "当前项目的托管 Python 分析环境不完整或不可用。现在将在应用托管目录中修复。",
+  "analysis.envPromptPathLabel": "环境路径",
+  "analysis.envPromptCreate": "创建环境",
+  "analysis.envPromptRepair": "修复环境",
+  "analysis.envPromptLater": "稍后",
+  "analysis.envPromptReady": "分析环境已就绪。",
 } as const;
+
+
 

@@ -6,6 +6,11 @@ const NOISE_PATTERNS: RegExp[] = [
   /^installing package\b/i,
   /^宏包安装进度\b/i,
   /^正在安装宏包\b/i,
+  /^initial win cp for \(console input, console output, system\):/i,
+  /^i changed them all to cp\d+/i,
+  /^rc files read:/i,
+  /^latexmk: this is latexmk/i,
+  /^no existing \.aux file/i,
 ];
 const PRIORITY_PATTERNS: RegExp[] = [
   /fontspec\s+error/i,

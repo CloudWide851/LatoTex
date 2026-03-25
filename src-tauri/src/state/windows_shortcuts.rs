@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::os::windows::process::CommandExt;
+use std::path::Path;
 use std::process::Command;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -68,7 +68,13 @@ pub(super) fn sync_shortcuts(app_name: &str) -> Result<(), String> {
     let script = build_sync_script(app_name, &exe_path, work_dir);
     let mut command = Command::new("powershell");
     command
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &script,
+        ])
         .creation_flags(CREATE_NO_WINDOW);
     let output = command.output().map_err(|e| e.to_string())?;
     if output.status.success() {

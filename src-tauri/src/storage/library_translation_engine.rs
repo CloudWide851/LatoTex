@@ -153,6 +153,7 @@ pub(super) fn resolve_translation_model_candidates(
 pub fn translate_library_document(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
     target_language: Option<&str>,
@@ -161,6 +162,7 @@ pub fn translate_library_document(
     library_translation_paper_translation_engine::translate_library_document(
         db_path,
         runtime_root,
+        app_data_dir,
         project_id,
         relative_path,
         target_language,
@@ -171,6 +173,7 @@ pub fn translate_library_document(
 pub fn translate_library_document_with_progress<F>(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
     target_language: Option<&str>,
@@ -183,6 +186,7 @@ where
     library_translation_paper_translation_engine::translate_library_document_with_progress(
         db_path,
         runtime_root,
+        app_data_dir,
         project_id,
         relative_path,
         target_language,
@@ -193,12 +197,16 @@ where
 
 pub fn extract_library_paper_context(
     db_path: &Path,
+    app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
 ) -> Result<crate::models::LibraryPaperExtractResponse, String> {
     library_translation_paper_analysis_engine::extract_library_paper_context(
         db_path,
+        app_data_dir,
         project_id,
         relative_path,
     )
 }
+
+

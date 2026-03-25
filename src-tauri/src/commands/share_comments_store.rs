@@ -104,7 +104,10 @@ fn parse_nonempty_text(value: Option<&Value>) -> Option<String> {
         .map(|text| text.to_string())
 }
 
-pub fn normalize_comment_value(value: &Value, fallback_username: &str) -> Option<ShareCommentRecord> {
+pub fn normalize_comment_value(
+    value: &Value,
+    fallback_username: &str,
+) -> Option<ShareCommentRecord> {
     let source_obj = value.as_object()?;
     let text = source_obj
         .get("text")

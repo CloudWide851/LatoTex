@@ -27,30 +27,6 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-function uniqueHostCandidates(values: string[]): string[] {
-  const seen = new Set<string>();
-  const output: string[] = [];
-  for (const value of values) {
-    const normalized = String(value || "").trim();
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    output.push(normalized);
-  }
-  return output;
-}
-
-function collectDrawioHostCandidates(info: {
-  candidateHostUrls?: string[] | null;
-  hostUrl?: string | null;
-}): string[] {
-  return uniqueHostCandidates([
-    ...(Array.isArray(info.candidateHostUrls) ? info.candidateHostUrls : []),
-    String(info.hostUrl || "").trim(),
-  ]);
-}
-
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
     return [DRAWIO_HOST_URL];
@@ -65,20 +41,8 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-
-    let candidates = collectDrawioHostCandidates(info);
-    if (policy === "install-first" && !info.usingFallback && candidates.length <= 1) {
-      try {
-        const appdataInfo = await drawioCachePrepare("appdata-only");
-        candidates = uniqueHostCandidates([
-          ...candidates,
-          ...collectDrawioHostCandidates(appdataInfo),
-        ]);
-      } catch {
-        // Keep install-first candidates when appdata fallback preparation fails.
-      }
-    }
-    return candidates;
+    const entryUrl = String(info.entryUrl || "").trim();
+    return entryUrl ? [entryUrl] : [];
   } catch {
     return [];
   }
@@ -259,82 +223,39 @@ export async function persistDrawExportToWorkspace(params: {
   message: DrawMessage;
   writeText: (path: string, content: string) => Promise<unknown>;
   writeBinary: (path: string, bytes: Uint8Array) => Promise<unknown>;
-  onAfterSave?: (savedPath: string) => Promise<void> | void;
+  onAfterSave?: (path: string) => void;
 }): Promise<string> {
   const { activePath, message, writeText, writeBinary, onAfterSave } = params;
-  const exportData = String(message.data || "");
-  if (!exportData) {
-    throw new Error("draw.export.empty_payload");
+  const rawData = String(message.data ?? "");
+  if (!rawData) {
+    throw new Error("draw.export.missing_data");
   }
 
-  let extension = "bin";
-  let targetPath = "";
-  let textPayload: string | null = null;
-  let binaryPayload: Uint8Array | null = null;
+  const decoded = rawData.startsWith("data:")
+    ? decodeDataUrl(rawData)
+    : { mime: String(message.mime ?? "application/octet-stream"), bytes: Uint8Array.from(atob(rawData), (char) => char.charCodeAt(0)) };
+  const extension = inferExportExtension(message, decoded.mime);
+  const targetPath = toDrawExportTarget(activePath, extension, typeof message.filename === "string" ? message.filename : undefined);
+  const textContent = toTextIfPossible(extension, decoded.bytes);
 
-  if (exportData.startsWith("data:")) {
-    const parsed = decodeDataUrl(exportData);
-    extension = inferExportExtension(message, parsed.mime);
-    targetPath = toDrawExportTarget(activePath, extension || "bin", message.filename);
-    textPayload = toTextIfPossible(extension, parsed.bytes);
-    if (textPayload === null) {
-      binaryPayload = parsed.bytes;
-    }
-  } else {
-    extension = inferExportExtension(message);
-    targetPath = toDrawExportTarget(activePath, extension || "bin", message.filename);
-    if (message.base64) {
-      const raw = atob(exportData);
-      const bytes = new Uint8Array(raw.length);
-      for (let index = 0; index < raw.length; index += 1) {
-        bytes[index] = raw.charCodeAt(index);
+  let lastError: unknown;
+  for (const attemptPath of [targetPath, ...EXPORT_RETRY_DELAYS_MS.map(() => withExportRetrySuffix(targetPath))]) {
+    try {
+      if (typeof textContent === "string") {
+        await writeText(attemptPath, textContent);
+      } else {
+        await writeBinary(attemptPath, decoded.bytes);
       }
-      binaryPayload = bytes;
-    } else {
-      textPayload = exportData;
-    }
-  }
-
-  const writePayload = async (path: string) => {
-    if (textPayload !== null) {
-      await writeText(path, textPayload);
-      return;
-    }
-    if (binaryPayload) {
-      await writeBinary(path, binaryPayload);
-      return;
-    }
-    await writeText(path, exportData);
-  };
-
-  const writeWithRetry = async (path: string) => {
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= EXPORT_RETRY_DELAYS_MS.length; attempt += 1) {
-      try {
-        await writePayload(path);
-        return;
-      } catch (error) {
-        lastError = error;
-        if (!isPermissionDeniedWriteError(error) || attempt >= EXPORT_RETRY_DELAYS_MS.length) {
-          throw error;
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, EXPORT_RETRY_DELAYS_MS[attempt]));
+      onAfterSave?.(attemptPath);
+      return attemptPath;
+    } catch (error) {
+      lastError = error;
+      if (!isPermissionDeniedWriteError(error)) {
+        throw error;
       }
     }
-    throw lastError ?? new Error("write failed");
-  };
-
-  let savedPath = targetPath;
-  try {
-    await writeWithRetry(savedPath);
-  } catch (error) {
-    if (!isPermissionDeniedWriteError(error)) {
-      throw error;
-    }
-    savedPath = withExportRetrySuffix(targetPath);
-    await writeWithRetry(savedPath);
   }
-
-  await onAfterSave?.(savedPath);
-  return savedPath;
+  throw lastError ?? new Error("write failed");
 }
+
+

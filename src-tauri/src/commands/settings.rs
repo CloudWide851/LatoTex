@@ -1,9 +1,9 @@
+use crate::commands::swarm::call_provider_with_retry;
 use crate::models::{
     Ack, AppSettings, ModelApiKeyGetInput, ModelApiKeySetInput, ModelApiKeyValue,
     ModelDraftTestInput, ModelTestInput, ModelTestResult, ProtocolHealth, ProtocolTestInput,
     SettingsUpdateInput,
 };
-use crate::commands::swarm::call_provider_with_retry;
 use crate::secure;
 use crate::state::AppState;
 use crate::storage;
@@ -11,27 +11,26 @@ use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use std::time::Duration;
 use tauri::State;
-mod settings_keysave;
 #[path = "settings_background.rs"]
 mod settings_background;
+#[path = "settings_fonts.rs"]
+mod settings_fonts;
+mod settings_keysave;
 #[path = "settings_memory.rs"]
 mod settings_memory;
 #[path = "settings_runtime_logs.rs"]
 mod settings_runtime_logs;
-#[path = "settings_fonts.rs"]
-mod settings_fonts;
-pub use settings_keysave::model_api_key_save_verified;
 pub use settings_background::{
-    settings_pick_background_image,
-    settings_read_background_image,
+    settings_pick_background_image, settings_read_background_image,
     settings_remove_background_image,
 };
+pub use settings_fonts::runtime_system_font_probe;
+pub use settings_keysave::model_api_key_save_verified;
 pub use settings_memory::runtime_memory_snapshot;
 pub use settings_runtime_logs::{
     runtime_log_clear_current_session, runtime_log_info, runtime_log_list_sessions,
     runtime_log_read, runtime_log_write,
 };
-pub use settings_fonts::runtime_system_font_probe;
 #[tauri::command]
 pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");
@@ -58,7 +57,12 @@ pub fn protocol_test(
             input.base_url.as_deref().unwrap_or("-")
         ),
     );
-    let base_url = input.base_url.clone().unwrap_or_default().trim().to_string();
+    let base_url = input
+        .base_url
+        .clone()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     if base_url.is_empty() {
         return Ok(ProtocolHealth {
             protocol_id: input.protocol_id,
@@ -97,8 +101,11 @@ pub fn model_test(
     input: ModelTestInput,
 ) -> Result<ModelTestResult, String> {
     state.log("INFO", &format!("model_test: {}", input.model_id));
-    let (protocol_id, base_url, request_name, api_key) =
-        storage::resolve_model_test_connection(&state.db_path, &state.runtime_root, &input.model_id)?;
+    let (protocol_id, base_url, request_name, api_key) = storage::resolve_model_test_connection(
+        &state.db_path,
+        &state.runtime_root,
+        &input.model_id,
+    )?;
     let client = Client::builder()
         .timeout(Duration::from_secs(18))
         .build()
@@ -155,13 +162,8 @@ pub fn model_test_draft(
         .timeout(Duration::from_secs(18))
         .build()
         .map_err(|e| e.to_string())?;
-    let result = call_model_generation_test(
-        &client,
-        protocol_id,
-        base_url,
-        request_name,
-        Some(api_key),
-    );
+    let result =
+        call_model_generation_test(&client, protocol_id, base_url, request_name, Some(api_key));
     let (ok, message) = match result {
         Ok(output) => (
             true,
@@ -199,7 +201,10 @@ pub fn model_api_key_set(
             &format!(
                 "model_api_key_set: cleared key for {model_id}, backend={}, diagnostic={}",
                 outcome.backend,
-                outcome.diagnostic_code.clone().unwrap_or_else(|| "-".to_string())
+                outcome
+                    .diagnostic_code
+                    .clone()
+                    .unwrap_or_else(|| "-".to_string())
             ),
         );
         return Ok(Ack {
@@ -213,7 +218,10 @@ pub fn model_api_key_set(
         &format!(
             "model_api_key_set: updated key for {model_id}, backend={}, diagnostic={}",
             outcome.backend,
-            outcome.diagnostic_code.clone().unwrap_or_else(|| "-".to_string())
+            outcome
+                .diagnostic_code
+                .clone()
+                .unwrap_or_else(|| "-".to_string())
         ),
     );
     Ok(Ack {
@@ -287,7 +295,11 @@ fn probe_openai_compatible(
     }
     Err(last_error)
 }
-fn probe_anthropic(client: &Client, base_url: &str, api_key: Option<&str>) -> Result<StatusCode, String> {
+fn probe_anthropic(
+    client: &Client,
+    base_url: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
     let key = api_key
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -319,7 +331,11 @@ fn probe_anthropic(client: &Client, base_url: &str, api_key: Option<&str>) -> Re
     }
     Err(last_error)
 }
-fn probe_gemini(client: &Client, base_url: &str, api_key: Option<&str>) -> Result<StatusCode, String> {
+fn probe_gemini(
+    client: &Client,
+    base_url: &str,
+    api_key: Option<&str>,
+) -> Result<StatusCode, String> {
     let key = api_key
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -350,13 +366,5 @@ fn call_model_generation_test(
     api_key: Option<&str>,
 ) -> Result<String, String> {
     let key = resolve_api_key(api_key)?;
-    call_provider_with_retry(
-        None,
-        protocol_id,
-        base_url,
-        &key,
-        model_name,
-        "ping",
-        true,
-    )
+    call_provider_with_retry(None, protocol_id, base_url, &key, model_name, "ping", true)
 }

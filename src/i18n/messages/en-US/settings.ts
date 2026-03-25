@@ -13,7 +13,7 @@ export const enUS_settings = {
   "settings.removeModel": "Remove",
   "settings.editModel": "Edit",
   "settings.noModelAssigned": "No model",
-  "settings.saveHint": "Changes are saved automatically. Model keys are encrypted before local fallback storage.",
+  "settings.saveHint": "Changes are saved automatically.",
   "settings.baseUrl": "Base URL",
   "settings.apiKey": "API Key",
   "settings.keyStored": "Stored in system keyring",
@@ -132,5 +132,6 @@ export const enUS_settings = {
   "settings.installMode": "Install mode",
   "settings.version": "Version",
 } as const;
+
 
 

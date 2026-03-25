@@ -2,10 +2,10 @@ use crate::models::{Ack, ShareParticipantInfo, ShareSessionCreateInput, ShareSes
 use crate::state::AppState;
 use crate::storage;
 use chrono::{Duration as ChronoDuration, Utc};
-use share_comments_store::{ShareCommentRecord, ShareCommentsStore};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use share_comments_store::{ShareCommentRecord, ShareCommentsStore};
 use std::collections::HashMap;
 use std::fs;
 use std::net::TcpListener;
@@ -22,18 +22,18 @@ use uuid::Uuid;
 mod share_comments_store;
 #[path = "share_http_auth.rs"]
 mod share_http_auth;
-#[path = "share_http_server.rs"]
-mod share_http_server;
 #[path = "share_http_pdf.rs"]
 mod share_http_pdf;
+#[path = "share_http_server.rs"]
+mod share_http_server;
 #[path = "share_http_static.rs"]
 mod share_http_static;
+#[path = "share_pdf.rs"]
+mod share_pdf;
 #[path = "share_runtime_auth.rs"]
 mod share_runtime_auth;
 #[path = "share_tunnel.rs"]
 mod share_tunnel;
-#[path = "share_pdf.rs"]
-mod share_pdf;
 use share_pdf::share_pdf_ready;
 use share_runtime_auth::{verify_body_auth, verify_query_auth};
 const SHARE_TTL_HOURS: i64 = 24;
@@ -170,7 +170,10 @@ fn no_cache_header() -> Header {
     Header::from_bytes("Cache-Control", "no-store")
         .unwrap_or_else(|_| Header::from_bytes("Pragma", "no-cache").unwrap())
 }
-fn json_response(status: StatusCode, payload: serde_json::Value) -> Response<std::io::Cursor<Vec<u8>>> {
+fn json_response(
+    status: StatusCode,
+    payload: serde_json::Value,
+) -> Response<std::io::Cursor<Vec<u8>>> {
     Response::from_string(payload.to_string())
         .with_status_code(status)
         .with_header(json_header())
@@ -229,7 +232,10 @@ fn normalize_share_mode(mode: Option<String>) -> String {
     }
 }
 fn normalize_session_name(value: Option<&str>) -> Option<String> {
-    value.map(str::trim).filter(|item| !item.is_empty()).map(|item| item.chars().take(120).collect())
+    value
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| item.chars().take(120).collect())
 }
 fn now_iso() -> String {
     Utc::now().to_rfc3339()
@@ -291,12 +297,16 @@ fn upsert_participant(
     prune_participants(runtime);
 }
 fn participant_public_list(runtime: &ShareRuntime) -> Vec<ShareParticipantInfo> {
-    let mut participants: Vec<ShareParticipantInfo> = runtime.participants.values().map(|item| ShareParticipantInfo {
-        participant_id: item.participant_id.clone(),
-        username: item.username.clone(),
-        last_seen_at: item.last_seen_at.clone(),
-        last_action: item.last_action.clone(),
-    }).collect();
+    let mut participants: Vec<ShareParticipantInfo> = runtime
+        .participants
+        .values()
+        .map(|item| ShareParticipantInfo {
+            participant_id: item.participant_id.clone(),
+            username: item.username.clone(),
+            last_seen_at: item.last_seen_at.clone(),
+            last_action: item.last_action.clone(),
+        })
+        .collect();
     participants.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
     participants
 }
@@ -304,9 +314,7 @@ fn build_local_join_url(runtime: &ShareRuntime) -> String {
     if runtime.mode == "local" {
         format!(
             "{}/?sid={}&pwd={}",
-            runtime.local_url,
-            runtime.session_id,
-            runtime.password
+            runtime.local_url, runtime.session_id, runtime.password
         )
     } else {
         format!("{}/?sid={}", runtime.local_url, runtime.session_id)
@@ -314,10 +322,18 @@ fn build_local_join_url(runtime: &ShareRuntime) -> String {
 }
 fn build_remote_join_url(runtime: &ShareRuntime) -> Option<String> {
     let tunnel = runtime.tunnel_url.as_ref()?;
-    Some(format!("{}/?sid={}", tunnel.trim_end_matches('/'), runtime.session_id))
+    Some(format!(
+        "{}/?sid={}",
+        tunnel.trim_end_matches('/'),
+        runtime.session_id
+    ))
 }
 fn build_active_join_url(runtime: &ShareRuntime) -> Option<String> {
-    if runtime.mode == "local" { Some(build_local_join_url(runtime)) } else { build_remote_join_url(runtime) }
+    if runtime.mode == "local" {
+        Some(build_local_join_url(runtime))
+    } else {
+        build_remote_join_url(runtime)
+    }
 }
 fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
     let local_join_url = build_local_join_url(runtime);
@@ -412,11 +428,15 @@ fn append_share_comment(
         runtime.session_name.as_deref(),
         &runtime.session_created_at,
     );
-    let Some(comment) = share_comments_store::normalize_comment_value(&comment_value, &participant_name) else {
+    let Some(comment) =
+        share_comments_store::normalize_comment_value(&comment_value, &participant_name)
+    else {
         return Err("comment text or quote required".to_string());
     };
     runtime.comments.push(comment.clone());
-    runtime.comments.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    runtime
+        .comments
+        .sort_by(|a, b| a.created_at.cmp(&b.created_at));
     if runtime.comments.len() > 1_200 {
         let trim = runtime.comments.len().saturating_sub(1_000);
         runtime.comments.drain(0..trim);

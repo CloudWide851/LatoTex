@@ -195,13 +195,17 @@ fn runtime_log_entry_matches(entry: &RuntimeLogEntry, input: &RuntimeLogReadInpu
     }
     if let Some(from_time) = input.from_time.as_deref() {
         let from_time = from_time.trim();
-        if !from_time.is_empty() && !entry.timestamp.is_empty() && entry.timestamp.as_str() < from_time {
+        if !from_time.is_empty()
+            && !entry.timestamp.is_empty()
+            && entry.timestamp.as_str() < from_time
+        {
             return false;
         }
     }
     if let Some(to_time) = input.to_time.as_deref() {
         let to_time = to_time.trim();
-        if !to_time.is_empty() && !entry.timestamp.is_empty() && entry.timestamp.as_str() > to_time {
+        if !to_time.is_empty() && !entry.timestamp.is_empty() && entry.timestamp.as_str() > to_time
+        {
             return false;
         }
     }
@@ -368,8 +372,9 @@ mod tests {
         fs::write(&session_log, "session").expect("write session log");
         fs::write(&target_log, "target").expect("write target log");
 
-        let resolved = resolve_log_path_from_roots(&logs_dir, &session_log, Some("20260320-test.log"))
-            .expect("resolve explicit log");
+        let resolved =
+            resolve_log_path_from_roots(&logs_dir, &session_log, Some("20260320-test.log"))
+                .expect("resolve explicit log");
         let resolved_name = resolved
             .file_name()
             .map(|item| item.to_string_lossy().to_string())

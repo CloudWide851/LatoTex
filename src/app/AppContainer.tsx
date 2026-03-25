@@ -25,6 +25,7 @@ import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/usePro
 import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
 import { useIdleSleep } from "./hooks/useIdleSleep";
 import { useRuntimePressureRelief } from "./hooks/useRuntimePressureRelief";
+import { useAnalysisEnvPrompt } from "./hooks/useAnalysisEnvPrompt";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
@@ -118,6 +119,7 @@ export function AppContainer() {
     t,
     setToast: s.setToast,
   });
+  const analysisEnvPrompt = useAnalysisEnvPrompt({ activeProjectId: s.activeProjectId, t, setToast: s.setToast });
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,
@@ -559,6 +561,7 @@ export function AppContainer() {
       integrityIssue={integrityIssue}
       themeTransition={s.themeTransition}
       toast={s.toast}
+      analysisEnvPrompt={analysisEnvPrompt}
       setModelModalOpen={s.setModelModalOpen}
       setModelModalInitial={s.setModelModalInitial}
       setModelModalMode={s.setModelModalMode}
@@ -587,4 +590,7 @@ export function AppContainer() {
     />
   );
 }
+
+
+
 

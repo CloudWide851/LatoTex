@@ -1,10 +1,15 @@
 use crate::models::{DrawioCacheInfo, DrawioCachePrepareInput};
 use crate::state::AppState;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
+use tauri::http::{
+    header::{CACHE_CONTROL, CONTENT_TYPE},
+    Request, Response, StatusCode,
+};
 use tauri::State;
-use urlencoding::encode;
 
+pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
+const DRAWIO_ROUTE_PREFIX: &str = "/tool/drawio";
 const REQUIRED_DRAWIO_ASSETS: [&str; 6] = [
     "index.html",
     "app.html",
@@ -20,8 +25,11 @@ struct CachePrepareResult {
     actual_dir: String,
     install_dir_writable: bool,
     using_fallback: bool,
-    install_dir: String,
-    appdata_dir: String,
+}
+
+struct DrawioCacheDirs {
+    install_dir: PathBuf,
+    appdata_dir: PathBuf,
 }
 
 fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
@@ -53,8 +61,7 @@ fn candidate_source_dirs(relative_subdir: &str) -> Vec<PathBuf> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/core/{relative_subdir}")),
     );
     candidates.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join(format!("../public/core/{relative_subdir}")),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../public/core/{relative_subdir}")),
     );
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
@@ -123,23 +130,27 @@ fn write_cache_marker(actual_dir: &Path, policy: &str, requested_dir: &Path, usi
     );
 }
 
-fn prepare_drawio_cache(
-    state: &State<'_, AppState>,
-    policy: &str,
-) -> Result<CachePrepareResult, String> {
-    let source_dir = choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio")
-        .ok_or_else(|| "Drawio source assets were not found in app resources".to_string())?;
-
+fn drawio_cache_dirs(state: &AppState) -> DrawioCacheDirs {
     let install_dir = std::env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(|parent| parent.join("drawio-cache")))
         .unwrap_or_else(|| state.runtime_root.join("drawio-cache"));
     let appdata_dir = state.app_data_dir.join("drawio-cache");
+    DrawioCacheDirs {
+        install_dir,
+        appdata_dir,
+    }
+}
+
+fn prepare_drawio_cache(state: &AppState, policy: &str) -> Result<CachePrepareResult, String> {
+    let source_dir = choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio")
+        .ok_or_else(|| "Drawio source assets were not found in app resources".to_string())?;
+    let dirs = drawio_cache_dirs(state);
 
     let requested_dir = if policy == "appdata-only" {
-        appdata_dir.clone()
+        dirs.appdata_dir.clone()
     } else {
-        install_dir.clone()
+        dirs.install_dir.clone()
     };
 
     let mut actual_dir = requested_dir.clone();
@@ -148,10 +159,10 @@ fn prepare_drawio_cache(
 
     let ensure_result = ensure_cache_dir(&requested_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS);
     if let Err(error) = ensure_result {
-        if requested_dir == install_dir && is_permission_denied(&error) {
+        if requested_dir == dirs.install_dir && is_permission_denied(&error) {
             install_dir_writable = false;
             using_fallback = true;
-            actual_dir = appdata_dir.clone();
+            actual_dir = dirs.appdata_dir.clone();
             ensure_cache_dir(&actual_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS)?;
         } else {
             return Err(error);
@@ -167,85 +178,130 @@ fn prepare_drawio_cache(
         actual_dir: actual_dir.to_string_lossy().to_string(),
         install_dir_writable,
         using_fallback,
-        install_dir: install_dir.to_string_lossy().to_string(),
-        appdata_dir: appdata_dir.to_string_lossy().to_string(),
     })
 }
 
-fn normalize_asset_localhost_path(actual_dir: &str) -> String {
-    actual_dir
-        .trim()
-        .replace('\\', "/")
-        .trim_end_matches('/')
-        .to_string()
-}
-
-fn encode_asset_path_segment(segment: &str, index: usize) -> String {
-    if segment.is_empty() {
-        return String::new();
-    }
-    if index == 0
-        && segment.len() == 2
-        && segment.ends_with(':')
-        && segment
-            .chars()
-            .next()
-            .map(|value| value.is_ascii_alphabetic())
-            .unwrap_or(false)
-    {
-        return segment.to_string();
-    }
-    encode(segment).into_owned()
-}
-
-fn build_asset_localhost_base_url(actual_dir: &str) -> Option<String> {
-    let normalized = normalize_asset_localhost_path(actual_dir);
-    if normalized.is_empty() {
-        return None;
-    }
-    let encoded = normalized
-        .split('/')
-        .enumerate()
-        .map(|(index, segment)| encode_asset_path_segment(segment, index))
-        .collect::<Vec<_>>()
-        .join("/");
-    Some(format!("http://asset.localhost/{encoded}"))
-}
-
-fn host_url_for_base(base_url: Option<&str>) -> Option<String> {
-    let base = base_url?.trim().trim_end_matches('/');
-    if base.is_empty() {
-        return None;
-    }
-    Some(format!("{base}/index.html"))
-}
-
-fn push_cache_candidate_dir(candidate_dirs: &mut Vec<String>, dir: &str) {
-    let normalized = dir.trim();
-    if normalized.is_empty() || !has_required_assets(Path::new(normalized), &REQUIRED_DRAWIO_ASSETS) {
-        return;
-    }
-    if candidate_dirs.iter().any(|item| item == normalized) {
-        return;
-    }
-    candidate_dirs.push(normalized.to_string());
-}
-
-fn build_cache_candidate_base_urls(prepared: &CachePrepareResult) -> Vec<String> {
-    let mut candidate_dirs = Vec::<String>::new();
-    if prepared.policy == "appdata-only" {
-        push_cache_candidate_dir(&mut candidate_dirs, &prepared.appdata_dir);
-        push_cache_candidate_dir(&mut candidate_dirs, &prepared.actual_dir);
-    } else {
-        push_cache_candidate_dir(&mut candidate_dirs, &prepared.install_dir);
-        push_cache_candidate_dir(&mut candidate_dirs, &prepared.actual_dir);
-        push_cache_candidate_dir(&mut candidate_dirs, &prepared.appdata_dir);
-    }
-
-    candidate_dirs
+fn resolve_existing_drawio_dir(state: &AppState) -> Option<PathBuf> {
+    let dirs = drawio_cache_dirs(state);
+    [dirs.install_dir, dirs.appdata_dir]
         .into_iter()
-        .filter_map(|dir| build_asset_localhost_base_url(&dir))
-        .collect()
+        .find(|dir| has_required_assets(dir, &REQUIRED_DRAWIO_ASSETS))
+}
+
+fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
+    if let Some(dir) = resolve_existing_drawio_dir(state) {
+        return Ok(dir);
+    }
+    let prepared = prepare_drawio_cache(state, "install-first")?;
+    Ok(PathBuf::from(prepared.actual_dir))
+}
+
+fn normalize_relative_asset_path(request_path: &str) -> Result<PathBuf, String> {
+    let relative = request_path
+        .trim()
+        .strip_prefix(DRAWIO_ROUTE_PREFIX)
+        .ok_or_else(|| "resource.path.unsupported".to_string())?
+        .trim_start_matches('/');
+    if relative.is_empty() {
+        return Ok(PathBuf::from("index.html"));
+    }
+
+    let mut out = PathBuf::new();
+    for component in Path::new(relative).components() {
+        match component {
+            Component::Normal(value) => out.push(value),
+            Component::CurDir => {}
+            _ => return Err("resource.path.invalid".to_string()),
+        }
+    }
+
+    if out.as_os_str().is_empty() {
+        return Ok(PathBuf::from("index.html"));
+    }
+    Ok(out)
+}
+
+fn mime_type_for_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "html" => "text/html; charset=utf-8",
+        "js" => "application/javascript; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "json" => "application/json; charset=utf-8",
+        "xml" => "application/xml; charset=utf-8",
+        "wasm" => "application/wasm",
+        _ => "application/octet-stream",
+    }
+}
+
+fn build_text_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(status)
+        .header(CONTENT_TYPE, "text/plain; charset=utf-8")
+        .header(CACHE_CONTROL, "no-store")
+        .body(message.as_bytes().to_vec())
+        .unwrap_or_else(|_| Response::new(message.as_bytes().to_vec()))
+}
+
+fn build_binary_response(status: StatusCode, mime: &str, bytes: Vec<u8>) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(status)
+        .header(CONTENT_TYPE, mime)
+        .header(CACHE_CONTROL, "no-store")
+        .body(bytes)
+        .unwrap_or_else(|_| Response::new(Vec::new()))
+}
+
+fn build_drawio_entry_url() -> String {
+    #[cfg(target_os = "windows")]
+    {
+        return format!(
+            "http://{}.localhost{DRAWIO_ROUTE_PREFIX}/index.html",
+            LOCAL_RESOURCE_SCHEME
+        );
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        format!("{LOCAL_RESOURCE_SCHEME}://localhost{DRAWIO_ROUTE_PREFIX}/index.html")
+    }
+}
+
+pub fn handle_local_resource_request(
+    state: &AppState,
+    request: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    let path = request.uri().path();
+    if !path.starts_with(DRAWIO_ROUTE_PREFIX) {
+        return build_text_response(StatusCode::NOT_FOUND, "resource.not_found");
+    }
+
+    let relative_path = match normalize_relative_asset_path(path) {
+        Ok(path) => path,
+        Err(error) => return build_text_response(StatusCode::BAD_REQUEST, &error),
+    };
+    let root = match ensure_drawio_serving_dir(state) {
+        Ok(dir) => dir,
+        Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+    };
+    let asset_path = root.join(&relative_path);
+    if !asset_path.exists() || !asset_path.is_file() {
+        return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
+    }
+
+    match fs::read(&asset_path) {
+        Ok(bytes) => build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes),
+        Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -256,94 +312,38 @@ pub fn drawio_cache_prepare(
     let policy = input.policy.trim();
     let prepared = prepare_drawio_cache(&state, policy)?;
 
-    let candidate_base_urls = build_cache_candidate_base_urls(&prepared);
-    let base_url = build_asset_localhost_base_url(&prepared.actual_dir);
-    let candidate_host_urls = candidate_base_urls
-        .iter()
-        .filter_map(|candidate| host_url_for_base(Some(candidate.as_str())))
-        .collect::<Vec<_>>();
-
     Ok(DrawioCacheInfo {
         policy: prepared.policy,
         requested_dir: prepared.requested_dir,
         actual_dir: prepared.actual_dir,
         install_dir_writable: prepared.install_dir_writable,
         using_fallback: prepared.using_fallback,
-        base_url: base_url.clone(),
-        host_url: host_url_for_base(base_url.as_deref()),
-        candidate_host_urls,
+        entry_url: build_drawio_entry_url(),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{build_asset_localhost_base_url, build_cache_candidate_base_urls, CachePrepareResult};
-    use std::fs;
+    use super::{build_drawio_entry_url, normalize_relative_asset_path, LOCAL_RESOURCE_SCHEME};
+    use std::path::PathBuf;
 
     #[test]
-    fn build_asset_localhost_base_url_keeps_windows_drive_unescaped() {
-        let base_url = build_asset_localhost_base_url("F:\\LatoTex\\drawio-cache");
+    fn drawio_entry_url_uses_custom_local_resource_scheme() {
+        let value = build_drawio_entry_url();
+        assert!(value.contains(LOCAL_RESOURCE_SCHEME));
+        assert!(value.ends_with("/tool/drawio/index.html"));
+    }
 
+    #[test]
+    fn normalize_relative_asset_path_defaults_to_index() {
         assert_eq!(
-            base_url.as_deref(),
-            Some("http://asset.localhost/F:/LatoTex/drawio-cache")
+            normalize_relative_asset_path("/tool/drawio").unwrap(),
+            PathBuf::from("index.html")
         );
     }
 
     #[test]
-    fn build_cache_candidate_base_urls_prefers_install_then_appdata_when_available() {
-        let root = std::env::temp_dir().join(format!(
-            "latotex-cache-candidates-{}",
-            std::process::id()
-        ));
-        let install_dir = root.join("install-cache");
-        let appdata_dir = root.join("appdata-cache");
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(install_dir.join("js")).unwrap();
-        fs::create_dir_all(install_dir.join("styles")).unwrap();
-        fs::create_dir_all(appdata_dir.join("js")).unwrap();
-        fs::create_dir_all(appdata_dir.join("styles")).unwrap();
-        for dir in [&install_dir, &appdata_dir] {
-            fs::write(dir.join("index.html"), "ok").unwrap();
-            fs::write(dir.join("app.html"), "ok").unwrap();
-            fs::write(dir.join("js/app.min.js"), "ok").unwrap();
-            fs::write(dir.join("js/bootstrap.js"), "ok").unwrap();
-            fs::write(dir.join("js/main.js"), "ok").unwrap();
-            fs::write(dir.join("styles/grapheditor.css"), "ok").unwrap();
-        }
-
-        let prepared = CachePrepareResult {
-            policy: "install-first".to_string(),
-            requested_dir: install_dir.to_string_lossy().to_string(),
-            actual_dir: install_dir.to_string_lossy().to_string(),
-            install_dir_writable: true,
-            using_fallback: false,
-            install_dir: install_dir.to_string_lossy().to_string(),
-            appdata_dir: appdata_dir.to_string_lossy().to_string(),
-        };
-
-        let candidates = build_cache_candidate_base_urls(&prepared);
-
-        assert_eq!(candidates.len(), 2);
-        assert_eq!(
-            candidates[0],
-            format!(
-                "http://asset.localhost/{}",
-                install_dir.to_string_lossy().replace('\\', "/")
-            )
-        );
-        assert_eq!(
-            candidates[1],
-            format!(
-                "http://asset.localhost/{}",
-                appdata_dir.to_string_lossy().replace('\\', "/")
-            )
-        );
-        let _ = fs::remove_dir_all(&root);
+    fn normalize_relative_asset_path_rejects_traversal() {
+        assert!(normalize_relative_asset_path("/tool/drawio/../secret.txt").is_err());
     }
 }
-
-
-
-
-

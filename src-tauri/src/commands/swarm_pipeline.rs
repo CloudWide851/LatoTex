@@ -3,20 +3,20 @@ use crate::state::AppState;
 use crate::storage;
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use super::swarm_events::{
-    EventMetadata, append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event,
-    run_envelope,
+    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, run_envelope,
+    EventMetadata,
 };
 use super::swarm_tool_search;
 use super::swarm_workflows::{
-    WorkflowDefinition, WorkflowStep, load_registry_for_project, max_steps_for_workflow, resolve_workflow,
-    timeout_for_workflow, validate_invocation, validate_step_tools,
+    load_registry_for_project, max_steps_for_workflow, resolve_workflow, timeout_for_workflow,
+    validate_invocation, validate_step_tools, WorkflowDefinition, WorkflowStep,
 };
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
@@ -516,5 +516,3 @@ pub fn agent_execute_start(
         status: "accepted".to_string(),
     })
 }
-
-

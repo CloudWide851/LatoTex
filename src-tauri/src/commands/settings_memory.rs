@@ -8,8 +8,7 @@ use std::fs;
 #[cfg(target_os = "windows")]
 fn sample_current_process_memory_bytes() -> (u64, Option<u64>) {
     use windows_sys::Win32::System::ProcessStatus::{
-        K32GetProcessMemoryInfo,
-        PROCESS_MEMORY_COUNTERS_EX,
+        K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX,
     };
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -24,7 +23,10 @@ fn sample_current_process_memory_bytes() -> (u64, Option<u64>) {
     if ok == 0 {
         return (0, None);
     }
-    (counters.WorkingSetSize as u64, Some(counters.PrivateUsage as u64))
+    (
+        counters.WorkingSetSize as u64,
+        Some(counters.PrivateUsage as u64),
+    )
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -46,13 +48,10 @@ fn sample_current_process_memory_bytes() -> (u64, Option<u64>) {
 fn sample_process_memory_bytes(process_id: u32) -> (u64, Option<u64>) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::ProcessStatus::{
-        K32GetProcessMemoryInfo,
-        PROCESS_MEMORY_COUNTERS_EX,
+        K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX,
     };
     use windows_sys::Win32::System::Threading::{
-        OpenProcess,
-        PROCESS_QUERY_LIMITED_INFORMATION,
-        PROCESS_VM_READ,
+        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
     };
 
     let handle = unsafe {
@@ -80,12 +79,18 @@ fn sample_process_memory_bytes(process_id: u32) -> (u64, Option<u64>) {
     if ok == 0 {
         return (0, None);
     }
-    (counters.WorkingSetSize as u64, Some(counters.PrivateUsage as u64))
+    (
+        counters.WorkingSetSize as u64,
+        Some(counters.PrivateUsage as u64),
+    )
 }
 
 #[cfg(target_os = "windows")]
 fn utf16_cstr_to_lower(input: &[u16]) -> String {
-    let len = input.iter().position(|value| *value == 0).unwrap_or(input.len());
+    let len = input
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(input.len());
     String::from_utf16_lossy(&input[..len]).to_lowercase()
 }
 
@@ -98,10 +103,7 @@ fn is_webview_process_name(name: &str) -> bool {
 fn sample_webview_children_memory(parent_process_id: u32) -> (u64, u64, u32) {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot,
-        Process32FirstW,
-        Process32NextW,
-        PROCESSENTRY32W,
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
     };
 
@@ -148,8 +150,15 @@ pub fn runtime_memory_snapshot(
     let (rss_bytes, private_bytes) = sample_current_process_memory_bytes();
 
     #[cfg(target_os = "windows")]
-    let (webview_rss_bytes, webview_private_raw, webview_process_count, total_rss_bytes, total_private_bytes) = {
-        let (webview_rss, webview_private, webview_count) = sample_webview_children_memory(process_id);
+    let (
+        webview_rss_bytes,
+        webview_private_raw,
+        webview_process_count,
+        total_rss_bytes,
+        total_private_bytes,
+    ) = {
+        let (webview_rss, webview_private, webview_count) =
+            sample_webview_children_memory(process_id);
         let total_rss = rss_bytes.saturating_add(webview_rss);
         let total_private = private_bytes.map(|value| value.saturating_add(webview_private));
         (
@@ -162,8 +171,13 @@ pub fn runtime_memory_snapshot(
     };
 
     #[cfg(not(target_os = "windows"))]
-    let (webview_rss_bytes, webview_private_raw, webview_process_count, total_rss_bytes, total_private_bytes) =
-        (None, None, None, None, private_bytes);
+    let (
+        webview_rss_bytes,
+        webview_private_raw,
+        webview_process_count,
+        total_rss_bytes,
+        total_private_bytes,
+    ) = (None, None, None, None, private_bytes);
 
     Ok(RuntimeMemorySnapshot {
         process_id,

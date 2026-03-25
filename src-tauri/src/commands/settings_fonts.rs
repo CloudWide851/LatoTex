@@ -116,7 +116,10 @@ pub fn runtime_system_font_probe(
     let (all_installed, diagnostic_code) = match installed_fonts {
         Ok(items) => (items, None),
         Err(error) => {
-            state.log("WARN", &format!("runtime_system_font_probe failed: {error}"));
+            state.log(
+                "WARN",
+                &format!("runtime_system_font_probe failed: {error}"),
+            );
             (Vec::new(), Some("font_probe.failed".to_string()))
         }
     };

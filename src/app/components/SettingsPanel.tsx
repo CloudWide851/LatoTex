@@ -142,7 +142,7 @@ export function SettingsPanel(props: {
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
-      <aside className="border-r border-slate-200 bg-slate-50 p-2 max-[980px]:border-r-0 max-[980px]:border-b">
+      <aside className="bg-slate-50 p-2 max-[980px]:border-b">
         <div className="space-y-1">
           {SETTINGS_SECTIONS.map((item) => {
             const Icon = item.icon;
@@ -550,6 +550,7 @@ export function SettingsPanel(props: {
     </div>
   );
 }
+
 
 
 

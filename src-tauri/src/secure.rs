@@ -57,8 +57,7 @@ fn ensure_secret_schema(conn: &Connection) -> Result<(), String> {
 }
 
 fn model_keyring_get(model_id: &str) -> Result<Option<String>, String> {
-    let entry =
-        Entry::new(SERVICE_NAME, &model_entry_name(model_id)).map_err(|e| e.to_string())?;
+    let entry = Entry::new(SERVICE_NAME, &model_entry_name(model_id)).map_err(|e| e.to_string())?;
     match entry.get_password() {
         Ok(value) => {
             let trimmed = value.trim().to_string();
@@ -74,14 +73,12 @@ fn model_keyring_get(model_id: &str) -> Result<Option<String>, String> {
 }
 
 fn model_keyring_set(model_id: &str, api_key: &str) -> Result<(), String> {
-    let entry =
-        Entry::new(SERVICE_NAME, &model_entry_name(model_id)).map_err(|e| e.to_string())?;
+    let entry = Entry::new(SERVICE_NAME, &model_entry_name(model_id)).map_err(|e| e.to_string())?;
     entry.set_password(api_key).map_err(|e| e.to_string())
 }
 
 fn model_keyring_clear(model_id: &str) -> Result<(), String> {
-    let entry =
-        Entry::new(SERVICE_NAME, &model_entry_name(model_id)).map_err(|e| e.to_string())?;
+    let entry = Entry::new(SERVICE_NAME, &model_entry_name(model_id)).map_err(|e| e.to_string())?;
     entry.set_password("").map_err(|e| e.to_string())
 }
 
@@ -275,7 +272,10 @@ fn load_model_api_key_fallback(
         Err(_) => return Ok((None, Some("MASTER_KEY_KEYRING_READ_FAILED".to_string()))),
     };
     let Some(keyring_master_key) = keyring_master_key else {
-        return Ok((None, Some("FALLBACK_DB_DECRYPT_FAILED_FILE_KEY".to_string())));
+        return Ok((
+            None,
+            Some("FALLBACK_DB_DECRYPT_FAILED_FILE_KEY".to_string()),
+        ));
     };
 
     let recovered = match decrypt_secret(&nonce_b64, &ciphertext_b64, &keyring_master_key) {
@@ -291,10 +291,16 @@ fn load_model_api_key_fallback(
         ));
     }
     let _ = write_keyring_master_key(&file_master_key);
-    Ok((Some(recovered), Some("MASTER_KEY_MISMATCH_RECOVERED".to_string())))
+    Ok((
+        Some(recovered),
+        Some("MASTER_KEY_MISMATCH_RECOVERED".to_string()),
+    ))
 }
 
-fn delete_model_api_key_fallback(context: &SecureStorageContext, model_id: &str) -> Result<(), String> {
+fn delete_model_api_key_fallback(
+    context: &SecureStorageContext,
+    model_id: &str,
+) -> Result<(), String> {
     let conn = Connection::open(&context.db_path).map_err(|e| e.to_string())?;
     ensure_secret_schema(&conn)?;
     conn.execute(
@@ -430,7 +436,9 @@ pub fn delete_model_api_key(
 
 #[cfg(test)]
 mod tests {
-    use super::{delete_model_api_key, get_model_api_key, store_model_api_key, SecureStorageContext};
+    use super::{
+        delete_model_api_key, get_model_api_key, store_model_api_key, SecureStorageContext,
+    };
     use uuid::Uuid;
 
     fn test_context() -> SecureStorageContext {

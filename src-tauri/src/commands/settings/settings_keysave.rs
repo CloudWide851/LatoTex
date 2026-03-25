@@ -140,7 +140,9 @@ pub fn model_api_key_save_verified(
             Err(error) => {
                 state.log(
                     "ERROR",
-                    &format!("model_api_key_save_verified: clear failed for {model_id}, reason={error}"),
+                    &format!(
+                        "model_api_key_save_verified: clear failed for {model_id}, reason={error}"
+                    ),
                 );
                 return Ok(CredentialSaveResult {
                     ok: false,

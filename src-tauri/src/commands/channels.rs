@@ -1,4 +1,6 @@
-use crate::models::{Ack, TelegramPollInput, TelegramPollResult, TelegramSendInput, TelegramUpdateItem};
+use crate::models::{
+    Ack, TelegramPollInput, TelegramPollResult, TelegramSendInput, TelegramUpdateItem,
+};
 use crate::state::AppState;
 use crate::storage;
 use reqwest::blocking::Client;
@@ -74,7 +76,10 @@ pub fn channels_telegram_poll(
         query.push(("limit", limit.clamp(1, 100).to_string()));
     }
     let response = client
-        .get(format!("https://api.telegram.org/bot{}/getUpdates", config.token))
+        .get(format!(
+            "https://api.telegram.org/bot{}/getUpdates",
+            config.token
+        ))
         .query(&query)
         .send()
         .map_err(|e| format!("channels.telegram.transport: {e}"))?;
@@ -183,7 +188,10 @@ pub fn channels_telegram_send(
         body["reply_to_message_id"] = json!(reply_to_message_id);
     }
     let response = client
-        .post(format!("https://api.telegram.org/bot{}/sendMessage", config.token))
+        .post(format!(
+            "https://api.telegram.org/bot{}/sendMessage",
+            config.token
+        ))
         .json(&body)
         .send()
         .map_err(|e| format!("channels.telegram.transport: {e}"))?;

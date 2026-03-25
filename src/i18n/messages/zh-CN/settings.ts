@@ -13,7 +13,7 @@ export const zhCN_settings = {
   "settings.removeModel": "删除",
   "settings.editModel": "编辑",
   "settings.noModelAssigned": "未分配模型",
-  "settings.saveHint": "修改后会自动保存。模型密钥在本地后备存储前会先加密。",
+  "settings.saveHint": "修改后会自动保存。",
   "settings.baseUrl": "基础地址",
   "settings.apiKey": "API Key",
   "settings.keyStored": "已存储到系统密钥链",
@@ -132,5 +132,6 @@ export const zhCN_settings = {
   "settings.installMode": "安装模式",
   "settings.version": "版本",
 } as const;
+
 
 

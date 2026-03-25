@@ -11,7 +11,10 @@ fn css_header() -> Header {
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/css").unwrap())
 }
 
-fn static_text_response(content: &'static str, header: Header) -> Response<std::io::Cursor<Vec<u8>>> {
+fn static_text_response(
+    content: &'static str,
+    header: Header,
+) -> Response<std::io::Cursor<Vec<u8>>> {
     Response::from_string(content)
         .with_status_code(StatusCode(200))
         .with_header(header)

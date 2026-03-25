@@ -1,5 +1,5 @@
-use super::*;
 use super::share_http_auth::{verify_sync_body_auth, verify_sync_query_auth};
+use super::*;
 use tiny_http::Method;
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
     let method = request.method().clone();
@@ -270,12 +270,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
                         .map(|item| item.username.clone())
                 })
                 .unwrap_or_else(|| "Guest".to_string());
-            upsert_participant(
-                &mut guard,
-                pid,
-                &username,
-                Some("commenting"),
-            );
+            upsert_participant(&mut guard, pid, &username, Some("commenting"));
         }
         let appended = match append_share_comment(&mut guard, &body) {
             Ok(item) => item,
@@ -357,7 +352,8 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         };
         let _ = request.respond(json_response(
             StatusCode(200),
-            serde_json::to_value(payload).unwrap_or_else(|_| json!({ "nextCursor": cursor, "events": [] })),
+            serde_json::to_value(payload)
+                .unwrap_or_else(|_| json!({ "nextCursor": cursor, "events": [] })),
         ));
         return;
     }

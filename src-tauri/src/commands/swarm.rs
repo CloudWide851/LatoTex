@@ -1,11 +1,11 @@
-#[path = "swarm_pipeline.rs"]
-mod swarm_pipeline;
 #[path = "swarm_events.rs"]
 mod swarm_events;
-#[path = "swarm_tool_search.rs"]
-mod swarm_tool_search;
+#[path = "swarm_pipeline.rs"]
+mod swarm_pipeline;
 #[path = "swarm_provider.rs"]
 mod swarm_provider;
+#[path = "swarm_tool_search.rs"]
+mod swarm_tool_search;
 #[path = "swarm_workflows.rs"]
 mod swarm_workflows;
 pub(crate) use swarm_provider::call_provider_with_retry;
@@ -64,7 +64,10 @@ pub fn agent_execute_cancel(
         .get(&input.run_id)
         .ok_or_else(|| "agent run not found".to_string())?;
     flag.store(true, Ordering::Relaxed);
-    state.log("INFO", &format!("agent_execute_cancel requested: {}", input.run_id));
+    state.log(
+        "INFO",
+        &format!("agent_execute_cancel requested: {}", input.run_id),
+    );
     Ok(Ack {
         ok: true,
         message: "cancelling".to_string(),
@@ -94,4 +97,3 @@ pub fn events_subscribe(
         thread::sleep(Duration::from_millis(120));
     }
 }
-

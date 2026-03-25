@@ -46,5 +46,15 @@ export const enUS_analysis = {
   "analysis.error.noInputFiles": "No input files selected for analysis.",
   "analysis.error.invalidInputRefs": "No valid @file references were found in the current prompt",
   "analysis.error.failed": "Analysis failed",
+  "analysis.envPromptTitle": "Prepare analysis environment",
+  "analysis.envPromptCreateHint": "This project does not have a managed Python analysis environment yet. Create one now in the app-managed runtime directory.",
+  "analysis.envPromptRepairHint": "This project's managed Python analysis environment is incomplete or unavailable. Repair it now in the app-managed runtime directory.",
+  "analysis.envPromptPathLabel": "Managed env path",
+  "analysis.envPromptCreate": "Create Environment",
+  "analysis.envPromptRepair": "Repair Environment",
+  "analysis.envPromptLater": "Later",
+  "analysis.envPromptReady": "Analysis environment is ready.",
 } as const;
+
+
 

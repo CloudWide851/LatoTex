@@ -120,7 +120,6 @@ fn sanitize_file_name(value: &str) -> String {
         .collect()
 }
 
-
 fn parse_data_url(data_url: &str) -> Result<Vec<u8>, String> {
     if !data_url.starts_with("data:") {
         return Err("Asset payload must be a data URL".to_string());
@@ -159,7 +158,10 @@ pub fn reference_check(
     state: State<'_, AppState>,
     input: ReferenceCheckInput,
 ) -> Result<ReferenceCheckResponse, String> {
-    state.log("INFO", &format!("reference_check: {} queries", input.queries.len()));
+    state.log(
+        "INFO",
+        &format!("reference_check: {} queries", input.queries.len()),
+    );
     analysis_search::run_reference_check_queries(input.queries, input.limit.unwrap_or(5))
 }
 
@@ -252,7 +254,9 @@ pub fn analysis_list_reports(
     let root = storage::load_project_root(&state.db_path, &input.project_id)?;
     let analysis_root = root.join(".latotex").join("analysis");
     if !analysis_root.exists() {
-        return Ok(AnalysisListReportsResponse { reports: Vec::new() });
+        return Ok(AnalysisListReportsResponse {
+            reports: Vec::new(),
+        });
     }
 
     let mut reports = Vec::new();
@@ -340,7 +344,9 @@ pub fn analysis_export_artifact(
                 .unwrap_or_else(|| "artifact.bin".to_string())
         });
 
-    let selected = FileDialog::new().set_file_name(&default_file_name).save_file();
+    let selected = FileDialog::new()
+        .set_file_name(&default_file_name)
+        .save_file();
     let Some(save_path) = selected else {
         return Ok(None);
     };

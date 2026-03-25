@@ -98,6 +98,9 @@ export type NativeLatexCompileResponse = {
 
 export type AnalysisEnvStatus = {
   ready: boolean;
+  exists: boolean;
+  envKey: string;
+  managedRoot: string;
   uvPath?: string | null;
   uvVersion?: string | null;
   pythonPath?: string | null;
@@ -321,9 +324,7 @@ export type DrawioCacheInfo = {
   actualDir: string;
   installDirWritable: boolean;
   usingFallback: boolean;
-  baseUrl?: string | null;
-  hostUrl?: string | null;
-  candidateHostUrls?: string[];
+  entryUrl: string;
 };
 
 export type Ack = {
@@ -335,3 +336,5 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
+

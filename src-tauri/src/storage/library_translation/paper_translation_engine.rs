@@ -182,6 +182,7 @@ fn run_pdfmathtranslate_bridge(
 pub(super) fn translate_library_document(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
     target_language: Option<&str>,
@@ -190,6 +191,7 @@ pub(super) fn translate_library_document(
     translate_library_document_with_progress(
         db_path,
         runtime_root,
+        app_data_dir,
         project_id,
         relative_path,
         target_language,
@@ -201,6 +203,7 @@ pub(super) fn translate_library_document(
 pub(super) fn translate_library_document_with_progress<F>(
     db_path: &Path,
     app_runtime_root: &Path,
+    app_data_dir: &Path,
     project_id: &str,
     relative_path: &str,
     target_language: Option<&str>,
@@ -223,7 +226,7 @@ where
     }
 
     on_progress(0, 0, "preparing");
-    let env_status = ensure_analysis_env_blocking(&project_root)?;
+    let env_status = ensure_analysis_env_blocking(app_data_dir, &project_root)?;
     let python_path = PathBuf::from(
         env_status
             .python_path
@@ -371,3 +374,5 @@ mod tests {
         assert!(!dual.contains(".translated.pdf"));
     }
 }
+
+

@@ -31,10 +31,9 @@ fn normalize_result_url(raw_href: &str) -> String {
 }
 
 fn parse_duckduckgo_results(html: &str, limit: usize) -> Vec<ReferenceEvidence> {
-    let anchor_re = Regex::new(
-        r#"(?s)<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#,
-    )
-    .expect("valid regex");
+    let anchor_re =
+        Regex::new(r#"(?s)<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#)
+            .expect("valid regex");
     let strip_tag_re = Regex::new(r"(?s)<[^>]+>").expect("valid regex");
     let mut items = Vec::new();
 
@@ -152,7 +151,10 @@ fn search_with_duckduckgo(
     query: &str,
     limit: usize,
 ) -> Result<Vec<ReferenceEvidence>, String> {
-    let search_url = format!("https://duckduckgo.com/html/?q={}", urlencoding::encode(query));
+    let search_url = format!(
+        "https://duckduckgo.com/html/?q={}",
+        urlencoding::encode(query)
+    );
     let response = client
         .get(search_url)
         .header("User-Agent", "LatoTex/0.1")

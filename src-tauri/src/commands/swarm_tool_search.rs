@@ -2,13 +2,13 @@ use crate::commands::analysis::run_reference_check_queries;
 use serde_json::json;
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use super::call_provider_with_retry;
 use super::swarm_events::{
-    EventMetadata, append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event,
-    run_envelope,
+    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, run_envelope,
+    EventMetadata,
 };
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
@@ -237,9 +237,8 @@ pub(super) fn run_stage_tool_search(
         metadata,
     )?;
 
-    let estimated_saved = ((queries.len().saturating_mul(850)) as i64
-        - (compact_context.len() as i64 / 4))
-        .max(0);
+    let estimated_saved =
+        ((queries.len().saturating_mul(850)) as i64 - (compact_context.len() as i64 / 4)).max(0);
     let mut stats_payload = run_envelope(
         run_id,
         "success",
@@ -250,7 +249,10 @@ pub(super) fn run_stage_tool_search(
     );
     if let Some(object) = stats_payload.as_object_mut() {
         object.insert("toolName".to_string(), json!("tool_search"));
-        object.insert("toolTokensSavedEstimate".to_string(), json!(estimated_saved));
+        object.insert(
+            "toolTokensSavedEstimate".to_string(),
+            json!(estimated_saved),
+        );
         object.insert("toolRound".to_string(), json!(1));
     }
     append_protocol_event(

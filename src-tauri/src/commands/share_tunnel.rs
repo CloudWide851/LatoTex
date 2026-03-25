@@ -29,11 +29,11 @@ fn cloudflared_candidate_sources(runtime_root: &Path) -> Vec<PathBuf> {
     candidates.push(runtime_root.join("tools").join(CLOUDFLARED_RELEASE_NAME));
     candidates.push(runtime_root.join("tools").join(CLOUDFLARED_TARGET_NAME));
     candidates.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/cloudflared-windows-amd64.exe"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources/tools/cloudflared-windows-amd64.exe"),
     );
-    candidates.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/cloudflared.exe"),
-    );
+    candidates
+        .push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/cloudflared.exe"));
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             candidates.push(exe_dir.join("resources/tools/cloudflared-windows-amd64.exe"));
@@ -256,8 +256,11 @@ pub(super) fn start_cloud_tunnel(runtime_root: &Path, runtime: Arc<Mutex<ShareRu
             if has_url && fail_reason.is_none() {
                 continue;
             }
-            if fail_reason.is_none() && started.elapsed().as_secs() > SHARE_TUNNEL_READY_TIMEOUT_SECS {
-                fail_reason = Some("cloudflared tunnel url timeout; failed to obtain public url".to_string());
+            if fail_reason.is_none()
+                && started.elapsed().as_secs() > SHARE_TUNNEL_READY_TIMEOUT_SECS
+            {
+                fail_reason =
+                    Some("cloudflared tunnel url timeout; failed to obtain public url".to_string());
             }
             if let Some(message) = fail_reason {
                 if let Ok(mut guard) = runtime.lock() {
@@ -269,8 +272,7 @@ pub(super) fn start_cloud_tunnel(runtime_root: &Path, runtime: Arc<Mutex<ShareRu
                         guard.tunnel_state = "failed".to_string();
                         guard.tunnel_error = Some(format!(
                             "{message}; retries exhausted ({}/{})",
-                            restart_count,
-                            SHARE_TUNNEL_RESTART_MAX
+                            restart_count, SHARE_TUNNEL_RESTART_MAX
                         ));
                         return;
                     }
@@ -280,8 +282,7 @@ pub(super) fn start_cloud_tunnel(runtime_root: &Path, runtime: Arc<Mutex<ShareRu
                     guard.tunnel_url = None;
                     guard.tunnel_error = Some(format!(
                         "{message}; restarting ({}/{})",
-                        restart_count,
-                        SHARE_TUNNEL_RESTART_MAX
+                        restart_count, SHARE_TUNNEL_RESTART_MAX
                     ));
                 }
                 let delay_ms = 450_u64.saturating_mul(2_u64.saturating_pow(restart_count.min(3)));
@@ -306,7 +307,8 @@ pub(super) fn start_cloud_tunnel(runtime_root: &Path, runtime: Arc<Mutex<ShareRu
 
 #[cfg(not(target_os = "windows"))]
 pub(super) fn start_cloud_tunnel(_runtime_root: &Path, runtime: Arc<Mutex<ShareRuntime>>) {
-    mark_share_failed(&runtime, "cloud tunnel is only implemented for Windows runtime");
+    mark_share_failed(
+        &runtime,
+        "cloud tunnel is only implemented for Windows runtime",
+    );
 }
-
-

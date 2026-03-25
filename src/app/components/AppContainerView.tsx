@@ -139,6 +139,7 @@ export function AppContainerView(props: any) {
     integrityIssue,
     themeTransition,
     toast,
+    analysisEnvPrompt,
     setModelModalOpen,
     setModelModalInitial,
     setModelModalMode,
@@ -373,6 +374,7 @@ export function AppContainerView(props: any) {
         integrityIssue={integrityIssue}
         themeTransition={themeTransition}
         toast={toast}
+        analysisEnvPrompt={analysisEnvPrompt}
         onOverlayClose={() => setOverlay(null)}
         onLogsTabChange={setLogsTab}
         onModelModalClose={() => {
@@ -413,4 +415,6 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
+
 

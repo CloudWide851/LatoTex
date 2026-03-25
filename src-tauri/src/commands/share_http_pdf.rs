@@ -1,8 +1,8 @@
+use super::share_pdf::{persist_uploaded_pdf, share_pdf_ready};
 use super::*;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use std::fs::File;
-use super::share_pdf::{persist_uploaded_pdf, share_pdf_ready};
 
 pub(super) fn handle_pdf_upload(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
     let body = match parse_json_body::<UploadPdfBody>(&mut request) {
@@ -66,7 +66,11 @@ pub(super) fn handle_pdf_status(
         let _ = request.respond(response);
         return;
     }
-    let state = if share_pdf_ready(&guard) { "ready" } else { "empty" };
+    let state = if share_pdf_ready(&guard) {
+        "ready"
+    } else {
+        "empty"
+    };
     let _ = request.respond(json_response(
         StatusCode(200),
         json!({

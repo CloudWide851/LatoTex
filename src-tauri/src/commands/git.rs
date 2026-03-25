@@ -1,9 +1,8 @@
 use crate::models::{
-    Ack, GitAvailabilityResponse, GitBranchInfo, GitCheckoutInput, GitCommitInfo, GitCommitInput,
-    GitCommitFileEntry, GitCommitFilesInput,
-    GitDiffHunk, GitDiffInput, GitDiffLine, GitDiffResponse, GitDownloadStartResponse,
-    GitDownloadStatusResponse, GitLogInput, GitPathsInput, GitRefInput, GitRemoteInput,
-    GitStatusEntry, GitStatusResponse, GitTaskInput,
+    Ack, GitAvailabilityResponse, GitBranchInfo, GitCheckoutInput, GitCommitFileEntry,
+    GitCommitFilesInput, GitCommitInfo, GitCommitInput, GitDiffHunk, GitDiffInput, GitDiffLine,
+    GitDiffResponse, GitDownloadStartResponse, GitDownloadStatusResponse, GitLogInput,
+    GitPathsInput, GitRefInput, GitRemoteInput, GitStatusEntry, GitStatusResponse, GitTaskInput,
 };
 use crate::state::{AppState, GitDownloadTask};
 use crate::storage;

@@ -175,9 +175,7 @@ pub struct DrawioCacheInfo {
     pub actual_dir: String,
     pub install_dir_writable: bool,
     pub using_fallback: bool,
-    pub base_url: Option<String>,
-    pub host_url: Option<String>,
-    pub candidate_host_urls: Vec<String>,
+    pub entry_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,4 +183,5 @@ pub struct DrawioCacheInfo {
 pub struct DrawioCachePrepareInput {
     pub policy: String,
 }
+
 

@@ -69,7 +69,10 @@ pub fn settings_pick_background_image(
     fs::copy(&source, &target).map_err(|e| e.to_string())?;
     state.log(
         "INFO",
-        &format!("settings_pick_background_image: {}", target.to_string_lossy()),
+        &format!(
+            "settings_pick_background_image: {}",
+            target.to_string_lossy()
+        ),
     );
     Ok(Some(AppBackgroundImage {
         path: target.to_string_lossy().to_string(),
@@ -105,7 +108,10 @@ pub fn settings_remove_background_image(
     fs::remove_file(path).map_err(|e| e.to_string())?;
     state.log(
         "INFO",
-        &format!("settings_remove_background_image: {}", path.to_string_lossy()),
+        &format!(
+            "settings_remove_background_image: {}",
+            path.to_string_lossy()
+        ),
     );
     Ok(Ack {
         ok: true,
@@ -124,7 +130,10 @@ pub fn settings_read_background_image(
     }
     let path = Path::new(raw);
     if !path.exists() || !path.is_file() {
-        state.log("WARN", &format!("settings_read_background_image missing: {raw}"));
+        state.log(
+            "WARN",
+            &format!("settings_read_background_image missing: {raw}"),
+        );
         return Ok(None);
     }
     let bytes = fs::read(path).map_err(|e| e.to_string())?;

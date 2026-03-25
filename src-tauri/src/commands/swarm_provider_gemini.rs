@@ -42,11 +42,7 @@ pub(super) fn call_gemini(
     let mut last_error: Option<ProviderError> = None;
     for endpoint in candidate_gemini_endpoints(base_url, model_name, api_key) {
         for payload in &payloads {
-            let response = match client
-                .post(&endpoint)
-                .json(payload)
-                .send()
-            {
+            let response = match client.post(&endpoint).json(payload).send() {
                 Ok(item) => item,
                 Err(error) => {
                     last_error = Some(transport_error(error));
@@ -100,5 +96,3 @@ pub(super) fn call_gemini(
         auto_repairable: true,
     }))
 }
-
-

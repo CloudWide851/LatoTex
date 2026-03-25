@@ -20,7 +20,10 @@ fn share_pdf_cache_path(runtime: &ShareRuntime) -> PathBuf {
         .join("latest.pdf")
 }
 
-pub(super) fn persist_uploaded_pdf(runtime: &mut ShareRuntime, decoded: &[u8]) -> Result<(), String> {
+pub(super) fn persist_uploaded_pdf(
+    runtime: &mut ShareRuntime,
+    decoded: &[u8],
+) -> Result<(), String> {
     let pdf_path = share_pdf_cache_path(runtime);
     if let Some(parent) = pdf_path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;

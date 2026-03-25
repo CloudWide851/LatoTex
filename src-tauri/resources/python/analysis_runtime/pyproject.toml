@@ -7,9 +7,8 @@ name = "latotex-analysis-runtime"
 version = "0.1.0"
 description = "Native analysis runtime for LatoTex"
 requires-python = ">=3.12"
-dependencies = [
-  "pdf2zh>=1.9.6"
-]
+dependencies = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["latotex_analysis_runtime"]
+

@@ -27,6 +27,7 @@ pub async fn library_translate_document(
 
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let project_id = input.project_id;
     let relative_path = input.relative_path;
     let target_language = input.target_language;
@@ -36,6 +37,7 @@ pub async fn library_translate_document(
         storage::translate_library_document(
             &db_path,
             &runtime_root,
+            &app_data_dir,
             &project_id,
             &relative_path,
             target_language.as_deref(),
@@ -55,17 +57,17 @@ pub async fn library_extract_paper_context(
         "INFO",
         &format!(
             "library_extract_paper_context: project={}, path={}",
-            input.project_id,
-            input.relative_path,
+            input.project_id, input.relative_path,
         ),
     );
 
     let db_path = state.db_path.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let project_id = input.project_id;
     let relative_path = input.relative_path;
 
     tauri::async_runtime::spawn_blocking(move || {
-        storage::extract_library_paper_context(&db_path, &project_id, &relative_path)
+        storage::extract_library_paper_context(&db_path, &app_data_dir, &project_id, &relative_path)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -105,6 +107,7 @@ pub fn library_translate_start(
     let tasks = state.library_translate_tasks.clone();
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let project_id = input.project_id;
     let relative_path = input.relative_path;
     let target_language = input.target_language;
@@ -132,6 +135,7 @@ pub fn library_translate_start(
         let result = storage::translate_library_document_with_progress(
             &db_path,
             &runtime_root,
+            &app_data_dir,
             &project_id,
             &relative_path,
             target_language.as_deref(),
@@ -144,7 +148,9 @@ pub fn library_translate_start(
                     } else {
                         stage_value.clone()
                     };
-                    task_ref.current_page.store(current as u64, Ordering::Relaxed);
+                    task_ref
+                        .current_page
+                        .store(current as u64, Ordering::Relaxed);
                     task_ref.total_pages.store(total as u64, Ordering::Relaxed);
                     if let Ok(mut stage_slot) = task_ref.stage.lock() {
                         *stage_slot = Some(stage_key);

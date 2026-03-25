@@ -94,7 +94,10 @@ fn url_regex() -> &'static Regex {
 
 fn arxiv_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
-    REGEX.get_or_init(|| Regex::new(r"\barXiv:\s*\d{4}\.\d{4,5}(v\d+)?\b|\b\d{4}\.\d{4,5}(v\d+)?\b").expect("arxiv regex"))
+    REGEX.get_or_init(|| {
+        Regex::new(r"\barXiv:\s*\d{4}\.\d{4,5}(v\d+)?\b|\b\d{4}\.\d{4,5}(v\d+)?\b")
+            .expect("arxiv regex")
+    })
 }
 
 fn cite_regex() -> &'static Regex {
@@ -165,19 +168,29 @@ fn extract_reference_queries(content: &str, user_hint: &str, max: usize) -> Vec<
 
 fn is_translation_request(prompt: &str) -> bool {
     let normalized = prompt.to_lowercase();
-    let has_han = prompt.chars().any(|ch| ('\u{4e00}'..='\u{9fff}').contains(&ch));
+    let has_han = prompt
+        .chars()
+        .any(|ch| ('\u{4e00}'..='\u{9fff}').contains(&ch));
     normalized.contains("translate")
         || normalized.contains("translation")
         || normalized.contains("bilingual")
         || normalized.contains("localization")
         || prompt.contains("术语")
         || prompt.contains("翻译")
-        || (has_han && (normalized.contains("中英") || normalized.contains("英文") || normalized.contains("中文")))
+        || (has_han
+            && (normalized.contains("中英")
+                || normalized.contains("英文")
+                || normalized.contains("中文")))
 }
 
 fn extract_term_hints(file_content: &str, max_items: usize) -> Vec<String> {
     let mut out = Vec::<String>::new();
-    for regex in [latex_command_regex(), acronym_regex(), english_word_regex(), han_phrase_regex()] {
+    for regex in [
+        latex_command_regex(),
+        acronym_regex(),
+        english_word_regex(),
+        han_phrase_regex(),
+    ] {
         for capture in regex.find_iter(file_content) {
             let value = capture.as_str().trim();
             if value.is_empty() {
@@ -225,7 +238,10 @@ fn derive_task_search_queries(
         .map(ToOwned::to_owned)
         .collect::<Vec<_>>();
 
-    if let Some(title) = paper_context_title.map(str::trim).filter(|value| value.len() >= 3) {
+    if let Some(title) = paper_context_title
+        .map(str::trim)
+        .filter(|value| value.len() >= 3)
+    {
         candidates.insert(0, title.to_string());
     }
 
@@ -311,10 +327,12 @@ fn build_task_execution_prompt(
 
 fn build_paper_context_block(
     db_path: &std::path::Path,
+    app_data_dir: &std::path::Path,
     project_id: &str,
     source_path: &str,
 ) -> Result<(String, String), String> {
-    let context = storage::extract_library_paper_context(db_path, project_id, source_path)?;
+    let context =
+        storage::extract_library_paper_context(db_path, app_data_dir, project_id, source_path)?;
     let title = context.title.trim().to_string();
     if context.chunks.is_empty() {
         return Ok((
@@ -335,7 +353,12 @@ fn build_paper_context_block(
         .take(6)
         .map(|chunk| {
             [
-                format!("[Chunk {}] pages {}-{}", chunk.chunk_index + 1, chunk.page_start, chunk.page_end),
+                format!(
+                    "[Chunk {}] pages {}-{}",
+                    chunk.chunk_index + 1,
+                    chunk.page_start,
+                    chunk.page_end
+                ),
                 truncate_chars(&chunk.text, 1_600),
             ]
             .join("\n")
@@ -355,7 +378,11 @@ fn build_paper_context_block(
     ))
 }
 
-fn build_completion_prompt(line_prefix: &str, full_text: &str, project_symbols: &[String]) -> String {
+fn build_completion_prompt(
+    line_prefix: &str,
+    full_text: &str,
+    project_symbols: &[String],
+) -> String {
     [
         "You are a LaTeX autocomplete engine.".to_string(),
         "Return strict JSON only.".to_string(),
@@ -419,7 +446,12 @@ pub fn latex_edit_start(
     input: LatexEditStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
     let mut context_refs = vec![format!("file:{}", input.target_path.trim())];
-    if let Some(selected_file) = input.selected_file.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(selected_file) = input
+        .selected_file
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         dedupe_push(&mut context_refs, format!("file:{selected_file}"));
     }
     let (paper_context, paper_title) = if let Some(source_path) = input
@@ -429,7 +461,12 @@ pub fn latex_edit_start(
         .filter(|value| !value.is_empty())
     {
         dedupe_push(&mut context_refs, format!("paper:{source_path}"));
-        let (context, title) = build_paper_context_block(&state.db_path, &input.project_id, source_path)?;
+        let (context, title) = build_paper_context_block(
+            &state.db_path,
+            &state.app_data_dir,
+            &input.project_id,
+            source_path,
+        )?;
         (Some(context), Some(title))
     } else {
         (None, None)
@@ -509,7 +546,11 @@ pub fn latex_reference_check_start(
     if queries.is_empty() {
         return Err("agent.reference_check.no_targets".to_string());
     }
-    let query_lines = queries.iter().map(|item| format!("- {item}")).collect::<Vec<_>>().join("\n");
+    let query_lines = queries
+        .iter()
+        .map(|item| format!("- {item}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let query_block = build_tool_search_query_block(queries);
     let prompt = [
         "You are a citation verifier with an internal programmatic tool runtime.",
@@ -524,7 +565,12 @@ pub fn latex_reference_check_start(
     ]
     .join("\n");
     let mut context_refs = Vec::<String>::new();
-    if let Some(selected_file) = input.selected_file.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(selected_file) = input
+        .selected_file
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         context_refs.push(format!("file:{selected_file}"));
     }
     start_workflow(
@@ -544,12 +590,22 @@ pub fn latex_paper_analyze_start(
     state: State<'_, AppState>,
     input: LatexPaperAnalyzeStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
-    let (paper_context, _) = build_paper_context_block(&state.db_path, &input.project_id, &input.source_path)?;
-    let instruction = input.instruction.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    let (paper_context, _) = build_paper_context_block(
+        &state.db_path,
+        &state.app_data_dir,
+        &input.project_id,
+        &input.source_path,
+    )?;
+    let instruction = input
+        .instruction
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let mut prompt_parts = vec![
         "You are a research-paper analyst.".to_string(),
         "Read the paper context and return a concise markdown report with sections:".to_string(),
-        "1) Core Problem 2) Method 3) Evidence 4) Limitations 5) Actionable next steps.".to_string(),
+        "1) Core Problem 2) Method 3) Evidence 4) Limitations 5) Actionable next steps."
+            .to_string(),
         "If evidence is missing, state uncertainty explicitly.".to_string(),
     ];
     if let Some(value) = instruction {
@@ -607,7 +663,12 @@ pub fn completion_latex_start(
         .collect::<Vec<_>>();
     let prompt = build_completion_prompt(&input.line_prefix, &input.full_text, &project_symbols);
     let mut context_refs = Vec::<String>::new();
-    if let Some(selected_file) = input.selected_file.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(selected_file) = input
+        .selected_file
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         context_refs.push(format!("file:{selected_file}"));
     }
     start_workflow(
@@ -628,7 +689,10 @@ pub fn git_summary_workflow_start(
     input: GitSummaryWorkflowStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
     let files = sanitize_git_files(&input.files);
-    let context_refs = files.iter().map(|path| format!("file:{path}")).collect::<Vec<_>>();
+    let context_refs = files
+        .iter()
+        .map(|path| format!("file:{path}"))
+        .collect::<Vec<_>>();
     let prompt = build_git_summary_prompt(&files, &input.joined_patch);
     start_workflow(
         &state,
@@ -641,4 +705,3 @@ pub fn git_summary_workflow_start(
         true,
     )
 }
-
