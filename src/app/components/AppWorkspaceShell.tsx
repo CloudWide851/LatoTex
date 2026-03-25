@@ -280,7 +280,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
     return (
-      <div className="grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
+      <div className="grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow">
         <div className="min-w-0 overflow-visible border-b border-slate-200 px-3 py-1.5">
           <div className="panel-topbar flex w-full min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
@@ -302,7 +302,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
-              className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              className="panel-topbar-btn motion-hover-rise rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onEditorUndo}
               disabled={busy}
               title={composeTitleWithShortcut(t("workspace.undo"), t("shortcut.undo"))}
@@ -311,7 +311,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               <Undo2 className="h-4 w-4" />
             </button>
             <button
-              className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              className="panel-topbar-btn motion-hover-rise rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onEditorRedo}
               disabled={busy}
               title={composeTitleWithShortcut(t("workspace.redo"), t("shortcut.redo"))}
@@ -320,7 +320,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               <Redo2 className="h-4 w-4" />
             </button>
             <button
-              className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              className="panel-topbar-btn motion-hover-rise rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               onClick={onSaveFile}
               disabled={busy}
               title={composeTitleWithShortcut(t("workspace.save"), t("shortcut.save"))}
@@ -331,7 +331,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             <div className="relative">
             {selectedIsDraw ? (
               <button
-                className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                className="panel-topbar-btn motion-hover-rise rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
                 onClick={() => onPageChange("draw")}
                 disabled={busy}
                 title={t("workspace.openDrawPage")}
@@ -341,7 +341,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               </button>
             ) : null}
             <button
-                className="panel-topbar-btn rounded border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-50"
+                className="panel-topbar-btn motion-hover-rise rounded border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-50"
                 onClick={() => {
                   setCompileAssistDismissedFor("");
                   onCompile();
@@ -531,6 +531,3 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-
-
-

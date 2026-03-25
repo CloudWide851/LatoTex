@@ -323,7 +323,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "absolute bottom-4 left-1/2 z-30 flex max-w-[min(620px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition",
+          "absolute bottom-4 left-1/2 z-30 flex max-w-[min(620px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition motion-card-pop motion-hover-rise",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -339,13 +339,13 @@ export function AgentChatOverlay(props: {
 
   return (
     <div className="pointer-events-none absolute inset-x-2 bottom-3 z-20 flex items-end">
-      <div className="pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-slide-up transition-[box-shadow,transform,opacity] duration-150">
+      <div className="pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-card-pop motion-panel-glow transition-[box-shadow,transform,opacity] duration-150">
         <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
             <span className="shrink-0">{title}</span>
             {currentStatusLine ? (
-              <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+              <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 motion-status-chip">
                 {(phase === "running" || phase === "starting") ? (
                   <Loader2 className="mr-1.5 inline-block h-3 w-3 animate-spin align-[-0.1em] text-primary-600" />
                 ) : null}
@@ -356,7 +356,7 @@ export function AgentChatOverlay(props: {
           <div className="ml-2 flex items-center gap-1">
             {canShowActivity ? (
               <button
-                className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 motion-hover-rise"
                 onClick={() => setActivityExpanded((prev) => !prev)}
                 title={activityExpanded ? activityHideLabel : activityShowLabel}
                 aria-label={activityExpanded ? activityHideLabel : activityShowLabel}
@@ -369,7 +369,7 @@ export function AgentChatOverlay(props: {
               </button>
             ) : null}
             <button
-              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 motion-hover-rise"
               onClick={onToggle}
               title={collapseLabel}
             >
@@ -411,13 +411,13 @@ export function AgentChatOverlay(props: {
             <p className="text-xs text-amber-700">{pendingActionDescription}</p>
             <div className="flex items-center gap-2">
               <button
-                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-700"
+                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-700 motion-hover-rise"
                 onClick={() => onPendingActionResolve(true)}
               >
                 {pendingActionYesLabel}
               </button>
               <button
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 motion-hover-rise"
                 onClick={() => onPendingActionResolve(false)}
               >
                 {pendingActionNoLabel}
@@ -550,7 +550,7 @@ export function AgentChatOverlay(props: {
             ) : null}
             {rollbackVisible ? (
               <button
-                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 motion-hover-rise"
                 title={rollbackLabel}
                 aria-label={rollbackLabel}
                 onClick={onRollback}
@@ -559,7 +559,7 @@ export function AgentChatOverlay(props: {
               </button>
             ) : null}
             <button
-              className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40"
+              className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40 motion-hover-rise"
               onClick={onRun}
               disabled={busy || (phase !== "running" && !prompt.trim())}
               title={runLabel}
@@ -572,4 +572,3 @@ export function AgentChatOverlay(props: {
     </div>
   );
 }
-

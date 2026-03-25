@@ -450,11 +450,11 @@ export function LibraryDocumentViewer(props: {
     );
   }
 
-  const actionBtnClass = "panel-topbar-btn inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
+  const actionBtnClass = "panel-topbar-btn motion-hover-rise inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
-      <section className="panel-topbar flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3">
+      <section className="panel-topbar flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 motion-shell-stage motion-panel-glow">
         <div className="flex min-w-0 items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-slate-500" />
           <span className="panel-topbar-text truncate text-sm font-medium text-slate-700">{filenameFromPath(selectedPath)}</span>
@@ -532,7 +532,7 @@ export function LibraryDocumentViewer(props: {
       </section>
 
       {translationNotice ? (
-        <div className={`rounded border px-3 py-2 text-xs ${translationNotice.type === "info" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+        <div className={`rounded border px-3 py-2 text-xs motion-card-pop ${translationNotice.type === "info" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
           {translationNotice.message}
         </div>
       ) : null}
@@ -596,11 +596,3 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
-
-
-
-
-
-
-
-

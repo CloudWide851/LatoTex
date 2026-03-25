@@ -1,4 +1,5 @@
 @import "./styles/topbar-responsive.css";
+@import "./styles/motion-system.css";
 
 @tailwind base;
 @tailwind components;
@@ -556,5 +557,3 @@ body::before {
     animation: none;
   }
 }
-
-

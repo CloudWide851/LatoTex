@@ -1,34 +1,13 @@
-#[path = "library_translation/types.rs"]
-mod library_translation_types;
-#[path = "library_translation/ocr.rs"]
-mod library_translation_ocr;
-#[path = "library_translation/memory.rs"]
-mod library_translation_memory;
-#[path = "library_translation/extract.rs"]
-mod library_translation_extract;
-#[path = "library_translation/pdf_tools.rs"]
-mod library_translation_pdf_tools;
-#[path = "library_translation/pdf_extract.rs"]
-mod library_translation_pdf_extract;
-#[path = "library_translation/ocr_engine.rs"]
-mod library_translation_ocr_engine;
-#[path = "library_translation/layout.rs"]
-mod library_translation_layout;
 #[path = "library_translation/paper_translation_engine.rs"]
 mod library_translation_paper_translation_engine;
 #[path = "library_translation/paper_analysis_engine.rs"]
 mod library_translation_paper_analysis_engine;
-#[path = "library_translation/translate.rs"]
-mod library_translation_translate;
-#[path = "library_translation/render.rs"]
-mod library_translation_render;
 
 const LIBRARY_WORKSPACE_PREFIX: &str = ".latotex/papers";
 
 #[derive(Clone)]
 pub(super) struct TranslationModelCandidate {
     model_id: String,
-    protocol_id: String,
     base_url: String,
     model_name: String,
 }
@@ -38,7 +17,9 @@ pub(super) fn to_library_workspace_relative(path: &str) -> String {
     if normalized.is_empty() {
         return LIBRARY_WORKSPACE_PREFIX.to_string();
     }
-    if normalized == LIBRARY_WORKSPACE_PREFIX || normalized.starts_with(&format!("{LIBRARY_WORKSPACE_PREFIX}/")) {
+    if normalized == LIBRARY_WORKSPACE_PREFIX
+        || normalized.starts_with(&format!("{LIBRARY_WORKSPACE_PREFIX}/"))
+    {
         return normalized;
     }
     format!("{LIBRARY_WORKSPACE_PREFIX}/{normalized}")
@@ -74,7 +55,11 @@ pub(super) fn resolve_translation_source_pdf_workspace(
 }
 
 pub(crate) fn translation_pdf_relative_path(source_pdf_relative: &str) -> String {
-    let normalized = source_pdf_relative.trim().replace('\\', "/").trim_start_matches('/').to_string();
+    let normalized = source_pdf_relative
+        .trim()
+        .replace('\\', "/")
+        .trim_start_matches('/')
+        .to_string();
     let stem = Path::new(&normalized)
         .file_stem()
         .and_then(|value| value.to_str())
@@ -82,59 +67,6 @@ pub(crate) fn translation_pdf_relative_path(source_pdf_relative: &str) -> String
     let scoped = normalized.replace('/', "--");
     let slug = slugify_name(&format!("{scoped}-{stem}"), "paper");
     format!(".cache/translated/{slug}.translated.pdf")
-}
-
-pub(super) fn persist_project_translation_glossary(
-    project_root: &Path,
-    source_relative_path: &str,
-    target_lang: &str,
-    glossary: &[library_translation_types::TranslationGlossaryEntry],
-) -> Result<(), String> {
-    if glossary.is_empty() {
-        return Ok(());
-    }
-
-    let glossary_path = project_root
-        .join(".latotex")
-        .join("memory")
-        .join("translation-glossary.md");
-    if let Some(parent) = glossary_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-
-    let mut existing = fs::read_to_string(&glossary_path).unwrap_or_default();
-    if existing.trim().is_empty() {
-        existing = "# Translation Glossary\n\n".to_string();
-    }
-
-    let mut lines = Vec::new();
-    lines.push(format!(
-        "## {} · {} · {}",
-        chrono::Utc::now().to_rfc3339(),
-        source_relative_path,
-        target_lang
-    ));
-    for item in glossary.iter().take(80) {
-        lines.push(format!("- {} => {}", item.source_term, item.target_term));
-    }
-    lines.push(String::new());
-
-    existing.push_str(&lines.join("\n"));
-
-    let max_chars = 120_000;
-    if existing.chars().count() > max_chars {
-        let tail: String = existing
-            .chars()
-            .rev()
-            .take(max_chars)
-            .collect::<String>()
-            .chars()
-            .rev()
-            .collect();
-        existing = format!("# Translation Glossary\n\n...[truncated]...\n\n{}", tail);
-    }
-
-    fs::write(glossary_path, existing).map_err(|e| e.to_string())
 }
 
 fn push_translation_model_candidate(
@@ -169,7 +101,6 @@ fn push_translation_model_candidate(
 
     output.push(TranslationModelCandidate {
         model_id: normalized.to_string(),
-        protocol_id,
         base_url,
         model_name,
     });
@@ -181,7 +112,7 @@ pub(super) fn resolve_translation_model_candidates(
     db_path: &Path,
     model_override: Option<&str>,
 ) -> Result<Vec<TranslationModelCandidate>, String> {
-    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
     let mut output = Vec::<TranslationModelCandidate>::new();
     let mut seen = std::collections::HashSet::<String>::new();
 
@@ -196,19 +127,19 @@ pub(super) fn resolve_translation_model_candidates(
             |row| row.get::<_, String>(0),
         )
         .optional()
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| error.to_string())?;
     if let Some(model_id) = bound_model_id {
         push_translation_model_candidate(&conn, &model_id, &mut seen, &mut output)?;
     }
 
     let mut stmt = conn
         .prepare("SELECT id FROM model_catalog ORDER BY protocol_id, display_name")
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| error.to_string())?;
     let rows = stmt
         .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| error.to_string())?;
     for row in rows {
-        let model_id = row.map_err(|e| e.to_string())?;
+        let model_id = row.map_err(|error| error.to_string())?;
         let _ = push_translation_model_candidate(&conn, &model_id, &mut seen, &mut output);
     }
 
@@ -236,6 +167,7 @@ pub fn translate_library_document(
         model_override,
     )
 }
+
 pub fn translate_library_document_with_progress<F>(
     db_path: &Path,
     runtime_root: &Path,
@@ -258,6 +190,7 @@ where
         on_progress,
     )
 }
+
 pub fn extract_library_paper_context(
     db_path: &Path,
     project_id: &str,
@@ -269,5 +202,3 @@ pub fn extract_library_paper_context(
         relative_path,
     )
 }
-
-

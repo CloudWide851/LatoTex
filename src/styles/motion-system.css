@@ -1,0 +1,185 @@
+:root {
+  --motion-ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --motion-ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-sheen: rgba(255, 255, 255, 0.34);
+  --motion-panel-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --motion-panel-shadow-hover: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --motion-panel-border: rgba(148, 163, 184, 0.22);
+}
+
+[data-theme="dark"] {
+  --motion-sheen: rgba(255, 255, 255, 0.12);
+  --motion-panel-shadow: 0 24px 60px rgba(2, 6, 23, 0.35);
+  --motion-panel-shadow-hover: 0 28px 72px rgba(2, 6, 23, 0.44);
+  --motion-panel-border: rgba(148, 163, 184, 0.16);
+}
+
+@keyframes prism-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes prism-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes prism-veil {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes prism-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.14);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes prism-sheen {
+  0% {
+    transform: translateX(-140%);
+  }
+  55%,
+  100% {
+    transform: translateX(140%);
+  }
+}
+
+.motion-shell-stage {
+  animation: prism-rise 360ms var(--motion-ease-out-expo);
+}
+
+.motion-card-pop {
+  animation: prism-pop 300ms var(--motion-ease-soft);
+}
+
+.motion-overlay-enter {
+  animation: prism-veil 220ms var(--motion-ease-out-quart);
+}
+
+.motion-panel-glow {
+  position: relative;
+  border-color: color-mix(in srgb, currentColor 0%, var(--motion-panel-border));
+  box-shadow: var(--motion-panel-shadow);
+  transition:
+    transform 220ms var(--motion-ease-out-quart),
+    box-shadow 220ms var(--motion-ease-out-quart),
+    border-color 220ms var(--motion-ease-out-quart),
+    background-color 220ms var(--motion-ease-out-quart);
+}
+
+.motion-panel-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 32%);
+  opacity: 0.7;
+}
+
+[data-theme="dark"] .motion-panel-glow::before {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.08), transparent 40%);
+}
+
+.motion-panel-glow:hover {
+  transform: translate3d(0, -1px, 0);
+  box-shadow: var(--motion-panel-shadow-hover);
+}
+
+.motion-hover-rise {
+  transition:
+    transform 170ms var(--motion-ease-out-quart),
+    box-shadow 170ms var(--motion-ease-out-quart),
+    background-color 170ms var(--motion-ease-out-quart),
+    border-color 170ms var(--motion-ease-out-quart),
+    color 170ms var(--motion-ease-out-quart);
+}
+
+.motion-hover-rise:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+}
+
+.motion-hover-rise:active:not(:disabled) {
+  transform: translate3d(0, 0, 0) scale(0.985);
+}
+
+.motion-status-chip {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.motion-status-chip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 0%, var(--motion-sheen) 48%, transparent 100%);
+  transform: translateX(-140%);
+  animation: prism-sheen 2.8s linear infinite;
+  pointer-events: none;
+}
+
+.motion-live-pulse {
+  animation: prism-pulse 2.2s ease-out infinite;
+}
+
+.motion-layered-backdrop {
+  position: relative;
+}
+
+.motion-layered-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.1), transparent 36%),
+    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.08), transparent 34%);
+  opacity: 0.9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-shell-stage,
+  .motion-card-pop,
+  .motion-overlay-enter,
+  .motion-live-pulse,
+  .motion-status-chip::after {
+    animation: none !important;
+  }
+
+  .motion-panel-glow,
+  .motion-hover-rise {
+    transition: none !important;
+  }
+
+  .motion-panel-glow:hover,
+  .motion-hover-rise:hover:not(:disabled),
+  .motion-hover-rise:active:not(:disabled) {
+    transform: none !important;
+    box-shadow: var(--motion-panel-shadow) !important;
+  }
+}

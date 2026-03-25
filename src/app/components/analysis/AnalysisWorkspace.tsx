@@ -124,7 +124,7 @@ export function AnalysisWorkspace(props: {
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
 
   return (
-    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up">
+    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow">
       <AnalysisTaskTabs
         tasks={tasks}
         activeTaskId={activeTaskId}
@@ -166,7 +166,7 @@ export function AnalysisWorkspace(props: {
 
           {tasks.length === 0 ? (
             <button
-              className="flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 transition hover:border-primary-300 hover:bg-primary-50/40 hover:text-primary-700"
+              className="flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 transition motion-hover-rise hover:border-primary-300 hover:bg-primary-50/40 hover:text-primary-700"
               onClick={onCreateTask}
               disabled={running}
             >
@@ -178,10 +178,10 @@ export function AnalysisWorkspace(props: {
             </button>
           ) : hasLiveStream ? (
             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
-              <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop motion-layered-backdrop">
                 <div className="rounded border border-slate-200 bg-white px-3 py-2">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.liveStage")}</h3>
-                  <p className="mt-1 text-sm text-slate-700">{liveStageLabel || t("analysis.centerRunning")}</p>
+                  <p className="motion-status-chip mt-1 inline-flex rounded-md bg-primary-50 px-2 py-1 text-sm text-slate-700 motion-live-pulse">{liveStageLabel || t("analysis.centerRunning")}</p>
                 </div>
                 <div className="min-h-0 overflow-auto rounded border border-slate-200 bg-white px-3 py-2">
                   <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.liveOutput")}</h4>
@@ -201,7 +201,7 @@ export function AnalysisWorkspace(props: {
           ) : (
             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
               <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
                   <h3 className="text-sm font-semibold text-slate-800">{activeRun.title}</h3>
                   <p className="mt-1 text-xs text-slate-600">{activeRun.summary}</p>
                   <div className="mt-2 flex items-center gap-1">
@@ -234,18 +234,18 @@ export function AnalysisWorkspace(props: {
               </div>
 
               <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.artifacts")}</h4>
                 </section>
-                <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
                   {renderArtifacts(activeRun.assetRelativePaths, t, onExportArtifact, onRevealArtifact)}
                 </section>
                 <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
-                <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.history")}</h4>
                   <div className="space-y-1">
                     {(tasks.find((item) => item.id === activeTaskId)?.runs ?? []).map((item) => (
-                      <div key={item.id} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
+                      <div key={item.id} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 motion-hover-rise">
                         <button className="w-full truncate text-left font-medium" onClick={() => onSetActiveRun(activeTaskId!, item.id)}>
                           {item.title}
                         </button>
@@ -296,4 +296,3 @@ export function AnalysisWorkspace(props: {
     </div>
   );
 }
-

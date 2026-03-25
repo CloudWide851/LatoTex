@@ -102,6 +102,7 @@ export type AnalysisEnvStatus = {
   uvVersion?: string | null;
   pythonPath?: string | null;
   pythonVersion?: string | null;
+  pdfMathTranslateVersion?: string | null;
   venvPath: string;
   runtimeRoot: string;
   lastError?: string | null;
@@ -334,4 +335,3 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
-

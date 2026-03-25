@@ -1,66 +1,57 @@
 # LatoTex
 
-LatoTex is a Tauri v2 desktop application for swarm-agent assisted LaTeX authoring and compilation.
+LatoTex is a desktop-first LaTeX and paper-analysis workspace built with Tauri v2, React, TypeScript, and Rust.
+
+## What Changed In This Runtime Pass
+
+- LaTeX compilation now targets native TeX engines on desktop.
+  - Engine selection prefers `tectonic`, then falls back to `latexmk`, `xelatex`, and `pdflatex` when available.
+- Paper translation now uses a shared `uv`-managed project `.venv`.
+  - The bundled Python runtime installs `pdf2zh` / PDFMathTranslate into the project-local virtual environment.
+- Paper analysis and paper translation now share the same hidden-window Python bridge.
+  - This removes the old Rust-side OCR/translation pipeline and avoids transient `cmd`/PowerShell windows on Windows.
+- diagrams.net / draw.io remains bundled for the drawing workspace through local packaged assets.
 
 ## Tech Stack
 
 - Desktop shell: Tauri v2 + Rust
 - Frontend: React + TypeScript + Vite
 - Editor: Monaco
-- LaTeX compile path: BusyTeX (`texlyre-busytex`) on frontend
+- LaTeX compile path: native TeX toolchain (`tectonic` preferred)
+- Paper translation/runtime: `uv` + project-local `.venv` + PDFMathTranslate (`pdf2zh`)
 - Persistence: SQLite + file system
 - Secret storage: system keyring
 - Package manager: pnpm
-- CI/CD: GitHub Actions release workflow (`v*.*.*`)
 
 ## Workbench Layout
 
 - Top project bar: switch active project.
 - Left rail: page switcher (`LaTeX`, `Data`, `Papers`, `Settings`).
-- Explorer rail: VS Code-like project resources.
-- Main panel: Monaco LaTeX editor + task-agent prompt.
-- Right panel: PDF preview + diagnostics + swarm events.
-
-## Agent Architecture
-
-- Fixed roles: `plan`, `task`, `explore`, `web_search`, `review`.
-- Ephemeral agents: short-lived task workers.
-- Event-sourced communication: backend persists swarm events and supports replay via cursor-based subscription.
-- Provider routing: OpenAI + Anthropic + Gemini profiles with per-agent model binding.
-
-## Project Structure
-
-```text
-.
-├─ src/                          # React workbench UI and BusyTeX compiler adapter
-├─ src-tauri/                    # Rust commands, swarm event persistence, settings/keyring
-├─ .github/workflows/            # Multi-platform release automation
-├─ CHANGELOG.md
-├─ AGENTS.md
-└─ MEMORY.md
-```
+- Explorer rail: project resources and paper-library assets.
+- Main panel: editor, analysis, draw workspace, and task-agent workflows.
+- Right panel: preview, diagnostics, and run feedback.
 
 ## Local Development
 
 ```bash
-pnpm install --no-frozen-lockfile
+CI=true pnpm install --no-frozen-lockfile
 pnpm tauri dev
 ```
 
-## Quality Gates
+## Validation
 
 ```bash
 pnpm typecheck
+pnpm test:unit
 pnpm build
 cargo test --manifest-path src-tauri/Cargo.toml
-pnpm tauri build
+pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
 ```
 
-## Release
+## Licensing
 
-Push semantic version tags to trigger cross-platform packaging.
+LatoTex is distributed under `AGPL-3.0-only`.
 
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
+Reason:
+- The packaged paper-translation runtime now depends on PDFMathTranslate / `pdf2zh`, whose upstream project is licensed under AGPL v3.
+- Bundled diagrams.net assets keep their upstream license and notice requirements; see `THIRD_PARTY_NOTICES.md`.

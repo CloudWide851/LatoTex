@@ -4,6 +4,8 @@ use crate::models::{
 };
 use crate::state::AppState;
 use crate::storage;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -17,7 +19,7 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-fn configure_hidden_process(command: &mut Command) {
+pub(crate) fn configure_hidden_process(command: &mut Command) {
     #[cfg(target_os = "windows")]
     {
         command.creation_flags(CREATE_NO_WINDOW);
@@ -83,7 +85,7 @@ fn command_from_path_or_name(value: &str) -> PathBuf {
     PathBuf::from(value)
 }
 
-fn resolve_uv_path() -> Option<PathBuf> {
+pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
     let candidates = [
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/uv/windows-x64/uv.exe"),
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/resources/tools/uv/windows-x64/uv.exe"),
@@ -101,7 +103,7 @@ fn resolve_uv_path() -> Option<PathBuf> {
     None
 }
 
-fn resolve_analysis_runtime_root() -> Option<PathBuf> {
+pub(crate) fn resolve_analysis_runtime_root() -> Option<PathBuf> {
     let candidates = [
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/python/analysis_runtime"),
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src-tauri/resources/python/analysis_runtime"),
@@ -109,11 +111,11 @@ fn resolve_analysis_runtime_root() -> Option<PathBuf> {
     candidates.into_iter().find(|candidate| candidate.join("analysis_runner.py").exists())
 }
 
-fn venv_root(project_root: &Path) -> PathBuf {
+pub(crate) fn venv_root(project_root: &Path) -> PathBuf {
     project_root.join(".venv")
 }
 
-fn venv_python_path(project_root: &Path) -> PathBuf {
+pub(crate) fn venv_python_path(project_root: &Path) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
         return venv_root(project_root).join("Scripts/python.exe");
@@ -124,7 +126,71 @@ fn venv_python_path(project_root: &Path) -> PathBuf {
     }
 }
 
-fn ensure_analysis_env_blocking(project_root: &Path) -> Result<AnalysisEnvStatusResponse, String> {
+fn runtime_dependency_fingerprint(runtime_root: &Path) -> Result<String, String> {
+    let pyproject = fs::read_to_string(runtime_root.join("pyproject.toml")).map_err(|e| e.to_string())?;
+    let analysis_runner = fs::read_to_string(runtime_root.join("analysis_runner.py")).unwrap_or_default();
+    let paper_runtime = fs::read_to_string(runtime_root.join("paper_runtime.py")).unwrap_or_default();
+    let mut hasher = DefaultHasher::new();
+    pyproject.hash(&mut hasher);
+    analysis_runner.hash(&mut hasher);
+    paper_runtime.hash(&mut hasher);
+    Ok(format!("{:x}", hasher.finish()))
+}
+
+fn runtime_dependency_stamp_path(project_root: &Path) -> PathBuf {
+    venv_root(project_root).join(".latotex-runtime-stamp")
+}
+
+fn python_module_version(python_path: &Path, package_name: &str) -> Option<String> {
+    let mut command = Command::new(python_path);
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg("-c")
+        .arg(format!(
+            "import importlib.metadata as m; print(m.version({package_name:?}))"
+        ))
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if stdout.is_empty() {
+        None
+    } else {
+        Some(stdout)
+    }
+}
+
+fn ensure_runtime_packages(uv_path: &Path, python_path: &Path, runtime_root: &Path, project_root: &Path) -> Result<(), String> {
+    let fingerprint = runtime_dependency_fingerprint(runtime_root)?;
+    let stamp_path = runtime_dependency_stamp_path(project_root);
+    if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str()) {
+        return Ok(());
+    }
+
+    let mut command = Command::new(uv_path);
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg("pip")
+        .arg("install")
+        .arg("--python")
+        .arg(python_path)
+        .arg("-e")
+        .arg(runtime_root)
+        .output()
+        .map_err(|e| format!("python.env.install_spawn_failed: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("python.env.install_failed: {detail}"));
+    }
+    fs::write(stamp_path, fingerprint).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+pub(crate) fn ensure_analysis_env_blocking(project_root: &Path) -> Result<AnalysisEnvStatusResponse, String> {
     let runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
     let uv_path = resolve_uv_path().ok_or_else(|| "uv executable was not found".to_string())?;
@@ -150,8 +216,11 @@ fn ensure_analysis_env_blocking(project_root: &Path) -> Result<AnalysisEnvStatus
         }
     }
 
+    ensure_runtime_packages(&uv_path, &python_path, &runtime_root, project_root)?;
+
     let uv_version = try_version_command(&uv_path, &["--version"]);
     let python_version = try_version_command(&python_path, &["--version"]);
+    let pdf_math_translate_version = python_module_version(&python_path, "pdf2zh");
 
     Ok(AnalysisEnvStatusResponse {
         ready: python_path.exists(),
@@ -159,6 +228,7 @@ fn ensure_analysis_env_blocking(project_root: &Path) -> Result<AnalysisEnvStatus
         uv_version,
         python_path: Some(python_path.to_string_lossy().to_string()),
         python_version,
+        pdf_math_translate_version,
         venv_path: venv_path.to_string_lossy().to_string(),
         runtime_root: runtime_root.to_string_lossy().to_string(),
         last_error: None,
@@ -403,6 +473,7 @@ pub async fn analysis_env_status(
                 uv_version: resolve_uv_path().and_then(|path| try_version_command(&path, &["--version"])),
                 python_path: None,
                 python_version: None,
+                pdf_math_translate_version: None,
                 venv_path: venv_root(&project_root).to_string_lossy().to_string(),
                 runtime_root: resolve_analysis_runtime_root()
                     .map(|path| path.to_string_lossy().to_string())

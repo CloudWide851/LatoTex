@@ -1,12 +1,37 @@
 use super::{
-    library_citation_summary, library_root, library_translation_ocr_engine,
-    library_translation_types::TranslationBlock, resolve_translation_source_pdf_workspace,
+    library_citation_summary, library_root, resolve_translation_source_pdf_workspace,
     to_library_relative_from_workspace,
 };
+use crate::commands::native_runtime::{
+    configure_hidden_process, ensure_analysis_env_blocking, resolve_analysis_runtime_root,
+};
+use serde::Deserialize;
+use serde_json::json;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use uuid::Uuid;
 
 const PAPER_ANALYSIS_CHUNK_MAX_CHARS: usize = 10_000;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaperRuntimeExtractBlock {
+    page: Option<u32>,
+    role: String,
+    text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaperRuntimeExtractResult {
+    page_count: u32,
+    ocr_page_count: u32,
+    detected_language: Option<String>,
+    extraction_engine: Option<String>,
+    extraction_mode: Option<String>,
+    blocks: Vec<PaperRuntimeExtractBlock>,
+}
 
 fn build_library_metadata_block(summary: &crate::models::LibraryCitationSummaryResponse) -> String {
     [
@@ -65,7 +90,7 @@ fn push_analysis_chunk(
 }
 
 fn build_paper_analysis_chunks(
-    blocks: &[TranslationBlock],
+    blocks: &[PaperRuntimeExtractBlock],
     max_chars: usize,
 ) -> Vec<crate::models::LibraryPaperExtractChunk> {
     let mut chunks = Vec::<crate::models::LibraryPaperExtractChunk>::new();
@@ -115,6 +140,46 @@ fn build_paper_analysis_chunks(
     chunks
 }
 
+fn run_extract_bridge(
+    python_path: &Path,
+    runtime_root: &Path,
+    run_root: &Path,
+    source_pdf_path: &Path,
+) -> Result<PaperRuntimeExtractResult, String> {
+    let input_path = run_root.join("paper-runtime-input.json");
+    let output_path = run_root.join("paper-runtime-output.json");
+    let payload = json!({
+        "operation": "extract",
+        "pdfPath": source_pdf_path,
+    });
+    fs::write(
+        &input_path,
+        serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let mut command = Command::new(python_path);
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg(runtime_root.join("paper_runtime.py"))
+        .arg("--input")
+        .arg(&input_path)
+        .arg("--output")
+        .arg(&output_path)
+        .output()
+        .map_err(|error| format!("analysis.paper_extract.spawn_failed: {error}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("analysis.paper_extract.failed: {detail}"));
+    }
+
+    let output_json = fs::read_to_string(&output_path).map_err(|error| error.to_string())?;
+    serde_json::from_str(&output_json)
+        .map_err(|error| format!("analysis.paper_extract.invalid_json: {error}"))
+}
+
 pub(super) fn extract_library_paper_context(
     db_path: &Path,
     project_id: &str,
@@ -122,7 +187,7 @@ pub(super) fn extract_library_paper_context(
 ) -> Result<crate::models::LibraryPaperExtractResponse, String> {
     let project_root = super::load_project_root(db_path, project_id)?;
     let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&papers_root).map_err(|error| error.to_string())?;
 
     let normalized_relative = relative_path.trim().replace('\\', "/");
     if normalized_relative.is_empty() {
@@ -132,11 +197,27 @@ pub(super) fn extract_library_paper_context(
     let preview_relative_path =
         resolve_translation_source_pdf_workspace(db_path, project_id, &normalized_relative)?;
     let source_pdf_relative = to_library_relative_from_workspace(&preview_relative_path)?;
-    let extraction = library_translation_ocr_engine::extract_document(
-        &project_root,
-        &papers_root,
-        &source_pdf_relative,
-    )?;
+    let source_pdf_path = papers_root.join(Path::new(&source_pdf_relative));
+    if !source_pdf_path.exists() || !source_pdf_path.is_file() {
+        return Err("translation.source_pdf_not_found".to_string());
+    }
+
+    let env_status = ensure_analysis_env_blocking(&project_root)?;
+    let python_path = PathBuf::from(
+        env_status
+            .python_path
+            .clone()
+            .ok_or_else(|| "python.env.python_missing".to_string())?,
+    );
+    let runtime_root = resolve_analysis_runtime_root()
+        .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
+    let run_root = project_root
+        .join(".latotex")
+        .join("paper-runtime")
+        .join(Uuid::new_v4().to_string());
+    fs::create_dir_all(&run_root).map_err(|error| error.to_string())?;
+
+    let extraction = run_extract_bridge(&python_path, &runtime_root, &run_root, &source_pdf_path)?;
     let citation = library_citation_summary(db_path, project_id, &normalized_relative)?;
     let title = citation
         .title

@@ -33,6 +33,7 @@ pub struct AnalysisEnvStatusResponse {
     pub uv_version: Option<String>,
     pub python_path: Option<String>,
     pub python_version: Option<String>,
+    pub pdf_math_translate_version: Option<String>,
     pub venv_path: String,
     pub runtime_root: String,
     pub last_error: Option<String>,
