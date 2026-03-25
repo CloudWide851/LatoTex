@@ -7,7 +7,6 @@ import { Button } from "../../components/ui/button";
 import { Select } from "../../components/ui/select";
 import type {
   AppSettings,
-  BusyTexCacheInfo,
   ModelCatalogItem,
   ModelTestResult,
   RuntimeLogEntry,
@@ -52,7 +51,6 @@ export function SettingsPanel(props: {
   locale: Locale;
   busy: boolean;
   settingsSection: SettingsSection;
-  busytexCacheInfo: BusyTexCacheInfo | null;
   runtimeInfo: RuntimeLogInfo | null;
   runtimeLogs: RuntimeLogEntry[];
   runtimeLogLoading: boolean;
@@ -66,7 +64,6 @@ export function SettingsPanel(props: {
   onSettingsSectionChange: (value: SettingsSection) => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
-  onBusyTexCachePolicyChange: (policy: "install-first" | "appdata-only") => void;
   onOpenModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
   onReloadLogs: (options?: {
     silent?: boolean;
@@ -86,7 +83,6 @@ export function SettingsPanel(props: {
     locale,
     busy,
     settingsSection,
-    busytexCacheInfo,
     runtimeInfo,
     runtimeLogs,
     runtimeLogLoading,
@@ -100,7 +96,6 @@ export function SettingsPanel(props: {
     onSettingsSectionChange,
     onLocaleChange,
     onThemeModeChange,
-    onBusyTexCachePolicyChange,
     onOpenModelModal,
     onReloadLogs,
     onSelectLogFile,
@@ -120,7 +115,6 @@ export function SettingsPanel(props: {
       language: locale,
       closeToTrayNoticeEnabled: true,
       theme: "system",
-      busytexCachePolicy: "install-first",
       previewDefaultZoom: 1,
       panelLayout: DEFAULT_PANEL_LAYOUT,
       backgroundImagePaths: [],
@@ -228,31 +222,6 @@ export function SettingsPanel(props: {
               }
             />
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-800">
-                {t("settings.busytexCacheTitle")}
-              </h3>
-              <div className="grid max-w-md gap-2">
-                <Select
-                  value={localSettings.uiPrefs?.busytexCachePolicy ?? "install-first"}
-                  onChange={(event) =>
-                    onBusyTexCachePolicyChange(
-                      event.target.value as "install-first" | "appdata-only",
-                    )
-                  }
-                >
-                  <option value="install-first">{t("settings.busytex.installFirst")}</option>
-                  <option value="appdata-only">{t("settings.busytex.appDataOnly")}</option>
-                </Select>
-                <div className="text-xs text-slate-500">
-                  {t("settings.busytex.currentDir")}: {" "}
-                  {busytexCacheInfo?.actualDir ?? localSettings.uiPrefs?.busytexCacheDir ?? "-"}
-                </div>
-                {busytexCacheInfo?.usingFallback && (
-                  <div className="text-xs text-amber-600">{t("settings.busytex.fallbackUsed")}</div>
-                )}
-              </div>
-            </div>
           </div>
         )}
 
@@ -581,6 +550,7 @@ export function SettingsPanel(props: {
     </div>
   );
 }
+
 
 
 

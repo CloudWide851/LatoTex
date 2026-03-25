@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { analysisSaveReport } from "../../shared/api/analysis";
+import { analysisEnvPrepare, analysisRunPython, analysisSaveReport } from "../../shared/api/analysis";
 import { executeWorkflowCancel } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
@@ -12,7 +12,6 @@ import {
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
 import { appendPromptRefs, resolveDroppedPromptRefs } from "./analysisDropRefs";
 import { applyPromptRefSuggestion, resolvePromptInputFiles } from "./analysisPromptRefs";
-import { buildPyodideAnalysisProfile } from "../../features/analysis/pyodide/profile";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
 import { ensureAnalysisTasksLoaded, isRetryableAnalysisProviderError, runRolePromptWithAgent } from "./analysisRunHelpers";
@@ -415,30 +414,34 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
         setStage(t("analysis.step.profileEachFile"));
         steps.push(currentStage);
-        let pyodideProfileText = "{}";
+        let pythonProfileText = "{}";
         try {
-          const pyodideProfile = await buildPyodideAnalysisProfile({
-            snapshots,
+          const envStatus = await analysisEnvPrepare(projectId);
+          const pythonProfile = await analysisRunPython({
+            projectId,
+            taskId: task.id,
             prompt: normalizedPrompt,
             outputLanguage: outputLanguageLabel,
+            snapshots,
           });
-          pyodideProfileText = JSON.stringify(pyodideProfile, null, 2).slice(0, 12000);
+          pythonProfileText = JSON.stringify(pythonProfile.profileJson, null, 2).slice(0, 12000);
           await runtimeLogWrite(
             "INFO",
-            `analysis pyodide profile ready: source=${pyodideProfile.runtimeSource}, files=${pyodideProfile.fileCount}`
+            `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`
           ).catch(() => undefined);
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
-          pyodideProfileText = JSON.stringify({
-            runtimeSource: "unavailable",
+          pythonProfileText = JSON.stringify({
+            runtimeSource: "uv",
+            status: "unavailable",
             error: reason,
           });
-          await runtimeLogWrite("WARN", `analysis pyodide profile failed: ${reason}`).catch(() => undefined);
+          await runtimeLogWrite("WARN", `analysis python profile failed: ${reason}`).catch(() => undefined);
         }
         sourceBlock = [
           snapshotSummary,
-          "Structured profile (pyodide):",
-          pyodideProfileText,
+          "Structured profile (python/uv):",
+          pythonProfileText,
         ].join("\n\n");
       }
       if (selectedFile && editorContent.trim()) {
@@ -590,6 +593,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
+
+
 
 
 

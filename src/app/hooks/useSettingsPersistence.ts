@@ -111,8 +111,6 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           closeBehavior: nextSettings.uiPrefs?.closeBehavior ?? "ask",
           closeBehaviorRemember: nextSettings.uiPrefs?.closeBehaviorRemember ?? false,
           theme: (nextSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
-          busytexCachePolicy: nextSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
-          busytexCacheDir: nextSettings.uiPrefs?.busytexCacheDir,
           previewDefaultZoom: nextSettings.uiPrefs?.previewDefaultZoom ?? 1,
           panelLayout: nextSettings.uiPrefs?.panelLayout,
           featureModelBindings: nextSettings.uiPrefs?.featureModelBindings,

@@ -3,12 +3,22 @@ import type { LibraryCitationSummary } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
+type PaperPreview = {
+  title?: string | null;
+  detectedLanguage?: string | null;
+  extractionEngine?: string | null;
+  pageCount?: number;
+  excerpt?: string | null;
+};
+
 export function LibraryCitationMetaPanel(props: {
   citation: LibraryCitationSummary | null;
   linkError: string | null;
+  paperPreview?: PaperPreview | null;
+  onAnalyzePaper?: (() => void) | null;
   t: TranslationFn;
 }) {
-  const { citation, linkError, t } = props;
+  const { citation, linkError, paperPreview, onAnalyzePaper, t } = props;
 
   return (
     <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
@@ -16,6 +26,41 @@ export function LibraryCitationMetaPanel(props: {
         {t("library.viewer.metadataTab")}
       </h3>
       <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3 text-xs">
+        {paperPreview ? (
+          <div className="rounded border border-slate-200 bg-white p-3 text-slate-700">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {t("library.viewer.paperBrief")}
+              </span>
+              {onAnalyzePaper ? (
+                <button
+                  className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
+                  onClick={onAnalyzePaper}
+                >
+                  {t("library.viewer.analyzePaper")}
+                </button>
+              ) : null}
+            </div>
+            {paperPreview.title ? <p className="mb-2 break-words font-medium">{paperPreview.title}</p> : null}
+            <div className="grid gap-1 text-[11px] text-slate-600">
+              {paperPreview.detectedLanguage ? (
+                <p>{t("library.viewer.paperLanguage")}: {paperPreview.detectedLanguage}</p>
+              ) : null}
+              {paperPreview.pageCount ? (
+                <p>{t("library.viewer.paperPages")}: {paperPreview.pageCount}</p>
+              ) : null}
+              {paperPreview.extractionEngine ? (
+                <p>{t("library.viewer.paperEngine")}: {paperPreview.extractionEngine}</p>
+              ) : null}
+            </div>
+            {paperPreview.excerpt ? (
+              <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
+                <div className="mb-1 font-semibold text-slate-500">{t("library.viewer.paperExcerpt")}</div>
+                <p className="line-clamp-6 whitespace-pre-wrap break-words">{paperPreview.excerpt}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {citation?.title ? (
           <p className="break-words text-slate-700">
             {t("library.citation.fieldTitle")}: {citation.title}

@@ -43,7 +43,6 @@ export function useAppPanelNodes(params: any) {
     activeProjectId,
     settingsSection,
     setSettingsSection,
-    busytexCacheInfo,
     runtimeInfo,
     runtimeLogs,
     runtimeLogLoading,
@@ -52,7 +51,6 @@ export function useAppPanelNodes(params: any) {
     modelTestById,
     handleLocaleChange,
     handleThemeModeChange,
-    handleBusyTexCachePolicyChange,
     openModelModal,
     setRuntimeLogLoading,
     setRuntimeLogs,
@@ -298,7 +296,6 @@ export function useAppPanelNodes(params: any) {
       locale={locale}
       busy={busy}
       settingsSection={settingsSection}
-      busytexCacheInfo={busytexCacheInfo}
       runtimeInfo={runtimeInfo}
       runtimeLogs={runtimeLogs}
       runtimeLogLoading={runtimeLogLoading}
@@ -312,7 +309,6 @@ export function useAppPanelNodes(params: any) {
       onSettingsSectionChange={setSettingsSection}
       onLocaleChange={handleLocaleChange}
       onThemeModeChange={handleThemeModeChange}
-      onBusyTexCachePolicyChange={(policy) => handleBusyTexCachePolicyChange(policy)}
       onOpenModelModal={openModelModal}
       onReloadLogs={reloadRuntimeLogs}
       onSelectLogFile={async (fileName) => {

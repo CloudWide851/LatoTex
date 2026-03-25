@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openExternalLink } from "../../shared/api/app";
-import { libraryCitationSummary, libraryResolvePdfPreview } from "../../shared/api/library";
+import { libraryCitationSummary, libraryExtractPaperContext, libraryResolvePdfPreview } from "../../shared/api/library";
 import { readFile, readFileBinary, writeFile } from "../../shared/api/workspace";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
@@ -46,6 +46,7 @@ export function LibraryDocumentViewer(props: {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
   const [citation, setCitation] = useState<LibraryCitationSummary | null>(null);
+  const [paperPreview, setPaperPreview] = useState<{ title?: string | null; detectedLanguage?: string | null; extractionEngine?: string | null; pageCount?: number; excerpt?: string | null; sourcePath?: string | null } | null>(null);
   const [bibPreview, setBibPreview] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [resolvedLink, setResolvedLink] = useState<string | null>(null);
@@ -131,6 +132,7 @@ export function LibraryDocumentViewer(props: {
       setLinkError(null);
       setCopyState(false);
       setCitation(null);
+      setPaperPreview(null);
       setBibPreview("");
       setResolvedLink(null);
       setViewMode("bib");
@@ -163,6 +165,7 @@ export function LibraryDocumentViewer(props: {
 
     setLoading(true);
     setLoadError(null);
+    setPaperPreview(null);
     setLinkError(null);
     setCopyState(false);
     setViewMode("bib");
@@ -206,7 +209,10 @@ export function LibraryDocumentViewer(props: {
       }
       setResolvedLink(pdfPreview.sourceUrl ?? summary.urls?.[0] ?? null);
       if (pdfPreview.relativePath) {
-        const binary = await readFileBinary(projectId, pdfPreview.relativePath);
+        const [binary, paperContext] = await Promise.all([
+          readFileBinary(projectId, pdfPreview.relativePath),
+          libraryExtractPaperContext(projectId, pdfPreview.relativePath).catch(() => null),
+        ]);
         if (cancelled) {
           return;
         }
@@ -218,8 +224,21 @@ export function LibraryDocumentViewer(props: {
           }
           return nextUrl;
         });
+        if (paperContext) {
+          setPaperPreview({
+            title: paperContext.title,
+            detectedLanguage: paperContext.detectedLanguage,
+            extractionEngine: paperContext.extractionEngine,
+            pageCount: Number(paperContext.pageCount ?? 0),
+            excerpt: String(paperContext.chunks?.[0]?.text ?? "").slice(0, 520),
+            sourcePath: pdfPreview.relativePath,
+          });
+        } else {
+          setPaperPreview(null);
+        }
       } else {
         setPageCount(1);
+        setPaperPreview(null);
         setPdfUrl((prev) => {
           if (prev) {
             URL.revokeObjectURL(prev);
@@ -568,6 +587,8 @@ export function LibraryDocumentViewer(props: {
         setCompareScrollTop={setCompareScrollTop}
         bibPreview={bibPreview}
         citation={citation}
+        paperPreview={paperPreview}
+        onAnalyzePaper={paperPreview?.sourcePath ? () => onAnalyzePaper(paperPreview.sourcePath!) : null}
         linkError={linkError}
         t={t}
       />
@@ -575,6 +596,7 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
+
 
 
 

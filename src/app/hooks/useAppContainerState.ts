@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   AppSettings,
-  BusyTexCacheInfo,
   EditorTab,
   GitAvailability,
   GitBranchInfo,
@@ -120,7 +119,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [projectSearchResults, setProjectSearchResults] = useState<ProjectSearchHit[]>([]);
   const [projectSearchBusy, setProjectSearchBusy] = useState(false);
   const [projectSearchSearched, setProjectSearchSearched] = useState(false);
-  const [busytexCacheInfo, setBusytexCacheInfo] = useState<BusyTexCacheInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
   const [runtimeLogs, setRuntimeLogs] = useState<RuntimeLogEntry[]>([]);
@@ -299,8 +297,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setProjectSearchBusy,
     projectSearchSearched,
     setProjectSearchSearched,
-    busytexCacheInfo,
-    setBusytexCacheInfo,
     busy,
     setBusy,
     runtimeInfo,

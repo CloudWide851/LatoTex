@@ -5,19 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/ensure-busytex-assets.mjs && node scripts/ensure-pyodide-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
+    "build": "node scripts/ensure-drawio-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "preview": "vite preview",
     "brand:sync": "node scripts/sync-brand-assets.mjs",
     "brand:icons": "node scripts/ensure-brand-icons.mjs --force",
-    "busytex:check": "node scripts/check-busytex-assets.mjs",
-    "busytex:assets": "pnpm exec texlyre-busytex download-assets ./src-tauri/resources/core",
     "soak:6h-sim": "node scripts/soak-6h-sim.mjs",
     "audit:debt": "node scripts/audit-historical-debt.mjs",
     "tauri": "node scripts/ensure-brand-icons.mjs && tauri",
-    "pyodide:assets": "node scripts/ensure-pyodide-assets.mjs",
     "pdf-tools:assets": "node scripts/ensure-pdf-tools.mjs"
   },
   "packageManager": "pnpm@10.29.2",
@@ -44,7 +41,6 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "tailwind-merge": "^3.3.1",
-    "texlyre-busytex": "^0.1.2-alpha",
     "yjs": "^13.6.29"
   },
   "devDependencies": {
@@ -58,8 +54,6 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vite": "^6.0.5",
-    "vitest": "^2.1.8",
-    "pyodide": "0.27.2"
+    "vitest": "^2.1.8"
   }
 }
-

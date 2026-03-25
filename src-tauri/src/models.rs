@@ -401,8 +401,6 @@ pub struct UiPrefs {
     pub close_behavior: Option<String>,
     pub close_behavior_remember: Option<bool>,
     pub theme: Option<String>,
-    pub busytex_cache_policy: Option<String>,
-    pub busytex_cache_dir: Option<String>,
     pub preview_default_zoom: Option<f64>,
     pub panel_layout: Option<Value>,
     pub feature_model_bindings: Option<FeatureModelBindings>,
@@ -574,7 +572,5 @@ pub struct ModelTestResult {
 include!("models_library.rs");
 include!("models_git.rs");
 include!("models_agent_workflows.rs");
-
-
-
+include!("models_native_runtime.rs");
 

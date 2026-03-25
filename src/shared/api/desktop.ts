@@ -8,4 +8,4 @@ export * from "./runtime";
 export * from "./settings";
 export * from "./share";
 export * from "./workspace";
-export * from "./desktop-git-busytex";
+export * from "./desktop-git-local-resources";

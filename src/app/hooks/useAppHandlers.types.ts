@@ -1,7 +1,6 @@
 import type { Locale } from "../../i18n";
 import type {
   AppSettings,
-  BusyTexCacheInfo,
   FsScope,
   GitDownloadStatus,
   ProjectSearchHit,
@@ -66,7 +65,6 @@ export type UseAppHandlersParams = {
   setProjectSearchBusy: (value: boolean) => void;
   setPage: (value: any) => void;
   setPendingRevealLine: (value: number | null) => void;
-  setBusytexCacheInfo: (value: BusyTexCacheInfo | null) => void;
   setDeleteIntent: (value: DeleteIntent) => void;
   setDeleteDontAskAgain: (value: boolean) => void;
   setThemeTransition: React.Dispatch<React.SetStateAction<any>>;

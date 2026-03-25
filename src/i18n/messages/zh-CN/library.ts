@@ -94,6 +94,11 @@ export const zhCN_library = {
   "library.viewer.noBib": "暂无 BibTeX 预览内容。",
   "library.viewer.noPdf": "暂无可用的 PDF 预览。",
   "library.viewer.linkFallback": "自动打开失败，请使用下方链接：",
+  "library.viewer.paperBrief": "阅读摘要",
+  "library.viewer.paperLanguage": "语言",
+  "library.viewer.paperPages": "页数",
+  "library.viewer.paperEngine": "提取引擎",
+  "library.viewer.paperExcerpt": "预览",
   "library.citation.ball": "引用",
   "library.citation.title": "引用摘要",
   "library.citation.urls": "链接",
@@ -109,4 +114,5 @@ export const zhCN_library = {
   "library.citation.fieldBibPath": "Bib 路径",
   "library.citation.fieldSource": "来源",
 } as const;
+
 

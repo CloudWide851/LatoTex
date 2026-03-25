@@ -1,6 +1,5 @@
-import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
+import { compileWithNativeLatex } from "../../features/latex/compiler/native";
 import { recordCompile } from "../../shared/api/latex";
-import { busytexInstallMissingPackage } from "../../shared/api/local-resources";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
@@ -257,13 +256,6 @@ export function applySystemFontFallbackToFileMap(
     applySystemFontFallbackToSource,
   );
 }
-function getBusyTexCachePolicy(): "install-first" | "appdata-only" {
-  if (typeof window === "undefined") {
-    return "install-first";
-  }
-  const raw = window.localStorage.getItem("latotex.busytex.cachePolicy");
-  return raw === "appdata-only" ? "appdata-only" : "install-first";
-}
 function mergeDiagnostics(base: string[], extra: string[]): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
@@ -349,216 +341,97 @@ export async function runCompilePass(params: {
     [mainPath]: mainContent,
   };
   const fontOverlayFileMap: Record<string, string> = {};
-  const packageOverlayFileMap: Record<string, string> = {};
-  const installNotes: string[] = [];
-  const attemptedPackages = new Set<string>();
-  const installProgressState = {
-    total: 0,
-    completed: 0,
-    currentPackage: null as string | null,
-  };
+  const progressNotes: string[] = [];
   let compileSource = mainContent;
-  let fontFallbackAttempted = false;
-  let result = await compileWithBusyTeX(compileSource, baseCompileMap, mainPath);
-  const emitInstallProgress = (line: string) => {
-    installNotes.push(line);
-    setCompileDiagnostics(mergeDiagnostics(result.diagnostics, installNotes));
-  };
-  const emitProgressState = (stage: "installing" | "retrying", message: string) => {
-    if (!setCompileInstallProgress) {
-      return;
-    }
-    const hasWork = installProgressState.total > 0;
-    const percent = hasWork
-      ? Math.min(99, Math.max(0, Math.floor((installProgressState.completed / installProgressState.total) * 100)))
-      : 0;
-    setCompileInstallProgress({
+  let result = await compileWithNativeLatex({
+    projectId,
+    mainPath,
+    mainSource: compileSource,
+    fileMap: baseCompileMap,
+    reason: "editor.compile",
+  });
+
+  const emitProgress = (message: string, percent = 52) => {
+    progressNotes.push(message);
+    setCompileDiagnostics(mergeDiagnostics(result.diagnostics, progressNotes));
+    setCompileInstallProgress?.({
       active: true,
       percent,
-      stage,
-      currentPackage: installProgressState.currentPackage,
-      completed: installProgressState.completed,
-      total: installProgressState.total,
+      stage: "retrying",
+      currentPackage: null,
+      completed: progressNotes.length,
+      total: Math.max(progressNotes.length, 1),
       message,
     });
   };
-  const applyOverlayFiles = (overlayFiles: Array<{ path: string; content: string }> | undefined): boolean => {
-    if (!Array.isArray(overlayFiles) || overlayFiles.length === 0) {
-      return false;
-    }
-    let applied = false;
-    for (const file of overlayFiles) {
-      const relativePath = String(file.path || "").trim();
-      if (!relativePath) {
-        continue;
-      }
-      packageOverlayFileMap[relativePath] = String(file.content || "");
-      applied = true;
-    }
-    return applied;
-  };
+
   try {
-    for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
-      if (!fontFallbackAttempted) {
-        const mergedCompileMap = { ...baseCompileMap, ...fontOverlayFileMap };
-        const extractedFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
-        const hasFontspecError = hasFontspecErrorDiagnostics(result.diagnostics);
-        const configuredFonts = hasFontspecError
-          ? collectConfiguredSystemFontsFromFileMap(mergedCompileMap)
-          : [];
-        const probeCandidates = resolveFontFallbackCandidates({
-          extractedFonts,
-          configuredFonts,
-        });
-        let probeMissingFonts: string[] = [];
-        if (hasFontspecError && probeCandidates.length > 0) {
-          try {
-            const probe = await runtimeSystemFontProbe(probeCandidates);
-            probeMissingFonts = probe.missingFonts;
-          } catch {
-            // Keep fallback heuristic path when probe is unavailable.
-          }
-        }
-        const fallbackFonts = resolveFontFallbackCandidates({
-          extractedFonts,
-          configuredFonts,
-          probeMissingFonts,
-        });
-        if (fallbackFonts.length > 0 || hasFontspecError) {
-          fontFallbackAttempted = true;
-          const fallback = applySystemFontFallbackToFileMap(mergedCompileMap, mainPath, fallbackFonts);
-          if (fallback.changed && fallback.replacements.length > 0) {
-            const replacementSummary = fallback.replacements
-              .map((item) => `${item.missing} -> ${item.fallback}`)
-              .join(", ");
-            emitInstallProgress(
-              formatMessage(t, "workspace.compileAssist.busytexFontFallbackApplied", {
-                details: replacementSummary,
-              }),
-            );
-            compileSource = fallback.mainSource;
-            Object.assign(fontOverlayFileMap, fallback.overlays);
-            emitProgressState(
-              "retrying",
-              formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
-            );
-            result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...fontOverlayFileMap, ...packageOverlayFileMap }, mainPath);
-            continue;
-          }
-          emitInstallProgress(
-            formatMessage(t, "workspace.compileAssist.busytexFontFallbackUnavailable", {
-              fonts: fallbackFonts.length > 0 ? fallbackFonts.join(", ") : "fontspec",
-            }),
-          );
-        }
+    const mergedCompileMap = { ...baseCompileMap, ...fontOverlayFileMap };
+    const extractedFonts = extractMissingSystemFontsFromDiagnostics(result.diagnostics);
+    const hasFontspecError = hasFontspecErrorDiagnostics(result.diagnostics);
+    const configuredFonts = hasFontspecError
+      ? collectConfiguredSystemFontsFromFileMap(mergedCompileMap)
+      : [];
+    const probeCandidates = resolveFontFallbackCandidates({
+      extractedFonts,
+      configuredFonts,
+    });
+    let probeMissingFonts: string[] = [];
+    if (hasFontspecError && probeCandidates.length > 0) {
+      try {
+        const probe = await runtimeSystemFontProbe(probeCandidates);
+        probeMissingFonts = probe.missingFonts;
+      } catch {
+        // Keep heuristic fallback when font probe is unavailable.
       }
-      const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
-        (style) => !attemptedPackages.has(style.toLowerCase()),
-      );
-      if (missingStyles.length === 0) {
-        break;
-      }
-      installProgressState.total += missingStyles.length;
-      let installedAny = false;
-      for (const missingStyle of missingStyles) {
-        attemptedPackages.add(missingStyle.toLowerCase());
-        installProgressState.currentPackage = missingStyle;
-        try {
-          const cached = await busytexInstallMissingPackage({
-            styleFile: missingStyle,
-            policy: getBusyTexCachePolicy(),
-            cacheOnly: true,
-          });
-          const cacheApplied = applyOverlayFiles(cached.overlayFiles);
-          if (cacheApplied) {
-            installedAny = true;
-            emitInstallProgress(
-              formatMessage(t, "workspace.compileAssist.busytexCacheHit", {
-                package: missingStyle,
-              }),
-            );
-            installProgressState.completed += 1;
-            emitProgressState(
-              "installing",
-              formatMessage(t, "workspace.compileAssist.busytexProgressPackages", {
-                completed: String(installProgressState.completed),
-                total: String(installProgressState.total),
-              }),
-            );
-            continue;
-          }
-        } catch {
-          // Keep download fallback path.
-        }
-        emitInstallProgress(
-          formatMessage(t, "workspace.compileAssist.busytexDownloadStart", {
-            package: missingStyle,
-          }),
-        );
-        emitProgressState(
-          "installing",
-          formatMessage(t, "workspace.compileAssist.busytexProgressInstalling", {
-            package: missingStyle,
-          }),
-        );
-        try {
-          const install = await busytexInstallMissingPackage({
-            styleFile: missingStyle,
-            policy: getBusyTexCachePolicy(),
-          });
-          if (!applyOverlayFiles(install.overlayFiles)) {
-            emitInstallProgress(
-              formatMessage(t, "workspace.compileAssist.busytexDownloadNoFiles", {
-                package: missingStyle,
-              }),
-            );
-            continue;
-          }
-          installedAny = true;
-          emitInstallProgress(
-            formatMessage(t, "workspace.compileAssist.busytexDownloadSuccess", {
-              package: missingStyle,
-              source: install.sourceUrl || "cache",
-            }),
-          );
-        } catch (error) {
-          emitInstallProgress(
-            formatMessage(t, "workspace.compileAssist.busytexDownloadFailed", {
-              package: missingStyle,
-              reason: String(error),
-            }),
-          );
-        } finally {
-          installProgressState.completed += 1;
-          emitProgressState(
-            "installing",
-            formatMessage(t, "workspace.compileAssist.busytexProgressPackages", {
-              completed: String(installProgressState.completed),
-              total: String(installProgressState.total),
-            }),
-          );
-        }
-      }
-      if (!installedAny) {
-        break;
-      }
-      emitProgressState(
-        "retrying",
-        formatMessage(t, "workspace.compileAssist.busytexRetryingCompile", {}),
-      );
-      result = await compileWithBusyTeX(compileSource, { ...baseCompileMap, ...fontOverlayFileMap, ...packageOverlayFileMap }, mainPath);
     }
-    if (installNotes.length > 0) {
+    const fallbackFonts = resolveFontFallbackCandidates({
+      extractedFonts,
+      configuredFonts,
+      probeMissingFonts,
+    });
+    if ((fallbackFonts.length > 0 || hasFontspecError) && result.status !== "success") {
+      const fallback = applySystemFontFallbackToFileMap(mergedCompileMap, mainPath, fallbackFonts);
+      if (fallback.changed && fallback.replacements.length > 0) {
+        const replacementSummary = fallback.replacements
+          .map((item) => `${item.missing} -> ${item.fallback}`)
+          .join(", ");
+        emitProgress(
+          formatMessage(t, "workspace.compileAssist.nativeFontFallbackApplied", {
+            details: replacementSummary,
+          }),
+          58,
+        );
+        compileSource = fallback.mainSource;
+        Object.assign(fontOverlayFileMap, fallback.overlays);
+        result = await compileWithNativeLatex({
+          projectId,
+          mainPath,
+          mainSource: compileSource,
+          fileMap: { ...baseCompileMap, ...fontOverlayFileMap },
+          reason: "font-fallback-retry",
+        });
+      } else if (fallbackFonts.length > 0 || hasFontspecError) {
+        emitProgress(
+          formatMessage(t, "workspace.compileAssist.nativeFontFallbackUnavailable", {
+            fonts: fallbackFonts.length > 0 ? fallbackFonts.join(", ") : "fontspec",
+          }),
+          40,
+        );
+      }
+    }
+
+    if (progressNotes.length > 0) {
       result = {
         ...result,
-        diagnostics: mergeDiagnostics(result.diagnostics, installNotes),
+        diagnostics: mergeDiagnostics(result.diagnostics, progressNotes),
       };
     }
     setLastCompileFailed(result.status !== "success");
     setCompileDiagnostics(result.diagnostics);
     await runtimeLogWrite(
       result.status === "success" ? "INFO" : "ERROR",
-      `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
+      `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, engine=${result.engine}, durationMs=${result.durationMs}`,
     );
     await recordCompile({
       projectId,
@@ -588,3 +461,4 @@ export async function runCompilePass(params: {
     setCompileInstallProgress?.(null);
   }
 }
+

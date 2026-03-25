@@ -1,0 +1,6 @@
+[project]
+name = "latotex-analysis-runtime"
+version = "0.1.0"
+description = "Native analysis runtime for LatoTex"
+requires-python = ">=3.12"
+dependencies = []

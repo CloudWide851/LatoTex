@@ -28,7 +28,8 @@
     "targets": "all",
     "resources": [
       "resources/tools",
-      "resources/core"
+      "resources/core",
+      "resources/python"
     ],
     "windows": {
       "allowDowngrades": false,

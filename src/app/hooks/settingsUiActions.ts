@@ -1,4 +1,3 @@
-import { busytexCachePrepare } from "../../shared/api/local-resources";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { testModelDraft, testProtocol } from "../../shared/api/settings";
 import type { Dispatch, SetStateAction } from "react";
@@ -58,47 +57,6 @@ export function handleThemeModeChangeAction(params: {
   applyTheme(nextTheme);
 }
 
-export async function handleBusyTexCachePolicyChangeAction(params: {
-  policy: "install-first" | "appdata-only";
-  locale: string;
-  t: (key: any) => string;
-  setBusy: (value: boolean) => void;
-  setBusytexCacheInfo: (value: any) => void;
-  setSettings: Dispatch<SetStateAction<any>>;
-  setToast: (value: { type: "info" | "error"; message: string }) => void;
-}) {
-  const { policy, locale, t, setBusy, setBusytexCacheInfo, setSettings, setToast } = params;
-  setBusy(true);
-  try {
-    const info = await busytexCachePrepare(policy);
-    setBusytexCacheInfo(info);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
-      window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
-    }
-    setSettings((prev: any) =>
-      prev
-        ? {
-            ...prev,
-            uiPrefs: {
-              ...(prev.uiPrefs ?? {}),
-              language: prev.uiPrefs?.language ?? locale,
-              busytexCachePolicy: info.policy as "install-first" | "appdata-only",
-              busytexCacheDir: info.actualDir,
-              panelLayout: prev.uiPrefs?.panelLayout,
-              theme: prev.uiPrefs?.theme,
-            },
-          }
-        : prev,
-    );
-    setToast({ type: "info", message: t("settings.busytexPrepared") });
-  } catch (error) {
-    setToast({ type: "error", message: String(error) });
-  } finally {
-    setBusy(false);
-  }
-}
-
 export async function handleProtocolPingAction(params: {
   protocolId: string;
   baseUrl: string;
@@ -136,3 +94,4 @@ export async function handleProtocolPingAction(params: {
   );
   return result;
 }
+

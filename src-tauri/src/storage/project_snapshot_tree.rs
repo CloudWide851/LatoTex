@@ -110,7 +110,7 @@ fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
 \maketitle
 
 \section{Welcome to LatoTex}
-LatoTex provides \textbf{agent-assisted writing} and \textbf{BusyTeX local compilation}.
+LatoTex provides \textbf{agent-assisted writing} and \textbf{native LaTeX compilation}.
 
 \subsection{Equation example}
 \begin{equation}
@@ -406,4 +406,5 @@ pub fn list_workspace_tree(root_path: &Path) -> Result<Vec<ResourceNode>, String
     entries.sort_by_key(node_sort_key);
     Ok(entries)
 }
+
 

@@ -174,7 +174,6 @@ export function AppContainer() {
     setProjectSearchBusy: s.setProjectSearchBusy,
     setPage: s.setPage,
     setPendingRevealLine: s.setPendingRevealLine,
-    setBusytexCacheInfo: s.setBusytexCacheInfo,
     setDeleteIntent: s.setDeleteIntent,
     setDeleteDontAskAgain: s.setDeleteDontAskAgain,
     setThemeTransition: s.setThemeTransition,
@@ -240,10 +239,6 @@ export function AppContainer() {
     gitDownloadTaskId: s.gitDownloadTaskId,
     gitInstallerLaunched: s.gitInstallerLaunched,
     settingsTheme: s.settings?.uiPrefs?.theme as ThemeMode | undefined,
-    busytexCachePolicy: s.settings?.uiPrefs?.busytexCachePolicy as
-      | "install-first"
-      | "appdata-only"
-      | undefined,
     loadProjectData,
     refreshGitWorkspace,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
@@ -268,7 +263,6 @@ export function AppContainer() {
     setProjectSearchSearched: s.setProjectSearchSearched,
     setEvents: s.setEvents,
     setCursor: s.setCursor,
-    setBusytexCacheInfo: s.setBusytexCacheInfo,
     resizeFrameRef: s.resizeFrameRef,
     setIsMaximized: s.setIsMaximized,
     editorRef: s.editorRef,
@@ -388,7 +382,6 @@ export function AppContainer() {
     activeProjectId: s.activeProjectId,
     settingsSection: s.settingsSection,
     setSettingsSection: s.setSettingsSection,
-    busytexCacheInfo: s.busytexCacheInfo,
     runtimeInfo: s.runtimeInfo,
     runtimeLogs: s.runtimeLogs,
     runtimeLogLoading: s.runtimeLogLoading,
@@ -397,7 +390,6 @@ export function AppContainer() {
     modelTestById: s.modelTestById,
     handleLocaleChange: handlers.handleLocaleChange,
     handleThemeModeChange: handlers.handleThemeModeChange,
-    handleBusyTexCachePolicyChange: handlers.handleBusyTexCachePolicyChange,
     openModelModal: workspaceActions.openModelModal,
     setRuntimeLogLoading: s.setRuntimeLogLoading,
     setRuntimeLogs: s.setRuntimeLogs,

@@ -60,6 +60,14 @@ type LibraryViewerContentPanelProps = {
   selectedPath: string | null;
   runTranslation: (onSuccess?: () => void) => void;
   hasComparePair: boolean;
+  paperPreview?: {
+    title?: string | null;
+    detectedLanguage?: string | null;
+    extractionEngine?: string | null;
+    pageCount?: number;
+    excerpt?: string | null;
+  } | null;
+  onAnalyzePaper?: (() => void) | null;
   translatedPdfUrl: string | null;
   compareScrollTop: number;
   setCompareScrollTop: (next: number) => void;
@@ -118,6 +126,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     setCompareScrollTop,
     bibPreview,
     citation,
+    paperPreview,
+    onAnalyzePaper,
     linkError,
     t,
   } = props;
@@ -305,9 +315,11 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           </div>
         )}
       </section>
-      <LibraryCitationMetaPanel citation={citation} linkError={linkError} t={t} />
+      <LibraryCitationMetaPanel citation={citation} paperPreview={paperPreview} onAnalyzePaper={onAnalyzePaper} linkError={linkError} t={t} />
     </div>
   );
 }
+
+
 
 

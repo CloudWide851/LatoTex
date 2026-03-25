@@ -84,6 +84,54 @@ export type LibraryPaperExtractResult = {
   ocrPageCount: number;
 };
 
+export type NativeLatexCompileResponse = {
+  status: string;
+  engine: string;
+  diagnostics: string[];
+  durationMs: number;
+  pdfRelativePath?: string | null;
+  logRelativePath?: string | null;
+  pdfBytes?: number[] | null;
+  usedFallbackFonts: string[];
+  recoveredPackages: string[];
+};
+
+export type AnalysisEnvStatus = {
+  ready: boolean;
+  uvPath?: string | null;
+  uvVersion?: string | null;
+  pythonPath?: string | null;
+  pythonVersion?: string | null;
+  venvPath: string;
+  runtimeRoot: string;
+  lastError?: string | null;
+};
+
+export type AnalysisNumericSeriesItem = {
+  label: string;
+  value: number;
+};
+
+export type AnalysisSourceSnapshotInput = {
+  path: string;
+  kind: string;
+  summary: string;
+  excerpt: string;
+  rows?: number;
+  columns?: number;
+  numericSeries?: AnalysisNumericSeriesItem[];
+};
+
+export type AnalysisRunPythonResponse = {
+  status: string;
+  runtimeSource: string;
+  pythonPath: string;
+  venvPath: string;
+  stdout: string;
+  stderr: string;
+  diagnostics: string[];
+  profileJson: Record<string, unknown>;
+};
 export type CompileRecord = {
   id: string;
   projectId: string;
@@ -266,43 +314,6 @@ export type GitDiffResponse = {
   hunks: GitDiffHunk[];
 };
 
-export type AnalysisPyodideCacheInfo = {
-  policy: string;
-  requestedDir: string;
-  actualDir: string;
-  installDirWritable: boolean;
-  usingFallback: boolean;
-  baseUrl?: string | null;
-  moduleUrl?: string | null;
-  indexUrl?: string | null;
-};
-
-export type BusyTexCacheInfo = {
-  policy: string;
-  requestedDir: string;
-  actualDir: string;
-  installDirWritable: boolean;
-  usingFallback: boolean;
-  baseUrl?: string | null;
-  candidateBaseUrls?: string[];
-  preferredInitMode?: "worker" | "direct" | null;
-};
-
-export type BusyTexInstalledOverlayFile = {
-  path: string;
-  content: string;
-};
-
-export type BusyTexInstallPackageResult = {
-  styleFile: string;
-  packageName: string;
-  installed: boolean;
-  fromCache: boolean;
-  sourceUrl: string | null;
-  cacheDir: string;
-  overlayFiles: BusyTexInstalledOverlayFile[];
-};
-
 export type DrawioCacheInfo = {
   policy: string;
   requestedDir: string;
@@ -314,29 +325,6 @@ export type DrawioCacheInfo = {
   candidateHostUrls?: string[];
 };
 
-export type LocalResourceProbeEntry = {
-  key: string;
-  policy: string;
-  requestedDir?: string | null;
-  actualDir?: string | null;
-  installDirWritable?: boolean | null;
-  usingFallback?: boolean | null;
-  baseUrl?: string | null;
-  moduleUrl?: string | null;
-  indexUrl?: string | null;
-  hostUrl?: string | null;
-  preferredInitMode?: "worker" | "direct" | null;
-  ready: boolean;
-  missingAssets: string[];
-  error?: string | null;
-};
-
-export type LocalResourceProbeResponse = {
-  busytex: LocalResourceProbeEntry;
-  pyodide: LocalResourceProbeEntry;
-  drawio: LocalResourceProbeEntry;
-};
-
 export type Ack = {
   ok: boolean;
   message: string;
@@ -346,3 +334,4 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+

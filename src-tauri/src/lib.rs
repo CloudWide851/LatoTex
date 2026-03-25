@@ -13,11 +13,9 @@ use commands::agent_workflows::{
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
-use commands::busytex::{
-    analysis_pyodide_prepare, busytex_cache_prepare, busytex_install_missing_package,
-    drawio_cache_prepare, local_resource_probe,
-};
+use commands::local_resources::drawio_cache_prepare;
 use commands::channels::{channels_telegram_poll, channels_telegram_send};
+use commands::native_runtime::{analysis_env_prepare, analysis_env_status, analysis_run_python, latex_compile_native};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_download_cancel,
     git_commit_files,
@@ -192,15 +190,17 @@ pub fn run() {
             git_fetch,
             git_pull,
             git_push,
-            busytex_cache_prepare,
-            busytex_install_missing_package,
-            analysis_pyodide_prepare,
-            drawio_cache_prepare,
-            local_resource_probe
+            latex_compile_native,
+            analysis_env_prepare,
+            analysis_env_status,
+            analysis_run_python,
+            drawio_cache_prepare
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
 
 
 

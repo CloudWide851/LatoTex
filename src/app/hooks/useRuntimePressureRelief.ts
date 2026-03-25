@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { disposePyodideRunner } from "../../features/analysis/pyodide/runner";
-import { disposeBusyTeXRuntime } from "../../features/latex/compiler/busytex";
+import { disposeNativeLatexRuntime } from "../../features/latex/compiler/native";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import type { SwarmEvent } from "../../shared/types/app";
 import { trimEventsForMemoryPressure } from "./eventMemoryBudget";
@@ -36,8 +35,7 @@ export function useRuntimePressureRelief(params: {
     }
     lastReleaseAtRef.current = now;
 
-    disposeBusyTeXRuntime({ resetCacheBase: false });
-    disposePyodideRunner();
+    disposeNativeLatexRuntime();
 
     if (pdfUrl) {
       URL.revokeObjectURL(pdfUrl);
@@ -73,3 +71,5 @@ export function useRuntimePressureRelief(params: {
 
   return { release };
 }
+
+

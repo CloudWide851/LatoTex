@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { resolveLocale } from "../../i18n";
 import { getEvents } from "../../shared/api/agent";
 import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
-import { busytexCachePrepare } from "../../shared/api/local-resources";
 import { listProjects, openProject } from "../../shared/api/projects";
 import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
 import { getSettings } from "../../shared/api/settings";
@@ -39,7 +38,6 @@ export function useAppEffects(params: {
   gitDownloadTaskId: string | null;
   gitInstallerLaunched: boolean;
   settingsTheme: ThemeMode | undefined;
-  busytexCachePolicy: "install-first" | "appdata-only" | undefined;
   loadProjectData: (projectId: string) => Promise<void>;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   handleGitRunInstaller: () => Promise<void>;
@@ -64,7 +62,6 @@ export function useAppEffects(params: {
   setProjectSearchSearched: (value: boolean) => void;
   setEvents: (value: any) => void;
   setCursor: (value: number) => void;
-  setBusytexCacheInfo: (value: any) => void;
   resizeFrameRef: React.MutableRefObject<number | null>;
   setIsMaximized: React.Dispatch<React.SetStateAction<boolean>>;
   editorRef: React.MutableRefObject<any>;
@@ -90,7 +87,6 @@ export function useAppEffects(params: {
     gitDownloadTaskId,
     gitInstallerLaunched,
     settingsTheme,
-    busytexCachePolicy,
     loadProjectData,
     refreshGitWorkspace,
     handleGitRunInstaller,
@@ -115,7 +111,6 @@ export function useAppEffects(params: {
     setProjectSearchSearched,
     setEvents,
     setCursor,
-    setBusytexCacheInfo,
     resizeFrameRef,
     setIsMaximized,
     editorRef,
@@ -214,9 +209,6 @@ export function useAppEffects(params: {
           closeBehavior: appSettings.uiPrefs?.closeBehavior ?? "ask",
           closeBehaviorRemember: appSettings.uiPrefs?.closeBehaviorRemember ?? false,
           theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
-          busytexCachePolicy:
-            appSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
-          busytexCacheDir: appSettings.uiPrefs?.busytexCacheDir,
           previewDefaultZoom: appSettings.uiPrefs?.previewDefaultZoom ?? 1,
           backgroundImagePath: activeBackgroundPath,
           backgroundImagePaths: backgroundList,
@@ -239,16 +231,6 @@ export function useAppEffects(params: {
       setLocale(initialLocale);
       if (typeof window !== "undefined") {
         window.localStorage.setItem("latotex.locale", initialLocale);
-        window.localStorage.setItem(
-          "latotex.busytex.cachePolicy",
-          normalizedSettings.uiPrefs?.busytexCachePolicy ?? "install-first",
-        );
-        if (normalizedSettings.uiPrefs?.busytexCacheDir) {
-          window.localStorage.setItem(
-            "latotex.busytex.cacheDir",
-            normalizedSettings.uiPrefs.busytexCacheDir,
-          );
-        }
       }
       applyTheme((normalizedSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system");
 
@@ -407,21 +389,6 @@ export function useAppEffects(params: {
     };
   }, [agentRunId, analysisRunning, page, setCursor, setEvents, suspended]);
 
-  useEffect(() => {
-    const policy = busytexCachePolicy ?? null;
-    if (!policy) {
-      return;
-    }
-    busytexCachePrepare(policy)
-      .then((info) => {
-        setBusytexCacheInfo(info);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("latotex.busytex.cachePolicy", info.policy);
-          window.localStorage.setItem("latotex.busytex.cacheDir", info.actualDir);
-        }
-      })
-      .catch(() => undefined);
-  }, [busytexCachePolicy, setBusytexCacheInfo]);
 
   useEffect(() => {
     if (!isTauriRuntime) {
@@ -547,5 +514,7 @@ export function useAppEffects(params: {
     suspended,
   });
 }
+
+
 
 

@@ -169,70 +169,6 @@ pub struct GitDiffResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BusyTexCacheInfo {
-    pub policy: String,
-    pub requested_dir: String,
-    pub actual_dir: String,
-    pub install_dir_writable: bool,
-    pub using_fallback: bool,
-    pub base_url: Option<String>,
-    pub candidate_base_urls: Vec<String>,
-    pub preferred_init_mode: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BusyTexCachePrepareInput {
-    pub policy: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BusyTexInstallPackageInput {
-    pub style_file: String,
-    pub policy: Option<String>,
-    pub cache_only: Option<bool>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct BusyTexInstalledOverlayFile {
-    pub path: String,
-    pub content: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BusyTexInstallPackageResult {
-    pub style_file: String,
-    pub package_name: String,
-    pub installed: bool,
-    pub from_cache: bool,
-    pub source_url: Option<String>,
-    pub cache_dir: String,
-    pub overlay_files: Vec<BusyTexInstalledOverlayFile>,
-}
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AnalysisPyodideCacheInfo {
-    pub policy: String,
-    pub requested_dir: String,
-    pub actual_dir: String,
-    pub install_dir_writable: bool,
-    pub using_fallback: bool,
-    pub base_url: Option<String>,
-    pub module_url: Option<String>,
-    pub index_url: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AnalysisPyodidePrepareInput {
-    pub policy: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DrawioCacheInfo {
     pub policy: String,
     pub requested_dir: String,
@@ -250,35 +186,3 @@ pub struct DrawioCachePrepareInput {
     pub policy: String,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalResourceProbeEntry {
-    pub key: String,
-    pub policy: String,
-    pub requested_dir: Option<String>,
-    pub actual_dir: Option<String>,
-    pub install_dir_writable: Option<bool>,
-    pub using_fallback: Option<bool>,
-    pub base_url: Option<String>,
-    pub module_url: Option<String>,
-    pub index_url: Option<String>,
-    pub host_url: Option<String>,
-    pub preferred_init_mode: Option<String>,
-    pub ready: bool,
-    pub missing_assets: Vec<String>,
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalResourceProbeResponse {
-    pub busytex: LocalResourceProbeEntry,
-    pub pyodide: LocalResourceProbeEntry,
-    pub drawio: LocalResourceProbeEntry,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LocalResourceProbeInput {
-    pub policy: Option<String>,
-}

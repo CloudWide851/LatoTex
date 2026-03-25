@@ -2,13 +2,10 @@ type TranslationFn = (key: any) => string;
 
 const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written(?:\.[A-Za-z0-9_-]+)?\.?)/gi;
 const NOISE_PATTERNS: RegExp[] = [
-  /^busytex\b/i,
   /^package progress\b/i,
   /^installing package\b/i,
   /^宏包安装进度\b/i,
   /^正在安装宏包\b/i,
-  /^busytex is retrying compile\b/i,
-  /^busytex 正在使用更新后的依赖重试编译\b/i,
 ];
 const PRIORITY_PATTERNS: RegExp[] = [
   /fontspec\s+error/i,
@@ -64,15 +61,6 @@ function detectMissingPackage(diagnostics: string[]): string | null {
   return null;
 }
 
-function hasBusytexWorkerOriginIssue(diagnostics: string[]): boolean {
-  const joined = diagnostics.join("\n").toLowerCase();
-  return (
-    joined.includes("cannot be accessed from origin")
-    || joined.includes("failed to construct 'worker'")
-    || joined.includes("unexpected token <")
-  );
-}
-
 function hasFontspecXdvFatalIssue(diagnostics: string[]): boolean {
   const joined = diagnostics.join("\n").toLowerCase();
   return (
@@ -103,11 +91,6 @@ export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn):
   if (hasFontspecXdvFatalIssue(normalized)) {
     lines.push("");
     lines.push(t("workspace.compileAssist.hintFontspecXdv"));
-  }
-
-  if (hasBusytexWorkerOriginIssue(normalized)) {
-    lines.push("");
-    lines.push(t("workspace.compileAssist.hintBusytexWorkerOrigin"));
   }
 
   lines.push("");

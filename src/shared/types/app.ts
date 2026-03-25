@@ -205,8 +205,6 @@ export type AppSettings = {
     skipDeleteConfirm?: boolean;
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
-    busytexCachePolicy?: "install-first" | "appdata-only";
-    busytexCacheDir?: string;
     previewDefaultZoom?: number;
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: FeatureModelBindings;

@@ -9,7 +9,7 @@ import { fsOperation, workspaceOpenTerminal, workspaceRevealInSystem, writeFile 
 import { isExcelPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
-import { handleBusyTexCachePolicyChangeAction, handleProtocolPingAction, handleThemeModeChangeAction } from "./settingsUiActions";
+import { handleProtocolPingAction, handleThemeModeChangeAction } from "./settingsUiActions";
 import {
   buildRememberedCloseBehaviorSettings,
   resolveWindowControlPlan,
@@ -72,7 +72,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setProjectSearchBusy,
     setPage,
     setPendingRevealLine,
-    setBusytexCacheInfo,
     setDeleteIntent,
     setDeleteDontAskAgain,
     setThemeTransition,
@@ -419,19 +418,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setSelectedFile(hit.relativePath);
     setPendingRevealLine(hit.lineNumber);
   }, [setPage, setPendingRevealLine, setSelectedFile]);
-  const handleBusyTexCachePolicyChange = useCallback(async (
-    policy: "install-first" | "appdata-only",
-  ) => {
-    await handleBusyTexCachePolicyChangeAction({
-      policy,
-      locale,
-      t,
-      setBusy,
-      setBusytexCacheInfo,
-      setSettings,
-      setToast,
-    });
-  }, [locale, setBusy, setBusytexCacheInfo, setSettings, setToast, t]);
   const handleProtocolPing = useCallback(async (input: {
     protocolId: string;
     baseUrl: string;
@@ -544,7 +530,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleThemeModeChange,
     handleProjectSearch,
     handleProjectSearchSelect,
-    handleBusyTexCachePolicyChange,
     handleProtocolPing,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,

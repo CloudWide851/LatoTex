@@ -245,7 +245,6 @@ fn copy_runtime_candidates(source_root: &Path, runtime_root: &Path) -> Result<()
         "install-state.json",
         "projects",
         "downloads",
-        "busytex-cache",
         "logs",
     ];
     for name in candidates {
@@ -394,5 +393,7 @@ fn write_install_state(path: &PathBuf, state: &InstallState) -> Result<(), Strin
     let serialized = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
     fs::write(path, serialized).map_err(|e| e.to_string())
 }
+
+
 
 
