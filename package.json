@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/ensure-drawio-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
+    "build": "node scripts/ensure-drawio-assets.mjs && node scripts/ensure-tectonic-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -58,3 +58,4 @@
     "vitest": "^2.1.8"
   }
 }
+

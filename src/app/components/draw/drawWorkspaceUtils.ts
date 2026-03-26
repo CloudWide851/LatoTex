@@ -1,5 +1,11 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { drawioCachePrepare } from "../../../shared/api/local-resources";
+import {
+  buildLocalResourceBaseCandidates,
+  buildLocalResourceEntryCandidates,
+  prioritizeReachableLocalResourceCandidates,
+  uniqueLocalResourceValues,
+} from "../../../shared/utils/localResourceProbe";
 
 export type DrawMessage = {
   event?: string;
@@ -27,6 +33,13 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
+function buildDrawioEntryCandidates(entryUrl: string, actualDir: string): string[] {
+  const directCandidates = [String(entryUrl || "").trim(), DRAWIO_HOST_URL];
+  const localBaseCandidates = buildLocalResourceBaseCandidates(actualDir);
+  const localEntryCandidates = buildLocalResourceEntryCandidates(localBaseCandidates, "index.html");
+  return uniqueLocalResourceValues([...directCandidates, ...localEntryCandidates, DRAWIO_HOST_URL]);
+}
+
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
     return [DRAWIO_HOST_URL];
@@ -41,10 +54,11 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    const entryUrl = String(info.entryUrl || "").trim();
-    return entryUrl ? [entryUrl] : [];
+    const candidates = buildDrawioEntryCandidates(info.entryUrl, info.actualDir);
+    const reachable = await prioritizeReachableLocalResourceCandidates(candidates);
+    return reachable.length > 0 ? reachable : [DRAWIO_HOST_URL];
   } catch {
-    return [];
+    return [DRAWIO_HOST_URL];
   }
 }
 
@@ -257,5 +271,3 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
-
-

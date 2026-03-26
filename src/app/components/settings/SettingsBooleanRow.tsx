@@ -34,7 +34,7 @@ export function SettingsBooleanRow(props: {
     }
     if (event.key === " " || event.key === "Enter") {
       event.preventDefault();
-      onCheckedChange(!checked);
+      toggle();
     }
   };
 
@@ -53,13 +53,15 @@ export function SettingsBooleanRow(props: {
       onKeyDown={handleKeyDown}
     >
       <span className={cn("pr-3", textClassName)}>{label}</span>
-      <Checkbox
-        checked={checked}
-        disabled={disabled}
-        className={checkboxClassName}
-        onClick={(event) => event.stopPropagation()}
-        onChange={(event) => onCheckedChange(event.target.checked)}
-      />
+      <div className="pointer-events-none">
+        <Checkbox
+          checked={checked}
+          disabled={disabled}
+          readOnly
+          tabIndex={-1}
+          className={checkboxClassName}
+        />
+      </div>
     </div>
   );
 }

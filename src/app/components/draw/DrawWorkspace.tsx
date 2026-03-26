@@ -1,4 +1,3 @@
-import { Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
@@ -8,15 +7,22 @@ import {
   loadPersistedTabs,
   normalizePath,
   parseDrawMessage,
+  persistDrawExportToWorkspace,
   resolveDrawioHostFrameCandidates,
   savePersistedTabs,
   tabTitleFromPath,
-  persistDrawExportToWorkspace,
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
-
+import { DrawWorkspaceTabs } from "./DrawWorkspaceTabs";
 
 type TranslationFn = (key: any) => string;
+
+type WorkspaceFsEventDetail = {
+  scope: FsScope;
+  action: FsAction;
+  path: string;
+  targetPath?: string;
+};
 
 const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="app.diagrams.net">
@@ -30,14 +36,25 @@ const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
   </diagram>
 </mxfile>`;
 
-
-
-
+function formatDrawStartFailure(t: TranslationFn, detail?: string | null): string {
+  const normalized = String(detail || "").trim();
+  if (!normalized) {
+    return t("draw.startFailed");
+  }
+  return t("draw.startFailedDetail").replace("{detail}", normalized);
+}
 
 export function DrawWorkspace(props: {
   projectId: string | null;
   selectedPath: string | null;
   onSelectPath: (path: string | null) => void;
+  onRequestFsAction: (
+    scope: FsScope,
+    action: FsAction,
+    path: string,
+    targetPath?: string,
+    content?: string,
+  ) => Promise<void>;
   onRunFsAction: (
     scope: FsScope,
     action: FsAction,
@@ -47,7 +64,7 @@ export function DrawWorkspace(props: {
   ) => Promise<boolean>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onSelectPath, onRunFsAction, t } = props;
+  const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
   const xmlByPathRef = useRef<Record<string, string>>({});
@@ -82,7 +99,7 @@ export function DrawWorkspace(props: {
           setReady(false);
           setFrameSrc(null);
           frameSrcRef.current = null;
-          setStatus(t("draw.startFailed"));
+          setStatus(formatDrawStartFailure(t, "no reachable host"));
           return;
         }
 
@@ -93,7 +110,7 @@ export function DrawWorkspace(props: {
         frameSrcRef.current = resolved[0];
         setStatus("");
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) {
           return;
         }
@@ -102,7 +119,7 @@ export function DrawWorkspace(props: {
         setReady(false);
         setFrameSrc(null);
         frameSrcRef.current = null;
-        setStatus(t("draw.startFailed"));
+        setStatus(formatDrawStartFailure(t, String(error)));
       });
 
     return () => {
@@ -134,6 +151,12 @@ export function DrawWorkspace(props: {
     postToFrame({ action: "load", autosave: 1, xml });
   }, [activePath, postToFrame, ready]);
 
+  const selectTabPath = useCallback((path: string | null) => {
+    activePathRef.current = path;
+    setActivePath(path);
+    onSelectPath(path);
+  }, [onSelectPath]);
+
   const ensureTabPath = useCallback((path: string, makeActive = true) => {
     const normalized = normalizePath(path);
     if (!isDrawPath(normalized)) {
@@ -141,11 +164,9 @@ export function DrawWorkspace(props: {
     }
     setTabPaths((prev) => (prev.includes(normalized) ? prev : [...prev, normalized]));
     if (makeActive) {
-      activePathRef.current = normalized;
-      setActivePath(normalized);
-      onSelectPath(normalized);
+      selectTabPath(normalized);
     }
-  }, [onSelectPath]);
+  }, [selectTabPath]);
 
   const replaceTabPath = useCallback((fromPath: string, toPath: string) => {
     setTabPaths((prev) => prev.map((item) => (item === fromPath ? toPath : item)));
@@ -182,13 +203,11 @@ export function DrawWorkspace(props: {
       const next = prev.filter((item) => item !== path);
       if (activePathRef.current === path) {
         const nextActive = next[removedIndex] ?? next[removedIndex - 1] ?? null;
-        activePathRef.current = nextActive;
-        setActivePath(nextActive);
-        onSelectPath(nextActive);
+        selectTabPath(nextActive);
       }
       return next;
     });
-  }, [onSelectPath]);
+  }, [selectTabPath]);
 
   const openPathContent = useCallback(async (path: string) => {
     if (!projectId || !path) {
@@ -210,7 +229,7 @@ export function DrawWorkspace(props: {
       }
       xmlByPathRef.current[path] = EMPTY_DIAGRAM;
       loadActiveToFrame(EMPTY_DIAGRAM);
-      setStatus(t("draw.startFailed"));
+      setStatus(formatDrawStartFailure(t, String(error)));
     }
   }, [loadActiveToFrame, projectId, removeTabPath, t]);
 
@@ -289,22 +308,12 @@ export function DrawWorkspace(props: {
     }
   }, [onRunFsAction, projectId, renameInput, replaceTabPath, t, tabPaths]);
 
-  const deleteTabAndFile = useCallback(async (path: string) => {
+  const requestDeleteTabAndFile = useCallback(async (path: string) => {
     if (!projectId || busy) {
       return;
     }
-    setBusy(true);
-    try {
-      const ok = await onRunFsAction("workspace", "delete", path);
-      if (!ok) {
-        return;
-      }
-      removeTabPath(path);
-      setStatus(t("toast.fsUpdated"));
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, onRunFsAction, projectId, removeTabPath, t]);
+    await onRequestFsAction("workspace", "delete", path);
+  }, [busy, onRequestFsAction, projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -335,7 +344,7 @@ export function DrawWorkspace(props: {
     setTabPaths(paths);
     setActivePath(resolvedActive);
     activePathRef.current = resolvedActive;
-  }, [projectId]);
+  }, [projectId, selectedPath]);
 
   useEffect(() => {
     if (!projectId) {
@@ -358,6 +367,30 @@ export function DrawWorkspace(props: {
     }
     void openPathContent(activePath);
   }, [activePath, openPathContent, projectId]);
+
+  useEffect(() => {
+    const handleWorkspaceFs = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceFsEventDetail>).detail;
+      if (!detail || detail.scope !== "workspace") {
+        return;
+      }
+      const normalizedPath = normalizePath(detail.path);
+      if (detail.action === "delete") {
+        removeTabPath(normalizedPath);
+        setStatus(t("toast.fsUpdated"));
+        return;
+      }
+      if (detail.action === "rename" && detail.targetPath) {
+        replaceTabPath(normalizedPath, normalizePath(detail.targetPath));
+        setStatus(t("toast.fsUpdated"));
+      }
+    };
+
+    window.addEventListener("latotex.workspace.fs", handleWorkspaceFs as EventListener);
+    return () => {
+      window.removeEventListener("latotex.workspace.fs", handleWorkspaceFs as EventListener);
+    };
+  }, [removeTabPath, replaceTabPath, t]);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -450,7 +483,7 @@ export function DrawWorkspace(props: {
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [loadActiveToFrame, postToFrame, projectId, t]);
+  }, [activePath, loadActiveToFrame, postToFrame, projectId, t]);
 
   useEffect(() => {
     if (!frameSrc) {
@@ -470,7 +503,7 @@ export function DrawWorkspace(props: {
         setStatus(t("draw.waiting"));
         return;
       }
-      setStatus(t("draw.startFailed"));
+      setStatus(formatDrawStartFailure(t, frameSrcRef.current));
     }, 12_000);
     return () => {
       if (initTimerRef.current !== null) {
@@ -490,86 +523,28 @@ export function DrawWorkspace(props: {
 
   return (
     <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
-      <header className="panel-topbar flex min-w-0 items-center gap-1 border-b border-slate-200 px-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1 hide-scrollbar">
-          {tabPaths.map((path) => {
-            const active = path === activePath;
-            const editing = path === renamingPath;
-            return (
-              <div
-                key={path}
-                className={`group inline-flex h-7 min-w-0 max-w-[260px] items-center gap-1 rounded border px-2 text-xs ${
-                  active
-                    ? "border-primary-400 bg-primary-50 text-primary-800"
-                    : "border-slate-300 bg-white text-slate-700"
-                }`}
-              >
-                {editing ? (
-                  <input
-                    className="h-5 min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 text-xs text-slate-700"
-                    value={renameInput}
-                    autoFocus
-                    onChange={(event) => setRenameInput(event.target.value)}
-                    onBlur={() => {
-                      void commitRename(path);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void commitRename(path);
-                        return;
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        setRenamingPath(null);
-                      }
-                    }}
-                  />
-                ) : (
-                  <button
-                    className="truncate"
-                    onClick={() => {
-                      activePathRef.current = path;
-                      setActivePath(path);
-                      onSelectPath(path);
-                    }}
-                    onDoubleClick={() => startRename(path)}
-                    title={path}
-                  >
-                    {tabTitleFromPath(path)}
-                  </button>
-                )}
-                <button
-                  className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  onClick={() => {
-                    if (editing) {
-                      setRenamingPath(null);
-                      return;
-                    }
-                    void deleteTabAndFile(path);
-                  }}
-                  title={t("common.close")}
-                  aria-label={t("common.close")}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-          <button
-            className="panel-topbar-btn inline-flex shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            onClick={() => {
-              void createNewTab();
-            }}
-            disabled={busy}
-            title={t("draw.newTab")}
-            aria-label={t("draw.newTab")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="panel-topbar-text max-w-[40%] truncate text-[11px] text-slate-500">{status || t("draw.waiting")}</div>
-      </header>
+      <DrawWorkspaceTabs
+        tabPaths={tabPaths}
+        activePath={activePath}
+        renamingPath={renamingPath}
+        renameInput={renameInput}
+        busy={busy}
+        status={status}
+        onRenameInputChange={setRenameInput}
+        onSelectPath={selectTabPath}
+        onStartRename={startRename}
+        onCancelRename={() => setRenamingPath(null)}
+        onCommitRename={(path) => {
+          void commitRename(path);
+        }}
+        onDeletePath={(path) => {
+          void requestDeleteTabAndFile(path);
+        }}
+        onCreateNewTab={() => {
+          void createNewTab();
+        }}
+        t={t}
+      />
 
       <div className="min-h-0">
         {activePath ? (
@@ -590,4 +565,3 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
-

@@ -457,6 +457,11 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         const snapshot = await openProject(activeProjectId);
         setTree(snapshot.tree);
         await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
+            detail: { scope, action, path, targetPath },
+          }));
+        }
       } else {
         const nextTree = await getLibraryTree(activeProjectId);
         setLibraryTree(nextTree);
@@ -547,6 +552,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
+
 
 
 

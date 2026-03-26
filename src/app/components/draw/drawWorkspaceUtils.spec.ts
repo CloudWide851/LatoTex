@@ -5,6 +5,7 @@ describe("drawWorkspaceUtils", () => {
     vi.unstubAllGlobals();
     vi.doUnmock("@tauri-apps/api/core");
     vi.doUnmock("../../../shared/api/local-resources");
+    vi.doUnmock("../../../shared/utils/localResourceProbe");
     vi.resetModules();
   });
 
@@ -17,7 +18,7 @@ describe("drawWorkspaceUtils", () => {
     await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual(["/drawio/index.html"]);
   });
 
-  it("uses backend-provided resource entry URL in tauri mode", async () => {
+  it("keeps same-origin fallback while preserving backend-provided drawio host candidates in tauri mode", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
     }));
@@ -31,14 +32,22 @@ describe("drawWorkspaceUtils", () => {
         entryUrl: "http://latotex-resource.localhost/tool/drawio/index.html",
       })),
     }));
+    vi.doMock("../../../shared/utils/localResourceProbe", () => ({
+      buildLocalResourceBaseCandidates: vi.fn(() => ["http://asset.localhost/F:/LatoTex/drawio-cache"]),
+      buildLocalResourceEntryCandidates: vi.fn(() => ["http://asset.localhost/F:/LatoTex/drawio-cache/index.html"]),
+      prioritizeReachableLocalResourceCandidates: vi.fn(async (candidates: string[]) => candidates),
+      uniqueLocalResourceValues: vi.fn((values: string[]) => Array.from(new Set(values.filter(Boolean)))),
+    }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     const candidates = await resolveDrawioHostFrameCandidates();
 
-    expect(candidates).toEqual(["http://latotex-resource.localhost/tool/drawio/index.html"]);
+    expect(candidates[0]).toBe("http://latotex-resource.localhost/tool/drawio/index.html");
+    expect(candidates).toContain("/drawio/index.html");
+    expect(candidates).toContain("http://asset.localhost/F:/LatoTex/drawio-cache/index.html");
   });
 
-  it("returns no drawio candidates when tauri cache prepare fails", async () => {
+  it("falls back to same-origin host when tauri cache prepare fails", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
     }));
@@ -49,6 +58,6 @@ describe("drawWorkspaceUtils", () => {
     }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
-    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([]);
+    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual(["/drawio/index.html"]);
   });
 });
