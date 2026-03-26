@@ -22,6 +22,12 @@ type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
 type TranslationFn = (key: any) => string;
 
+export type LibraryPdfScrollSync = {
+  source: string;
+  ratio: number;
+  version: number;
+};
+
 type LibraryPdfScrollViewerProps = {
   pdfUrl: string;
   pageCount: number;
@@ -40,8 +46,9 @@ type LibraryPdfScrollViewerProps = {
   onPageCountChange: (count: number) => void;
   onRequestToolConfig?: () => void;
   readOnly?: boolean;
-  scrollTopSync?: number | null;
-  onScrollTopChange?: (scrollTop: number) => void;
+  syncId?: string;
+  scrollSync?: LibraryPdfScrollSync | null;
+  onScrollSyncChange?: (value: LibraryPdfScrollSync) => void;
   containerClassName?: string;
   t: TranslationFn;
 };
@@ -49,6 +56,17 @@ type LibraryPdfScrollViewerProps = {
 export type LibraryPdfScrollViewerHandle = {
   scrollToPage: (page: number) => void;
 };
+
+function clampRatio(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+function maxScrollTop(root: HTMLDivElement): number {
+  return Math.max(0, root.scrollHeight - root.clientHeight);
+}
 
 export const LibraryPdfScrollViewer = forwardRef<
   LibraryPdfScrollViewerHandle,
@@ -72,8 +90,9 @@ export const LibraryPdfScrollViewer = forwardRef<
     onPageCountChange,
     onRequestToolConfig,
     readOnly = false,
-    scrollTopSync,
-    onScrollTopChange,
+    syncId = "viewer",
+    scrollSync,
+    onScrollSyncChange,
     containerClassName = "h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7",
     t,
   } = props;
@@ -96,7 +115,10 @@ export const LibraryPdfScrollViewer = forwardRef<
     const base = Math.max(360, Math.floor((viewportWidth - 42) * 0.92));
     return Math.floor(base * zoom);
   }, [viewportWidth, zoom]);
-  const estimatedPageHeight = useMemo(() => Math.max(340, Math.floor(frameWidth * 1.42) + 16), [frameWidth]);
+  const estimatedPageHeight = useMemo(
+    () => Math.max(340, Math.floor(frameWidth * 1.42) + 16),
+    [frameWidth],
+  );
 
   useImperativeHandle(ref, () => ({
     scrollToPage: (page: number) => {
@@ -158,8 +180,14 @@ export const LibraryPdfScrollViewer = forwardRef<
       scrollRafRef.current = window.requestAnimationFrame(() => {
         scrollRafRef.current = null;
         updateVisiblePage();
-        if (!syncingScrollRef.current) {
-          onScrollTopChange?.(root.scrollTop);
+        if (!syncingScrollRef.current && onScrollSyncChange) {
+          const limit = maxScrollTop(root);
+          const ratio = limit > 0 ? root.scrollTop / limit : 0;
+          onScrollSyncChange({
+            source: syncId,
+            ratio: clampRatio(ratio),
+            version: Date.now(),
+          });
         }
       });
     };
@@ -171,23 +199,25 @@ export const LibraryPdfScrollViewer = forwardRef<
         scrollRafRef.current = null;
       }
     };
-  }, [documentPages, estimatedPageHeight, onScrollTopChange, onVisiblePageChange]);
+  }, [documentPages, estimatedPageHeight, onScrollSyncChange, onVisiblePageChange, syncId]);
 
   useEffect(() => {
     const root = scrollRef.current;
-    if (!root || typeof scrollTopSync !== "number") {
+    if (!root || !scrollSync || scrollSync.source === syncId) {
       return;
     }
-    if (Math.abs(root.scrollTop - scrollTopSync) < 2) {
+    const limit = maxScrollTop(root);
+    const targetTop = clampRatio(scrollSync.ratio) * limit;
+    if (Math.abs(root.scrollTop - targetTop) < 2) {
       return;
     }
     syncingScrollRef.current = true;
-    root.scrollTop = scrollTopSync;
+    root.scrollTop = targetTop;
     const resetId = window.requestAnimationFrame(() => {
       syncingScrollRef.current = false;
     });
     return () => window.cancelAnimationFrame(resetId);
-  }, [scrollTopSync]);
+  }, [documentPages, estimatedPageHeight, scrollSync, syncId]);
 
   useEffect(() => {
     const pending = pendingScrollPageRef.current;
@@ -296,4 +326,3 @@ export const LibraryPdfScrollViewer = forwardRef<
     </div>
   );
 });
-

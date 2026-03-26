@@ -9,13 +9,25 @@ describe("drawWorkspaceUtils", () => {
     vi.resetModules();
   });
 
+  it("builds embed frame URLs for drawio host pages", async () => {
+    const { toDrawioEmbedUrl } = await import("./drawWorkspaceUtils");
+    expect(toDrawioEmbedUrl("/drawio/index.html")).toBe(
+      "/drawio/index.html?embed=1&proto=json&spin=0&configure=1",
+    );
+    expect(toDrawioEmbedUrl("/drawio/index.html?foo=1")).toBe(
+      "/drawio/index.html?foo=1&embed=1&proto=json&spin=0&configure=1",
+    );
+  });
+
   it("keeps fallback drawio host for non-tauri runtime", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => false,
     }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
-    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual(["/drawio/index.html"]);
+    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([
+      "/drawio/index.html?embed=1&proto=json&spin=0&configure=1",
+    ]);
   });
 
   it("keeps same-origin fallback while preserving backend-provided drawio host candidates in tauri mode", async () => {
@@ -42,9 +54,9 @@ describe("drawWorkspaceUtils", () => {
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     const candidates = await resolveDrawioHostFrameCandidates();
 
-    expect(candidates[0]).toBe("http://latotex-resource.localhost/tool/drawio/index.html");
-    expect(candidates).toContain("/drawio/index.html");
-    expect(candidates).toContain("http://asset.localhost/F:/LatoTex/drawio-cache/index.html");
+    expect(candidates[0]).toBe("http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1");
+    expect(candidates).toContain("/drawio/index.html?embed=1&proto=json&spin=0&configure=1");
+    expect(candidates).toContain("http://asset.localhost/F:/LatoTex/drawio-cache/index.html?embed=1&proto=json&spin=0&configure=1");
   });
 
   it("falls back to same-origin host when tauri cache prepare fails", async () => {
@@ -58,6 +70,8 @@ describe("drawWorkspaceUtils", () => {
     }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
-    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual(["/drawio/index.html"]);
+    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([
+      "/drawio/index.html?embed=1&proto=json&spin=0&configure=1",
+    ]);
   });
 });

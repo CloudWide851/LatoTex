@@ -11,7 +11,7 @@ pub struct LatexCompileInput {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LatexCompileResponse {
     pub status: String,
@@ -25,7 +25,7 @@ pub struct LatexCompileResponse {
     pub recovered_packages: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisEnvStatusResponse {
     pub ready: bool,
@@ -41,6 +41,54 @@ pub struct AnalysisEnvStatusResponse {
     pub runtime_root: String,
     pub last_error: Option<String>,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisEnvPrepareStartResponse {
+    pub task_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTaskStatusInput {
+    pub task_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisEnvPrepareStatusResponse {
+    pub task_id: String,
+    pub status: String,
+    pub stage: Option<String>,
+    pub percent: f64,
+    pub message: Option<String>,
+    pub current_item: Option<String>,
+    pub error: Option<String>,
+    pub diagnostics: Vec<String>,
+    pub result: Option<AnalysisEnvStatusResponse>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexCompileStartResponse {
+    pub task_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatexCompileTaskStatusResponse {
+    pub task_id: String,
+    pub status: String,
+    pub stage: Option<String>,
+    pub percent: f64,
+    pub message: Option<String>,
+    pub current_item: Option<String>,
+    pub latest_log_line: Option<String>,
+    pub error: Option<String>,
+    pub diagnostics: Vec<String>,
+    pub result: Option<LatexCompileResponse>,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisNumericSeriesItem {
@@ -82,8 +130,3 @@ pub struct AnalysisRunPythonResponse {
     pub diagnostics: Vec<String>,
     pub profile_json: Value,
 }
-
-
-
-
-

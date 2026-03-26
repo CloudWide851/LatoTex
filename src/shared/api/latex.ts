@@ -1,4 +1,4 @@
-import type { CompileRecord, NativeLatexCompileResponse } from "../types/app";
+import type { CompileRecord, NativeLatexCompileResponse, NativeLatexCompileTaskStatus } from "../types/app";
 import { invokeCommand } from "./core";
 
 export function recordCompile(input: {
@@ -28,5 +28,31 @@ export function compileNativeLatex(input: {
       preferEngine: input.preferEngine,
       reason: input.reason,
     },
+  });
+}
+
+export function compileNativeLatexStart(input: {
+  projectId: string;
+  mainPath: string;
+  entryContent: string;
+  fileMap: Record<string, string>;
+  preferEngine?: string;
+  reason?: string;
+}): Promise<{ taskId: string }> {
+  return invokeCommand<{ taskId: string }>("latex_compile_start", {
+    input: {
+      projectId: input.projectId,
+      mainPath: input.mainPath,
+      entryContent: input.entryContent,
+      fileMap: input.fileMap,
+      preferEngine: input.preferEngine,
+      reason: input.reason,
+    },
+  });
+}
+
+export function compileNativeLatexStatus(taskId: string): Promise<NativeLatexCompileTaskStatus> {
+  return invokeCommand<NativeLatexCompileTaskStatus>("latex_compile_status", {
+    input: { taskId },
   });
 }

@@ -6,6 +6,7 @@ import { ModelModal } from "./ModelModal";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { normalizeLogLevel, resolveLineTone } from "./logTone";
 import type {
+  AnalysisEnvPrepareTaskStatus,
   AnalysisEnvStatus,
   AppSettings,
   ModelCatalogItem,
@@ -38,6 +39,15 @@ function tryFormatJson(input: unknown): string | null {
   }
 }
 
+function resolveEnvPromptStageLabel(t: TranslationFn, stage?: string | null, fallback?: string | null): string {
+  const key = `analysis.envPromptStage.${String(stage || "queued")}`;
+  const resolved = String(t(key as any));
+  if (resolved !== key) {
+    return resolved;
+  }
+  return String(fallback || stage || "");
+}
+
 export function AppOverlays(props: {
   overlay: OverlayType;
   logsTab: LogTab;
@@ -56,6 +66,7 @@ export function AppOverlays(props: {
     envPromptOpen: boolean;
     envPromptBusy: boolean;
     envPromptStatus: AnalysisEnvStatus | null;
+    envPromptTaskStatus: AnalysisEnvPrepareTaskStatus | null;
     handleEnvPromptLater: () => void;
     handleEnvPromptPickLocation: () => void;
     handleEnvPromptCreate: () => void;
@@ -158,10 +169,17 @@ export function AppOverlays(props: {
       })
     : [];
   const envPromptStatus = analysisEnvPrompt.envPromptStatus;
+  const envPromptTaskStatus = analysisEnvPrompt.envPromptTaskStatus;
   const envPromptPath = envPromptStatus?.venvPath || envPromptStatus?.managedRoot || "";
   const envPromptActionLabel = envPromptStatus?.exists
     ? t("analysis.envPromptRepair")
     : t("analysis.envPromptCreate");
+  const envPromptPercent = Math.max(0, Math.min(100, Math.round(envPromptTaskStatus?.percent ?? 0)));
+  const envPromptStageLabel = resolveEnvPromptStageLabel(
+    t,
+    envPromptTaskStatus?.stage,
+    envPromptTaskStatus?.message ?? null,
+  );
 
   return (
     <>
@@ -370,6 +388,23 @@ export function AppOverlays(props: {
               </div>
               <div className="mt-1 break-all font-mono text-xs text-slate-700">{envPromptPath}</div>
             </div>
+            {envPromptTaskStatus?.status === "running" ? (
+              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate">{envPromptStageLabel || t("analysis.envPromptProgress")}</span>
+                  <span className="shrink-0 tabular-nums">{envPromptPercent}%</span>
+                </div>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-sky-100">
+                  <div
+                    className="h-full rounded bg-sky-500 transition-all"
+                    style={{ width: `${Math.max(2, envPromptPercent)}%` }}
+                  />
+                </div>
+                <div className="mt-2 break-all text-[11px] text-sky-700">
+                  {envPromptTaskStatus.currentItem || envPromptTaskStatus.message || "-"}
+                </div>
+              </div>
+            ) : null}
             {envPromptStatus.lastError && (
               <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 {envPromptStatus.lastError}
@@ -440,6 +475,9 @@ export function AppOverlays(props: {
     </>
   );
 }
+
+
+
 
 
 

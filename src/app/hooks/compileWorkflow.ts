@@ -1,8 +1,9 @@
-import { compileWithNativeLatex } from "../../features/latex/compiler/native";
+import { compileWithNativeLatex, compileWithNativeLatexTask } from "../../features/latex/compiler/native";
 import { recordCompile } from "../../shared/api/latex";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
+import type { NativeLatexCompileTaskStatus } from "../../shared/types/app";
 import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
 import {
   type CompileInstallProgress,
@@ -301,6 +302,49 @@ async function buildCompileFileMap(
   }
   return fileMap;
 }
+type NativeCompileResult = Awaited<ReturnType<typeof compileWithNativeLatex>>;
+type CompileMode = "sync" | "task";
+
+type CompileExecutorInput = {
+  projectId: string;
+  mainPath: string;
+  mainSource: string;
+  fileMap: Record<string, string>;
+  reason: string;
+};
+
+function localizeCompileStage(
+  t: (key: any) => string,
+  stage?: string | null,
+  fallback?: string | null,
+): string {
+  const key = `workspace.compileStage.${String(stage || "compiling")}`;
+  const resolved = String(t(key as any));
+  if (resolved !== key) {
+    return resolved;
+  }
+  return String(fallback || stage || t("workspace.compile"));
+}
+
+function toCompileTaskProgress(
+  status: NativeLatexCompileTaskStatus,
+  t: (key: any) => string,
+): CompileInstallProgress {
+  const percent = Math.max(0, Math.min(100, Number(status.percent ?? 0)));
+  const currentPackage = status.currentItem ?? status.latestLogLine ?? null;
+  return {
+    active: true,
+    percent,
+    stage: String(status.stage || "compiling"),
+    currentPackage,
+    completed: Math.max(0, Math.min(100, Math.round(percent))),
+    total: 100,
+    message: localizeCompileStage(t, status.stage, status.message ?? null),
+    detail: status.latestLogLine ?? null,
+    taskId: status.taskId,
+  };
+}
+
 export async function runCompilePass(params: {
   projectId: string;
   mainPath: string;
@@ -317,6 +361,7 @@ export async function runCompilePass(params: {
   setPreferCompiledPreview: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   setCompileInstallProgress?: (value: CompileInstallProgress | null) => void;
+  compileMode?: CompileMode;
 }) {
   const {
     projectId,
@@ -334,6 +379,7 @@ export async function runCompilePass(params: {
     setPreferCompiledPreview,
     setToast,
     setCompileInstallProgress,
+    compileMode = "sync",
   } = params;
   const baseFileMap = await buildCompileFileMap(projectId, mainPath, mainContent, fileList);
   const baseCompileMap: Record<string, string> = {
@@ -342,8 +388,30 @@ export async function runCompilePass(params: {
   };
   const fontOverlayFileMap: Record<string, string> = {};
   const progressNotes: string[] = [];
+
+  const runNativeCompile = async (
+    input: CompileExecutorInput,
+  ): Promise<NativeCompileResult> => {
+    if (compileMode === "task") {
+      return compileWithNativeLatexTask({
+        ...input,
+        onProgress: (status) => {
+          setCompileInstallProgress?.(toCompileTaskProgress(status, t));
+          const nextDiagnostics = mergeDiagnostics(
+            status.diagnostics ?? [],
+            status.latestLogLine ? [status.latestLogLine] : [],
+          );
+          if (nextDiagnostics.length > 0) {
+            setCompileDiagnostics(nextDiagnostics);
+          }
+        },
+      });
+    }
+    return compileWithNativeLatex(input);
+  };
+
   let compileSource = mainContent;
-  let result = await compileWithNativeLatex({
+  let result = await runNativeCompile({
     projectId,
     mainPath,
     mainSource: compileSource,
@@ -404,7 +472,7 @@ export async function runCompilePass(params: {
         );
         compileSource = fallback.mainSource;
         Object.assign(fontOverlayFileMap, fallback.overlays);
-        result = await compileWithNativeLatex({
+        result = await runNativeCompile({
           projectId,
           mainPath,
           mainSource: compileSource,
@@ -461,4 +529,3 @@ export async function runCompilePass(params: {
     setCompileInstallProgress?.(null);
   }
 }
-

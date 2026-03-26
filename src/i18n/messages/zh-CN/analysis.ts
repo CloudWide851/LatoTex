@@ -55,7 +55,16 @@ export const zhCN_analysis = {
   "analysis.envPromptRepair": "修复环境",
   "analysis.envPromptLater": "稍后",
   "analysis.envPromptReady": "分析环境已就绪。",
-} as const;
+  "analysis.envPromptProgress": "正在准备环境...",
+  "analysis.envPromptStage.queued": "已排队",
+  "analysis.envPromptStage.resolving": "正在解析环境路径",
+  "analysis.envPromptStage.creating_venv": "正在创建 Python 环境",
+  "analysis.envPromptStage.installing_pdf2zh": "正在安装 pdf2zh",
+  "analysis.envPromptStage.installing_runtime": "正在安装分析运行时",
+  "analysis.envPromptStage.verifying": "正在校验运行时",
+  "analysis.envPromptStage.completed": "环境已就绪",
+  "analysis.envPromptStage.failed": "环境准备失败",} as const;
+
 
 
 

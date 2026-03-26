@@ -53,7 +53,7 @@ export function useCompileActions(params: {
     projectId: string,
     mainPath: string,
     mainContent: string,
-    options: { updatePreview: boolean; emitToast: boolean },
+    options: { updatePreview: boolean; emitToast: boolean; compileMode?: "sync" | "task" },
   ) => {
     return runCompilePassWorkflow({
       projectId,
@@ -63,6 +63,7 @@ export function useCompileActions(params: {
       currentPdfUrl: pdfUrl,
       updatePreview: options.updatePreview,
       emitToast: options.emitToast,
+      compileMode: options.compileMode,
       t,
       setLastCompileFailed,
       setCompileDiagnostics,
@@ -91,7 +92,10 @@ export function useCompileActions(params: {
     mainContent: string;
     options: { updatePreview: boolean; emitToast: boolean };
   }) => {
-    return runCompilePass(input.projectId, input.mainPath, input.mainContent, input.options);
+    return runCompilePass(input.projectId, input.mainPath, input.mainContent, {
+      ...input.options,
+      compileMode: "sync",
+    });
   }, [runCompilePass]);
 
   const handleCompile = useCallback(async () => {
@@ -99,12 +103,21 @@ export function useCompileActions(params: {
       return;
     }
     setCompileDiagnostics([]);
-    setCompileInstallProgress(null);
+    setCompileInstallProgress({
+      active: true,
+      percent: 0,
+      stage: "queued",
+      currentPackage: selectedFile,
+      completed: 0,
+      total: 100,
+      message: t("workspace.compileStage.queued"),
+    });
     await runAppAction({
       action: async () => {
         await runCompilePass(activeProjectId, selectedFile, editorContent, {
           updatePreview: true,
           emitToast: true,
+          compileMode: "task",
         });
       },
       fallbackValue: undefined,
@@ -130,6 +143,7 @@ export function useCompileActions(params: {
     setCompiledPdfBytes,
     setLastCompileFailed,
     setToast,
+    t,
   ]);
 
   const handleExportCompiledPdf = useCallback(async () => {

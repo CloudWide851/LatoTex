@@ -12,7 +12,7 @@ import { libraryCitationSummary, libraryExtractPaperContext, libraryResolvePdfPr
 import { readFile, readFileBinary, writeFile } from "../../shared/api/workspace";
 import type { LibraryCitationSummary } from "../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../shared/utils/libraryPath";
-import type { LibraryPdfScrollViewerHandle } from "./library/LibraryPdfScrollViewer";
+import type { LibraryPdfScrollSync, LibraryPdfScrollViewerHandle } from "./library/LibraryPdfScrollViewer";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./library/annotationPalette";
 import {
   parseAnnotationPayload,
@@ -27,7 +27,6 @@ import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel
 import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
 import { filenameFromPath } from "./library/viewerUtils";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
-
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type ViewMode = "bib" | "pdf" | "compare";
@@ -69,7 +68,7 @@ export function LibraryDocumentViewer(props: {
   const lastAnnotationPayloadRef = useRef<string>("");
   const hasPdf = Boolean(pdfUrl);
   const [translatedPdfUrl, setTranslatedPdfUrl] = useState<string | null>(null);
-  const [compareScrollTop, setCompareScrollTop] = useState(0);
+  const [compareScrollSync, setCompareScrollSync] = useState<LibraryPdfScrollSync | null>(null);
 
   const {
     translationBusy,
@@ -583,8 +582,8 @@ export function LibraryDocumentViewer(props: {
         runTranslation={runTranslation}
         hasComparePair={hasComparePair}
         translatedPdfUrl={translatedPdfUrl}
-        compareScrollTop={compareScrollTop}
-        setCompareScrollTop={setCompareScrollTop}
+        compareScrollSync={compareScrollSync}
+        setCompareScrollSync={setCompareScrollSync}
         bibPreview={bibPreview}
         citation={citation}
         paperPreview={paperPreview}
@@ -596,3 +595,5 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
+
+

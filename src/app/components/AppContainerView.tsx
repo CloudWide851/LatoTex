@@ -218,6 +218,7 @@ export function AppContainerView(props: any) {
           projectSearchBusy={projectSearchBusy}
           projectSearchSearched={projectSearchSearched}
           projectSearchResults={projectSearchResults}
+          compileInstallProgress={compileInstallProgress}
           onProjectChange={handleProjectChange}
           onProjectSearchQueryChange={setProjectSearchQuery}
           onProjectSearch={handleProjectSearch}
@@ -415,6 +416,7 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
 
 
 

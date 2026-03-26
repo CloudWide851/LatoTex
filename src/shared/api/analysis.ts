@@ -1,5 +1,6 @@
 import type {
   AnalysisAssetInput,
+  AnalysisEnvPrepareTaskStatus,
   AnalysisEnvStatus,
   AnalysisExportArtifactResponse,
   AnalysisListReportsResponse,
@@ -59,6 +60,18 @@ export function analysisEnvPrepare(projectId: string): Promise<AnalysisEnvStatus
   });
 }
 
+export function analysisEnvPrepareStart(projectId: string): Promise<{ taskId: string }> {
+  return invokeCommand<{ taskId: string }>("analysis_env_prepare_start", {
+    input: { projectId },
+  });
+}
+
+export function analysisEnvPrepareStatus(taskId: string): Promise<AnalysisEnvPrepareTaskStatus> {
+  return invokeCommand<AnalysisEnvPrepareTaskStatus>("analysis_env_prepare_status", {
+    input: { taskId },
+  });
+}
+
 export function analysisEnvStatus(projectId: string): Promise<AnalysisEnvStatus> {
   return invokeCommand<AnalysisEnvStatus>("analysis_env_status", {
     input: { projectId },
@@ -86,3 +99,4 @@ export function analysisRunPython(input: {
     },
   });
 }
+

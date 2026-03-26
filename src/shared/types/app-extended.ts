@@ -99,6 +99,35 @@ export type NativeLatexCompileResponse = {
   recoveredPackages: string[];
 };
 
+export type NativeTaskStartResponse = {
+  taskId: string;
+};
+
+export type AnalysisEnvPrepareTaskStatus = {
+  taskId: string;
+  status: string;
+  stage?: string | null;
+  percent: number;
+  message?: string | null;
+  currentItem?: string | null;
+  error?: string | null;
+  diagnostics: string[];
+  result?: AnalysisEnvStatus | null;
+};
+
+export type NativeLatexCompileTaskStatus = {
+  taskId: string;
+  status: string;
+  stage?: string | null;
+  percent: number;
+  message?: string | null;
+  currentItem?: string | null;
+  latestLogLine?: string | null;
+  error?: string | null;
+  diagnostics: string[];
+  result?: NativeLatexCompileResponse | null;
+};
+
 export type AnalysisEnvStatus = {
   ready: boolean;
   exists: boolean;
@@ -339,6 +368,8 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
+
 
 
 

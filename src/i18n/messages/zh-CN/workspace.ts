@@ -34,4 +34,11 @@ export const zhCN_workspace = {
   "workspace.integrityTitle": "项目完整性检查",
   "workspace.integrityHint": "检测到必要工作区文件缺失，请先修复后再打开项目。",
   "workspace.integrityRepair": "修复缺失文件",
-} as const;
+  "workspace.compileStage.queued": "编译任务已排队",
+  "workspace.compileStage.preparing_workspace": "正在准备编译工作区",
+  "workspace.compileStage.starting_tectonic": "正在启动 Tectonic",
+  "workspace.compileStage.compiling": "正在编译文档",
+  "workspace.compileStage.writing_artifacts": "正在写入编译产物",
+  "workspace.compileStage.completed": "编译已完成",
+  "workspace.compileStage.failed": "编译失败",} as const;
+

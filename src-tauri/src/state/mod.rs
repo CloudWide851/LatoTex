@@ -41,6 +41,33 @@ pub struct LibraryTranslateTask {
     pub result: Arc<Mutex<Option<crate::models::LibraryTranslateResponse>>>,
 }
 
+#[derive(Clone)]
+pub struct AnalysisEnvPrepareTask {
+    pub id: String,
+    pub status: Arc<Mutex<String>>,
+    pub stage: Arc<Mutex<Option<String>>>,
+    pub message: Arc<Mutex<Option<String>>>,
+    pub current_item: Arc<Mutex<Option<String>>>,
+    pub percent_basis_points: Arc<AtomicU64>,
+    pub error: Arc<Mutex<Option<String>>>,
+    pub diagnostics: Arc<Mutex<Vec<String>>>,
+    pub result: Arc<Mutex<Option<crate::models::AnalysisEnvStatusResponse>>>,
+}
+
+#[derive(Clone)]
+pub struct LatexCompileTask {
+    pub id: String,
+    pub status: Arc<Mutex<String>>,
+    pub stage: Arc<Mutex<Option<String>>>,
+    pub message: Arc<Mutex<Option<String>>>,
+    pub current_item: Arc<Mutex<Option<String>>>,
+    pub latest_log_line: Arc<Mutex<Option<String>>>,
+    pub percent_basis_points: Arc<AtomicU64>,
+    pub error: Arc<Mutex<Option<String>>>,
+    pub diagnostics: Arc<Mutex<Vec<String>>>,
+    pub result: Arc<Mutex<Option<crate::models::LatexCompileResponse>>>,
+}
+
 pub struct AppState {
     pub app_name: String,
     pub runtime_root: PathBuf,
@@ -54,6 +81,8 @@ pub struct AppState {
     pub app_version: String,
     pub git_download_tasks: Arc<Mutex<HashMap<String, GitDownloadTask>>>,
     pub library_translate_tasks: Arc<Mutex<HashMap<String, LibraryTranslateTask>>>,
+    pub analysis_env_prepare_tasks: Arc<Mutex<HashMap<String, AnalysisEnvPrepareTask>>>,
+    pub latex_compile_tasks: Arc<Mutex<HashMap<String, LatexCompileTask>>>,
     pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
     pub agent_cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
@@ -116,6 +145,8 @@ impl AppState {
             app_version,
             git_download_tasks: Arc::new(Mutex::new(HashMap::new())),
             library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
+            analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
+            latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -401,4 +432,5 @@ fn write_install_state(path: &PathBuf, state: &InstallState) -> Result<(), Strin
     let serialized = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
     fs::write(path, serialized).map_err(|e| e.to_string())
 }
+
 

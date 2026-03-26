@@ -4,6 +4,7 @@ import type { LibraryCitationSummary } from "../../../shared/types/app";
 import { LibraryCitationMetaPanel } from "./LibraryCitationMetaPanel";
 import {
   LibraryPdfScrollViewer,
+  type LibraryPdfScrollSync,
   type LibraryPdfScrollViewerHandle,
 } from "./LibraryPdfScrollViewer";
 import { LibraryPdfToolSidebar } from "./LibraryPdfToolSidebar";
@@ -69,8 +70,8 @@ type LibraryViewerContentPanelProps = {
   } | null;
   onAnalyzePaper?: (() => void) | null;
   translatedPdfUrl: string | null;
-  compareScrollTop: number;
-  setCompareScrollTop: (next: number) => void;
+  compareScrollSync: LibraryPdfScrollSync | null;
+  setCompareScrollSync: (next: LibraryPdfScrollSync) => void;
   bibPreview: string;
   citation: LibraryCitationSummary | null;
   linkError: string | null;
@@ -122,8 +123,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     runTranslation,
     hasComparePair,
     translatedPdfUrl,
-    compareScrollTop,
-    setCompareScrollTop,
+    compareScrollSync,
+    setCompareScrollSync,
     bibPreview,
     citation,
     paperPreview,
@@ -254,8 +255,9 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 }}
                 onPageCountChange={setPageCount}
                 readOnly
-                scrollTopSync={compareScrollTop}
-                onScrollTopChange={setCompareScrollTop}
+                syncId="source"
+                scrollSync={compareScrollSync}
+                onScrollSyncChange={setCompareScrollSync}
                 containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
                 t={t}
               />
@@ -282,8 +284,9 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 }}
                 onPageCountChange={setPageCount}
                 readOnly
-                scrollTopSync={compareScrollTop}
-                onScrollTopChange={setCompareScrollTop}
+                syncId="translated"
+                scrollSync={compareScrollSync}
+                onScrollSyncChange={setCompareScrollSync}
                 containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
                 t={t}
               />
@@ -319,7 +322,3 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     </div>
   );
 }
-
-
-
-

@@ -1,18 +1,71 @@
 use super::native_runtime_analysis_env::{
-    analysis_env_status_blocking, ensure_analysis_env_blocking, project_env_key,
-    resolve_analysis_env_paths, resolve_analysis_runtime_root, resolve_uv_path,
+    analysis_env_status_blocking, ensure_analysis_env_blocking,
+    ensure_analysis_env_with_progress_blocking, project_env_key, resolve_analysis_env_paths,
+    resolve_analysis_runtime_root, resolve_uv_path,
 };
 use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines, try_version_command};
-use crate::models::{AnalysisEnvStatusResponse, AnalysisRunPythonInput, AnalysisRunPythonResponse};
-use crate::state::AppState;
+use crate::models::{
+    AnalysisEnvPrepareStartResponse, AnalysisEnvPrepareStatusResponse, AnalysisEnvStatusResponse,
+    AnalysisRunPythonInput, AnalysisRunPythonResponse, NativeTaskStatusInput,
+};
+use crate::state::{AnalysisEnvPrepareTask, AppState};
 use crate::storage;
 use rfd::FileDialog;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::State;
 use uuid::Uuid;
 
+fn append_runtime_log(log_file: &std::path::Path, level: &str, message: String) {
+    let _ = crate::logging::append_log_line(log_file, level, &message);
+}
+
+fn snapshot_analysis_env_prepare_task(
+    task: &AnalysisEnvPrepareTask,
+) -> Result<AnalysisEnvPrepareStatusResponse, String> {
+    Ok(AnalysisEnvPrepareStatusResponse {
+        task_id: task.id.clone(),
+        status: task
+            .status
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+        stage: task
+            .stage
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+        percent: task.percent_basis_points.load(Ordering::Relaxed) as f64 / 100.0,
+        message: task
+            .message
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+        current_item: task
+            .current_item
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+        error: task
+            .error
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+        diagnostics: task
+            .diagnostics
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+        result: task
+            .result
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
+    })
+}
 #[tauri::command]
 pub async fn analysis_env_prepare(
     state: State<'_, AppState>,
@@ -38,6 +91,182 @@ pub async fn analysis_env_prepare(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn analysis_env_prepare_start(
+    state: State<'_, AppState>,
+    input: crate::models::ProjectRefInput,
+) -> Result<AnalysisEnvPrepareStartResponse, String> {
+    state.log(
+        "INFO",
+        &format!("analysis_env_prepare_start: project={}", input.project_id),
+    );
+    let task_id = Uuid::new_v4().to_string();
+    let task = AnalysisEnvPrepareTask {
+        id: task_id.clone(),
+        status: Arc::new(Mutex::new("running".to_string())),
+        stage: Arc::new(Mutex::new(Some("queued".to_string()))),
+        message: Arc::new(Mutex::new(Some("queued".to_string()))),
+        current_item: Arc::new(Mutex::new(None)),
+        percent_basis_points: Arc::new(AtomicU64::new(0)),
+        error: Arc::new(Mutex::new(None)),
+        diagnostics: Arc::new(Mutex::new(Vec::new())),
+        result: Arc::new(Mutex::new(None)),
+    };
+    state
+        .analysis_env_prepare_tasks
+        .lock()
+        .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+        .insert(task_id.clone(), task);
+
+    let tasks = state.analysis_env_prepare_tasks.clone();
+    let session_log_path = state.session_log_path.clone();
+    let db_path = state.db_path.clone();
+    let app_data_dir = state.app_data_dir.clone();
+    let runtime_root = state.runtime_root.clone();
+    let project_id = input.project_id;
+    let task_id_for_thread = task_id.clone();
+
+    std::thread::spawn(move || {
+        let with_task = |fn_apply: &dyn Fn(&AnalysisEnvPrepareTask)| {
+            if let Ok(tasks_guard) = tasks.lock() {
+                if let Some(task_ref) = tasks_guard.get(&task_id_for_thread) {
+                    fn_apply(task_ref);
+                }
+            }
+        };
+        let mut last_progress = String::new();
+        append_runtime_log(
+            &session_log_path,
+            "INFO",
+            format!(
+                "analysis_env_prepare.task.start: task_id={}, project={}",
+                task_id_for_thread, project_id
+            ),
+        );
+        match storage::load_project_root(&db_path, &project_id).and_then(|project_root| {
+            ensure_analysis_env_with_progress_blocking(
+                &db_path,
+                &runtime_root,
+                &app_data_dir,
+                &project_id,
+                &project_root,
+                |percent, stage, current_item| {
+                    with_task(&|task_ref| {
+                        task_ref
+                            .percent_basis_points
+                            .store((percent.clamp(0.0, 100.0) * 100.0).round() as u64, Ordering::Relaxed);
+                        if let Ok(mut stage_slot) = task_ref.stage.lock() {
+                            *stage_slot = Some(stage.to_string());
+                        }
+                        if let Ok(mut message_slot) = task_ref.message.lock() {
+                            *message_slot = Some(stage.to_string());
+                        }
+                        if let Ok(mut current_item_slot) = task_ref.current_item.lock() {
+                            *current_item_slot = current_item.map(|value| value.to_string());
+                        }
+                    });
+                    let log_line = format!(
+                        "stage={} percent={:.1} current_item={}",
+                        stage,
+                        percent,
+                        current_item.unwrap_or("-")
+                    );
+                    if log_line != last_progress {
+                        append_runtime_log(
+                            &session_log_path,
+                            "INFO",
+                            format!(
+                                "analysis_env_prepare.task.progress: task_id={}, {}",
+                                task_id_for_thread, log_line
+                            ),
+                        );
+                        last_progress = log_line;
+                    }
+                },
+            )
+        }) {
+            Ok(status) => {
+                with_task(&|task_ref| {
+                    if let Ok(mut status_slot) = task_ref.status.lock() {
+                        *status_slot = "completed".to_string();
+                    }
+                    if let Ok(mut stage_slot) = task_ref.stage.lock() {
+                        *stage_slot = Some("completed".to_string());
+                    }
+                    if let Ok(mut message_slot) = task_ref.message.lock() {
+                        *message_slot = Some("completed".to_string());
+                    }
+                    if let Ok(mut current_item_slot) = task_ref.current_item.lock() {
+                        *current_item_slot = Some(status.venv_path.clone());
+                    }
+                    task_ref.percent_basis_points.store(10_000, Ordering::Relaxed);
+                    if let Ok(mut error_slot) = task_ref.error.lock() {
+                        *error_slot = None;
+                    }
+                    if let Ok(mut diagnostics_slot) = task_ref.diagnostics.lock() {
+                        diagnostics_slot.clear();
+                    }
+                    if let Ok(mut result_slot) = task_ref.result.lock() {
+                        *result_slot = Some(status.clone());
+                    }
+                });
+                append_runtime_log(
+                    &session_log_path,
+                    "INFO",
+                    format!(
+                        "analysis_env_prepare.task.completed: task_id={}, venv_path={}",
+                        task_id_for_thread, status.venv_path
+                    ),
+                );
+            }
+            Err(error) => {
+                with_task(&|task_ref| {
+                    if let Ok(mut status_slot) = task_ref.status.lock() {
+                        *status_slot = "failed".to_string();
+                    }
+                    if let Ok(mut stage_slot) = task_ref.stage.lock() {
+                        *stage_slot = Some("failed".to_string());
+                    }
+                    if let Ok(mut message_slot) = task_ref.message.lock() {
+                        *message_slot = Some(error.clone());
+                    }
+                    if let Ok(mut error_slot) = task_ref.error.lock() {
+                        *error_slot = Some(error.clone());
+                    }
+                    if let Ok(mut diagnostics_slot) = task_ref.diagnostics.lock() {
+                        *diagnostics_slot = vec![error.clone()];
+                    }
+                });
+                append_runtime_log(
+                    &session_log_path,
+                    "ERROR",
+                    format!(
+                        "analysis_env_prepare.task.failed: task_id={}, error={}",
+                        task_id_for_thread, error
+                    ),
+                );
+            }
+        }
+    });
+
+    Ok(AnalysisEnvPrepareStartResponse { task_id })
+}
+
+#[tauri::command]
+pub fn analysis_env_prepare_status(
+    state: State<'_, AppState>,
+    input: NativeTaskStatusInput,
+) -> Result<AnalysisEnvPrepareStatusResponse, String> {
+    let tasks = state
+        .analysis_env_prepare_tasks
+        .lock()
+        .map_err(|_| "analysis.env.task_lock_failed".to_string())?;
+    let task = tasks
+        .get(&input.task_id)
+        .ok_or_else(|| "analysis.env.task_not_found".to_string())?;
+    snapshot_analysis_env_prepare_task(task)
 }
 
 #[tauri::command]
@@ -213,4 +442,7 @@ pub async fn analysis_run_python(
     .await
     .map_err(|e| e.to_string())?
 }
+
+
+
 

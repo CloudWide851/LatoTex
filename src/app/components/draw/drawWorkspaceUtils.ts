@@ -29,20 +29,42 @@ const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
 const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 export const DRAWIO_HOST_URL = "/drawio/index.html";
 
+function appendQueryParams(url: string, values: Record<string, string>): string {
+  const [withoutHash, hash = ""] = String(url || "").split("#", 2);
+  const [basePath, query = ""] = withoutHash.split("?", 2);
+  const params = new URLSearchParams(query);
+  for (const [key, value] of Object.entries(values)) {
+    params.set(key, value);
+  }
+  const nextQuery = params.toString();
+  return `${basePath}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
+}
+
+export function toDrawioEmbedUrl(entryUrl: string): string {
+  return appendQueryParams(entryUrl, {
+    embed: "1",
+    proto: "json",
+    spin: "0",
+    configure: "1",
+  });
+}
+
 function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
 function buildDrawioEntryCandidates(entryUrl: string, actualDir: string): string[] {
-  const directCandidates = [String(entryUrl || "").trim(), DRAWIO_HOST_URL];
+  const directCandidates = [String(entryUrl || "").trim(), DRAWIO_HOST_URL].filter(Boolean);
   const localBaseCandidates = buildLocalResourceBaseCandidates(actualDir);
   const localEntryCandidates = buildLocalResourceEntryCandidates(localBaseCandidates, "index.html");
-  return uniqueLocalResourceValues([...directCandidates, ...localEntryCandidates, DRAWIO_HOST_URL]);
+  const rawCandidates = [...directCandidates, ...localEntryCandidates, DRAWIO_HOST_URL].filter(Boolean);
+  const embedCandidates = rawCandidates.map((candidate) => toDrawioEmbedUrl(candidate));
+  return uniqueLocalResourceValues([...embedCandidates, ...rawCandidates]);
 }
 
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
-    return [DRAWIO_HOST_URL];
+    return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
   }
 
   try {
@@ -56,9 +78,9 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     }
     const candidates = buildDrawioEntryCandidates(info.entryUrl, info.actualDir);
     const reachable = await prioritizeReachableLocalResourceCandidates(candidates);
-    return reachable.length > 0 ? reachable : [DRAWIO_HOST_URL];
+    return reachable.length > 0 ? reachable : [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
   } catch {
-    return [DRAWIO_HOST_URL];
+    return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
   }
 }
 
@@ -271,3 +293,5 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
+
+

@@ -1,11 +1,13 @@
 export type CompileInstallProgress = {
   active: boolean;
   percent: number;
-  stage: "installing" | "retrying";
+  stage: string;
   currentPackage: string | null;
   completed: number;
   total: number;
   message: string;
+  detail?: string | null;
+  taskId?: string | null;
 };
 
 const COMPILE_SKIP_EXTENSIONS = new Set([

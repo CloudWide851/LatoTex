@@ -34,4 +34,11 @@ export const enUS_workspace = {
   "workspace.integrityTitle": "Project Integrity Check",
   "workspace.integrityHint": "Required workspace files are missing. Repair before opening this project.",
   "workspace.integrityRepair": "Repair Missing Files",
-} as const;
+  "workspace.compileStage.queued": "Queued compile task",
+  "workspace.compileStage.preparing_workspace": "Preparing compile workspace",
+  "workspace.compileStage.starting_tectonic": "Starting Tectonic",
+  "workspace.compileStage.compiling": "Compiling document",
+  "workspace.compileStage.writing_artifacts": "Writing compile artifacts",
+  "workspace.compileStage.completed": "Compile completed",
+  "workspace.compileStage.failed": "Compile failed",} as const;
+

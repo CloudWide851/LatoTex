@@ -25,7 +25,9 @@ use commands::local_resources::{
     drawio_cache_prepare, handle_local_resource_request, LOCAL_RESOURCE_SCHEME,
 };
 use commands::native_runtime::{
-    analysis_env_pick_directory, analysis_env_prepare, analysis_env_status, analysis_run_python, latex_compile_native,
+    analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
+    analysis_env_prepare_status, analysis_env_status, analysis_run_python,
+    latex_compile_native, latex_compile_start, latex_compile_status,
 };
 use commands::projects::{
     file_read, file_read_binary, file_write, file_write_binary, fs_operation,
@@ -220,8 +222,12 @@ pub fn run() {
             git_pull,
             git_push,
             latex_compile_native,
+            latex_compile_start,
+            latex_compile_status,
             analysis_env_pick_directory,
             analysis_env_prepare,
+            analysis_env_prepare_start,
+            analysis_env_prepare_status,
             analysis_env_status,
             analysis_run_python,
             drawio_cache_prepare
@@ -229,3 +235,6 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+

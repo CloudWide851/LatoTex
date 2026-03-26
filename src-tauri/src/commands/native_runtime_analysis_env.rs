@@ -48,7 +48,11 @@ pub(crate) fn resolve_pdfmathtranslate_vendor_root() -> Option<PathBuf> {
     })
 }
 
-pub(crate) fn managed_analysis_root(app_data_dir: &Path) -> PathBuf {
+pub(crate) fn managed_analysis_root(runtime_root: &Path) -> PathBuf {
+    runtime_root.join("python-envs")
+}
+
+fn legacy_managed_analysis_root(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("python-envs")
 }
 
@@ -127,8 +131,17 @@ pub(crate) fn resolve_analysis_env_paths(
     project_root: &Path,
 ) -> Result<ResolvedAnalysisEnvPaths, String> {
     let env_key = project_env_key(project_root)?;
-    let base_root = configured_analysis_base_root(db_path, runtime_root, project_id)
-        .unwrap_or_else(|| managed_analysis_root(app_data_dir));
+    let install_root = managed_analysis_root(runtime_root);
+    let legacy_root = legacy_managed_analysis_root(app_data_dir);
+    let base_root = configured_analysis_base_root(db_path, runtime_root, project_id).unwrap_or_else(|| {
+        if install_root.join(&env_key).exists() {
+            install_root.clone()
+        } else if legacy_root.join(&env_key).exists() {
+            legacy_root
+        } else {
+            install_root.clone()
+        }
+    });
     let managed_root = base_root.join(&env_key);
     let venv_path = managed_root.join("venv");
     let python_path = venv_python_path_from_venv_root(&venv_path);
@@ -210,6 +223,20 @@ fn python_module_version(python_path: &Path, package_name: &str) -> Option<Strin
     }
 }
 
+fn pdf2zh_entry_ready(python_path: &Path) -> bool {
+    let mut command = Command::new(python_path);
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg("-m")
+        .arg("pdf2zh.pdf2zh")
+        .arg("--version")
+        .output();
+    match output {
+        Ok(item) => item.status.success(),
+        Err(_) => false,
+    }
+}
+
 fn install_python_package(
     uv_path: &Path,
     python_path: &Path,
@@ -263,24 +290,32 @@ fn install_python_requirement(
     Ok(())
 }
 
-fn ensure_runtime_packages(
+fn ensure_runtime_packages<F>(
     uv_path: &Path,
     python_path: &Path,
     runtime_root: &Path,
     vendor_root: Option<&Path>,
     managed_root: &Path,
-) -> Result<(), String> {
+    mut on_progress: F,
+) -> Result<(), String>
+where
+    F: FnMut(f64, &str, Option<&str>),
+{
     let fingerprint = runtime_dependency_fingerprint(runtime_root, vendor_root)?;
     let stamp_path = runtime_dependency_stamp_path(managed_root);
     if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str()) {
+        on_progress(92.0, "verifying", Some("runtime-cache-hit"));
         return Ok(());
     }
 
     if let Some(vendor_root) = vendor_root {
+        on_progress(52.0, "installing_pdf2zh", vendor_root.file_name().and_then(|value| value.to_str()));
         install_python_package(uv_path, python_path, vendor_root, false)?;
     } else {
+        on_progress(52.0, "installing_pdf2zh", Some("pdf2zh>=1.9.11,<2"));
         install_python_requirement(uv_path, python_path, "pdf2zh>=1.9.11,<2")?;
     }
+    on_progress(78.0, "installing_runtime", runtime_root.file_name().and_then(|value| value.to_str()));
     install_python_package(uv_path, python_path, runtime_root, true)?;
     fs::write(stamp_path, fingerprint).map_err(|e| e.to_string())?;
     Ok(())
@@ -304,7 +339,7 @@ fn runtime_packages_ready(
     if !stamp_matches {
         return Ok(false);
     }
-    Ok(python_module_version(python_path, "pdf2zh").is_some())
+    Ok(python_module_version(python_path, "pdf2zh").is_some() && pdf2zh_entry_ready(python_path))
 }
 
 fn build_env_status(
@@ -391,13 +426,17 @@ pub(crate) fn analysis_env_status_blocking(
     Ok(status)
 }
 
-pub(crate) fn ensure_analysis_env_blocking(
+pub(crate) fn ensure_analysis_env_with_progress_blocking<F>(
     db_path: &Path,
     runtime_root: &Path,
     app_data_dir: &Path,
     project_id: &str,
     project_root: &Path,
-) -> Result<AnalysisEnvStatusResponse, String> {
+    mut on_progress: F,
+) -> Result<AnalysisEnvStatusResponse, String>
+where
+    F: FnMut(f64, &str, Option<&str>),
+{
     let analysis_runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
@@ -410,10 +449,14 @@ pub(crate) fn ensure_analysis_env_blocking(
         project_root,
     )?;
 
+    let managed_root_text = env_paths.managed_root.to_string_lossy().to_string();
+    on_progress(6.0, "resolving", Some(&managed_root_text));
     if !env_paths.python_path.exists() {
         fs::create_dir_all(&env_paths.managed_root).map_err(|e| e.to_string())?;
         let mut command = Command::new(&uv_path);
         configure_hidden_process(&mut command);
+        let venv_path_text = env_paths.venv_path.to_string_lossy().to_string();
+        on_progress(18.0, "creating_venv", Some(&venv_path_text));
         let output = command
             .arg("venv")
             .arg(&env_paths.venv_path)
@@ -427,6 +470,8 @@ pub(crate) fn ensure_analysis_env_blocking(
             let detail = if !stderr.is_empty() { stderr } else { stdout };
             return Err(format!("python.env.prepare_failed: {detail}"));
         }
+    } else {
+        on_progress(28.0, "creating_venv", Some("venv-ready"));
     }
 
     ensure_runtime_packages(
@@ -435,13 +480,41 @@ pub(crate) fn ensure_analysis_env_blocking(
         &analysis_runtime_root,
         vendor_root.as_deref(),
         &env_paths.managed_root,
+        |percent, stage, current_item| on_progress(percent, stage, current_item),
     )?;
-    Ok(build_env_status(
+    on_progress(96.0, "verifying", Some("pdf2zh.pdf2zh --version"));
+    let status = build_env_status(
         &env_paths,
         &analysis_runtime_root,
         vendor_root.as_deref(),
         Some(&uv_path),
         None,
-    ))
+    );
+    if !status.ready {
+        return Err("python.env.runtime_missing".to_string());
+    }
+    let completed_path = status.venv_path.clone();
+    on_progress(100.0, "completed", Some(&completed_path));
+    Ok(status)
 }
+
+pub(crate) fn ensure_analysis_env_blocking(
+    db_path: &Path,
+    runtime_root: &Path,
+    app_data_dir: &Path,
+    project_id: &str,
+    project_root: &Path,
+) -> Result<AnalysisEnvStatusResponse, String> {
+    ensure_analysis_env_with_progress_blocking(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
+        project_root,
+        |_percent, _stage, _current_item| {},
+    )
+}
+
+
+
 

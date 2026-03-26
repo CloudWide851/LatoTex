@@ -154,7 +154,7 @@ def run_translate(payload: dict) -> dict:
     command = [
         sys.executable,
         "-m",
-        "pdf2zh",
+        "pdf2zh.pdf2zh",
         "-i",
         str(pdf_path),
         "-o",
@@ -319,3 +319,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
