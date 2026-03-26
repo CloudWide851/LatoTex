@@ -77,6 +77,22 @@ function loadPersistedProposals(projectId: string): AgentProposalMap {
   }
 }
 
+function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
+  const output = new Set<string>();
+  const walk = (items: ResourceNode[]) => {
+    for (const node of items) {
+      if (node.kind === "file") {
+        output.add(node.relativePath);
+        continue;
+      }
+      if (Array.isArray(node.children) && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return output;
+}
 export function useAppContainerState(t: (...args: any[]) => string) {
   const [status, setStatus] = useState<"ready" | "offline">("ready");
   const [toast, setToast] = useState<Toast>(null);
@@ -154,6 +170,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const lastLoadedProjectIdRef = useRef<string | null>(null);
   const integrityCheckedRef = useRef<Set<string>>(new Set());
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settingsRef = useRef<AppSettings | null>(settings);
+  const loadedLibraryProjectIdRef = useRef<string | null>(null);
   const autoSaveReadyRef = useRef(false);
   const lastAutoSavedHashRef = useRef<string | null>(null);
   const panelLayoutSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -171,6 +189,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     [t],
   );
   const fileSet = useMemo(() => new Set(fileList), [fileList]);
+  const libraryFileSet = useMemo(() => collectResourceFilePaths(libraryTree), [libraryTree]);
 
   useEffect(() => {
     activeProjectIdRef.current = activeProjectId;
@@ -191,6 +210,10 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   useEffect(() => {
     dirtyByPathRef.current = dirtyByPath;
   }, [dirtyByPath]);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -214,6 +237,48 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     }
   }, [activeProjectId, agentProposalsByPath]);
 
+  useEffect(() => {
+    if (!activeProjectId || loadedLibraryProjectIdRef.current !== activeProjectId || !selectedLibraryPath) {
+      return;
+    }
+    if (libraryFileSet.has(selectedLibraryPath)) {
+      return;
+    }
+    setSelectedLibraryPath(null);
+  }, [activeProjectId, libraryFileSet, selectedLibraryPath]);
+
+  useEffect(() => {
+    if (!activeProjectId || loadedLibraryProjectIdRef.current !== activeProjectId) {
+      return;
+    }
+    setSettings((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const currentMap = prev.uiPrefs?.librarySelectedPathByProject ?? {};
+      const currentValue = String(currentMap[activeProjectId] ?? "").trim();
+      const nextValue = selectedLibraryPath && libraryFileSet.has(selectedLibraryPath)
+        ? selectedLibraryPath
+        : "";
+      if (currentValue === nextValue) {
+        return prev;
+      }
+      const nextMap = { ...currentMap };
+      if (nextValue) {
+        nextMap[activeProjectId] = nextValue;
+      } else {
+        delete nextMap[activeProjectId];
+      }
+      return {
+        ...prev,
+        uiPrefs: {
+          ...(prev.uiPrefs ?? {}),
+          language: prev.uiPrefs?.language,
+          librarySelectedPathByProject: Object.keys(nextMap).length > 0 ? nextMap : undefined,
+        },
+      };
+    });
+  }, [activeProjectId, libraryFileSet, selectedLibraryPath]);
   return {
     status,
     setStatus,
@@ -355,6 +420,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     lastLoadedProjectIdRef,
     integrityCheckedRef,
     autoSaveTimerRef,
+    settingsRef,
+    loadedLibraryProjectIdRef,
     autoSaveReadyRef,
     lastAutoSavedHashRef,
     panelLayoutSaveTimerRef,
@@ -370,4 +437,5 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     fileSet,
   };
 }
+
 

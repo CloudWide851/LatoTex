@@ -103,3 +103,22 @@ export function ensureTranslationResult(result: LibraryTranslateResult | null | 
     detail: detailParts.join(" | "),
   };
 }
+export function formatTranslationTaskFailure(
+  status: LibraryTranslateStatus,
+  t: TranslationFn,
+): string {
+  const code = String(status.errorCode || "").trim();
+  const message = String(status.error || status.message || "").trim();
+  const prefix = code
+    ? `${t("library.viewer.translateFailed")} (${code})`
+    : t("library.viewer.translateFailed");
+  return message ? `${prefix}: ${message}` : prefix;
+}
+
+export function formatTranslationDiagnostics(status: LibraryTranslateStatus): string {
+  return (status.diagnostics ?? [])
+    .map((item) => String(item ?? "").trim())
+    .filter((item) => item.length > 0)
+    .join(" | ");
+}
+

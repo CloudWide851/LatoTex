@@ -111,12 +111,15 @@ pub struct LibraryTranslateStatusInput {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryTranslateStatusResponse {
     pub task_id: String,
+    pub run_id: Option<String>,
     pub status: String,
     pub current_page: u32,
     pub total_pages: u32,
     pub stage: Option<String>,
     pub message: Option<String>,
     pub error: Option<String>,
+    pub error_code: Option<String>,
+    pub diagnostics: Vec<String>,
     pub result: Option<LibraryTranslateResponse>,
 }
 
@@ -191,3 +194,4 @@ pub struct FsOperationResult {
     pub ok: bool,
     pub message: String,
 }
+

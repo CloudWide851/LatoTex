@@ -197,8 +197,10 @@ pub(super) fn extract_library_paper_context(
     }
 
     let preview_relative_path =
-        resolve_translation_source_pdf_workspace(db_path, project_id, &normalized_relative)?;
-    let source_pdf_relative = to_library_relative_from_workspace(&preview_relative_path)?;
+        resolve_translation_source_pdf_workspace(db_path, project_id, &normalized_relative)
+            .map_err(|error| error.status_message())?;
+    let source_pdf_relative = to_library_relative_from_workspace(&preview_relative_path)
+        .map_err(|error| error.status_message())?;
     let source_pdf_path = papers_root.join(Path::new(&source_pdf_relative));
     if !source_pdf_path.exists() || !source_pdf_path.is_file() {
         return Err("translation.source_pdf_not_found".to_string());
@@ -254,5 +256,7 @@ pub(super) fn extract_library_paper_context(
         ocr_page_count: extraction.ocr_page_count,
     })
 }
+
+
 
 

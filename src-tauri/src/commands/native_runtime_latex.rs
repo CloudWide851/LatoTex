@@ -15,16 +15,11 @@ use uuid::Uuid;
 
 const TECTONIC_RESOURCE_SUBDIR: &str = "tools/tectonic";
 const TECTONIC_BINARY_RELATIVE_PATH: &str = "windows-x64/tectonic.exe";
-const TECTONIC_BUNDLE_RELATIVE_PATH: &str = "bundles/tlextras-2022.0r0.tar";
-const TECTONIC_BUNDLE_INDEX_RELATIVE_PATH: &str = "bundles/tlextras-2022.0r0.tar.index.gz";
-const TECTONIC_ASSET_MISSING_DIAGNOSTIC: &str =
-    "Bundled Tectonic assets are missing. Reinstall or repair LatoTex.";
 const TECTONIC_NOT_FOUND_DIAGNOSTIC: &str =
     "Tectonic was not found. Install Tectonic and retry.";
 
 struct ResolvedTectonicPaths {
     engine_path: PathBuf,
-    bundle_path: Option<PathBuf>,
     cache_dir: PathBuf,
 }
 
@@ -33,12 +28,13 @@ fn latex_tool_exists(name: &str) -> bool {
 }
 
 fn bundled_tectonic_assets_exist(root: &Path) -> bool {
-    root.join(TECTONIC_BINARY_RELATIVE_PATH).exists() && root.join(TECTONIC_BUNDLE_RELATIVE_PATH).exists()
+    root.join(TECTONIC_BINARY_RELATIVE_PATH).exists()
 }
 
 fn candidate_tectonic_source_roots() -> Vec<PathBuf> {
     let mut candidates = vec![
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/{TECTONIC_RESOURCE_SUBDIR}")),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("resources/{TECTONIC_RESOURCE_SUBDIR}")),
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join(format!("../src-tauri/resources/{TECTONIC_RESOURCE_SUBDIR}")),
     ];
@@ -76,41 +72,25 @@ fn copy_asset_if_needed(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn copy_optional_asset(source: &Path, target: &Path) -> Result<(), String> {
-    if !source.exists() {
-        return Ok(());
-    }
-    copy_asset_if_needed(source, target)
-}
-
-fn ensure_bundled_tectonic_runtime(runtime_root: &Path) -> Result<Option<ResolvedTectonicPaths>, String> {
+fn ensure_bundled_tectonic_runtime(
+    runtime_root: &Path,
+) -> Result<Option<ResolvedTectonicPaths>, String> {
     let Some(source_root) = choose_bundled_tectonic_source_root() else {
         return Ok(None);
     };
 
     let tool_root = runtime_root.join(TECTONIC_RESOURCE_SUBDIR);
     let engine_path = tool_root.join(TECTONIC_BINARY_RELATIVE_PATH);
-    let bundle_path = tool_root.join(TECTONIC_BUNDLE_RELATIVE_PATH);
-    let bundle_index_path = tool_root.join(TECTONIC_BUNDLE_INDEX_RELATIVE_PATH);
     let cache_dir = tool_root.join("cache");
 
     copy_asset_if_needed(
         &source_root.join(TECTONIC_BINARY_RELATIVE_PATH),
         &engine_path,
     )?;
-    copy_asset_if_needed(
-        &source_root.join(TECTONIC_BUNDLE_RELATIVE_PATH),
-        &bundle_path,
-    )?;
-    copy_optional_asset(
-        &source_root.join(TECTONIC_BUNDLE_INDEX_RELATIVE_PATH),
-        &bundle_index_path,
-    )?;
     fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
 
     Ok(Some(ResolvedTectonicPaths {
         engine_path,
-        bundle_path: Some(bundle_path),
         cache_dir,
     }))
 }
@@ -122,7 +102,6 @@ fn resolve_tectonic_paths(runtime_root: &Path) -> Result<Option<ResolvedTectonic
     if latex_tool_exists("tectonic") {
         return Ok(Some(ResolvedTectonicPaths {
             engine_path: PathBuf::from("tectonic"),
-            bundle_path: None,
             cache_dir: runtime_root.join(TECTONIC_RESOURCE_SUBDIR).join("cache"),
         }));
     }
@@ -171,18 +150,10 @@ fn run_compile_command(
         return Err("compile.engine.missing".to_string());
     }
     let Some(paths) = resolve_tectonic_paths(runtime_root)? else {
-        let diagnostics = if choose_bundled_tectonic_source_root().is_some() {
-            TECTONIC_ASSET_MISSING_DIAGNOSTIC
-        } else {
-            TECTONIC_NOT_FOUND_DIAGNOSTIC
-        };
-        return Err(diagnostics.to_string());
+        return Err(TECTONIC_NOT_FOUND_DIAGNOSTIC.to_string());
     };
     let mut command = Command::new(&paths.engine_path);
     command.arg("-X").arg("compile");
-    if let Some(bundle_path) = &paths.bundle_path {
-        command.arg("--bundle").arg(bundle_path);
-    }
     command.arg(main_path);
     command.env("TECTONIC_CACHE_DIR", &paths.cache_dir);
     configure_hidden_process(&mut command);
@@ -305,6 +276,8 @@ pub async fn latex_compile_native(
     state: State<'_, AppState>,
     input: LatexCompileInput,
 ) -> Result<LatexCompileResponse, String> {
+    let project_id = input.project_id.clone();
+    let main_path = input.main_path.clone();
     let reason = input.reason.clone().unwrap_or_else(|| "manual".to_string());
     state.log(
         "INFO",
@@ -316,9 +289,27 @@ pub async fn latex_compile_native(
 
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
-    tauri::async_runtime::spawn_blocking(move || compile_blocking(&db_path, &runtime_root, input))
-        .await
-        .map_err(|e| e.to_string())?
+    let response =
+        tauri::async_runtime::spawn_blocking(move || compile_blocking(&db_path, &runtime_root, input))
+            .await
+            .map_err(|e| e.to_string())??;
+    state.log(
+        if response.status == "success" {
+            "INFO"
+        } else {
+            "ERROR"
+        },
+        &format!(
+            "latex_compile_native.result: project={}, file={}, status={}, engine={}, duration_ms={}, diagnostics={}",
+            project_id,
+            main_path,
+            response.status,
+            response.engine,
+            response.duration_ms,
+            response.diagnostics.join(" | ")
+        ),
+    );
+    Ok(response)
 }
 
 

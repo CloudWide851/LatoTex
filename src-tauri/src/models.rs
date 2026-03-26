@@ -409,6 +409,7 @@ pub struct UiPrefs {
     pub background_image_paths: Option<Vec<String>>,
     pub background_blur_px: Option<f64>,
     pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
+    pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -574,3 +575,4 @@ include!("models_library.rs");
 include!("models_git.rs");
 include!("models_agent_workflows.rs");
 include!("models_native_runtime.rs");
+

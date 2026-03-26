@@ -215,6 +215,7 @@ export type AppSettings = {
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
     analysisEnvRootsByProject?: Record<string, string>;
+    librarySelectedPathByProject?: Record<string, string>;
   };
 };
 
@@ -313,5 +314,7 @@ export type AppBackgroundImagePayload = {
 };
 
 export * from "./app-extended";
+
+
 
 

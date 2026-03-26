@@ -94,7 +94,11 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           .map(([projectId, rootPath]) => [String(projectId).trim(), String(rootPath ?? "").trim()])
           .filter(([projectId, rootPath]) => projectId.length > 0 && rootPath.length > 0),
       );
-      const updated = await updateSettings({
+      const normalizedLibrarySelectedPathByProject = Object.fromEntries(
+        Object.entries(nextSettings.uiPrefs?.librarySelectedPathByProject ?? {})
+          .map(([projectId, selectedPath]) => [String(projectId).trim(), String(selectedPath ?? "").trim()])
+          .filter(([projectId, selectedPath]) => projectId.length > 0 && selectedPath.length > 0),
+      );      const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
           id: protocol.id,
@@ -124,6 +128,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           backgroundImagePaths: normalizedBackgroundPaths,
           backgroundBlurPx: normalizedBackgroundBlur,
           analysisEnvRootsByProject: normalizedAnalysisEnvRootsByProject,
+          librarySelectedPathByProject: normalizedLibrarySelectedPathByProject,
         },
       });
 
@@ -278,3 +283,4 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
     cancelPendingAutoSave,
   };
 }
+

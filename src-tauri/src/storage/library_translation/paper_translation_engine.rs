@@ -1,15 +1,15 @@
 use super::{
-    TranslationModelCandidate, library_root, refresh_library_index, refresh_workspace_index,
-    resolve_translation_model_candidates, resolve_translation_source_pdf_workspace,
-    to_library_relative_from_workspace, to_library_workspace_relative, touch_project_updated_at,
-    translation_pdf_relative_path,
+    LibraryTranslateFailure, TranslationModelCandidate, library_root, refresh_library_index,
+    refresh_workspace_index, resolve_translation_model_candidates,
+    resolve_translation_source_pdf_workspace, to_library_relative_from_workspace,
+    to_library_workspace_relative, touch_project_updated_at, translation_pdf_relative_path,
 };
 use crate::commands::native_runtime::{
     configure_hidden_process, ensure_analysis_env_blocking, resolve_analysis_runtime_root,
 };
 use crate::secure;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -21,6 +21,15 @@ struct PdfMathTranslateServiceConfig {
     base_url: Option<String>,
     api_key: Option<String>,
     model: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaperRuntimeErrorPayload {
+    code: String,
+    message: String,
+    #[serde(default)]
+    diagnostics: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,66 +73,116 @@ fn is_anthropic_candidate(candidate: &TranslationModelCandidate) -> bool {
     base_url.contains("anthropic") || model_name.contains("claude")
 }
 
+fn summarize_output(label: &str, bytes: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(bytes).trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let compact = text.replace('\r', " ").replace('\n', " | ");
+    let tail = if compact.len() > 600 {
+        compact[compact.len() - 600..].to_string()
+    } else {
+        compact
+    };
+    Some(format!("{label}={tail}"))
+}
+
 fn resolve_service_configs(
     db_path: &Path,
     app_runtime_root: &Path,
     model_override: Option<&str>,
-) -> Vec<PdfMathTranslateServiceConfig> {
+) -> Result<Vec<PdfMathTranslateServiceConfig>, LibraryTranslateFailure> {
     let secure_context = secure::SecureStorageContext {
         db_path: db_path.to_path_buf(),
         runtime_root: app_runtime_root.to_path_buf(),
     };
+    let candidates = resolve_translation_model_candidates(db_path, model_override)?;
     let mut configs = Vec::<PdfMathTranslateServiceConfig>::new();
+    let mut diagnostics = Vec::<String>::new();
 
-    if let Ok(candidates) = resolve_translation_model_candidates(db_path, model_override) {
-        for candidate in candidates {
-            let api_key = secure::get_model_api_key(&secure_context, &candidate.model_id)
-                .ok()
-                .and_then(|value| value.api_key)
-                .filter(|value| !value.trim().is_empty());
-            if api_key.is_none() {
-                continue;
-            }
-            if is_anthropic_candidate(&candidate) {
-                continue;
-            }
-            if is_gemini_candidate(&candidate) {
-                configs.push(PdfMathTranslateServiceConfig {
-                    kind: "gemini".to_string(),
-                    base_url: None,
-                    api_key,
-                    model: Some(candidate.model_name.clone()),
-                });
-                continue;
-            }
+    for candidate in candidates {
+        let model_label = format!("{} ({})", candidate.model_name, candidate.model_id);
+        let api_key = secure::get_model_api_key(&secure_context, &candidate.model_id)
+            .ok()
+            .and_then(|value| value.api_key)
+            .filter(|value| !value.trim().is_empty());
+        if api_key.is_none() {
+            diagnostics.push(format!("skip model={model_label}: api_key_missing"));
+            continue;
+        }
+        if is_anthropic_candidate(&candidate) {
+            diagnostics.push(format!("skip model={model_label}: unsupported_provider=anthropic"));
+            continue;
+        }
+        if is_gemini_candidate(&candidate) {
+            diagnostics.push(format!("use model={model_label}: provider=gemini"));
             configs.push(PdfMathTranslateServiceConfig {
-                kind: "openai".to_string(),
-                base_url: Some(candidate.base_url.clone()),
+                kind: "gemini".to_string(),
+                base_url: None,
                 api_key,
                 model: Some(candidate.model_name.clone()),
             });
+            continue;
         }
+        diagnostics.push(format!(
+            "use model={model_label}: provider=openai-compatible base_url={}",
+            candidate.base_url
+        ));
+        configs.push(PdfMathTranslateServiceConfig {
+            kind: "openai".to_string(),
+            base_url: Some(candidate.base_url.clone()),
+            api_key,
+            model: Some(candidate.model_name.clone()),
+        });
     }
 
-    configs.push(PdfMathTranslateServiceConfig {
-        kind: "google".to_string(),
-        base_url: None,
-        api_key: None,
-        model: None,
-    });
-    configs
+    if configs.is_empty() {
+        return Err(LibraryTranslateFailure::new(
+            "translation.provider.unconfigured",
+            "No compatible translation model with configured API key was found for paper translation.",
+            diagnostics,
+        ));
+    }
+
+    Ok(configs)
 }
 
-fn copy_generated_pdf(source: &Path, target: &Path) -> Result<(), String> {
+fn copy_generated_pdf(source: &Path, target: &Path) -> Result<(), LibraryTranslateFailure> {
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new()))?;
     }
-    fs::copy(source, target).map_err(|error| error.to_string())?;
+    fs::copy(source, target)
+        .map_err(|error| LibraryTranslateFailure::new("translation.fs.copy_failed", error.to_string(), Vec::new()))?;
     Ok(())
 }
 
 fn dual_pdf_relative_path(source_pdf_relative: &str) -> String {
     translation_pdf_relative_path(source_pdf_relative).replace(".translated.pdf", ".dual.pdf")
+}
+
+fn parse_runtime_failure(
+    output_json: Option<&str>,
+    stdout: &[u8],
+    stderr: &[u8],
+) -> Option<LibraryTranslateFailure> {
+    let raw = output_json?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let value = serde_json::from_str::<Value>(raw).ok()?;
+    if value.get("status").and_then(|item| item.as_str()) != Some("failed") {
+        return None;
+    }
+    let error = serde_json::from_value::<PaperRuntimeErrorPayload>(value.get("error")?.clone()).ok()?;
+    let mut diagnostics = error.diagnostics;
+    if let Some(item) = summarize_output("stdout", stdout) {
+        diagnostics.push(item);
+    }
+    if let Some(item) = summarize_output("stderr", stderr) {
+        diagnostics.push(item);
+    }
+    Some(LibraryTranslateFailure::new(error.code, error.message, diagnostics))
 }
 
 fn run_pdfmathtranslate_bridge(
@@ -133,11 +192,13 @@ fn run_pdfmathtranslate_bridge(
     source_pdf_path: &Path,
     target_language: &str,
     service: &PdfMathTranslateServiceConfig,
-) -> Result<PaperRuntimeTranslateResult, String> {
+) -> Result<PaperRuntimeTranslateResult, LibraryTranslateFailure> {
     let input_path = run_root.join("paper-runtime-input.json");
     let output_path = run_root.join("paper-runtime-output.json");
     let generated_dir = run_root.join("generated");
-    fs::create_dir_all(&generated_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&generated_dir).map_err(|error| {
+        LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new())
+    })?;
 
     let payload = json!({
         "operation": "translate",
@@ -153,9 +214,11 @@ fn run_pdfmathtranslate_bridge(
     });
     fs::write(
         &input_path,
-        serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?,
+        serde_json::to_string_pretty(&payload).map_err(|error| {
+            LibraryTranslateFailure::new("translation.payload.serialize_failed", error.to_string(), Vec::new())
+        })?,
     )
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| LibraryTranslateFailure::new("translation.fs.write_failed", error.to_string(), Vec::new()))?;
 
     let mut command = Command::new(python_path);
     configure_hidden_process(&mut command);
@@ -166,17 +229,61 @@ fn run_pdfmathtranslate_bridge(
         .arg("--output")
         .arg(&output_path)
         .output()
-        .map_err(|error| format!("translation.python.spawn_failed: {error}"))?;
+        .map_err(|error| {
+            LibraryTranslateFailure::new(
+                "translation.python.spawn_failed",
+                error.to_string(),
+                vec![
+                    format!("python={}", python_path.to_string_lossy()),
+                    format!("runtime_root={}", runtime_root.to_string_lossy()),
+                ],
+            )
+        })?;
+
+    let output_json = fs::read_to_string(&output_path).ok();
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        return Err(format!("translation.pdfmathtranslate.failed: {detail}"));
+        if let Some(failure) = parse_runtime_failure(output_json.as_deref(), &output.stdout, &output.stderr) {
+            return Err(failure);
+        }
+        let mut diagnostics = Vec::new();
+        diagnostics.push(format!("exit_code={}", output.status.code().unwrap_or(-1)));
+        if let Some(item) = summarize_output("stdout", &output.stdout) {
+            diagnostics.push(item);
+        }
+        if let Some(item) = summarize_output("stderr", &output.stderr) {
+            diagnostics.push(item);
+        }
+        return Err(LibraryTranslateFailure::new(
+            "translation.pdfmathtranslate.failed",
+            "pdf2zh exited with a non-zero status.",
+            diagnostics,
+        ));
     }
 
-    let output_json = fs::read_to_string(&output_path).map_err(|error| error.to_string())?;
-    serde_json::from_str(&output_json)
-        .map_err(|error| format!("translation.pdfmathtranslate.invalid_json: {error}"))
+    let output_json = output_json.ok_or_else(|| {
+        LibraryTranslateFailure::new(
+            "translation.pdfmathtranslate.output_missing",
+            "paper_runtime.py did not produce an output payload.",
+            Vec::new(),
+        )
+    })?;
+    if let Some(failure) = parse_runtime_failure(Some(&output_json), &output.stdout, &output.stderr) {
+        return Err(failure);
+    }
+    serde_json::from_str(&output_json).map_err(|error| {
+        let mut diagnostics = Vec::new();
+        if let Some(item) = summarize_output("stdout", &output.stdout) {
+            diagnostics.push(item);
+        }
+        if let Some(item) = summarize_output("stderr", &output.stderr) {
+            diagnostics.push(item);
+        }
+        LibraryTranslateFailure::new(
+            "translation.pdfmathtranslate.invalid_json",
+            error.to_string(),
+            diagnostics,
+        )
+    })
 }
 
 pub(super) fn translate_library_document(
@@ -187,7 +294,7 @@ pub(super) fn translate_library_document(
     relative_path: &str,
     target_language: Option<&str>,
     model_override: Option<&str>,
-) -> Result<crate::models::LibraryTranslateResponse, String> {
+) -> Result<crate::models::LibraryTranslateResponse, LibraryTranslateFailure> {
     translate_library_document_with_progress(
         db_path,
         runtime_root,
@@ -209,20 +316,24 @@ pub(super) fn translate_library_document_with_progress<F>(
     target_language: Option<&str>,
     model_override: Option<&str>,
     mut on_progress: F,
-) -> Result<crate::models::LibraryTranslateResponse, String>
+) -> Result<crate::models::LibraryTranslateResponse, LibraryTranslateFailure>
 where
     F: FnMut(u32, u32, &str),
 {
-    let project_root = super::load_project_root(db_path, project_id)?;
+    let project_root = super::load_project_root(db_path, project_id)
+        .map_err(LibraryTranslateFailure::from_message)?;
     let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&papers_root)
+        .map_err(|error| LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new()))?;
 
     let source_pdf_workspace_relative =
         resolve_translation_source_pdf_workspace(db_path, project_id, relative_path)?;
     let source_pdf_relative = to_library_relative_from_workspace(&source_pdf_workspace_relative)?;
     let source_pdf_path = papers_root.join(Path::new(&source_pdf_relative));
     if !source_pdf_path.exists() || !source_pdf_path.is_file() {
-        return Err("translation.source_pdf_not_found".to_string());
+        return Err(LibraryTranslateFailure::from_message(
+            "translation.source_pdf_not_found",
+        ));
     }
 
     on_progress(0, 0, "preparing");
@@ -232,25 +343,28 @@ where
         app_data_dir,
         project_id,
         &project_root,
-    )?;
-    let python_path = PathBuf::from(
-        env_status
-            .python_path
-            .clone()
-            .ok_or_else(|| "python.env.python_missing".to_string())?,
-    );
-    let analysis_runtime_root = resolve_analysis_runtime_root()
-        .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
+    )
+    .map_err(LibraryTranslateFailure::from_message)?;
+    let python_path = PathBuf::from(env_status.python_path.clone().ok_or_else(|| {
+        LibraryTranslateFailure::from_message("python.env.python_missing")
+    })?);
+    let analysis_runtime_root = resolve_analysis_runtime_root().ok_or_else(|| {
+        LibraryTranslateFailure::new(
+            "translation.python.runtime_root_missing",
+            "Python analysis runtime resources were not found.",
+            Vec::new(),
+        )
+    })?;
     let target_language = preferred_target_language(target_language);
-    let service_configs = resolve_service_configs(db_path, app_runtime_root, model_override);
+    let service_configs = resolve_service_configs(db_path, app_runtime_root, model_override)?;
     let run_root = project_root
         .join(".latotex")
         .join("paper-runtime")
         .join(Uuid::new_v4().to_string());
-    fs::create_dir_all(&run_root).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&run_root)
+        .map_err(|error| LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new()))?;
 
     let mut last_error = None;
-    let mut translated = None;
     for service in service_configs {
         if let Some(model_name) = &service.model {
             on_progress(0, 0, &format!("model:{model_name}"));
@@ -264,9 +378,51 @@ where
             &target_language,
             &service,
         ) {
-            Ok(result) => {
-                translated = Some(result);
-                break;
+            Ok(translated) => {
+                let mono_pdf = PathBuf::from(translated.mono_pdf.clone().ok_or_else(|| {
+                    LibraryTranslateFailure::from_message("translation.pdfmathtranslate.mono_missing")
+                })?);
+                let translated_relative = translation_pdf_relative_path(&source_pdf_relative);
+                let translated_abs = papers_root.join(Path::new(&translated_relative));
+
+                on_progress(0, translated.page_count.max(1), "rendering");
+                copy_generated_pdf(&mono_pdf, &translated_abs)?;
+
+                let mut artifact_paths = Vec::<String>::new();
+                if let Some(dual_pdf) = translated.dual_pdf.as_ref() {
+                    let dual_abs = PathBuf::from(dual_pdf);
+                    if dual_abs.exists() {
+                        let dual_relative = dual_pdf_relative_path(&source_pdf_relative);
+                        let dual_target = papers_root.join(Path::new(&dual_relative));
+                        copy_generated_pdf(&dual_abs, &dual_target)?;
+                        artifact_paths.push(to_library_workspace_relative(&dual_relative));
+                    }
+                }
+
+                refresh_workspace_index(&project_root).map_err(LibraryTranslateFailure::from_message)?;
+                refresh_library_index(&project_root).map_err(LibraryTranslateFailure::from_message)?;
+                touch_project_updated_at(db_path, project_id).map_err(LibraryTranslateFailure::from_message)?;
+
+                let translated_pdf_workspace_relative =
+                    to_library_workspace_relative(&translated_relative);
+
+                on_progress(translated.page_count, translated.page_count.max(1), "completed");
+                return Ok(crate::models::LibraryTranslateResponse {
+                    relative_path: translated_pdf_workspace_relative.clone(),
+                    source_kind: "pdf".to_string(),
+                    engine: translated.engine,
+                    artifact_paths,
+                    detected_language: translated.detected_language,
+                    extraction_engine: translated.extraction_engine,
+                    extraction_mode: translated.extraction_mode,
+                    refined_by_search: translated.refined_by_search.unwrap_or(false),
+                    glossary_count: translated.glossary_count.unwrap_or(0),
+                    translated_pdf_relative_path: translated_pdf_workspace_relative,
+                    source_pdf_relative_path: source_pdf_workspace_relative,
+                    page_count: translated.page_count,
+                    ocr_page_count: translated.ocr_page_count,
+                    layout_mode: translated.layout_mode.unwrap_or_else(|| "near-original".to_string()),
+                });
             }
             Err(error) => {
                 last_error = Some(error);
@@ -274,57 +430,13 @@ where
         }
     }
 
-    let translated = translated.ok_or_else(|| {
-        last_error.unwrap_or_else(|| "translation.pdfmathtranslate.unavailable".to_string())
-    })?;
-
-    let mono_pdf = PathBuf::from(
-        translated
-            .mono_pdf
-            .clone()
-            .ok_or_else(|| "translation.pdfmathtranslate.mono_missing".to_string())?,
-    );
-    let translated_relative = translation_pdf_relative_path(&source_pdf_relative);
-    let translated_abs = papers_root.join(Path::new(&translated_relative));
-
-    on_progress(0, translated.page_count.max(1), "rendering");
-    copy_generated_pdf(&mono_pdf, &translated_abs)?;
-
-    let mut artifact_paths = Vec::<String>::new();
-    if let Some(dual_pdf) = translated.dual_pdf.as_ref() {
-        let dual_abs = PathBuf::from(dual_pdf);
-        if dual_abs.exists() {
-            let dual_relative = dual_pdf_relative_path(&source_pdf_relative);
-            let dual_target = papers_root.join(Path::new(&dual_relative));
-            copy_generated_pdf(&dual_abs, &dual_target)?;
-            artifact_paths.push(to_library_workspace_relative(&dual_relative));
-        }
-    }
-
-
-    refresh_workspace_index(&project_root)?;
-    refresh_library_index(&project_root)?;
-    touch_project_updated_at(db_path, project_id)?;
-
-    let translated_pdf_workspace_relative = to_library_workspace_relative(&translated_relative);
-
-    on_progress(translated.page_count, translated.page_count.max(1), "completed");
-    Ok(crate::models::LibraryTranslateResponse {
-        relative_path: translated_pdf_workspace_relative.clone(),
-        source_kind: "pdf".to_string(),
-        engine: translated.engine,
-        artifact_paths,
-        detected_language: translated.detected_language,
-        extraction_engine: translated.extraction_engine,
-        extraction_mode: translated.extraction_mode,
-        refined_by_search: translated.refined_by_search.unwrap_or(false),
-        glossary_count: translated.glossary_count.unwrap_or(0),
-        translated_pdf_relative_path: translated_pdf_workspace_relative,
-        source_pdf_relative_path: source_pdf_workspace_relative,
-        page_count: translated.page_count,
-        ocr_page_count: translated.ocr_page_count,
-        layout_mode: translated.layout_mode.unwrap_or_else(|| "near-original".to_string()),
-    })
+    Err(last_error.unwrap_or_else(|| {
+        LibraryTranslateFailure::new(
+            "translation.provider.unconfigured",
+            "No translation provider attempt succeeded.",
+            Vec::new(),
+        )
+    }))
 }
 
 #[cfg(test)]
@@ -380,5 +492,3 @@ mod tests {
         assert!(!dual.contains(".translated.pdf"));
     }
 }
-
-

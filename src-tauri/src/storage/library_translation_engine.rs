@@ -5,6 +5,57 @@ mod library_translation_paper_analysis_engine;
 
 const LIBRARY_WORKSPACE_PREFIX: &str = ".latotex/papers";
 
+#[derive(Clone, Debug)]
+pub struct LibraryTranslateFailure {
+    pub code: String,
+    pub message: String,
+    pub diagnostics: Vec<String>,
+}
+
+impl LibraryTranslateFailure {
+    pub fn new(code: impl Into<String>, message: impl Into<String>, diagnostics: Vec<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            diagnostics,
+        }
+    }
+
+    pub fn from_message(raw: impl Into<String>) -> Self {
+        let raw = raw.into();
+        let trimmed = raw.trim();
+        let (code, message) = if let Some((head, tail)) = trimmed.split_once(':') {
+            let normalized_code = head.trim();
+            let normalized_message = tail.trim();
+            if normalized_code.starts_with("translation.")
+                || normalized_code.starts_with("python.")
+                || normalized_code.starts_with("compile.")
+            {
+                (normalized_code.to_string(), normalized_message.to_string())
+            } else {
+                ("translation.failed".to_string(), trimmed.to_string())
+            }
+        } else if trimmed.starts_with("translation.") || trimmed.starts_with("python.") {
+            (trimmed.to_string(), String::new())
+        } else {
+            ("translation.failed".to_string(), trimmed.to_string())
+        };
+        Self {
+            code,
+            message,
+            diagnostics: Vec::new(),
+        }
+    }
+
+    pub fn status_message(&self) -> String {
+        if self.message.trim().is_empty() {
+            self.code.clone()
+        } else {
+            format!("{}: {}", self.code, self.message)
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct TranslationModelCandidate {
     model_id: String,
@@ -25,19 +76,19 @@ pub(super) fn to_library_workspace_relative(path: &str) -> String {
     format!("{LIBRARY_WORKSPACE_PREFIX}/{normalized}")
 }
 
-pub(super) fn to_library_relative_from_workspace(path: &str) -> Result<String, String> {
+pub(super) fn to_library_relative_from_workspace(path: &str) -> Result<String, LibraryTranslateFailure> {
     let normalized = path.trim().replace('\\', "/").trim_start_matches('/').to_string();
     if normalized == LIBRARY_WORKSPACE_PREFIX {
         return Ok(String::new());
     }
     if let Some(stripped) = normalized.strip_prefix(&format!("{LIBRARY_WORKSPACE_PREFIX}/")) {
         if stripped.trim().is_empty() {
-            return Err("translation.source_pdf_not_found".to_string());
+            return Err(LibraryTranslateFailure::from_message("translation.source_pdf_not_found"));
         }
         return Ok(stripped.to_string());
     }
     if normalized.trim().is_empty() {
-        return Err("translation.source_pdf_not_found".to_string());
+        return Err(LibraryTranslateFailure::from_message("translation.source_pdf_not_found"));
     }
     Ok(normalized)
 }
@@ -46,12 +97,13 @@ pub(super) fn resolve_translation_source_pdf_workspace(
     db_path: &Path,
     project_id: &str,
     relative_path: &str,
-) -> Result<String, String> {
-    let preview = library_resolve_pdf_preview(db_path, project_id, relative_path)?;
+) -> Result<String, LibraryTranslateFailure> {
+    let preview = library_resolve_pdf_preview(db_path, project_id, relative_path)
+        .map_err(LibraryTranslateFailure::from_message)?;
     preview
         .relative_path
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| "translation.source_pdf_not_found".to_string())
+        .ok_or_else(|| LibraryTranslateFailure::from_message("translation.source_pdf_not_found"))
 }
 
 pub(crate) fn translation_pdf_relative_path(source_pdf_relative: &str) -> String {
@@ -74,7 +126,7 @@ fn push_translation_model_candidate(
     model_id: &str,
     seen: &mut std::collections::HashSet<String>,
     output: &mut Vec<TranslationModelCandidate>,
-) -> Result<(), String> {
+) -> Result<(), LibraryTranslateFailure> {
     let normalized = model_id.trim();
     if normalized.is_empty() {
         return Ok(());
@@ -89,7 +141,13 @@ fn push_translation_model_candidate(
             params![normalized],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
-        .map_err(|_| format!("Configured model is missing from model catalog: {normalized}"))?;
+        .map_err(|_| {
+            LibraryTranslateFailure::new(
+                "translation.provider.model_missing",
+                format!("Configured model is missing from model catalog: {normalized}"),
+                Vec::new(),
+            )
+        })?;
 
     let base_url = conn
         .query_row(
@@ -97,7 +155,13 @@ fn push_translation_model_candidate(
             params![&protocol_id],
             |row| row.get::<_, String>(0),
         )
-        .map_err(|_| format!("Protocol configuration not found for model: {normalized}"))?;
+        .map_err(|_| {
+            LibraryTranslateFailure::new(
+                "translation.provider.protocol_missing",
+                format!("Protocol configuration not found for model: {normalized}"),
+                Vec::new(),
+            )
+        })?;
 
     output.push(TranslationModelCandidate {
         model_id: normalized.to_string(),
@@ -111,8 +175,9 @@ fn push_translation_model_candidate(
 pub(super) fn resolve_translation_model_candidates(
     db_path: &Path,
     model_override: Option<&str>,
-) -> Result<Vec<TranslationModelCandidate>, String> {
-    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+) -> Result<Vec<TranslationModelCandidate>, LibraryTranslateFailure> {
+    let conn = Connection::open(db_path)
+        .map_err(|error| LibraryTranslateFailure::new("translation.db.open_failed", error.to_string(), Vec::new()))?;
     let mut output = Vec::<TranslationModelCandidate>::new();
     let mut seen = std::collections::HashSet::<String>::new();
 
@@ -127,24 +192,29 @@ pub(super) fn resolve_translation_model_candidates(
             |row| row.get::<_, String>(0),
         )
         .optional()
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| LibraryTranslateFailure::new("translation.db.query_failed", error.to_string(), Vec::new()))?;
     if let Some(model_id) = bound_model_id {
         push_translation_model_candidate(&conn, &model_id, &mut seen, &mut output)?;
     }
 
     let mut stmt = conn
         .prepare("SELECT id FROM model_catalog ORDER BY protocol_id, display_name")
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| LibraryTranslateFailure::new("translation.db.query_failed", error.to_string(), Vec::new()))?;
     let rows = stmt
         .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| LibraryTranslateFailure::new("translation.db.query_failed", error.to_string(), Vec::new()))?;
     for row in rows {
-        let model_id = row.map_err(|error| error.to_string())?;
+        let model_id = row
+            .map_err(|error| LibraryTranslateFailure::new("translation.db.query_failed", error.to_string(), Vec::new()))?;
         let _ = push_translation_model_candidate(&conn, &model_id, &mut seen, &mut output);
     }
 
     if output.is_empty() {
-        return Err("No model binding configured for role: task".to_string());
+        return Err(LibraryTranslateFailure::new(
+            "translation.provider.unconfigured",
+            "No translation model candidates are configured.",
+            Vec::new(),
+        ));
     }
 
     Ok(output)
@@ -158,7 +228,7 @@ pub fn translate_library_document(
     relative_path: &str,
     target_language: Option<&str>,
     model_override: Option<&str>,
-) -> Result<crate::models::LibraryTranslateResponse, String> {
+) -> Result<crate::models::LibraryTranslateResponse, LibraryTranslateFailure> {
     library_translation_paper_translation_engine::translate_library_document(
         db_path,
         runtime_root,
@@ -179,7 +249,7 @@ pub fn translate_library_document_with_progress<F>(
     target_language: Option<&str>,
     model_override: Option<&str>,
     on_progress: F,
-) -> Result<crate::models::LibraryTranslateResponse, String>
+) -> Result<crate::models::LibraryTranslateResponse, LibraryTranslateFailure>
 where
     F: FnMut(u32, u32, &str),
 {
@@ -210,5 +280,3 @@ pub fn extract_library_paper_context(
         relative_path,
     )
 }
-
-

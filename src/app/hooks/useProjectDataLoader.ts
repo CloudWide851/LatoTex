@@ -3,15 +3,49 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { gitBranches, gitCheckInstalled, gitLog, gitStatus } from "../../shared/api/git";
 import { getLibraryTree } from "../../shared/api/library";
 import { openProject, projectIntegrityStatus } from "../../shared/api/projects";
-import type { WorkspacePage } from "../../shared/types/app";
+import type { AppSettings, ResourceNode, WorkspacePage } from "../../shared/types/app";
 
 export type ProjectIntegrityIssue = { projectId: string; missingRequired: string[] };
+
+function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
+  const output = new Set<string>();
+  const walk = (items: ResourceNode[]) => {
+    for (const node of items) {
+      if (node.kind === "file") {
+        output.add(node.relativePath);
+        continue;
+      }
+      if (Array.isArray(node.children) && node.children.length > 0) {
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return output;
+}
+
+function resolvePersistedLibrarySelection(
+  settings: AppSettings | null,
+  projectId: string,
+  papers: ResourceNode[],
+): string | null {
+  const selectedPath = String(
+    settings?.uiPrefs?.librarySelectedPathByProject?.[projectId] ?? "",
+  ).trim();
+  if (!selectedPath) {
+    return null;
+  }
+  const filePaths = collectResourceFilePaths(papers);
+  return filePaths.has(selectedPath) ? selectedPath : null;
+}
 
 export function useProjectDataLoader(params: {
   page: WorkspacePage;
   activeProjectIdRef: MutableRefObject<string | null>;
   integrityCheckedRef: MutableRefObject<Set<string>>;
   lastLoadedProjectIdRef: MutableRefObject<string | null>;
+  loadedLibraryProjectIdRef: MutableRefObject<string | null>;
+  settingsRef: MutableRefObject<AppSettings | null>;
   setIntegrityIssue: Dispatch<SetStateAction<ProjectIntegrityIssue | null>>;
   setGitAvailability: Dispatch<SetStateAction<any>>;
   setSuppressAutoGitInstall: (value: boolean) => void;
@@ -28,6 +62,8 @@ export function useProjectDataLoader(params: {
     activeProjectIdRef,
     integrityCheckedRef,
     lastLoadedProjectIdRef,
+    loadedLibraryProjectIdRef,
+    settingsRef,
     setIntegrityIssue,
     setGitAvailability,
     setSuppressAutoGitInstall,
@@ -105,18 +141,21 @@ export function useProjectDataLoader(params: {
     setSelectedFile(snapshot.mainFile);
     const [papers] = await Promise.all([getLibraryTree(projectId)]);
     setLibraryTree(papers);
-    setSelectedLibraryPath(null);
+    setSelectedLibraryPath(resolvePersistedLibrarySelection(settingsRef.current, projectId, papers));
+    loadedLibraryProjectIdRef.current = projectId;
     lastLoadedProjectIdRef.current = projectId;
     await refreshGitWorkspace(projectId);
   }, [
     integrityCheckedRef,
     lastLoadedProjectIdRef,
+    loadedLibraryProjectIdRef,
     refreshGitWorkspace,
     setIntegrityIssue,
     setLibraryTree,
     setSelectedFile,
     setSelectedLibraryPath,
     setTree,
+    settingsRef,
   ]);
 
   return {

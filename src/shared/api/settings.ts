@@ -50,6 +50,7 @@ export function updateSettings(input: {
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
     analysisEnvRootsByProject?: Record<string, string>;
+    librarySelectedPathByProject?: Record<string, string>;
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });
@@ -119,5 +120,6 @@ export function saveModelApiKeyVerified(input: {
     },
   });
 }
+
 
 

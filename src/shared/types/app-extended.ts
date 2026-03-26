@@ -39,12 +39,15 @@ export type LibraryTranslateStartResult = {
 
 export type LibraryTranslateStatus = {
   taskId: string;
+  runId?: string | null;
   status: string;
   currentPage: number;
   totalPages: number;
   stage?: string | null;
   message?: string | null;
   error?: string | null;
+  errorCode?: string | null;
+  diagnostics?: string[];
   result?: LibraryTranslateResult | null;
 };
 export type LibraryTranslateResult = {
@@ -336,5 +339,6 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+
 
 

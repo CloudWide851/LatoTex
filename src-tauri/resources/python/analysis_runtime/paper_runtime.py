@@ -31,6 +31,24 @@ TARGET_LANGUAGE_ALIASES = {
 }
 
 
+class PaperRuntimeError(Exception):
+    def __init__(self, code: str, message: str, diagnostics: list[str] | None = None):
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.diagnostics = diagnostics or []
+
+    def to_payload(self) -> dict:
+        return {
+            "status": "failed",
+            "error": {
+                "code": self.code,
+                "message": self.message,
+                "diagnostics": self.diagnostics,
+            },
+        }
+
+
 def normalize_target_language(value: str | None) -> str:
     normalized = str(value or "").strip().lower()
     if not normalized:
@@ -49,6 +67,15 @@ def detect_language(text: str) -> str | None:
     if latin > 0:
         return "en"
     return None
+
+
+def compact_output(text: str, label: str) -> str | None:
+    normalized = (text or "").strip().replace("\r", " ").replace("\n", " | ")
+    if not normalized:
+        return None
+    if len(normalized) > 600:
+        normalized = normalized[-600:]
+    return f"{label}={normalized}"
 
 
 def collect_output_pdfs(output_dir: Path) -> tuple[str | None, str | None, list[str]]:
@@ -72,31 +99,57 @@ def collect_output_pdfs(output_dir: Path) -> tuple[str | None, str | None, list[
     return mono, dual, artifacts
 
 
+def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
+    service_kind = str(service.get("kind") or "").strip().lower()
+    model_name = str(service.get("model") or "").strip()
+    base_url = str(service.get("baseUrl") or "").strip()
+    api_key = str(service.get("apiKey") or "").strip()
+    env = os.environ.copy()
+
+    if service_kind == "openai":
+        if not base_url or not api_key or not model_name:
+            raise PaperRuntimeError(
+                "translation.provider.openai_config_missing",
+                "OpenAI-compatible translation service is missing base URL, model, or API key.",
+                [
+                    f"base_url_set={bool(base_url)}",
+                    f"model_set={bool(model_name)}",
+                    f"api_key_set={bool(api_key)}",
+                ],
+            )
+        env["OPENAI_BASE_URL"] = base_url
+        env["OPENAI_API_KEY"] = api_key
+        env["OPENAI_MODEL"] = model_name
+        return service_kind, env, model_name, base_url
+
+    if service_kind == "gemini":
+        if not api_key or not model_name:
+            raise PaperRuntimeError(
+                "translation.provider.gemini_config_missing",
+                "Gemini translation service is missing model or API key.",
+                [
+                    f"model_set={bool(model_name)}",
+                    f"api_key_set={bool(api_key)}",
+                ],
+            )
+        env["GEMINI_API_KEY"] = api_key
+        env["GEMINI_MODEL"] = model_name
+        return service_kind, env, model_name, base_url
+
+    raise PaperRuntimeError(
+        "translation.provider.unsupported",
+        f"Unsupported translation service kind: {service_kind or '-'}.",
+        [f"service_kind={service_kind or '-'}"],
+    )
+
+
 def run_translate(payload: dict) -> dict:
     pdf_path = Path(payload["pdfPath"])
     output_dir = Path(payload["outputDir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    service = payload.get("service") or {"kind": "google"}
-    service_kind = str(service.get("kind") or "google").strip().lower() or "google"
-    model_name = str(service.get("model") or "").strip()
-    base_url = str(service.get("baseUrl") or "").strip()
-    api_key = str(service.get("apiKey") or "").strip()
     target_lang = normalize_target_language(payload.get("targetLanguage"))
-
-    env = os.environ.copy()
-    if service_kind == "openai":
-        if base_url:
-            env["OPENAI_BASE_URL"] = base_url
-        if api_key:
-            env["OPENAI_API_KEY"] = api_key
-        if model_name:
-            env["OPENAI_MODEL"] = model_name
-    elif service_kind == "gemini":
-        if api_key:
-            env["GEMINI_API_KEY"] = api_key
-        if model_name:
-            env["GEMINI_MODEL"] = model_name
+    service_kind, env, model_name, base_url = build_service_env(payload.get("service") or {})
 
     command = [
         sys.executable,
@@ -125,11 +178,31 @@ def run_translate(payload: dict) -> dict:
     stdout = completed.stdout.strip()
     stderr = completed.stderr.strip()
     if completed.returncode != 0:
-        raise RuntimeError(stderr or stdout or f"pdf2zh exited with code {completed.returncode}")
+        diagnostics = [
+            f"service={service_kind}",
+            f"model={model_name or '-'}",
+            f"base_url={base_url or '-'}",
+            f"exit_code={completed.returncode}",
+        ]
+        stdout_tail = compact_output(stdout, "stdout")
+        stderr_tail = compact_output(stderr, "stderr")
+        if stdout_tail:
+            diagnostics.append(stdout_tail)
+        if stderr_tail:
+            diagnostics.append(stderr_tail)
+        raise PaperRuntimeError(
+            "translation.pdfmathtranslate.failed",
+            "pdf2zh exited with a non-zero status.",
+            diagnostics,
+        )
 
     mono_path, dual_path, artifacts = collect_output_pdfs(output_dir)
     if not mono_path:
-        raise RuntimeError("pdf2zh did not generate any translated PDF artifacts")
+        raise PaperRuntimeError(
+            "translation.pdfmathtranslate.mono_missing",
+            "pdf2zh did not generate any translated PDF artifacts.",
+            [f"service={service_kind}", f"model={model_name or '-'}"],
+        )
 
     with fitz.open(pdf_path) as doc:
         page_count = doc.page_count
@@ -199,27 +272,49 @@ def run_extract(payload: dict) -> dict:
         }
 
 
+def write_output(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
+    output_path = Path(args.output)
     payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
     operation = str(payload.get("operation") or "translate").strip().lower()
 
-    if operation == "translate":
-        result = run_translate(payload)
-    elif operation == "extract":
-        result = run_extract(payload)
-    else:
-        raise SystemExit(f"unsupported operation: {operation}")
-
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"status": result.get("status", "completed"), "operation": operation}, ensure_ascii=False))
-    return 0
+    try:
+        if operation == "translate":
+            result = run_translate(payload)
+        elif operation == "extract":
+            result = run_extract(payload)
+        else:
+            raise PaperRuntimeError(
+                "translation.operation.unsupported",
+                f"Unsupported paper runtime operation: {operation}",
+                [f"operation={operation}"],
+            )
+        write_output(output_path, result)
+        print(json.dumps({"status": result.get("status", "completed"), "operation": operation}, ensure_ascii=False))
+        return 0
+    except PaperRuntimeError as error:
+        failure = error.to_payload()
+        write_output(output_path, failure)
+        print(json.dumps({"status": "failed", "code": error.code, "operation": operation}, ensure_ascii=False), file=sys.stderr)
+        return 1
+    except Exception as error:  # pragma: no cover - defensive catch for runtime diagnostics
+        failure = PaperRuntimeError(
+            "translation.runtime.unexpected",
+            str(error),
+            [f"exception_type={type(error).__name__}"],
+        ).to_payload()
+        write_output(output_path, failure)
+        print(json.dumps({"status": "failed", "code": "translation.runtime.unexpected", "operation": operation}, ensure_ascii=False), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

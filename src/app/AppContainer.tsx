@@ -56,6 +56,8 @@ export function AppContainer() {
     activeProjectIdRef: s.activeProjectIdRef,
     integrityCheckedRef: s.integrityCheckedRef,
     lastLoadedProjectIdRef: s.lastLoadedProjectIdRef,
+    loadedLibraryProjectIdRef: s.loadedLibraryProjectIdRef,
+    settingsRef: s.settingsRef,
     setIntegrityIssue,
     setGitAvailability: s.setGitAvailability,
     setGitStatusState: s.setGitStatusState,
@@ -198,10 +200,7 @@ export function AppContainer() {
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
   });
-  const activeAgentProposal = useMemo(
-    () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
-    [s.agentProposalsByPath, s.selectedFile],
-  );
+  const activeAgentProposal = useMemo(() => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null), [s.agentProposalsByPath, s.selectedFile]);
   useAgentProposalDecorations({
     editorRef: s.editorRef,
     selectedFile: s.selectedFile,
@@ -596,6 +595,10 @@ export function AppContainer() {
     />
   );
 }
+
+
+
+
 
 
 

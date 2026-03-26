@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { libraryResolvePdfPreview } from "../../../shared/api/library";
 import {
   ensureTranslationResult,
+  formatTranslationDiagnostics,
+  formatTranslationTaskFailure,
   queryLibraryTranslationTask,
   resolveTranslationStageLabel,
   startLibraryTranslationTask,
@@ -175,7 +177,8 @@ export function useLibraryTranslationPanel(params: {
           }
 
           if (status.status === "failed") {
-            throw new Error(String(status.error || t("library.viewer.translateFailed")));
+            setTranslationDetail(formatTranslationDiagnostics(status));
+            throw new Error(formatTranslationTaskFailure(status, t));
           }
 
           await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
@@ -186,7 +189,7 @@ export function useLibraryTranslationPanel(params: {
         if (runTokenRef.current !== runToken) {
           return;
         }
-        const message = String(error);
+        const message = error instanceof Error ? error.message : String(error);
         setTranslationNotice({ type: "error", message });
       } finally {
         if (runTokenRef.current === runToken) {
