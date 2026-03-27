@@ -18,7 +18,7 @@ export function AnalysisLiveRail(props: {
 }) {
   const { stageLabel, cards, running, t } = props;
   const normalizedStage = stageLabel.trim() || t("analysis.centerRunning");
-  const tickerText = latestTicker(cards, normalizedStage);
+  const tickerText = latestTicker(cards, "");
   const eventCount = cards.length;
 
   return (
@@ -31,9 +31,11 @@ export function AnalysisLiveRail(props: {
         </div>
         <span className="text-xs tabular-nums text-slate-500">{String(eventCount).padStart(2, "0")}</span>
       </div>
-      <div className="mt-2 truncate text-xs text-slate-600">
-        {tickerText}
-      </div>
+      {tickerText && (
+        <div className="mt-2 truncate text-xs text-slate-600">
+          {tickerText}
+        </div>
+      )}
     </section>
   );
 }

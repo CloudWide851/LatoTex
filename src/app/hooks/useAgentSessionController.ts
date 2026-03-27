@@ -88,6 +88,11 @@ export function useAgentSessionController(params: {
   const handleAgentRun = useCallback(async (promptOverride?: string, options?: { forceNewSession?: boolean }) => {
     const projectId = activeProjectId;
     if (!projectId || suspended) {
+      if (!projectId) {
+        setToast({ type: "error", message: t("agent.overlay.noProject") });
+      } else if (suspended) {
+        setToast({ type: "error", message: t("agent.overlay.suspended") });
+      }
       return;
     }
     if (agentPhase === "running" && agentRunId) {
@@ -106,6 +111,7 @@ export function useAgentSessionController(params: {
     try {
       const rawPrompt = (promptOverride ?? agentPrompt).trim();
       if (!rawPrompt) {
+        setToast({ type: "error", message: t("agent.overlay.emptyPrompt") });
         return;
       }
       const parsed = parseAgentPrompt(rawPrompt);

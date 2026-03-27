@@ -3,6 +3,10 @@ import { normalizeAssetBasePath } from "./assetPath";
 
 export type LocalResourceProbe = (url: string) => Promise<boolean>;
 
+type PrioritizeLocalResourceOptions = {
+  preferSameOrigin?: boolean;
+};
+
 function normalizeResourceValue(input: string): string {
   return String(input || "").trim().replace(/\/+$/, "");
 }
@@ -111,8 +115,11 @@ export async function probeLocalResourceUrl(url: string): Promise<boolean> {
 export async function prioritizeReachableLocalResourceCandidates(
   candidates: string[],
   probe: LocalResourceProbe = probeLocalResourceUrl,
+  options: PrioritizeLocalResourceOptions = {},
 ): Promise<string[]> {
-  const ordered = orderLocalResourceCandidatesByOrigin(candidates);
+  const ordered = options.preferSameOrigin === false
+    ? uniqueLocalResourceValues(candidates)
+    : orderLocalResourceCandidatesByOrigin(candidates);
   for (let index = 0; index < ordered.length; index += 1) {
     const candidate = ordered[index];
     if (!(await probe(candidate))) {

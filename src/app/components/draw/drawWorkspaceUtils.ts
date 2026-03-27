@@ -46,6 +46,7 @@ export function toDrawioEmbedUrl(entryUrl: string): string {
     proto: "json",
     spin: "0",
     configure: "1",
+    ui: "min",
   });
 }
 
@@ -54,7 +55,7 @@ function drawTabsStorageKey(projectId: string): string {
 }
 
 function buildDrawioEntryCandidates(entryUrl: string, actualDir: string): string[] {
-  const directCandidates = [String(entryUrl || "").trim(), DRAWIO_HOST_URL].filter(Boolean);
+  const directCandidates = [String(entryUrl || "").trim()].filter(Boolean);
   const localBaseCandidates = buildLocalResourceBaseCandidates(actualDir);
   const localEntryCandidates = buildLocalResourceEntryCandidates(localBaseCandidates, "index.html");
   const rawCandidates = [...directCandidates, ...localEntryCandidates, DRAWIO_HOST_URL].filter(Boolean);
@@ -77,7 +78,9 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
     const candidates = buildDrawioEntryCandidates(info.entryUrl, info.actualDir);
-    const reachable = await prioritizeReachableLocalResourceCandidates(candidates);
+    const reachable = await prioritizeReachableLocalResourceCandidates(candidates, undefined, {
+      preferSameOrigin: false,
+    });
     return reachable.length > 0 ? reachable : [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
   } catch {
     return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];

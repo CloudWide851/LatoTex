@@ -13,8 +13,6 @@ use std::sync::mpsc;
 use std::time::Duration;
 use std::time::Instant;
 use uuid::Uuid;
-use flate2::read::GzDecoder;
-use tar::Archive;
 
 const TECTONIC_RESOURCE_SUBDIR: &str = "tools/tectonic";
 const TECTONIC_BINARY_RELATIVE_PATH: &str = "windows-x64/tectonic.exe";
@@ -161,15 +159,6 @@ fn copy_directory_contents_if_needed(source: &Path, target: &Path) -> Result<(),
     Ok(())
 }
 
-fn extract_bundled_tectonic_cache(bundle_path: &Path, target_dir: &Path) -> Result<(), String> {
-    let file = fs::File::open(bundle_path)
-        .map_err(|e| format!("Failed to open bundle: {}", e))?;
-    let decoder = GzDecoder::new(file);
-    let mut archive = Archive::new(decoder);
-    archive.unpack(target_dir)
-        .map_err(|e| format!("Failed to extract bundle: {}", e))?;
-    Ok(())
-}
 
 fn ensure_tectonic_cache_seeded(cache_dir: &Path) -> Result<(), String> {
     fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
@@ -195,13 +184,10 @@ fn ensure_tectonic_cache_seeded(cache_dir: &Path) -> Result<(), String> {
         }
     }
 
-    // Fallback: extract bundled tar
-    let bundle_path = cache_dir.parent()
-        .ok_or("Invalid cache path")?
-        .join("bundles/tlextras-2022.0r0.tar");
-
-    if bundle_path.exists() {
-        extract_bundled_tectonic_cache(&bundle_path, cache_dir)?;
+    if !tectonic_cache_ready(cache_dir) {
+        return Err(
+            "tectonic.cache_unavailable: managed cache is incomplete and no valid local Tectonic cache seed was found".to_string(),
+        );
     }
 
     Ok(())

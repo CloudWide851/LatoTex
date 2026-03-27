@@ -22,6 +22,8 @@ type LibraryViewerContentPanelProps = {
   viewMode: ViewMode;
   loading: boolean;
   loadError: string | null;
+  pdfPreviewLoading: boolean;
+  pdfPreviewError: string | null;
   hasPdf: boolean;
   pdfUrl: string | null;
   annotationMode: ToolMode;
@@ -83,6 +85,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     viewMode,
     loading,
     loadError,
+    pdfPreviewLoading,
+    pdfPreviewError,
     hasPdf,
     pdfUrl,
     annotationMode,
@@ -133,14 +137,16 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     t,
   } = props;
   const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
+  const pdfPaneLoading = loading || pdfPreviewLoading;
+  const pdfPaneError = loadError ?? pdfPreviewError;
 
   if (viewMode === "pdf") {
     return (
       <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2 motion-card-pop">
-        {loading ? (
+        {pdfPaneLoading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
-        ) : loadError ? (
-          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
+        ) : pdfPaneError ? (
+          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {pdfPaneError}</div>
         ) : hasPdf && pdfUrl ? (
           <div className="grid h-full min-h-0 grid-cols-[56px_minmax(0,1fr)] gap-3">
             <LibraryPdfToolSidebar
@@ -230,7 +236,13 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             {t("library.viewer.translatePaper")}
           </button>
         </div>
-        {hasComparePair && pdfUrl && translatedPdfUrl ? (
+        {pdfPaneLoading ? (
+          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+            {t("library.viewer.loading")}
+          </div>
+        ) : pdfPaneError ? (
+          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {pdfPaneError}</div>
+        ) : hasComparePair && pdfUrl && translatedPdfUrl ? (
           <div className="grid h-full min-h-0 grid-cols-2 gap-2">
             <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareOriginal")}</div>

@@ -4,7 +4,6 @@ import path from "node:path";
 const tectonicDir = path.resolve("src-tauri/resources/tools/tectonic");
 const requiredFiles = [
   "windows-x64/tectonic.exe",
-  "bundles/tlextras-2022.0r0.tar",
 ];
 
 const missing = requiredFiles.filter((file) => !fs.existsSync(path.join(tectonicDir, file)));

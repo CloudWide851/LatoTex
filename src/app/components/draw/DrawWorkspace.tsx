@@ -99,7 +99,7 @@ export function DrawWorkspace(props: {
           setReady(false);
           setFrameSrc(null);
           frameSrcRef.current = null;
-          setStatus(formatDrawStartFailure(t, "no reachable host"));
+          setStatus(formatDrawStartFailure(t, "no reachable drawio host found"));
           return;
         }
 
@@ -503,7 +503,7 @@ export function DrawWorkspace(props: {
         setStatus(t("draw.waiting"));
         return;
       }
-      setStatus(formatDrawStartFailure(t, frameSrcRef.current));
+      setStatus(formatDrawStartFailure(t, `tried ${frameCandidates.length} host(s), all failed`));
     }, 12_000);
     return () => {
       if (initTimerRef.current !== null) {

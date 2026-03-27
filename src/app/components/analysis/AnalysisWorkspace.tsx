@@ -196,9 +196,6 @@ export function AnalysisWorkspace(props: {
                     {activeTaskName}
                   </div>
                   <p className="text-sm font-medium text-slate-700">{t("analysis.centerRunning")}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    {liveStageLabel || t("analysis.running")}
-                  </p>
                 </div>
               </section>
               <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact maxCards={3} />

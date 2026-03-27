@@ -38,7 +38,7 @@ export function useDropdownDismiss(params: {
 
 export function dropdownSurfaceClassName(extraClassName?: string) {
   return cn(
-    "z-[280] overflow-auto rounded-xl border border-slate-300/90 bg-white/95 p-0 backdrop-blur-sm",
+    "z-[450] overflow-auto rounded-xl border border-slate-300/90 bg-white/95 p-0 backdrop-blur-sm",
     "shadow-[0_16px_42px_rgba(15,23,42,0.2),0_1px_0_rgba(255,255,255,0.7)_inset]",
     "origin-top motion-fade-in",
     extraClassName,

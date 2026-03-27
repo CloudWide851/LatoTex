@@ -71,6 +71,8 @@ export function LibraryDocumentViewer(props: {
   const {
     loading,
     loadError,
+    pdfPreviewLoading,
+    pdfPreviewError,
     citation,
     paperPreview,
     paperPreviewLoading,
@@ -87,6 +89,7 @@ export function LibraryDocumentViewer(props: {
   });
   const hasPdf = Boolean(pdfUrl);
   const hasTranslated = Boolean(translatedPdfUrl);
+  const documentBusy = loading || pdfPreviewLoading;
 
   const {
     translationBusy,
@@ -232,7 +235,7 @@ export function LibraryDocumentViewer(props: {
   }, [persistedViewMode, projectId]);
 
   useEffect(() => {
-    if (loading) {
+    if (documentBusy) {
       return;
     }
     if (viewMode === "compare" && !hasComparePair) {
@@ -242,7 +245,7 @@ export function LibraryDocumentViewer(props: {
     if (viewMode === "pdf" && !hasPdf) {
       setViewMode("bib");
     }
-  }, [hasComparePair, hasPdf, loading, viewMode]);
+  }, [documentBusy, hasComparePair, hasPdf, viewMode]);
 
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
@@ -370,7 +373,7 @@ export function LibraryDocumentViewer(props: {
             className={actionBtnClass}
             onClick={() => selectedPath && onAnalyzePaper(selectedPath)}
             title={t("library.viewer.analyzePaper")}
-            disabled={!selectedPath || loading || analysisRunning}
+            disabled={!selectedPath || documentBusy || analysisRunning}
           >
             <FileSearch className="h-3.5 w-3.5" />
           </button>
@@ -385,7 +388,7 @@ export function LibraryDocumentViewer(props: {
               handleRunTranslation(() => applyViewMode("compare"));
             }}
             title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
-            disabled={!selectedPath || loading || translationBusy}
+            disabled={!selectedPath || documentBusy || translationBusy}
           >
             <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
           </button>
@@ -425,6 +428,8 @@ export function LibraryDocumentViewer(props: {
         viewMode={viewMode}
         loading={loading}
         loadError={loadError}
+        pdfPreviewLoading={pdfPreviewLoading}
+        pdfPreviewError={pdfPreviewError}
         hasPdf={hasPdf}
         pdfUrl={pdfUrl}
         annotationMode={annotationMode}
