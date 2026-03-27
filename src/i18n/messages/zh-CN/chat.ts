@@ -24,5 +24,6 @@ export const zhCN_chat = {
   "chat.input.placeholder": "输入消息并按 Enter 发送...",
   "chat.send": "发送",
   "chat.running": "Agent 正在回复...",
+  "chat.emptyResult": "运行已完成，但没有可显示的结果。",
   "chat.error.runFailed": "对话运行失败。",
 } as const;

@@ -128,6 +128,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
   const [previewOverridePath, setPreviewOverridePath] = useState<string | null>(null);
+  const [selectedTextFileReadyPath, setSelectedTextFileReadyPath] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [draftModelApiKeys, setDraftModelApiKeys] = useState<Record<string, string>>({});
@@ -348,6 +349,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setSelectedImagePreviewUrl,
     previewOverridePath,
     setPreviewOverridePath,
+    selectedTextFileReadyPath,
+    setSelectedTextFileReadyPath,
     settings,
     setSettings,
     settingsSection,
@@ -437,5 +440,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     fileSet,
   };
 }
+
 
 

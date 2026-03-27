@@ -30,6 +30,8 @@ type WorkspacePageLayoutProps = Pick<
   | "onLibrarySyncZotero"
   | "onLibraryAnalyzePaper"
   | "analysisRunning"
+  | "libraryViewMode"
+  | "onLibraryViewModeChange"
   | "translationModelId"
   | "onSavePanelLayout"
   | "t"
@@ -63,6 +65,8 @@ export function WorkspacePageLayout({
   onLibrarySyncZotero,
   onLibraryAnalyzePaper,
   analysisRunning,
+  libraryViewMode,
+  onLibraryViewModeChange,
   translationModelId,
   onSavePanelLayout,
   t,
@@ -197,6 +201,8 @@ export function WorkspacePageLayout({
               selectedPath={selectedLibraryPath}
               onAnalyzePaper={onLibraryAnalyzePaper}
               analysisRunning={analysisRunning}
+              persistedViewMode={libraryViewMode}
+              onPersistViewMode={onLibraryViewModeChange}
               translationModelId={translationModelId}
               t={t}
             />

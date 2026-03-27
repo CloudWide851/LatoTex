@@ -31,6 +31,7 @@ export function useSelectedFilePreviewEffects(params: {
   setEditorContent: (value: string) => void;
   setSelectedFilePdfUrl: (value: string | null) => void;
   setSelectedImagePreviewUrl: (value: string | null) => void;
+  setSelectedTextFileReadyPath: (value: string | null) => void;
   setToast: ToastSetter;
   getCachedTextContent?: (relativePath: string) => string | null;
   onTextFileLoaded?: (relativePath: string, content: string) => void;
@@ -42,6 +43,7 @@ export function useSelectedFilePreviewEffects(params: {
     setEditorContent,
     setSelectedFilePdfUrl,
     setSelectedImagePreviewUrl,
+    setSelectedTextFileReadyPath,
     setToast,
     getCachedTextContent,
     onTextFileLoaded,
@@ -52,10 +54,12 @@ export function useSelectedFilePreviewEffects(params: {
 
   useEffect(() => {
     if (!activeProjectId || !selectedFile) {
+      setSelectedTextFileReadyPath(null);
       setEditorContent("");
       return;
     }
     if (isPdfPath(selectedFile) || isExcelPath(selectedFile) || isImagePath(selectedFile)) {
+      setSelectedTextFileReadyPath(null);
       setEditorContent("");
       return;
     }
@@ -64,15 +68,18 @@ export function useSelectedFilePreviewEffects(params: {
     const cached = getCachedTextContent?.(selectedFile);
     if (typeof cached === "string") {
       setEditorContent(cached);
+      setSelectedTextFileReadyPath(selectedFile);
       return () => {
         cancelled = true;
       };
     }
 
+    setSelectedTextFileReadyPath(null);
     readFile(activeProjectId, selectedFile)
       .then((result) => {
         if (!cancelled) {
           setEditorContent(result.content);
+          setSelectedTextFileReadyPath(selectedFile);
           onTextFileLoaded?.(selectedFile, result.content);
         }
       })
@@ -91,6 +98,7 @@ export function useSelectedFilePreviewEffects(params: {
     onTextFileLoaded,
     selectedFile,
     setEditorContent,
+    setSelectedTextFileReadyPath,
     setToast,
   ]);
 

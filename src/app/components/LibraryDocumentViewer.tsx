@@ -36,10 +36,21 @@ export function LibraryDocumentViewer(props: {
   selectedPath: string | null;
   onAnalyzePaper: (path: string) => void;
   analysisRunning: boolean;
+  persistedViewMode?: ViewMode | null;
+  onPersistViewMode?: (mode: ViewMode) => void;
   translationModelId?: string | null;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onAnalyzePaper, analysisRunning, translationModelId, t } = props;
+  const {
+    projectId,
+    selectedPath,
+    onAnalyzePaper,
+    analysisRunning,
+    persistedViewMode,
+    onPersistViewMode,
+    translationModelId,
+    t,
+  } = props;
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -49,7 +60,7 @@ export function LibraryDocumentViewer(props: {
   const [bibPreview, setBibPreview] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [resolvedLink, setResolvedLink] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("bib");
+  const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode ?? "bib");
   const [annotationMode, setAnnotationMode] = useState<ToolMode>("select");
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0]);
   const [highlightWidth, setHighlightWidth] = useState<number>(16);
@@ -107,6 +118,11 @@ export function LibraryDocumentViewer(props: {
   );
   const hasComparePair = Boolean(sourcePdfRelativePath && translatedPdfRelativePath && pdfUrl && translatedPdfUrl);
 
+  const applyViewMode = useCallback((nextMode: ViewMode) => {
+    setViewMode(nextMode);
+    onPersistViewMode?.(nextMode);
+  }, [onPersistViewMode]);
+
   useEffect(() => {
     return () => {
       if (pdfUrl) {
@@ -134,7 +150,6 @@ export function LibraryDocumentViewer(props: {
       setPaperPreview(null);
       setBibPreview("");
       setResolvedLink(null);
-      setViewMode("bib");
       setAnnotationMode("select");
       setAnnotationStrokes([]);
       setAnnotationTextBoxes([]);
@@ -167,7 +182,6 @@ export function LibraryDocumentViewer(props: {
     setPaperPreview(null);
     setLinkError(null);
     setCopyState(false);
-    setViewMode("bib");
     setAnnotationMode("select");
     setCurrentPage(1);
     setPageCount(1);
@@ -370,6 +384,23 @@ export function LibraryDocumentViewer(props: {
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
 
   useEffect(() => {
+    setViewMode(persistedViewMode ?? "bib");
+  }, [persistedViewMode, projectId]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (viewMode === "compare" && !hasComparePair) {
+      setViewMode(hasPdf ? "pdf" : "bib");
+      return;
+    }
+    if (viewMode === "pdf" && !hasPdf) {
+      setViewMode("bib");
+    }
+  }, [hasComparePair, hasPdf, loading, viewMode]);
+
+  useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
       setAnnotationMode("select");
     }
@@ -465,7 +496,7 @@ export function LibraryDocumentViewer(props: {
                 ? "border-primary-300 bg-primary-50 text-primary-900"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
             }`}
-            onClick={() => setViewMode("bib")}
+            onClick={() => applyViewMode("bib")}
             title={t("library.viewer.showBib")}
           >
             {t("library.viewer.showBib")}
@@ -476,7 +507,7 @@ export function LibraryDocumentViewer(props: {
                 ? "border-primary-300 bg-primary-50 text-primary-900"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
             }`}
-            onClick={() => setViewMode("pdf")}
+            onClick={() => applyViewMode("pdf")}
             title={t("library.viewer.showPdf")}
             disabled={!hasPdf}
           >
@@ -496,10 +527,10 @@ export function LibraryDocumentViewer(props: {
             className={actionBtnClass}
             onClick={() => {
               if (hasTranslated && translatedPdfUrl) {
-                setViewMode("compare");
+                applyViewMode("compare");
                 return;
               }
-              void runTranslation(() => setViewMode("compare"));
+              void runTranslation(() => applyViewMode("compare"));
             }}
             title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
             disabled={!selectedPath || loading || translationBusy}

@@ -216,6 +216,7 @@ export type AppSettings = {
     backgroundBlurPx?: number;
     analysisEnvRootsByProject?: Record<string, string>;
     librarySelectedPathByProject?: Record<string, string>;
+    libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
   };
 };
 

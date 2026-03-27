@@ -21,6 +21,7 @@ export type UseAppHandlersParams = {
   selectedFile: string | null;
   fileList: string[];
   editorContent: string;
+  resolveSelectedFileContent: () => Promise<string | null>;
   pdfUrl: string | null;
   compiledPdfBytes: Uint8Array | null;
   agentPrompt: string;
@@ -81,4 +82,5 @@ export type UseAppHandlersParams = {
   upsertProject: (projects: any[], snapshot: any) => any[];
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
 };
+
 

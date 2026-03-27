@@ -166,6 +166,18 @@ pub(crate) fn resolve_analysis_env_paths(
     })
 }
 
+fn should_skip_fingerprint_path(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    if path.is_dir() {
+        return matches!(name, "__pycache__" | ".pytest_cache" | ".mypy_cache");
+    }
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".pyc") || lower.ends_with(".pyo")
+}
+
 fn append_fingerprint_entries(
     root: &Path,
     prefix: &Path,
@@ -178,6 +190,9 @@ fn append_fingerprint_entries(
     items.sort_by_key(|item| item.file_name());
     for item in items {
         let path = item.path();
+        if should_skip_fingerprint_path(&path) {
+            continue;
+        }
         if path.is_dir() {
             append_fingerprint_entries(&path, prefix, entries)?;
             continue;
@@ -534,11 +549,57 @@ pub(crate) fn ensure_analysis_env_blocking(
 
 #[cfg(test)]
 mod tests {
-    use super::strip_windows_verbatim_prefix;
+    use super::{runtime_dependency_fingerprint, strip_windows_verbatim_prefix};
+    use std::fs;
+    use std::path::PathBuf;
+    use uuid::Uuid;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("latotex-analysis-env-{name}-{}", Uuid::new_v4()));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
 
     #[test]
     fn strips_windows_verbatim_prefixes() {
         assert_eq!(strip_windows_verbatim_prefix("\\\\?\\C:\\Workspace\\Demo"), "C:/Workspace/Demo");
         assert_eq!(strip_windows_verbatim_prefix("\\\\?\\UNC\\server\\share\\demo"), "//server/share/demo");
     }
+
+    #[test]
+    fn runtime_dependency_fingerprint_ignores_python_caches() {
+        let runtime_root = unique_temp_dir("runtime-root");
+        fs::write(runtime_root.join("analysis_runner.py"), "print('ok')\\n").unwrap();
+        fs::write(runtime_root.join("module.py"), "VALUE = 1\\n").unwrap();
+
+        let base = runtime_dependency_fingerprint(&runtime_root, None).unwrap();
+
+        let pycache_file = runtime_root
+            .join("__pycache__")
+            .join("module.cpython-312.pyc");
+        fs::create_dir_all(pycache_file.parent().unwrap()).unwrap();
+        fs::write(&pycache_file, b"compiled").unwrap();
+
+        let pytest_cache_file = runtime_root
+            .join(".pytest_cache")
+            .join("README.md");
+        fs::create_dir_all(pytest_cache_file.parent().unwrap()).unwrap();
+        fs::write(&pytest_cache_file, "cache\\n").unwrap();
+
+        let mypy_cache_file = runtime_root
+            .join(".mypy_cache")
+            .join("module.meta.json");
+        fs::create_dir_all(mypy_cache_file.parent().unwrap()).unwrap();
+        fs::write(&mypy_cache_file, "{}\\n").unwrap();
+
+        let cached = runtime_dependency_fingerprint(&runtime_root, None).unwrap();
+        assert_eq!(base, cached);
+
+        fs::write(runtime_root.join("module.py"), "VALUE = 2\\n").unwrap();
+        let changed = runtime_dependency_fingerprint(&runtime_root, None).unwrap();
+        assert_ne!(base, changed);
+
+        let _ = fs::remove_dir_all(runtime_root);
+    }
 }
+

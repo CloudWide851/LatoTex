@@ -122,6 +122,8 @@ export function AppContainerView(props: any) {
     handleLibrarySyncZotero,
     handleLibraryAnalyzePaper,
     analysisRunning,
+    libraryViewMode,
+    handleLibraryViewModeChange,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,
     handleWorkspaceRescan,
@@ -343,6 +345,8 @@ export function AppContainerView(props: any) {
               onLibrarySyncZotero={handleLibrarySyncZotero}
               onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
               analysisRunning={analysisRunning}
+              libraryViewMode={libraryViewMode}
+              onLibraryViewModeChange={handleLibraryViewModeChange}
               onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
               onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
               onWorkspaceRescan={handleWorkspaceRescan}
@@ -415,6 +419,8 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
+
 
 
 

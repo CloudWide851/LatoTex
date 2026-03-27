@@ -98,7 +98,15 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
         Object.entries(nextSettings.uiPrefs?.librarySelectedPathByProject ?? {})
           .map(([projectId, selectedPath]) => [String(projectId).trim(), String(selectedPath ?? "").trim()])
           .filter(([projectId, selectedPath]) => projectId.length > 0 && selectedPath.length > 0),
-      );      const updated = await updateSettings({
+      );
+      const normalizedLibraryViewModeByProject = Object.fromEntries(
+        Object.entries(nextSettings.uiPrefs?.libraryViewModeByProject ?? {})
+          .map(([projectId, viewMode]) => [String(projectId).trim(), String(viewMode ?? "").trim()])
+          .filter(([projectId, viewMode]) =>
+            projectId.length > 0 && (viewMode === "bib" || viewMode === "pdf" || viewMode === "compare"),
+          ),
+      );
+      const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
           id: protocol.id,
@@ -129,6 +137,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           backgroundBlurPx: normalizedBackgroundBlur,
           analysisEnvRootsByProject: normalizedAnalysisEnvRootsByProject,
           librarySelectedPathByProject: normalizedLibrarySelectedPathByProject,
+          libraryViewModeByProject: normalizedLibraryViewModeByProject,
         },
       });
 

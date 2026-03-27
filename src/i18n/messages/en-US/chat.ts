@@ -24,5 +24,6 @@ export const enUS_chat = {
   "chat.input.placeholder": "Type a message and press Enter...",
   "chat.send": "Send",
   "chat.running": "Agent is responding...",
+  "chat.emptyResult": "Run completed without visible output.",
   "chat.error.runFailed": "Conversation run failed.",
 } as const;

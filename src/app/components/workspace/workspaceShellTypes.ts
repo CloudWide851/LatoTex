@@ -112,6 +112,8 @@ export type AppWorkspaceShellProps = {
   onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   onLibraryAnalyzePaper: (path: string) => void;
   analysisRunning: boolean;
+  libraryViewMode: "bib" | "pdf" | "compare" | null;
+  onLibraryViewModeChange: (mode: "bib" | "pdf" | "compare") => void;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onWorkspaceRescan: () => void | Promise<void>;

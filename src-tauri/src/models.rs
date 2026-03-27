@@ -410,6 +410,7 @@ pub struct UiPrefs {
     pub background_blur_px: Option<f64>,
     pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
     pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
+    pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

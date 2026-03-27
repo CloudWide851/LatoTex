@@ -13,6 +13,7 @@ export function useCompileActions(params: {
   selectedFile: string | null;
   fileList: string[];
   editorContent: string;
+  resolveSelectedFileContent: () => Promise<string | null>;
   pdfUrl: string | null;
   compiledPdfBytes: Uint8Array | null;
   setBusy: (value: boolean) => void;
@@ -33,6 +34,7 @@ export function useCompileActions(params: {
     selectedFile,
     fileList,
     editorContent,
+    resolveSelectedFileContent,
     pdfUrl,
     compiledPdfBytes,
     setBusy,
@@ -106,7 +108,8 @@ export function useCompileActions(params: {
 
     await runAppAction({
       action: async () => {
-        await runCompilePass(activeProjectId, selectedFile, editorContent, {
+        const selectedContent = await resolveSelectedFileContent();
+        await runCompilePass(activeProjectId, selectedFile, selectedContent ?? editorContent, {
           updatePreview: true,
           emitToast: true,
           compileMode: "task",
@@ -127,6 +130,7 @@ export function useCompileActions(params: {
   }, [
     activeProjectId,
     editorContent,
+    resolveSelectedFileContent,
     runCompilePass,
     selectedFile,
     setBusy,

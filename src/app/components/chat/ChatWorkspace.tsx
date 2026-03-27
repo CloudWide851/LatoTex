@@ -62,12 +62,11 @@ function ensureTelegramSession(
 }
 export function ChatWorkspace(props: {
   projectId: string | null;
-  modelOverride?: string | null;
   channelPrefs?: ChannelPrefs | null;
   suspended?: boolean;
   t: TranslationFn;
 }) {
-  const { projectId, modelOverride, channelPrefs, suspended = false, t } = props;
+  const { projectId, channelPrefs, suspended = false, t } = props;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -263,7 +262,6 @@ export function ChatWorkspace(props: {
       const accepted = await startChatWorkflow({
         projectId,
         prompt,
-        modelOverride: modelOverride ?? undefined,
       });
       setPendingRunId(accepted.runId);
       let cursor = 0;
@@ -284,12 +282,13 @@ export function ChatWorkspace(props: {
             continue;
           }
           if (event.kind === "agent.run.completed") {
-            const finalOutput = typeof payload.output === "string" && payload.output.trim()
+            const finalOutputRaw = typeof payload.output === "string" && payload.output.trim()
               ? payload.output
               : output;
+            const finalOutput = finalOutputRaw.trim() ? finalOutputRaw : t("chat.emptyResult");
             output = finalOutput;
             updateMessageText(sessionId, assistantMessageId, finalOutput);
-            if (options?.telegramChatId && finalOutput.trim()) {
+            if (options?.telegramChatId && finalOutput.trim() && finalOutput !== t("chat.emptyResult")) {
               await channelsTelegramSend({
                 chatId: options.telegramChatId,
                 text: finalOutput.slice(0, 3900),
@@ -336,7 +335,7 @@ export function ChatWorkspace(props: {
       setRunning(false);
       setPendingRunId(null);
     }
-  }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, suspended, t, updateMessageText]);
+  }, [appendMessage, ensureSession, loadProjectMemoryText, projectId, running, suspended, t, updateMessageText]);
   useEffect(() => {
     if (!suspended || !pendingRunId) {
       return;
@@ -544,7 +543,18 @@ export function ChatWorkspace(props: {
                 <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">
                   {item.role === "user" ? t("chat.roleUser") : t("chat.roleAssistant")}
                 </div>
-                <div className="whitespace-pre-wrap break-words">{item.text || (running ? "..." : "")}</div>
+                <div className="whitespace-pre-wrap break-words">
+                  {running && item.role === "assistant" && !item.text.trim() ? (
+                    <span className="inline-flex items-center gap-2 text-slate-500">
+                      <span>{t("chat.running")}</span>
+                      <span className="inline-flex items-end gap-1" aria-hidden="true">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.24s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.12s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+                      </span>
+                    </span>
+                  ) : item.text}
+                </div>
               </div>
             ))}
           </div>

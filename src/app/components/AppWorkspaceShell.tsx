@@ -13,7 +13,7 @@ import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import { NoProjectPanel } from "./workspace/NoProjectPanel";
 import { WorkspaceShareControl } from "./workspace/WorkspaceShareControl";
 import { ChatTopbarSessionControl } from "./chat/ChatTopbarSessionControl";
-import { buildAgentCommandItems, composeTitleWithShortcut, dispatchCompileAssistAutoFix } from "./workspace/workspaceShellUtils";
+import { buildAgentCommandItems, composeTitleWithShortcut } from "./workspace/workspaceShellUtils";
 import {
   LazyAgentChatOverlay,
   LazyChatWorkspace,
@@ -111,6 +111,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onLibrarySyncZotero,
     onLibraryAnalyzePaper,
     analysisRunning,
+    libraryViewMode,
+    onLibraryViewModeChange,
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
     onWorkspaceRescan,
@@ -211,10 +213,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   };
   const handleCompileAssistAutoFix = () => {
     setCompileAssistDismissedFor(compileAssistKey);
-    handleOpenChatTab();
+    setChatTabActive(false);
+    if (agentCollapsed) {
+      onAgentToggle();
+    }
     const extra = compileAssistDiagnostics.slice(0, 6).join("\n").trim();
     const prompt = extra ? `/review ${extra}` : "/review";
-    dispatchCompileAssistAutoFix(activeProjectId, prompt);
+    onAgentRun(prompt, { forceNewSession: true });
   };
   const renderPdfPreviewPanel = () => (
     <WorkspacePreviewPanel
@@ -399,7 +404,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
               <LazyChatWorkspace
                 projectId={activeProjectId}
-                modelOverride={completionModelId}
                 channelPrefs={channelPrefs}
                 suspended={suspended}
                 t={t}
@@ -521,6 +525,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             onLibrarySyncZotero={onLibrarySyncZotero}
             onLibraryAnalyzePaper={onLibraryAnalyzePaper}
             analysisRunning={analysisRunning}
+            libraryViewMode={libraryViewMode}
+            onLibraryViewModeChange={onLibraryViewModeChange}
             translationModelId={translationModelId}
             onSavePanelLayout={onSavePanelLayout}
             renderMainPanel={renderMainPanel}

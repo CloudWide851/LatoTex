@@ -55,6 +55,7 @@ export function useAppEffects(params: {
   setSelectedFilePdfUrl: (value: string | null) => void;
   setSelectedImagePreviewUrl: (value: string | null) => void;
   setPreviewOverridePath: (value: string | null) => void;
+  setSelectedTextFileReadyPath: (value: string | null) => void;
   previewOverridePath: string | null;
   setToast: ToastSetter;
   setProjectSearchQuery: (value: string) => void;
@@ -104,6 +105,7 @@ export function useAppEffects(params: {
     setSelectedFilePdfUrl,
     setSelectedImagePreviewUrl,
     setPreviewOverridePath,
+    setSelectedTextFileReadyPath,
     previewOverridePath,
     setToast,
     setProjectSearchQuery,
@@ -262,6 +264,7 @@ export function useAppEffects(params: {
       setLibraryTree([]);
       setSelectedFile(null);
       setSelectedLibraryPath(null);
+      setSelectedTextFileReadyPath(null);
       setEditorContent("");
       setSelectedFilePdfUrl(null);
       setSelectedImagePreviewUrl(null);
@@ -271,7 +274,7 @@ export function useAppEffects(params: {
     loadProjectData(activeProjectId).catch((error) => {
       setToast({ type: "error", message: String(error) });
     });
-  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setToast, setTree]);
+  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setSelectedTextFileReadyPath, setToast, setTree]);
 
   useSelectedFilePreviewEffects({
     activeProjectId,
@@ -280,6 +283,7 @@ export function useAppEffects(params: {
     setEditorContent,
     setSelectedFilePdfUrl,
     setSelectedImagePreviewUrl,
+    setSelectedTextFileReadyPath,
     setToast,
     getCachedTextContent,
     onTextFileLoaded,
@@ -514,6 +518,7 @@ export function useAppEffects(params: {
     suspended,
   });
 }
+
 
 
 

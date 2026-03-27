@@ -51,6 +51,7 @@ export function updateSettings(input: {
     backgroundBlurPx?: number;
     analysisEnvRootsByProject?: Record<string, string>;
     librarySelectedPathByProject?: Record<string, string>;
+    libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });

@@ -3,6 +3,7 @@ import { isPdfPath } from "../../shared/utils/fileKind";
 
 export function useEditorDirtySyncEffect(params: {
   selectedFile: string | null;
+  selectedTextFileReadyPath: string | null;
   editorContent: string;
   savedContentByPathRef: MutableRefObject<Record<string, string>>;
   workingContentByPathRef: MutableRefObject<Record<string, string>>;
@@ -10,6 +11,7 @@ export function useEditorDirtySyncEffect(params: {
 }) {
   const {
     selectedFile,
+    selectedTextFileReadyPath,
     editorContent,
     savedContentByPathRef,
     workingContentByPathRef,
@@ -17,7 +19,7 @@ export function useEditorDirtySyncEffect(params: {
   } = params;
 
   useEffect(() => {
-    if (!selectedFile || isPdfPath(selectedFile)) {
+    if (!selectedFile || isPdfPath(selectedFile) || selectedTextFileReadyPath !== selectedFile) {
       return;
     }
     const saved = savedContentByPathRef.current[selectedFile];
@@ -42,5 +44,5 @@ export function useEditorDirtySyncEffect(params: {
       }
       return next;
     });
-  }, [editorContent, savedContentByPathRef, selectedFile, setDirtyByPath, workingContentByPathRef]);
+  }, [editorContent, savedContentByPathRef, selectedFile, selectedTextFileReadyPath, setDirtyByPath, workingContentByPathRef]);
 }

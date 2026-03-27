@@ -9,6 +9,7 @@ export function useAgentWorkflowHandlers(params: {
   agentPrompt: string;
   editorContent: string;
   selectedFile: string | null;
+  resolveSelectedFileContent: () => Promise<string | null>;
   t: (key: any) => string;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposalsByPath: AgentProposalMap;
@@ -43,6 +44,7 @@ export function useAgentWorkflowHandlers(params: {
     agentPrompt,
     editorContent,
     selectedFile,
+    resolveSelectedFileContent,
     t,
     setAgentMessages,
     agentProposalsByPath,
@@ -132,10 +134,11 @@ export function useAgentWorkflowHandlers(params: {
     if (!activeProjectId || !nextPrompt) {
       return;
     }
+    const selectedFileContent = await resolveSelectedFileContent();
     await runAgentWorkflow({
       activeProjectId,
       agentPrompt: nextPrompt,
-      editorContent,
+      editorContent: selectedFileContent ?? editorContent,
       selectedFile,
       t,
       setAgentMessages,
@@ -156,6 +159,7 @@ export function useAgentWorkflowHandlers(params: {
     activeProjectId,
     agentPrompt,
     editorContent,
+    resolveSelectedFileContent,
     runCompilePass,
     selectedFile,
     setAgentCollapsed,

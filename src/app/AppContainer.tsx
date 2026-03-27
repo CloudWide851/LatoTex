@@ -26,6 +26,8 @@ import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
 import { useIdleSleep } from "./hooks/useIdleSleep";
 import { useRuntimePressureRelief } from "./hooks/useRuntimePressureRelief";
 import { useAnalysisEnvPrompt } from "./hooks/useAnalysisEnvPrompt";
+import { readFile } from "../shared/api/workspace";
+import { isExcelPath, isImagePath, isPdfPath } from "../shared/utils/fileKind";
 export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
@@ -128,6 +130,28 @@ export function AppContainer() {
     t,
     setToast: s.setToast,
   });
+  const resolveSelectedFileContent = useCallback(async (): Promise<string | null> => {
+    const selectedPath = s.selectedFile;
+    if (!s.activeProjectId || !selectedPath) {
+      return null;
+    }
+    if (isPdfPath(selectedPath) || isExcelPath(selectedPath) || isImagePath(selectedPath)) {
+      return null;
+    }
+    if (s.selectedTextFileReadyPath === selectedPath) {
+      return s.editorContent;
+    }
+    const workingContent = s.workingContentByPathRef.current[selectedPath];
+    if (typeof workingContent === "string") {
+      return workingContent;
+    }
+    const savedContent = s.savedContentByPathRef.current[selectedPath];
+    if (typeof savedContent === "string") {
+      return savedContent;
+    }
+    const loaded = await readFile(s.activeProjectId, selectedPath);
+    return loaded.content ?? "";
+  }, [s.activeProjectId, s.editorContent, s.selectedFile, s.selectedTextFileReadyPath, s.savedContentByPathRef, s.workingContentByPathRef]);
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,
@@ -136,6 +160,7 @@ export function AppContainer() {
     selectedFile: s.selectedFile,
     fileList: s.fileList,
     editorContent: s.editorContent,
+    resolveSelectedFileContent,
     pdfUrl: s.pdfUrl,
     compiledPdfBytes: s.compiledPdfBytes,
     agentPrompt: s.agentPrompt,
@@ -263,6 +288,7 @@ export function AppContainer() {
     setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
     setSelectedImagePreviewUrl: s.setSelectedImagePreviewUrl,
     setPreviewOverridePath: s.setPreviewOverridePath,
+    setSelectedTextFileReadyPath: s.setSelectedTextFileReadyPath,
     previewOverridePath: s.previewOverridePath,
     setToast: s.setToast,
     setProjectSearchQuery: s.setProjectSearchQuery,
@@ -289,11 +315,40 @@ export function AppContainer() {
   });
   useEditorDirtySyncEffect({
     selectedFile: s.selectedFile,
+    selectedTextFileReadyPath: s.selectedTextFileReadyPath,
     editorContent: s.editorContent,
     savedContentByPathRef: s.savedContentByPathRef,
     workingContentByPathRef: s.workingContentByPathRef,
     setDirtyByPath: s.setDirtyByPath,
   });
+
+  const handleLibraryViewModeChange = useCallback((mode: "bib" | "pdf" | "compare") => {
+    const projectId = s.activeProjectId;
+    if (!projectId) {
+      return;
+    }
+    s.setSettings((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const currentMap = prev.uiPrefs?.libraryViewModeByProject ?? {};
+      if (currentMap[projectId] === mode) {
+        return prev;
+      }
+      return {
+        ...prev,
+        uiPrefs: {
+          ...(prev.uiPrefs ?? {}),
+          language: prev.uiPrefs?.language,
+          libraryViewModeByProject: {
+            ...currentMap,
+            [projectId]: mode,
+          },
+        },
+      };
+    });
+  }, [s.activeProjectId, s.setSettings]);
+
   const workspaceActions = useAppContainerWorkspaceActions({
     selectedFile: s.selectedFile,
     editorContent: s.editorContent,
@@ -549,6 +604,8 @@ export function AppContainer() {
       handleLibrarySyncZotero={handlers.handleLibrarySyncZotero}
       handleLibraryAnalyzePaper={handleLibraryAnalyzePaper}
       analysisRunning={analysisWorkspace.running}
+      libraryViewMode={s.activeProjectId ? (s.settings?.uiPrefs?.libraryViewModeByProject?.[s.activeProjectId] ?? null) : null}
+      handleLibraryViewModeChange={handleLibraryViewModeChange}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
       handleWorkspaceRescan={handlers.handleWorkspaceRescan}
