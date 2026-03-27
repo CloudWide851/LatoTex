@@ -81,7 +81,9 @@ export async function compileWithNativeLatexTask(input: {
 
   for (let round = 0; round < COMPILE_STATUS_POLL_LIMIT; round += 1) {
     const status = await compileNativeLatexStatus(started.taskId);
-    input.onProgress?.(status);
+    if (status.status === "running" && String(status.stage || "").trim().toLowerCase() !== "queued") {
+      input.onProgress?.(status);
+    }
     if (status.status === "completed") {
       return toCompileResult(status.result ?? {});
     }
@@ -98,3 +100,4 @@ export async function compileWithNativeLatexTask(input: {
 export function disposeNativeLatexRuntime() {
   // Native toolchain runs per invocation; nothing to dispose in the renderer.
 }
+

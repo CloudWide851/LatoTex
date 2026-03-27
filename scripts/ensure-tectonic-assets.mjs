@@ -2,14 +2,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 const tectonicDir = path.resolve("src-tauri/resources/tools/tectonic");
-const requiredFiles = ["windows-x64/tectonic.exe"];
+const requiredFiles = [
+  "windows-x64/tectonic.exe",
+  "bundles/tlextras-2022.0r0.tar",
+];
 
 const missing = requiredFiles.filter((file) => !fs.existsSync(path.join(tectonicDir, file)));
 
 if (missing.length > 0) {
   console.error(
     [
-      "Bundled Tectonic executable is missing.",
+      "Bundled Tectonic assets are missing.",
       "Ensure src-tauri/resources/tools/tectonic is populated before building release artifacts.",
       ...missing.map((file) => `- src-tauri/resources/tools/tectonic/${file}`),
     ].join("\n"),
@@ -17,4 +20,4 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-console.log("Bundled Tectonic executable ready");
+console.log("Bundled Tectonic assets ready");

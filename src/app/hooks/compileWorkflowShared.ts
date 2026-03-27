@@ -36,6 +36,13 @@ const COMPILE_SKIP_EXTENSIONS = new Set([
 ]);
 
 const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written(?:\.[A-Za-z0-9_-]+)?\.?)/gi;
+const COMPILE_PROGRESS_VISIBLE_STAGES = new Set([
+  "preparing_workspace",
+  "starting_tectonic",
+  "compiling",
+  "writing_artifacts",
+  "retrying",
+]);
 
 export function shouldIncludeCompileFile(path: string): boolean {
   const normalized = path.trim().toLowerCase();
@@ -58,6 +65,14 @@ export function splitDiagnosticLines(value: string): string[] {
     .filter((line) => line.length > 0);
 }
 
+export function shouldDisplayCompileProgress(progress: CompileInstallProgress | null | undefined): boolean {
+  if (!progress?.active) {
+    return false;
+  }
+  const stage = String(progress.stage || "").trim().toLowerCase();
+  return COMPILE_PROGRESS_VISIBLE_STAGES.has(stage);
+}
+
 export function normalizeFontName(input: string): string {
   return String(input || "")
     .toLowerCase()
@@ -72,3 +87,5 @@ export function isLikelyFontFamily(input: string): boolean {
   }
   return /[a-z]/i.test(normalized);
 }
+
+

@@ -10,8 +10,10 @@ import {
   isLikelyFontFamily,
   normalizeFontName,
   shouldIncludeCompileFile,
+  shouldDisplayCompileProgress,
   splitDiagnosticLines,
 } from "./compileWorkflowShared";
+export { shouldDisplayCompileProgress } from "./compileWorkflowShared";
 export type { CompileInstallProgress } from "./compileWorkflowShared";
 
 const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/i;
@@ -529,3 +531,4 @@ export async function runCompilePass(params: {
     setCompileInstallProgress?.(null);
   }
 }
+

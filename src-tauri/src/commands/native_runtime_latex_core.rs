@@ -16,12 +16,22 @@ use uuid::Uuid;
 
 const TECTONIC_RESOURCE_SUBDIR: &str = "tools/tectonic";
 const TECTONIC_BINARY_RELATIVE_PATH: &str = "windows-x64/tectonic.exe";
+const TECTONIC_BUNDLE_RELATIVE_PATH: &str = "bundles/tlextras-2022.0r0.tar";
+const TECTONIC_SEARCH_RELATIVE_PATH: &str = "search/windows-x64";
 const TECTONIC_NOT_FOUND_DIAGNOSTIC: &str =
     "Tectonic was not found. Install Tectonic and retry.";
+const TECTONIC_REQUIRED_SEARCH_FILES: &[&str] = &[
+    "latex.ltx",
+    "l3backend-xetex.def",
+    "tectonic-format-latex.tex",
+];
 
 struct ResolvedTectonicPaths {
     engine_path: PathBuf,
     cache_dir: PathBuf,
+    search_dir: Option<PathBuf>,
+    fontconfig_file: Option<PathBuf>,
+    fontconfig_path: Option<PathBuf>,
 }
 
 struct CompileCommandRun {
@@ -35,8 +45,12 @@ fn latex_tool_exists(name: &str) -> bool {
     try_version_command(&command_from_path_or_name(name), &["--version"]).is_some()
 }
 
+fn tar_tool_exists() -> bool {
+    try_version_command(&command_from_path_or_name("tar"), &["--version"]).is_some()
+}
+
 fn bundled_tectonic_assets_exist(root: &Path) -> bool {
-    root.join(TECTONIC_BINARY_RELATIVE_PATH).exists()
+    root.join(TECTONIC_BINARY_RELATIVE_PATH).exists() && root.join(TECTONIC_BUNDLE_RELATIVE_PATH).exists()
 }
 
 fn candidate_tectonic_source_roots() -> Vec<PathBuf> {
@@ -80,6 +94,86 @@ fn copy_asset_if_needed(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn normalize_path_for_text(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn tectonic_search_dir_ready(search_dir: &Path) -> bool {
+    TECTONIC_REQUIRED_SEARCH_FILES
+        .iter()
+        .all(|relative| search_dir.join(relative).exists())
+}
+
+fn summarize_process_output(stdout: &[u8], stderr: &[u8]) -> String {
+    let stdout_text = String::from_utf8_lossy(stdout).trim().replace('\r', " ").replace('\n', " | ");
+    let stderr_text = String::from_utf8_lossy(stderr).trim().replace('\r', " ").replace('\n', " | ");
+    let mut parts = Vec::<String>::new();
+    if !stdout_text.is_empty() {
+        parts.push(format!("stdout={stdout_text}"));
+    }
+    if !stderr_text.is_empty() {
+        parts.push(format!("stderr={stderr_text}"));
+    }
+    parts.join("; ")
+}
+
+fn ensure_tectonic_search_dir(bundle_path: &Path, search_dir: &Path) -> Result<(), String> {
+    if tectonic_search_dir_ready(search_dir) {
+        return Ok(());
+    }
+    if !tar_tool_exists() {
+        return Err(
+            "Bundled Tectonic search assets are not prepared and tar.exe is unavailable on this Windows system."
+                .to_string(),
+        );
+    }
+    fs::create_dir_all(search_dir).map_err(|e| e.to_string())?;
+    let mut command = Command::new(command_from_path_or_name("tar"));
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg("-xf")
+        .arg(bundle_path)
+        .arg("-C")
+        .arg(search_dir)
+        .output()
+        .map_err(|e| format!("tectonic.bundle_extract_spawn_failed: {e}"))?;
+    if output.status.success() || tectonic_search_dir_ready(search_dir) {
+        return Ok(());
+    }
+    Err(format!(
+        "Bundled Tectonic search assets are incomplete after extraction from {}. {}",
+        bundle_path.to_string_lossy(),
+        summarize_process_output(&output.stdout, &output.stderr),
+    ))
+}
+
+fn write_fontconfig_config(tool_root: &Path) -> Result<(PathBuf, PathBuf), String> {
+    let fontconfig_dir = tool_root.join("fontconfig/windows");
+    let font_cache_dir = fontconfig_dir.join("cache");
+    fs::create_dir_all(&font_cache_dir).map_err(|e| e.to_string())?;
+    let config_path = fontconfig_dir.join("fonts.conf");
+    let cache_dir_text = normalize_path_for_text(&font_cache_dir);
+    let config = format!(
+        concat!(
+            "<?xml version=\"1.0\"?>\n",
+            "<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n",
+            "<fontconfig>\n",
+            "  <dir>C:/Windows/Fonts</dir>\n",
+            "  <cachedir>{}</cachedir>\n",
+            "</fontconfig>\n"
+        ),
+        cache_dir_text,
+    );
+    let should_write = match fs::read_to_string(&config_path) {
+        Ok(existing) => existing != config,
+        Err(_) => true,
+    };
+    if should_write {
+        fs::write(&config_path, config).map_err(|e| e.to_string())?;
+    }
+    Ok((config_path, fontconfig_dir))
+}
+
 fn ensure_bundled_tectonic_runtime(
     runtime_root: &Path,
 ) -> Result<Option<ResolvedTectonicPaths>, String> {
@@ -90,16 +184,27 @@ fn ensure_bundled_tectonic_runtime(
     let tool_root = runtime_root.join(TECTONIC_RESOURCE_SUBDIR);
     let engine_path = tool_root.join(TECTONIC_BINARY_RELATIVE_PATH);
     let cache_dir = tool_root.join("cache");
+    let bundle_path = tool_root.join(TECTONIC_BUNDLE_RELATIVE_PATH);
+    let search_dir = tool_root.join(TECTONIC_SEARCH_RELATIVE_PATH);
 
     copy_asset_if_needed(
         &source_root.join(TECTONIC_BINARY_RELATIVE_PATH),
         &engine_path,
     )?;
+    copy_asset_if_needed(
+        &source_root.join(TECTONIC_BUNDLE_RELATIVE_PATH),
+        &bundle_path,
+    )?;
     fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+    ensure_tectonic_search_dir(&bundle_path, &search_dir)?;
+    let (fontconfig_file, fontconfig_path) = write_fontconfig_config(&tool_root)?;
 
     Ok(Some(ResolvedTectonicPaths {
         engine_path,
         cache_dir,
+        search_dir: Some(search_dir),
+        fontconfig_file: Some(fontconfig_file),
+        fontconfig_path: Some(fontconfig_path),
     }))
 }
 
@@ -108,9 +213,14 @@ fn resolve_tectonic_paths(runtime_root: &Path) -> Result<Option<ResolvedTectonic
         return Ok(Some(paths));
     }
     if latex_tool_exists("tectonic") {
+        let cache_dir = runtime_root.join(TECTONIC_RESOURCE_SUBDIR).join("cache");
+        fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
         return Ok(Some(ResolvedTectonicPaths {
             engine_path: PathBuf::from("tectonic"),
-            cache_dir: runtime_root.join(TECTONIC_RESOURCE_SUBDIR).join("cache"),
+            cache_dir,
+            search_dir: None,
+            fontconfig_file: None,
+            fontconfig_path: None,
         }));
     }
     Ok(None)
@@ -158,7 +268,11 @@ fn copy_if_exists(source: &Path, target: &Path) -> Result<Option<()>, String> {
     Ok(Some(()))
 }
 
-fn persist_compile_log(main_log: &Path, artifact_log: &Path, combined_log: &str) -> Result<Option<()>, String> {
+fn persist_compile_log(
+    main_log: &Path,
+    artifact_log: &Path,
+    combined_log: &str,
+) -> Result<Option<()>, String> {
     if main_log.exists() {
         return copy_if_exists(main_log, artifact_log);
     }
@@ -227,7 +341,18 @@ where
     let mut command = Command::new(&paths.engine_path);
     command.arg("-X").arg("compile");
     command.arg(main_path);
+    command.arg("--only-cached");
+    if let Some(search_dir) = &paths.search_dir {
+        command.arg("-Z");
+        command.arg(format!("search-path={}", search_dir.to_string_lossy()));
+    }
     command.env("TECTONIC_CACHE_DIR", &paths.cache_dir);
+    if let Some(fontconfig_file) = &paths.fontconfig_file {
+        command.env("FONTCONFIG_FILE", fontconfig_file);
+    }
+    if let Some(fontconfig_path) = &paths.fontconfig_path {
+        command.env("FONTCONFIG_PATH", fontconfig_path);
+    }
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
     configure_hidden_process(&mut command);

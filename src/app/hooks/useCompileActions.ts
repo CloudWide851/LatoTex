@@ -103,15 +103,7 @@ export function useCompileActions(params: {
       return;
     }
     setCompileDiagnostics([]);
-    setCompileInstallProgress({
-      active: true,
-      percent: 0,
-      stage: "queued",
-      currentPackage: selectedFile,
-      completed: 0,
-      total: 100,
-      message: t("workspace.compileStage.queued"),
-    });
+
     await runAppAction({
       action: async () => {
         await runCompilePass(activeProjectId, selectedFile, editorContent, {
@@ -198,3 +190,4 @@ export function useCompileActions(params: {
     handleEditorRedo,
   };
 }
+

@@ -69,6 +69,15 @@ def detect_language(text: str) -> str | None:
     return None
 
 
+def resolve_timeout_secs(payload: dict) -> int:
+    raw_value = payload.get("timeoutSecs")
+    try:
+        timeout_secs = int(raw_value)
+    except (TypeError, ValueError):
+        return 1800
+    return max(30, min(7200, timeout_secs))
+
+
 def compact_output(text: str, label: str) -> str | None:
     normalized = (text or "").strip().replace("\r", " ").replace("\n", " | ")
     if not normalized:
@@ -97,6 +106,26 @@ def collect_output_pdfs(output_dir: Path) -> tuple[str | None, str | None, list[
     elif dual is None:
         dual = mono
     return mono, dual, artifacts
+
+
+def ensure_pdf2zh_config(output_dir: Path) -> Path:
+    config_path = output_dir.joinpath('.pdf2zh', 'config.json')
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    if not config_path.exists():
+        config_path.write_text('{}', encoding='utf-8')
+    return config_path
+
+
+def prepare_runtime_dirs(output_dir: Path, env: dict[str, str]) -> None:
+    temp_dir = output_dir.joinpath('.tmp')
+    cache_dir = output_dir.joinpath('.cache')
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    temp_text = str(temp_dir)
+    env['TMPDIR'] = temp_text
+    env['TMP'] = temp_text
+    env['TEMP'] = temp_text
+    env['XDG_CACHE_HOME'] = str(cache_dir)
 
 
 def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
@@ -149,13 +178,15 @@ def run_translate(payload: dict) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     target_lang = normalize_target_language(payload.get("targetLanguage"))
+    timeout_secs = resolve_timeout_secs(payload)
     service_kind, env, model_name, base_url = build_service_env(payload.get("service") or {})
+    prepare_runtime_dirs(output_dir, env)
 
+    config_path = ensure_pdf2zh_config(output_dir)
     command = [
         sys.executable,
         "-m",
         "pdf2zh.pdf2zh",
-        "-i",
         str(pdf_path),
         "-o",
         str(output_dir),
@@ -165,16 +196,38 @@ def run_translate(payload: dict) -> dict:
         target_lang,
         "--thread",
         "2",
+        "--config",
+        str(config_path),
     ]
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        env=env,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            env=env,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=timeout_secs,
+        )
+    except subprocess.TimeoutExpired as error:
+        diagnostics = [
+            f"service={service_kind}",
+            f"model={model_name or '-'}",
+            f"base_url={base_url or '-'}",
+            f"timeout_secs={timeout_secs}",
+        ]
+        stdout_tail = compact_output(error.stdout or "", "stdout")
+        stderr_tail = compact_output(error.stderr or "", "stderr")
+        if stdout_tail:
+            diagnostics.append(stdout_tail)
+        if stderr_tail:
+            diagnostics.append(stderr_tail)
+        raise PaperRuntimeError(
+            "translation.pdfmathtranslate.timeout",
+            "pdf2zh did not finish within the backend timeout.",
+            diagnostics,
+        )
     stdout = completed.stdout.strip()
     stderr = completed.stderr.strip()
     if completed.returncode != 0:
@@ -319,4 +372,6 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
 

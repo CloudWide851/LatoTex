@@ -3,6 +3,7 @@ import { FilePreviewPane } from "../FilePreviewPane";
 import { TablePreviewPane } from "../table/TablePreviewPane";
 import type { ShareCommentItem } from "../../../shared/types/app";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
+import { shouldDisplayCompileProgress } from "../../hooks/compileWorkflowShared";
 
 type TranslationFn = (key: any) => string;
 type LogTab = "events" | "status";
@@ -67,8 +68,11 @@ export function WorkspacePreviewPanel(props: {
   } = props;
 
   const composeTitleWithShortcut = (label: string, shortcut: string) => `${label} (${shortcut})`;
-  const installProgressPercent = Math.max(0, Math.min(100, Math.round(compileInstallProgress?.percent ?? 0)));
-  const installProgressTotal = Math.max(compileInstallProgress?.total ?? 0, compileInstallProgress?.completed ?? 0);
+  const visibleCompileInstallProgress = shouldDisplayCompileProgress(compileInstallProgress)
+    ? compileInstallProgress
+    : null;
+  const installProgressPercent = Math.max(0, Math.min(100, Math.round(visibleCompileInstallProgress?.percent ?? 0)));
+  const installProgressTotal = Math.max(visibleCompileInstallProgress?.total ?? 0, visibleCompileInstallProgress?.completed ?? 0);
 
   return (
     <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
@@ -140,10 +144,10 @@ export function WorkspacePreviewPanel(props: {
           {compileErrorLine}
         </button>
       )}
-      {compileInstallProgress?.active ? (
+      {visibleCompileInstallProgress ? (
         <div className="mb-2 rounded border border-sky-200 bg-sky-50 px-2 py-1.5 text-[11px] text-sky-800">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate">{compileInstallProgress.message}</span>
+            <span className="truncate">{visibleCompileInstallProgress.message}</span>
             <span className="shrink-0 tabular-nums">{installProgressPercent}%</span>
           </div>
           <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-sky-100">
@@ -153,8 +157,8 @@ export function WorkspacePreviewPanel(props: {
             />
           </div>
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-sky-700">
-            <span className="truncate">{compileInstallProgress.currentPackage || "-"}</span>
-            <span className="shrink-0 tabular-nums">{compileInstallProgress.completed}/{installProgressTotal}</span>
+            <span className="truncate">{visibleCompileInstallProgress.currentPackage || "-"}</span>
+            <span className="shrink-0 tabular-nums">{visibleCompileInstallProgress.completed}/{installProgressTotal}</span>
           </div>
         </div>
       ) : null}
@@ -218,4 +222,7 @@ export function WorkspacePreviewPanel(props: {
     </aside>
   );
 }
+
+
+
 

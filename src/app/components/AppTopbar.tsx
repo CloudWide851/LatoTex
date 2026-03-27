@@ -6,7 +6,6 @@ import {
   X,
 } from "lucide-react";
 import type { ProjectSearchHit, ProjectSummary } from "../../shared/types/app";
-import type { CompileInstallProgress } from "../hooks/compileWorkflow";
 import { ProjectSearch } from "./ProjectSearch";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
@@ -25,7 +24,6 @@ export function AppTopbar(props: {
   projectSearchBusy: boolean;
   projectSearchSearched: boolean;
   projectSearchResults: ProjectSearchHit[];
-  compileInstallProgress: CompileInstallProgress | null;
   onProjectChange: (id: string | null) => void;
   onProjectSearchQueryChange: (query: string) => void;
   onProjectSearch: () => void;
@@ -48,7 +46,6 @@ export function AppTopbar(props: {
     projectSearchBusy,
     projectSearchSearched,
     projectSearchResults,
-    compileInstallProgress,
     onProjectChange,
     onProjectSearchQueryChange,
     onProjectSearch,
@@ -58,7 +55,6 @@ export function AppTopbar(props: {
     onWindowControl,
     t,
   } = props;
-  const compilePercent = Math.max(0, Math.min(100, Math.round(compileInstallProgress?.percent ?? 0)));
 
   return (
     <header
@@ -108,20 +104,7 @@ export function AppTopbar(props: {
             t={t}
           />
         </div>
-        {compileInstallProgress?.active ? (
-          <div
-            className="tauri-no-drag hidden min-w-[148px] max-w-[220px] shrink-0 rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] text-sky-800 md:block"
-            title={compileInstallProgress.currentPackage || compileInstallProgress.message}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate">{compileInstallProgress.message}</span>
-              <span className="shrink-0 tabular-nums">{compilePercent}%</span>
-            </div>
-            <div className="mt-1 h-1 overflow-hidden rounded bg-sky-100">
-              <div className="h-full rounded bg-sky-500 transition-all" style={{ width: `${Math.max(2, compilePercent)}%` }} />
-            </div>
-          </div>
-        ) : null}
+
         <button
           type="button"
           className="app-topbar-field app-topbar-action-btn tauri-no-drag shrink-0 rounded"
@@ -169,3 +152,4 @@ export function AppTopbar(props: {
     </header>
   );
 }
+

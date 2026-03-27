@@ -8,6 +8,7 @@ import {
   extractMissingSystemFontsFromDiagnostics,
   hasFontspecErrorDiagnostics,
   resolveFontFallbackCandidates,
+  shouldDisplayCompileProgress,
 } from "./compileWorkflow";
 
 describe("compile workflow missing package detection", () => {
@@ -168,3 +169,29 @@ hello
     expect(patched.overlays["styles/fontdefs.sty"]).toContain("\\setmainfont{Latin Modern Roman}");
   });
 });
+describe("compile workflow progress visibility", () => {
+  it("hides queued progress before native compile enters a real stage", () => {
+    expect(shouldDisplayCompileProgress({
+      active: true,
+      percent: 0,
+      stage: "queued",
+      currentPackage: "main.tex",
+      completed: 0,
+      total: 100,
+      message: "Queued",
+    })).toBe(false);
+  });
+
+  it("shows progress for active native compile stages", () => {
+    expect(shouldDisplayCompileProgress({
+      active: true,
+      percent: 28,
+      stage: "starting_tectonic",
+      currentPackage: "main.tex",
+      completed: 28,
+      total: 100,
+      message: "Starting Tectonic",
+    })).toBe(true);
+  });
+});
+
