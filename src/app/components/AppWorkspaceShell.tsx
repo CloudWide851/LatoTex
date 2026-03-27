@@ -7,7 +7,7 @@ import { EditorTabsBar } from "./editor/EditorTabsBar";
 import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
 import { configureLatexCompletionRuntime, ensureLatexCompletionProvider } from "./editor/latexCompletion";
-import { buildCompileAssistHint } from "./editor/compileAssistHint";
+import { buildCompileAssistHint, prioritizeCompileDiagnostics } from "./editor/compileAssistHint";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import { NoProjectPanel } from "./workspace/NoProjectPanel";
@@ -190,6 +190,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const showCompileAssist = Boolean(
     compileErrorLine && compileDiagnostics.length > 0 && compileAssistDismissedFor !== compileAssistKey,
   );
+  const compileAssistDiagnostics = useMemo(() => prioritizeCompileDiagnostics(compileDiagnostics), [compileDiagnostics]);
   const compileAssistHint = useMemo(() => buildCompileAssistHint(compileDiagnostics, t), [compileDiagnostics, t]);
   const showChatWorkspace = chatTabOpen && chatTabActive;
   const handleOpenChatTab = () => {
@@ -211,7 +212,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const handleCompileAssistAutoFix = () => {
     setCompileAssistDismissedFor(compileAssistKey);
     handleOpenChatTab();
-    const extra = compileDiagnostics.slice(0, 6).join("\n").trim();
+    const extra = compileAssistDiagnostics.slice(0, 6).join("\n").trim();
     const prompt = extra ? `/review ${extra}` : "/review";
     dispatchCompileAssistAutoFix(activeProjectId, prompt);
   };
@@ -355,7 +356,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               </button>
               <CompileAssistPopover
                 visible={showCompileAssist}
-                diagnostics={compileDiagnostics}
+                diagnostics={compileAssistDiagnostics}
                 hint={compileAssistHint}
                 onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
                 onAutoFix={handleCompileAssistAutoFix}

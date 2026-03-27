@@ -8,6 +8,7 @@ import { readFile, writeFile } from "../../shared/api/workspace";
 import type { Dispatch, SetStateAction } from "react";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";
+import { prioritizeCompileDiagnostics } from "../components/editor/compileAssistHint";
 
 import {
   computeDiffStats,
@@ -292,7 +293,7 @@ export async function runAgentWorkflow(params: {
             projectId: activeProjectId,
             selectedFile,
             workingContent,
-            diagnostics: compileResult.diagnostics,
+            diagnostics: prioritizeCompileDiagnostics(compileResult.diagnostics),
             extraInstruction,
             modelOverride: taskModelOverride ?? undefined,
           }),

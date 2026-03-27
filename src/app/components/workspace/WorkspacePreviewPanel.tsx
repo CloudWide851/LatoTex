@@ -72,7 +72,6 @@ export function WorkspacePreviewPanel(props: {
     ? compileInstallProgress
     : null;
   const installProgressPercent = Math.max(0, Math.min(100, Math.round(visibleCompileInstallProgress?.percent ?? 0)));
-  const installProgressTotal = Math.max(visibleCompileInstallProgress?.total ?? 0, visibleCompileInstallProgress?.completed ?? 0);
 
   return (
     <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
@@ -155,10 +154,6 @@ export function WorkspacePreviewPanel(props: {
               className="h-full rounded bg-sky-500 transition-all"
               style={{ width: `${Math.max(2, installProgressPercent)}%` }}
             />
-          </div>
-          <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-sky-700">
-            <span className="truncate">{visibleCompileInstallProgress.currentPackage || "-"}</span>
-            <span className="shrink-0 tabular-nums">{visibleCompileInstallProgress.completed}/{installProgressTotal}</span>
           </div>
         </div>
       ) : null}

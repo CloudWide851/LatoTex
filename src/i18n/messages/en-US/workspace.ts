@@ -20,6 +20,7 @@ export const enUS_workspace = {
   "workspace.compileAssist.hintMissingPackage": "Missing package detected: {package}. Install it in your native TeX toolchain or remove that dependency.",
   "workspace.compileAssist.hintMissingCtex": "ctex.sty is missing. Avoid ctex-specific packages and use base article + UTF-8 text.",
   "workspace.compileAssist.hintFontspecXdv": "fontspec failed before XDV/PDF output. Replace unsupported system fonts with bundled fallbacks (Latin Modern/Fandol), then compile again.",
+  "workspace.compileAssist.hintMissingMathShift": "Missing $ inserted was detected. Check whether nearby math content is still in text mode, or whether a matching pair of $...$, \\( ... \\), or \\[ ... \\] is missing.",
   "workspace.compileAssist.hintGeneric": "Fix missing package/syntax errors first, then recompile. Start from the first ERROR line.",
   "workspace.compileAssist.nativeFontFallbackApplied": "Native font fallback applied for missing system fonts: {details}.",
   "workspace.compileAssist.nativeFontFallbackUnavailable": "Missing system fonts detected but no fallback mapping matched: {fonts}.",
@@ -40,5 +41,5 @@ export const enUS_workspace = {
   "workspace.compileStage.compiling": "Compiling document",
   "workspace.compileStage.writing_artifacts": "Writing compile artifacts",
   "workspace.compileStage.completed": "Compile completed",
-  "workspace.compileStage.failed": "Compile failed",} as const;
-
+  "workspace.compileStage.failed": "Compile failed",
+} as const;

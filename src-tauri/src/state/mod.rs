@@ -279,6 +279,7 @@ fn copy_runtime_candidates(source_root: &Path, runtime_root: &Path) -> Result<()
         "projects",
         "downloads",
         "logs",
+        "python-envs",
     ];
     for name in candidates {
         let source = source_root.join(name);
@@ -433,4 +434,44 @@ fn write_install_state(path: &PathBuf, state: &InstallState) -> Result<(), Strin
     fs::write(path, serialized).map_err(|e| e.to_string())
 }
 
+
+
+#[cfg(test)]
+mod tests {
+    use super::copy_runtime_candidates;
+    use std::fs;
+    use std::path::PathBuf;
+    use uuid::Uuid;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("latotex-{}-{}", name, Uuid::new_v4()));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn copy_runtime_candidates_includes_python_envs() {
+        let source_root = unique_temp_dir("runtime-source");
+        let target_root = unique_temp_dir("runtime-target");
+        let source_env_file = source_root
+            .join("python-envs")
+            .join("env-a")
+            .join("venv")
+            .join("marker.txt");
+        fs::create_dir_all(source_env_file.parent().unwrap()).unwrap();
+        fs::write(&source_env_file, "ready").unwrap();
+
+        copy_runtime_candidates(&source_root, &target_root).unwrap();
+
+        let target_env_file = target_root
+            .join("python-envs")
+            .join("env-a")
+            .join("venv")
+            .join("marker.txt");
+        assert_eq!(fs::read_to_string(target_env_file).unwrap(), "ready");
+
+        let _ = fs::remove_dir_all(source_root);
+        let _ = fs::remove_dir_all(target_root);
+    }
+}
 

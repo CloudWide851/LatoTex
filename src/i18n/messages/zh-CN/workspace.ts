@@ -20,6 +20,7 @@ export const zhCN_workspace = {
   "workspace.compileAssist.hintMissingPackage": "检测到缺少宏包 {package}，请在本地原生 TeX 工具链中安装它，或移除该依赖。",
   "workspace.compileAssist.hintMissingCtex": "检测到 ctex.sty 缺失：请避免使用 ctex 相关宏包，改为基础 article + UTF-8 文本。",
   "workspace.compileAssist.hintFontspecXdv": "fontspec 在生成 XDV/PDF 前失败。请将不受支持的系统字体替换为内置回退字体（Latin Modern/Fandol）后重新编译。",
+  "workspace.compileAssist.hintMissingMathShift": "检测到 Missing $ inserted：请检查报错附近是否把数学公式写在了文本模式中，或遗漏了成对的 $...$ / \\( ... \\) / \\[ ... \\]。",
   "workspace.compileAssist.hintGeneric": "请先修复缺包/语法报错，再重新编译；建议逐条处理日志中的首个 ERROR。",
   "workspace.compileAssist.nativeFontFallbackApplied": "已为缺失系统字体应用本地回退：{details}。",
   "workspace.compileAssist.nativeFontFallbackUnavailable": "检测到缺失系统字体，但未匹配可用回退：{fonts}。",
@@ -40,5 +41,5 @@ export const zhCN_workspace = {
   "workspace.compileStage.compiling": "正在编译文档",
   "workspace.compileStage.writing_artifacts": "正在写入编译产物",
   "workspace.compileStage.completed": "编译已完成",
-  "workspace.compileStage.failed": "编译失败",} as const;
-
+  "workspace.compileStage.failed": "编译失败",
+} as const;

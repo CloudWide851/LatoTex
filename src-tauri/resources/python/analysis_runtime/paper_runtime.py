@@ -87,6 +87,47 @@ def compact_output(text: str, label: str) -> str | None:
     return f"{label}={normalized}"
 
 
+def normalize_runtime_path(value: str | Path) -> Path:
+    raw = os.fspath(value)
+    if os.name == "nt":
+        if raw.startswith("\\\\?\\UNC\\"):
+            raw = "\\\\" + raw[8:]
+        elif raw.startswith("\\\\?\\"):
+            raw = raw[4:]
+    return Path(raw)
+
+
+def path_text(value: str | Path) -> str:
+    return str(normalize_runtime_path(value))
+
+
+def should_retry_without_subset_fonts(stdout: str, stderr: str) -> bool:
+    combined = f"{stdout}\n{stderr}".lower()
+    return (
+        "subset_fonts" in combined
+        or "build_subset" in combined
+        or "uncifile.txt" in combined
+        or ("invalid argument" in combined and "pymupdf" in combined)
+    )
+
+
+def run_pdf2zh_command(
+    command: list[str],
+    env: dict[str, str],
+    timeout_secs: int,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        env=env,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        timeout=timeout_secs,
+    )
+
+
 def collect_output_pdfs(output_dir: Path) -> tuple[str | None, str | None, list[str]]:
     pdfs = sorted(output_dir.rglob("*.pdf"))
     mono = None
@@ -109,23 +150,23 @@ def collect_output_pdfs(output_dir: Path) -> tuple[str | None, str | None, list[
 
 
 def ensure_pdf2zh_config(output_dir: Path) -> Path:
-    config_path = output_dir.joinpath('.pdf2zh', 'config.json')
+    config_path = output_dir.joinpath(".pdf2zh", "config.json")
     config_path.parent.mkdir(parents=True, exist_ok=True)
     if not config_path.exists():
-        config_path.write_text('{}', encoding='utf-8')
+        config_path.write_text("{}", encoding="utf-8")
     return config_path
 
 
 def prepare_runtime_dirs(output_dir: Path, env: dict[str, str]) -> None:
-    temp_dir = output_dir.joinpath('.tmp')
-    cache_dir = output_dir.joinpath('.cache')
+    temp_dir = normalize_runtime_path(output_dir.joinpath(".tmp"))
+    cache_dir = normalize_runtime_path(output_dir.joinpath(".cache"))
     temp_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    temp_text = str(temp_dir)
-    env['TMPDIR'] = temp_text
-    env['TMP'] = temp_text
-    env['TEMP'] = temp_text
-    env['XDG_CACHE_HOME'] = str(cache_dir)
+    temp_text = path_text(temp_dir)
+    env["TMPDIR"] = temp_text
+    env["TMP"] = temp_text
+    env["TEMP"] = temp_text
+    env["XDG_CACHE_HOME"] = path_text(cache_dir)
 
 
 def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
@@ -173,8 +214,8 @@ def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
 
 
 def run_translate(payload: dict) -> dict:
-    pdf_path = Path(payload["pdfPath"])
-    output_dir = Path(payload["outputDir"])
+    pdf_path = normalize_runtime_path(payload["pdfPath"])
+    output_dir = normalize_runtime_path(payload["outputDir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
     target_lang = normalize_target_language(payload.get("targetLanguage"))
@@ -183,13 +224,13 @@ def run_translate(payload: dict) -> dict:
     prepare_runtime_dirs(output_dir, env)
 
     config_path = ensure_pdf2zh_config(output_dir)
-    command = [
+    base_command = [
         sys.executable,
         "-m",
         "pdf2zh.pdf2zh",
-        str(pdf_path),
+        path_text(pdf_path),
         "-o",
-        str(output_dir),
+        path_text(output_dir),
         "-s",
         service_kind,
         "-lo",
@@ -197,19 +238,10 @@ def run_translate(payload: dict) -> dict:
         "--thread",
         "2",
         "--config",
-        str(config_path),
+        path_text(config_path),
     ]
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            env=env,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=timeout_secs,
-        )
+        completed = run_pdf2zh_command(base_command, env, timeout_secs)
     except subprocess.TimeoutExpired as error:
         diagnostics = [
             f"service={service_kind}",
@@ -230,12 +262,20 @@ def run_translate(payload: dict) -> dict:
         )
     stdout = completed.stdout.strip()
     stderr = completed.stderr.strip()
+    retry_without_subset_fonts = False
+    if completed.returncode != 0 and should_retry_without_subset_fonts(stdout, stderr):
+        retry_command = [*base_command, "--skip-subset-fonts"]
+        completed = run_pdf2zh_command(retry_command, env, timeout_secs)
+        stdout = completed.stdout.strip()
+        stderr = completed.stderr.strip()
+        retry_without_subset_fonts = True
     if completed.returncode != 0:
         diagnostics = [
             f"service={service_kind}",
             f"model={model_name or '-'}",
             f"base_url={base_url or '-'}",
             f"exit_code={completed.returncode}",
+            f"skip_subset_fonts_retry={retry_without_subset_fonts}",
         ]
         stdout_tail = compact_output(stdout, "stdout")
         stderr_tail = compact_output(stderr, "stderr")
@@ -290,7 +330,7 @@ def run_translate(payload: dict) -> dict:
 
 
 def run_extract(payload: dict) -> dict:
-    pdf_path = Path(payload["pdfPath"])
+    pdf_path = normalize_runtime_path(payload["pdfPath"])
     with fitz.open(pdf_path) as doc:
         blocks = []
         previews = []
@@ -326,8 +366,9 @@ def run_extract(payload: dict) -> dict:
 
 
 def write_output(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    normalized_path = normalize_runtime_path(path)
+    normalized_path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main() -> int:
@@ -336,8 +377,9 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    output_path = Path(args.output)
-    payload = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    output_path = normalize_runtime_path(args.output)
+    input_path = normalize_runtime_path(args.input)
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
     operation = str(payload.get("operation") or "translate").strip().lower()
 
     try:
@@ -372,6 +414,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-

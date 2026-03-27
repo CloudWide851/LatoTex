@@ -87,6 +87,20 @@ fn summarize_output(label: &str, bytes: &[u8]) -> Option<String> {
     Some(format!("{label}={tail}"))
 }
 
+fn normalize_runtime_path_text(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(stripped) = text.strip_prefix("\\\\?\\UNC\\") {
+            return format!("\\\\{}", stripped);
+        }
+        if let Some(stripped) = text.strip_prefix("\\\\?\\") {
+            return stripped.to_string();
+        }
+    }
+    text.to_string()
+}
+
 fn resolve_service_configs(
     db_path: &Path,
     app_runtime_root: &Path,
@@ -202,8 +216,8 @@ fn run_pdfmathtranslate_bridge(
 
     let payload = json!({
         "operation": "translate",
-        "pdfPath": source_pdf_path,
-        "outputDir": generated_dir,
+        "pdfPath": normalize_runtime_path_text(source_pdf_path),
+        "outputDir": normalize_runtime_path_text(&generated_dir),
         "targetLanguage": target_language,
         "service": {
             "kind": service.kind,
@@ -443,9 +457,10 @@ where
 mod tests {
     use super::{
         dual_pdf_relative_path, is_anthropic_candidate, is_gemini_candidate,
-        preferred_target_language,
+        normalize_runtime_path_text, preferred_target_language,
     };
     use crate::storage::TranslationModelCandidate;
+    use std::path::Path;
 
     fn candidate(base_url: &str, model_name: &str) -> TranslationModelCandidate {
         TranslationModelCandidate {
@@ -490,5 +505,11 @@ mod tests {
         let dual = dual_pdf_relative_path("library/papers/example.pdf");
         assert!(dual.ends_with(".dual.pdf"));
         assert!(!dual.contains(".translated.pdf"));
+    }
+
+    #[test]
+    fn strips_windows_verbatim_prefix_from_runtime_paths() {
+        let normalized = normalize_runtime_path_text(Path::new("\\\\?\\C:\\papers\\demo.pdf"));
+        assert_eq!(normalized, "C:\\papers\\demo.pdf");
     }
 }

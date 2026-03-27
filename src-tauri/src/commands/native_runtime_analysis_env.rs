@@ -56,9 +56,22 @@ fn legacy_managed_analysis_root(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("python-envs")
 }
 
+fn strip_windows_verbatim_prefix(text: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(stripped) = text.strip_prefix("\\\\?\\UNC\\") {
+            return format!("//{}", stripped.replace('\\', "/"));
+        }
+        if let Some(stripped) = text.strip_prefix("\\\\?\\") {
+            return stripped.replace('\\', "/");
+        }
+    }
+    text.to_string()
+}
+
 fn normalized_project_root(project_root: &Path) -> Result<String, String> {
     let canonical = project_root.canonicalize().map_err(|e| e.to_string())?;
-    let text = canonical.to_string_lossy().replace('\\', "/");
+    let text = strip_windows_verbatim_prefix(&canonical.to_string_lossy()).replace('\\', "/");
     #[cfg(target_os = "windows")]
     {
         return Ok(text.to_lowercase());
@@ -518,3 +531,14 @@ pub(crate) fn ensure_analysis_env_blocking(
 
 
 
+
+#[cfg(test)]
+mod tests {
+    use super::strip_windows_verbatim_prefix;
+
+    #[test]
+    fn strips_windows_verbatim_prefixes() {
+        assert_eq!(strip_windows_verbatim_prefix("\\\\?\\C:\\Workspace\\Demo"), "C:/Workspace/Demo");
+        assert_eq!(strip_windows_verbatim_prefix("\\\\?\\UNC\\server\\share\\demo"), "//server/share/demo");
+    }
+}

@@ -6,6 +6,7 @@ const NOISE_PATTERNS: RegExp[] = [
   /^installing package\b/i,
   /^宏包安装进度\b/i,
   /^正在安装宏包\b/i,
+  /^note:/i,
   /^initial win cp for \(console input, console output, system\):/i,
   /^i changed them all to cp\d+/i,
   /^rc files read:/i,
@@ -16,6 +17,7 @@ const PRIORITY_PATTERNS: RegExp[] = [
   /fontspec\s+error/i,
   /latex\s+error/i,
   /fatal:/i,
+  /missing \$ inserted/i,
   /no output pdf file written/i,
   /could not open specified dvi/i,
   /file [`']([^`']+\.sty)[`'] not found/i,
@@ -38,7 +40,7 @@ function isNoiseLine(line: string): boolean {
   return NOISE_PATTERNS.some((pattern) => pattern.test(line));
 }
 
-function prioritizeDiagnostics(diagnostics: string[]): string[] {
+export function prioritizeCompileDiagnostics(diagnostics: string[]): string[] {
   const seen = new Set<string>();
   const meaningful: string[] = [];
   for (const chunk of diagnostics) {
@@ -77,7 +79,7 @@ function hasFontspecXdvFatalIssue(diagnostics: string[]): boolean {
 
 export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn): string {
   const lines: string[] = [];
-  const normalized = prioritizeDiagnostics(diagnostics);
+  const normalized = prioritizeCompileDiagnostics(diagnostics);
 
   lines.push(t("workspace.compileAssist.hintTitle"));
   if (normalized.length > 0) {
@@ -96,6 +98,11 @@ export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn):
   if (hasFontspecXdvFatalIssue(normalized)) {
     lines.push("");
     lines.push(t("workspace.compileAssist.hintFontspecXdv"));
+  }
+
+  if (normalized.some((line) => /missing \$ inserted/i.test(line))) {
+    lines.push("");
+    lines.push(t("workspace.compileAssist.hintMissingMathShift"));
   }
 
   lines.push("");

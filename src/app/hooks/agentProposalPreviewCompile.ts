@@ -1,4 +1,5 @@
 import { startLatexReviewFix } from "../../shared/api/agent";
+import { prioritizeCompileDiagnostics } from "../components/editor/compileAssistHint";
 import { resolveCandidateFromOutput } from "./agentPatchEdits";
 import { runAgentThroughEvents } from "./agentRunEvents";
 
@@ -39,7 +40,7 @@ export async function compileProposalPreviewWithAutoFix(params: {
       projectId: activeProjectId,
       selectedFile: targetPath,
       workingContent: candidateContent,
-      diagnostics: initialCompile.diagnostics,
+      diagnostics: prioritizeCompileDiagnostics(initialCompile.diagnostics),
     }),
     setAgentRunId,
     bypassCache: true,
