@@ -37,9 +37,11 @@ pub struct LibraryCitationSummaryResponse {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryPdfPreviewResponse {
     pub relative_path: Option<String>,
+    pub preview_url: Option<String>,
     pub source_url: Option<String>,
     pub cached: bool,
     pub translated_relative_path: Option<String>,
+    pub translated_preview_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -194,4 +196,3 @@ pub struct FsOperationResult {
     pub ok: bool,
     pub message: String,
 }
-

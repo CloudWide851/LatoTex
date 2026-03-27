@@ -22,9 +22,11 @@ export type LibraryCitationSummary = {
 
 export type LibraryPdfPreview = {
   relativePath?: string | null;
+  previewUrl?: string | null;
   sourceUrl?: string | null;
   cached: boolean;
   translatedRelativePath?: string | null;
+  translatedPreviewUrl?: string | null;
 };
 
 export type LibraryZoteroSyncResult = {
@@ -368,8 +370,3 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
-
-
-
-
-

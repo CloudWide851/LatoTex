@@ -543,9 +543,11 @@ pub fn library_resolve_pdf_preview(
         );
         return Ok(LibraryPdfPreviewResponse {
             relative_path: Some(source_workspace_relative),
+            preview_url: None,
             source_url: None,
             cached: false,
             translated_relative_path: translated_relative_path,
+            translated_preview_url: None,
         });
     }
 
@@ -553,9 +555,11 @@ pub fn library_resolve_pdf_preview(
     let Some(source_url) = find_remote_pdf_url(&citation) else {
         return Ok(LibraryPdfPreviewResponse {
             relative_path: None,
+            preview_url: None,
             source_url: None,
             cached: false,
             translated_relative_path: None,
+            translated_preview_url: None,
         });
     };
 
@@ -576,9 +580,10 @@ pub fn library_resolve_pdf_preview(
 
     Ok(LibraryPdfPreviewResponse {
         relative_path: Some(source_workspace_relative),
+        preview_url: None,
         source_url: Some(source_url),
         cached: true,
         translated_relative_path: translated_relative_path,
+        translated_preview_url: None,
     })
 }
-

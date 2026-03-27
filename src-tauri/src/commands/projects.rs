@@ -1,3 +1,4 @@
+use crate::commands::local_resources::build_workspace_file_resource_url;
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse,
     FileWriteBinaryInput, FileWriteInput, FsOperationInput, FsOperationResult,
@@ -314,7 +315,17 @@ pub fn library_resolve_pdf_preview(
             input.project_id, input.relative_path
         ),
     );
-    storage::library_resolve_pdf_preview(&state.db_path, &input.project_id, &input.relative_path)
+    let mut preview =
+        storage::library_resolve_pdf_preview(&state.db_path, &input.project_id, &input.relative_path)?;
+    preview.preview_url = preview
+        .relative_path
+        .as_ref()
+        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
+    preview.translated_preview_url = preview
+        .translated_relative_path
+        .as_ref()
+        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
+    Ok(preview)
 }
 
 #[tauri::command]

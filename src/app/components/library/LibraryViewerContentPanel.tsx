@@ -1,10 +1,10 @@
 import { FileUp, RotateCcw } from "lucide-react";
-import type { MutableRefObject } from "react";
+import { useRef, type MutableRefObject } from "react";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
 import { LibraryCitationMetaPanel } from "./LibraryCitationMetaPanel";
 import {
   LibraryPdfScrollViewer,
-  type LibraryPdfScrollSync,
+  type LibraryPdfScrollSyncGroup,
   type LibraryPdfScrollViewerHandle,
 } from "./LibraryPdfScrollViewer";
 import { LibraryPdfToolSidebar } from "./LibraryPdfToolSidebar";
@@ -70,8 +70,6 @@ type LibraryViewerContentPanelProps = {
   } | null;
   onAnalyzePaper?: (() => void) | null;
   translatedPdfUrl: string | null;
-  compareScrollSync: LibraryPdfScrollSync | null;
-  setCompareScrollSync: (next: LibraryPdfScrollSync) => void;
   bibPreview: string;
   citation: LibraryCitationSummary | null;
   linkError: string | null;
@@ -123,8 +121,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     runTranslation,
     hasComparePair,
     translatedPdfUrl,
-    compareScrollSync,
-    setCompareScrollSync,
     bibPreview,
     citation,
     paperPreview,
@@ -132,10 +128,11 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     linkError,
     t,
   } = props;
+  const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
 
   if (viewMode === "pdf") {
     return (
-      <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2">
+      <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2 motion-card-pop">
         {loading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
         ) : loadError ? (
@@ -214,26 +211,24 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
 
   if (viewMode === "compare") {
     return (
-      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-xs text-slate-500">{translationDetail || t("library.viewer.compareTitle")}</div>
+      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 motion-card-pop motion-layered-backdrop">
+        <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+          <div className="truncate text-xs text-slate-500">{translationDetail || t("library.viewer.compareTitle")}</div>
           <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 transition motion-hover-rise hover:bg-slate-100 disabled:opacity-50"
             onClick={() => {
-              void runTranslation(() => {
-                /* keep compare mode */
-              });
+              runTranslation();
             }}
             disabled={translationBusy || !selectedPath}
             title={t("library.viewer.translatePaper")}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className={`h-3.5 w-3.5 ${translationBusy ? "motion-rotate-soft" : ""}`} />
             {t("library.viewer.translatePaper")}
           </button>
         </div>
         {hasComparePair && pdfUrl && translatedPdfUrl ? (
           <div className="grid h-full min-h-0 grid-cols-2 gap-2">
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareOriginal")}</div>
               <LibraryPdfScrollViewer
                 pdfUrl={pdfUrl}
@@ -249,20 +244,16 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 textBoxes={[]}
                 onStrokesChange={() => undefined}
                 onTextBoxesChange={() => undefined}
-                onVisiblePageChange={(page) => {
-                  setCurrentPage(page);
-                  setPageInput(String(page));
-                }}
+                onVisiblePageChange={() => undefined}
                 onPageCountChange={setPageCount}
                 readOnly
                 syncId="source"
-                scrollSync={compareScrollSync}
-                onScrollSyncChange={setCompareScrollSync}
+                syncGroupRef={compareSyncGroupRef}
                 containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
                 t={t}
               />
             </div>
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareTranslated")}</div>
               <LibraryPdfScrollViewer
                 pdfUrl={translatedPdfUrl}
@@ -278,15 +269,11 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 textBoxes={[]}
                 onStrokesChange={() => undefined}
                 onTextBoxesChange={() => undefined}
-                onVisiblePageChange={(page) => {
-                  setCurrentPage(page);
-                  setPageInput(String(page));
-                }}
-                onPageCountChange={setPageCount}
+                onVisiblePageChange={() => undefined}
+                onPageCountChange={() => undefined}
                 readOnly
                 syncId="translated"
-                scrollSync={compareScrollSync}
-                onScrollSyncChange={setCompareScrollSync}
+                syncGroupRef={compareSyncGroupRef}
                 containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
                 t={t}
               />
@@ -303,7 +290,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(210px,0.95fr)] gap-2">
-      <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
+      <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3 motion-card-pop">
         {loading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
         ) : loadError ? (

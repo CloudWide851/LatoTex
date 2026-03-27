@@ -1,5 +1,6 @@
 use crate::models::{DrawioCacheInfo, DrawioCachePrepareInput};
 use crate::state::AppState;
+use crate::storage;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tauri::http::{
@@ -7,9 +8,11 @@ use tauri::http::{
     Request, Response, StatusCode,
 };
 use tauri::State;
+use urlencoding::{decode, encode};
 
 pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
 const DRAWIO_ROUTE_PREFIX: &str = "/tool/drawio";
+const WORKSPACE_FILE_ROUTE_PREFIX: &str = "/workspace-file";
 const REQUIRED_DRAWIO_ASSETS: [&str; 6] = [
     "index.html",
     "app.html",
@@ -240,6 +243,7 @@ fn mime_type_for_path(path: &Path) -> &'static str {
         "json" => "application/json; charset=utf-8",
         "xml" => "application/xml; charset=utf-8",
         "wasm" => "application/wasm",
+        "pdf" => "application/pdf",
         _ => "application/octet-stream",
     }
 }
@@ -276,11 +280,93 @@ fn build_drawio_entry_url() -> String {
     }
 }
 
+pub fn build_workspace_file_resource_url(project_id: &str, relative_path: &str) -> String {
+    let encoded_project_id = encode(project_id.trim());
+    let encoded_relative_path = encode(relative_path.trim().trim_start_matches('/'));
+    #[cfg(target_os = "windows")]
+    {
+        return format!(
+            "http://{}.localhost{WORKSPACE_FILE_ROUTE_PREFIX}/{}/{}",
+            LOCAL_RESOURCE_SCHEME, encoded_project_id, encoded_relative_path
+        );
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        format!(
+            "{LOCAL_RESOURCE_SCHEME}://localhost{WORKSPACE_FILE_ROUTE_PREFIX}/{}/{}",
+            encoded_project_id, encoded_relative_path
+        )
+    }
+}
+
+fn normalize_workspace_relative_path(relative_path: &str) -> Result<PathBuf, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    let trimmed = normalized.trim_start_matches('/');
+    if trimmed.is_empty() {
+        return Err("resource.path.invalid".to_string());
+    }
+    let mut out = PathBuf::new();
+    for component in Path::new(trimmed).components() {
+        match component {
+            Component::Normal(value) => out.push(value),
+            Component::CurDir => {}
+            _ => return Err("resource.path.invalid".to_string()),
+        }
+    }
+    if out.as_os_str().is_empty() {
+        return Err("resource.path.invalid".to_string());
+    }
+    Ok(out)
+}
+
+fn resolve_workspace_file_request(
+    state: &AppState,
+    request_path: &str,
+) -> Result<PathBuf, String> {
+    let tail = request_path
+        .trim()
+        .strip_prefix(WORKSPACE_FILE_ROUTE_PREFIX)
+        .ok_or_else(|| "resource.path.unsupported".to_string())?
+        .trim_start_matches('/');
+    let (project_id_raw, relative_path_raw) = tail
+        .split_once('/')
+        .ok_or_else(|| "resource.path.invalid".to_string())?;
+    let project_id = decode(project_id_raw)
+        .map_err(|_| "resource.path.invalid".to_string())?
+        .into_owned();
+    let relative_path = decode(relative_path_raw)
+        .map_err(|_| "resource.path.invalid".to_string())?
+        .into_owned();
+    let project_root = storage::load_project_root(&state.db_path, &project_id)?;
+    let safe_relative_path = normalize_workspace_relative_path(&relative_path)?;
+    Ok(project_root.join(safe_relative_path))
+}
+
+fn serve_workspace_file(state: &AppState, request_path: &str) -> Response<Vec<u8>> {
+    let asset_path = match resolve_workspace_file_request(state, request_path) {
+        Ok(path) => path,
+        Err(error) if error.starts_with("resource.") => {
+            return build_text_response(StatusCode::BAD_REQUEST, &error)
+        }
+        Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+    };
+    if !asset_path.exists() || !asset_path.is_file() {
+        return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
+    }
+    match fs::read(&asset_path) {
+        Ok(bytes) => build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes),
+        Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
+    }
+}
+
 pub fn handle_local_resource_request(
     state: &AppState,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
     let path = request.uri().path();
+    if path.starts_with(WORKSPACE_FILE_ROUTE_PREFIX) {
+        return serve_workspace_file(state, path);
+    }
     if !path.starts_with(DRAWIO_ROUTE_PREFIX) {
         return build_text_response(StatusCode::NOT_FOUND, "resource.not_found");
     }
@@ -324,7 +410,10 @@ pub fn drawio_cache_prepare(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_drawio_entry_url, normalize_relative_asset_path, LOCAL_RESOURCE_SCHEME};
+    use super::{
+        build_drawio_entry_url, build_workspace_file_resource_url, normalize_relative_asset_path,
+        normalize_workspace_relative_path, LOCAL_RESOURCE_SCHEME,
+    };
     use std::path::PathBuf;
 
     #[test]
@@ -345,5 +434,18 @@ mod tests {
     #[test]
     fn normalize_relative_asset_path_rejects_traversal() {
         assert!(normalize_relative_asset_path("/tool/drawio/../secret.txt").is_err());
+    }
+
+    #[test]
+    fn workspace_file_resource_url_encodes_project_and_relative_path() {
+        let value = build_workspace_file_resource_url("project/one", ".latotex/papers/cache file.pdf");
+        assert!(value.contains(LOCAL_RESOURCE_SCHEME));
+        assert!(value.contains("project%2Fone"));
+        assert!(value.contains("cache%20file.pdf"));
+    }
+
+    #[test]
+    fn normalize_workspace_relative_path_rejects_traversal() {
+        assert!(normalize_workspace_relative_path("../secret.pdf").is_err());
     }
 }

@@ -1,6 +1,7 @@
 import { Download, FolderOpen, Plus } from "lucide-react";
-import { useState, type DragEvent } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
+import { AnalysisLiveRail } from "./AnalysisLiveRail";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
 import { AnalysisTaskTabs } from "./AnalysisTaskTabs";
@@ -105,7 +106,6 @@ export function AnalysisWorkspace(props: {
     timelineCards,
     liveTimelineCards,
     liveStageLabel,
-    liveOutput,
     candidateFiles,
     onPromptChange,
     onDropPaths,
@@ -120,8 +120,12 @@ export function AnalysisWorkspace(props: {
     t,
   } = props;
   const [dragActive, setDragActive] = useState(false);
-  const hasLiveStream = running && Boolean(liveStageLabel.trim() || liveOutput.trim() || liveTimelineCards.length > 0);
+  const hasLiveStream = running && Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
+  const activeTaskName = useMemo(
+    () => tasks.find((item) => item.id === activeTaskId)?.name?.trim() || t("analysis.defaultTaskName"),
+    [activeTaskId, tasks, t],
+  );
 
   return (
     <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow">
@@ -177,20 +181,27 @@ export function AnalysisWorkspace(props: {
               <span className="mt-1 text-xs">{t("analysis.emptyTaskHint")}</span>
             </button>
           ) : hasLiveStream ? (
-            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
-              <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop motion-layered-backdrop">
-                <div className="rounded border border-slate-200 bg-white px-3 py-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.liveStage")}</h3>
-                  <p className="motion-status-chip mt-1 inline-flex rounded-md bg-primary-50 px-2 py-1 text-sm text-slate-700 motion-live-pulse">{liveStageLabel || t("analysis.centerRunning")}</p>
-                </div>
-                <div className="min-h-0 overflow-auto rounded border border-slate-200 bg-white px-3 py-2">
-                  <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.liveOutput")}</h4>
-                  <pre className="whitespace-pre-wrap break-words text-xs leading-5 text-slate-700">
-                    {liveOutput || t("analysis.liveOutputEmpty")}
-                  </pre>
+            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] grid-rows-[auto_minmax(0,1fr)] gap-2">
+              <div className="col-span-2 min-w-0">
+                <AnalysisLiveRail
+                  stageLabel={liveStageLabel}
+                  cards={liveTimelineCards}
+                  running={running}
+                  t={t}
+                />
+              </div>
+              <section className="flex min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/80 p-4 motion-card-pop">
+                <div className="max-w-md text-center text-slate-600">
+                  <div className="mb-2 inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-700">
+                    {activeTaskName}
+                  </div>
+                  <p className="text-sm font-medium text-slate-700">{t("analysis.centerRunning")}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    {liveStageLabel || t("analysis.running")}
+                  </p>
                 </div>
               </section>
-              <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
+              <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact maxCards={3} />
             </div>
           ) : !activeRun ? (
             <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/70 p-4 motion-page-in">
