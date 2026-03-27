@@ -64,6 +64,17 @@ export function pickTargetPath(prompt: string, selectedFile: string | null): {
   return { targetPath: "main.tex", explicitPath: false };
 }
 
+export function pickReviewTargetPath(prompt: string, selectedFile: string | null): string {
+  const mentionedPaths = extractMentionedPaths(prompt);
+  const latexMention = mentionedPaths.find((item) => isLatexPath(item));
+  if (latexMention) {
+    return latexMention;
+  }
+  if (selectedFile && isLatexPath(selectedFile)) {
+    return selectedFile;
+  }
+  return "main.tex";
+}
 export function extractFencedLatex(raw: string): string | null {
   const fenced = raw.match(/```(?:latex|tex)\s*([\s\S]*?)```/i);
   if (fenced?.[1]) {
@@ -425,3 +436,4 @@ export function computeDiffStats(originalContent: string, candidateContent: stri
   const changedLines = collectChangedLines(diffBlocks, candidate.length);
   return { insertions, deletions, changedLines, diffBlocks };
 }
+

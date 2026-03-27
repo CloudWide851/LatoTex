@@ -2,6 +2,7 @@ export const enUS_share = {
   "share.panelTitle": "Collaborative Share",
   "share.startNeedTex": "Select a .tex file before starting share.",
   "share.start": "Start Share",
+  "share.startCompileFailed": "Remote share could not start because the current document did not compile to a PDF.",
   "share.stop": "Stop Share",
   "share.started": "Share session started.",
   "share.stopped": "Share session stopped.",
@@ -22,6 +23,7 @@ export const enUS_share = {
   "share.status.ready": "Sharing",
   "share.status.readyLocal": "Sharing (local mode)",
   "share.status.readyRemote": "Sharing (remote mode ready)",
+  "share.status.preparingRemotePdf": "Starting remote share (waiting for PDF readiness)",
   "share.status.failed": "Share failed (public tunnel unavailable)",
   "share.status.stopped": "Share is not active",
   "share.syncing": "Sharing (CRDT syncing)",
@@ -38,3 +40,4 @@ export const enUS_share = {
   "share.desktopUser": "Desktop",
   "share.action.editing": "editing",
 } as const;
+

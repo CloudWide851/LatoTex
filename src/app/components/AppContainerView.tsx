@@ -317,6 +317,10 @@ export function AppContainerView(props: any) {
               onEditorMount={(editor, _monaco) => {
                 editorRef.current = editor;
               }}
+              onChatReviewRequest={(prompt) => {
+                setAgentCollapsed(false);
+                void handleRunAgent(prompt, { forceNewSession: true });
+              }}
               onAgentPromptChange={setAgentPrompt}
               onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
               onAgentRun={handleRunAgent}
@@ -419,6 +423,8 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
+
 
 
 

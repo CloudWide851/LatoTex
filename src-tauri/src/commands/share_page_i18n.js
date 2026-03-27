@@ -6,6 +6,14 @@ export function detectLocale() {
 const messages = {
   "zh-CN": {
     title: "LatoTex 协同编辑",
+    brand: "LatoTex 共享协作",
+    identityLabel: "身份名称",
+    passwordLabel: "会话口令",
+    workspaceKicker: "实时工作区",
+    editorPanelLabel: "TeX 编辑区",
+    pdfPanelLabel: "PDF 预览",
+    presenceKicker: "协作状态",
+    discussionKicker: "讨论区",
     sessionLabel: (sid) => `会话=${sid}`,
     missingSession: "缺少会话 ID",
     statusIdle: "空闲",
@@ -55,6 +63,14 @@ const messages = {
   },
   "en-US": {
     title: "LatoTex Collaborative Editing",
+    brand: "LatoTex Shared Workspace",
+    identityLabel: "Identity",
+    passwordLabel: "Session password",
+    workspaceKicker: "Live workspace",
+    editorPanelLabel: "TeX editor",
+    pdfPanelLabel: "PDF preview",
+    presenceKicker: "Presence",
+    discussionKicker: "Discussion",
     sessionLabel: (sid) => `session=${sid}`,
     missingSession: "missing session id",
     statusIdle: "idle",
@@ -107,3 +123,4 @@ const messages = {
 export function createI18n(locale) {
   return messages[locale] || messages["en-US"];
 }
+

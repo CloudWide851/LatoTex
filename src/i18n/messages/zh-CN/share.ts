@@ -2,6 +2,7 @@ export const zhCN_share = {
   "share.panelTitle": "协同共享",
   "share.startNeedTex": "请先选中一个 .tex 文件再开启共享。",
   "share.start": "开启共享",
+  "share.startCompileFailed": "远程共享启动失败：当前文档未成功编译出 PDF。",
   "share.stop": "停止共享",
   "share.started": "共享会话已开启。",
   "share.stopped": "共享会话已停止。",
@@ -22,6 +23,7 @@ export const zhCN_share = {
   "share.status.ready": "共享中",
   "share.status.readyLocal": "共享中（本地模式）",
   "share.status.readyRemote": "共享中（远程模式可用）",
+  "share.status.preparingRemotePdf": "远程共享启动中（正在等待 PDF 就绪）",
   "share.status.failed": "共享失败（公网隧道不可用）",
   "share.status.stopped": "未开启共享",
   "share.syncing": "共享中（CRDT 同步中）",
@@ -38,3 +40,4 @@ export const zhCN_share = {
   "share.desktopUser": "桌面端",
   "share.action.editing": "编辑中",
 } as const;
+

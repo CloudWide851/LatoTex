@@ -14,59 +14,27 @@ import {
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
+import { ChatRunningIndicator } from "./ChatRunningIndicator";
+import {
+  ensureTelegramSession,
+  renderRunFailureMessage,
+  resolveAutoFixKey,
+  titleFromPrompt,
+  type ChatAutoFixRequest,
+  updateSession,
+} from "./chatWorkspaceUtils";
 
 type TranslationFn = (key: any) => string;
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
-type ChatAutoFixRequest = {
-  projectId: string | null;
-  prompt: string;
-  forceNewSession?: boolean;
-  source?: string;
-  requestId?: string;
-};
-function renderRunFailureMessage(t: TranslationFn, error: unknown): string {
-  const detail = String(error ?? "").trim();
-  if (!detail) {
-    return t("chat.runFailed");
-  }
-  return t("chat.runFailedWithReason").replace("{reason}", detail);
-}
-function titleFromPrompt(prompt: string, fallback: string) {
-  const firstLine = prompt.replace(/\s+/g, " ").trim().slice(0, 42);
-  return firstLine || fallback;
-}
-function updateSession(
-  sessions: ChatSession[],
-  sessionId: string,
-  updater: (session: ChatSession) => ChatSession,
-): ChatSession[] {
-  return sessions.map((item) => (item.id === sessionId ? updater(item) : item));
-}
-function ensureTelegramSession(
-  sessions: ChatSession[],
-  chatId: string,
-  username: string,
-  fallbackTitle: string,
-): { sessions: ChatSession[]; sessionId: string } {
-  const title = `[TG:${username || chatId}]`;
-  const existing = sessions.find((item) => item.title === title);
-  if (existing) {
-    return { sessions, sessionId: existing.id };
-  }
-  const next = newChatSession(fallbackTitle);
-  next.title = title;
-  return {
-    sessions: [next, ...sessions].slice(0, 80),
-    sessionId: next.id,
-  };
-}
+
 export function ChatWorkspace(props: {
   projectId: string | null;
   channelPrefs?: ChannelPrefs | null;
   suspended?: boolean;
+  onRequestAgentReview?: (prompt: string) => void;
   t: TranslationFn;
 }) {
-  const { projectId, channelPrefs, suspended = false, t } = props;
+  const { projectId, channelPrefs, suspended = false, onRequestAgentReview, t } = props;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -242,6 +210,21 @@ export function ChatWorkspace(props: {
       }
       return;
     }
+    if (
+      parsed.kind === "command"
+      && parsed.command === "review"
+      && !options?.telegramChatId
+      && onRequestAgentReview
+    ) {
+      appendMessage(sessionId, {
+        id: `a-${Date.now().toString(36)}`,
+        role: "assistant",
+        text: t("chat.command.review.handoff"),
+        createdAt: new Date().toISOString(),
+      });
+      onRequestAgentReview(prompt);
+      return;
+    }
     if (shouldRetitle) {
       setSessions((prev) =>
         updateSession(prev, sessionId, (session) => ({
@@ -335,7 +318,7 @@ export function ChatWorkspace(props: {
       setRunning(false);
       setPendingRunId(null);
     }
-  }, [appendMessage, ensureSession, loadProjectMemoryText, projectId, running, suspended, t, updateMessageText]);
+  }, [appendMessage, ensureSession, loadProjectMemoryText, onRequestAgentReview, projectId, running, suspended, t, updateMessageText]);
   useEffect(() => {
     if (!suspended || !pendingRunId) {
       return;
@@ -453,13 +436,6 @@ export function ChatWorkspace(props: {
     if (!projectId || typeof window === "undefined") {
       return;
     }
-    const resolveAutoFixKey = (input: ChatAutoFixRequest) => {
-      const requestId = String(input.requestId || "").trim();
-      if (requestId) {
-        return requestId;
-      }
-      return `${input.projectId ?? "unknown"}:${input.source ?? "chat"}:${input.prompt}`;
-    };
     const handleAutoFixRequest = (request: ChatAutoFixRequest) => {
       const prompt = String(request.prompt || "").trim();
       if (!prompt) {
@@ -516,6 +492,11 @@ export function ChatWorkspace(props: {
       // ignore
     }
   };
+  const latestRunningAssistantMessageId = activeSession
+    ? [...activeSession.messages]
+      .reverse()
+      .find((item) => item.role === "assistant")?.id ?? null
+    : null;
   if (!projectId) {
     return (
       <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
@@ -530,33 +511,35 @@ export function ChatWorkspace(props: {
           <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
         ) : (
           <div className="space-y-2">
-            {activeSession.messages.map((item) => (
-              <div
-                key={item.id}
-                className={cn(
-                  "max-w-[85%] rounded border px-3 py-2 text-sm",
-                  item.role === "user"
-                    ? "ml-auto border-primary-200 bg-primary-50 text-primary-900"
-                    : "border-slate-200 bg-slate-50 text-slate-800",
-                )}
-              >
-                <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">
-                  {item.role === "user" ? t("chat.roleUser") : t("chat.roleAssistant")}
+            {activeSession.messages.map((item) => {
+              const isRunningAssistant = running
+                && item.role === "assistant"
+                && item.id === latestRunningAssistantMessageId;
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "max-w-[85%] rounded border px-3 py-2 text-sm",
+                    item.role === "user"
+                      ? "ml-auto border-primary-200 bg-primary-50 text-primary-900"
+                      : "border-slate-200 bg-slate-50 text-slate-800",
+                  )}
+                >
+                  <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">
+                    {item.role === "user" ? t("chat.roleUser") : t("chat.roleAssistant")}
+                  </div>
+                  <div className="whitespace-pre-wrap break-words">
+                    {item.text.trim() ? item.text : null}
+                    {isRunningAssistant ? (
+                      <ChatRunningIndicator
+                        label={t("chat.running")}
+                        inline={!item.text.trim()}
+                      />
+                    ) : null}
+                  </div>
                 </div>
-                <div className="whitespace-pre-wrap break-words">
-                  {running && item.role === "assistant" && !item.text.trim() ? (
-                    <span className="inline-flex items-center gap-2 text-slate-500">
-                      <span>{t("chat.running")}</span>
-                      <span className="inline-flex items-end gap-1" aria-hidden="true">
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.24s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.12s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
-                      </span>
-                    </span>
-                  ) : item.text}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -593,9 +576,3 @@ export function ChatWorkspace(props: {
     </section>
   );
 }
-
-
-
-
-
-

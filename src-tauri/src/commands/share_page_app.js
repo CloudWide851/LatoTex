@@ -2,13 +2,7 @@ import * as Y from "https://esm.sh/yjs@13.6.29";
 import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.min.mjs";
 import { createI18n, detectLocale } from "/assets/share_page_i18n.js";
 import { renderComments, renderParticipants, withHighlight } from "/assets/share_page_render.js";
-import {
-  fromBase64,
-  postJson,
-  toBase64,
-  trimQuote,
-} from "/assets/share_page_utils.js";
-
+import { fromBase64, postJson, toBase64, trimQuote } from "/assets/share_page_utils.js";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
 
 export async function bootstrapSharePage() {
@@ -18,10 +12,13 @@ export async function bootstrapSharePage() {
   const i18n = createI18n(detectLocale());
 
   const el = {
+    brand: document.getElementById("share-brand"),
     title: document.getElementById("title-text"),
     meta: document.getElementById("meta"),
     status: document.getElementById("status"),
     badge: document.getElementById("connected-badge"),
+    identityLabel: document.getElementById("identity-label"),
+    passwordLabel: document.getElementById("password-label"),
     username: document.getElementById("username"),
     pwd: document.getElementById("pwd"),
     copyPwd: document.getElementById("copy-password"),
@@ -45,6 +42,11 @@ export async function bootstrapSharePage() {
     participants: document.getElementById("participants"),
     commentsTitle: document.getElementById("comments-title"),
     comments: document.getElementById("comments"),
+    workspaceKicker: document.getElementById("workspace-kicker"),
+    editorPanelLabel: document.getElementById("editor-panel-label"),
+    pdfPanelLabel: document.getElementById("pdf-panel-label"),
+    presenceKicker: document.getElementById("presence-kicker"),
+    discussionKicker: document.getElementById("discussion-kicker"),
     hint: document.getElementById("share-hint"),
     requestCompile: document.getElementById("request-compile"),
     quotePreview: document.getElementById("quote-preview"),
@@ -367,8 +369,11 @@ export async function bootstrapSharePage() {
 
   function setupI18n() {
     document.title = i18n.title;
+    el.brand.textContent = i18n.brand;
     el.title.textContent = i18n.title;
     el.meta.textContent = sid ? i18n.sessionLabel(sid) : i18n.missingSession;
+    el.identityLabel.textContent = i18n.identityLabel;
+    el.passwordLabel.textContent = i18n.passwordLabel;
     el.username.placeholder = i18n.usernamePlaceholder;
     el.pwd.placeholder = i18n.passwordPlaceholder;
     el.connect.textContent = i18n.join;
@@ -377,6 +382,11 @@ export async function bootstrapSharePage() {
     el.viewTex.textContent = i18n.tabTex;
     el.viewPdf.textContent = i18n.tabPdf;
     el.viewComments.textContent = i18n.tabComments;
+    el.workspaceKicker.textContent = i18n.workspaceKicker;
+    el.editorPanelLabel.textContent = i18n.editorPanelLabel;
+    el.pdfPanelLabel.textContent = i18n.pdfPanelLabel;
+    el.presenceKicker.textContent = i18n.presenceKicker;
+    el.discussionKicker.textContent = i18n.discussionKicker;
     el.participantsTitle.textContent = i18n.collaborators;
     el.commentsTitle.textContent = i18n.comments;
     el.hint.textContent = i18n.shareHint;

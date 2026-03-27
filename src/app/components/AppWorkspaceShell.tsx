@@ -88,6 +88,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onTabPin,
     onEditorChange,
     onEditorMount,
+    onChatReviewRequest,
     onAgentPromptChange,
     onAgentToggle,
     onAgentRun,
@@ -406,6 +407,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 projectId={activeProjectId}
                 channelPrefs={channelPrefs}
                 suspended={suspended}
+                onRequestAgentReview={(prompt) => {
+                  setChatTabActive(false);
+                  if (agentCollapsed) {
+                    onAgentToggle();
+                  }
+                  onChatReviewRequest(prompt);
+                }}
                 t={t}
               />
             </Suspense>
@@ -539,4 +547,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
+
+
+
+
+
 

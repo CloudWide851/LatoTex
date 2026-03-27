@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { AppSettings, CloseTabsAction, EditorTab, ModelCatalogItem } from "../../shared/types/app";
+import type { CompileActionResult } from "./compileActionTypes";
 import type { ProjectIntegrityIssue } from "./useProjectDataLoader";
 import type { TranslationFn } from "../types/i18n";
 
@@ -21,7 +22,7 @@ export type UseAppContainerWorkspaceActionsParams = {
   resetEditorSession: () => void;
   handleEditorUndo: () => void;
   handleEditorRedo: () => void;
-  handleCompile: () => Promise<void>;
+  handleCompile: () => Promise<CompileActionResult | null>;
   handleExportCompiledPdf: () => Promise<void>;
   isTauriRuntime: boolean;
   collectDirtyPaths: (candidatePaths: string[]) => string[];
@@ -92,3 +93,4 @@ export type AppContainerWorkspaceActionsResult = {
     modelApiKeyChanged: boolean;
   }) => Promise<{ ok: boolean; message?: string }>;
 };
+

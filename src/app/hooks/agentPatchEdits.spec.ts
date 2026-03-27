@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDiffStats } from "./agentPatchEdits";
+import { computeDiffStats, pickReviewTargetPath } from "./agentPatchEdits";
 
 describe("computeDiffStats", () => {
   it("keeps +/- counts accurate for single-line insertion", () => {
@@ -25,3 +25,16 @@ describe("computeDiffStats", () => {
   });
 });
 
+describe("pickReviewTargetPath", () => {
+  it("prefers an explicit latex path from the prompt", () => {
+    expect(pickReviewTargetPath("/review fix chapters/intro.tex", "notes.md")).toBe("chapters/intro.tex");
+  });
+
+  it("falls back to the selected latex file", () => {
+    expect(pickReviewTargetPath("/review", "paper/main.tex")).toBe("paper/main.tex");
+  });
+
+  it("falls back to main.tex when no latex target is available", () => {
+    expect(pickReviewTargetPath("/review assets/logo.png", "notes.md")).toBe("main.tex");
+  });
+});

@@ -14,6 +14,7 @@ import {
   computeDiffStats,
   isLatexPath,
   normalizePath,
+  pickReviewTargetPath,
   pickTargetPath,
   resolveCandidateFromOutput,
 } from "./agentPatchEdits";
@@ -244,6 +245,7 @@ export async function runAgentWorkflow(params: {
   const parsed = parseAgentPrompt(prompt);
   const commitIntent = resolveAgentCommitIntent(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
+  const reviewTargetPath = pickReviewTargetPath(prompt, selectedFile);
 
   setAgentProposal(null);
   setAgentRunId(null);
@@ -267,13 +269,15 @@ export async function runAgentWorkflow(params: {
   };
   try {
     if (parsed.kind === "command" && parsed.command === "review") {
-      if (!selectedFile) {
-        throw new Error(t("agent.command.requiresFile"));
-      }
-      let workingContent = editorContent;
+      let workingContent = await loadOriginalContent({
+        activeProjectId,
+        targetPath: reviewTargetPath,
+        selectedFile,
+        editorContent,
+      });
       let compileResult = await runCompilePass({
         projectId: activeProjectId,
-        mainPath: selectedFile,
+        mainPath: reviewTargetPath,
         mainContent: workingContent,
         options: { updatePreview: true, emitToast: false },
       });
@@ -291,7 +295,7 @@ export async function runAgentWorkflow(params: {
         const response = await runAgentThroughEvents({
           startRun: () => startLatexReviewFix({
             projectId: activeProjectId,
-            selectedFile,
+            selectedFile: reviewTargetPath,
             workingContent,
             diagnostics: prioritizeCompileDiagnostics(compileResult.diagnostics),
             extraInstruction,
@@ -302,7 +306,7 @@ export async function runAgentWorkflow(params: {
         const normalized = cleanAgentOutput(response.output);
         const resolved = resolveCandidateFromOutput({
           output: normalized,
-          targetPath: selectedFile,
+          targetPath: reviewTargetPath,
           baseContent: workingContent,
         });
         if (!resolved.candidate) {
@@ -312,7 +316,7 @@ export async function runAgentWorkflow(params: {
         workingContent = candidate;
         compileResult = await runCompilePass({
           projectId: activeProjectId,
-          mainPath: selectedFile,
+          mainPath: reviewTargetPath,
           mainContent: candidate,
           options: { updatePreview: true, emitToast: false },
         });
@@ -325,7 +329,7 @@ export async function runAgentWorkflow(params: {
       if (fixed) {
         const originalContent = await loadOriginalContent({
           activeProjectId,
-          targetPath,
+          targetPath: reviewTargetPath,
           selectedFile,
           editorContent,
         });
@@ -333,18 +337,18 @@ export async function runAgentWorkflow(params: {
           originalContent,
           fixedContent,
         );
-        if (selectedFile !== targetPath) {
-          setSelectedFile(targetPath);
+        if (selectedFile !== reviewTargetPath) {
+          setSelectedFile(reviewTargetPath);
         }
         setEditorContent(fixedContent);
         setAgentProposal({
           id: `proposal-${Date.now()}-review`,
-          targetPath,
+          targetPath: reviewTargetPath,
           originalContent,
           candidateContent: fixedContent,
           commitIntent,
           summary: t("agent.proposalReady"),
-          analysisPrompt: buildAnalysisPrompt(prompt, fixedContent, targetPath),
+          analysisPrompt: buildAnalysisPrompt(prompt, fixedContent, reviewTargetPath),
           insertions,
           deletions,
           changedLines,
@@ -536,6 +540,9 @@ export async function runAgentWorkflow(params: {
     setToast({ type: "error", message: toastMessage });
   }
 }
+
+
+
 
 
 

@@ -5,6 +5,7 @@ import { isPdfPath } from "../../shared/utils/fileKind";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
 import type { CompileInstallProgress } from "./compileWorkflow";
 import { runAppAction, writeRuntimeLog } from "./appActionRuntime";
+import type { CompileActionResult } from "./compileActionTypes";
 
 type TranslationFn = (key: any) => string;
 
@@ -100,22 +101,27 @@ export function useCompileActions(params: {
     });
   }, [runCompilePass]);
 
-  const handleCompile = useCallback(async () => {
+  const handleCompile = useCallback(async (): Promise<CompileActionResult | null> => {
     if (!activeProjectId || !selectedFile) {
-      return;
+      return null;
     }
     setCompileDiagnostics([]);
 
-    await runAppAction({
+    const result = await runAppAction<CompileActionResult | null>({
       action: async () => {
         const selectedContent = await resolveSelectedFileContent();
-        await runCompilePass(activeProjectId, selectedFile, selectedContent ?? editorContent, {
+        const compileResult = await runCompilePass(activeProjectId, selectedFile, selectedContent ?? editorContent, {
           updatePreview: true,
           emitToast: true,
           compileMode: "task",
         });
+        return {
+          status: compileResult.status,
+          diagnostics: compileResult.diagnostics,
+          pdfBytes: compileResult.pdfBytes ? Uint8Array.from(compileResult.pdfBytes) : null,
+        };
       },
-      fallbackValue: undefined,
+      fallbackValue: null,
       setBusy,
       setToast,
       errorLogLabel: "latex.compile",
@@ -127,6 +133,7 @@ export function useCompileActions(params: {
       },
     });
     setCompileInstallProgress(null);
+    return result;
   }, [
     activeProjectId,
     editorContent,
@@ -194,4 +201,5 @@ export function useCompileActions(params: {
     handleEditorRedo,
   };
 }
+
 

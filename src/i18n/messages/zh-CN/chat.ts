@@ -12,6 +12,7 @@ export const zhCN_chat = {
   "chat.inputPlaceholder": "输入提示词。该会话会在当前项目下长期保存。",
   "chat.command.new.done": "已开启新会话。",
   "chat.command.memory.empty": "当前项目还没有可读取的 MEMORY.md 内容。",
+  "chat.command.review.handoff": "已转交到右侧 Agent 面板，请在提案区确认或拒绝修改。",
   "chat.newChatTitle": "新对话",
   "chat.session.select": "对话会话",
   "chat.session.emptyHistory": "暂无历史对话记录。",
@@ -27,3 +28,4 @@ export const zhCN_chat = {
   "chat.emptyResult": "运行已完成，但没有可显示的结果。",
   "chat.error.runFailed": "对话运行失败。",
 } as const;
+

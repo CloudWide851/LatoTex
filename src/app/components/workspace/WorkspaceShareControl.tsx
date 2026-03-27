@@ -28,6 +28,9 @@ function statusMessage(
   if (session.status === "starting") {
     return mode === "local" ? t("share.status.startingLocal") : t("share.status.startingRemote");
   }
+  if (mode === "remote" && session.status === "ready" && session.pdfState !== "ready") {
+    return t("share.status.preparingRemotePdf");
+  }
   if (shareSyncing) {
     return t("share.syncing");
   }
@@ -395,4 +398,5 @@ export function WorkspaceShareControl(props: {
     </div>
   );
 }
+
 

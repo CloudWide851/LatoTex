@@ -16,6 +16,7 @@ import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from "../../hooks/agentTypes";
 import type { AgentStatusKey } from "./workspaceShellUtils";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
+import type { CompileActionResult } from "../../hooks/compileActionTypes";
 
 export type TranslationFn = (key: any) => string;
 export type ShareMode = "local" | "remote";
@@ -89,6 +90,7 @@ export type AppWorkspaceShellProps = {
   onTabPin: (tabId: string) => void;
   onEditorChange: (value: string) => void;
   onEditorMount: (editor: any, monaco: any) => void;
+  onChatReviewRequest: (prompt: string) => void;
   onAgentPromptChange: (value: string) => void;
   onAgentToggle: () => void;
   onAgentRun: (promptOverride?: string, options?: { forceNewSession?: boolean }) => void;
@@ -101,7 +103,7 @@ export type AppWorkspaceShellProps = {
   onAgentPendingActionResolve: (accept: boolean) => void;
   onOpenFolder: () => void;
   onSaveFile: () => void;
-  onCompile: () => void;
+  onCompile: () => Promise<CompileActionResult | null>;
   onExportPdf: () => void;
   onEditorUndo: () => void;
   onEditorRedo: () => void;
@@ -137,6 +139,8 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
+
+
 
 
 

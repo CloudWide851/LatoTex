@@ -12,6 +12,7 @@ export const enUS_chat = {
   "chat.inputPlaceholder": "Enter your prompt. This chat is persisted for the current project.",
   "chat.command.new.done": "Started a new conversation session.",
   "chat.command.memory.empty": "No MEMORY.md content found in this project yet.",
+  "chat.command.review.handoff": "Handed off to the Agent panel on the right. Review the proposal there.",
   "chat.newChatTitle": "New Chat",
   "chat.session.select": "Conversation session",
   "chat.session.emptyHistory": "No conversation history yet.",
@@ -27,3 +28,4 @@ export const enUS_chat = {
   "chat.emptyResult": "Run completed without visible output.",
   "chat.error.runFailed": "Conversation run failed.",
 } as const;
+

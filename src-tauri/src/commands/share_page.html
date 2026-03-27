@@ -8,63 +8,95 @@
     <link rel="stylesheet" href="/assets/share_page_theme.css" />
   </head>
   <body>
-    <main class="shell container-fluid">
-      <section class="card top-card">
-        <div>
+    <main class="share-shell">
+      <header class="hero-card card">
+        <div class="hero-copy">
+          <div class="hero-eyebrow" id="share-brand">LatoTex Share</div>
           <h1 id="title-text">LatoTex Collaborative Editing</h1>
-          <p class="meta" id="meta">session=-</p>
+          <p id="meta" class="hero-meta">session=-</p>
         </div>
-        <div class="status-wrap">
-          <span class="status-chip" id="status">idle</span>
+        <div class="hero-status">
+          <span class="status-pill" id="status">idle</span>
           <span class="connected-badge" id="connected-badge">idle</span>
         </div>
+      </header>
+
+      <section class="control-card card">
+        <div class="control-grid">
+          <label class="field">
+            <span class="field-label" id="identity-label">Identity</span>
+            <input id="username" placeholder="Username" maxlength="32" />
+          </label>
+          <label class="field">
+            <span class="field-label" id="password-label">Session password</span>
+            <input id="pwd" placeholder="Session password" />
+          </label>
+          <div class="control-actions">
+            <button id="copy-password" class="secondary">Copy Password</button>
+            <button id="connect">Join</button>
+            <button id="reload-pdf" class="secondary">Reload PDF</button>
+          </div>
+        </div>
       </section>
 
-      <section class="card toolbar">
-        <input id="username" placeholder="Username" maxlength="32" />
-        <input id="pwd" placeholder="Session password" />
-        <button id="copy-password" class="secondary">Copy Password</button>
-        <button id="connect">Join</button>
-        <button id="reload-pdf" class="secondary">Reload PDF</button>
-      </section>
-
-      <section class="card tab-row">
-        <button id="view-tex" class="outline">TeX</button>
-        <button id="view-pdf" class="outline">PDF</button>
-        <button id="view-comments" class="outline">Comments</button>
+      <section class="tab-card card">
+        <div class="tab-row">
+          <button id="view-tex" class="outline">TeX</button>
+          <button id="view-pdf" class="outline">PDF</button>
+          <button id="view-comments" class="outline">Comments</button>
+        </div>
       </section>
 
       <section class="layout">
-        <section class="card pane active" id="pane-main">
-          <div class="toolbar-inline">
+        <section class="card pane workspace-pane active" id="pane-main">
+          <div class="pane-header">
+            <div>
+              <p class="pane-kicker" id="workspace-kicker">Live workspace</p>
+              <p class="pane-hint" id="share-hint"></p>
+            </div>
             <button id="request-compile" class="secondary">Request Compile</button>
-            <p class="hint" id="share-hint"></p>
           </div>
 
-          <section id="editor-wrap" class="editor-wrap">
+          <section id="editor-wrap" class="editor-wrap content-panel">
+            <div class="panel-label-row">
+              <span class="panel-label" id="editor-panel-label">TeX Editor</span>
+              <span class="cursor" id="cursor-info">0-0</span>
+            </div>
             <textarea id="editor" rows="16"></textarea>
-            <div class="cursor" id="cursor-info">0-0</div>
           </section>
 
-          <section id="pdf-wrap" class="pdf-wrap hidden">
-            <iframe id="pdf" title="PDF Preview"></iframe>
-            <div class="pdf-nav">
-              <button id="pdf-prev" class="secondary">&lt;</button>
-              <span id="pdf-page-label" class="meta">PDF page 1/1</span>
-              <button id="pdf-next" class="secondary">&gt;</button>
+          <section id="pdf-wrap" class="pdf-wrap hidden content-panel">
+            <div class="panel-label-row">
+              <span class="panel-label" id="pdf-panel-label">PDF Preview</span>
+              <div class="pdf-nav">
+                <button id="pdf-prev" class="secondary" aria-label="Previous PDF page">&lt;</button>
+                <span id="pdf-page-label" class="meta">PDF page 1/1</span>
+                <button id="pdf-next" class="secondary" aria-label="Next PDF page">&gt;</button>
+              </div>
             </div>
+            <iframe id="pdf" title="PDF Preview"></iframe>
             <div id="pdf-text" class="pdf-text">No PDF text available.</div>
           </section>
         </section>
 
-        <aside class="card pane active" id="pane-side">
-          <h4 id="participants-title">Collaborators</h4>
-          <div id="participants" class="participants"></div>
+        <aside class="card pane side-pane active" id="pane-side">
+          <section class="side-section">
+            <div class="side-heading-row">
+              <p class="side-kicker" id="presence-kicker">Presence</p>
+              <h2 id="participants-title">Collaborators</h2>
+            </div>
+            <div id="participants" class="participants"></div>
+          </section>
 
-          <h4 id="comments-title">Comments</h4>
-          <div id="comments" class="comments"></div>
+          <section class="side-section comments-section">
+            <div class="side-heading-row">
+              <p class="side-kicker" id="discussion-kicker">Discussion</p>
+              <h2 id="comments-title">Comments</h2>
+            </div>
+            <div id="comments" class="comments"></div>
+          </section>
 
-          <div class="comment-composer">
+          <section class="comment-composer">
             <div id="quote-preview" class="quote-preview" hidden>
               <div id="quote-source" class="quote-source"></div>
               <div id="quote-content" class="quote-content"></div>
@@ -72,7 +104,7 @@
             </div>
             <textarea id="comment-editor" rows="4" placeholder="Write a comment..."></textarea>
             <button id="post-comment">Post</button>
-          </div>
+          </section>
         </aside>
       </section>
     </main>
@@ -81,3 +113,4 @@
     <script type="module" src="/assets/share_page.js"></script>
   </body>
 </html>
+

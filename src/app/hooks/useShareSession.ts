@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/share";
 import type { ShareCommentItem, ShareSessionInfo } from "../../shared/types/app";
+import type { CompileActionResult } from "./compileActionTypes";
+import {
+  applyYTextDelta,
+  fromBase64,
+  isShareReady,
+  matchPath,
+  postJson,
+  toBase64,
+  toShareCommentItems,
+  wait,
+  type ShareMode,
+} from "./shareSessionUtils";
+
 type TranslationFn = (key: any) => string;
-type ShareMode = "local" | "remote";
 type YTextLike = {
   toString: () => string;
   delete: (index: number, length: number) => void;
@@ -17,113 +29,14 @@ type YDocLike = {
   transact: (fn: () => void, origin?: unknown) => void;
   destroy: () => void;
 };
-function isShareReady(status: ShareSessionInfo, mode: ShareMode): boolean {
-  if (status.status !== "ready") {
-    return false;
-  }
-  if (mode === "local") {
-    return Boolean(status.localJoinUrl || status.activeJoinUrl);
-  }
-  return Boolean(status.remoteJoinUrl || status.tunnelUrl || status.activeJoinUrl);
-}
-function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {
-  if (!Array.isArray(rawItems)) {
-    return [];
-  }
-  return rawItems
-    .map((item, index) => {
-      const pageRaw = Number(item?.page);
-      const startRaw = Number(item?.start);
-      const endRaw = Number(item?.end);
-      return {
-        id: String(item?.id ?? `comment-${index + 1}`),
-        username: String(item?.username ?? "Guest"),
-        text: String(item?.text ?? ""),
-        quote: typeof item?.quote === "string" ? item.quote : undefined,
-        source: typeof item?.source === "string" ? item.source : undefined,
-        sessionName: typeof item?.sessionName === "string" ? item.sessionName : undefined,
-        sessionCreatedAt: typeof item?.sessionCreatedAt === "string" ? item.sessionCreatedAt : undefined,
-        page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : undefined,
-        start: Number.isFinite(startRaw) && startRaw >= 0 ? startRaw : undefined,
-        end: Number.isFinite(endRaw) && endRaw >= 0 ? endRaw : undefined,
-        createdAt: typeof item?.createdAt === "string" ? item.createdAt : undefined,
-      } satisfies ShareCommentItem;
-    })
-    .filter((item) => item.text.trim().length > 0 || (item.quote?.trim().length ?? 0) > 0)
-    .slice(-120)
-    .reverse();
-}
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]!);
-  }
-  return btoa(binary);
-}
-function fromBase64(raw: string): Uint8Array {
-  const binary = atob(raw);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-async function postJson(url: string, payload: unknown) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `HTTP ${response.status}`);
-  }
-  return response.json();
-}
-async function wait(ms: number) {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-function matchPath(left: string | null | undefined, right: string | null | undefined): boolean {
-  if (!left || !right) {
-    return false;
-  }
-  return left.replace(/\\/g, "/") === right.replace(/\\/g, "/");
-}
-function applyYTextDelta(target: YTextLike, current: string, next: string) {
-  if (current === next) {
-    return;
-  }
-  let start = 0;
-  const maxStart = Math.min(current.length, next.length);
-  while (start < maxStart && current[start] === next[start]) {
-    start += 1;
-  }
-  let endCurrent = current.length;
-  let endNext = next.length;
-  while (
-    endCurrent > start &&
-    endNext > start &&
-    current[endCurrent - 1] === next[endNext - 1]
-  ) {
-    endCurrent -= 1;
-    endNext -= 1;
-  }
-  const removeLen = endCurrent - start;
-  const insert = next.slice(start, endNext);
-  if (removeLen > 0) {
-    target.delete(start, removeLen);
-  }
-  if (insert.length > 0) {
-    target.insert(start, insert);
-  }
-}
+
 export function useShareSession(params: {
   activeProjectId: string | null;
   selectedFile: string | null;
   editorContent: string;
   compiledPdfUrl: string | null;
   setEditorContent: (value: string) => void;
-  onCompile: () => Promise<void>;
+  onCompile: () => Promise<CompileActionResult | null>;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;
   t: TranslationFn;
   suspended?: boolean;
@@ -200,6 +113,17 @@ export function useShareSession(params: {
       statusFlightRef.current = false;
     }
   }, [setToast, shareSession]);
+  const uploadPdfBytes = useCallback(async (session: ShareSessionInfo, pdfBytes: Uint8Array) => {
+    if (!session.localUrl || !session.sessionId || !session.password) {
+      throw new Error("share session missing upload endpoint");
+    }
+    await postJson(`${session.localUrl}/api/pdf/upload`, {
+      sid: session.sessionId,
+      pwd: session.password,
+      pdfBase64: toBase64(pdfBytes),
+    });
+  }, []);
+
   const waitForShareReady = useCallback(
     async (expectedSessionId: string, mode: ShareMode) => {
       const timeoutMs = mode === "local" ? 18_000 : 120_000;
@@ -241,21 +165,36 @@ export function useShareSession(params: {
       return;
     }
     setShareBusy(true);
+    let createdSession = false;
     try {
       const nextMode: ShareMode = mode === "local" ? "local" : "remote";
       setShareMode(nextMode);
       const nextSessionName = shareSessionName.trim();
+
+      let compileResult: CompileActionResult | null = null;
+      if (nextMode === "remote") {
+        compileResult = await onCompile();
+        if (compileResult?.status !== "success" || !compileResult.pdfBytes || compileResult.pdfBytes.length === 0) {
+          throw new Error(t("share.startCompileFailed"));
+        }
+      }
+
       const created = await shareSessionCreate(
         activeProjectId,
         selectedFile,
         nextMode,
         nextSessionName || undefined,
       );
+      createdSession = true;
       setShareSession(created);
       if (created.sessionName?.trim()) {
         setShareSessionName(created.sessionName.trim());
       }
-      void onCompile().catch(() => undefined);
+      if (nextMode === "remote" && compileResult?.pdfBytes) {
+        await uploadPdfBytes(created, compileResult.pdfBytes);
+      } else {
+        void onCompile().catch(() => undefined);
+      }
       const ready = await waitForShareReady(created.sessionId || "", nextMode);
       setShareSession(ready);
       if (ready.sessionName?.trim()) {
@@ -267,15 +206,20 @@ export function useShareSession(params: {
         setToast({ type: "info", message: t("share.status.startingRemote") });
       }
     } catch (error) {
-      const latest = await refreshShareStatus().catch(() => null);
-      if (latest) {
-        setShareSession(latest);
+      if (createdSession) {
+        await shareSessionStop().catch(() => undefined);
+        setShareSession(null);
+      } else {
+        const latest = await refreshShareStatus().catch(() => null);
+        if (latest) {
+          setShareSession(latest);
+        }
       }
       setToast({ type: "error", message: String(error) });
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, waitForShareReady]);
+  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, uploadPdfBytes, waitForShareReady]);
   const stopShare = useCallback(async () => {
     setShareBusy(true);
     try {
@@ -593,6 +537,8 @@ export function useShareSession(params: {
     ],
   );
 }
+
+
 
 
 
