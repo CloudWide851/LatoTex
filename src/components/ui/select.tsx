@@ -15,6 +15,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         ref={ref}
         className={cn(
           "w-full appearance-none rounded-lg border px-3 pr-9 font-medium leading-none outline-none transition duration-150 ease-out",
+          "[&>option]:bg-white [&>option]:text-slate-800 [&>option]:py-2",
           uiSize === "sm" ? "h-8 text-xs" : "h-10 text-sm",
           tone === "dark"
             ? "border-slate-600 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-100 shadow-[0_12px_24px_rgba(2,6,23,0.34)] hover:border-slate-400 focus:border-primary-400 focus:ring-2 focus:ring-primary-500/30"

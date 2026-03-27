@@ -22,21 +22,18 @@ export function AnalysisLiveRail(props: {
   const eventCount = cards.length;
 
   return (
-    <section className="analysis-live-rail motion-card-pop">
-      <div className="analysis-live-rail__stage min-w-0">
-        <span className={`analysis-live-rail__dot ${running ? "analysis-live-rail__dot--active" : ""}`} />
-        <span className="motion-status-chip analysis-live-rail__label">{t("analysis.liveStage")}</span>
-        <span className="truncate text-sm font-medium text-slate-700">{normalizedStage}</span>
+    <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${running ? "bg-blue-500 animate-pulse" : "bg-slate-400"}`} />
+          <span className="text-xs font-medium uppercase text-blue-700">{t("analysis.liveStage")}</span>
+          <span className="truncate text-sm font-medium text-slate-700">{normalizedStage}</span>
+        </div>
+        <span className="text-xs tabular-nums text-slate-500">{String(eventCount).padStart(2, "0")}</span>
       </div>
-      <div className="analysis-live-rail__progress" aria-hidden="true">
-        <span className="analysis-live-rail__progress-runner" />
+      <div className="mt-2 truncate text-xs text-slate-600">
+        {tickerText}
       </div>
-      <div className="analysis-live-rail__ticker" aria-live="polite">
-        <span key={tickerText} className="analysis-live-rail__ticker-item">
-          {tickerText}
-        </span>
-      </div>
-      <span className="analysis-live-rail__count tabular-nums">{String(eventCount).padStart(2, "0")}</span>
     </section>
   );
 }

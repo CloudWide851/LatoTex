@@ -139,19 +139,19 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 "analysis.explore_chunk",
                 "Analysis Explore",
                 &["analysis.workspace"],
-                &["readonly"],
+                &["data"],
             ),
             provider(
                 "analysis.synthesize",
                 "Analysis Synthesize",
                 &["analysis.workspace"],
-                &["readonly"],
+                &["data"],
             ),
             provider(
                 "chat.general",
                 "Chat General",
                 &["chat.workspace"],
-                &["readonly"],
+                &["latex", "drawings", "data"],
             ),
             provider(
                 "completion.latex",

@@ -1,4 +1,5 @@
 import { CheckSquare, Square } from "lucide-react";
+import { memo } from "react";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
 import { cn } from "../../lib/utils";
 import type { GitStatusEntry } from "../../shared/types/app";

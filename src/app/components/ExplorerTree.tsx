@@ -1,5 +1,5 @@
 ﻿import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { FsAction, ResourceNode } from "../../shared/types/app";

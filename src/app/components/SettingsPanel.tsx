@@ -141,7 +141,7 @@ export function SettingsPanel(props: {
   }, [locale, localSettings, setSettings]);
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
+    <div className="relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
       <aside className="bg-slate-50 p-2 max-[980px]:border-b">
         <div className="space-y-1">
           {SETTINGS_SECTIONS.map((item) => {
@@ -150,7 +150,7 @@ export function SettingsPanel(props: {
               <button
                 key={item.id}
                 className={cn(
-                  "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition",
+                  "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
                   settingsSection === item.id
                     ? "bg-slate-900 text-white"
                     : "text-slate-700 hover:bg-slate-200",

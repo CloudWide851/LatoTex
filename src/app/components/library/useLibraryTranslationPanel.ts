@@ -21,7 +21,7 @@ export type LibraryTranslationProgress = {
   message: string;
 };
 
-const POLL_INTERVAL_MS = 900;
+const POLL_INTERVAL_MS = 300;
 const MAX_POLL_ROUNDS = 800;
 const STATUS_QUERY_RETRY_DELAYS_MS = [240, 520, 960] as const;
 
