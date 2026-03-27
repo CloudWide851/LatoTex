@@ -68,6 +68,8 @@ type LibraryViewerContentPanelProps = {
     pageCount?: number;
     excerpt?: string | null;
   } | null;
+  paperPreviewLoading: boolean;
+  paperPreviewError: string | null;
   onAnalyzePaper?: (() => void) | null;
   translatedPdfUrl: string | null;
   bibPreview: string;
@@ -124,6 +126,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     bibPreview,
     citation,
     paperPreview,
+    paperPreviewLoading,
+    paperPreviewError,
     onAnalyzePaper,
     linkError,
     t,
@@ -305,7 +309,15 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           </div>
         )}
       </section>
-      <LibraryCitationMetaPanel citation={citation} paperPreview={paperPreview} onAnalyzePaper={onAnalyzePaper} linkError={linkError} t={t} />
+      <LibraryCitationMetaPanel
+        citation={citation}
+        paperPreview={paperPreview}
+        paperPreviewLoading={paperPreviewLoading}
+        paperPreviewError={paperPreviewError}
+        onAnalyzePaper={onAnalyzePaper}
+        linkError={linkError}
+        t={t}
+      />
     </div>
   );
 }

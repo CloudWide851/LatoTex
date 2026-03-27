@@ -135,14 +135,14 @@ export function useAnalysisLiveState(params: {
   }, [activeRun, events, liveRunIds.length]);
 
   useEffect(() => {
+    const explicitStage = liveStageLabel.trim();
     if (liveRunIds.length === 0) {
       projectionRef.current = createEmptyProjection();
       setLiveTimelineCards([]);
-      setLiveStage("");
+      setLiveStage(explicitStage);
       return;
     }
     projectionRef.current = projectLiveEvents(projectionRef.current, events, liveRunIds);
-    const explicitStage = liveStageLabel.trim();
     const nextStage = explicitStage || projectionRef.current.stage;
     const nextCards = Array.from(projectionRef.current.cards.values())
       .sort((left, right) => left.seq - right.seq)

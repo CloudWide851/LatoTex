@@ -58,6 +58,23 @@ function applySummaryDefaults(summary: LibraryCitationSummary): LibraryCitationS
   };
 }
 
+function toPaperPreview(
+  paperContext: Awaited<ReturnType<typeof libraryExtractPaperContext>>,
+  sourcePdfRelativePath: string,
+): PaperPreview {
+  if (!paperContext) {
+    return null;
+  }
+  return {
+    title: paperContext.title,
+    detectedLanguage: paperContext.detectedLanguage,
+    extractionEngine: paperContext.extractionEngine,
+    pageCount: Number(paperContext.pageCount ?? 0),
+    excerpt: String(paperContext.chunks?.[0]?.text ?? "").slice(0, 520),
+    sourcePath: sourcePdfRelativePath || paperContext.pdfRelativePath || null,
+  };
+}
+
 export function useLibraryDocumentData(params: {
   projectId: string | null;
   selectedPath: string | null;
@@ -65,6 +82,8 @@ export function useLibraryDocumentData(params: {
   const { projectId, selectedPath } = params;
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [paperPreviewLoading, setPaperPreviewLoading] = useState(false);
+  const [paperPreviewError, setPaperPreviewError] = useState<string | null>(null);
   const [state, setState] = useState<DocumentDataState>(EMPTY_STATE);
   const requestIdRef = useRef(0);
 
@@ -72,16 +91,66 @@ export function useLibraryDocumentData(params: {
     requestIdRef.current += 1;
     setLoading(false);
     setLoadError(null);
+    setPaperPreviewLoading(false);
+    setPaperPreviewError(null);
     setState(EMPTY_STATE);
   }, []);
 
-  const applyState = useCallback((next: DocumentDataState) => {
+  const applyState = useCallback((
+    next: DocumentDataState,
+    options?: {
+      paperPreviewLoading?: boolean;
+      paperPreviewError?: string | null;
+    },
+  ) => {
     startTransition(() => {
       setState(next);
       setLoadError(null);
       setLoading(false);
+      setPaperPreviewLoading(Boolean(options?.paperPreviewLoading));
+      setPaperPreviewError(options?.paperPreviewError ?? null);
     });
   }, []);
+
+  const hydratePaperPreview = useCallback(async (params: {
+    requestId: number;
+    cacheKey: string;
+    baseState: DocumentDataState;
+    sourcePdfRelativePath: string;
+  }) => {
+    const { requestId, cacheKey, baseState, sourcePdfRelativePath } = params;
+    if (!projectId || !sourcePdfRelativePath) {
+      applyState(baseState, { paperPreviewLoading: false, paperPreviewError: null });
+      return baseState;
+    }
+
+    startTransition(() => {
+      setPaperPreviewLoading(true);
+      setPaperPreviewError(null);
+    });
+
+    try {
+      const paperContext = await libraryExtractPaperContext(projectId, sourcePdfRelativePath);
+      if (requestIdRef.current !== requestId) {
+        return null;
+      }
+      const nextState: DocumentDataState = {
+        ...baseState,
+        paperPreview: toPaperPreview(paperContext, sourcePdfRelativePath),
+      };
+      documentCache.set(cacheKey, nextState);
+      applyState(nextState, { paperPreviewLoading: false, paperPreviewError: null });
+      return nextState;
+    } catch (error) {
+      if (requestIdRef.current === requestId) {
+        startTransition(() => {
+          setPaperPreviewLoading(false);
+          setPaperPreviewError(String(error));
+        });
+      }
+      return null;
+    }
+  }, [applyState, projectId]);
 
   const refresh = useCallback(
     async (options?: RefreshOptions) => {
@@ -94,7 +163,17 @@ export function useLibraryDocumentData(params: {
       if (!options?.bustCache && options?.preferCache) {
         const cached = documentCache.get(cacheKey);
         if (cached) {
-          applyState(cached);
+          applyState(cached, { paperPreviewLoading: false, paperPreviewError: null });
+          if (cached.sourcePdfRelativePath && !cached.paperPreview) {
+            const requestId = requestIdRef.current + 1;
+            requestIdRef.current = requestId;
+            void hydratePaperPreview({
+              requestId,
+              cacheKey,
+              baseState: cached,
+              sourcePdfRelativePath: cached.sourcePdfRelativePath,
+            });
+          }
           return cached;
         }
       }
@@ -103,6 +182,8 @@ export function useLibraryDocumentData(params: {
       requestIdRef.current = requestId;
       setLoading(true);
       setLoadError(null);
+      setPaperPreviewLoading(false);
+      setPaperPreviewError(null);
 
       try {
         const [summary, preview] = await Promise.all([
@@ -118,21 +199,18 @@ export function useLibraryDocumentData(params: {
           normalizedSummary.bibPath
           ?? (selectedPath.toLowerCase().endsWith(".bib") ? selectedPath : "");
 
-        const [bibPreview, paperContext] = await Promise.all([
+        const bibPreview = await (
           bibRelative
             ? readFile(projectId, toLibraryWorkspacePath(bibRelative))
                 .then((result) => result.content ?? "")
                 .catch(() => "")
-            : Promise.resolve(""),
-          preview.relativePath
-            ? libraryExtractPaperContext(projectId, preview.relativePath).catch(() => null)
-            : Promise.resolve(null),
-        ]);
+            : Promise.resolve("")
+        );
         if (requestIdRef.current !== requestId) {
           return null;
         }
 
-        const nextState: DocumentDataState = {
+        const baseState: DocumentDataState = {
           citation: normalizedSummary,
           bibPreview,
           resolvedLink: preview.sourceUrl ?? normalizedSummary.urls?.[0] ?? null,
@@ -140,30 +218,35 @@ export function useLibraryDocumentData(params: {
           translatedPdfUrl: preview.translatedPreviewUrl ?? null,
           sourcePdfRelativePath: preview.relativePath ?? null,
           translatedPdfRelativePath: preview.translatedRelativePath ?? null,
-          paperPreview: paperContext
-            ? {
-                title: paperContext.title,
-                detectedLanguage: paperContext.detectedLanguage,
-                extractionEngine: paperContext.extractionEngine,
-                pageCount: Number(paperContext.pageCount ?? 0),
-                excerpt: String(paperContext.chunks?.[0]?.text ?? "").slice(0, 520),
-                sourcePath: preview.relativePath ?? paperContext.pdfRelativePath ?? null,
-              }
-            : null,
+          paperPreview: null,
         };
 
-        documentCache.set(cacheKey, nextState);
-        applyState(nextState);
-        return nextState;
+        documentCache.set(cacheKey, baseState);
+        applyState(baseState, {
+          paperPreviewLoading: Boolean(preview.relativePath),
+          paperPreviewError: null,
+        });
+        if (!preview.relativePath) {
+          return baseState;
+        }
+        void hydratePaperPreview({
+          requestId,
+          cacheKey,
+          baseState,
+          sourcePdfRelativePath: preview.relativePath,
+        });
+        return baseState;
       } catch (error) {
         if (requestIdRef.current === requestId) {
           setLoading(false);
           setLoadError(String(error));
+          setPaperPreviewLoading(false);
+          setPaperPreviewError(null);
         }
         return null;
       }
     },
-    [applyState, projectId, reset, selectedPath],
+    [applyState, hydratePaperPreview, projectId, reset, selectedPath],
   );
 
   useEffect(() => {
@@ -178,6 +261,8 @@ export function useLibraryDocumentData(params: {
     ...state,
     loading,
     loadError,
+    paperPreviewLoading,
+    paperPreviewError,
     refresh,
     reset,
   };

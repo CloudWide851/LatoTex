@@ -15,10 +15,12 @@ export function LibraryCitationMetaPanel(props: {
   citation: LibraryCitationSummary | null;
   linkError: string | null;
   paperPreview?: PaperPreview | null;
+  paperPreviewLoading: boolean;
+  paperPreviewError: string | null;
   onAnalyzePaper?: (() => void) | null;
   t: TranslationFn;
 }) {
-  const { citation, linkError, paperPreview, onAnalyzePaper, t } = props;
+  const { citation, linkError, paperPreview, paperPreviewLoading, paperPreviewError, onAnalyzePaper, t } = props;
 
   return (
     <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
@@ -26,7 +28,7 @@ export function LibraryCitationMetaPanel(props: {
         {t("library.viewer.metadataTab")}
       </h3>
       <div className="space-y-2 rounded border border-slate-200 bg-slate-50 p-3 text-xs">
-        {paperPreview ? (
+        {paperPreviewLoading || paperPreviewError || paperPreview ? (
           <div className="rounded border border-slate-200 bg-white p-3 text-slate-700">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -41,23 +43,31 @@ export function LibraryCitationMetaPanel(props: {
                 </button>
               ) : null}
             </div>
-            {paperPreview.title ? <p className="mb-2 break-words font-medium">{paperPreview.title}</p> : null}
-            <div className="grid gap-1 text-[11px] text-slate-600">
-              {paperPreview.detectedLanguage ? (
-                <p>{t("library.viewer.paperLanguage")}: {paperPreview.detectedLanguage}</p>
-              ) : null}
-              {paperPreview.pageCount ? (
-                <p>{t("library.viewer.paperPages")}: {paperPreview.pageCount}</p>
-              ) : null}
-              {paperPreview.extractionEngine ? (
-                <p>{t("library.viewer.paperEngine")}: {paperPreview.extractionEngine}</p>
-              ) : null}
-            </div>
-            {paperPreview.excerpt ? (
-              <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
-                <div className="mb-1 font-semibold text-slate-500">{t("library.viewer.paperExcerpt")}</div>
-                <p className="line-clamp-6 whitespace-pre-wrap break-words">{paperPreview.excerpt}</p>
-              </div>
+            {paperPreviewLoading ? (
+              <p className="text-[11px] text-slate-500">{t("library.viewer.paperBriefLoading")}</p>
+            ) : paperPreviewError ? (
+              <p className="text-[11px] text-amber-600">{t("library.viewer.paperBriefError")}</p>
+            ) : paperPreview ? (
+              <>
+                {paperPreview.title ? <p className="mb-2 break-words font-medium">{paperPreview.title}</p> : null}
+                <div className="grid gap-1 text-[11px] text-slate-600">
+                  {paperPreview.detectedLanguage ? (
+                    <p>{t("library.viewer.paperLanguage")}: {paperPreview.detectedLanguage}</p>
+                  ) : null}
+                  {paperPreview.pageCount ? (
+                    <p>{t("library.viewer.paperPages")}: {paperPreview.pageCount}</p>
+                  ) : null}
+                  {paperPreview.extractionEngine ? (
+                    <p>{t("library.viewer.paperEngine")}: {paperPreview.extractionEngine}</p>
+                  ) : null}
+                </div>
+                {paperPreview.excerpt ? (
+                  <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2 text-[11px] leading-5 text-slate-600">
+                    <div className="mb-1 font-semibold text-slate-500">{t("library.viewer.paperExcerpt")}</div>
+                    <p className="line-clamp-6 whitespace-pre-wrap break-words">{paperPreview.excerpt}</p>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         ) : null}

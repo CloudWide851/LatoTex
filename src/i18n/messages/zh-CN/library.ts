@@ -95,6 +95,8 @@ export const zhCN_library = {
   "library.viewer.noPdf": "暂无可用的 PDF 预览。",
   "library.viewer.linkFallback": "自动打开失败，请使用下方链接：",
   "library.viewer.paperBrief": "阅读摘要",
+  "library.viewer.paperBriefLoading": "正在后台准备阅读摘要...",
+  "library.viewer.paperBriefError": "阅读摘要暂时不可用，但 Bib/PDF 内容已可正常查看。",
   "library.viewer.paperLanguage": "语言",
   "library.viewer.paperPages": "页数",
   "library.viewer.paperEngine": "提取引擎",

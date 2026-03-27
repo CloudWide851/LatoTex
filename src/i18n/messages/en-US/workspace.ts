@@ -20,6 +20,7 @@ export const enUS_workspace = {
   "workspace.compileAssist.hintMissingPackage": "Missing package detected: {package}. Install it in your native TeX toolchain or remove that dependency.",
   "workspace.compileAssist.hintMissingCtex": "ctex.sty is missing. Avoid ctex-specific packages and use base article + UTF-8 text.",
   "workspace.compileAssist.hintFontspecXdv": "fontspec failed before XDV/PDF output. Replace unsupported system fonts with bundled fallbacks (Latin Modern/Fandol), then compile again.",
+  "workspace.compileAssist.hintTectonicRuntimeAssets": "The failure points to broken or incomplete Tectonic runtime assets/cache rather than your TeX content. Rebuild or refresh the local Tectonic cache/assets first, then retry compilation.",
   "workspace.compileAssist.hintMissingMathShift": "Missing $ inserted was detected. Check whether nearby math content is still in text mode, or whether a matching pair of $...$, \\( ... \\), or \\[ ... \\] is missing.",
   "workspace.compileAssist.hintGeneric": "Fix missing package/syntax errors first, then recompile. Start from the first ERROR line.",
   "workspace.compileAssist.nativeFontFallbackApplied": "Native font fallback applied for missing system fonts: {details}.",

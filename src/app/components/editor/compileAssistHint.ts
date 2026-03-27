@@ -77,6 +77,19 @@ function hasFontspecXdvFatalIssue(diagnostics: string[]): boolean {
   );
 }
 
+function hasTectonicRuntimeAssetIssue(diagnostics: string[]): boolean {
+  const joined = diagnostics.join("\n").toLowerCase();
+  return [
+    "cmex10.pfb",
+    "cannot proceed without .vf or \"physical\" font",
+    "cannot proceed without .vf or physical font",
+    "unable to generate pk font",
+    "truncated input file",
+    "bundled tectonic search assets",
+    "tlextras-2022.0r0.tar",
+  ].some((pattern) => joined.includes(pattern));
+}
+
 export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn): string {
   const lines: string[] = [];
   const normalized = prioritizeCompileDiagnostics(diagnostics);
@@ -98,6 +111,11 @@ export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn):
   if (hasFontspecXdvFatalIssue(normalized)) {
     lines.push("");
     lines.push(t("workspace.compileAssist.hintFontspecXdv"));
+  }
+
+  if (hasTectonicRuntimeAssetIssue(normalized)) {
+    lines.push("");
+    lines.push(t("workspace.compileAssist.hintTectonicRuntimeAssets"));
   }
 
   if (normalized.some((line) => /missing \$ inserted/i.test(line))) {

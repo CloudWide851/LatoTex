@@ -73,6 +73,8 @@ export function LibraryDocumentViewer(props: {
     loadError,
     citation,
     paperPreview,
+    paperPreviewLoading,
+    paperPreviewError,
     bibPreview,
     pdfUrl,
     translatedPdfUrl,
@@ -466,6 +468,8 @@ export function LibraryDocumentViewer(props: {
         bibPreview={bibPreview}
         citation={citation}
         paperPreview={paperPreview}
+        paperPreviewLoading={paperPreviewLoading}
+        paperPreviewError={paperPreviewError}
         onAnalyzePaper={paperPreview?.sourcePath ? () => onAnalyzePaper(paperPreview.sourcePath!) : null}
         linkError={linkError}
         t={t}

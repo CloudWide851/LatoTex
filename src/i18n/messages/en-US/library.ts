@@ -95,6 +95,8 @@ export const enUS_library = {
   "library.viewer.noPdf": "No PDF preview available.",
   "library.viewer.linkFallback": "Unable to open automatically. Use the link below:",
   "library.viewer.paperBrief": "Reading Brief",
+  "library.viewer.paperBriefLoading": "Preparing reading brief in background...",
+  "library.viewer.paperBriefError": "Reading brief is temporarily unavailable, but Bib/PDF content is ready.",
   "library.viewer.paperLanguage": "Language",
   "library.viewer.paperPages": "Pages",
   "library.viewer.paperEngine": "Extraction",

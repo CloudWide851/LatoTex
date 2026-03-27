@@ -120,7 +120,7 @@ export function AnalysisWorkspace(props: {
     t,
   } = props;
   const [dragActive, setDragActive] = useState(false);
-  const hasLiveStream = running && Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
+  const hasLiveStream = running || Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
   const activeTaskName = useMemo(
     () => tasks.find((item) => item.id === activeTaskId)?.name?.trim() || t("analysis.defaultTaskName"),
