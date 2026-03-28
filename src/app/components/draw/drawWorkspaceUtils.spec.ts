@@ -30,7 +30,7 @@ describe("drawWorkspaceUtils", () => {
     ]);
   });
 
-  it("keeps same-origin fallback while preserving backend-provided drawio host candidates in tauri mode", async () => {
+  it("keeps backend local-resource host first in tauri mode", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
     }));
@@ -47,7 +47,6 @@ describe("drawWorkspaceUtils", () => {
     vi.doMock("../../../shared/utils/localResourceProbe", () => ({
       buildLocalResourceBaseCandidates: vi.fn(() => ["http://asset.localhost/F:/LatoTex/drawio-cache"]),
       buildLocalResourceEntryCandidates: vi.fn(() => ["http://asset.localhost/F:/LatoTex/drawio-cache/index.html"]),
-      prioritizeReachableLocalResourceCandidates: vi.fn(async (candidates: string[]) => candidates),
       uniqueLocalResourceValues: vi.fn((values: string[]) => Array.from(new Set(values.filter(Boolean)))),
     }));
 
@@ -55,8 +54,8 @@ describe("drawWorkspaceUtils", () => {
     const candidates = await resolveDrawioHostFrameCandidates();
 
     expect(candidates[0]).toBe("http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
+    expect(candidates[1]).toBe("http://asset.localhost/F:/LatoTex/drawio-cache/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
     expect(candidates).toContain("/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
-    expect(candidates).toContain("http://asset.localhost/F:/LatoTex/drawio-cache/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
   });
 
   it("falls back to same-origin host when tauri cache prepare fails", async () => {

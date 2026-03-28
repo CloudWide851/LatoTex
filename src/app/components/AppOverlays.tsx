@@ -279,24 +279,26 @@ export function AppOverlays(props: {
       )}
 
       {deleteIntent && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
-          <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft motion-card-pop motion-panel-glow">
-            <h3 className="text-sm font-semibold text-slate-800">{t("explorer.deleteConfirmTitle")}</h3>
-            <p className="mt-2 text-xs text-slate-600">{deleteIntent.path}</p>
-            <label className="mt-3 flex cursor-pointer select-none items-center gap-2 text-xs text-slate-600">
-              <input
-                type="checkbox"
-                checked={deleteDontAskAgain}
-                onChange={(event) => onDeleteDontAskChange(event.target.checked)}
-                className="h-4 w-4 rounded border border-slate-300 text-primary-600 accent-primary-600"
-              />
-              {t("explorer.deleteDontAsk")}
-            </label>
-            <div className="mt-4 flex justify-end gap-2">
+        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-950/62 p-4 motion-overlay-enter">
+          <div className="w-full max-w-md rounded-[22px] border border-rose-200 bg-white p-5 shadow-soft motion-card-pop motion-panel-glow">
+            <div className="rounded-[18px] border border-rose-100 bg-rose-50/90 px-4 py-3">
+              <h3 className="text-sm font-semibold text-rose-900">{t("explorer.deleteConfirmTitle")}</h3>
+              <p className="mt-2 break-all rounded-[14px] border border-rose-100 bg-white/90 px-3 py-2 font-mono text-xs text-rose-800 shadow-sm">
+                {deleteIntent.path}
+              </p>
+            </div>
+            <SettingsBooleanRow
+              label={t("explorer.deleteDontAsk")}
+              checked={deleteDontAskAgain}
+              tone="danger"
+              className="mt-4"
+              onCheckedChange={onDeleteDontAskChange}
+            />
+            <div className="mt-5 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={onDeleteCancel}>
                 {t("common.cancel")}
               </Button>
-              <Button size="sm" onClick={onDeleteConfirm}>
+              <Button variant="danger" size="sm" onClick={onDeleteConfirm}>
                 {t("common.confirm")}
               </Button>
             </div>

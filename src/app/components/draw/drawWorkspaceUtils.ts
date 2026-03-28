@@ -3,7 +3,6 @@ import { drawioCachePrepare } from "../../../shared/api/local-resources";
 import {
   buildLocalResourceBaseCandidates,
   buildLocalResourceEntryCandidates,
-  prioritizeReachableLocalResourceCandidates,
   uniqueLocalResourceValues,
 } from "../../../shared/utils/localResourceProbe";
 
@@ -77,11 +76,7 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    const candidates = buildDrawioEntryCandidates(info.entryUrl, info.actualDir);
-    const reachable = await prioritizeReachableLocalResourceCandidates(candidates, undefined, {
-      preferSameOrigin: false,
-    });
-    return reachable.length > 0 ? reachable : [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
+    return buildDrawioEntryCandidates(info.entryUrl, info.actualDir);
   } catch {
     return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
   }
@@ -299,5 +294,4 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
-
 

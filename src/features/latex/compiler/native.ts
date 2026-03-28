@@ -31,12 +31,23 @@ function sanitizeDiagnostics(lines: string[]): string[] {
   return output.slice(0, 24);
 }
 
+function displayEngineLabel(engine: unknown): string {
+  const raw = String(engine || "native").trim();
+  if (!raw) {
+    return "native";
+  }
+  if (raw === "tectonic") {
+    return "Tectonic (XeTeX backend)";
+  }
+  return raw;
+}
+
 function toCompileResult(result: any): NativeLatexCompileResult {
   return {
     status: result.status === "success" ? "success" : "error",
     diagnostics: sanitizeDiagnostics(result.diagnostics ?? []),
     durationMs: Number(result.durationMs ?? 0),
-    engine: String(result.engine || "native"),
+    engine: displayEngineLabel(result.engine),
     pdfRelativePath: result.pdfRelativePath ?? null,
     logRelativePath: result.logRelativePath ?? null,
   };

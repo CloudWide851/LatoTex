@@ -8,6 +8,8 @@ mod native_runtime_common;
 mod native_runtime_latex;
 #[path = "native_runtime_latex_core.rs"]
 mod native_runtime_latex_core;
+#[path = "native_runtime_latex_tectonic.rs"]
+mod native_runtime_latex_tectonic;
 
 pub use native_runtime_analysis::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
@@ -22,6 +24,4 @@ pub(crate) use native_runtime_analysis_env::{
 };
 #[allow(unused_imports)]
 pub(crate) use native_runtime_common::{configure_hidden_process, sanitize_log_lines};
-
-
 

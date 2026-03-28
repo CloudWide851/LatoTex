@@ -2,10 +2,12 @@ import { Check } from "lucide-react";
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
-export type CheckboxProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">;
+export type CheckboxProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & {
+  tone?: "default" | "danger";
+};
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, checked, ...props }, ref) => (
+  ({ className, checked, tone = "default", ...props }, ref) => (
     <span className="settings-checkbox relative inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center">
       <input
         ref={ref}
@@ -13,6 +15,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         checked={checked}
         className={cn(
           "settings-checkbox__input peer m-0 h-[22px] w-[22px] cursor-pointer appearance-none rounded-[7px] border-[1.5px] outline-none transition",
+          tone === "danger" && "settings-checkbox--danger",
           "hover:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-200 disabled:cursor-not-allowed disabled:opacity-50",
           className,
         )}

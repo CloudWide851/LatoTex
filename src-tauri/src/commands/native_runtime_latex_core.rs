@@ -2,6 +2,7 @@ use super::native_runtime_common::{
     command_from_path_or_name, configure_hidden_process, safe_relative_path,
     sanitize_log_lines, try_version_command,
 };
+use super::native_runtime_latex_tectonic::{ensure_runtime_bundle, write_fontconfig_config};
 use crate::models::{LatexCompileInput, LatexCompileResponse};
 use crate::storage;
 use std::collections::HashMap;
@@ -26,11 +27,23 @@ const TECTONIC_REQUIRED_SEARCH_FILES: &[&str] = &[
     "latex.ltx",
     "l3backend-xetex.def",
     "tectonic-format-latex.tex",
+    "ctexart.cls",
+    "xeCJK.sty",
     "pdftex.map",
     "kanjix.map",
     "ckx.map",
     "pdfglyphlist.txt",
     "glyphlist.txt",
+    "lmromanslant10-regular.otf",
+    "FandolSong-Regular.otf",
+];
+const TECTONIC_REQUIRED_BUNDLE_ENTRIES: &[&str] = &[
+    "tectonic-format-latex.tex",
+    "ctexart.cls",
+    "xeCJK.sty",
+    "EBGaramond-Bold-tosf-sc-ly1.tfm",
+    "lmromanslant10-regular.otf",
+    "FandolSong-Regular.otf",
 ];
 const TECTONIC_REQUIRED_CACHE_SEED_DIRS: &[&str] = &["files", "indexes", "manifests"];
 
@@ -134,10 +147,6 @@ fn copy_directory_contents_if_needed(source: &Path, target: &Path) -> Result<(),
     Ok(())
 }
 
-fn normalize_path_for_text(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
-}
-
 fn tectonic_search_dir_ready(search_dir: &Path) -> bool {
     TECTONIC_REQUIRED_SEARCH_FILES
         .iter()
@@ -200,33 +209,6 @@ fn ensure_tectonic_cache_seeded(source_root: &Path, cache_dir: &Path) -> Result<
     Ok(())
 }
 
-fn write_fontconfig_config(tool_root: &Path) -> Result<(PathBuf, PathBuf), String> {
-    let fontconfig_dir = tool_root.join("fontconfig/windows");
-    let font_cache_dir = fontconfig_dir.join("cache");
-    fs::create_dir_all(&font_cache_dir).map_err(|e| e.to_string())?;
-    let config_path = fontconfig_dir.join("fonts.conf");
-    let cache_dir_text = normalize_path_for_text(&font_cache_dir);
-    let config = format!(
-        concat!(
-            "<?xml version=\"1.0\"?>\n",
-            "<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n",
-            "<fontconfig>\n",
-            "  <dir>C:/Windows/Fonts</dir>\n",
-            "  <cachedir>{}</cachedir>\n",
-            "</fontconfig>\n"
-        ),
-        cache_dir_text,
-    );
-    let should_write = match fs::read_to_string(&config_path) {
-        Ok(existing) => existing != config,
-        Err(_) => true,
-    };
-    if should_write {
-        fs::write(&config_path, config).map_err(|e| e.to_string())?;
-    }
-    Ok((config_path, fontconfig_dir))
-}
-
 fn ensure_bundled_tectonic_runtime(
     runtime_root: &Path,
 ) -> Result<Option<ResolvedTectonicPaths>, String> {
@@ -237,7 +219,6 @@ fn ensure_bundled_tectonic_runtime(
     let tool_root = runtime_root.join(TECTONIC_RESOURCE_SUBDIR);
     let engine_path = tool_root.join(TECTONIC_BINARY_RELATIVE_PATH);
     let cache_dir = tool_root.join(TECTONIC_MANAGED_CACHE_RELATIVE_PATH);
-    let bundle_path = tool_root.join(TECTONIC_BUNDLE_RELATIVE_PATH);
     let search_dir = tool_root.join(TECTONIC_MANAGED_SEARCH_RELATIVE_PATH);
     let pfb_dir = tool_root.join(TECTONIC_BUNDLED_PFB_RELATIVE_PATH);
 
@@ -245,9 +226,11 @@ fn ensure_bundled_tectonic_runtime(
         &source_root.join(TECTONIC_BINARY_RELATIVE_PATH),
         &engine_path,
     )?;
-    copy_asset_if_needed(
-        &source_root.join(TECTONIC_BUNDLE_RELATIVE_PATH),
-        &bundle_path,
+    let bundle_path = ensure_runtime_bundle(
+        runtime_root,
+        &source_root,
+        TECTONIC_BUNDLE_RELATIVE_PATH,
+        TECTONIC_REQUIRED_BUNDLE_ENTRIES,
     )?;
     ensure_tectonic_cache_seeded(&source_root, &cache_dir)?;
     copy_directory_contents_if_needed(
@@ -255,7 +238,14 @@ fn ensure_bundled_tectonic_runtime(
         &pfb_dir,
     )?;
     ensure_tectonic_search_dir(&bundle_path, &search_dir)?;
-    let (fontconfig_file, fontconfig_path) = write_fontconfig_config(&tool_root)?;
+    let (fontconfig_file, fontconfig_path) = write_fontconfig_config(
+        &tool_root,
+        &[
+            PathBuf::from("C:/Windows/Fonts"),
+            search_dir.clone(),
+            pfb_dir.clone(),
+        ],
+    )?;
 
     Ok(Some(ResolvedTectonicPaths {
         engine_path,

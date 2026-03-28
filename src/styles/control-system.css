@@ -342,6 +342,44 @@
     0 1px 0 var(--control-highlight) inset;
 }
 
+.control-button--danger {
+  color: #fff1f2;
+  border: 1px solid rgba(225, 29, 72, 0.92);
+  background: linear-gradient(180deg, #fb7185, #e11d48);
+  box-shadow: 0 18px 32px rgba(225, 29, 72, 0.24), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+}
+
+.control-button--danger:hover:not(:disabled),
+.control-button--danger:focus-visible {
+  background: linear-gradient(180deg, #fda4af, #e11d48);
+  box-shadow:
+    0 0 0 3px rgba(251, 113, 133, 0.22),
+    0 24px 40px rgba(225, 29, 72, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+}
+
+.control-select-trigger {
+  text-align: left;
+}
+
+.control-select-portal {
+  pointer-events: auto;
+}
+
+.control-menu-item--selected {
+  border-color: color-mix(in srgb, var(--control-primary-border) 72%, white 12%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--control-primary-top) 16%, white 84%), color-mix(in srgb, var(--control-primary-bottom) 12%, white 88%));
+  box-shadow:
+    0 12px 20px rgba(37, 99, 235, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  color: color-mix(in srgb, var(--control-primary-bottom) 76%, var(--control-text) 24%);
+}
+
+[data-theme="dark"] .control-menu-item--selected {
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.22), rgba(37, 99, 235, 0.18));
+  color: #dbeafe;
+}
+
 .panel-topbar-btn {
   color: var(--control-text);
   border-color: color-mix(in srgb, var(--control-border) 92%, white 8%);

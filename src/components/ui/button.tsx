@@ -11,6 +11,7 @@ const buttonVariants = cva(
         secondary: "control-button--secondary",
         surface: "control-button--surface",
         ghost: "control-button--ghost",
+        danger: "control-button--danger",
       },
       size: {
         default: "h-10 px-4 py-2",

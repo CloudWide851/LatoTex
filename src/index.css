@@ -1,5 +1,6 @@
 @import "./styles/topbar-responsive.css";
 @import "./styles/motion-system.css";
+@import "./styles/settings-controls.css";
 
 @tailwind base;
 @tailwind components;
