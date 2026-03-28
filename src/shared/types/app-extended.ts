@@ -25,6 +25,8 @@ export type LibraryPdfPreview = {
   previewUrl?: string | null;
   sourceUrl?: string | null;
   cached: boolean;
+  cacheState: "ready" | "pending" | "error" | "missing";
+  cacheError?: string | null;
   translatedRelativePath?: string | null;
   translatedPreviewUrl?: string | null;
 };

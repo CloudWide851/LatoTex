@@ -32,6 +32,7 @@ type ViewMode = "bib" | "pdf" | "compare";
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
   selectedPath: string | null;
+  active: boolean;
   onAnalyzePaper: (path: string) => void;
   analysisRunning: boolean;
   persistedViewMode?: ViewMode | null;
@@ -42,6 +43,7 @@ export function LibraryDocumentViewer(props: {
   const {
     projectId,
     selectedPath,
+    active,
     onAnalyzePaper,
     analysisRunning,
     persistedViewMode,
@@ -86,6 +88,7 @@ export function LibraryDocumentViewer(props: {
   } = useLibraryDocumentData({
     projectId,
     selectedPath,
+    active,
   });
   const hasPdf = Boolean(pdfUrl);
   const hasTranslated = Boolean(translatedPdfUrl);

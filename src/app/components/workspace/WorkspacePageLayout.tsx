@@ -199,6 +199,7 @@ export function WorkspacePageLayout({
             <LazyLibraryDocumentViewer
               projectId={activeProjectId}
               selectedPath={selectedLibraryPath}
+              active={page === "library"}
               onAnalyzePaper={onLibraryAnalyzePaper}
               analysisRunning={analysisRunning}
               persistedViewMode={libraryViewMode}

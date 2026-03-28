@@ -256,6 +256,19 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [documentPages, estimatedPageHeight, onVisiblePageChange, syncGroupRef, syncId]);
 
   useEffect(() => {
+    pendingScrollPageRef.current = null;
+    pageRefs.current = {};
+    setDocumentPages(Math.max(1, pageCount || 1));
+    setVisiblePage(1);
+    lastVisiblePageRef.current = 1;
+    onVisiblePageChange(1);
+    onPageCountChange(Math.max(1, pageCount || 1));
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [onPageCountChange, onVisiblePageChange, pdfUrl]);
+
+  useEffect(() => {
     const pending = pendingScrollPageRef.current;
     if (pending === null) {
       return;
@@ -280,6 +293,7 @@ export const LibraryPdfScrollViewer = forwardRef<
           }}
     >
       <Document
+        key={pdfUrl}
         file={pdfUrl}
         loading={
           <div className="py-6 text-center text-xs text-slate-500">

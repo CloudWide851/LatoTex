@@ -40,6 +40,8 @@ pub struct LibraryPdfPreviewResponse {
     pub preview_url: Option<String>,
     pub source_url: Option<String>,
     pub cached: bool,
+    pub cache_state: String,
+    pub cache_error: Option<String>,
     pub translated_relative_path: Option<String>,
     pub translated_preview_url: Option<String>,
 }

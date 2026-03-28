@@ -42,6 +42,12 @@ pub struct LibraryTranslateTask {
 }
 
 #[derive(Clone)]
+pub struct LibraryPdfCacheTask {
+    pub status: Arc<Mutex<String>>,
+    pub error: Arc<Mutex<Option<String>>>,
+}
+
+#[derive(Clone)]
 pub struct AnalysisEnvPrepareTask {
     pub id: String,
     pub status: Arc<Mutex<String>>,
@@ -80,6 +86,7 @@ pub struct AppState {
     pub install_mode: String,
     pub app_version: String,
     pub git_download_tasks: Arc<Mutex<HashMap<String, GitDownloadTask>>>,
+    pub library_pdf_cache_tasks: Arc<Mutex<HashMap<String, LibraryPdfCacheTask>>>,
     pub library_translate_tasks: Arc<Mutex<HashMap<String, LibraryTranslateTask>>>,
     pub analysis_env_prepare_tasks: Arc<Mutex<HashMap<String, AnalysisEnvPrepareTask>>>,
     pub latex_compile_tasks: Arc<Mutex<HashMap<String, LatexCompileTask>>>,
@@ -144,6 +151,7 @@ impl AppState {
             install_mode,
             app_version,
             git_download_tasks: Arc::new(Mutex::new(HashMap::new())),
+            library_pdf_cache_tasks: Arc::new(Mutex::new(HashMap::new())),
             library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
             analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
             latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),

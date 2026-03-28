@@ -316,7 +316,7 @@ pub fn library_resolve_pdf_preview(
         ),
     );
     let mut preview =
-        storage::library_resolve_pdf_preview(&state.db_path, &input.project_id, &input.relative_path)?;
+        storage::library_resolve_pdf_preview_runtime(&state, &input.project_id, &input.relative_path)?;
     preview.preview_url = preview
         .relative_path
         .as_ref()
