@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 import { readFile } from "../../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
-import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
+import { buildWorkspacePreviewUrl, buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
 export function useSelectedFilePreviewEffects(params: {
   activeProjectId: string | null;
   selectedFile: string | null;
+  page: string;
   previewOverridePath: string | null;
   setEditorContent: (value: string) => void;
   setSelectedFilePdfUrl: (value: string | null) => void;
@@ -20,6 +21,7 @@ export function useSelectedFilePreviewEffects(params: {
   const {
     activeProjectId,
     selectedFile,
+    page,
     previewOverridePath,
     setEditorContent,
     setSelectedFilePdfUrl,
@@ -89,10 +91,10 @@ export function useSelectedFilePreviewEffects(params: {
       setSelectedFilePdfUrl(null);
       return;
     }
-    const nextUrl = buildWorkspaceResourceUrl(activeProjectId, selectedFile);
+    const nextUrl = buildWorkspacePreviewUrl(activeProjectId, selectedFile, `${page}-${Date.now()}`);
     selectedFilePdfUrlRef.current = nextUrl;
     setSelectedFilePdfUrl(nextUrl);
-  }, [activeProjectId, selectedFile, setSelectedFilePdfUrl]);
+  }, [activeProjectId, page, selectedFile, setSelectedFilePdfUrl]);
 
   useEffect(() => {
     const imageTarget =

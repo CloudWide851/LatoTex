@@ -124,6 +124,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [compileInstallProgress, setCompileInstallProgress] = useState<CompileInstallProgress | null>(null);
   const [lastCompileFailed, setLastCompileFailed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [compiledPdfRelativePath, setCompiledPdfRelativePath] = useState<string | null>(null);
   const [preferCompiledPreview, setPreferCompiledPreview] = useState(false);
   const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
@@ -342,6 +343,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setLastCompileFailed,
     pdfUrl,
     setPdfUrl,
+    compiledPdfRelativePath,
+    setCompiledPdfRelativePath,
     preferCompiledPreview,
     setPreferCompiledPreview,
     selectedFilePdfUrl,
@@ -439,5 +442,3 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     fileSet,
   };
 }
-
-

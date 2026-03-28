@@ -299,6 +299,7 @@ export function useAppEffects(params: {
   useSelectedFilePreviewEffects({
     activeProjectId,
     selectedFile,
+    page,
     previewOverridePath,
     setEditorContent,
     setSelectedFilePdfUrl,
@@ -555,5 +556,3 @@ export function useAppEffects(params: {
     suspended,
   });
 }
-
-

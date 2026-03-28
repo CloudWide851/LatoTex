@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { openProject } from "../../shared/api/projects";
-import { workspaceExportPdf } from "../../shared/api/workspace";
+import { readFileBinary, workspaceExportPdf } from "../../shared/api/workspace";
 import { isPdfPath } from "../../shared/utils/fileKind";
-import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
+import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
 import type { CompileInstallProgress } from "./compileWorkflow";
 import { runAppAction, writeRuntimeLog } from "./appActionRuntime";
@@ -17,6 +17,7 @@ export function useCompileActions(params: {
   editorContent: string;
   resolveSelectedFileContent: () => Promise<string | null>;
   pdfUrl: string | null;
+  compiledPdfRelativePath: string | null;
   setBusy: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   setTree: (value: any[]) => void;
@@ -24,6 +25,7 @@ export function useCompileActions(params: {
   setCompileDiagnostics: (value: string[]) => void;
   setLastCompileFailed: (value: boolean) => void;
   setPdfUrl: (value: string | null) => void;
+  setCompiledPdfRelativePath: (value: string | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setCompileInstallProgress: (value: CompileInstallProgress | null) => void;
   editorRef: React.MutableRefObject<any>;
@@ -36,6 +38,7 @@ export function useCompileActions(params: {
     editorContent,
     resolveSelectedFileContent,
     pdfUrl,
+    compiledPdfRelativePath,
     setBusy,
     setToast,
     setTree,
@@ -43,6 +46,7 @@ export function useCompileActions(params: {
     setCompileDiagnostics,
     setLastCompileFailed,
     setPdfUrl,
+    setCompiledPdfRelativePath,
     setPreferCompiledPreview,
     setCompileInstallProgress,
     editorRef,
@@ -67,6 +71,7 @@ export function useCompileActions(params: {
       setLastCompileFailed,
       setCompileDiagnostics,
       setPdfUrl,
+      setCompiledPdfRelativePath,
       setPreferCompiledPreview,
       setCompileInstallProgress,
       setToast,
@@ -75,6 +80,7 @@ export function useCompileActions(params: {
     fileList,
     setCompileDiagnostics,
     setCompileInstallProgress,
+    setCompiledPdfRelativePath,
     setLastCompileFailed,
     setPdfUrl,
     setPreferCompiledPreview,
@@ -118,7 +124,7 @@ export function useCompileActions(params: {
           diagnostics: compileResult.diagnostics,
           pdfRelativePath: compileResult.pdfRelativePath ?? null,
           pdfUrl: compileResult.pdfRelativePath
-            ? buildWorkspaceResourceUrl(activeProjectId, compileResult.pdfRelativePath)
+            ? buildWorkspacePreviewUrl(activeProjectId, compileResult.pdfRelativePath)
             : null,
         };
       },
@@ -148,7 +154,7 @@ export function useCompileActions(params: {
   ]);
 
   const handleExportCompiledPdf = useCallback(async () => {
-    if (!activeProjectId || !pdfUrl) {
+    if (!activeProjectId || !compiledPdfRelativePath || !pdfUrl) {
       setToast({ type: "error", message: t("toast.pdfNotReady") });
       return;
     }
@@ -157,14 +163,11 @@ export function useCompileActions(params: {
       : `${(selectedFile ?? "compiled").replace(/\.[^/.]+$/, "")}.pdf`;
     const saved = await runAppAction({
       action: async () => {
-        const response = await fetch(pdfUrl, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`compiled pdf fetch failed: ${response.status}`);
-        }
+        const file = await readFileBinary(activeProjectId, compiledPdfRelativePath);
         return workspaceExportPdf(
           activeProjectId,
           fallbackName,
-          new Uint8Array(await response.arrayBuffer()),
+          new Uint8Array(file.bytes),
         );
       },
       fallbackValue: null,
@@ -182,6 +185,7 @@ export function useCompileActions(params: {
     setToast({ type: "info", message: t("toast.pdfSaved") });
   }, [
     activeProjectId,
+    compiledPdfRelativePath,
     pdfUrl,
     selectedFile,
     setBusy,

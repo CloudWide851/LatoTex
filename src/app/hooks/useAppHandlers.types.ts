@@ -23,6 +23,7 @@ export type UseAppHandlersParams = {
   editorContent: string;
   resolveSelectedFileContent: () => Promise<string | null>;
   pdfUrl: string | null;
+  compiledPdfRelativePath: string | null;
   agentPrompt: string;
   settings: AppSettings | null;
   projectSearchQuery: string;
@@ -47,6 +48,7 @@ export type UseAppHandlersParams = {
   setCompileInstallProgress: (value: CompileInstallProgress | null) => void;
   setLastCompileFailed: (value: boolean) => void;
   setPdfUrl: (value: string | null) => void;
+  setCompiledPdfRelativePath: (value: string | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setAgentMessages: React.Dispatch<React.SetStateAction<AgentChatMessage[]>>;
   agentProposalsByPath: AgentProposalMap;
@@ -78,4 +80,3 @@ export type UseAppHandlersParams = {
   upsertProject: (projects: any[], snapshot: any) => any[];
   runAnalysisFromAgent?: (prompt: string) => Promise<void>;
 };
-

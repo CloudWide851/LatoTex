@@ -30,6 +30,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     editorContent,
     resolveSelectedFileContent,
     pdfUrl,
+    compiledPdfRelativePath,
     agentPrompt,
     settings,
     projectSearchQuery,
@@ -54,6 +55,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setCompileInstallProgress,
     setLastCompileFailed,
     setPdfUrl,
+    setCompiledPdfRelativePath,
     setPreferCompiledPreview,
     setAgentMessages,
     agentProposalsByPath,
@@ -285,6 +287,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     editorContent,
     resolveSelectedFileContent,
     pdfUrl,
+    compiledPdfRelativePath,
     setBusy,
     setToast,
     setTree,
@@ -293,6 +296,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setCompileInstallProgress,
     setLastCompileFailed,
     setPdfUrl,
+    setCompiledPdfRelativePath,
     setPreferCompiledPreview,
     editorRef,
     t,
@@ -574,6 +578,3 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
-
-
-

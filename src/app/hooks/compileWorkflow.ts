@@ -3,7 +3,7 @@ import { recordCompile } from "../../shared/api/latex";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
-import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
+import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 import type { NativeLatexCompileTaskStatus } from "../../shared/types/app";
 import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
 import {
@@ -359,6 +359,7 @@ export async function runCompilePass(params: {
   setLastCompileFailed: (value: boolean) => void;
   setCompileDiagnostics: (value: string[]) => void;
   setPdfUrl: (value: string | null) => void;
+  setCompiledPdfRelativePath?: (value: string | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   setCompileInstallProgress?: (value: CompileInstallProgress | null) => void;
@@ -375,6 +376,7 @@ export async function runCompilePass(params: {
     setLastCompileFailed,
     setCompileDiagnostics,
     setPdfUrl,
+    setCompiledPdfRelativePath,
     setPreferCompiledPreview,
     setToast,
     setCompileInstallProgress,
@@ -508,7 +510,8 @@ export async function runCompilePass(params: {
       durationMs: result.durationMs,
     });
     if (result.status === "success" && result.pdfRelativePath && updatePreview) {
-      setPdfUrl(buildWorkspaceResourceUrl(projectId, result.pdfRelativePath));
+      setCompiledPdfRelativePath?.(result.pdfRelativePath);
+      setPdfUrl(buildWorkspacePreviewUrl(projectId, result.pdfRelativePath, Date.now()));
       setPreferCompiledPreview(true);
     }
     if (emitToast) {
@@ -522,4 +525,3 @@ export async function runCompilePass(params: {
     setCompileInstallProgress?.(null);
   }
 }
-

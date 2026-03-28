@@ -104,7 +104,10 @@ export function AppContainer() {
   useTrayLabelSync({ isTauriRuntime, locale, t });
   useCompiledPreviewResetOnProjectChange({
     activeProjectId: s.activeProjectId,
+    page: s.page,
+    compiledPdfRelativePath: s.compiledPdfRelativePath,
     setPdfUrl: s.setPdfUrl,
+    setCompiledPdfRelativePath: s.setCompiledPdfRelativePath,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
   });
   const runtimeBusy = s.busy || Boolean(s.agentRunId) || Boolean(s.gitDownloadTaskId);
@@ -163,6 +166,7 @@ export function AppContainer() {
     editorContent: s.editorContent,
     resolveSelectedFileContent,
     pdfUrl: s.pdfUrl,
+    compiledPdfRelativePath: s.compiledPdfRelativePath,
     agentPrompt: s.agentPrompt,
     settings: s.settings,
     projectSearchQuery: s.projectSearchQuery,
@@ -191,6 +195,7 @@ export function AppContainer() {
     setCompileInstallProgress: s.setCompileInstallProgress,
     setLastCompileFailed: s.setLastCompileFailed,
     setPdfUrl: s.setPdfUrl,
+    setCompiledPdfRelativePath: s.setCompiledPdfRelativePath,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
     setAgentMessages: s.setAgentMessages,
     agentProposalsByPath: s.agentProposalsByPath,
@@ -649,7 +654,3 @@ export function AppContainer() {
     />
   );
 }
-
-
-
-

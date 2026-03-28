@@ -1,5 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect } from "react";
 import { setTrayLabels } from "../../shared/api/app";
+import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 
 type TranslationFn = (key: any) => string;
 
@@ -19,10 +20,21 @@ export function useTrayLabelSync(params: {
 
 export function useCompiledPreviewResetOnProjectChange(params: {
   activeProjectId: string | null;
+  page: string;
+  compiledPdfRelativePath: string | null;
   setPdfUrl: Dispatch<SetStateAction<string | null>>;
+  setCompiledPdfRelativePath: Dispatch<SetStateAction<string | null>>;
   setPreferCompiledPreview: Dispatch<SetStateAction<boolean>>;
 }) {
-  const { activeProjectId, setPdfUrl, setPreferCompiledPreview } = params;
+  const {
+    activeProjectId,
+    page,
+    compiledPdfRelativePath,
+    setPdfUrl,
+    setCompiledPdfRelativePath,
+    setPreferCompiledPreview,
+  } = params;
+
   useEffect(() => {
     setPdfUrl((prev) => {
       if (prev?.startsWith("blob:")) {
@@ -30,6 +42,14 @@ export function useCompiledPreviewResetOnProjectChange(params: {
       }
       return null;
     });
+    setCompiledPdfRelativePath(null);
     setPreferCompiledPreview(false);
-  }, [activeProjectId, setPdfUrl, setPreferCompiledPreview]);
+  }, [activeProjectId, setCompiledPdfRelativePath, setPdfUrl, setPreferCompiledPreview]);
+
+  useEffect(() => {
+    if (!activeProjectId || !compiledPdfRelativePath || page !== "latex") {
+      return;
+    }
+    setPdfUrl(buildWorkspacePreviewUrl(activeProjectId, compiledPdfRelativePath, Date.now()));
+  }, [activeProjectId, compiledPdfRelativePath, page, setPdfUrl]);
 }
