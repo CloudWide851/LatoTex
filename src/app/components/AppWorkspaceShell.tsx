@@ -8,6 +8,11 @@ import { AgentProposalMiniBar } from "./editor/AgentProposalMiniBar";
 import { CompileAssistPopover } from "./editor/CompileAssistPopover";
 import { configureLatexCompletionRuntime, ensureLatexCompletionProvider } from "./editor/latexCompletion";
 import { buildCompileAssistHint, prioritizeCompileDiagnostics } from "./editor/compileAssistHint";
+import {
+  applyCjkAutoFixToSource,
+  buildCompileAssistCjkDiagnostics,
+  detectCompileAssistCjkIssue,
+} from "./editor/compileAssistCjk";
 import { WorkspacePreviewPanel } from "./workspace/WorkspacePreviewPanel";
 import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import { NoProjectPanel } from "./workspace/NoProjectPanel";
@@ -101,6 +106,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onAgentPendingActionResolve,
     onOpenFolder,
     onSaveFile,
+    onWriteSelectedFileContent,
     onCompile,
     onExportPdf,
     onEditorUndo,
@@ -129,6 +135,11 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const [previewFocusRequest, setPreviewFocusRequest] = useState<{ page: number; token: number } | null>(null);
   const editorPanelRef = useRef<HTMLDivElement | null>(null);
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
+  const [compileAssistOverride, setCompileAssistOverride] = useState<
+    | { kind: "cjk"; diagnostics: string[]; hint: string }
+    | null
+  >(null);
+  const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
   const [chatTabOpen, setChatTabOpen] = useState(false);
   const [chatTabActive, setChatTabActive] = useState(false);
   const [chatTabTitle, setChatTabTitle] = useState<string | null>(null);
@@ -189,12 +200,37 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
   const agentCommandItems = buildAgentCommandItems(t);
+  const selectedIsTex = Boolean(selectedFile && /\.tex$/i.test(selectedFile));
   const compileAssistKey = compileDiagnostics.join("\n").slice(0, 2400);
-  const showCompileAssist = Boolean(
-    compileErrorLine && compileDiagnostics.length > 0 && compileAssistDismissedFor !== compileAssistKey,
+  const sourceCjkIssue = useMemo(
+    () => (selectedIsTex ? detectCompileAssistCjkIssue({ source: editorContent }) : null),
+    [editorContent, selectedIsTex],
   );
-  const compileAssistDiagnostics = useMemo(() => prioritizeCompileDiagnostics(compileDiagnostics), [compileDiagnostics]);
-  const compileAssistHint = useMemo(() => buildCompileAssistHint(compileDiagnostics, t), [compileDiagnostics, t]);
+  const compileAssistCjkIssue = useMemo(
+    () => (
+      selectedIsTex
+        ? detectCompileAssistCjkIssue({ source: editorContent, diagnostics: compileDiagnostics })
+        : null
+    ),
+    [compileDiagnostics, editorContent, selectedIsTex],
+  );
+  useEffect(() => {
+    if (!sourceCjkIssue) {
+      setCompileAssistOverride((prev) => (prev?.kind === "cjk" ? null : prev));
+    }
+  }, [sourceCjkIssue]);
+  const showCompileAssist = Boolean(
+    compileAssistOverride
+    || (compileErrorLine && compileDiagnostics.length > 0 && compileAssistDismissedFor !== compileAssistKey),
+  );
+  const compileAssistDiagnostics = useMemo(
+    () => compileAssistOverride?.diagnostics ?? prioritizeCompileDiagnostics(compileDiagnostics),
+    [compileAssistOverride, compileDiagnostics],
+  );
+  const compileAssistHint = useMemo(
+    () => compileAssistOverride?.hint ?? buildCompileAssistHint(compileDiagnostics, t, { source: editorContent }),
+    [compileAssistOverride, compileDiagnostics, editorContent, t],
+  );
   const showChatWorkspace = chatTabOpen && chatTabActive;
   const handleOpenChatTab = () => {
     setChatTabOpen(true);
@@ -212,7 +248,34 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     setChatTabActive(false);
     onSelectFile(path);
   };
-  const handleCompileAssistAutoFix = () => {
+  const openCjkCompileAssist = (issue: { kind: "source-missing-cjk" } | { kind: "diagnostic-missing-cjk"; line: string }) => {
+    const diagnostics = buildCompileAssistCjkDiagnostics(t, issue);
+    setCompileAssistOverride({
+      kind: "cjk",
+      diagnostics,
+      hint: buildCompileAssistHint(diagnostics, t, { source: editorContent }),
+    });
+  };
+  const handleCompileAssistDismiss = () => {
+    setCompileAssistOverride(null);
+    setCompileAssistDismissedFor(compileAssistKey);
+  };
+  const handleCompileAssistAutoFix = async () => {
+    if (compileAssistCjkIssue && selectedFile) {
+      const patched = applyCjkAutoFixToSource(editorContent);
+      if (!patched.changed) {
+        handleCompileAssistDismiss();
+        return;
+      }
+      setCompileAssistAutoFixBusy(true);
+      const ok = await onWriteSelectedFileContent(patched.patchedSource);
+      setCompileAssistAutoFixBusy(false);
+      if (ok) {
+        setCompileAssistOverride(null);
+        setCompileAssistDismissedFor("");
+      }
+      return;
+    }
     setCompileAssistDismissedFor(compileAssistKey);
     setChatTabActive(false);
     if (agentCollapsed) {
@@ -221,6 +284,15 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     const extra = compileAssistDiagnostics.slice(0, 6).join("\n").trim();
     const prompt = extra ? `/review ${extra}` : "/review";
     onAgentRun(prompt, { forceNewSession: true });
+  };
+  const handleCompileClick = async () => {
+    setCompileAssistDismissedFor("");
+    if (sourceCjkIssue) {
+      openCjkCompileAssist(sourceCjkIssue);
+      return;
+    }
+    setCompileAssistOverride(null);
+    await onCompile();
   };
   const renderPdfPreviewPanel = () => (
     <WorkspacePreviewPanel
@@ -351,8 +423,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             <button
                 className="panel-topbar-btn motion-hover-rise rounded border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-50"
                 onClick={() => {
-                  setCompileAssistDismissedFor("");
-                  onCompile();
+                  void handleCompileClick();
                 }}
                 disabled={busy}
                 title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
@@ -364,9 +435,11 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
                 visible={showCompileAssist}
                 diagnostics={compileAssistDiagnostics}
                 hint={compileAssistHint}
-                onDismiss={() => setCompileAssistDismissedFor(compileAssistKey)}
-                onAutoFix={handleCompileAssistAutoFix}
-                autoFixDisabled={busy}
+                onDismiss={handleCompileAssistDismiss}
+                onAutoFix={() => {
+                  void handleCompileAssistAutoFix();
+                }}
+                autoFixDisabled={busy || compileAssistAutoFixBusy}
                 t={t}
               />
             </div>
@@ -547,9 +620,4 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-
-
-
-
-
 

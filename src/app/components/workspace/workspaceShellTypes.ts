@@ -103,6 +103,7 @@ export type AppWorkspaceShellProps = {
   onAgentPendingActionResolve: (accept: boolean) => void;
   onOpenFolder: () => void;
   onSaveFile: () => void;
+  onWriteSelectedFileContent: (content: string) => Promise<boolean>;
   onCompile: () => Promise<CompileActionResult | null>;
   onExportPdf: () => void;
   onEditorUndo: () => void;
@@ -139,9 +140,4 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
-
-
-
-
-
 

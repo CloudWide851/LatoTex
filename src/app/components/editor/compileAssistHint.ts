@@ -1,3 +1,8 @@
+import {
+  buildCompileAssistCjkDiagnostics,
+  detectCompileAssistCjkIssue,
+} from "./compileAssistCjk";
+
 type TranslationFn = (key: any) => string;
 
 const COMBINED_DIAGNOSTIC_SPLIT_RE = /(\.xdv)(No output PDF file written(?:\.[A-Za-z0-9_-]+)?\.?)/gi;
@@ -18,6 +23,7 @@ const PRIORITY_PATTERNS: RegExp[] = [
   /latex\s+error/i,
   /fatal:/i,
   /missing \$ inserted/i,
+  /missing character:/i,
   /no output pdf file written/i,
   /could not open specified dvi/i,
   /file [`']([^`']+\.sty)[`'] not found/i,
@@ -81,7 +87,7 @@ function hasTectonicRuntimeAssetIssue(diagnostics: string[]): boolean {
   const joined = diagnostics.join("\n").toLowerCase();
   return [
     "cmex10.pfb",
-    "cannot proceed without .vf or \"physical\" font",
+    'cannot proceed without .vf or "physical" font',
     "cannot proceed without .vf or physical font",
     "unable to generate pk font",
     "truncated input file",
@@ -90,13 +96,23 @@ function hasTectonicRuntimeAssetIssue(diagnostics: string[]): boolean {
   ].some((pattern) => joined.includes(pattern));
 }
 
-export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn): string {
+export function buildCompileAssistHint(
+  diagnostics: string[],
+  t: TranslationFn,
+  options?: { source?: string | null },
+): string {
   const lines: string[] = [];
   const normalized = prioritizeCompileDiagnostics(diagnostics);
+  const cjkIssue = detectCompileAssistCjkIssue({
+    source: options?.source ?? null,
+    diagnostics: normalized,
+  });
 
   lines.push(t("workspace.compileAssist.hintTitle"));
   if (normalized.length > 0) {
     lines.push(...normalized.map((line, index) => `${index + 1}. ${line}`));
+  } else if (cjkIssue) {
+    lines.push(...buildCompileAssistCjkDiagnostics(t, cjkIssue).map((line, index) => `${index + 1}. ${line}`));
   }
 
   const missingPackage = detectMissingPackage(normalized);
@@ -106,6 +122,12 @@ export function buildCompileAssistHint(diagnostics: string[], t: TranslationFn):
   } else if (missingPackage) {
     lines.push("");
     lines.push(t("workspace.compileAssist.hintMissingPackage").replace("{package}", missingPackage));
+  }
+
+  if (cjkIssue) {
+    lines.push("");
+    lines.push(t("workspace.compileAssist.hintCjkMissingConfig"));
+    lines.push(t("workspace.compileAssist.hintCjkAutoFix"));
   }
 
   if (hasFontspecXdvFatalIssue(normalized)) {

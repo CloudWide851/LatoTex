@@ -592,6 +592,7 @@ export function AppContainer() {
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
       handleResolveAgentPendingAction={handlers.handleResolveAgentPendingAction}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
+      handleWriteSelectedFileContent={handlers.handleWriteSelectedFileContent}
       handleCompile={handlers.handleCompile}
       handleExportCompiledPdf={handlers.handleExportCompiledPdf}
       handleEditorUndo={handlers.handleEditorUndo}
@@ -652,11 +653,4 @@ export function AppContainer() {
     />
   );
 }
-
-
-
-
-
-
-
 

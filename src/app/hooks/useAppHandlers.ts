@@ -252,6 +252,29 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [activeProjectId, editorContent, refreshGitWorkspace, selectedFile, setBusy, setToast, t]);
+  const handleWriteSelectedFileContent = useCallback(async (nextContent: string) => {
+    if (!activeProjectId || !selectedFile) {
+      return false;
+    }
+    if (isExcelPath(selectedFile)) {
+      return false;
+    }
+    setBusy(true);
+    try {
+      await writeFile(activeProjectId, selectedFile, nextContent);
+      setEditorContent(nextContent);
+      markPathSaved(selectedFile, nextContent);
+      await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+      await runtimeLogWrite("INFO", `compile assist fix applied: ${selectedFile}`);
+      setToast({ type: "info", message: t("toast.fileSaved") });
+      return true;
+    } catch (error) {
+      setToast({ type: "error", message: String(error) });
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, [activeProjectId, markPathSaved, refreshGitWorkspace, selectedFile, setBusy, setEditorContent, setToast, t]);
   const {
     runCompilePassForAgent,
     handleCompile,
@@ -525,6 +548,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleWindowCloseDecision,
     handleInitProjectFromFolder,
     handleSaveFile,
+    handleWriteSelectedFileContent,
     handleCompile,
     handleExportCompiledPdf,
     handleEditorUndo,
@@ -555,8 +579,4 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
-
-
-
-
 

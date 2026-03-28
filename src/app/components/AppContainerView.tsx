@@ -110,6 +110,7 @@ export function AppContainerView(props: any) {
     handleRejectAgentProposal,
     handleResolveAgentPendingAction,
     handleSaveActiveFile,
+    handleWriteSelectedFileContent,
     handleCompile,
     handleExportCompiledPdf,
     handleEditorUndo,
@@ -335,6 +336,7 @@ export function AppContainerView(props: any) {
               onAgentPendingActionResolve={handleResolveAgentPendingAction}
               onOpenFolder={handleInitProjectFromFolderWithGuard}
               onSaveFile={handleSaveActiveFile}
+              onWriteSelectedFileContent={handleWriteSelectedFileContent}
               onCompile={handleCompile}
               onExportPdf={handleExportCompiledPdf}
               onEditorUndo={handleEditorUndo}
@@ -423,13 +425,4 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
 
