@@ -215,9 +215,12 @@ function sanitizeExportFileName(filename: string): string {
 }
 
 export function toDrawExportTarget(activePath: string, extension: string, filenameHint?: string): string {
-  const title = tabTitleFromPath(activePath);
+  const normalizedActivePath = normalizePath(activePath);
+  const title = tabTitleFromPath(normalizedActivePath);
   const stem = title.replace(/\.drawio$/i, "") || "diagram";
   const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
+  const slashIndex = normalizedActivePath.lastIndexOf("/");
+  const parentDir = slashIndex >= 0 ? normalizedActivePath.slice(0, slashIndex) : "";
 
   const hintedBase = sanitizeExportFileName(filenameHint ?? "");
   const normalizedExtension = String(extension || "bin").replace(/[^a-z0-9.+-]/gi, "") || "bin";
@@ -225,7 +228,7 @@ export function toDrawExportTarget(activePath: string, extension: string, filena
     ? (/\.[a-z0-9.+-]+$/i.test(hintedBase) ? hintedBase : `${hintedBase}.${normalizedExtension}`)
     : `${safeStem}.${normalizedExtension}`;
 
-  return `drawings/${fileName}`;
+  return parentDir ? `${parentDir}/${fileName}` : fileName;
 }
 
 export function buildRenamedDrawPath(currentPath: string, nextInput: string): string {
