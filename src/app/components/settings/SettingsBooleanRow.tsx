@@ -45,14 +45,14 @@ export function SettingsBooleanRow(props: {
       aria-disabled={disabled}
       tabIndex={disabled ? -1 : 0}
       className={cn(
-        "flex cursor-pointer select-none items-center justify-between rounded-lg border border-slate-200 p-4 text-sm text-slate-700 outline-none transition focus-visible:ring-2 focus-visible:ring-primary-200",
+        "settings-bool-row flex cursor-pointer select-none items-center justify-between rounded-[18px] p-4 text-sm outline-none transition",
         disabled && "cursor-not-allowed opacity-60",
         className,
       )}
       onClick={toggle}
       onKeyDown={handleKeyDown}
     >
-      <span className={cn("pr-3", textClassName)}>{label}</span>
+      <span className={cn("pr-3 text-slate-700", textClassName)}>{label}</span>
       <div className="pointer-events-none">
         <Checkbox
           checked={checked}

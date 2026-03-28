@@ -138,7 +138,7 @@ export function EditorTabsBar(props: {
   }, [activeTabId, dirtyByPath, extraTabs, onSelect, tabs]);
 
   return (
-    <div ref={rootRef} className="relative flex h-full items-center gap-1 border-b border-slate-200 bg-slate-50/80 px-1.5">
+    <div ref={rootRef} className="editor-tabs-shell relative flex h-full items-center gap-1 px-1.5">
       <div ref={viewportRef} className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
         <div className="flex min-w-max items-center gap-1 pr-2">
           {tabs.map((tab) => {
@@ -149,10 +149,10 @@ export function EditorTabsBar(props: {
                 key={tab.id}
                 data-tab-id={tab.id}
                 className={cn(
-                  "group inline-flex h-7 max-w-[240px] items-center gap-1 rounded-md border px-2 text-xs transition",
+                  "editor-tab group inline-flex h-7 max-w-[240px] items-center gap-1 rounded-[11px] px-2 text-xs transition",
                   active
-                    ? "border-primary-500 bg-primary-50 text-primary-900"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                    ? "editor-tab--active"
+                    : "editor-tab--inactive",
                 )}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -174,12 +174,12 @@ export function EditorTabsBar(props: {
                   <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
                 )}
                 {tab.preview && !tab.pinned && (
-                  <span className="rounded border border-slate-300 px-1 text-[10px] text-slate-500">
+                  <span className="editor-tab-preview-badge rounded-full px-1.5 text-[10px]">
                     {t("editor.tab.preview")}
                   </span>
                 )}
                 <button
-                  className="rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                  className="editor-tab-action rounded p-0.5"
                   onClick={(event) => {
                     event.stopPropagation();
                     onClose(tab.id);
@@ -199,10 +199,10 @@ export function EditorTabsBar(props: {
               key={tab.id}
               data-tab-id={tab.id}
               className={cn(
-                "group inline-flex h-7 max-w-[320px] items-center gap-1 rounded-md border px-2 text-xs transition",
+                "editor-tab group inline-flex h-7 max-w-[320px] items-center gap-1 rounded-[11px] px-2 text-xs transition",
                 tab.active
-                  ? "border-primary-500 bg-primary-50 text-primary-900"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
+                  ? "editor-tab--active"
+                  : "editor-tab--inactive",
               )}
               onClick={(event) => {
                 event.stopPropagation();
@@ -214,7 +214,7 @@ export function EditorTabsBar(props: {
               {tab.dirty && <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />}
               {tab.renderMenu ? (
                 <button
-                  className="rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                  className="editor-tab-action rounded p-0.5"
                   onClick={(event) => {
                     event.stopPropagation();
                     const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
@@ -233,7 +233,7 @@ export function EditorTabsBar(props: {
               ) : null}
               {tab.onClose ? (
                 <button
-                  className="rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                  className="editor-tab-action rounded p-0.5"
                   onClick={(event) => {
                     event.stopPropagation();
                     tab.onClose?.();
@@ -253,7 +253,7 @@ export function EditorTabsBar(props: {
       {hasOverflow && (
         <div className="flex shrink-0 items-center gap-1">
           <button
-            className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            className="editor-tabs-scroll-btn rounded-full p-1 disabled:opacity-40"
             onClick={() => {
               const node = viewportRef.current;
               if (!node) {
@@ -268,7 +268,7 @@ export function EditorTabsBar(props: {
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <button
-            className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+            className="editor-tabs-scroll-btn rounded-full p-1 disabled:opacity-40"
             onClick={() => {
               const node = viewportRef.current;
               if (!node) {
@@ -284,7 +284,7 @@ export function EditorTabsBar(props: {
           </button>
           <div className="relative shrink-0">
             <button
-              className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
+              className="editor-tabs-scroll-btn rounded-full p-1"
               onClick={(event) => {
                 event.stopPropagation();
                 setOverflowOpen((prev) => !prev);
@@ -295,15 +295,15 @@ export function EditorTabsBar(props: {
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
             {overflowOpen && (
-              <div className="absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
+              <div className="editor-tabs-overflow-menu absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto py-1">
                 {overflowItems.map((item) => (
                   <button
                     key={item.id}
                     className={cn(
-                      "flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
+                      "editor-tabs-overflow-item flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
                       item.active
-                        ? "bg-primary-50 text-primary-900"
-                        : "text-slate-700 hover:bg-slate-100",
+                        ? "editor-tabs-overflow-item--active"
+                        : "editor-tabs-overflow-item--inactive",
                     )}
                     onClick={() => {
                       setOverflowOpen(false);
@@ -335,7 +335,7 @@ export function EditorTabsBar(props: {
 
       {extraTabMenu && activeExtraTab?.renderMenu ? (
         <div
-          className="fixed z-[72] min-w-56 max-w-[320px] overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+          className="editor-tabs-floating-menu fixed z-[72] min-w-56 max-w-[320px] overflow-hidden py-1"
           style={{ left: extraTabMenu.x, top: extraTabMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >
@@ -345,3 +345,5 @@ export function EditorTabsBar(props: {
     </div>
   );
 }
+
+

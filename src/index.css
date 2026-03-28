@@ -497,3 +497,260 @@ body::before {
 
 
 
+
+:root {
+  --editor-shell-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(244, 247, 252, 0.8));
+  --editor-shell-border: rgba(148, 163, 184, 0.32);
+  --editor-shell-divider: rgba(148, 163, 184, 0.24);
+  --editor-toolbar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 248, 252, 0.64));
+  --editor-paper-bg: #fffdf8;
+  --editor-paper-shadow: 0 26px 60px rgba(15, 23, 42, 0.12);
+  --editor-paper-edge: rgba(226, 232, 240, 0.82);
+  --editor-widget-bg: rgba(255, 250, 240, 0.96);
+  --editor-widget-border: rgba(214, 211, 209, 0.92);
+  --editor-widget-shadow: 0 24px 46px rgba(15, 23, 42, 0.16);
+  --editor-tab-text: #0f172a;
+  --editor-tab-muted: #475569;
+  --editor-tab-hover-bg: rgba(255, 255, 255, 0.72);
+  --editor-tab-hover-border: rgba(148, 163, 184, 0.26);
+  --editor-tab-active-bg: rgba(255, 255, 255, 0.96);
+  --editor-tab-active-border: rgba(96, 165, 250, 0.42);
+  --editor-tab-active-shadow: 0 16px 28px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  --editor-tab-badge-bg: rgba(59, 130, 246, 0.09);
+  --editor-tab-badge-text: #1d4ed8;
+  --settings-row-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.86));
+  --settings-row-border: rgba(148, 163, 184, 0.26);
+}
+
+[data-theme="dark"] {
+  --editor-shell-bg: linear-gradient(180deg, rgba(18, 28, 42, 0.9), rgba(12, 19, 31, 0.86));
+  --editor-shell-border: rgba(71, 85, 105, 0.44);
+  --editor-shell-divider: rgba(71, 85, 105, 0.34);
+  --editor-toolbar-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.84), rgba(17, 24, 39, 0.78));
+  --editor-paper-bg: #0f1720;
+  --editor-paper-shadow: 0 30px 72px rgba(2, 6, 23, 0.42);
+  --editor-paper-edge: rgba(51, 65, 85, 0.94);
+  --editor-widget-bg: rgba(17, 27, 41, 0.96);
+  --editor-widget-border: rgba(51, 65, 85, 0.94);
+  --editor-widget-shadow: 0 28px 54px rgba(2, 6, 23, 0.42);
+  --editor-tab-text: #e2e8f0;
+  --editor-tab-muted: #bac7db;
+  --editor-tab-hover-bg: rgba(30, 41, 59, 0.8);
+  --editor-tab-hover-border: rgba(71, 85, 105, 0.34);
+  --editor-tab-active-bg: rgba(15, 23, 32, 0.96);
+  --editor-tab-active-border: rgba(96, 165, 250, 0.36);
+  --editor-tab-active-shadow: 0 18px 34px rgba(2, 6, 23, 0.34), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --editor-tab-badge-bg: rgba(96, 165, 250, 0.14);
+  --editor-tab-badge-text: #93c5fd;
+  --settings-row-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.86));
+  --settings-row-border: rgba(71, 85, 105, 0.34);
+}
+
+.editor-workspace-shell {
+  border: 1px solid var(--editor-shell-border);
+  background: var(--editor-shell-bg);
+  box-shadow: var(--editor-paper-shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.editor-toolbar-shell {
+  border-bottom: 1px solid var(--editor-shell-divider);
+  background: var(--editor-toolbar-bg);
+}
+
+.editor-toolbar-btn {
+  color: var(--editor-tab-text);
+}
+
+.editor-toolbar-btn--primary {
+  border-color: rgba(37, 99, 235, 0.9);
+  background: linear-gradient(180deg, #4f8cff, #2563eb);
+  color: #eff6ff;
+  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+}
+
+.editor-toolbar-btn--primary:hover:not(:disabled),
+.editor-toolbar-btn--primary:focus-visible {
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  color: #ffffff;
+}
+
+.editor-tabs-shell {
+  border-bottom: 1px solid var(--editor-shell-divider);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+}
+
+[data-theme="dark"] .editor-tabs-shell {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.06), rgba(15, 23, 42, 0.04));
+}
+
+.editor-tab {
+  min-width: 0;
+  border: 1px solid transparent;
+  color: var(--editor-tab-muted);
+  background: transparent;
+}
+
+.editor-tab--inactive:hover {
+  border-color: var(--editor-tab-hover-border);
+  background: var(--editor-tab-hover-bg);
+  color: var(--editor-tab-text);
+}
+
+.editor-tab--active {
+  border-color: var(--editor-tab-active-border);
+  background: var(--editor-tab-active-bg);
+  color: var(--editor-tab-text);
+  box-shadow: var(--editor-tab-active-shadow);
+}
+
+.editor-tab-action {
+  color: var(--editor-tab-muted);
+}
+
+.editor-tab-action:hover {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--editor-tab-text);
+}
+
+.editor-tab-preview-badge {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--editor-tab-badge-bg);
+  color: var(--editor-tab-badge-text);
+}
+
+.editor-tabs-scroll-btn,
+.editor-tabs-floating-menu,
+.editor-tabs-overflow-menu {
+  border: 1px solid var(--editor-shell-border);
+  background: var(--editor-widget-bg);
+  color: var(--editor-tab-text);
+  box-shadow: var(--editor-widget-shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.editor-tabs-overflow-menu,
+.editor-tabs-floating-menu {
+  border-radius: 16px;
+}
+
+.editor-tabs-overflow-item {
+  border-radius: 12px;
+}
+
+.editor-tabs-overflow-item--active {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--editor-tab-text);
+}
+
+.editor-tabs-overflow-item--inactive {
+  color: var(--editor-tab-muted);
+}
+
+.editor-tabs-overflow-item--inactive:hover {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--editor-tab-text);
+}
+
+.editor-content-stage {
+  background: var(--editor-paper-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.editor-content-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--editor-paper-edge);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.editor-content-stage .monaco-editor,
+.editor-content-stage .monaco-editor-background,
+.editor-content-stage .monaco-editor .margin,
+.editor-content-stage .monaco-editor .margin-view-overlays {
+  background: transparent !important;
+}
+
+.editor-content-stage .monaco-editor .scroll-decoration {
+  box-shadow: none !important;
+}
+
+.editor-content-stage .monaco-editor .editor-widget,
+.editor-content-stage .monaco-editor .monaco-hover,
+.editor-content-stage .monaco-editor .suggest-widget,
+.editor-content-stage .monaco-editor .find-widget,
+.editor-content-stage .monaco-editor .parameter-hints-widget {
+  border: 1px solid var(--editor-widget-border) !important;
+  border-radius: 16px !important;
+  background: var(--editor-widget-bg) !important;
+  box-shadow: var(--editor-widget-shadow) !important;
+  overflow: hidden;
+}
+
+.editor-empty-state {
+  color: var(--editor-tab-muted);
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.82), rgba(241, 245, 249, 0.72));
+}
+
+[data-theme="dark"] .editor-empty-state {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(11, 18, 32, 0.68));
+}
+
+.settings-bool-row {
+  border: 1px solid var(--settings-row-border);
+  background: var(--settings-row-bg);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.07), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.settings-bool-row:hover,
+.settings-bool-row:focus-visible {
+  border-color: color-mix(in srgb, var(--control-primary-border) 48%, var(--settings-row-border));
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.12),
+    0 18px 34px rgba(15, 23, 42, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.78) inset;
+}
+
+.settings-checkbox__input {
+  border-color: rgba(100, 116, 139, 0.5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.94));
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.settings-checkbox__input:checked {
+  border-color: rgba(37, 99, 235, 0.96);
+  background: linear-gradient(180deg, #4f8cff, #2563eb);
+  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.24), 0 0 0 1px rgba(37, 99, 235, 0.24);
+}
+
+.settings-checkbox__icon {
+  color: #ffffff;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.24));
+}
+
+[data-theme="dark"] .settings-checkbox__input {
+  border-color: rgba(148, 163, 184, 0.34);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.22), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.monaco-editor .ghost-text,
+.monaco-editor .inline-completion-text,
+.monaco-editor .inlineCompletions-view-line {
+  color: #64748b !important;
+  background-color: transparent !important;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.48);
+  border-radius: 0;
+}
+
+[data-theme="dark"] .monaco-editor .ghost-text,
+[data-theme="dark"] .monaco-editor .inline-completion-text,
+[data-theme="dark"] .monaco-editor .inlineCompletions-view-line {
+  color: rgba(148, 163, 184, 0.88) !important;
+  border-bottom-color: rgba(71, 85, 105, 0.72);
+}

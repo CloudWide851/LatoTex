@@ -6,20 +6,19 @@ export type CheckboxProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "t
 
 const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
   ({ className, checked, ...props }, ref) => (
-    <span className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center">
+    <span className="settings-checkbox relative inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center">
       <input
         ref={ref}
         type="checkbox"
         checked={checked}
         className={cn(
-          "peer m-0 h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-slate-400 bg-white outline-none transition",
+          "settings-checkbox__input peer m-0 h-[22px] w-[22px] cursor-pointer appearance-none rounded-[7px] border-[1.5px] outline-none transition",
           "hover:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-200 disabled:cursor-not-allowed disabled:opacity-50",
-          "checked:border-primary-600 checked:bg-primary-600 checked:shadow-[0_0_0_1px_rgba(37,99,235,0.2)]",
           className,
         )}
         {...props}
       />
-      <Check className="pointer-events-none absolute z-20 h-3.5 w-3.5 text-white opacity-0 transition peer-checked:opacity-100" />
+      <Check className="settings-checkbox__icon pointer-events-none absolute z-20 h-[13px] w-[13px] stroke-[3.2] opacity-0 transition peer-checked:opacity-100" />
     </span>
   ),
 );
