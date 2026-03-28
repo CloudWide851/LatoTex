@@ -127,9 +127,11 @@ pub(super) fn handle_pdf_fetch(
         }
     };
     let _ = request.respond(
-        Response::from_file(file)
-            .with_status_code(StatusCode(200))
-            .with_header(pdf_header())
-            .with_header(no_cache_header()),
+        share_http_response::with_share_cors(
+            Response::from_file(file)
+                .with_status_code(StatusCode(200))
+                .with_header(pdf_header())
+                .with_header(no_cache_header())
+        ),
     );
 }

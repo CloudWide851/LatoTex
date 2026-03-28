@@ -24,6 +24,8 @@ mod share_comments_store;
 mod share_http_auth;
 #[path = "share_http_pdf.rs"]
 mod share_http_pdf;
+#[path = "share_http_response.rs"]
+mod share_http_response;
 #[path = "share_http_server.rs"]
 mod share_http_server;
 #[path = "share_http_static.rs"]
@@ -34,6 +36,7 @@ mod share_pdf;
 mod share_runtime_auth;
 #[path = "share_tunnel.rs"]
 mod share_tunnel;
+use share_http_response::with_share_cors;
 use share_pdf::share_pdf_ready;
 use share_runtime_auth::{verify_body_auth, verify_query_auth};
 const SHARE_TTL_HOURS: i64 = 24;
@@ -174,16 +177,20 @@ fn json_response(
     status: StatusCode,
     payload: serde_json::Value,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    Response::from_string(payload.to_string())
-        .with_status_code(status)
-        .with_header(json_header())
-        .with_header(no_cache_header())
+    with_share_cors(
+        Response::from_string(payload.to_string())
+            .with_status_code(status)
+            .with_header(json_header())
+            .with_header(no_cache_header())
+    )
 }
 fn html_response(content: &'static str) -> Response<std::io::Cursor<Vec<u8>>> {
-    Response::from_string(content)
-        .with_status_code(StatusCode(200))
-        .with_header(html_header())
-        .with_header(no_cache_header())
+    with_share_cors(
+        Response::from_string(content)
+            .with_status_code(StatusCode(200))
+            .with_header(html_header())
+            .with_header(no_cache_header())
+    )
 }
 fn split_url_path_query(url: &str) -> (String, HashMap<String, String>) {
     let mut query = HashMap::<String, String>::new();

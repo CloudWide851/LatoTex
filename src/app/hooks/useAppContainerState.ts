@@ -31,6 +31,7 @@ import {
 } from "../app-config";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import type { CompileInstallProgress } from "./compileWorkflow";
+import { loadWorkspacePage, persistWorkspacePage } from "./workspacePageStorage";
 
 export type AgentProposalMap = Record<string, AgentFileProposal>;
 export type AgentPendingAction =
@@ -96,7 +97,7 @@ function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
 export function useAppContainerState(t: (...args: any[]) => string) {
   const [status, setStatus] = useState<"ready" | "offline">("ready");
   const [toast, setToast] = useState<Toast>(null);
-  const [page, setPage] = useState<WorkspacePage>("latex");
+  const [page, setPage] = useState<WorkspacePage>(() => loadWorkspacePage());
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [tree, setTree] = useState<ResourceNode[]>([]);
@@ -213,6 +214,10 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    persistWorkspacePage(page);
+  }, [page]);
 
   useEffect(() => {
     if (!activeProjectId) {

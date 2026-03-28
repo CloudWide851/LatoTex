@@ -4,6 +4,10 @@ use tiny_http::Method;
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
     let method = request.method().clone();
     let (path, query) = split_url_path_query(request.url());
+    if method == Method::Options {
+        let _ = request.respond(share_http_response::share_options_response());
+        return;
+    }
     let runtime_snapshot = if let Ok(guard) = runtime.lock() {
         guard
     } else {
