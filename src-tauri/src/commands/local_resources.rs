@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tauri::http::{
     header::{CACHE_CONTROL, CONTENT_TYPE},
-    Request, Response, StatusCode,
+    Method, Request, Response, StatusCode,
 };
 use tauri::State;
 use urlencoding::{decode, encode};
@@ -248,22 +248,143 @@ fn mime_type_for_path(path: &Path) -> &'static str {
     }
 }
 
+fn local_resource_header_values() -> [(&'static str, &'static str); 4] {
+    [
+        ("Access-Control-Allow-Origin", "*"),
+        ("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS"),
+        ("Access-Control-Allow-Headers", "Range, Content-Type"),
+        (
+            "Access-Control-Expose-Headers",
+            "Accept-Ranges, Content-Length, Content-Range, Content-Type, Cache-Control",
+        ),
+    ]
+}
+
 fn build_text_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
-    Response::builder()
+    let body = message.as_bytes().to_vec();
+    let mut builder = Response::builder()
         .status(status)
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")
         .header(CACHE_CONTROL, "no-store")
-        .body(message.as_bytes().to_vec())
-        .unwrap_or_else(|_| Response::new(message.as_bytes().to_vec()))
+        .header("Content-Length", body.len().to_string());
+    for (name, value) in local_resource_header_values() {
+        builder = builder.header(name, value);
+    }
+    builder
+        .body(body.clone())
+        .unwrap_or_else(|_| Response::new(body))
 }
 
 fn build_binary_response(status: StatusCode, mime: &str, bytes: Vec<u8>) -> Response<Vec<u8>> {
-    Response::builder()
+    build_binary_response_with_headers(status, mime, bytes, &[])
+}
+
+fn build_binary_response_with_headers(
+    status: StatusCode,
+    mime: &str,
+    bytes: Vec<u8>,
+    extra_headers: &[(&str, String)],
+) -> Response<Vec<u8>> {
+    let mut builder = Response::builder()
         .status(status)
         .header(CONTENT_TYPE, mime)
         .header(CACHE_CONTROL, "no-store")
-        .body(bytes)
-        .unwrap_or_else(|_| Response::new(Vec::new()))
+        .header("Accept-Ranges", "bytes")
+        .header("Content-Length", bytes.len().to_string());
+    for (name, value) in local_resource_header_values() {
+        builder = builder.header(name, value);
+    }
+    for (name, value) in extra_headers {
+        builder = builder.header(*name, value);
+    }
+    builder
+        .body(bytes.clone())
+        .unwrap_or_else(|_| Response::new(bytes))
+}
+
+fn build_options_response() -> Response<Vec<u8>> {
+    build_binary_response_with_headers(StatusCode::NO_CONTENT, "application/octet-stream", Vec::new(), &[])
+}
+
+fn parse_byte_range(range_header: &str, total_len: usize) -> Result<Option<(usize, usize)>, String> {
+    if total_len == 0 {
+        return Ok(None);
+    }
+    let trimmed = range_header.trim();
+    let Some(value) = trimmed.strip_prefix("bytes=") else {
+        return Err("resource.range.invalid".to_string());
+    };
+    let Some((start_raw, end_raw)) = value.split_once('-') else {
+        return Err("resource.range.invalid".to_string());
+    };
+    if start_raw.trim().is_empty() {
+        let suffix_len = end_raw
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "resource.range.invalid".to_string())?;
+        if suffix_len == 0 {
+            return Ok(None);
+        }
+        let actual_len = suffix_len.min(total_len);
+        return Ok(Some((total_len - actual_len, total_len - 1)));
+    }
+
+    let start = start_raw
+        .trim()
+        .parse::<usize>()
+        .map_err(|_| "resource.range.invalid".to_string())?;
+    if start >= total_len {
+        return Err("resource.range.unsatisfiable".to_string());
+    }
+    let end = if end_raw.trim().is_empty() {
+        total_len - 1
+    } else {
+        end_raw
+            .trim()
+            .parse::<usize>()
+            .map_err(|_| "resource.range.invalid".to_string())?
+    };
+    if end < start {
+        return Err("resource.range.invalid".to_string());
+    }
+    Ok(Some((start, end.min(total_len - 1))))
+}
+
+fn workspace_file_response_bytes(
+    method: &Method,
+    bytes: Vec<u8>,
+    mime: &str,
+    range_header: Option<&str>,
+) -> Response<Vec<u8>> {
+    if *method == Method::HEAD {
+        return build_binary_response(StatusCode::OK, mime, Vec::new());
+    }
+
+    let total_len = bytes.len();
+    let Some(range_value) = range_header.map(str::trim).filter(|value| !value.is_empty()) else {
+        return build_binary_response(StatusCode::OK, mime, bytes);
+    };
+
+    match parse_byte_range(range_value, total_len) {
+        Ok(Some((start, end))) => {
+            let content_range = format!("bytes {start}-{end}/{total_len}");
+            let partial = bytes[start..=end].to_vec();
+            build_binary_response_with_headers(
+                StatusCode::PARTIAL_CONTENT,
+                mime,
+                partial,
+                &[("Content-Range", content_range)],
+            )
+        }
+        Ok(None) => build_binary_response(StatusCode::OK, mime, bytes),
+        Err(error) if error == "resource.range.unsatisfiable" => build_binary_response_with_headers(
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            mime,
+            Vec::new(),
+            &[("Content-Range", format!("bytes */{total_len}"))],
+        ),
+        Err(error) => build_text_response(StatusCode::BAD_REQUEST, &error),
+    }
 }
 
 fn build_drawio_entry_url() -> String {
@@ -342,7 +463,8 @@ fn resolve_workspace_file_request(
     Ok(project_root.join(safe_relative_path))
 }
 
-fn serve_workspace_file(state: &AppState, request_path: &str) -> Response<Vec<u8>> {
+fn serve_workspace_file(state: &AppState, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+    let request_path = request.uri().path();
     let asset_path = match resolve_workspace_file_request(state, request_path) {
         Ok(path) => path,
         Err(error) if error.starts_with("resource.") => {
@@ -354,7 +476,15 @@ fn serve_workspace_file(state: &AppState, request_path: &str) -> Response<Vec<u8
         return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
     }
     match fs::read(&asset_path) {
-        Ok(bytes) => build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes),
+        Ok(bytes) => workspace_file_response_bytes(
+            request.method(),
+            bytes,
+            mime_type_for_path(&asset_path),
+            request
+                .headers()
+                .get("range")
+                .and_then(|value| value.to_str().ok()),
+        ),
         Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
     }
 }
@@ -363,9 +493,12 @@ pub fn handle_local_resource_request(
     state: &AppState,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
+    if request.method() == Method::OPTIONS {
+        return build_options_response();
+    }
     let path = request.uri().path();
     if path.starts_with(WORKSPACE_FILE_ROUTE_PREFIX) {
-        return serve_workspace_file(state, path);
+        return serve_workspace_file(state, request);
     }
     if !path.starts_with(DRAWIO_ROUTE_PREFIX) {
         return build_text_response(StatusCode::NOT_FOUND, "resource.not_found");
@@ -409,43 +542,5 @@ pub fn drawio_cache_prepare(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        build_drawio_entry_url, build_workspace_file_resource_url, normalize_relative_asset_path,
-        normalize_workspace_relative_path, LOCAL_RESOURCE_SCHEME,
-    };
-    use std::path::PathBuf;
-
-    #[test]
-    fn drawio_entry_url_uses_custom_local_resource_scheme() {
-        let value = build_drawio_entry_url();
-        assert!(value.contains(LOCAL_RESOURCE_SCHEME));
-        assert!(value.ends_with("/tool/drawio/index.html"));
-    }
-
-    #[test]
-    fn normalize_relative_asset_path_defaults_to_index() {
-        assert_eq!(
-            normalize_relative_asset_path("/tool/drawio").unwrap(),
-            PathBuf::from("index.html")
-        );
-    }
-
-    #[test]
-    fn normalize_relative_asset_path_rejects_traversal() {
-        assert!(normalize_relative_asset_path("/tool/drawio/../secret.txt").is_err());
-    }
-
-    #[test]
-    fn workspace_file_resource_url_encodes_project_and_relative_path() {
-        let value = build_workspace_file_resource_url("project/one", ".latotex/papers/cache file.pdf");
-        assert!(value.contains(LOCAL_RESOURCE_SCHEME));
-        assert!(value.contains("project%2Fone"));
-        assert!(value.contains("cache%20file.pdf"));
-    }
-
-    #[test]
-    fn normalize_workspace_relative_path_rejects_traversal() {
-        assert!(normalize_workspace_relative_path("../secret.pdf").is_err());
-    }
-}
+#[path = "local_resources_tests.rs"]
+mod tests;
