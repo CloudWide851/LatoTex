@@ -1,0 +1,4 @@
+src-tauri/resources/tools/tectonic/cache-seed/** -text
+src-tauri/resources/tools/tectonic/pfb/** binary
+src-tauri/resources/tools/tectonic/windows-x64/*.exe binary
+src-tauri/resources/tools/tectonic/bundles/*.tar binary
