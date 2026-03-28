@@ -6,6 +6,7 @@ import logoMark from "../assets/branding/logo.svg";
 import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
 import { buildEditorTab } from "./hooks/useEditorTabs";
+import { useNativeWindowCloseBridge } from "./hooks/windowCloseRequest";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useAppContainerWorkspaceActions } from "./hooks/useAppContainerWorkspaceActions";
 import { useAnalysisWorkspace } from "./hooks/useAnalysisWorkspace";
@@ -36,6 +37,7 @@ export function AppContainer() {
   const [closeBehaviorRememberChoice, setCloseBehaviorRememberChoice] = useState(false);
   const [closeDecisionBusy, setCloseDecisionBusy] = useState(false);
   const s = useAppContainerState(t);
+  const { allowNextWindowCloseRef, requestNativeWindowClose } = useNativeWindowCloseBridge(isTauriRuntime);
   const unsaved = useUnsavedChangesGuard({
     selectedFile: s.selectedFile,
     setSelectedFile: s.setSelectedFile,
@@ -162,7 +164,6 @@ export function AppContainer() {
     resolveSelectedFileContent,
     pdfUrl: s.pdfUrl,
     agentPrompt: s.agentPrompt,
-    windowActionBusy: s.windowActionBusy,
     settings: s.settings,
     projectSearchQuery: s.projectSearchQuery,
     gitDownloadTaskId: s.gitDownloadTaskId,
@@ -174,6 +175,7 @@ export function AppContainer() {
       setCloseDecisionBusy(false);
       setCloseBehaviorDialogOpen(true);
     },
+    requestNativeWindowClose,
     setCloseDecisionBusy,
     setBusy: s.setBusy,
     setTree: s.setTree,
@@ -199,8 +201,6 @@ export function AppContainer() {
     setAgentCollapsed: s.setAgentCollapsed,
     setAgentPhase: s.setAgentPhase,
     setAgentStatusKey: s.setAgentStatusKey,
-    setWindowActionBusy: s.setWindowActionBusy,
-    setIsMaximized: s.setIsMaximized,
     setProjectSearchResults: s.setProjectSearchResults,
     setProjectSearchSearched: s.setProjectSearchSearched,
     setProjectSearchBusy: s.setProjectSearchBusy,
@@ -353,6 +353,7 @@ export function AppContainer() {
     handleWindowControl: handlers.handleWindowControl,
     requestUnsavedGuard: unsaved.requestUnsavedGuard,
     editorTabsRef: s.editorTabsRef,
+    allowNextWindowCloseRef,
     handleInitProjectFromFolder: handlers.handleInitProjectFromFolder,
     resetEditorSession: unsaved.resetEditorSession,
     handleEditorUndo: handlers.handleEditorUndo,
@@ -492,7 +493,6 @@ export function AppContainer() {
   }, [closeBehaviorRememberChoice, closeDecisionBusy, handlers]);
   return (
     <AppContainerView
-      windowActionBusy={s.windowActionBusy}
       status={s.status}
       sleeping={idleSleep.sleeping}
       onWakeFromSleep={idleSleep.wake}
@@ -649,4 +649,7 @@ export function AppContainer() {
     />
   );
 }
+
+
+
 

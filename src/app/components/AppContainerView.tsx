@@ -13,7 +13,6 @@ const AppWorkspaceShell = lazy(async () => {
 
 export function AppContainerView(props: any) {
   const {
-    windowActionBusy,
     status,
     sleeping,
     onWakeFromSleep,
@@ -204,7 +203,7 @@ export function AppContainerView(props: any) {
 
   return (
     <div
-      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${windowActionBusy ? "suppress-motion" : ""} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${backgroundUrl ? "wallpaper-enabled" : ""}`}
       style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">
@@ -215,7 +214,6 @@ export function AppContainerView(props: any) {
           activeProjectId={activeProjectId}
           busy={busy}
           isTauriRuntime={isTauriRuntime}
-          windowActionBusy={windowActionBusy}
           isMaximized={isMaximized}
           projectSearchQuery={projectSearchQuery}
           projectSearchBusy={projectSearchBusy}
@@ -425,4 +423,5 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
 

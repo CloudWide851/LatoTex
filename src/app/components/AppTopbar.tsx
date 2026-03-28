@@ -18,7 +18,6 @@ export function AppTopbar(props: {
   activeProjectId: string | null;
   busy: boolean;
   isTauriRuntime: boolean;
-  windowActionBusy: boolean;
   isMaximized: boolean;
   projectSearchQuery: string;
   projectSearchBusy: boolean;
@@ -40,7 +39,6 @@ export function AppTopbar(props: {
     activeProjectId,
     busy,
     isTauriRuntime,
-    windowActionBusy,
     isMaximized,
     projectSearchQuery,
     projectSearchBusy,
@@ -131,7 +129,7 @@ export function AppTopbar(props: {
           aria-label={t("window.maximize")}
           className="app-topbar-btn app-topbar-window-btn tauri-no-drag flex items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("toggle")}
-          disabled={!isTauriRuntime || windowActionBusy}
+          disabled={!isTauriRuntime}
         >
           {isMaximized ? (
             <Minimize2 className="h-4 w-4" />
@@ -144,7 +142,6 @@ export function AppTopbar(props: {
           aria-label={t("window.close")}
           className="app-topbar-btn-close app-topbar-window-btn tauri-no-drag flex items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("close")}
-          disabled={windowActionBusy}
         >
           <X className="h-4 w-4" />
         </button>
@@ -152,4 +149,3 @@ export function AppTopbar(props: {
     </header>
   );
 }
-

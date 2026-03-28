@@ -19,6 +19,7 @@ import {
 import { appendEventsWithBudget } from "./eventMemoryBudget";
 import { useGitRuntimeEffects } from "./useGitRuntimeEffects";
 import { useSelectedFilePreviewEffects } from "./useSelectedFilePreviewEffects";
+import { WINDOW_TRANSITION_EVENT } from "./windowTransitionSignal";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -129,6 +130,7 @@ export function useAppEffects(params: {
   const tRef = useRef(t);
   const cursorRef = useRef(cursor);
   const isMaximizedRef = useRef(false);
+  const windowTransitionEndsAtRef = useRef(0);
 
   useEffect(() => {
     tRef.current = t;
@@ -137,6 +139,24 @@ export function useAppEffects(params: {
   useEffect(() => {
     cursorRef.current = cursor;
   }, [cursor]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleWindowTransition = (event: Event) => {
+      const detail = (event as CustomEvent<{ endsAt?: number; durationMs?: number }>).detail;
+      const fallbackEndsAt = Date.now() + Number(detail?.durationMs ?? 320);
+      const nextEndsAt = Number(detail?.endsAt ?? fallbackEndsAt);
+      if (Number.isFinite(nextEndsAt)) {
+        windowTransitionEndsAtRef.current = Math.max(windowTransitionEndsAtRef.current, nextEndsAt);
+      }
+    };
+    window.addEventListener(WINDOW_TRANSITION_EVENT, handleWindowTransition as EventListener);
+    return () => {
+      window.removeEventListener(WINDOW_TRANSITION_EVENT, handleWindowTransition as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || suspended) {
@@ -406,6 +426,29 @@ export function useAppEffects(params: {
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
 
+    const syncMaximizedState = async () => {
+      const next = await getCurrentWindow().isMaximized();
+      if (disposed || next === isMaximizedRef.current) {
+        return;
+      }
+      isMaximizedRef.current = next;
+      setIsMaximized(next);
+    };
+
+    const scheduleSync = () => {
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
+      const remainingTransitionMs = Math.max(0, windowTransitionEndsAtRef.current - Date.now());
+      const debounceMs = remainingTransitionMs > 0
+        ? Math.max(140, remainingTransitionMs + 48)
+        : 90;
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
+        void syncMaximizedState().catch(() => undefined);
+      }, debounceMs);
+    };
+
     const syncWindowState = async () => {
       const appWindow = getCurrentWindow();
       const initialMaximized = await appWindow.isMaximized();
@@ -414,18 +457,8 @@ export function useAppEffects(params: {
       }
       isMaximizedRef.current = initialMaximized;
       setIsMaximized(initialMaximized);
-      const off = await appWindow.onResized(async () => {
-        if (resizeTimer) {
-          clearTimeout(resizeTimer);
-        }
-        resizeTimer = setTimeout(async () => {
-          resizeTimer = null;
-          const next = await appWindow.isMaximized();
-          if (next !== isMaximizedRef.current) {
-            isMaximizedRef.current = next;
-            setIsMaximized(next);
-          }
-        }, 90);
+      const off = await appWindow.onResized(() => {
+        scheduleSync();
       });
       if (disposed) {
         off();
@@ -522,4 +555,5 @@ export function useAppEffects(params: {
     suspended,
   });
 }
+
 

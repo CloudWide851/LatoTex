@@ -18,6 +18,7 @@ export type UseAppContainerWorkspaceActionsParams = {
     onContinue: () => void | Promise<void>,
   ) => void;
   editorTabsRef: MutableRefObject<EditorTab[]>;
+  allowNextWindowCloseRef: MutableRefObject<boolean>;
   handleInitProjectFromFolder: () => Promise<void>;
   resetEditorSession: () => void;
   handleEditorUndo: () => void;
@@ -93,4 +94,3 @@ export type AppContainerWorkspaceActionsResult = {
     modelApiKeyChanged: boolean;
   }) => Promise<{ ok: boolean; message?: string }>;
 };
-

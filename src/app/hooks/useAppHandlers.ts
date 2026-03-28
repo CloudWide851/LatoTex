@@ -1,5 +1,4 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { exitApplication } from "../../shared/api/app";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
 import { getLibraryTree } from "../../shared/api/library";
@@ -19,6 +18,7 @@ import { useCompileActions } from "./useCompileActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
+import { signalWindowTransition } from "./windowTransitionSignal";
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -29,8 +29,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     fileList,
     editorContent,
     resolveSelectedFileContent,
-    pdfUrl,    agentPrompt,
-    windowActionBusy,
+    pdfUrl,
+    agentPrompt,
     settings,
     projectSearchQuery,
     gitDownloadTaskId,
@@ -38,6 +38,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     deleteIntent,
     deleteDontAskAgain,
     requestCloseBehaviorDecision,
+    requestNativeWindowClose,
     setCloseDecisionBusy,
     setBusy,
     setTree,
@@ -63,8 +64,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setAgentCollapsed,
     setAgentPhase,
     setAgentStatusKey,
-    setWindowActionBusy,
-    setIsMaximized,
     setProjectSearchResults,
     setProjectSearchSearched,
     setProjectSearchBusy,
@@ -109,45 +108,47 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setLibraryTree,
     refreshGitWorkspace,
   });
-  const runWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {
-    if (behavior === "exit") {
-      await exitApplication();
+  const rememberWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {
+    if (!settings) {
       return;
     }
+    const nextSettings = buildRememberedCloseBehaviorSettings(settings, locale, behavior);
+    await persistSettings(nextSettings);
+    void runtimeLogWrite("INFO", `window close behavior remembered: ${behavior}`).catch(() => undefined);
+  }, [locale, persistSettings, settings]);
+  const runWindowCloseBehavior = useCallback(async (
+    behavior: "tray" | "exit",
+    options?: { bypassInterception?: boolean },
+  ) => {
+    if (behavior === "exit") {
+      signalWindowTransition(220);
+      await requestNativeWindowClose(options?.bypassInterception ?? false);
+      return;
+    }
+    signalWindowTransition(220);
     const appWindow = getCurrentWindow();
     await appWindow.hide();
     if (settings?.uiPrefs?.closeToTrayNoticeEnabled ?? true) {
       setToast({ type: "info", message: t("toast.minimizedToTray") });
     }
     void runtimeLogWrite("INFO", "window hidden to tray").catch(() => undefined);
-  }, [setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
+  }, [requestNativeWindowClose, setToast, settings?.uiPrefs?.closeToTrayNoticeEnabled, t]);
   const handleWindowControl = useCallback(async (action: "minimize" | "toggle" | "close") => {
     if (!isTauriRuntime) {
       return;
     }
     const closeBehavior = (settings?.uiPrefs?.closeBehavior ?? "ask") as CloseBehavior;
     const plan = resolveWindowControlPlan(action, closeBehavior);
-    if (plan.trackBusy && windowActionBusy) {
-      return;
-    }
-    if (plan.trackBusy) {
-      setWindowActionBusy(true);
-    }
     try {
       const appWindow = getCurrentWindow();
       if (plan.type === "minimize") {
+        signalWindowTransition(180);
         await appWindow.minimize();
         return;
       }
       if (plan.type === "toggle") {
-        const current = await appWindow.isMaximized();
-        if (current) {
-          await appWindow.unmaximize();
-          setIsMaximized(false);
-        } else {
-          await appWindow.maximize();
-          setIsMaximized(true);
-        }
+        signalWindowTransition(260);
+        await appWindow.toggleMaximize();
         return;
       }
       if (plan.type === "run-close-behavior") {
@@ -160,21 +161,14 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       void runtimeLogWrite("ERROR", `window action failed: ${message}`).catch(() => undefined);
-    } finally {
-      if (plan.trackBusy) {
-        setWindowActionBusy(false);
-      }
     }
   }, [
     isTauriRuntime,
-    setIsMaximized,
-    setToast,
-    setWindowActionBusy,
-    settings?.uiPrefs?.closeBehavior,
-    t,
-    windowActionBusy,
     requestCloseBehaviorDecision,
     runWindowCloseBehavior,
+    setToast,
+    settings?.uiPrefs?.closeBehavior,
+    t,
   ]);
   const handleWindowCloseDecision = useCallback(async (
     behavior: "tray" | "exit",
@@ -182,12 +176,21 @@ export function useAppHandlers(params: UseAppHandlersParams) {
   ) => {
     setCloseDecisionBusy(true);
     try {
-      if (remember && settings) {
-        const nextSettings = buildRememberedCloseBehaviorSettings(settings, locale, behavior);
-        await persistSettings(nextSettings);
-        void runtimeLogWrite("INFO", `window close behavior remembered: ${behavior}`).catch(() => undefined);
+      if (behavior === "tray") {
+        await runWindowCloseBehavior("tray");
+        if (remember) {
+          void rememberWindowCloseBehavior("tray").catch((error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            setToast({ type: "error", message: t("toast.windowActionFailed") });
+            void runtimeLogWrite("ERROR", `window close decision persist failed: ${message}`).catch(() => undefined);
+          });
+        }
+        return;
       }
-      await runWindowCloseBehavior(behavior);
+      if (remember) {
+        await rememberWindowCloseBehavior("exit");
+      }
+      await runWindowCloseBehavior("exit", { bypassInterception: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });
@@ -196,13 +199,10 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setCloseDecisionBusy(false);
     }
   }, [
-    isTauriRuntime,
-    locale,
-    persistSettings,
+    rememberWindowCloseBehavior,
     runWindowCloseBehavior,
     setCloseDecisionBusy,
     setToast,
-    settings,
     t,
   ]);
   const handleInitProjectFromFolder = useCallback(async () => {
@@ -574,4 +574,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleLibrarySyncZotero,
   };
 }
+
+
 

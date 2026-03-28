@@ -24,7 +24,6 @@ export type UseAppHandlersParams = {
   resolveSelectedFileContent: () => Promise<string | null>;
   pdfUrl: string | null;
   agentPrompt: string;
-  windowActionBusy: boolean;
   settings: AppSettings | null;
   projectSearchQuery: string;
   gitDownloadTaskId: string | null;
@@ -32,6 +31,7 @@ export type UseAppHandlersParams = {
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
   requestCloseBehaviorDecision: () => void;
+  requestNativeWindowClose: (bypassInterception?: boolean) => Promise<boolean>;
   setCloseDecisionBusy: (value: boolean) => void;
   setBusy: (value: boolean) => void;
   setTree: (value: ResourceNode[]) => void;
@@ -57,8 +57,6 @@ export type UseAppHandlersParams = {
   setAgentCollapsed: (value: boolean | ((prev: boolean) => boolean)) => void;
   setAgentPhase: (value: "idle" | "running" | "done" | "error") => void;
   setAgentStatusKey: (value: AgentStatusKey) => void;
-  setWindowActionBusy: (value: boolean) => void;
-  setIsMaximized: (value: boolean) => void;
   setProjectSearchResults: (value: ProjectSearchHit[]) => void;
   setProjectSearchSearched: (value: boolean) => void;
   setProjectSearchBusy: (value: boolean) => void;

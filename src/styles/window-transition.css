@@ -1,0 +1,6 @@
+body[data-window-transitioning="true"] *,
+body[data-window-transitioning="true"] *::before,
+body[data-window-transitioning="true"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

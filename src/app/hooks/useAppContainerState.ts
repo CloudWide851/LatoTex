@@ -140,7 +140,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [runtimeLogs, setRuntimeLogs] = useState<RuntimeLogEntry[]>([]);
   const [runtimeLogLoading, setRuntimeLogLoading] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [windowActionBusy, setWindowActionBusy] = useState(false);
   const [overlay, setOverlay] = useState<OverlayType>(null);
   const [logsTab, setLogsTab] = useState<LogTab>("events");
   const [modelModalOpen, setModelModalOpen] = useState(false);
@@ -372,8 +371,6 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setRuntimeLogLoading,
     isMaximized,
     setIsMaximized,
-    windowActionBusy,
-    setWindowActionBusy,
     overlay,
     setOverlay,
     logsTab,
@@ -437,4 +434,5 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     fileSet,
   };
 }
+
 

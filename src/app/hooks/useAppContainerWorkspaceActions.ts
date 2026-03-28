@@ -1,4 +1,3 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCallback, useEffect } from "react";
 import { windowSyncIcon } from "../../shared/api/app";
@@ -15,7 +14,8 @@ import {
 import { getTabIdsByAction } from "./useEditorTabs";
 import { generateGitSummary } from "./useGitSummaryGenerator";
 import type { AppContainerWorkspaceActionsResult, UseAppContainerWorkspaceActionsParams } from "./useAppContainerWorkspaceActions.types";
-import { resolveWindowCloseRequestPlan } from "./windowCloseFlow";
+import { useNativeWindowCloseInterception } from "./windowCloseRequest";
+import { resolveWindowCloseRequestPlan, type CloseBehavior } from "./windowCloseFlow";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 
 export function useAppContainerWorkspaceActions(
@@ -29,6 +29,7 @@ export function useAppContainerWorkspaceActions(
     handleWindowControl,
     requestUnsavedGuard,
     editorTabsRef,
+    allowNextWindowCloseRef,
     handleInitProjectFromFolder,
     resetEditorSession,
     handleEditorUndo,
@@ -99,6 +100,8 @@ export function useAppContainerWorkspaceActions(
     handleCloseWindowRequest();
   }, [handleCloseWindowRequest, handleWindowControl]);
 
+  const closeBehavior = (settings?.uiPrefs?.closeBehavior ?? "ask") as CloseBehavior;
+
   const handleInitProjectFromFolderWithGuard = useCallback(() => {
     requestUnsavedGuard(
       "switchProject",
@@ -151,30 +154,17 @@ export function useAppContainerWorkspaceActions(
     handleOpenNewWindow,
   });
 
-  useEffect(() => {
-    if (!isTauriRuntime) {
-      return;
-    }
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    getCurrentWindow()
-      .onCloseRequested((event) => {
-        event.preventDefault();
-        handleCloseWindowRequest();
-      })
-      .then((off) => {
-        if (disposed) {
-          off();
-          return;
-        }
-        unlisten = off;
-      })
-      .catch(() => undefined);
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [handleCloseWindowRequest, isTauriRuntime]);
+  useNativeWindowCloseInterception({
+    isTauriRuntime,
+    closeBehavior,
+    editorTabsRef,
+    allowNextWindowCloseRef,
+    collectDirtyPaths,
+    requestUnsavedGuard,
+    onDelegateClose: async () => {
+      await handleWindowControl("close");
+    },
+  });
 
   const activateTabById = useCallback((tabId: string) => {
     const target = editorTabsRef.current.find((tab: any) => tab.id === tabId);
@@ -590,6 +580,9 @@ export function useAppContainerWorkspaceActions(
     handleModelModalSubmit,
   };
 }
+
+
+
 
 
 
