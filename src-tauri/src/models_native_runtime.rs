@@ -9,6 +9,7 @@ pub struct LatexCompileInput {
     pub file_map: HashMap<String, String>,
     pub prefer_engine: Option<String>,
     pub reason: Option<String>,
+    pub include_pdf_bytes: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Clone)]

@@ -124,6 +124,14 @@ export function useShareSession(params: {
     });
   }, []);
 
+  const uploadCompiledPdfFromUrl = useCallback(async (session: ShareSessionInfo, pdfUrl: string) => {
+    const response = await fetch(pdfUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`share pdf fetch failed: ${response.status}`);
+    }
+    await uploadPdfBytes(session, new Uint8Array(await response.arrayBuffer()));
+  }, [uploadPdfBytes]);
+
   const waitForShareReady = useCallback(
     async (expectedSessionId: string, mode: ShareMode) => {
       const timeoutMs = mode === "local" ? 18_000 : 120_000;
@@ -174,7 +182,7 @@ export function useShareSession(params: {
       let compileResult: CompileActionResult | null = null;
       if (nextMode === "remote") {
         compileResult = await onCompile();
-        if (compileResult?.status !== "success" || !compileResult.pdfBytes || compileResult.pdfBytes.length === 0) {
+        if (compileResult?.status !== "success" || !compileResult.pdfUrl) {
           throw new Error(t("share.startCompileFailed"));
         }
       }
@@ -190,8 +198,8 @@ export function useShareSession(params: {
       if (created.sessionName?.trim()) {
         setShareSessionName(created.sessionName.trim());
       }
-      if (nextMode === "remote" && compileResult?.pdfBytes) {
-        await uploadPdfBytes(created, compileResult.pdfBytes);
+      if (nextMode === "remote" && compileResult?.pdfUrl) {
+        await uploadCompiledPdfFromUrl(created, compileResult.pdfUrl);
       } else {
         void onCompile().catch(() => undefined);
       }
@@ -219,7 +227,7 @@ export function useShareSession(params: {
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, uploadPdfBytes, waitForShareReady]);
+  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, uploadCompiledPdfFromUrl, waitForShareReady]);
   const stopShare = useCallback(async () => {
     setShareBusy(true);
     try {
@@ -331,6 +339,7 @@ export function useShareSession(params: {
         }
       };
       yText.observe(onText);
+      let lastCommentsPullAt = 0;
       const pullComments = async () => {
         const tokenParam = participantTokenRef.current
           ? `&participantToken=${encodeURIComponent(participantTokenRef.current)}`
@@ -342,6 +351,7 @@ export function useShareSession(params: {
           throw new Error(await response.text());
         }
         const payload = await response.json() as { comments?: any[]; sessionName?: string };
+        lastCommentsPullAt = Date.now();
         setShareComments(toShareCommentItems(payload.comments ?? []));
         if (typeof payload.sessionName === "string" && payload.sessionName.trim()) {
           setShareSessionName(payload.sessionName.trim());
@@ -400,8 +410,11 @@ export function useShareSession(params: {
           return;
         }
         await pullUpdates().catch(() => undefined);
-        await pullComments().catch(() => undefined);
         const hidden = typeof document !== "undefined" && document.hidden;
+        const commentIntervalMs = hidden ? 6_000 : 2_400;
+        if (Date.now() - lastCommentsPullAt >= commentIntervalMs) {
+          await pullComments().catch(() => undefined);
+        }
         syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
       };
       void initialize().catch((error) => {
@@ -537,9 +550,4 @@ export function useShareSession(params: {
     ],
   );
 }
-
-
-
-
-
 

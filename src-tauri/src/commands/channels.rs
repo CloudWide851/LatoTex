@@ -3,7 +3,7 @@ use crate::models::{
 };
 use crate::state::AppState;
 use crate::storage;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
 use tauri::State;
@@ -55,7 +55,7 @@ fn parse_chat_id(value: &Value) -> Option<String> {
 }
 
 #[tauri::command]
-pub fn channels_telegram_poll(
+pub async fn channels_telegram_poll(
     state: State<'_, AppState>,
     input: TelegramPollInput,
 ) -> Result<TelegramPollResult, String> {
@@ -82,14 +82,16 @@ pub fn channels_telegram_poll(
         ))
         .query(&query)
         .send()
+        .await
         .map_err(|e| format!("channels.telegram.transport: {e}"))?;
     if !response.status().is_success() {
         let status = response.status();
-        let body = response.text().unwrap_or_default();
+        let body = response.text().await.unwrap_or_default();
         return Err(format!("channels.telegram.http_{status}: {body}"));
     }
     let payload: Value = response
         .json()
+        .await
         .map_err(|e| format!("channels.telegram.parse: {e}"))?;
     if payload.get("ok").and_then(Value::as_bool) != Some(true) {
         return Err(extract_telegram_error(
@@ -159,7 +161,7 @@ pub fn channels_telegram_poll(
 }
 
 #[tauri::command]
-pub fn channels_telegram_send(
+pub async fn channels_telegram_send(
     state: State<'_, AppState>,
     input: TelegramSendInput,
 ) -> Result<Ack, String> {
@@ -194,14 +196,16 @@ pub fn channels_telegram_send(
         ))
         .json(&body)
         .send()
+        .await
         .map_err(|e| format!("channels.telegram.transport: {e}"))?;
     if !response.status().is_success() {
         let status = response.status();
-        let payload = response.text().unwrap_or_default();
+        let payload = response.text().await.unwrap_or_default();
         return Err(format!("channels.telegram.http_{status}: {payload}"));
     }
     let payload: Value = response
         .json()
+        .await
         .map_err(|e| format!("channels.telegram.parse: {e}"))?;
     if payload.get("ok").and_then(Value::as_bool) != Some(true) {
         return Err(extract_telegram_error(

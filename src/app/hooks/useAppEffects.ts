@@ -326,7 +326,11 @@ export function useAppEffects(params: {
     let inFlight = false;
     const hasLiveRun = Boolean(agentRunId) || analysisRunning;
     const needsWarmPolling = page === "analysis" || page === "latex";
-    const shouldStoreEvents = hasLiveRun || page === "latex" || page === "analysis";
+    const shouldPollEvents = hasLiveRun || needsWarmPolling;
+    const shouldStoreEvents = shouldPollEvents;
+    if (!shouldPollEvents) {
+      return;
+    }
 
     const schedule = (delay: number) => {
       if (cancelled) {
@@ -518,8 +522,4 @@ export function useAppEffects(params: {
     suspended,
   });
 }
-
-
-
-
 

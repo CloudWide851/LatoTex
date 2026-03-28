@@ -53,10 +53,52 @@ const EMPTY_STATE: DocumentDataState = {
   translatedPdfRelativePath: null,
 };
 
-const documentCache = new Map<string, DocumentDataState>();
+const DOCUMENT_CACHE_MAX = 24;
+const DOCUMENT_CACHE_TTL_MS = 10 * 60 * 1000;
+
+type DocumentCacheEntry = {
+  updatedAt: number;
+  value: DocumentDataState;
+};
+
+const documentCache = new Map<string, DocumentCacheEntry>();
 
 function documentCacheKey(projectId: string, selectedPath: string): string {
   return `${projectId}::${selectedPath}`;
+}
+
+function getCachedDocumentState(cacheKey: string): DocumentDataState | null {
+  const cached = documentCache.get(cacheKey);
+  if (!cached) {
+    return null;
+  }
+  if (Date.now() - cached.updatedAt > DOCUMENT_CACHE_TTL_MS) {
+    documentCache.delete(cacheKey);
+    return null;
+  }
+  documentCache.delete(cacheKey);
+  documentCache.set(cacheKey, {
+    updatedAt: Date.now(),
+    value: cached.value,
+  });
+  return cached.value;
+}
+
+function setCachedDocumentState(cacheKey: string, value: DocumentDataState) {
+  if (documentCache.has(cacheKey)) {
+    documentCache.delete(cacheKey);
+  }
+  documentCache.set(cacheKey, {
+    updatedAt: Date.now(),
+    value,
+  });
+  while (documentCache.size > DOCUMENT_CACHE_MAX) {
+    const oldest = documentCache.keys().next().value;
+    if (!oldest) {
+      break;
+    }
+    documentCache.delete(oldest);
+  }
 }
 
 function applySummaryDefaults(summary: LibraryCitationSummary): LibraryCitationSummary {
@@ -147,7 +189,7 @@ export function useLibraryDocumentData(params: {
         ...baseState,
         paperPreview: toPaperPreview(paperContext, sourcePdfRelativePath),
       };
-      documentCache.set(cacheKey, nextState);
+      setCachedDocumentState(cacheKey, nextState);
       applyState(nextState, { paperPreviewLoading: false, paperPreviewError: null });
       return nextState;
     } catch (error) {
@@ -191,7 +233,7 @@ export function useLibraryDocumentData(params: {
         sourcePdfRelativePath: preview.relativePath ?? null,
         translatedPdfRelativePath: preview.translatedRelativePath ?? null,
       };
-      documentCache.set(cacheKey, nextState);
+      setCachedDocumentState(cacheKey, nextState);
       applyState(nextState, {
         pdfPreviewLoading: false,
         pdfPreviewError: null,
@@ -229,7 +271,7 @@ export function useLibraryDocumentData(params: {
 
       const cacheKey = documentCacheKey(projectId, selectedPath);
       if (!options?.bustCache && options?.preferCache) {
-        const cached = documentCache.get(cacheKey);
+        const cached = getCachedDocumentState(cacheKey);
         if (cached) {
           applyState(cached, {
             loading: false,
@@ -307,7 +349,7 @@ export function useLibraryDocumentData(params: {
           paperPreview: null,
         };
 
-        documentCache.set(cacheKey, baseState);
+        setCachedDocumentState(cacheKey, baseState);
         applyState(baseState, {
           loading: false,
           loadError: null,

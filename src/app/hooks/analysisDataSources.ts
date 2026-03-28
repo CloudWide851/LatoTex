@@ -1,6 +1,7 @@
 import Papa from "papaparse";
 import { libraryExtractPaperContext } from "../../shared/api/library";
-import { readFile, readFileBinary } from "../../shared/api/workspace";
+import { readFile } from "../../shared/api/workspace";
+import { fetchBinaryFromWorkspaceResource } from "../../shared/utils/workspaceResource";
 
 export type AnalysisSourceSnapshot = {
   path: string;
@@ -103,11 +104,11 @@ async function loadExcelSnapshot(
   projectId: string,
   path: string,
 ): Promise<AnalysisSourceSnapshot> {
-  const binary = await readFileBinary(projectId, path);
+  const bytes = await fetchBinaryFromWorkspaceResource(projectId, path);
   const { Workbook } = await import("exceljs");
   const workbook = new Workbook();
-  const bytes = Uint8Array.from(binary.bytes);
-  await workbook.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  await workbook.xlsx.load(buffer);
   const first = workbook.worksheets[0];
   if (!first) {
     return {

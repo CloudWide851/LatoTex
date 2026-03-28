@@ -87,13 +87,13 @@ export function AppContainer() {
   });
   useEffect(
     () => () => {
-      if (s.pdfUrl) {
+      if (s.pdfUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(s.pdfUrl);
       }
-      if (s.selectedFilePdfUrl) {
+      if (s.selectedFilePdfUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(s.selectedFilePdfUrl);
       }
-      if (s.selectedImagePreviewUrl) {
+      if (s.selectedImagePreviewUrl?.startsWith("blob:")) {
         URL.revokeObjectURL(s.selectedImagePreviewUrl);
       }
     },
@@ -103,7 +103,6 @@ export function AppContainer() {
   useCompiledPreviewResetOnProjectChange({
     activeProjectId: s.activeProjectId,
     setPdfUrl: s.setPdfUrl,
-    setCompiledPdfBytes: s.setCompiledPdfBytes,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
   });
   const runtimeBusy = s.busy || Boolean(s.agentRunId) || Boolean(s.gitDownloadTaskId);
@@ -162,7 +161,6 @@ export function AppContainer() {
     editorContent: s.editorContent,
     resolveSelectedFileContent,
     pdfUrl: s.pdfUrl,
-    compiledPdfBytes: s.compiledPdfBytes,
     agentPrompt: s.agentPrompt,
     windowActionBusy: s.windowActionBusy,
     settings: s.settings,
@@ -191,7 +189,6 @@ export function AppContainer() {
     setCompileInstallProgress: s.setCompileInstallProgress,
     setLastCompileFailed: s.setLastCompileFailed,
     setPdfUrl: s.setPdfUrl,
-    setCompiledPdfBytes: s.setCompiledPdfBytes,
     setPreferCompiledPreview: s.setPreferCompiledPreview,
     setAgentMessages: s.setAgentMessages,
     agentProposalsByPath: s.agentProposalsByPath,
@@ -244,7 +241,6 @@ export function AppContainer() {
     setPdfUrl: s.setPdfUrl,
     setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
     setSelectedImagePreviewUrl: s.setSelectedImagePreviewUrl,
-    setCompiledPdfBytes: s.setCompiledPdfBytes,
     setEvents: s.setEvents,
   });
   const oomSleepAtRef = useRef(0);

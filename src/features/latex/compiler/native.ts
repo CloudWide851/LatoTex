@@ -7,7 +7,6 @@ import type { NativeLatexCompileTaskStatus } from "../../../shared/types/app";
 
 export type NativeLatexCompileResult = {
   status: "success" | "error";
-  pdfBytes?: Uint8Array;
   diagnostics: string[];
   durationMs: number;
   engine: string;
@@ -35,7 +34,6 @@ function sanitizeDiagnostics(lines: string[]): string[] {
 function toCompileResult(result: any): NativeLatexCompileResult {
   return {
     status: result.status === "success" ? "success" : "error",
-    pdfBytes: Array.isArray(result.pdfBytes) ? Uint8Array.from(result.pdfBytes) : undefined,
     diagnostics: sanitizeDiagnostics(result.diagnostics ?? []),
     durationMs: Number(result.durationMs ?? 0),
     engine: String(result.engine || "native"),
@@ -58,6 +56,7 @@ export async function compileWithNativeLatex(input: {
     fileMap: input.fileMap,
     preferEngine: "tectonic",
     reason: input.reason,
+    includePdfBytes: false,
   });
   return toCompileResult(result);
 }
@@ -77,6 +76,7 @@ export async function compileWithNativeLatexTask(input: {
     fileMap: input.fileMap,
     preferEngine: "tectonic",
     reason: input.reason,
+    includePdfBytes: false,
   });
 
   for (let round = 0; round < COMPILE_STATUS_POLL_LIMIT; round += 1) {
@@ -100,4 +100,3 @@ export async function compileWithNativeLatexTask(input: {
 export function disposeNativeLatexRuntime() {
   // Native toolchain runs per invocation; nothing to dispose in the renderer.
 }
-

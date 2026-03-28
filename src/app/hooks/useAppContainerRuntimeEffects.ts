@@ -20,18 +20,16 @@ export function useTrayLabelSync(params: {
 export function useCompiledPreviewResetOnProjectChange(params: {
   activeProjectId: string | null;
   setPdfUrl: Dispatch<SetStateAction<string | null>>;
-  setCompiledPdfBytes: Dispatch<SetStateAction<Uint8Array | null>>;
   setPreferCompiledPreview: Dispatch<SetStateAction<boolean>>;
 }) {
-  const { activeProjectId, setPdfUrl, setCompiledPdfBytes, setPreferCompiledPreview } = params;
+  const { activeProjectId, setPdfUrl, setPreferCompiledPreview } = params;
   useEffect(() => {
     setPdfUrl((prev) => {
-      if (prev) {
+      if (prev?.startsWith("blob:")) {
         URL.revokeObjectURL(prev);
       }
       return null;
     });
-    setCompiledPdfBytes(null);
     setPreferCompiledPreview(false);
-  }, [activeProjectId, setCompiledPdfBytes, setPdfUrl, setPreferCompiledPreview]);
+  }, [activeProjectId, setPdfUrl, setPreferCompiledPreview]);
 }

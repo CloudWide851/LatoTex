@@ -2113,6 +2113,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tiny_http",
+ "tokio",
  "trash",
  "urlencoding",
  "uuid",

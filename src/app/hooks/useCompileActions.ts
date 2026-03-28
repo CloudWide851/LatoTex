@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { openProject } from "../../shared/api/projects";
 import { workspaceExportPdf } from "../../shared/api/workspace";
 import { isPdfPath } from "../../shared/utils/fileKind";
+import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
 import type { CompileInstallProgress } from "./compileWorkflow";
 import { runAppAction, writeRuntimeLog } from "./appActionRuntime";
@@ -16,7 +17,6 @@ export function useCompileActions(params: {
   editorContent: string;
   resolveSelectedFileContent: () => Promise<string | null>;
   pdfUrl: string | null;
-  compiledPdfBytes: Uint8Array | null;
   setBusy: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   setTree: (value: any[]) => void;
@@ -24,7 +24,6 @@ export function useCompileActions(params: {
   setCompileDiagnostics: (value: string[]) => void;
   setLastCompileFailed: (value: boolean) => void;
   setPdfUrl: (value: string | null) => void;
-  setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setCompileInstallProgress: (value: CompileInstallProgress | null) => void;
   editorRef: React.MutableRefObject<any>;
@@ -37,7 +36,6 @@ export function useCompileActions(params: {
     editorContent,
     resolveSelectedFileContent,
     pdfUrl,
-    compiledPdfBytes,
     setBusy,
     setToast,
     setTree,
@@ -45,7 +43,6 @@ export function useCompileActions(params: {
     setCompileDiagnostics,
     setLastCompileFailed,
     setPdfUrl,
-    setCompiledPdfBytes,
     setPreferCompiledPreview,
     setCompileInstallProgress,
     editorRef,
@@ -63,7 +60,6 @@ export function useCompileActions(params: {
       mainPath,
       mainContent,
       fileList,
-      currentPdfUrl: pdfUrl,
       updatePreview: options.updatePreview,
       emitToast: options.emitToast,
       compileMode: options.compileMode,
@@ -71,16 +67,13 @@ export function useCompileActions(params: {
       setLastCompileFailed,
       setCompileDiagnostics,
       setPdfUrl,
-      setCompiledPdfBytes,
       setPreferCompiledPreview,
       setCompileInstallProgress,
       setToast,
     });
   }, [
     fileList,
-    pdfUrl,
     setCompileDiagnostics,
-    setCompiledPdfBytes,
     setCompileInstallProgress,
     setLastCompileFailed,
     setPdfUrl,
@@ -110,15 +103,23 @@ export function useCompileActions(params: {
     const result = await runAppAction<CompileActionResult | null>({
       action: async () => {
         const selectedContent = await resolveSelectedFileContent();
-        const compileResult = await runCompilePass(activeProjectId, selectedFile, selectedContent ?? editorContent, {
-          updatePreview: true,
-          emitToast: true,
-          compileMode: "task",
-        });
+        const compileResult = await runCompilePass(
+          activeProjectId,
+          selectedFile,
+          selectedContent ?? editorContent,
+          {
+            updatePreview: true,
+            emitToast: true,
+            compileMode: "task",
+          },
+        );
         return {
           status: compileResult.status,
           diagnostics: compileResult.diagnostics,
-          pdfBytes: compileResult.pdfBytes ? Uint8Array.from(compileResult.pdfBytes) : null,
+          pdfRelativePath: compileResult.pdfRelativePath ?? null,
+          pdfUrl: compileResult.pdfRelativePath
+            ? buildWorkspaceResourceUrl(activeProjectId, compileResult.pdfRelativePath)
+            : null,
         };
       },
       fallbackValue: null,
@@ -128,7 +129,6 @@ export function useCompileActions(params: {
       onError: (error) => {
         setLastCompileFailed(true);
         setCompileDiagnostics([String(error)]);
-        setCompiledPdfBytes(null);
         setCompileInstallProgress(null);
       },
     });
@@ -143,14 +143,12 @@ export function useCompileActions(params: {
     setBusy,
     setCompileDiagnostics,
     setCompileInstallProgress,
-    setCompiledPdfBytes,
     setLastCompileFailed,
     setToast,
-    t,
   ]);
 
   const handleExportCompiledPdf = useCallback(async () => {
-    if (!activeProjectId || !compiledPdfBytes || compiledPdfBytes.length === 0) {
+    if (!activeProjectId || !pdfUrl) {
       setToast({ type: "error", message: t("toast.pdfNotReady") });
       return;
     }
@@ -159,7 +157,15 @@ export function useCompileActions(params: {
       : `${(selectedFile ?? "compiled").replace(/\.[^/.]+$/, "")}.pdf`;
     const saved = await runAppAction({
       action: async () => {
-        return workspaceExportPdf(activeProjectId, fallbackName, compiledPdfBytes);
+        const response = await fetch(pdfUrl, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`compiled pdf fetch failed: ${response.status}`);
+        }
+        return workspaceExportPdf(
+          activeProjectId,
+          fallbackName,
+          new Uint8Array(await response.arrayBuffer()),
+        );
       },
       fallbackValue: null,
       setBusy,
@@ -176,7 +182,7 @@ export function useCompileActions(params: {
     setToast({ type: "info", message: t("toast.pdfSaved") });
   }, [
     activeProjectId,
-    compiledPdfBytes,
+    pdfUrl,
     selectedFile,
     setBusy,
     setSelectedFile,
@@ -201,5 +207,3 @@ export function useCompileActions(params: {
     handleEditorRedo,
   };
 }
-
-

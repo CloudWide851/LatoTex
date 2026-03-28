@@ -558,7 +558,7 @@ where
         .and_then(|_| to_project_relative_path(&project_root, &artifact_pdf));
     let log_relative_path = persist_compile_log(&main_log, &artifact_log, &combined_log)?
         .and_then(|_| to_project_relative_path(&project_root, &artifact_log));
-    let pdf_bytes = if success {
+    let pdf_bytes = if success && input.include_pdf_bytes.unwrap_or(false) {
         Some(fs::read(&main_pdf).map_err(|e| e.to_string())?)
     } else {
         None
@@ -593,5 +593,4 @@ pub(crate) fn compile_blocking(
         |_percent, _stage, _current_item, _latest_log_line| {},
     )
 }
-
 

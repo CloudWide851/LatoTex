@@ -2,7 +2,8 @@ import { Workbook, type CellValue, type Worksheet } from "exceljs";
 import Papa from "papaparse";
 import { Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readFileBinary, writeFileBinary } from "../../../shared/api/workspace";
+import { writeFileBinary } from "../../../shared/api/workspace";
+import { fetchBinaryFromWorkspaceResource } from "../../../shared/utils/workspaceResource";
 import { isCsvPath, isExcelPath } from "../../../shared/utils/fileKind";
 import { cn } from "../../../lib/utils";
 
@@ -189,14 +190,14 @@ export function TablePreviewPane(props: {
     let cancelled = false;
     setExcelLoading(true);
     setExcelStatus(null);
-    readFileBinary(projectId, selectedPath)
-      .then(async (file) => {
+    fetchBinaryFromWorkspaceResource(projectId, selectedPath)
+      .then(async (bytes) => {
         if (cancelled) {
           return;
         }
         const workbook = new Workbook();
-        const bytes = Uint8Array.from(file.bytes);
-        await workbook.xlsx.load(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+        const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+        await workbook.xlsx.load(buffer);
         if (cancelled) {
           return;
         }

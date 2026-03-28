@@ -3,6 +3,7 @@ import { recordCompile } from "../../shared/api/latex";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
+import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
 import type { NativeLatexCompileTaskStatus } from "../../shared/types/app";
 import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
 import {
@@ -352,14 +353,12 @@ export async function runCompilePass(params: {
   mainPath: string;
   mainContent: string;
   fileList: string[];
-  currentPdfUrl: string | null;
   updatePreview: boolean;
   emitToast: boolean;
   t: (key: any) => string;
   setLastCompileFailed: (value: boolean) => void;
   setCompileDiagnostics: (value: string[]) => void;
   setPdfUrl: (value: string | null) => void;
-  setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
   setCompileInstallProgress?: (value: CompileInstallProgress | null) => void;
@@ -370,14 +369,12 @@ export async function runCompilePass(params: {
     mainPath,
     mainContent,
     fileList,
-    currentPdfUrl,
     updatePreview,
     emitToast,
     t,
     setLastCompileFailed,
     setCompileDiagnostics,
     setPdfUrl,
-    setCompiledPdfBytes,
     setPreferCompiledPreview,
     setToast,
     setCompileInstallProgress,
@@ -510,14 +507,8 @@ export async function runCompilePass(params: {
       diagnostics: result.diagnostics,
       durationMs: result.durationMs,
     });
-    if (result.status === "success" && result.pdfBytes && updatePreview) {
-      if (currentPdfUrl) {
-        URL.revokeObjectURL(currentPdfUrl);
-      }
-      const normalizedBytes = Uint8Array.from(result.pdfBytes);
-      const url = URL.createObjectURL(new Blob([normalizedBytes], { type: "application/pdf" }));
-      setPdfUrl(url);
-      setCompiledPdfBytes(normalizedBytes);
+    if (result.status === "success" && result.pdfRelativePath && updatePreview) {
+      setPdfUrl(buildWorkspaceResourceUrl(projectId, result.pdfRelativePath));
       setPreferCompiledPreview(true);
     }
     if (emitToast) {

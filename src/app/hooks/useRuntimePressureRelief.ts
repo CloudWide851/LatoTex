@@ -4,6 +4,12 @@ import { runtimeLogWrite } from "../../shared/api/runtime";
 import type { SwarmEvent } from "../../shared/types/app";
 import { trimEventsForMemoryPressure } from "./eventMemoryBudget";
 
+function revokeIfObjectUrl(value: string | null) {
+  if (value && value.startsWith("blob:")) {
+    URL.revokeObjectURL(value);
+  }
+}
+
 export function useRuntimePressureRelief(params: {
   sleeping: boolean;
   pdfUrl: string | null;
@@ -12,7 +18,6 @@ export function useRuntimePressureRelief(params: {
   setPdfUrl: (value: string | null) => void;
   setSelectedFilePdfUrl: (value: string | null) => void;
   setSelectedImagePreviewUrl: (value: string | null) => void;
-  setCompiledPdfBytes: (value: Uint8Array | null) => void;
   setEvents: React.Dispatch<React.SetStateAction<SwarmEvent[]>>;
 }) {
   const {
@@ -23,7 +28,6 @@ export function useRuntimePressureRelief(params: {
     setPdfUrl,
     setSelectedFilePdfUrl,
     setSelectedImagePreviewUrl,
-    setCompiledPdfBytes,
     setEvents,
   } = params;
   const lastReleaseAtRef = useRef(0);
@@ -36,21 +40,13 @@ export function useRuntimePressureRelief(params: {
     lastReleaseAtRef.current = now;
 
     disposeNativeLatexRuntime();
-
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
-    }
-    if (selectedFilePdfUrl) {
-      URL.revokeObjectURL(selectedFilePdfUrl);
-    }
-    if (selectedImagePreviewUrl) {
-      URL.revokeObjectURL(selectedImagePreviewUrl);
-    }
+    revokeIfObjectUrl(pdfUrl);
+    revokeIfObjectUrl(selectedFilePdfUrl);
+    revokeIfObjectUrl(selectedImagePreviewUrl);
 
     setPdfUrl(null);
     setSelectedFilePdfUrl(null);
     setSelectedImagePreviewUrl(null);
-    setCompiledPdfBytes(null);
     setEvents((prev) =>
       trimEventsForMemoryPressure(prev, {
         maxEvents: 48,
@@ -60,7 +56,7 @@ export function useRuntimePressureRelief(params: {
     );
 
     void runtimeLogWrite("WARN", `runtime pressure relief applied: reason=${reason}`).catch(() => undefined);
-  }, [pdfUrl, selectedFilePdfUrl, selectedImagePreviewUrl, setCompiledPdfBytes, setEvents, setPdfUrl, setSelectedFilePdfUrl, setSelectedImagePreviewUrl]);
+  }, [pdfUrl, selectedFilePdfUrl, selectedImagePreviewUrl, setEvents, setPdfUrl, setSelectedFilePdfUrl, setSelectedImagePreviewUrl]);
 
   useEffect(() => {
     if (!sleeping) {
@@ -71,5 +67,3 @@ export function useRuntimePressureRelief(params: {
 
   return { release };
 }
-
-

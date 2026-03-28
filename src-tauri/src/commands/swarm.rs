@@ -17,8 +17,8 @@ use crate::models::{
 use crate::state::AppState;
 use crate::storage;
 use std::sync::atomic::Ordering;
-use std::thread;
 use std::time::{Duration, Instant};
+use tokio::time::sleep;
 use tauri::State;
 
 #[tauri::command]
@@ -75,7 +75,7 @@ pub fn agent_execute_cancel(
 }
 
 #[tauri::command]
-pub fn events_subscribe(
+pub async fn events_subscribe(
     state: State<'_, AppState>,
     query: EventQuery,
 ) -> Result<EventBatch, String> {
@@ -94,6 +94,6 @@ pub fn events_subscribe(
         if !batch.events.is_empty() || started.elapsed() >= wait_deadline {
             return Ok(batch);
         }
-        thread::sleep(Duration::from_millis(120));
+        sleep(Duration::from_millis(120)).await;
     }
 }

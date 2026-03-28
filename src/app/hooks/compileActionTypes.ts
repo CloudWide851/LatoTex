@@ -1,5 +1,6 @@
 export type CompileActionResult = {
   status: string;
   diagnostics: string[];
-  pdfBytes: Uint8Array | null;
+  pdfRelativePath: string | null;
+  pdfUrl: string | null;
 };

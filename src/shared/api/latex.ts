@@ -18,6 +18,7 @@ export function compileNativeLatex(input: {
   fileMap: Record<string, string>;
   preferEngine?: string;
   reason?: string;
+  includePdfBytes?: boolean;
 }): Promise<NativeLatexCompileResponse> {
   return invokeCommand<NativeLatexCompileResponse>("latex_compile_native", {
     input: {
@@ -27,6 +28,7 @@ export function compileNativeLatex(input: {
       fileMap: input.fileMap,
       preferEngine: input.preferEngine,
       reason: input.reason,
+      includePdfBytes: input.includePdfBytes,
     },
   });
 }
@@ -38,6 +40,7 @@ export function compileNativeLatexStart(input: {
   fileMap: Record<string, string>;
   preferEngine?: string;
   reason?: string;
+  includePdfBytes?: boolean;
 }): Promise<{ taskId: string }> {
   return invokeCommand<{ taskId: string }>("latex_compile_start", {
     input: {
@@ -47,6 +50,7 @@ export function compileNativeLatexStart(input: {
       fileMap: input.fileMap,
       preferEngine: input.preferEngine,
       reason: input.reason,
+      includePdfBytes: input.includePdfBytes,
     },
   });
 }

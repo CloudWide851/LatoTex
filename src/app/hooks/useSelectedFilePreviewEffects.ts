@@ -1,28 +1,9 @@
 import { useEffect, useRef } from "react";
-import { readFile, readFileBinary } from "../../shared/api/workspace";
+import { readFile } from "../../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
+import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
-
-function mimeFromImagePath(path: string): string {
-  const lower = path.trim().toLowerCase();
-  if (lower.endsWith(".png")) {
-    return "image/png";
-  }
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-    return "image/jpeg";
-  }
-  if (lower.endsWith(".gif")) {
-    return "image/gif";
-  }
-  if (lower.endsWith(".webp")) {
-    return "image/webp";
-  }
-  if (lower.endsWith(".bmp")) {
-    return "image/bmp";
-  }
-  return "application/octet-stream";
-}
 
 export function useSelectedFilePreviewEffects(params: {
   activeProjectId: string | null;
@@ -49,8 +30,8 @@ export function useSelectedFilePreviewEffects(params: {
     onTextFileLoaded,
   } = params;
 
-  const selectedFilePdfObjectUrlRef = useRef<string | null>(null);
-  const selectedImageObjectUrlRef = useRef<string | null>(null);
+  const selectedFilePdfUrlRef = useRef<string | null>(null);
+  const selectedImageUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!activeProjectId || !selectedFile) {
@@ -104,40 +85,14 @@ export function useSelectedFilePreviewEffects(params: {
 
   useEffect(() => {
     if (!activeProjectId || !selectedFile || !isPdfPath(selectedFile)) {
-      if (selectedFilePdfObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
-        selectedFilePdfObjectUrlRef.current = null;
-      }
+      selectedFilePdfUrlRef.current = null;
       setSelectedFilePdfUrl(null);
       return;
     }
-
-    let cancelled = false;
-    readFileBinary(activeProjectId, selectedFile)
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-        const url = URL.createObjectURL(
-          new Blob([Uint8Array.from(result.bytes)], { type: "application/pdf" }),
-        );
-        const previous = selectedFilePdfObjectUrlRef.current;
-        if (previous && previous !== url) {
-          URL.revokeObjectURL(previous);
-        }
-        selectedFilePdfObjectUrlRef.current = url;
-        setSelectedFilePdfUrl(url);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setToast({ type: "error", message: String(error) });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProjectId, selectedFile, setSelectedFilePdfUrl, setToast]);
+    const nextUrl = buildWorkspaceResourceUrl(activeProjectId, selectedFile);
+    selectedFilePdfUrlRef.current = nextUrl;
+    setSelectedFilePdfUrl(nextUrl);
+  }, [activeProjectId, selectedFile, setSelectedFilePdfUrl]);
 
   useEffect(() => {
     const imageTarget =
@@ -146,51 +101,12 @@ export function useSelectedFilePreviewEffects(params: {
         : (selectedFile && isImagePath(selectedFile) ? selectedFile : null);
 
     if (!activeProjectId || !imageTarget) {
-      if (selectedImageObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedImageObjectUrlRef.current);
-        selectedImageObjectUrlRef.current = null;
-      }
+      selectedImageUrlRef.current = null;
       setSelectedImagePreviewUrl(null);
       return;
     }
-
-    let cancelled = false;
-    readFileBinary(activeProjectId, imageTarget)
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-        const url = URL.createObjectURL(
-          new Blob([Uint8Array.from(result.bytes)], { type: mimeFromImagePath(imageTarget) }),
-        );
-        const previous = selectedImageObjectUrlRef.current;
-        if (previous && previous !== url) {
-          URL.revokeObjectURL(previous);
-        }
-        selectedImageObjectUrlRef.current = url;
-        setSelectedImagePreviewUrl(url);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setToast({ type: "error", message: String(error) });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProjectId, previewOverridePath, selectedFile, setSelectedImagePreviewUrl, setToast]);
-
-  useEffect(() => {
-    return () => {
-      if (selectedFilePdfObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedFilePdfObjectUrlRef.current);
-        selectedFilePdfObjectUrlRef.current = null;
-      }
-      if (selectedImageObjectUrlRef.current) {
-        URL.revokeObjectURL(selectedImageObjectUrlRef.current);
-        selectedImageObjectUrlRef.current = null;
-      }
-    };
-  }, []);
+    const nextUrl = buildWorkspaceResourceUrl(activeProjectId, imageTarget);
+    selectedImageUrlRef.current = nextUrl;
+    setSelectedImagePreviewUrl(nextUrl);
+  }, [activeProjectId, previewOverridePath, selectedFile, setSelectedImagePreviewUrl]);
 }
