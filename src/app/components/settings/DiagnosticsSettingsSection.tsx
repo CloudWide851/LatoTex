@@ -5,7 +5,14 @@ import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
-import { dropdownItemClassName, dropdownSurfaceClassName, useDropdownDismiss } from "../../../components/ui/dropdown";
+import {
+  dropdownItemClassName,
+  dropdownSearchInputClassName,
+  dropdownSearchRowClassName,
+  dropdownSurfaceClassName,
+  dropdownTriggerClassName,
+  useDropdownDismiss,
+} from "../../../components/ui/dropdown";
 import type { RuntimeLogEntry, RuntimeLogInfo, RuntimeLogSession } from "../../../shared/types/app";
 import { normalizeLogLevel, resolveRuntimeLogTone } from "../logTone";
 
@@ -149,7 +156,7 @@ export function DiagnosticsSettingsSection(props: {
         <div className="flex flex-wrap items-center gap-2">
           <div ref={pickerRef} className="relative w-full min-w-[230px] shrink-0 sm:w-[320px]">
             <button
-              className="group flex h-10 w-full items-center justify-between rounded-lg border border-slate-300 bg-gradient-to-b from-white to-slate-50 px-3 text-sm text-slate-800 shadow-[0_1px_0_rgba(255,255,255,0.5),0_10px_22px_rgba(15,23,42,0.09)] transition hover:border-slate-400"
+              className={dropdownTriggerClassName("h-10 w-full justify-between px-3")}
               onClick={() => {
                 setLogFilePickerOpen((prev) => !prev);
                 if (!logFilePickerOpen) {
@@ -165,18 +172,18 @@ export function DiagnosticsSettingsSection(props: {
               <span className="min-w-0 truncate font-mono text-xs">
                 {selectedLogName || t("settings.logSelectPlaceholder")}
               </span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:text-slate-700" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-[color:var(--control-muted)] transition" />
             </button>
 
             {logFilePickerOpen ? (
               <div className={dropdownSurfaceClassName("absolute left-0 right-0 top-[calc(100%+6px)] z-[290] max-h-64 p-1") }>
-                <div className="sticky top-0 z-10 mb-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+                <div className={dropdownSearchRowClassName("sticky top-0 z-10 mb-1 py-1.5")}>
                   <Search className="h-3.5 w-3.5 text-slate-500" />
                   <input
                     value={logFileQuery}
                     onChange={(event) => setLogFileQuery(event.target.value)}
                     placeholder={t("settings.logSelectSearch")}
-                    className="w-full bg-transparent text-xs text-slate-700 outline-none"
+                    className={dropdownSearchInputClassName()}
                   />
                 </div>
 
@@ -313,3 +320,5 @@ export function DiagnosticsSettingsSection(props: {
     </div>
   );
 }
+
+

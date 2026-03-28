@@ -12,6 +12,28 @@
   --app-border: #e2e8f0;
   --app-text: #0f172a;
   --app-muted: #64748b;
+  --control-surface-top: rgba(255, 255, 255, 0.98);
+  --control-surface-bottom: rgba(241, 245, 249, 0.94);
+  --control-surface-hover-top: rgba(255, 255, 255, 1);
+  --control-surface-hover-bottom: rgba(226, 232, 240, 0.98);
+  --control-menu-top: rgba(255, 255, 255, 0.96);
+  --control-menu-bottom: rgba(248, 250, 252, 0.92);
+  --control-border: rgba(148, 163, 184, 0.42);
+  --control-border-strong: rgba(100, 116, 139, 0.52);
+  --control-highlight: rgba(255, 255, 255, 0.82);
+  --control-text: #0f172a;
+  --control-muted: #64748b;
+  --control-ring: rgba(59, 130, 246, 0.24);
+  --control-shadow: 0 12px 24px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --control-shadow-hover: 0 18px 34px rgba(15, 23, 42, 0.12), 0 1px 1px rgba(15, 23, 42, 0.05);
+  --control-menu-shadow: 0 22px 52px rgba(15, 23, 42, 0.16), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  --control-primary-top: #3b82f6;
+  --control-primary-bottom: #2563eb;
+  --control-primary-top-hover: #4f8cff;
+  --control-primary-bottom-hover: #2563eb;
+  --control-primary-border: rgba(37, 99, 235, 0.92);
+  --control-primary-ring: rgba(59, 130, 246, 0.28);
+  --control-primary-shadow: 0 16px 32px rgba(37, 99, 235, 0.22), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
   --topbar-bg: #111827;
   --topbar-border: #1f2937;
   --topbar-fg: #f8fafc;
@@ -33,6 +55,28 @@
   --app-border: #243041;
   --app-text: #e5e7eb;
   --app-muted: #9ca3af;
+  --control-surface-top: rgba(37, 50, 74, 0.96);
+  --control-surface-bottom: rgba(22, 32, 51, 0.98);
+  --control-surface-hover-top: rgba(47, 64, 92, 0.98);
+  --control-surface-hover-bottom: rgba(28, 40, 61, 1);
+  --control-menu-top: rgba(22, 32, 51, 0.98);
+  --control-menu-bottom: rgba(15, 23, 42, 0.96);
+  --control-border: rgba(148, 163, 184, 0.28);
+  --control-border-strong: rgba(186, 199, 219, 0.4);
+  --control-highlight: rgba(255, 255, 255, 0.09);
+  --control-text: #e5e7eb;
+  --control-muted: #bac7db;
+  --control-ring: rgba(96, 165, 250, 0.28);
+  --control-shadow: 0 16px 30px rgba(2, 6, 23, 0.34), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  --control-shadow-hover: 0 22px 40px rgba(2, 6, 23, 0.42), 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  --control-menu-shadow: 0 28px 60px rgba(2, 6, 23, 0.46), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  --control-primary-top: #4f8cff;
+  --control-primary-bottom: #2563eb;
+  --control-primary-top-hover: #60a5fa;
+  --control-primary-bottom-hover: #3b82f6;
+  --control-primary-border: rgba(96, 165, 250, 0.9);
+  --control-primary-ring: rgba(96, 165, 250, 0.3);
+  --control-primary-shadow: 0 18px 36px rgba(37, 99, 235, 0.28), 0 1px 0 rgba(255, 255, 255, 0.14) inset;
   --topbar-bg: #162033;
   --topbar-border: #2a3a55;
   --topbar-fg: #e5e7eb;
@@ -110,6 +154,12 @@ body::before {
 
 .wallpaper-enabled {
   --wallpaper-blur: 18px;
+  --control-surface-top: rgba(255, 255, 255, 0.7);
+  --control-surface-bottom: rgba(241, 245, 249, 0.62);
+  --control-surface-hover-top: rgba(255, 255, 255, 0.78);
+  --control-surface-hover-bottom: rgba(226, 232, 240, 0.72);
+  --control-menu-top: rgba(255, 255, 255, 0.8);
+  --control-menu-bottom: rgba(248, 250, 252, 0.72);
 }
 
 .wallpaper-enabled::before {
@@ -125,128 +175,13 @@ body::before {
   background: linear-gradient(rgba(15, 23, 42, 0.34), rgba(2, 6, 23, 0.5));
 }
 
-.wallpaper-enabled .app-topbar {
-  background-color: rgba(15, 23, 42, 0.66);
-  border-color: rgba(148, 163, 184, 0.32);
-  backdrop-filter: blur(calc(var(--wallpaper-blur) + 4px));
-  -webkit-backdrop-filter: blur(calc(var(--wallpaper-blur) + 4px));
-}
-
-.wallpaper-enabled .app-topbar-field {
-  background-color: rgba(30, 41, 59, 0.56);
-  border-color: rgba(148, 163, 184, 0.34);
-  backdrop-filter: blur(var(--wallpaper-blur));
-  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
-}
-
-.wallpaper-enabled .brand-badge {
-  background-color: rgba(255, 255, 255, 0.76);
-  border-color: rgba(148, 163, 184, 0.34);
-  backdrop-filter: blur(var(--wallpaper-blur));
-  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
-}
-
-.wallpaper-enabled .bg-white,
-.wallpaper-enabled .bg-white\/95,
-.wallpaper-enabled .bg-white\/90,
-.wallpaper-enabled .bg-white\/80,
-.wallpaper-enabled .bg-slate-50,
-.wallpaper-enabled .bg-slate-50\/80,
-.wallpaper-enabled .bg-slate-50\/70,
-.wallpaper-enabled .bg-slate-100,
-.wallpaper-enabled [class*="bg-white/"],
-.wallpaper-enabled [class*="bg-slate-50/"],
-.wallpaper-enabled [class*="bg-slate-100/"] {
-  background-color: rgba(248, 250, 252, 0.58) !important;
-  backdrop-filter: blur(var(--wallpaper-blur));
-  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
-}
-
-[data-theme="dark"] .wallpaper-enabled .bg-white,
-[data-theme="dark"] .wallpaper-enabled .bg-white\/95,
-[data-theme="dark"] .wallpaper-enabled .bg-white\/90,
-[data-theme="dark"] .wallpaper-enabled .bg-white\/80,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-50,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-50\/80,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-50\/70,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-100,
-[data-theme="dark"] .wallpaper-enabled [class*="bg-white/"],
-[data-theme="dark"] .wallpaper-enabled [class*="bg-slate-50/"],
-[data-theme="dark"] .wallpaper-enabled [class*="bg-slate-100/"] {
-  background-color: rgba(15, 23, 42, 0.6) !important;
-}
-
-.wallpaper-enabled .border-slate-200,
-.wallpaper-enabled .border-slate-300 {
-  border-color: rgba(148, 163, 184, 0.34) !important;
-}
-
-.wallpaper-enabled .app-topbar,
-.wallpaper-enabled .app-topbar-field,
-.wallpaper-enabled .brand-badge,
-.wallpaper-enabled .bg-white,
-.wallpaper-enabled .bg-white\/95,
-.wallpaper-enabled .bg-white\/90,
-.wallpaper-enabled .bg-white\/80,
-.wallpaper-enabled .bg-slate-50,
-.wallpaper-enabled .bg-slate-50\/80,
-.wallpaper-enabled .bg-slate-50\/70,
-.wallpaper-enabled .bg-slate-100,
-.wallpaper-enabled [class*="bg-white/"],
-.wallpaper-enabled [class*="bg-slate-50/"],
-.wallpaper-enabled [class*="bg-slate-100/"] {
-  transition: backdrop-filter 120ms linear, -webkit-backdrop-filter 120ms linear, background-color 120ms linear;
-}
-
-.app-topbar {
-  background-color: var(--topbar-bg);
-  border-color: var(--topbar-border);
-  color: var(--topbar-fg);
-}
-
-.app-topbar-field {
-  background-color: var(--topbar-field-bg);
-  border: 1px solid var(--topbar-field-border);
-  color: var(--topbar-fg);
-}
-
-.app-topbar-field:hover {
-  background-color: var(--topbar-field-hover);
-}
-
-.app-topbar-btn {
-  color: var(--topbar-muted);
-}
-
-.app-topbar-btn:hover {
-  background-color: var(--topbar-field-hover);
-  color: var(--topbar-fg);
-}
-
-.app-topbar-btn-close {
-  color: var(--topbar-muted);
-}
-
-.app-topbar-btn-close:hover {
-  background-color: #e11d48;
-  color: #ffffff;
-}
-
-.brand-wordmark {
-  font-family: "Great Vibes", "Segoe Script", "Lucida Handwriting", "STKaiti", "KaiTi", cursive;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.brand-badge {
-  background-color: #ffffff;
-  border: 1px solid #dbe2ea;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
-}
-
-[data-theme="dark"] .brand-badge {
-  background-color: #f8fafc;
-  border-color: #dbe2ea;
+[data-theme="dark"] .wallpaper-enabled {
+  --control-surface-top: rgba(37, 50, 74, 0.74);
+  --control-surface-bottom: rgba(22, 32, 51, 0.7);
+  --control-surface-hover-top: rgba(47, 64, 92, 0.78);
+  --control-surface-hover-bottom: rgba(28, 40, 61, 0.76);
+  --control-menu-top: rgba(22, 32, 51, 0.84);
+  --control-menu-bottom: rgba(15, 23, 42, 0.8);
 }
 
 .resizable-handle {
@@ -557,3 +492,8 @@ body::before {
     animation: none;
   }
 }
+
+
+
+
+

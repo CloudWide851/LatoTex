@@ -1,8 +1,8 @@
 import { ChevronDown, MessageSquareMore } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { dropdownSurfaceClassName, useDropdownDismiss } from "../../../components/ui/dropdown";
 import { loadChatStore, type ChatStoreChangeDetail } from "../../hooks/chatSessionStore";
 import { ChatTabMenuContent } from "./ChatTabMenuContent";
-import { dropdownSurfaceClassName, useDropdownDismiss } from "../../../components/ui/dropdown";
 
 type TranslationFn = (key: any) => string;
 
@@ -64,9 +64,9 @@ export function ChatTopbarSessionControl(props: {
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="inline-flex overflow-hidden rounded border border-slate-300 bg-white">
+      <div className="control-menu-surface inline-flex overflow-hidden p-0">
         <button
-          className="panel-topbar-btn rounded-none border-r border-slate-300 text-slate-700 transition hover:bg-slate-100"
+          className="panel-topbar-btn rounded-none border-r border-[color:var(--control-border)] text-slate-700 transition"
           title={t("nav.chat")}
           aria-label={t("nav.chat")}
           onClick={onOpenChatTab}
@@ -74,7 +74,7 @@ export function ChatTopbarSessionControl(props: {
           <MessageSquareMore className="h-3.5 w-3.5" />
         </button>
         <button
-          className="panel-topbar-btn !w-7 rounded-none text-slate-700 transition hover:bg-slate-100"
+          className="panel-topbar-btn !w-7 rounded-none border-transparent text-slate-700 transition"
           title={t("chat.session.select")}
           aria-label={t("chat.session.select")}
           aria-haspopup="menu"

@@ -29,7 +29,7 @@ export function ProjectSearch(props: {
     onSelect,
     onClear,
     disabled,
-    t
+    t,
   } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -44,7 +44,7 @@ export function ProjectSearch(props: {
 
   return (
     <div className="relative min-w-0 w-full" ref={rootRef}>
-      <div className="app-topbar-field flex h-9 items-center gap-2 rounded-md px-2">
+      <div className="app-topbar-field flex h-9 items-center gap-2 px-2.5">
         <Search className="h-4 w-4 shrink-0 text-slate-400" />
         <input
           value={query}
@@ -67,7 +67,7 @@ export function ProjectSearch(props: {
           <SvgSpinner className="h-4 w-4 shrink-0 text-zinc-400" />
         ) : query.trim().length > 0 ? (
           <button
-            className="rounded p-0.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-slate-300/70 hover:bg-white/70 hover:text-slate-700"
             onClick={() => {
               onClear();
               setOpen(false);
@@ -80,28 +80,28 @@ export function ProjectSearch(props: {
       </div>
 
       {open && (searched || searching) && (
-        <div className={dropdownSurfaceClassName("absolute left-0 top-10 max-h-80 w-full p-1.5")}>
+        <div className={dropdownSurfaceClassName("absolute left-0 top-10 max-h-80 w-full")}>
           {searching ? (
-            <div className="px-2 py-1.5 text-xs text-slate-500">{t("topbar.searching")}</div>
+            <div className="px-2 py-1.5 text-xs text-[color:var(--control-muted)]">{t("topbar.searching")}</div>
           ) : results.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-slate-500">{t("topbar.noSearchResults")}</div>
+            <div className="px-2 py-1.5 text-xs text-[color:var(--control-muted)]">{t("topbar.noSearchResults")}</div>
           ) : (
             results.map((hit, index) => (
               <button
                 key={`${hit.relativePath}:${hit.lineNumber}:${index}`}
                 className={dropdownItemClassName(cn(
-                  "mb-1 flex-col items-start border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs last:mb-0",
-                  "hover:border-slate-300"
+                  "mb-1 flex-col items-start px-2.5 py-2 last:mb-0",
+                  "text-xs hover:border-slate-300/80",
                 ))}
                 onClick={() => {
                   setOpen(false);
                   onSelect(hit);
                 }}
               >
-                <div className="truncate font-mono text-[11px] text-slate-500">
+                <div className="truncate font-mono text-[11px] text-[color:var(--control-muted)]">
                   {hit.relativePath}:{hit.lineNumber}
                 </div>
-                <div className="truncate text-slate-500">{hit.snippet}</div>
+                <div className="truncate text-[color:var(--control-muted)]">{hit.snippet}</div>
               </button>
             ))
           )}

@@ -38,18 +38,42 @@ export function useDropdownDismiss(params: {
 
 export function dropdownSurfaceClassName(extraClassName?: string) {
   return cn(
-    "z-[450] overflow-auto rounded-xl border border-slate-300/90 bg-white/95 p-0 backdrop-blur-sm",
-    "shadow-[0_16px_42px_rgba(15,23,42,0.2),0_1px_0_rgba(255,255,255,0.7)_inset]",
-    "origin-top motion-fade-in",
+    "control-menu-surface z-[450] overflow-auto p-1.5 motion-card-pop motion-overlay-enter",
     extraClassName,
   );
 }
 
 export function dropdownItemClassName(extraClassName?: string) {
   return cn(
-    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-slate-700 transition duration-150",
-    "hover:bg-slate-100 hover:text-slate-900 focus-visible:bg-slate-100 focus-visible:text-slate-900",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-200",
+    "control-menu-item flex w-full items-center gap-2 px-2.5 py-2 text-left text-xs",
+    "focus-visible:outline-none",
+    extraClassName,
+  );
+}
+
+export function dropdownTriggerClassName(extraClassName?: string) {
+  return cn(
+    "control-surface inline-flex items-center gap-2 px-3 text-sm font-medium text-[color:var(--control-text)]",
+    "focus-visible:outline-none",
+    extraClassName,
+  );
+}
+
+export function dropdownSearchRowClassName(extraClassName?: string) {
+  return cn("control-menu-search flex items-center gap-2 px-2.5", extraClassName);
+}
+
+export function dropdownSearchInputClassName(extraClassName?: string) {
+  return cn(
+    "control-menu-input h-full w-full border-none bg-transparent text-xs outline-none",
+    extraClassName,
+  );
+}
+
+export function dropdownIconButtonClassName(extraClassName?: string) {
+  return cn(
+    "control-surface inline-flex items-center justify-center rounded-[12px] p-0 text-[color:var(--control-muted)]",
+    "focus-visible:outline-none",
     extraClassName,
   );
 }

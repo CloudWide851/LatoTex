@@ -1,12 +1,15 @@
 import { ChevronDown, Link2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { cn } from "../../lib/utils";
 import zoteroIcon from "../../assets/brands/zotero.svg";
+import { Button } from "../../components/ui/button";
 import {
   dropdownItemClassName,
+  dropdownSearchInputClassName,
   dropdownSurfaceClassName,
+  dropdownTriggerClassName,
   useDropdownDismiss,
 } from "../../components/ui/dropdown";
+import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
 
 type TranslationFn = (key: any) => string;
@@ -37,10 +40,14 @@ export function LibraryUploadMenu(props: {
     },
   });
 
+  const canConfirm = linkKind === "zotero-sync"
+    ? Boolean(zoteroOwnerId.trim() && zoteroApiKey.trim())
+    : Boolean(linkDraft.trim());
+
   return (
     <div ref={rootRef} className="relative">
       <button
-        className="inline-flex h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+        className={dropdownTriggerClassName("h-8 gap-1.5 px-2.5 text-xs")}
         onClick={() => setMenuOpen((prev) => !prev)}
         disabled={busy}
         title={t("library.upload")}
@@ -51,7 +58,7 @@ export function LibraryUploadMenu(props: {
       </button>
 
       {menuOpen && (
-        <div className={dropdownSurfaceClassName("absolute right-0 mt-1 min-w-40 py-1.5 px-1.5")}>
+        <div className={dropdownSurfaceClassName("absolute right-0 mt-1 min-w-44 py-1.5")}>
           <button
             className={dropdownItemClassName()}
             onClick={() => {
@@ -99,7 +106,7 @@ export function LibraryUploadMenu(props: {
       )}
 
       {linkOpen && (
-        <div className={dropdownSurfaceClassName("absolute right-0 mt-1 w-72 p-2") }>
+        <div className={dropdownSurfaceClassName("absolute right-0 mt-1 w-72 p-2.5")}>
           {linkKind === "zotero-sync" ? (
             <div className="space-y-2">
               <Select
@@ -111,14 +118,14 @@ export function LibraryUploadMenu(props: {
                 <option value="users">{t("library.zoteroScopeUsers")}</option>
                 <option value="groups">{t("library.zoteroScopeGroups")}</option>
               </Select>
-              <input
-                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-primary-500"
+              <Input
+                className="h-8 text-xs"
                 value={zoteroOwnerId}
                 placeholder={t("library.zoteroOwnerIdPlaceholder")}
                 onChange={(event) => setZoteroOwnerId(event.target.value)}
               />
-              <input
-                className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-primary-500"
+              <Input
+                className="h-8 text-xs"
                 type="password"
                 value={zoteroApiKey}
                 placeholder={t("library.zoteroTokenPlaceholder")}
@@ -127,15 +134,16 @@ export function LibraryUploadMenu(props: {
             </div>
           ) : (
             <input
-              className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 outline-none focus:border-primary-500"
+              className={dropdownSearchInputClassName("control-surface h-8 px-2.5")}
               value={linkDraft}
               placeholder={linkKind === "zotero" ? t("library.zoteroPlaceholder") : t("library.linkPlaceholder")}
               onChange={(event) => setLinkDraft(event.target.value)}
             />
           )}
-          <div className="mt-2 flex justify-end gap-2">
-            <button
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+          <div className="mt-2.5 flex justify-end gap-2">
+            <Button
+              variant="surface"
+              size="sm"
               onClick={() => {
                 setLinkDraft("");
                 setZoteroOwnerId("");
@@ -144,21 +152,11 @@ export function LibraryUploadMenu(props: {
               }}
             >
               {t("common.cancel")}
-            </button>
-            <button
-              className={cn(
-                "rounded border px-2 py-1 text-xs text-white",
-                (linkKind === "zotero-sync"
-                  ? zoteroOwnerId.trim() && zoteroApiKey.trim()
-                  : linkDraft.trim())
-                  ? "border-primary-600 bg-primary-600 hover:bg-primary-500"
-                  : "cursor-not-allowed border-primary-300 bg-primary-300",
-              )}
-              disabled={(
-                linkKind === "zotero-sync"
-                  ? !zoteroOwnerId.trim() || !zoteroApiKey.trim()
-                  : !linkDraft.trim()
-              ) || busy}
+            </Button>
+            <Button
+              variant={canConfirm ? "default" : "surface"}
+              size="sm"
+              disabled={!canConfirm || busy}
               onClick={() => {
                 if (linkKind === "zotero-sync") {
                   onSyncZotero({
@@ -181,7 +179,7 @@ export function LibraryUploadMenu(props: {
               }}
             >
               {t("common.confirm")}
-            </button>
+            </Button>
           </div>
         </div>
       )}
