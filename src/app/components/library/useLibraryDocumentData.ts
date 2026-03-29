@@ -4,6 +4,7 @@ import {
   libraryExtractPaperContext,
   libraryResolvePdfPreview,
 } from "../../../shared/api/library";
+import { waitForResourceWarmup } from "../../../shared/api/resource-warmup";
 import { readFile } from "../../../shared/api/workspace";
 import type { LibraryCitationSummary, LibraryPdfPreview } from "../../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
@@ -153,6 +154,7 @@ export function useLibraryDocumentData(params: {
   const [paperPreviewError, setPaperPreviewError] = useState<string | null>(null);
   const [state, setState] = useState<DocumentDataState>(EMPTY_STATE);
   const requestIdRef = useRef(0);
+  const pdfWarmupKeyRef = useRef<string | null>(null);
   const stateRef = useRef<DocumentDataState>(EMPTY_STATE);
   const previewVersionRef = useRef(0);
   const [previewVersion, setPreviewVersion] = useState(0);
@@ -441,6 +443,46 @@ export function useLibraryDocumentData(params: {
   }, [active, bumpPreviewVersion, state.sourcePdfRelativePath, state.translatedPdfRelativePath]);
 
   useEffect(() => {
+    if (!active || !projectId || !selectedPath) {
+      pdfWarmupKeyRef.current = null;
+      return;
+    }
+    const warmupKey = `${projectId}::${selectedPath}`;
+    if (pdfWarmupKeyRef.current === warmupKey) {
+      return;
+    }
+    pdfWarmupKeyRef.current = warmupKey;
+    let cancelled = false;
+
+    void waitForResourceWarmup({
+      projectId,
+      scopes: ["libraryPdf"],
+      libraryRelativePath: selectedPath,
+      timeoutMs: 45_000,
+      pollMs: 400,
+    })
+      .then((status) => {
+        if (cancelled) {
+          return;
+        }
+        const preview = status.result?.libraryPdf;
+        if (preview?.relativePath || preview?.translatedRelativePath || preview?.cacheState === "ready") {
+          bumpPreviewVersion();
+        }
+        void refresh({ bustCache: true });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          void refresh({ bustCache: true });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, bumpPreviewVersion, projectId, refresh, selectedPath]);
+
+  useEffect(() => {
     if (!active || !projectId || !selectedPath || state.pdfCacheState !== "pending") {
       return;
     }
@@ -504,3 +546,7 @@ export function useLibraryDocumentData(params: {
     reset,
   };
 }
+
+
+
+

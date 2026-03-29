@@ -25,3 +25,7 @@ pub(crate) use native_runtime_analysis_env::{
 #[allow(unused_imports)]
 pub(crate) use native_runtime_common::{configure_hidden_process, sanitize_log_lines};
 
+
+#[allow(unused_imports)]
+pub(crate) use native_runtime_latex_core::ensure_tectonic_runtime_warmup;
+

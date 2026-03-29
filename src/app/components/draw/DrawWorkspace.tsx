@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { waitForResourceWarmup } from "../../../shared/api/resource-warmup";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
+  buildDrawioEntryCandidates,
   buildRenamedDrawPath,
   isDrawPath,
   loadPersistedTabs,
@@ -85,42 +87,62 @@ export function DrawWorkspace(props: {
 
   useEffect(() => {
     let cancelled = false;
-    resolveDrawioHostFrameCandidates()
-      .then((nextCandidates) => {
-        if (cancelled) {
-          return;
-        }
-        const resolved = Array.isArray(nextCandidates)
-          ? nextCandidates.map((item) => String(item || "").trim()).filter(Boolean)
-          : [];
-        if (resolved.length === 0) {
-          setFrameCandidates([]);
-          setFrameCandidateIndex(0);
-          setReady(false);
-          setFrameSrc(null);
-          frameSrcRef.current = null;
-          setStatus(formatDrawStartFailure(t, "no reachable drawio host found"));
-          return;
-        }
 
-        setFrameCandidates(resolved);
-        setFrameCandidateIndex(0);
-        setReady(false);
-        setFrameSrc(resolved[0]);
-        frameSrcRef.current = resolved[0];
-        setStatus("");
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
+    const loadFrameCandidates = async () => {
+      setStatus(t("draw.warming"));
+      let warmupCandidates: string[] | null = null;
+      try {
+        if (projectId) {
+          const warmup = await waitForResourceWarmup({
+            projectId,
+            scopes: ["drawio"],
+            timeoutMs: 32_000,
+          });
+          const drawioInfo = warmup.result?.drawio ?? null;
+          if (drawioInfo) {
+            warmupCandidates = buildDrawioEntryCandidates(drawioInfo);
+          }
         }
+      } catch {
+        warmupCandidates = null;
+      }
+
+      const nextCandidates = warmupCandidates ?? await resolveDrawioHostFrameCandidates();
+      if (cancelled) {
+        return;
+      }
+      const resolved = Array.isArray(nextCandidates)
+        ? nextCandidates.map((item) => String(item || "").trim()).filter(Boolean)
+        : [];
+      if (resolved.length === 0) {
         setFrameCandidates([]);
         setFrameCandidateIndex(0);
         setReady(false);
         setFrameSrc(null);
         frameSrcRef.current = null;
-        setStatus(formatDrawStartFailure(t, String(error)));
-      });
+        setStatus(formatDrawStartFailure(t, "no reachable drawio host found"));
+        return;
+      }
+
+      setFrameCandidates(resolved);
+      setFrameCandidateIndex(0);
+      setReady(false);
+      setFrameSrc(resolved[0]);
+      frameSrcRef.current = resolved[0];
+      setStatus(t("draw.waiting"));
+    };
+
+    void loadFrameCandidates().catch((error) => {
+      if (cancelled) {
+        return;
+      }
+      setFrameCandidates([]);
+      setFrameCandidateIndex(0);
+      setReady(false);
+      setFrameSrc(null);
+      frameSrcRef.current = null;
+      setStatus(formatDrawStartFailure(t, String(error)));
+    });
 
     return () => {
       cancelled = true;
@@ -565,3 +587,5 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
+
+

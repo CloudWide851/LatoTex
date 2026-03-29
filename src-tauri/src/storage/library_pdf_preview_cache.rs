@@ -2,6 +2,14 @@ const LIBRARY_PDF_CACHE_STATE_READY: &str = "ready";
 const LIBRARY_PDF_CACHE_STATE_PENDING: &str = "pending";
 const LIBRARY_PDF_CACHE_STATE_ERROR: &str = "error";
 const LIBRARY_PDF_CACHE_STATE_MISSING: &str = "missing";
+const LIBRARY_PDF_CACHE_TASK_STALE_MS: u64 = 40_000;
+
+fn current_unix_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 fn hash_remote_url(url: &str) -> String {
     use std::hash::{Hash, Hasher};
@@ -136,16 +144,41 @@ fn pdf_cache_task_key(project_id: &str, relative_path: &str) -> String {
 fn read_pdf_cache_task(
     tasks: &std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, crate::state::LibraryPdfCacheTask>>>,
     task_key: &str,
-) -> (Option<String>, Option<String>) {
+) -> (Option<String>, Option<String>, Option<u64>) {
     let Ok(tasks_guard) = tasks.lock() else {
-        return (None, None);
+        return (None, None, None);
     };
     let Some(task) = tasks_guard.get(task_key) else {
-        return (None, None);
+        return (None, None, None);
     };
     let status = task.status.lock().ok().map(|value| value.clone());
     let error = task.error.lock().ok().and_then(|value| value.clone());
-    (status, error)
+    let updated_at = Some(task.updated_at_unix_ms.load(std::sync::atomic::Ordering::Relaxed));
+    (status, error, updated_at)
+}
+
+fn mark_pdf_cache_task_timed_out(
+    tasks: &std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, crate::state::LibraryPdfCacheTask>>>,
+    task_key: &str,
+) -> Option<String> {
+    let timeout_error = format!(
+        "library.pdf_cache_timeout: remote PDF cache task exceeded {} ms",
+        LIBRARY_PDF_CACHE_TASK_STALE_MS
+    );
+    let Ok(tasks_guard) = tasks.lock() else {
+        return Some(timeout_error);
+    };
+    let Some(task) = tasks_guard.get(task_key) else {
+        return Some(timeout_error);
+    };
+    if let Ok(mut task_status) = task.status.lock() {
+        *task_status = LIBRARY_PDF_CACHE_STATE_ERROR.to_string();
+    }
+    if let Ok(mut task_error) = task.error.lock() {
+        *task_error = Some(timeout_error.clone());
+    }
+    task.updated_at_unix_ms.store(current_unix_ms(), std::sync::atomic::Ordering::Relaxed);
+    Some(timeout_error)
 }
 
 fn clear_pdf_cache_task_if_terminal(
@@ -178,10 +211,12 @@ fn start_library_pdf_cache_task(
     cache_path: &Path,
 ) {
     let task_id = Uuid::new_v4().to_string();
-    let task = crate::state::LibraryPdfCacheTask {        status: std::sync::Arc::new(std::sync::Mutex::new(
+    let task = crate::state::LibraryPdfCacheTask {
+        status: std::sync::Arc::new(std::sync::Mutex::new(
             LIBRARY_PDF_CACHE_STATE_PENDING.to_string(),
         )),
         error: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        updated_at_unix_ms: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(current_unix_ms())),
     };
 
     let mut should_spawn = false;
@@ -232,6 +267,9 @@ fn start_library_pdf_cache_task(
                     if let Ok(mut task_error) = task_ref.error.lock() {
                         *task_error = error;
                     }
+                    task_ref
+                        .updated_at_unix_ms
+                        .store(current_unix_ms(), std::sync::atomic::Ordering::Relaxed)
                 }
             }
         };
@@ -396,8 +434,23 @@ pub fn library_resolve_pdf_preview_runtime(
         ));
     }
 
-    let (task_status, task_error) = read_pdf_cache_task(&state.library_pdf_cache_tasks, &task_key);
+    let (task_status, task_error, task_updated_at) =
+        read_pdf_cache_task(&state.library_pdf_cache_tasks, &task_key);
     if matches!(task_status.as_deref(), Some(LIBRARY_PDF_CACHE_STATE_PENDING)) {
+        let updated_at = task_updated_at.unwrap_or(0);
+        if current_unix_ms().saturating_sub(updated_at) > LIBRARY_PDF_CACHE_TASK_STALE_MS {
+            let timeout_error = mark_pdf_cache_task_timed_out(&state.library_pdf_cache_tasks, &task_key);
+            clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
+            return Ok(build_preview_response(
+                &project_root,
+                &papers_root,
+                None,
+                Some(source_url),
+                false,
+                LIBRARY_PDF_CACHE_STATE_ERROR,
+                timeout_error,
+            ));
+        }
         return Ok(build_preview_response(
             &project_root,
             &papers_root,
@@ -409,6 +462,7 @@ pub fn library_resolve_pdf_preview_runtime(
         ));
     }
     if matches!(task_status.as_deref(), Some(LIBRARY_PDF_CACHE_STATE_ERROR)) {
+        clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
         return Ok(build_preview_response(
             &project_root,
             &papers_root,
@@ -439,3 +493,35 @@ pub fn library_resolve_pdf_preview_runtime(
         None,
     ))
 }
+pub fn wait_for_library_pdf_preview_ready(
+    state: &crate::state::AppState,
+    project_id: &str,
+    relative_path: &str,
+    timeout: std::time::Duration,
+) -> Result<LibraryPdfPreviewResponse, String> {
+    let started_at = std::time::Instant::now();
+    loop {
+        let preview = library_resolve_pdf_preview_runtime(state, project_id, relative_path)?;
+        match preview.cache_state.as_str() {
+            LIBRARY_PDF_CACHE_STATE_READY
+            | LIBRARY_PDF_CACHE_STATE_ERROR
+            | LIBRARY_PDF_CACHE_STATE_MISSING => return Ok(preview),
+            _ => {}
+        }
+        if started_at.elapsed() >= timeout {
+            return Ok(LibraryPdfPreviewResponse {
+                cache_state: LIBRARY_PDF_CACHE_STATE_ERROR.to_string(),
+                cache_error: Some(format!(
+                    "library.pdf_cache_timeout: warmup exceeded {} ms",
+                    timeout.as_millis()
+                )),
+                ..preview
+            });
+        }
+        std::thread::sleep(std::time::Duration::from_millis(350));
+    }
+}
+
+
+
+

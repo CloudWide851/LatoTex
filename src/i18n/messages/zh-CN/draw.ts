@@ -8,6 +8,7 @@ export const zhCN_draw = {
   "draw.capture": "捕获",
   "draw.export": "导出",
   "draw.waiting": "等待绘图编辑器启动...",
+  "draw.warming": "正在准备本地绘图资源...",
   "draw.pasteImage": "粘贴图片",
   "draw.pasteNoImage": "剪贴板中没有可用图片。",
   "draw.pasted": "图片已粘贴到绘图中。",
@@ -16,3 +17,5 @@ export const zhCN_draw = {
   "draw.renameExists": "已存在同名绘图标签。",
   "draw.fileMissingRemoved": "源文件不存在，已自动清理失效绘图标签。",
 } as const;
+
+

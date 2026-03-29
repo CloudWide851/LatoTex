@@ -178,7 +178,7 @@ export function LatexWorkspaceEditorPanel(props: {
   }, []);
 
   return (
-    <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-[22px] motion-shell-stage">
+    <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
         <div className="panel-topbar flex w-full min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
@@ -420,5 +420,6 @@ export function LatexWorkspaceEditorPanel(props: {
     </div>
   );
 }
+
 
 

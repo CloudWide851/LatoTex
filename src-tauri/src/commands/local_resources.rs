@@ -523,14 +523,11 @@ pub fn handle_local_resource_request(
     }
 }
 
-#[tauri::command]
-pub fn drawio_cache_prepare(
-    state: State<'_, AppState>,
-    input: DrawioCachePrepareInput,
+pub fn prepare_drawio_cache_info(
+    state: &AppState,
+    policy: &str,
 ) -> Result<DrawioCacheInfo, String> {
-    let policy = input.policy.trim();
-    let prepared = prepare_drawio_cache(&state, policy)?;
-
+    let prepared = prepare_drawio_cache(state, policy.trim())?;
     Ok(DrawioCacheInfo {
         policy: prepared.policy,
         requested_dir: prepared.requested_dir,
@@ -541,6 +538,15 @@ pub fn drawio_cache_prepare(
     })
 }
 
+#[tauri::command]
+pub fn drawio_cache_prepare(
+    state: State<'_, AppState>,
+    input: DrawioCachePrepareInput,
+) -> Result<DrawioCacheInfo, String> {
+    prepare_drawio_cache_info(&state, input.policy.trim())
+}
+
 #[cfg(test)]
 #[path = "local_resources_tests.rs"]
 mod tests;
+

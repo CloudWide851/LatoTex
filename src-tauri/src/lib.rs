@@ -41,6 +41,7 @@ use commands::projects_translation::{
     library_extract_paper_context, library_translate_document, library_translate_start,
     library_translate_status,
 };
+use commands::resource_warmup::{resource_warmup_start, resource_warmup_status};
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test,
     model_test_draft, protocol_test, runtime_log_clear_current_session, runtime_log_info,
@@ -230,11 +231,16 @@ pub fn run() {
             analysis_env_prepare_status,
             analysis_env_status,
             analysis_run_python,
-            drawio_cache_prepare
+            drawio_cache_prepare,
+            resource_warmup_start,
+            resource_warmup_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+
+
 
 
 

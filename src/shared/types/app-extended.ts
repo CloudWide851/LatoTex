@@ -363,6 +363,34 @@ export type DrawioCacheInfo = {
   entryUrl: string;
 };
 
+export type ResourceWarmupScope = "drawio" | "tectonic" | "libraryPdf";
+
+export type TectonicWarmupInfo = {
+  ready: boolean;
+  enginePath: string;
+  cacheDir: string;
+  searchPaths: string[];
+  useOnlyCached: boolean;
+};
+
+export type ResourceWarmupResult = {
+  drawio?: DrawioCacheInfo | null;
+  tectonic?: TectonicWarmupInfo | null;
+  libraryPdf?: LibraryPdfPreview | null;
+};
+
+export type ResourceWarmupTaskStatus = {
+  taskId: string;
+  status: string;
+  stage?: string | null;
+  percent: number;
+  message?: string | null;
+  currentItem?: string | null;
+  error?: string | null;
+  diagnostics: string[];
+  result?: ResourceWarmupResult | null;
+};
+
 export type Ack = {
   ok: boolean;
   message: string;
@@ -372,3 +400,4 @@ export type GitInitProgress = {
   phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
   message: string;
 };
+

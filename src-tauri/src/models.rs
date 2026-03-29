@@ -576,4 +576,6 @@ include!("models_library.rs");
 include!("models_git.rs");
 include!("models_agent_workflows.rs");
 include!("models_native_runtime.rs");
+include!("models_resource_warmup.rs");
+
 

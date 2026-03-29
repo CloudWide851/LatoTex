@@ -1,10 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { drawioCachePrepare } from "../../../shared/api/local-resources";
-import {
-  buildLocalResourceBaseCandidates,
-  buildLocalResourceEntryCandidates,
-  uniqueLocalResourceValues,
-} from "../../../shared/utils/localResourceProbe";
+import type { DrawioCacheInfo } from "../../../shared/types/app";
 
 export type DrawMessage = {
   event?: string;
@@ -53,13 +49,10 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-function buildDrawioEntryCandidates(entryUrl: string, actualDir: string): string[] {
-  const directCandidates = [String(entryUrl || "").trim()].filter(Boolean);
-  const localBaseCandidates = buildLocalResourceBaseCandidates(actualDir);
-  const localEntryCandidates = buildLocalResourceEntryCandidates(localBaseCandidates, "index.html");
-  const rawCandidates = [...directCandidates, ...localEntryCandidates, DRAWIO_HOST_URL].filter(Boolean);
-  const embedCandidates = rawCandidates.map((candidate) => toDrawioEmbedUrl(candidate));
-  return uniqueLocalResourceValues([...embedCandidates, ...rawCandidates]);
+export function buildDrawioEntryCandidates(info: Pick<DrawioCacheInfo, "entryUrl">): string[] {
+  const directCandidates = [String(info.entryUrl || "").trim()].filter(Boolean);
+  const rawCandidates = [...directCandidates, DRAWIO_HOST_URL].filter(Boolean);
+  return Array.from(new Set(rawCandidates.map((candidate) => toDrawioEmbedUrl(candidate))));
 }
 
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
@@ -76,7 +69,7 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    return buildDrawioEntryCandidates(info.entryUrl, info.actualDir);
+    return buildDrawioEntryCandidates(info);
   } catch {
     return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
   }
@@ -294,4 +287,6 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
+
+
 

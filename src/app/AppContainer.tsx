@@ -26,6 +26,7 @@ import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/usePro
 import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
 import { useIdleSleep } from "./hooks/useIdleSleep";
 import { useRuntimePressureRelief } from "./hooks/useRuntimePressureRelief";
+import { useProjectResourceWarmup } from "./hooks/useProjectResourceWarmup";
 import { useAnalysisEnvPrompt } from "./hooks/useAnalysisEnvPrompt";
 import { readFile } from "../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../shared/utils/fileKind";
@@ -126,6 +127,10 @@ export function AppContainer() {
     events: s.events,
     t,
     setToast: s.setToast,
+  });
+  useProjectResourceWarmup({
+    activeProjectId: s.activeProjectId,
+    suspended: idleSleep.sleeping,
   });
   const analysisEnvPrompt = useAnalysisEnvPrompt({
     activeProjectId: s.activeProjectId,
@@ -654,3 +659,5 @@ export function AppContainer() {
     />
   );
 }
+
+

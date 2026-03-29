@@ -33,7 +33,7 @@ pub struct LibraryCitationSummaryResponse {
     pub urls: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryPdfPreviewResponse {
     pub relative_path: Option<String>,
@@ -198,3 +198,4 @@ pub struct FsOperationResult {
     pub ok: bool,
     pub message: String,
 }
+

@@ -3,7 +3,7 @@ use super::native_runtime_common::{
     sanitize_log_lines, try_version_command,
 };
 use super::native_runtime_latex_tectonic::{ensure_runtime_bundle, write_fontconfig_config};
-use crate::models::{LatexCompileInput, LatexCompileResponse};
+use crate::models::{LatexCompileInput, LatexCompileResponse, TectonicWarmupInfo};
 use crate::storage;
 use std::collections::HashMap;
 use std::fs;
@@ -278,6 +278,22 @@ fn resolve_tectonic_paths(runtime_root: &Path) -> Result<Option<ResolvedTectonic
     Ok(None)
 }
 
+pub fn ensure_tectonic_runtime_warmup(runtime_root: &Path) -> Result<TectonicWarmupInfo, String> {
+    let paths = resolve_tectonic_paths(runtime_root)?
+        .ok_or_else(|| TECTONIC_NOT_FOUND_DIAGNOSTIC.to_string())?;
+    Ok(TectonicWarmupInfo {
+        ready: true,
+        engine_path: paths.engine_path.to_string_lossy().to_string(),
+        cache_dir: paths.cache_dir.to_string_lossy().to_string(),
+        search_paths: paths
+            .search_paths
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect(),
+        use_only_cached: paths.use_only_cached,
+    })
+}
+
 fn write_compile_workspace(
     root: &Path,
     file_map: &HashMap<String, String>,
@@ -483,7 +499,10 @@ where
     let run_root = compile_root.join(&run_id);
     fs::create_dir_all(&run_root).map_err(|e| e.to_string())?;
 
-    on_progress(8.0, "preparing_workspace", Some(&input.main_path), None);
+    on_progress(6.0, "warming_resources", Some(&input.main_path), None);
+    ensure_tectonic_runtime_warmup(runtime_root)?;
+
+    on_progress(16.0, "materializing_workspace", Some(&input.main_path), None);
     write_compile_workspace(
         &run_root,
         &input.file_map,
@@ -583,4 +602,6 @@ pub(crate) fn compile_blocking(
         |_percent, _stage, _current_item, _latest_log_line| {},
     )
 }
+
+
 

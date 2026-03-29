@@ -45,6 +45,7 @@ pub struct LibraryTranslateTask {
 pub struct LibraryPdfCacheTask {
     pub status: Arc<Mutex<String>>,
     pub error: Arc<Mutex<Option<String>>>,
+    pub updated_at_unix_ms: Arc<AtomicU64>,
 }
 
 #[derive(Clone)]
@@ -74,6 +75,19 @@ pub struct LatexCompileTask {
     pub result: Arc<Mutex<Option<crate::models::LatexCompileResponse>>>,
 }
 
+#[derive(Clone)]
+pub struct ResourceWarmupTask {
+    pub id: String,
+    pub status: Arc<Mutex<String>>,
+    pub stage: Arc<Mutex<Option<String>>>,
+    pub message: Arc<Mutex<Option<String>>>,
+    pub current_item: Arc<Mutex<Option<String>>>,
+    pub percent_basis_points: Arc<AtomicU64>,
+    pub error: Arc<Mutex<Option<String>>>,
+    pub diagnostics: Arc<Mutex<Vec<String>>>,
+    pub result: Arc<Mutex<Option<crate::models::ResourceWarmupResult>>>,
+}
+#[derive(Clone)]
 pub struct AppState {
     pub app_name: String,
     pub runtime_root: PathBuf,
@@ -90,6 +104,7 @@ pub struct AppState {
     pub library_translate_tasks: Arc<Mutex<HashMap<String, LibraryTranslateTask>>>,
     pub analysis_env_prepare_tasks: Arc<Mutex<HashMap<String, AnalysisEnvPrepareTask>>>,
     pub latex_compile_tasks: Arc<Mutex<HashMap<String, LatexCompileTask>>>,
+    pub resource_warmup_tasks: Arc<Mutex<HashMap<String, ResourceWarmupTask>>>,
     pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
     pub agent_cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
@@ -155,6 +170,7 @@ impl AppState {
             library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
             analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
             latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),
+            resource_warmup_tasks: Arc::new(Mutex::new(HashMap::new())),
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };
@@ -482,4 +498,11 @@ mod tests {
         let _ = fs::remove_dir_all(target_root);
     }
 }
+
+
+
+
+
+
+
 

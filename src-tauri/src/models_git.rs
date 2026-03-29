@@ -167,7 +167,7 @@ pub struct GitDiffResponse {
     pub hunks: Vec<GitDiffHunk>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct DrawioCacheInfo {
     pub policy: String,
@@ -183,5 +183,4 @@ pub struct DrawioCacheInfo {
 pub struct DrawioCachePrepareInput {
     pub policy: String,
 }
-
 

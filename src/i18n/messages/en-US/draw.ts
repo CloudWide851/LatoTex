@@ -8,6 +8,7 @@ export const enUS_draw = {
   "draw.capture": "Capture",
   "draw.export": "Export",
   "draw.waiting": "Waiting for draw editor...",
+  "draw.warming": "Preparing local draw resources...",
   "draw.pasteImage": "Paste Image",
   "draw.pasteNoImage": "No image found in clipboard.",
   "draw.pasted": "Image pasted into drawing.",
@@ -16,3 +17,5 @@ export const enUS_draw = {
   "draw.renameExists": "A draw tab with this name already exists.",
   "draw.fileMissingRemoved": "Source file is missing. Removed stale draw tab.",
 } as const;
+
+
