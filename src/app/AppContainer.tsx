@@ -3,13 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
-import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
-import { useAppEffects } from "./hooks/useAppEffects";
+import { SHELL_MIN, upsertProject } from "./app-config";
 import { buildEditorTab } from "./hooks/useEditorTabs";
 import { useNativeWindowCloseBridge } from "./hooks/windowCloseRequest";
 import { useAppHandlers } from "./hooks/useAppHandlers";
 import { useAppContainerWorkspaceActions } from "./hooks/useAppContainerWorkspaceActions";
-import { useAnalysisWorkspace } from "./hooks/useAnalysisWorkspace";
 import { useAppContainerState } from "./hooks/useAppContainerState";
 import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { useSettingsPersistence } from "./hooks/useSettingsPersistence";
@@ -17,17 +15,11 @@ import { useAppPanelNodes } from "./hooks/useAppPanelNodes";
 import { useAgentSessionController } from "./hooks/useAgentSessionController";
 import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
 import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
-import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
-import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
-import { useEditorDirtySyncEffect } from "./hooks/useEditorDirtySyncEffect";
 import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
-import { useRuntimeMemoryGuard } from "./hooks/useRuntimeMemoryGuard";
-import { useIdleSleep } from "./hooks/useIdleSleep";
-import { useRuntimePressureRelief } from "./hooks/useRuntimePressureRelief";
-import { useProjectResourceWarmup } from "./hooks/useProjectResourceWarmup";
-import { useAnalysisEnvPrompt } from "./hooks/useAnalysisEnvPrompt";
+import { useWorkbenchRuntimeState } from "./hooks/useWorkbenchRuntimeState";
+import { useWorkbenchRuntimeEffects } from "./hooks/useWorkbenchRuntimeEffects";
 import { readFile } from "../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../shared/utils/fileKind";
 export function AppContainer() {
@@ -102,43 +94,14 @@ export function AppContainer() {
     },
     [s.pdfUrl, s.selectedFilePdfUrl, s.selectedImagePreviewUrl],
   );
-  useTrayLabelSync({ isTauriRuntime, locale, t });
-  useCompiledPreviewResetOnProjectChange({
-    activeProjectId: s.activeProjectId,
-    page: s.page,
-    compiledPdfRelativePath: s.compiledPdfRelativePath,
-    setPdfUrl: s.setPdfUrl,
-    setCompiledPdfRelativePath: s.setCompiledPdfRelativePath,
-    setPreferCompiledPreview: s.setPreferCompiledPreview,
-  });
-  const runtimeBusy = s.busy || Boolean(s.agentRunId) || Boolean(s.gitDownloadTaskId);
-  const idleSleep = useIdleSleep({
-    blocked: runtimeBusy,
-    timeoutMs: 60 * 60 * 1000,
-  });
-  const analysisWorkspace = useAnalysisWorkspace({
-    projectId: s.activeProjectId,
-    selectedFile: s.selectedFile,
-    editorContent: s.editorContent,
-    fileList: s.fileList,
+  const runtime = useWorkbenchRuntimeState({
+    s,
+    isTauriRuntime,
     locale,
-    analysisModelOverride: s.settings?.uiPrefs?.featureModelBindings?.analysisAgentModelId ?? null,
-    suspended: idleSleep.sleeping,
-    events: s.events,
     t,
-    setToast: s.setToast,
-  });
-  useProjectResourceWarmup({
-    activeProjectId: s.activeProjectId,
-    suspended: idleSleep.sleeping,
-  });
-  const analysisEnvPrompt = useAnalysisEnvPrompt({
-    activeProjectId: s.activeProjectId,
-    settings: s.settings,
     persistSettings,
-    t,
-    setToast: s.setToast,
   });
+  const { idleSleep, analysisWorkspace, analysisEnvPrompt } = runtime;
   const resolveSelectedFileContent = useCallback(async (): Promise<string | null> => {
     const selectedPath = s.selectedFile;
     if (!s.activeProjectId || !selectedPath) {
@@ -238,96 +201,16 @@ export function AppContainer() {
     selectedFile: s.selectedFile,
     activeProposal: activeAgentProposal,
   });
-  const { getCachedTextContent, handleTextFileLoaded } = useTextContentCacheBridge({
-    workingContentByPathRef: s.workingContentByPathRef,
-    savedContentByPathRef: s.savedContentByPathRef,
-    dirtyByPathRef: s.dirtyByPathRef,
-  });
-  const runtimePressureRelief = useRuntimePressureRelief({
-    sleeping: idleSleep.sleeping,
-    pdfUrl: s.pdfUrl,
-    selectedFilePdfUrl: s.selectedFilePdfUrl,
-    selectedImagePreviewUrl: s.selectedImagePreviewUrl,
-    setPdfUrl: s.setPdfUrl,
-    setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
-    setSelectedImagePreviewUrl: s.setSelectedImagePreviewUrl,
-    setEvents: s.setEvents,
-  });
-  const oomSleepAtRef = useRef(0);
-  const handleOutOfMemorySleep = useCallback((_source: "error" | "unhandledrejection" | "memory_guard", _message: string) => {
-    const now = Date.now();
-    if (now - oomSleepAtRef.current < 5_000) {
-      return;
-    }
-    oomSleepAtRef.current = now;
-    runtimePressureRelief.release("oom");
-    idleSleep.forceSleep();
-  }, [idleSleep.forceSleep, runtimePressureRelief]);
-  useAppEffects({
+  useWorkbenchRuntimeEffects({
+    s,
+    runtime,
     t,
+    setLocale,
     isTauriRuntime,
-    activeProjectId: s.activeProjectId,
-    selectedFile: s.selectedFile,
-    pendingRevealLine: s.pendingRevealLine,
-    page: s.page,
-    cursor: s.cursor,
-    agentRunId: s.agentRunId,
-    analysisRunning: analysisWorkspace.running,
-    toast: s.toast,
-    gitDownloadTaskId: s.gitDownloadTaskId,
-    gitInstallerLaunched: s.gitInstallerLaunched,
-    settingsTheme: s.settings?.uiPrefs?.theme as ThemeMode | undefined,
     loadProjectData,
     refreshGitWorkspace,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
-    setStatus: s.setStatus,
-    setProjects: s.setProjects,
-    setSettings: s.setSettings,
-    setRuntimeInfo: s.setRuntimeInfo,
-    setLocale,
-    setActiveProjectId: s.setActiveProjectId,
-    setTree: s.setTree,
-    setLibraryTree: s.setLibraryTree,
-    setSelectedFile: s.setSelectedFile,
-    setSelectedLibraryPath: s.setSelectedLibraryPath,
-    setEditorContent: s.setEditorContent,
-    setSelectedFilePdfUrl: s.setSelectedFilePdfUrl,
-    setSelectedImagePreviewUrl: s.setSelectedImagePreviewUrl,
-    setPreviewOverridePath: s.setPreviewOverridePath,
-    setSelectedTextFileReadyPath: s.setSelectedTextFileReadyPath,
-    previewOverridePath: s.previewOverridePath,
-    setToast: s.setToast,
-    setProjectSearchQuery: s.setProjectSearchQuery,
-    setProjectSearchResults: s.setProjectSearchResults,
-    setProjectSearchSearched: s.setProjectSearchSearched,
-    setEvents: s.setEvents,
-    setCursor: s.setCursor,
-    resizeFrameRef: s.resizeFrameRef,
-    setIsMaximized: s.setIsMaximized,
-    editorRef: s.editorRef,
-    setPendingRevealLine: s.setPendingRevealLine,
-    setGitDownloadState: s.setGitDownloadState,
-    setGitDownloadTaskId: s.setGitDownloadTaskId,
-    getCachedTextContent,
-    onTextFileLoaded: handleTextFileLoaded,
-    suspended: idleSleep.sleeping,
-    onOutOfMemory: handleOutOfMemorySleep,
   });
-  useRuntimeMemoryGuard({
-    isTauriRuntime,
-    setEvents: s.setEvents,
-    suspended: idleSleep.sleeping,
-    onCriticalMemory: () => handleOutOfMemorySleep("memory_guard", "runtime memory critical"),
-  });
-  useEditorDirtySyncEffect({
-    selectedFile: s.selectedFile,
-    selectedTextFileReadyPath: s.selectedTextFileReadyPath,
-    editorContent: s.editorContent,
-    savedContentByPathRef: s.savedContentByPathRef,
-    workingContentByPathRef: s.workingContentByPathRef,
-    setDirtyByPath: s.setDirtyByPath,
-  });
-
   const handleLibraryViewModeChange = useCallback((mode: "bib" | "pdf" | "compare") => {
     const projectId = s.activeProjectId;
     if (!projectId) {
@@ -659,5 +542,10 @@ export function AppContainer() {
     />
   );
 }
+
+
+
+
+
 
 

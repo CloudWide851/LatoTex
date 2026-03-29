@@ -2102,6 +2102,8 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "keyring",
+ "latotex-agent",
+ "latotex-workspace",
  "regex",
  "reqwest 0.12.28",
  "rfd",
@@ -2119,6 +2121,20 @@ dependencies = [
  "uuid",
  "windows-sys 0.59.0",
  "zip",
+]
+
+[[package]]
+name = "latotex-agent"
+version = "0.1.0"
+dependencies = [
+ "regex",
+]
+
+[[package]]
+name = "latotex-workspace"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.12.28",
 ]
 
 [[package]]

@@ -10,10 +10,12 @@ use crate::models::{
 };
 use crate::state::AppState;
 use crate::storage;
-use reqwest::Url;
+use latotex_workspace::{
+    ensure_within_workspace_root, normalize_export_pdf_file_name, resolve_workspace_target_path,
+    validate_external_http_url,
+};
 use rfd::FileDialog;
 use std::fs;
-use std::path::PathBuf;
 use std::process::Command;
 use tauri::State;
 
@@ -152,18 +154,6 @@ pub fn file_write_binary(
     )
 }
 
-fn ensure_within_project_root(root: &PathBuf, candidate: &PathBuf) -> Result<(), String> {
-    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
-    let parent = candidate
-        .parent()
-        .ok_or_else(|| "Cannot resolve save directory".to_string())?;
-    let canonical_parent = parent.canonicalize().map_err(|e| e.to_string())?;
-    if !canonical_parent.starts_with(&canonical_root) {
-        return Err("Export path must stay inside project workspace".to_string());
-    }
-    Ok(())
-}
-
 #[tauri::command]
 pub fn workspace_export_pdf(
     state: State<'_, AppState>,
@@ -173,14 +163,7 @@ pub fn workspace_export_pdf(
         return Err("PDF bytes are empty".to_string());
     }
     let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let default_name_raw = input.default_file_name.trim();
-    let default_name = if default_name_raw.is_empty() {
-        "document.pdf".to_string()
-    } else if default_name_raw.to_lowercase().ends_with(".pdf") {
-        default_name_raw.to_string()
-    } else {
-        format!("{default_name_raw}.pdf")
-    };
+    let default_name = normalize_export_pdf_file_name(&input.default_file_name);
 
     let selected = FileDialog::new()
         .add_filter("PDF", &["pdf"])
@@ -195,7 +178,7 @@ pub fn workspace_export_pdf(
     if save_path.extension().is_none() {
         save_path.set_extension("pdf");
     }
-    ensure_within_project_root(&project_root, &save_path)?;
+    ensure_within_workspace_root(&project_root, &save_path)?;
     fs::write(&save_path, &input.bytes).map_err(|e| e.to_string())?;
 
     let canonical_root = project_root.canonicalize().map_err(|e| e.to_string())?;
@@ -315,8 +298,11 @@ pub fn library_resolve_pdf_preview(
             input.project_id, input.relative_path
         ),
     );
-    let mut preview =
-        storage::library_resolve_pdf_preview_runtime(&state, &input.project_id, &input.relative_path)?;
+    let mut preview = storage::library_resolve_pdf_preview_runtime(
+        &state,
+        &input.project_id,
+        &input.relative_path,
+    )?;
     preview.preview_url = preview
         .relative_path
         .as_ref()
@@ -358,38 +344,13 @@ pub fn project_search_content(
     storage::search_project_content(&state.db_path, input)
 }
 
-fn resolve_workspace_path(
-    state: &State<'_, AppState>,
-    input: &ProjectPathActionInput,
-) -> Result<std::path::PathBuf, String> {
-    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
-    let relative = input
-        .relative_path
-        .as_deref()
-        .unwrap_or_default()
-        .trim()
-        .replace('\\', "/");
-    if relative.is_empty() {
-        return Ok(canonical_root);
-    }
-    let candidate = canonical_root.join(relative);
-    if !candidate.exists() {
-        return Err("Path does not exist".to_string());
-    }
-    let canonical_target = candidate.canonicalize().map_err(|e| e.to_string())?;
-    if !canonical_target.starts_with(&canonical_root) {
-        return Err("Path traversal detected".to_string());
-    }
-    Ok(canonical_target)
-}
-
 #[tauri::command]
 pub fn workspace_reveal_in_system(
     state: State<'_, AppState>,
     input: ProjectPathActionInput,
 ) -> Result<Ack, String> {
-    let target = resolve_workspace_path(&state, &input)?;
+    let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let target = resolve_workspace_target_path(&project_root, input.relative_path.as_deref())?;
     state.log(
         "INFO",
         &format!(
@@ -450,7 +411,8 @@ pub fn workspace_open_terminal(
     state: State<'_, AppState>,
     input: ProjectPathActionInput,
 ) -> Result<Ack, String> {
-    let target = resolve_workspace_path(&state, &input)?;
+    let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let target = resolve_workspace_target_path(&project_root, input.relative_path.as_deref())?;
     let directory = if target.is_file() {
         target
             .parent()
@@ -530,15 +492,7 @@ pub fn open_external_link(
     state: State<'_, AppState>,
     input: OpenExternalLinkInput,
 ) -> Result<Ack, String> {
-    let trimmed = input.url.trim();
-    if trimmed.is_empty() {
-        return Err("URL cannot be empty".to_string());
-    }
-    let parsed = Url::parse(trimmed).map_err(|_| "Invalid URL".to_string())?;
-    let scheme = parsed.scheme();
-    if scheme != "http" && scheme != "https" {
-        return Err("Only http/https links are supported".to_string());
-    }
+    let trimmed = validate_external_http_url(&input.url)?;
 
     state.log("INFO", &format!("open_external_link: {}", trimmed));
 

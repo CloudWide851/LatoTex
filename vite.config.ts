@@ -1,5 +1,9 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+
+const rootDir = dirname(fileURLToPath(import.meta.url));
 
 function resolveManualChunk(id: string) {
   const normalized = id.replace(/\\/g, "/");
@@ -41,6 +45,15 @@ function resolveManualChunk(id: string) {
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "@": resolve(rootDir, "src"),
+      "@app": resolve(rootDir, "src/app"),
+      "@features": resolve(rootDir, "src/features"),
+      "@shared": resolve(rootDir, "src/shared"),
+      "@components": resolve(rootDir, "src/components"),
+    },
+  },
   clearScreen: false,
   server: {
     port: 1420,

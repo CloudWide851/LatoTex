@@ -6,6 +6,14 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@app/*": ["src/app/*"],
+      "@features/*": ["src/features/*"],
+      "@shared/*": ["src/shared/*"],
+      "@components/*": ["src/components/*"]
+    },
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
