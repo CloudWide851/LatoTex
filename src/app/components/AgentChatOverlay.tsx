@@ -13,7 +13,9 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { getEvents } from "../../shared/api/agent";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
+import { useI18n } from "../../i18n";
 import { AgentSessionPicker } from "./agent/AgentSessionPicker";
+import { AgentTraceCards } from "./agent/AgentTraceCards";
 import { pickCommandSuggestions } from "../hooks/agentCommands";
 import type {
   AgentChatMessage,
@@ -22,6 +24,7 @@ import type {
 } from "../hooks/agentTypes";
 import type { AgentPendingAction } from "../hooks/useAppContainerState";
 import { deltaTextFromEvent, toActivityLines, toneClass } from "./agent/agentOverlayActivity";
+import { extractEventCards } from "../hooks/analysisWorkspaceHelpers";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -154,6 +157,7 @@ export function AgentChatOverlay(props: {
     pendingActionNoLabel,
   } = props;
 
+  const { t } = useI18n();
   const [activityExpanded, setActivityExpanded] = useState(true);
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandPlacement, setCommandPlacement] = useState<"above" | "below">("above");
@@ -182,6 +186,7 @@ export function AgentChatOverlay(props: {
   }, [commandSuggestions]);
 
   const activityLines = useMemo(() => toActivityLines(events, runId), [events, runId]);
+  const traceCards = useMemo(() => (runId ? extractEventCards(events, [runId]).slice(-5) : []), [events, runId]);
   const pendingActionLabel = useMemo(() => {
     if (!pendingAction) {
       return "";
@@ -391,6 +396,8 @@ export function AgentChatOverlay(props: {
           </div>
         ) : null}
 
+        <AgentTraceCards cards={traceCards} title={t("agent.traceTitle")} maxCards={4} />
+
         {pendingAction?.kind === "autoCommit" ? (
           <div className="space-y-2 border-b border-slate-200 bg-amber-50/70 px-3 py-2">
             <p className="text-xs font-semibold text-amber-700">{pendingActionTitle}</p>
@@ -558,4 +565,10 @@ export function AgentChatOverlay(props: {
     </div>
   );
 }
+
+
+
+
+
+
 

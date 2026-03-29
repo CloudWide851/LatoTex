@@ -40,6 +40,15 @@ function createEmptyProjection(): LiveProjection {
   };
 }
 
+function toArtifactRefs(payload: Record<string, unknown>): string[] {
+  if (!Array.isArray(payload.artifactRefs)) {
+    return [];
+  }
+  return payload.artifactRefs
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .slice(0, 8);
+}
+
 function appendLiveCard(cards: Map<string, LiveCardEntry>, event: SwarmEvent): void {
   const payload = event.payload ?? {};
   const cardKey =
@@ -64,6 +73,13 @@ function appendLiveCard(cards: Map<string, LiveCardEntry>, event: SwarmEvent): v
       title: typeof payload.title === "string" ? payload.title : event.kind,
       content,
       createdAt: event.createdAt,
+      phase: typeof payload.phase === "string" ? payload.phase : undefined,
+      decision: typeof payload.decision === "string" ? payload.decision : undefined,
+      riskLevel: typeof payload.riskLevel === "string" ? payload.riskLevel : undefined,
+      nodeId: typeof payload.nodeId === "string" ? payload.nodeId : undefined,
+      parentNodeId: typeof payload.parentNodeId === "string" ? payload.parentNodeId : undefined,
+      artifactRefs: toArtifactRefs(payload),
+      requiresApproval: payload.requiresApproval === true,
       seq: event.seq,
     });
     return;
@@ -73,6 +89,13 @@ function appendLiveCard(cards: Map<string, LiveCardEntry>, event: SwarmEvent): v
   existing.title = typeof payload.title === "string" && payload.title ? payload.title : existing.title;
   existing.stage = typeof payload.stage === "string" && payload.stage ? payload.stage : existing.stage;
   existing.source = typeof payload.source === "string" && payload.source ? payload.source : existing.source;
+  existing.phase = typeof payload.phase === "string" && payload.phase ? payload.phase : existing.phase;
+  existing.decision = typeof payload.decision === "string" && payload.decision ? payload.decision : existing.decision;
+  existing.riskLevel = typeof payload.riskLevel === "string" && payload.riskLevel ? payload.riskLevel : existing.riskLevel;
+  existing.nodeId = typeof payload.nodeId === "string" && payload.nodeId ? payload.nodeId : existing.nodeId;
+  existing.parentNodeId = typeof payload.parentNodeId === "string" && payload.parentNodeId ? payload.parentNodeId : existing.parentNodeId;
+  existing.artifactRefs = toArtifactRefs(payload);
+  existing.requiresApproval = payload.requiresApproval === true || existing.requiresApproval;
   existing.content = append ? `${existing.content}${content}` : content || existing.content;
 }
 

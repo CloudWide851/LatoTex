@@ -15,6 +15,13 @@ export type AgentEventCard = {
   content: string;
   cardKey: string;
   createdAt: string;
+  phase?: string;
+  decision?: string;
+  riskLevel?: string;
+  nodeId?: string;
+  parentNodeId?: string;
+  artifactRefs?: string[];
+  requiresApproval?: boolean;
 };
 
 export type AgentAnalysisPayload = {
@@ -118,6 +125,14 @@ function toCardKind(kind: string): string {
   return "other";
 }
 
+export function toArtifactRefs(payload: Record<string, unknown>): string[] {
+  if (!Array.isArray(payload.artifactRefs)) {
+    return [];
+  }
+  return payload.artifactRefs
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .slice(0, 8);
+}
 export function parsePayloadJson(raw: string): AgentAnalysisPayload {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -284,6 +299,13 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
         content,
         cardKey,
         createdAt: event.createdAt,
+        phase: typeof payload.phase === "string" ? payload.phase : undefined,
+        decision: typeof payload.decision === "string" ? payload.decision : undefined,
+        riskLevel: typeof payload.riskLevel === "string" ? payload.riskLevel : undefined,
+        nodeId: typeof payload.nodeId === "string" ? payload.nodeId : undefined,
+        parentNodeId: typeof payload.parentNodeId === "string" ? payload.parentNodeId : undefined,
+        artifactRefs: toArtifactRefs(payload),
+        requiresApproval: payload.requiresApproval === true,
       });
       continue;
     }
@@ -292,6 +314,13 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
     existing.title = typeof payload.title === "string" && payload.title ? payload.title : existing.title;
     existing.stage = typeof payload.stage === "string" && payload.stage ? payload.stage : existing.stage;
     existing.source = typeof payload.source === "string" && payload.source ? payload.source : existing.source;
+    existing.phase = typeof payload.phase === "string" && payload.phase ? payload.phase : existing.phase;
+    existing.decision = typeof payload.decision === "string" && payload.decision ? payload.decision : existing.decision;
+    existing.riskLevel = typeof payload.riskLevel === "string" && payload.riskLevel ? payload.riskLevel : existing.riskLevel;
+    existing.nodeId = typeof payload.nodeId === "string" && payload.nodeId ? payload.nodeId : existing.nodeId;
+    existing.parentNodeId = typeof payload.parentNodeId === "string" && payload.parentNodeId ? payload.parentNodeId : existing.parentNodeId;
+    existing.artifactRefs = toArtifactRefs(payload);
+    existing.requiresApproval = payload.requiresApproval === true || existing.requiresApproval;
     existing.content = append ? `${existing.content}${content}` : content || existing.content;
   }
   return Array.from(byCard.values());
@@ -353,4 +382,6 @@ export function upsertRun(task: AnalysisTask, run: AnalysisTaskRun): AnalysisTas
     updatedAt: nowIso(),
   };
 }
+
+
 

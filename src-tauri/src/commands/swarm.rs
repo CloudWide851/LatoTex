@@ -1,9 +1,15 @@
 #[path = "swarm_events.rs"]
 mod swarm_events;
+#[path = "swarm_executor.rs"]
+mod swarm_executor;
 #[path = "swarm_pipeline.rs"]
 mod swarm_pipeline;
 #[path = "swarm_provider.rs"]
 mod swarm_provider;
+#[path = "swarm_runtime.rs"]
+mod swarm_runtime;
+#[path = "swarm_supervisor.rs"]
+mod swarm_supervisor;
 #[path = "swarm_tool_search.rs"]
 mod swarm_tool_search;
 #[path = "swarm_workflows.rs"]

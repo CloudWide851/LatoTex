@@ -22,6 +22,8 @@ pub struct WorkflowDefinition {
     #[serde(default)]
     pub model_id: Option<String>,
     #[serde(default)]
+    pub execution_mode: Option<String>,
+    #[serde(default)]
     pub steps: Vec<WorkflowStep>,
     #[serde(default)]
     pub constraints: WorkflowConstraints,
@@ -36,6 +38,10 @@ pub struct WorkflowStep {
     pub title: String,
     #[serde(default)]
     pub source: String,
+    #[serde(default)]
+    pub retryable: Option<bool>,
+    #[serde(default)]
+    pub approval_required: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -49,9 +55,18 @@ pub struct WorkflowConstraints {
     pub writable_scopes: Vec<String>,
     pub max_steps: Option<u32>,
     pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub max_iterations: Option<u32>,
+    #[serde(default)]
+    pub approval_policy: Option<String>,
+    #[serde(default)]
+    pub trace_visibility: Option<String>,
+    #[serde(default)]
+    pub parallelism: Option<u32>,
 }
 
 const DEFAULT_TIMEOUT_MS: u64 = 45 * 60 * 1000;
+const DEFAULT_MAX_ITERATIONS: usize = 2;
 
 fn workflow_file_path(project_root: &Path) -> PathBuf {
     project_root
@@ -75,51 +90,70 @@ fn is_latex_related_path(path: &str) -> bool {
     latex_extensions().iter().any(|value| *value == ext)
 }
 
-fn default_workflow_registry() -> WorkflowRegistry {
-    let provider =
-        |id: &str, title: &str, callsites: &[&str], writable_scopes: &[&str]| WorkflowDefinition {
-            id: id.to_string(),
+fn provider(
+    id: &str,
+    title: &str,
+    callsites: &[&str],
+    writable_scopes: &[&str],
+    execution_mode: &str,
+) -> WorkflowDefinition {
+    WorkflowDefinition {
+        id: id.to_string(),
+        title: title.to_string(),
+        callsites: callsites.iter().map(|value| value.to_string()).collect(),
+        model_id: None,
+        execution_mode: Some(execution_mode.to_string()),
+        steps: vec![WorkflowStep {
+            id: "main".to_string(),
+            kind: "provider.generate".to_string(),
             title: title.to_string(),
-            callsites: callsites.iter().map(|value| value.to_string()).collect(),
-            model_id: None,
-            steps: vec![WorkflowStep {
-                id: "main".to_string(),
-                kind: "provider.generate".to_string(),
-                title: title.to_string(),
-                source: "workflow".to_string(),
-            }],
-            constraints: WorkflowConstraints {
-                allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
-                allowed_tools: vec!["provider_generate".to_string()],
-                writable_scopes: writable_scopes
-                    .iter()
-                    .map(|value| value.to_string())
-                    .collect(),
-                max_steps: Some(4),
-                timeout_ms: Some(DEFAULT_TIMEOUT_MS),
-            },
-        };
+            source: "workflow".to_string(),
+            retryable: Some(true),
+            approval_required: None,
+        }],
+        constraints: WorkflowConstraints {
+            allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
+            allowed_tools: vec!["provider_generate".to_string()],
+            writable_scopes: writable_scopes.iter().map(|value| value.to_string()).collect(),
+            max_steps: Some(4),
+            timeout_ms: Some(DEFAULT_TIMEOUT_MS),
+            max_iterations: Some(DEFAULT_MAX_ITERATIONS as u32),
+            approval_policy: Some(if writable_scopes.iter().any(|value| *value != "readonly") {
+                "checkpoint_on_write".to_string()
+            } else {
+                "readonly".to_string()
+            }),
+            trace_visibility: Some("full".to_string()),
+            parallelism: Some(1),
+        },
+    }
+}
 
+fn default_workflow_registry() -> WorkflowRegistry {
     WorkflowRegistry {
-        version: 1,
+        version: 2,
         workflows: vec![
-            provider("latex.edit", "LaTeX Edit", &["latex.overlay"], &["latex"]),
+            provider("latex.edit", "LaTeX Edit", &["latex.overlay"], &["latex"], "supervisor"),
             provider(
                 "latex.review_fix",
                 "LaTeX Review Fix",
                 &["latex.overlay"],
                 &["latex"],
+                "supervisor",
             ),
             WorkflowDefinition {
                 id: "latex.reference_check".to_string(),
                 title: "Reference Check".to_string(),
                 callsites: vec!["latex.overlay".to_string()],
                 model_id: None,
+                execution_mode: Some("supervisor".to_string()),
                 steps: vec![WorkflowStep {
                     id: "search".to_string(),
                     kind: "tool.search".to_string(),
                     title: "Tool Search".to_string(),
                     source: "workflow".to_string(),
+                    retryable: Some(true),
+                    approval_required: Some(false),
                 }],
                 constraints: WorkflowConstraints {
                     allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
@@ -127,6 +161,10 @@ fn default_workflow_registry() -> WorkflowRegistry {
                     writable_scopes: vec!["readonly".to_string()],
                     max_steps: Some(2),
                     timeout_ms: Some(DEFAULT_TIMEOUT_MS),
+                    max_iterations: Some(1),
+                    approval_policy: Some("readonly".to_string()),
+                    trace_visibility: Some("full".to_string()),
+                    parallelism: Some(1),
                 },
             },
             provider(
@@ -134,36 +172,42 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 "Paper Analyze",
                 &["latex.overlay"],
                 &["readonly"],
+                "supervisor",
             ),
             provider(
                 "analysis.explore_chunk",
                 "Analysis Explore",
                 &["analysis.workspace"],
                 &["data"],
+                "supervisor",
             ),
             provider(
                 "analysis.synthesize",
                 "Analysis Synthesize",
                 &["analysis.workspace"],
                 &["data"],
+                "supervisor",
             ),
             provider(
                 "chat.general",
                 "Chat General",
                 &["chat.workspace"],
                 &["latex", "drawings", "data"],
+                "supervisor",
             ),
             provider(
                 "completion.latex",
                 "Completion",
                 &["completion.inline"],
                 &["readonly"],
+                "single",
             ),
             provider(
                 "git.summary",
                 "Git Summary",
                 &["git.summary"],
                 &["readonly"],
+                "single",
             ),
         ],
     }
@@ -228,6 +272,23 @@ pub(super) fn max_steps_for_workflow(workflow: &WorkflowDefinition) -> usize {
         .unwrap_or(4)
 }
 
+pub(super) fn max_iterations_for_workflow(workflow: &WorkflowDefinition) -> usize {
+    workflow
+        .constraints
+        .max_iterations
+        .map(|value| value.clamp(1, 4) as usize)
+        .unwrap_or(DEFAULT_MAX_ITERATIONS)
+}
+
+pub(super) fn execution_mode_for_workflow(workflow: &WorkflowDefinition, callsite: &str) -> &'static str {
+    match workflow.execution_mode.as_deref().map(str::trim) {
+        Some("single") => "single",
+        Some("supervisor") => "supervisor",
+        _ if callsite == "completion.inline" => "single",
+        _ => "supervisor",
+    }
+}
+
 pub(super) fn normalize_tool_name(step_kind: &str) -> String {
     match step_kind {
         "provider.generate" => "provider_generate".to_string(),
@@ -276,10 +337,7 @@ pub(super) fn validate_invocation(
         .iter()
         .any(|scope| scope == "latex");
     if latex_only {
-        for reference in context_refs
-            .iter()
-            .filter(|value| value.starts_with("file:"))
-        {
+        for reference in context_refs.iter().filter(|value| value.starts_with("file:")) {
             let relative = reference.trim_start_matches("file:");
             if !is_latex_related_path(relative) {
                 return Err(format!("constraint.write_scope.denied:{reference}"));
@@ -312,4 +370,41 @@ pub(super) fn validate_step_tools(workflow: &WorkflowDefinition) -> Result<(), S
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{execution_mode_for_workflow, max_iterations_for_workflow, WorkflowDefinition, WorkflowRegistry};
+
+    #[test]
+    fn parses_legacy_registry_without_new_fields() {
+        let raw = r#"{
+          "version": 1,
+          "workflows": [{
+            "id": "latex.edit",
+            "title": "LaTeX Edit",
+            "callsites": ["latex.overlay"],
+            "steps": [{"id": "main", "kind": "provider.generate"}],
+            "constraints": {"writableScopes": ["latex"], "maxSteps": 4}
+          }]
+        }"#;
+        let registry: WorkflowRegistry = serde_json::from_str(raw).expect("legacy registry parses");
+        let workflow = registry.workflows.first().expect("workflow exists");
+        assert_eq!(execution_mode_for_workflow(workflow, "latex.overlay"), "supervisor");
+        assert_eq!(max_iterations_for_workflow(workflow), 2);
+    }
+
+    #[test]
+    fn completion_defaults_to_single_mode_when_execution_mode_is_missing() {
+        let workflow = WorkflowDefinition {
+            id: "completion.latex".to_string(),
+            title: "Completion".to_string(),
+            callsites: vec!["completion.inline".to_string()],
+            model_id: None,
+            execution_mode: None,
+            steps: vec![],
+            constraints: Default::default(),
+        };
+        assert_eq!(execution_mode_for_workflow(&workflow, "completion.inline"), "single");
+    }
 }

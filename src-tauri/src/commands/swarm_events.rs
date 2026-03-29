@@ -7,6 +7,30 @@ pub(super) struct EventMetadata<'a> {
     pub workflow_id: &'a str,
     pub step_id: &'a str,
     pub callsite: &'a str,
+    pub phase: Option<&'a str>,
+    pub node_id: Option<&'a str>,
+    pub parent_node_id: Option<&'a str>,
+    pub decision: Option<&'a str>,
+    pub risk_level: Option<&'a str>,
+    pub artifact_refs: Option<&'a [String]>,
+    pub requires_approval: Option<bool>,
+}
+
+impl<'a> EventMetadata<'a> {
+    pub(super) fn base(workflow_id: &'a str, step_id: &'a str, callsite: &'a str) -> Self {
+        Self {
+            workflow_id,
+            step_id,
+            callsite,
+            phase: None,
+            node_id: None,
+            parent_node_id: None,
+            decision: None,
+            risk_level: None,
+            artifact_refs: None,
+            requires_approval: None,
+        }
+    }
 }
 
 fn envelope(
@@ -36,6 +60,27 @@ fn apply_metadata(payload: &mut serde_json::Value, metadata: EventMetadata<'_>) 
         object.insert("workflowId".to_string(), json!(metadata.workflow_id));
         object.insert("stepId".to_string(), json!(metadata.step_id));
         object.insert("callsite".to_string(), json!(metadata.callsite));
+        if let Some(value) = metadata.phase.filter(|value| !value.trim().is_empty()) {
+            object.insert("phase".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.node_id.filter(|value| !value.trim().is_empty()) {
+            object.insert("nodeId".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.parent_node_id.filter(|value| !value.trim().is_empty()) {
+            object.insert("parentNodeId".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.decision.filter(|value| !value.trim().is_empty()) {
+            object.insert("decision".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.risk_level.filter(|value| !value.trim().is_empty()) {
+            object.insert("riskLevel".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.artifact_refs {
+            object.insert("artifactRefs".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.requires_approval {
+            object.insert("requiresApproval".to_string(), json!(value));
+        }
     }
 }
 
@@ -65,7 +110,7 @@ pub(super) fn emit_stage_event(
 ) -> Result<(), String> {
     let kind = match status {
         "running" => "a2a.task.started",
-        "success" => "a2a.task.completed",
+        "success" | "completed" | "accepted" => "a2a.task.completed",
         _ => "a2a.task.failed",
     };
     let mut payload = envelope(
@@ -95,7 +140,7 @@ pub(super) fn emit_tool_event(
 ) -> Result<(), String> {
     let kind = match status {
         "running" => "mcp.tool.call.started",
-        "success" => "mcp.tool.call.completed",
+        "success" | "completed" => "mcp.tool.call.completed",
         _ => "mcp.tool.call.failed",
     };
     let mut payload = envelope(

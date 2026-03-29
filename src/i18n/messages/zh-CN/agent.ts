@@ -7,6 +7,7 @@ export const zhCN_agent = {
   "agent.collapse": "收起",
   "agent.activityShow": "展开活动",
   "agent.activityHide": "收起活动",
+  "agent.traceTitle": "运行轨迹",
   "agent.showMore": "展开更多",
   "agent.showLess": "收起",
   "agent.proposalReady": "已生成可应用到文件的修改建议。",
@@ -80,4 +81,5 @@ export const zhCN_agent = {
   "agent.resume.empty": "暂无已保存会话。",
   "agent.patch.noApplicableEdits": "未为目标文件生成可应用的 SEARCH/REPLACE 编辑块。",
 } as const;
+
 

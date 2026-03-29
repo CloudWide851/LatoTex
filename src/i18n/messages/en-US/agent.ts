@@ -7,6 +7,7 @@ export const enUS_agent = {
   "agent.collapse": "Collapse",
   "agent.activityShow": "Show activity",
   "agent.activityHide": "Hide activity",
+  "agent.traceTitle": "Run Trace",
   "agent.showMore": "Show more",
   "agent.showLess": "Show less",
   "agent.proposalReady": "Suggested file changes are ready for review.",
@@ -80,4 +81,5 @@ export const enUS_agent = {
   "agent.resume.empty": "No saved sessions.",
   "agent.patch.noApplicableEdits": "No applicable SEARCH/REPLACE edits were generated for the target file.",
 } as const;
+
 
