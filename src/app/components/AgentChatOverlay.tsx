@@ -25,6 +25,10 @@ import type {
 import type { AgentPendingAction } from "../hooks/useAppContainerState";
 import { deltaTextFromEvent, toActivityLines, toneClass } from "./agent/agentOverlayActivity";
 import { extractEventCards } from "../hooks/analysisWorkspaceHelpers";
+import {
+  getAgentActivityAutoScrollAppendKey,
+  useAutoScrollOnAppend,
+} from "../hooks/useAutoScrollOnAppend";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -211,15 +215,12 @@ export function AgentChatOverlay(props: {
   }, [pendingAction, pendingActionDesc]);
   const canShowActivity = activityLines.length > 0 || streamedText.trim().length > 0;
   const showActivityPanel = activityExpanded && canShowActivity;
+  const activityAppendKey = useMemo(
+    () => getAgentActivityAutoScrollAppendKey(runId, canShowActivity),
+    [canShowActivity, runId],
+  );
 
-  useEffect(() => {
-    if (!showActivityPanel || !activityContainerRef.current) {
-      return;
-    }
-    const el = activityContainerRef.current;
-    el.scrollTop = el.scrollHeight;
-  }, [activityLines, showActivityPanel, streamedText]);
-
+  useAutoScrollOnAppend(activityContainerRef, activityAppendKey, showActivityPanel);
 
   useEffect(() => {
     if (runId) {
@@ -373,12 +374,12 @@ export function AgentChatOverlay(props: {
           <div
             ref={activityContainerRef}
             className={cn(
-              "space-y-1 overflow-x-hidden overflow-y-auto border-b border-slate-200 px-3 transition-[max-height,opacity,padding] duration-150",
+              "editor-chat-paper-surface editor-chat-scroll space-y-1 overflow-x-hidden overflow-y-auto border-b px-3 transition-[max-height,opacity,padding] duration-150",
               showActivityPanel ? "max-h-[26vh] py-2 opacity-100" : "max-h-0 py-0 opacity-0",
             )}
           >
             {streamedText.trim() ? (
-              <pre className="whitespace-pre-wrap break-words rounded border border-slate-200/80 bg-slate-900 px-2 py-1.5 font-mono text-[11px] leading-5 text-emerald-300">
+              <pre className="editor-chat-stream whitespace-pre-wrap break-words rounded px-2 py-1.5 font-mono text-[11px] leading-5">
                 {streamedText}
               </pre>
             ) : null}
@@ -433,7 +434,7 @@ export function AgentChatOverlay(props: {
             />
             <textarea
               ref={promptRef}
-              className="h-[clamp(84px,16vh,132px)] w-full resize-none rounded-lg border border-slate-300 px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              className="editor-chat-input h-[clamp(84px,16vh,132px)] w-full resize-none rounded-lg border px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               value={prompt}
               placeholder={placeholder}
               onChange={(event) => onPromptChange(event.target.value)}
@@ -510,7 +511,7 @@ export function AgentChatOverlay(props: {
             {commandSuggestions.length > 0 ? (
               <div
                 className={cn(
-                  "absolute left-1 z-20 max-h-32 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft",
+                  "absolute left-1 z-20 max-h-32 overflow-auto rounded-md border border-slate-200 bg-[color:var(--editor-widget-bg)] p-1 shadow-soft",
                   commandPlacement === "above"
                     ? "bottom-[calc(100%+6px)]"
                     : "top-[calc(100%+6px)]",
@@ -543,7 +544,7 @@ export function AgentChatOverlay(props: {
             ) : null}
             {rollbackVisible ? (
               <button
-                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 motion-hover-rise"
+                className="absolute bottom-2 left-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-[color:var(--editor-widget-bg)] text-slate-700 transition hover:bg-slate-100 motion-hover-rise"
                 title={rollbackLabel}
                 aria-label={rollbackLabel}
                 onClick={onRollback}
@@ -565,6 +566,7 @@ export function AgentChatOverlay(props: {
     </div>
   );
 }
+
 
 
 

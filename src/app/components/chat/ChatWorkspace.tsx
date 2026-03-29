@@ -14,6 +14,10 @@ import {
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
+import {
+  getChatAutoScrollAppendKey,
+  useAutoScrollOnAppend,
+} from "../../hooks/useAutoScrollOnAppend";
 import { ChatRunningIndicator } from "./ChatRunningIndicator";
 import {
   ensureTelegramSession,
@@ -81,12 +85,6 @@ export function ChatWorkspace(props: {
       window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
     };
   }, [projectId]);
-  useEffect(() => {
-    if (!listRef.current) {
-      return;
-    }
-    listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [activeSessionId, sessions]);
   useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
@@ -492,6 +490,12 @@ export function ChatWorkspace(props: {
       // ignore
     }
   };
+  const chatAppendKey = useMemo(
+    () => getChatAutoScrollAppendKey(activeSessionId, activeSession?.messages ?? []),
+    [activeSession?.messages, activeSessionId],
+  );
+
+  useAutoScrollOnAppend(listRef, chatAppendKey);
   const latestRunningAssistantMessageId = activeSession
     ? [...activeSession.messages]
       .reverse()
@@ -506,7 +510,7 @@ export function ChatWorkspace(props: {
   }
   return (
     <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_128px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
-      <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
+      <div ref={listRef} className="editor-chat-paper-surface editor-chat-scroll min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
         ) : (
@@ -543,13 +547,13 @@ export function ChatWorkspace(props: {
           </div>
         )}
       </div>
-      <div className="flex h-full min-h-0 flex-col border-t border-slate-200 px-2 pb-2 pt-1.5">
+      <div className="editor-chat-paper-surface flex h-full min-h-0 flex-col border-t px-2 pb-2 pt-1.5">
         <div className="relative min-h-0 flex-1">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={t("chat.inputPlaceholder")}
-            className="h-full w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
+            className="editor-chat-input h-full w-full resize-none rounded-md border px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
           />
           <button
             className={`absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
@@ -576,3 +580,5 @@ export function ChatWorkspace(props: {
     </section>
   );
 }
+
+
