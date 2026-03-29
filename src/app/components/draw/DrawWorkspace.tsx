@@ -3,6 +3,7 @@ import { waitForResourceWarmup } from "../../../shared/api/resource-warmup";
 import { prioritizeReachableLocalResourceCandidates } from "../../../shared/utils/localResourceProbe";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
+import type { ComponentStartupState } from "../../hooks/startupState";
 import {
   buildDrawioEntryCandidates,
   buildRenamedDrawPath,
@@ -48,6 +49,7 @@ function formatDrawStartFailure(t: TranslationFn, detail?: string | null): strin
 }
 
 export function DrawWorkspace(props: {
+  componentStartupState: ComponentStartupState;
   projectId: string | null;
   selectedPath: string | null;
   onSelectPath: (path: string | null) => void;
@@ -67,7 +69,8 @@ export function DrawWorkspace(props: {
   ) => Promise<boolean>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
+  const { componentStartupState, projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
+  const startupBlocked = componentStartupState !== "ready";
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
   const xmlByPathRef = useRef<Record<string, string>>({});
@@ -538,20 +541,20 @@ export function DrawWorkspace(props: {
 
   if (!projectId) {
     return (
-      <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
+      <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
         {t("workspace.noProject")}
       </section>
     );
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+    <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
       <DrawWorkspaceTabs
         tabPaths={tabPaths}
         activePath={activePath}
         renamingPath={renamingPath}
         renameInput={renameInput}
-        busy={busy}
+        busy={busy || startupBlocked}
         status={status}
         onRenameInputChange={setRenameInput}
         onSelectPath={selectTabPath}
@@ -588,5 +591,3 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
-
-

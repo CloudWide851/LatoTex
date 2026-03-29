@@ -17,10 +17,11 @@ export function useWorkbenchRuntimeState(params: {
   s: AppContainerState;
   isTauriRuntime: boolean;
   locale: Locale;
+  startupReady: boolean;
   t: TranslationFn;
   persistSettings: (settings: AppSettings) => Promise<AppSettings>;
 }) {
-  const { s, isTauriRuntime, locale, t, persistSettings } = params;
+  const { s, isTauriRuntime, locale, startupReady, t, persistSettings } = params;
 
   useTrayLabelSync({ isTauriRuntime, locale, t });
   useCompiledPreviewResetOnProjectChange({
@@ -52,7 +53,7 @@ export function useWorkbenchRuntimeState(params: {
   });
 
   useProjectResourceWarmup({
-    activeProjectId: s.activeProjectId,
+    activeProjectId: startupReady ? s.activeProjectId : null,
     suspended: idleSleep.sleeping,
   });
 
@@ -60,6 +61,7 @@ export function useWorkbenchRuntimeState(params: {
     activeProjectId: s.activeProjectId,
     settings: s.settings,
     persistSettings,
+    enabled: startupReady,
     t,
     setToast: s.setToast,
   });

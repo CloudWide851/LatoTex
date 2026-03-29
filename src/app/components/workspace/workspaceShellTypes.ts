@@ -17,12 +17,14 @@ import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from ".
 import type { AgentStatusKey } from "./workspaceShellUtils";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import type { CompileActionResult } from "../../hooks/compileActionTypes";
+import type { ComponentStartupState } from "../../hooks/startupState";
 
 export type TranslationFn = (key: any) => string;
 export type ShareMode = "local" | "remote";
 
 export type AppWorkspaceShellProps = {
   page: WorkspacePage;
+  componentStartupState: ComponentStartupState;
   pageRailItems: Array<{ id: WorkspacePage; icon: any; label: string }>;
   activeProjectId: string | null;
   busy: boolean;
@@ -140,4 +142,3 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
-

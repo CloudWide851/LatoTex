@@ -1,7 +1,6 @@
 import { useAppEffects } from "./useAppEffects";
 import { useEditorDirtySyncEffect } from "./useEditorDirtySyncEffect";
 import { useRuntimeMemoryGuard } from "./useRuntimeMemoryGuard";
-import type { Locale } from "../../i18n";
 import type { useAppContainerState } from "./useAppContainerState";
 import type { useWorkbenchRuntimeState } from "./useWorkbenchRuntimeState";
 
@@ -13,13 +12,12 @@ export function useWorkbenchRuntimeEffects(params: {
   s: AppContainerState;
   runtime: WorkbenchRuntimeState;
   t: TranslationFn;
-  setLocale: (locale: Locale) => void;
   isTauriRuntime: boolean;
-  loadProjectData: (projectId: string) => Promise<void>;
+  loadProjectData: (projectId: string, options?: { includeGitRefresh?: boolean }) => Promise<void>;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   handleGitRunInstaller: () => Promise<void>;
 }) {
-  const { s, runtime, t, setLocale, isTauriRuntime, loadProjectData, refreshGitWorkspace, handleGitRunInstaller } = params;
+  const { s, runtime, t, isTauriRuntime, loadProjectData, refreshGitWorkspace, handleGitRunInstaller } = params;
 
   useAppEffects({
     t,
@@ -36,14 +34,9 @@ export function useWorkbenchRuntimeEffects(params: {
     gitInstallerLaunched: s.gitInstallerLaunched,
     settingsTheme: s.settings?.uiPrefs?.theme,
     loadProjectData,
+    lastLoadedProjectIdRef: s.lastLoadedProjectIdRef,
     refreshGitWorkspace,
     handleGitRunInstaller,
-    setStatus: s.setStatus,
-    setProjects: s.setProjects,
-    setSettings: s.setSettings,
-    setRuntimeInfo: s.setRuntimeInfo,
-    setLocale,
-    setActiveProjectId: s.setActiveProjectId,
     setTree: s.setTree,
     setLibraryTree: s.setLibraryTree,
     setSelectedFile: s.setSelectedFile,

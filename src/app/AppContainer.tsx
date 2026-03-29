@@ -20,6 +20,7 @@ import { useShareSession } from "./hooks/useShareSession";
 import { useProjectDataLoader, type ProjectIntegrityIssue } from "./hooks/useProjectDataLoader";
 import { useWorkbenchRuntimeState } from "./hooks/useWorkbenchRuntimeState";
 import { useWorkbenchRuntimeEffects } from "./hooks/useWorkbenchRuntimeEffects";
+import { useAppStartup } from "./hooks/useAppStartup";
 import { readFile } from "../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../shared/utils/fileKind";
 export function AppContainer() {
@@ -94,10 +95,26 @@ export function AppContainer() {
     },
     [s.pdfUrl, s.selectedFilePdfUrl, s.selectedImagePreviewUrl],
   );
+  const startup = useAppStartup({
+    isTauriRuntime,
+    loadProjectData,
+    refreshGitWorkspace,
+    persistSettings,
+    settingsRef: s.settingsRef,
+    setStatus: s.setStatus,
+    setProjects: s.setProjects,
+    setSettings: s.setSettings,
+    setRuntimeInfo: s.setRuntimeInfo,
+    setLocale,
+    setActiveProjectId: s.setActiveProjectId,
+    setToast: s.setToast,
+    t,
+  });
   const runtime = useWorkbenchRuntimeState({
     s,
     isTauriRuntime,
     locale,
+    startupReady: startup.startupReady,
     t,
     persistSettings,
   });
@@ -209,7 +226,6 @@ export function AppContainer() {
     s,
     runtime,
     t,
-    setLocale,
     isTauriRuntime,
     loadProjectData,
     refreshGitWorkspace,
@@ -391,6 +407,11 @@ export function AppContainer() {
   return (
     <AppContainerView
       status={s.status}
+      startupState={startup.startupState}
+      componentStartupState={startup.componentStartupState}
+      handleStartupRetry={startup.handleStartupRetry}
+      handleStartupChooseAnalysisEnvLocation={startup.handleStartupChooseAnalysisEnvLocation}
+      handleStartupPrepareAnalysisEnv={startup.handleStartupPrepareAnalysisEnv}
       sleeping={idleSleep.sleeping}
       onWakeFromSleep={idleSleep.wake}
       logoMark={logoMark}
@@ -546,10 +567,3 @@ export function AppContainer() {
     />
   );
 }
-
-
-
-
-
-
-

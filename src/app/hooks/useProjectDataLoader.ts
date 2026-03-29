@@ -6,6 +6,9 @@ import { openProject, projectIntegrityStatus } from "../../shared/api/projects";
 import type { AppSettings, ResourceNode, WorkspacePage } from "../../shared/types/app";
 
 export type ProjectIntegrityIssue = { projectId: string; missingRequired: string[] };
+export type LoadProjectDataOptions = {
+  includeGitRefresh?: boolean;
+};
 
 function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
   const output = new Set<string>();
@@ -124,7 +127,7 @@ export function useProjectDataLoader(params: {
     setGitCommits,
   ]);
 
-  const loadProjectData = useCallback(async (projectId: string) => {
+  const loadProjectData = useCallback(async (projectId: string, options?: LoadProjectDataOptions) => {
     if (!integrityCheckedRef.current.has(projectId)) {
       const integrity = await projectIntegrityStatus(projectId);
       if (integrity.missingRequired.length > 0) {
@@ -139,11 +142,14 @@ export function useProjectDataLoader(params: {
     const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
-    const [papers] = await Promise.all([getLibraryTree(projectId)]);
+    const papers = await getLibraryTree(projectId);
     setLibraryTree(papers);
     setSelectedLibraryPath(resolvePersistedLibrarySelection(settingsRef.current, projectId, papers));
     loadedLibraryProjectIdRef.current = projectId;
     lastLoadedProjectIdRef.current = projectId;
+    if (options?.includeGitRefresh === false) {
+      return;
+    }
     await refreshGitWorkspace(projectId);
   }, [
     integrityCheckedRef,

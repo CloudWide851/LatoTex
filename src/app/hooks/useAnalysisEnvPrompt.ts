@@ -39,10 +39,11 @@ export function useAnalysisEnvPrompt(params: {
   activeProjectId: string | null;
   settings: AppSettings | null;
   persistSettings: (settings: AppSettings) => Promise<AppSettings>;
+  enabled?: boolean;
   t: TranslationFn;
   setToast: ToastSetter;
 }) {
-  const { activeProjectId, settings, persistSettings, t, setToast } = params;
+  const { activeProjectId, settings, persistSettings, enabled = true, t, setToast } = params;
   const dismissedProjectIdsRef = useRef<Set<string>>(new Set());
   const mountedRef = useRef(true);
   const [envPromptProjectId, setEnvPromptProjectId] = useState<string | null>(null);
@@ -74,6 +75,13 @@ export function useAnalysisEnvPrompt(params: {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      setEnvPromptProjectId(null);
+      setEnvPromptStatus(null);
+      setEnvPromptTaskStatus(null);
+      setEnvPromptOpen(false);
+      return;
+    }
     if (!activeProjectId) {
       setEnvPromptProjectId(null);
       setEnvPromptStatus(null);
@@ -87,17 +95,16 @@ export function useAnalysisEnvPrompt(params: {
     }
 
     let cancelled = false;
-    reloadStatus(activeProjectId)
-      .catch(() => {
-        if (!cancelled && mountedRef.current) {
-          setEnvPromptOpen(false);
-        }
-      });
+    reloadStatus(activeProjectId).catch(() => {
+      if (!cancelled && mountedRef.current) {
+        setEnvPromptOpen(false);
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, reloadStatus]);
+  }, [activeProjectId, enabled, reloadStatus]);
 
   const pollPrepareTask = useCallback(async (taskId: string) => {
     for (let round = 0; round < ENV_PREPARE_POLL_LIMIT; round += 1) {

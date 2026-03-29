@@ -1,20 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
-import { resolveLocale } from "../../i18n";
 import { getEvents } from "../../shared/api/agent";
-import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
-import { listProjects, openProject } from "../../shared/api/projects";
-import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
-import { getSettings } from "../../shared/api/settings";
-import type {
-  AppSettings,
-  SwarmEvent,
-} from "../../shared/types/app";
+import { openProject } from "../../shared/api/projects";
+import { runtimeLogWrite } from "../../shared/api/runtime";
+import type { SwarmEvent } from "../../shared/types/app";
 import {
-  applyTheme,
-  DEFAULT_PANEL_LAYOUT,
-  normalizeAgentBindings,
-  type ThemeMode,
+  applyTheme,  type ThemeMode,
 } from "../app-config";
 import { appendEventsWithBudget } from "./eventMemoryBudget";
 import { useGitRuntimeEffects } from "./useGitRuntimeEffects";
@@ -39,15 +30,10 @@ export function useAppEffects(params: {
   gitDownloadTaskId: string | null;
   gitInstallerLaunched: boolean;
   settingsTheme: ThemeMode | undefined;
-  loadProjectData: (projectId: string) => Promise<void>;
+  loadProjectData: (projectId: string, options?: { includeGitRefresh?: boolean }) => Promise<void>;
+  lastLoadedProjectIdRef: React.MutableRefObject<string | null>;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   handleGitRunInstaller: () => Promise<void>;
-  setStatus: (value: "ready" | "offline") => void;
-  setProjects: (value: any) => void;
-  setSettings: (value: any) => void;
-  setRuntimeInfo: (value: any) => void;
-  setLocale: (value: any) => void;
-  setActiveProjectId: (value: string | null) => void;
   setTree: (value: any) => void;
   setLibraryTree: (value: any) => void;
   setSelectedFile: (value: string | null) => void;
@@ -90,14 +76,9 @@ export function useAppEffects(params: {
     gitInstallerLaunched,
     settingsTheme,
     loadProjectData,
+    lastLoadedProjectIdRef,
     refreshGitWorkspace,
     handleGitRunInstaller,
-    setStatus,
-    setProjects,
-    setSettings,
-    setRuntimeInfo,
-    setLocale,
-    setActiveProjectId,
     setTree,
     setLibraryTree,
     setSelectedFile,
@@ -126,8 +107,7 @@ export function useAppEffects(params: {
     onOutOfMemory,
   } = params;
 
-  const initDoneRef = useRef(false);
-  const tRef = useRef(t);
+    const tRef = useRef(t);
   const cursorRef = useRef(cursor);
   const isMaximizedRef = useRef(false);
   const windowTransitionEndsAtRef = useRef(0);
@@ -183,103 +163,10 @@ export function useAppEffects(params: {
       window.removeEventListener("latotex.workspace.rescan", handler as EventListener);
     };
   }, [activeProjectId, refreshGitWorkspace, setTree, suspended]);
-  useEffect(() => {
-    if (initDoneRef.current) {
-      return;
-    }
-    initDoneRef.current = true;
-
-    const init = async () => {
-      try {
-        await getHealthCheck();
-        setStatus("ready");
-      } catch {
-        setStatus("offline");
-      }
-      if (isTauriRuntime) {
-        await windowSyncIcon().catch(() => undefined);
-      }
-
-      const [projectList, appSettings, info] = await Promise.all([
-        listProjects(),
-        getSettings(),
-        runtimeLogInfo(),
-      ]);
-      setProjects(projectList);
-      const backgroundList = Array.from(
-        new Set(
-          (appSettings.uiPrefs?.backgroundImagePaths ?? [])
-            .map((item) => String(item ?? "").trim())
-            .filter((item) => item.length > 0),
-        ),
-      );
-      const legacyBackground = String(appSettings.uiPrefs?.backgroundImagePath ?? "").trim();
-      if (legacyBackground && !backgroundList.includes(legacyBackground)) {
-        backgroundList.unshift(legacyBackground);
-      }
-      const activeBackgroundPath = legacyBackground || backgroundList[0] || "";
-      const rawBackgroundBlur = Number(appSettings.uiPrefs?.backgroundBlurPx ?? 18);
-      const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
-        ? Math.max(4, Math.min(32, rawBackgroundBlur))
-        : 18;
-      const normalizedSettings: AppSettings = {
-        ...appSettings,
-        agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
-        uiPrefs: {
-          ...(appSettings.uiPrefs ?? {}),
-          closeToTrayNoticeEnabled: appSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true,
-          closeBehavior: appSettings.uiPrefs?.closeBehavior ?? "ask",
-          closeBehaviorRemember: appSettings.uiPrefs?.closeBehaviorRemember ?? false,
-          theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
-          previewDefaultZoom: appSettings.uiPrefs?.previewDefaultZoom ?? 1,
-          backgroundImagePath: activeBackgroundPath,
-          backgroundImagePaths: backgroundList,
-          backgroundBlurPx: normalizedBackgroundBlur,
-          panelLayout: {
-            ...DEFAULT_PANEL_LAYOUT,
-            ...(appSettings.uiPrefs?.panelLayout ?? {}),
-          },
-        },
-      };
-      setSettings(normalizedSettings);
-      setRuntimeInfo(info);
-
-      const initialLocale = resolveLocale(
-        appSettings.uiPrefs?.language ??
-          (typeof window !== "undefined"
-            ? window.localStorage.getItem("latotex.locale")
-            : null),
-      );
-      setLocale(initialLocale);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem("latotex.locale", initialLocale);
-      }
-      applyTheme((normalizedSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system");
-
-      await runtimeLogWrite(
-        "INFO",
-        `frontend initialization completed, installMode=${info.installMode}, version=${info.version}`,
-      );
-
-      const newWindowMode =
-        typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).get("newWindow") === "1";
-      let targetProjectId = appSettings.activeProjectId;
-      if (newWindowMode) {
-        targetProjectId = null;
-      } else if (!targetProjectId && projectList.length > 0) {
-        targetProjectId = projectList[0].id;
-      }
-      setActiveProjectId(targetProjectId ?? null);
-    };
-
-    init().catch(() => {
-      setToast({ type: "error", message: tRef.current("toast.initFailed") });
-    });
-  }, [isTauriRuntime, setActiveProjectId, setLocale, setProjects, setRuntimeInfo, setSettings, setStatus, setToast]);
 
   useEffect(() => {
     if (!activeProjectId) {
+      lastLoadedProjectIdRef.current = null;
       setTree([]);
       setLibraryTree([]);
       setSelectedFile(null);
@@ -291,10 +178,13 @@ export function useAppEffects(params: {
       setPreviewOverridePath(null);
       return;
     }
+    if (lastLoadedProjectIdRef.current === activeProjectId) {
+      return;
+    }
     loadProjectData(activeProjectId).catch((error) => {
       setToast({ type: "error", message: String(error) });
     });
-  }, [activeProjectId, loadProjectData, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setSelectedTextFileReadyPath, setToast, setTree]);
+  }, [activeProjectId, lastLoadedProjectIdRef, loadProjectData, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setSelectedTextFileReadyPath, setToast, setTree]);
 
   useSelectedFilePreviewEffects({
     activeProjectId,

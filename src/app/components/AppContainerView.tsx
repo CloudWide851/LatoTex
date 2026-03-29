@@ -3,6 +3,7 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
 import { SleepWakeScreen } from "./SleepWakeScreen";
+import { StartupOverlay } from "./StartupOverlay";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
 import { useBackgroundImageObjectUrl } from "../hooks/useBackgroundImageObjectUrl";
 
@@ -14,6 +15,11 @@ const AppWorkspaceShell = lazy(async () => {
 export function AppContainerView(props: any) {
   const {
     status,
+    startupState,
+    componentStartupState,
+    handleStartupRetry,
+    handleStartupChooseAnalysisEnvLocation,
+    handleStartupPrepareAnalysisEnv,
     sleeping,
     onWakeFromSleep,
     suspended,
@@ -209,6 +215,7 @@ export function AppContainerView(props: any) {
       <div className="relative z-10 flex h-full w-full flex-col">
         <AppTopbar
           status={status}
+          componentStartupState={componentStartupState}
           logoMark={logoMark}
           projects={projects}
           activeProjectId={activeProjectId}
@@ -248,6 +255,7 @@ export function AppContainerView(props: any) {
           >
             <AppWorkspaceShell
               page={page}
+              componentStartupState={componentStartupState}
               pageRailItems={pageRailItems}
               activeProjectId={activeProjectId}
               busy={busy}
@@ -367,6 +375,17 @@ export function AppContainerView(props: any) {
           </Suspense>
         </AppErrorBoundary>
       </div>
+      <StartupOverlay
+        startupState={startupState}
+        onRetry={handleStartupRetry}
+        onChooseAnalysisEnvLocation={() => {
+          void handleStartupChooseAnalysisEnvLocation();
+        }}
+        onPrepareAnalysisEnv={() => {
+          void handleStartupPrepareAnalysisEnv();
+        }}
+        t={t}
+      />
 
       <AppOverlays
         overlay={overlay}
@@ -423,5 +442,3 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
-
-
