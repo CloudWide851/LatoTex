@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import type { CloseTabsAction, EditorTab } from "../../../shared/types/app";
 import { EditorTabContextMenu } from "./EditorTabContextMenu";
+import { resolveExtraTabWidth, resolveFileTabLayout } from "./editorTabSizing";
 
 type TranslationFn = (key: any) => string;
 
@@ -31,18 +32,6 @@ type ExtraEditorTab = {
   menuLabel?: string;
 };
 
-const TAB_GAP_PX = 4;
-const TAB_ROW_TRAILING_SPACE_PX = 8;
-const FILE_TAB_MIN_WIDTH = 120;
-const FILE_TAB_MAX_WIDTH = 240;
-const EXTRA_TAB_MIN_WIDTH = 136;
-const EXTRA_TAB_MAX_WIDTH = 280;
-const PREVIEW_BADGE_MIN_WIDTH = 170;
-
-function clampTabWidth(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 export function EditorTabsBar(props: {
   tabs: EditorTab[];
   activeTabId: string | null;
@@ -62,7 +51,6 @@ export function EditorTabsBar(props: {
   const [hasOverflow, setHasOverflow] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
-  const [tabViewportWidth, setTabViewportWidth] = useState(0);
   const [menu, setMenu] = useState<ContextMenuState>(null);
   const [extraTabMenu, setExtraTabMenu] = useState<ExtraTabMenuState>(null);
 
@@ -72,22 +60,18 @@ export function EditorTabsBar(props: {
     () => (extraTabMenu ? extraTabs.find((item) => item.id === extraTabMenu.tabId) ?? null : null),
     [extraTabMenu, extraTabs],
   );
-
-  const totalTabCount = tabs.length + extraTabs.length;
-  const sharedTabWidth = useMemo(() => {
-    if (totalTabCount === 0) {
-      return FILE_TAB_MAX_WIDTH;
-    }
-    const gapWidth = Math.max(totalTabCount - 1, 0) * TAB_GAP_PX;
-    const availableWidth = Math.max(
-      tabViewportWidth - gapWidth - TAB_ROW_TRAILING_SPACE_PX,
-      FILE_TAB_MIN_WIDTH,
-    );
-    return Math.floor(availableWidth / totalTabCount);
-  }, [tabViewportWidth, totalTabCount]);
-  const fileTabWidth = clampTabWidth(sharedTabWidth, FILE_TAB_MIN_WIDTH, FILE_TAB_MAX_WIDTH);
-  const extraTabWidth = clampTabWidth(sharedTabWidth, EXTRA_TAB_MIN_WIDTH, EXTRA_TAB_MAX_WIDTH);
-  const showPreviewBadge = fileTabWidth >= PREVIEW_BADGE_MIN_WIDTH;
+  const fileTabLayouts = useMemo(
+    () => Object.fromEntries(tabs.map((tab) => [tab.id, resolveFileTabLayout(tab, Boolean(dirtyByPath[tab.path]))])),
+    [dirtyByPath, tabs],
+  );
+  const extraTabWidths = useMemo(
+    () => Object.fromEntries(extraTabs.map((tab) => [tab.id, resolveExtraTabWidth(tab.title, {
+      dirty: Boolean(tab.dirty),
+      hasMenu: Boolean(tab.renderMenu),
+      hasClose: Boolean(tab.onClose),
+    })])),
+    [extraTabs],
+  );
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -95,7 +79,6 @@ export function EditorTabsBar(props: {
       return;
     }
     const refreshOverflow = () => {
-      setTabViewportWidth(element.clientWidth);
       const overflow = element.scrollWidth > element.clientWidth + 4;
       setHasOverflow(overflow);
       setCanScrollLeft(element.scrollLeft > 2);
@@ -122,7 +105,7 @@ export function EditorTabsBar(props: {
       return;
     }
     target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-  }, [activeDomTabId, tabs, extraTabs, fileTabWidth, extraTabWidth]);
+  }, [activeDomTabId, tabs, extraTabs, fileTabLayouts, extraTabWidths]);
 
   useEffect(() => {
     const closeAll = (event: MouseEvent) => {
@@ -174,6 +157,7 @@ export function EditorTabsBar(props: {
           {tabs.map((tab) => {
             const active = tab.id === activeTabId;
             const dirty = Boolean(dirtyByPath[tab.path]);
+            const layout = fileTabLayouts[tab.id] ?? resolveFileTabLayout(tab, dirty);
             return (
               <div
                 key={tab.id}
@@ -184,7 +168,7 @@ export function EditorTabsBar(props: {
                     ? "editor-tab--active"
                     : "editor-tab--inactive",
                 )}
-                style={{ width: `${fileTabWidth}px`, maxWidth: `${fileTabWidth}px`, flexBasis: `${fileTabWidth}px` }}
+                style={{ width: `${layout.width}px`, maxWidth: `${layout.width}px`, flexBasis: `${layout.width}px` }}
                 onClick={(event) => {
                   event.stopPropagation();
                   onSelect(tab.id);
@@ -201,10 +185,10 @@ export function EditorTabsBar(props: {
                 title={tab.path}
               >
                 <span className="min-w-0 flex-1 truncate">{tab.title}</span>
-                {dirty && (
+                {dirty ? (
                   <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
-                )}
-                {tab.preview && !tab.pinned && showPreviewBadge ? (
+                ) : null}
+                {layout.showPreviewBadge ? (
                   <span className="editor-tab-preview-badge shrink-0 rounded-full px-1.5 text-[10px]">
                     {t("editor.tab.preview")}
                   </span>
@@ -225,64 +209,71 @@ export function EditorTabsBar(props: {
             );
           })}
 
-          {extraTabs.map((tab) => (
-            <div
-              key={tab.id}
-              data-tab-id={tab.id}
-              className={cn(
-                "editor-tab group inline-flex h-7 shrink-0 items-center gap-1 rounded-[11px] px-2 text-xs transition",
-                tab.active
-                  ? "editor-tab--active"
-                  : "editor-tab--inactive",
-              )}
-              style={{ width: `${extraTabWidth}px`, maxWidth: `${extraTabWidth}px`, flexBasis: `${extraTabWidth}px` }}
-              onClick={(event) => {
-                event.stopPropagation();
-                tab.onSelect();
-              }}
-              title={tab.tooltip ?? tab.title}
-            >
-              <span className="min-w-0 flex-1 truncate">{tab.title}</span>
-              {tab.dirty && <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />}
-              {tab.renderMenu ? (
-                <button
-                  className="editor-tab-action shrink-0 rounded p-0.5"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                    setExtraTabMenu((prev) =>
-                      prev && prev.tabId === tab.id
-                        ? null
-                        : { tabId: tab.id, x: rect.left, y: rect.bottom + 4 },
-                    );
-                  }}
-                  disabled={busy}
-                  title={tab.menuLabel ?? t("editor.tab.more")}
-                  aria-label={tab.menuLabel ?? t("editor.tab.more")}
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-              ) : null}
-              {tab.onClose ? (
-                <button
-                  className="editor-tab-action shrink-0 rounded p-0.5"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    tab.onClose?.();
-                  }}
-                  disabled={busy}
-                  title={tab.closeLabel ?? t("editor.tab.close")}
-                  aria-label={tab.closeLabel ?? t("editor.tab.close")}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              ) : null}
-            </div>
-          ))}
+          {extraTabs.map((tab) => {
+            const tabWidth = extraTabWidths[tab.id] ?? resolveExtraTabWidth(tab.title, {
+              dirty: Boolean(tab.dirty),
+              hasMenu: Boolean(tab.renderMenu),
+              hasClose: Boolean(tab.onClose),
+            });
+            return (
+              <div
+                key={tab.id}
+                data-tab-id={tab.id}
+                className={cn(
+                  "editor-tab group inline-flex h-7 shrink-0 items-center gap-1 rounded-[11px] px-2 text-xs transition",
+                  tab.active
+                    ? "editor-tab--active"
+                    : "editor-tab--inactive",
+                )}
+                style={{ width: `${tabWidth}px`, maxWidth: `${tabWidth}px`, flexBasis: `${tabWidth}px` }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  tab.onSelect();
+                }}
+                title={tab.tooltip ?? tab.title}
+              >
+                <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                {tab.dirty ? <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" /> : null}
+                {tab.renderMenu ? (
+                  <button
+                    className="editor-tab-action shrink-0 rounded p-0.5"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                      setExtraTabMenu((prev) =>
+                        prev && prev.tabId === tab.id
+                          ? null
+                          : { tabId: tab.id, x: rect.left, y: rect.bottom + 4 },
+                      );
+                    }}
+                    disabled={busy}
+                    title={tab.menuLabel ?? t("editor.tab.more")}
+                    aria-label={tab.menuLabel ?? t("editor.tab.more")}
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                ) : null}
+                {tab.onClose ? (
+                  <button
+                    className="editor-tab-action shrink-0 rounded p-0.5"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      tab.onClose?.();
+                    }}
+                    disabled={busy}
+                    title={tab.closeLabel ?? t("editor.tab.close")}
+                    aria-label={tab.closeLabel ?? t("editor.tab.close")}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {hasOverflow && (
+      {hasOverflow ? (
         <div className="flex shrink-0 items-center gap-1">
           <button
             className="editor-tabs-scroll-btn rounded-full p-1 disabled:opacity-40"
@@ -326,7 +317,7 @@ export function EditorTabsBar(props: {
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
-            {overflowOpen && (
+            {overflowOpen ? (
               <div className="editor-tabs-overflow-menu absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto py-1">
                 {overflowItems.map((item) => (
                   <button
@@ -343,18 +334,18 @@ export function EditorTabsBar(props: {
                     }}
                   >
                     <span className="truncate">{item.title}</span>
-                    {item.dirty && (
+                    {item.dirty ? (
                       <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
-                    )}
+                    ) : null}
                   </button>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {menu && (
+      {menu ? (
         <EditorTabContextMenu
           x={menu.x}
           y={menu.y}
@@ -363,7 +354,7 @@ export function EditorTabsBar(props: {
           onClose={() => setMenu(null)}
           t={t}
         />
-      )}
+      ) : null}
 
       {extraTabMenu && activeExtraTab?.renderMenu ? (
         <div
@@ -377,4 +368,3 @@ export function EditorTabsBar(props: {
     </div>
   );
 }
-

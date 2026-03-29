@@ -24,7 +24,9 @@ import {
   LazyDrawWorkspace,
   WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
+import { buildNewChatTabState } from "./workspace/workspaceChatTab";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
+import { createChatSessionInStore } from "../hooks/chatSessionStore";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -247,6 +249,16 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     setChatTabActive(true);
   };
 
+  const handleCreateChatTab = () => {
+    const next = buildNewChatTabState(activeProjectId, t("chat.sessionNew"), createChatSessionInStore);
+    if (!next) {
+      return;
+    }
+    setChatTabOpen(next.chatTabOpen);
+    setChatTabActive(next.chatTabActive);
+    setChatTabTitle(next.chatTabTitle);
+  };
+
   const handleCloseChatTab = () => {
     setChatTabOpen(false);
     setChatTabActive(false);
@@ -431,6 +443,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onShareStart={onShareStart}
         onShareStop={onShareStop}
         onShareRefresh={onShareRefresh}
+        onCreateChatTab={handleCreateChatTab}
         onOpenChatTab={handleOpenChatTab}
         onChatTabTitleChange={setChatTabTitle}
         onEditorUndo={onEditorUndo}

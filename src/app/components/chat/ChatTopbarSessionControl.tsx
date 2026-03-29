@@ -16,11 +16,12 @@ function resolveActiveSessionTitle(projectId: string): string | null {
 
 export function ChatTopbarSessionControl(props: {
   activeProjectId: string | null;
+  onCreateChatTab: () => void;
   onOpenChatTab: () => void;
   onSessionStateChanged?: (activeTitle: string | null) => void;
   t: TranslationFn;
 }) {
-  const { activeProjectId, onOpenChatTab, onSessionStateChanged, t } = props;
+  const { activeProjectId, onCreateChatTab, onOpenChatTab, onSessionStateChanged, t } = props;
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -69,7 +70,7 @@ export function ChatTopbarSessionControl(props: {
           className="panel-topbar-btn rounded-none border-r border-[color:var(--control-border)] text-slate-700 transition"
           title={t("nav.chat")}
           aria-label={t("nav.chat")}
-          onClick={onOpenChatTab}
+          onClick={onCreateChatTab}
         >
           <MessageSquareMore className="h-3.5 w-3.5" />
         </button>
@@ -99,3 +100,5 @@ export function ChatTopbarSessionControl(props: {
     </div>
   );
 }
+
+

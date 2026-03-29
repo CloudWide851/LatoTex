@@ -60,6 +60,7 @@ export function LatexWorkspaceEditorPanel(props: {
   onShareStart: () => void;
   onShareStop: () => void;
   onShareRefresh: () => void;
+  onCreateChatTab: () => void;
   onOpenChatTab: () => void;
   onChatTabTitleChange: (value: string | null) => void;
   onEditorUndo: () => void;
@@ -132,6 +133,7 @@ export function LatexWorkspaceEditorPanel(props: {
     onShareStart,
     onShareStop,
     onShareRefresh,
+    onCreateChatTab,
     onOpenChatTab,
     onChatTabTitleChange,
     onEditorUndo,
@@ -198,6 +200,7 @@ export function LatexWorkspaceEditorPanel(props: {
             />
             <ChatTopbarSessionControl
               activeProjectId={activeProjectId}
+              onCreateChatTab={onCreateChatTab}
               onOpenChatTab={onOpenChatTab}
               onSessionStateChanged={onChatTabTitleChange}
               t={t}
