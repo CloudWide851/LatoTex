@@ -162,7 +162,6 @@ export function AgentChatOverlay(props: {
   const streamCursorRef = useRef<number | undefined>(undefined);
   const streamRunRef = useRef<string | null>(null);
   const [streamedText, setStreamedText] = useState("");
-  const [thinkingFrame, setThinkingFrame] = useState(0);
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
   const commandSuggestions = useMemo(
     () =>
@@ -195,10 +194,7 @@ export function AgentChatOverlay(props: {
   const baseStatusLine = pendingActionLabel
     || activityLines[activityLines.length - 1]?.text
     || ((phase === "running" || phase === "starting" || Boolean(runId)) ? statusLine : "");
-  const currentStatusLine =
-    (phase === "running" || phase === "starting") && baseStatusLine
-      ? `${baseStatusLine}${".".repeat((thinkingFrame % 3) + 1)}`
-      : baseStatusLine;
+  const currentStatusLine = baseStatusLine;
   const pendingActionDescription = useMemo(() => {
     if (!pendingAction) {
       return "";
@@ -219,16 +215,6 @@ export function AgentChatOverlay(props: {
     el.scrollTop = el.scrollHeight;
   }, [activityLines, showActivityPanel, streamedText]);
 
-  useEffect(() => {
-    if (phase !== "running" && phase !== "starting") {
-      setThinkingFrame(0);
-      return;
-    }
-    const timer = window.setInterval(() => {
-      setThinkingFrame((prev) => (prev + 1) % 4);
-    }, 360);
-    return () => window.clearInterval(timer);
-  }, [phase]);
 
   useEffect(() => {
     if (runId) {
@@ -323,7 +309,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "absolute bottom-4 left-1/2 z-30 flex max-w-[min(620px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition motion-card-pop motion-hover-rise",
+          "agent-overlay-trigger absolute bottom-4 left-1/2 z-30 flex max-w-[min(620px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition motion-card-pop",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -339,17 +325,17 @@ export function AgentChatOverlay(props: {
 
   return (
     <div className="pointer-events-none absolute inset-x-2 bottom-3 z-20 flex items-end">
-      <div className="pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-card-pop motion-panel-glow transition-[box-shadow,transform,opacity] duration-150">
+      <div className="agent-overlay-shell pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-card-pop transition-[box-shadow,border-color,opacity] duration-150">
         <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
             <span className="shrink-0">{title}</span>
             {currentStatusLine ? (
-              <span className="min-w-0 flex-1 truncate rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 motion-status-chip">
+              <span className="motion-status-chip inline-flex min-w-0 flex-1 items-center rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
                 {(phase === "running" || phase === "starting") ? (
-                  <Loader2 className="mr-1.5 inline-block h-3 w-3 animate-spin align-[-0.1em] text-primary-600" />
+                  <Loader2 className="mr-1.5 inline-block h-3 w-3 shrink-0 animate-spin align-[-0.1em] text-primary-600" />
                 ) : null}
-                {currentStatusLine}
+                <span className="min-w-0 flex-1 truncate">{currentStatusLine}</span>
               </span>
             ) : null}
           </div>
@@ -572,3 +558,4 @@ export function AgentChatOverlay(props: {
     </div>
   );
 }
+
