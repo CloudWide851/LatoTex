@@ -143,9 +143,13 @@ export function AppContainer() {
     deleteIntent: s.deleteIntent,
     deleteDontAskAgain: s.deleteDontAskAgain,
     requestCloseBehaviorDecision: () => {
+      if (closeBehaviorDialogOpen || closeDecisionBusy) {
+        return false;
+      }
       setCloseBehaviorRememberChoice(false);
       setCloseDecisionBusy(false);
       setCloseBehaviorDialogOpen(true);
+      return true;
     },
     requestNativeWindowClose,
     setCloseDecisionBusy,

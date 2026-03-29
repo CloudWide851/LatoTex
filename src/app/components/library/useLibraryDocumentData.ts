@@ -25,7 +25,9 @@ type DocumentDataState = {
   bibPreview: string;
   resolvedLink: string | null;
   sourcePdfRelativePath: string | null;
+  sourcePdfPreviewUrl: string | null;
   translatedPdfRelativePath: string | null;
+  translatedPdfPreviewUrl: string | null;
   pdfCacheState: LibraryPdfPreview["cacheState"];
   pdfCacheError: string | null;
 };
@@ -50,7 +52,9 @@ const EMPTY_STATE: DocumentDataState = {
   bibPreview: "",
   resolvedLink: null,
   sourcePdfRelativePath: null,
+  sourcePdfPreviewUrl: null,
   translatedPdfRelativePath: null,
+  translatedPdfPreviewUrl: null,
   pdfCacheState: "missing",
   pdfCacheError: null,
 };
@@ -130,10 +134,16 @@ function toPaperPreview(
 }
 
 function buildDocumentPreviewUrl(
+  previewUrl: string | null,
   projectId: string | null,
   relativePath: string | null,
   previewVersion: number,
 ): string | null {
+  const baseUrl = String(previewUrl || "").trim();
+  if (baseUrl) {
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${separator}v=${encodeURIComponent(`${previewVersion}`)}`;
+  }
   if (!projectId || !relativePath) {
     return null;
   }
@@ -262,7 +272,9 @@ export function useLibraryDocumentData(params: {
         ...baseState,
         resolvedLink: preview.sourceUrl ?? baseState.resolvedLink,
         sourcePdfRelativePath: preview.relativePath ?? null,
+        sourcePdfPreviewUrl: preview.previewUrl ?? null,
         translatedPdfRelativePath: preview.translatedRelativePath ?? null,
+        translatedPdfPreviewUrl: preview.translatedPreviewUrl ?? null,
         pdfCacheState: preview.cacheState ?? (preview.relativePath ? "ready" : "missing"),
         pdfCacheError: preview.cacheError ?? null,
       };
@@ -295,7 +307,9 @@ export function useLibraryDocumentData(params: {
       const errorState: DocumentDataState = {
         ...baseState,
         sourcePdfRelativePath: null,
+        sourcePdfPreviewUrl: null,
         translatedPdfRelativePath: null,
+        translatedPdfPreviewUrl: null,
         pdfCacheState: "error",
         pdfCacheError: errorMessage,
       };
@@ -388,7 +402,9 @@ export function useLibraryDocumentData(params: {
           bibPreview,
           resolvedLink: normalizedSummary.urls?.[0] ?? null,
           sourcePdfRelativePath: null,
+          sourcePdfPreviewUrl: null,
           translatedPdfRelativePath: null,
+          translatedPdfPreviewUrl: null,
           paperPreview: null,
           pdfCacheState: "pending",
           pdfCacheError: null,
@@ -524,12 +540,22 @@ export function useLibraryDocumentData(params: {
   }, [active, hydratePdfPreview, projectId, selectedPath, state.pdfCacheState]);
 
   const pdfUrl = useMemo(
-    () => buildDocumentPreviewUrl(projectId, state.sourcePdfRelativePath, previewVersion),
-    [previewVersion, projectId, state.sourcePdfRelativePath],
+    () => buildDocumentPreviewUrl(
+      state.sourcePdfPreviewUrl,
+      projectId,
+      state.sourcePdfRelativePath,
+      previewVersion,
+    ),
+    [previewVersion, projectId, state.sourcePdfPreviewUrl, state.sourcePdfRelativePath],
   );
   const translatedPdfUrl = useMemo(
-    () => buildDocumentPreviewUrl(projectId, state.translatedPdfRelativePath, previewVersion),
-    [previewVersion, projectId, state.translatedPdfRelativePath],
+    () => buildDocumentPreviewUrl(
+      state.translatedPdfPreviewUrl,
+      projectId,
+      state.translatedPdfRelativePath,
+      previewVersion,
+    ),
+    [previewVersion, projectId, state.translatedPdfPreviewUrl, state.translatedPdfRelativePath],
   );
 
   return {

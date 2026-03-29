@@ -157,8 +157,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         await runWindowCloseBehavior(plan.behavior);
         return;
       }
-      requestCloseBehaviorDecision();
-      void runtimeLogWrite("INFO", "window close decision requested").catch(() => undefined);
+      if (requestCloseBehaviorDecision()) {
+        void runtimeLogWrite("INFO", "window close decision requested").catch(() => undefined);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });

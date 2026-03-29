@@ -5,6 +5,7 @@ describe("drawWorkspaceUtils", () => {
     vi.unstubAllGlobals();
     vi.doUnmock("@tauri-apps/api/core");
     vi.doUnmock("../../../shared/api/local-resources");
+    vi.doUnmock("../../../shared/utils/localResourceProbe");
 
     vi.resetModules();
   });
@@ -22,6 +23,9 @@ describe("drawWorkspaceUtils", () => {
   it("keeps fallback drawio host for non-tauri runtime", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => false,
+    }));
+    vi.doMock("../../../shared/utils/localResourceProbe", () => ({
+      prioritizeReachableLocalResourceCandidates: vi.fn(async (candidates: string[]) => candidates),
     }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
@@ -44,14 +48,15 @@ describe("drawWorkspaceUtils", () => {
         entryUrl: "http://latotex-resource.localhost/tool/drawio/index.html",
       })),
     }));
-
+    vi.doMock("../../../shared/utils/localResourceProbe", () => ({
+      prioritizeReachableLocalResourceCandidates: vi.fn(async (candidates: string[]) => candidates),
+    }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     const candidates = await resolveDrawioHostFrameCandidates();
 
     expect(candidates[0]).toBe("http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
     expect(candidates[1]).toBe("/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
-
   });
 
   it("falls back to same-origin host when tauri cache prepare fails", async () => {
@@ -63,10 +68,41 @@ describe("drawWorkspaceUtils", () => {
         throw new Error("prepare failed");
       }),
     }));
+    vi.doMock("../../../shared/utils/localResourceProbe", () => ({
+      prioritizeReachableLocalResourceCandidates: vi.fn(async (candidates: string[]) => candidates),
+    }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
     await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([
       "/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
+    ]);
+  });
+
+  it("promotes reachable fallback host before broken primary candidates", async () => {
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+    }));
+    vi.doMock("../../../shared/api/local-resources", () => ({
+      drawioCachePrepare: vi.fn(async () => ({
+        policy: "install-first",
+        requestedDir: "F:\\LatoTex\\drawio-cache",
+        actualDir: "F:\\LatoTex\\drawio-cache",
+        installDirWritable: true,
+        usingFallback: false,
+        entryUrl: "http://latotex-resource.localhost/tool/drawio/index.html",
+      })),
+    }));
+    vi.doMock("../../../shared/utils/localResourceProbe", () => ({
+      prioritizeReachableLocalResourceCandidates: vi.fn(async (candidates: string[]) => [
+        candidates[1],
+        candidates[0],
+      ]),
+    }));
+
+    const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
+    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([
+      "/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
+      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
     ]);
   });
 
@@ -92,6 +128,3 @@ describe("drawWorkspaceUtils", () => {
     );
   });
 });
-
-
-

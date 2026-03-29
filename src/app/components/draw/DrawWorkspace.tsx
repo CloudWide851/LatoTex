@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { waitForResourceWarmup } from "../../../shared/api/resource-warmup";
+import { prioritizeReachableLocalResourceCandidates } from "../../../shared/utils/localResourceProbe";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
@@ -100,7 +101,7 @@ export function DrawWorkspace(props: {
           });
           const drawioInfo = warmup.result?.drawio ?? null;
           if (drawioInfo) {
-            warmupCandidates = buildDrawioEntryCandidates(drawioInfo);
+            warmupCandidates = await prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(drawioInfo));
           }
         }
       } catch {

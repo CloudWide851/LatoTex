@@ -31,7 +31,7 @@ export type UseAppHandlersParams = {
   gitInstallerLaunched: boolean;
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
-  requestCloseBehaviorDecision: () => void;
+  requestCloseBehaviorDecision: () => boolean;
   requestNativeWindowClose: (bypassInterception?: boolean) => Promise<boolean>;
   setCloseDecisionBusy: (value: boolean) => void;
   setBusy: (value: boolean) => void;

@@ -18,7 +18,7 @@ export function useProjectResourceWarmup(params: {
     warmedProjectRef.current = activeProjectId;
     void resourceWarmupStart({
       projectId: activeProjectId,
-      scopes: ["drawio", "tectonic"],
+      scopes: ["drawio"],
     }).catch(() => {
       if (warmedProjectRef.current === activeProjectId) {
         warmedProjectRef.current = null;

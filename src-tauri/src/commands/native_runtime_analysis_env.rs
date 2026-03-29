@@ -6,13 +6,22 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
-    let candidates = [
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/uv/windows-x64/uv.exe"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../src-tauri/resources/tools/uv/windows-x64/uv.exe"),
+fn analysis_resource_candidates(relative_path: &str) -> Vec<PathBuf> {
+    let mut candidates = vec![
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative_path),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../src-tauri/{relative_path}")),
     ];
-    for candidate in candidates {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join(relative_path));
+            candidates.push(exe_dir.join(format!("resources/{relative_path}")));
+            candidates.push(exe_dir.join(format!("../resources/{relative_path}")));
+        }
+    }
+    candidates
+}
+pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
+    for candidate in analysis_resource_candidates("resources/tools/uv/windows-x64/uv.exe") {
         if candidate.exists() {
             return Some(candidate);
         }
@@ -27,25 +36,17 @@ pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
 }
 
 pub(crate) fn resolve_analysis_runtime_root() -> Option<PathBuf> {
-    let candidates = [
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/python/analysis_runtime"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../src-tauri/resources/python/analysis_runtime"),
-    ];
-    candidates
+    analysis_resource_candidates("resources/python/analysis_runtime")
         .into_iter()
         .find(|candidate| candidate.join("analysis_runner.py").exists())
 }
 
 pub(crate) fn resolve_pdfmathtranslate_vendor_root() -> Option<PathBuf> {
-    let candidates = [
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/python/vendor/pdf2zh"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../src-tauri/resources/python/vendor/pdf2zh"),
-    ];
-    candidates.into_iter().find(|candidate| {
-        candidate.join("pyproject.toml").exists() && candidate.join("pdf2zh/__init__.py").exists()
-    })
+    analysis_resource_candidates("resources/python/vendor/pdf2zh")
+        .into_iter()
+        .find(|candidate| {
+            candidate.join("pyproject.toml").exists() && candidate.join("pdf2zh/__init__.py").exists()
+        })
 }
 
 pub(crate) fn managed_analysis_root(runtime_root: &Path) -> PathBuf {
@@ -549,7 +550,10 @@ pub(crate) fn ensure_analysis_env_blocking(
 
 #[cfg(test)]
 mod tests {
-    use super::{runtime_dependency_fingerprint, strip_windows_verbatim_prefix};
+    use super::{
+        analysis_resource_candidates, runtime_dependency_fingerprint,
+        strip_windows_verbatim_prefix,
+    };
     use std::fs;
     use std::path::PathBuf;
     use uuid::Uuid;
@@ -601,5 +605,19 @@ mod tests {
 
         let _ = fs::remove_dir_all(runtime_root);
     }
-}
+    #[test]
+    fn analysis_resource_candidates_include_packaged_resource_paths() {
+        let candidates = analysis_resource_candidates("resources/python/analysis_runtime");
+        let rendered = candidates
+            .iter()
+            .map(|value| value.to_string_lossy().replace('\\', "/"))
+            .collect::<Vec<_>>();
 
+        assert!(rendered
+            .iter()
+            .any(|value| value.ends_with("/resources/python/analysis_runtime")));
+        assert!(rendered
+            .iter()
+            .any(|value| value.contains("../src-tauri/resources/python/analysis_runtime")));
+    }
+}

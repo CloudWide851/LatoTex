@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { drawioCachePrepare } from "../../../shared/api/local-resources";
+import { prioritizeReachableLocalResourceCandidates } from "../../../shared/utils/localResourceProbe";
 import type { DrawioCacheInfo } from "../../../shared/types/app";
 
 export type DrawMessage = {
@@ -57,7 +58,7 @@ export function buildDrawioEntryCandidates(info: Pick<DrawioCacheInfo, "entryUrl
 
 export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
   if (!isTauri()) {
-    return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
+    return prioritizeReachableLocalResourceCandidates([toDrawioEmbedUrl(DRAWIO_HOST_URL)]);
   }
 
   try {
@@ -69,9 +70,9 @@ export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
     }
-    return buildDrawioEntryCandidates(info);
+    return prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(info));
   } catch {
-    return [toDrawioEmbedUrl(DRAWIO_HOST_URL)];
+    return prioritizeReachableLocalResourceCandidates([toDrawioEmbedUrl(DRAWIO_HOST_URL)]);
   }
 }
 
