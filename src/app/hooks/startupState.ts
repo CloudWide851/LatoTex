@@ -97,6 +97,27 @@ export function deriveStartupProgress(steps: AppStartupStep[]): number {
   return Math.max(0, Math.min(100, Math.round((total / steps.length) * 100)));
 }
 
+export function deriveStartupOverlaySteps(
+  phase: AppStartupPhase,
+  steps: AppStartupStep[],
+  currentStepKey: AppStartupStepKey | null,
+): AppStartupStep[] {
+  if (phase === "actionRequired" || phase === "failed") {
+    const blockingSteps = steps.filter(
+      (step) => step.status === "actionRequired" || step.status === "failed",
+    );
+    if (blockingSteps.length > 0) {
+      return blockingSteps;
+    }
+  }
+  const focusedStep =
+    (currentStepKey ? steps.find((step) => step.key === currentStepKey) : null)
+    ?? steps.find((step) => step.status === "running")
+    ?? [...steps].reverse().find((step) => step.status !== "pending")
+    ?? null;
+  return focusedStep ? [focusedStep] : [];
+}
+
 export function deriveComponentStartupState(phase: AppStartupPhase): ComponentStartupState {
   if (phase === "ready") {
     return "ready";

@@ -10,6 +10,8 @@ mod native_runtime_latex;
 mod native_runtime_latex_core;
 #[path = "native_runtime_latex_tectonic.rs"]
 mod native_runtime_latex_tectonic;
+#[path = "native_runtime_latex_warmup.rs"]
+mod native_runtime_latex_warmup;
 
 pub use native_runtime_analysis::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
@@ -27,5 +29,8 @@ pub(crate) use native_runtime_common::{configure_hidden_process, sanitize_log_li
 
 
 #[allow(unused_imports)]
-pub(crate) use native_runtime_latex_core::ensure_tectonic_runtime_warmup;
+pub(crate) use native_runtime_latex_warmup::{ensure_tectonic_runtime_warmup, ensure_tectonic_runtime_warmup_with_progress};
+
+
+
 

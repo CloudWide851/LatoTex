@@ -1,5 +1,5 @@
 use super::local_resources::prepare_drawio_cache_info;
-use super::native_runtime::ensure_tectonic_runtime_warmup;
+use super::native_runtime::ensure_tectonic_runtime_warmup_with_progress;
 use crate::models::{
     ResourceWarmupResult, ResourceWarmupStartInput, ResourceWarmupStartResponse,
     ResourceWarmupStatusInput, ResourceWarmupTaskStatusResponse,
@@ -172,9 +172,28 @@ pub fn resource_warmup_start(
                         result.drawio = Some(info);
                     }
                     "tectonic" => {
-                        let info = ensure_tectonic_runtime_warmup(
+                        let scope_end = ((index + 1) as f64 / scope_count) * 100.0;
+                        let scope_span = (scope_end - percent_base).max(1.0);
+                        let info = ensure_tectonic_runtime_warmup_with_progress(
                             &state_for_thread.runtime_root,
                             &state_for_thread.app_data_dir,
+                            |percent, stage, current_item, message| {
+                                let scoped_percent = percent_base + scope_span * (percent.clamp(0.0, 100.0) / 100.0);
+                                update_progress(scoped_percent, stage, current_item, message);
+                                append_runtime_log(
+                                    &session_log_path,
+                                    "INFO",
+                                    format!(
+                                        "resource_warmup.task.progress: task_id={}, project={}, scope=tectonic, stage={}, percent={:.1}, item={}, message={}",
+                                        task_id_for_thread,
+                                        project_id,
+                                        stage,
+                                        percent,
+                                        current_item.unwrap_or("-"),
+                                        message.unwrap_or("-")
+                                    ),
+                                );
+                            },
                         )?;
                         result.tectonic = Some(info);
                     }
@@ -291,5 +310,9 @@ pub fn resource_warmup_status(
         .ok_or_else(|| "resource_warmup.task_not_found".to_string())?;
     snapshot_resource_warmup_task(task)
 }
+
+
+
+
 
 

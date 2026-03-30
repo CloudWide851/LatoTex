@@ -12,7 +12,7 @@ import { listProjects } from "../../shared/api/projects";
 import { waitForResourceWarmup } from "../../shared/api/resource-warmup";
 import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
 import { getSettings } from "../../shared/api/settings";
-import type { AnalysisEnvStatus, AppSettings, ProjectSummary } from "../../shared/types/app";
+import type { AnalysisEnvStatus, AppSettings, ProjectSummary, ResourceWarmupTaskStatus } from "../../shared/types/app";
 import {
   applyTheme,
   DEFAULT_PANEL_LAYOUT,
@@ -40,6 +40,16 @@ type LoadProjectData = (
 const ENV_PREPARE_POLL_MS = 320;
 const ENV_PREPARE_POLL_LIMIT = 1600;
 
+function describeWarmupStatus(status: ResourceWarmupTaskStatus, fallback: string): string {
+  return String(status.message || status.currentItem || status.stage || fallback);
+}
+
+function normalizeWarmupProgress(percent: number): number {
+  if (!Number.isFinite(percent)) {
+    return 10;
+  }
+  return Math.max(10, Math.min(99, Math.round(percent)));
+}
 function normalizeSettings(appSettings: AppSettings): AppSettings {
   const backgroundList = Array.from(
     new Set(
@@ -401,7 +411,20 @@ export function useAppStartup(params: {
       await waitForResourceWarmup({
         projectId: targetProjectId,
         scopes: ["drawio"],
-        timeoutMs: 32_000,
+        timeoutMs: 45_000,
+        inactivityTimeoutMs: 15_000,
+        onProgress: (status) => {
+          abortIfStale();
+          updateStep(
+            "drawio",
+            {
+              status: "running",
+              detail: describeWarmupStatus(status, t("draw.warming")),
+              progress: normalizeWarmupProgress(status.percent),
+            },
+            "warming",
+          );
+        },
       });
       abortIfStale();
       updateStep("drawio", { status: "ready", detail: t("app.ready"), progress: 100 }, "warming");
@@ -410,7 +433,20 @@ export function useAppStartup(params: {
       await waitForResourceWarmup({
         projectId: targetProjectId,
         scopes: ["tectonic"],
-        timeoutMs: 40_000,
+        timeoutMs: 240_000,
+        inactivityTimeoutMs: 90_000,
+        onProgress: (status) => {
+          abortIfStale();
+          updateStep(
+            "tectonic",
+            {
+              status: "running",
+              detail: describeWarmupStatus(status, t("workspace.compileStage.warming_resources")),
+              progress: normalizeWarmupProgress(status.percent),
+            },
+            "warming",
+          );
+        },
       });
       abortIfStale();
       updateStep("tectonic", { status: "ready", detail: t("app.ready"), progress: 100 }, "warming");
@@ -540,6 +576,7 @@ export function useAppStartup(params: {
     handleStartupPrepareAnalysisEnv,
   };
 }
+
 
 
 
