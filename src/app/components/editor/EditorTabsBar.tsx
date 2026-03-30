@@ -1,8 +1,10 @@
-import { ChevronDown, ChevronLeft, ChevronRight, Circle, X } from "lucide-react";
+import { ChevronDown, Circle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 import type { CloseTabsAction, EditorTab } from "../../../shared/types/app";
 import { EditorTabContextMenu } from "./EditorTabContextMenu";
+import { runTabButtonAction, swallowTabButtonEvent } from "./editorTabButtonAction";
+import { editorTabOverflowConstants, resolveEditorTabOverflow } from "./editorTabOverflow";
 import { resolveExtraTabWidth, resolveFileTabLayout } from "./editorTabSizing";
 
 type TranslationFn = (key: any) => string;
@@ -32,6 +34,14 @@ type ExtraEditorTab = {
   menuLabel?: string;
 };
 
+type OverflowItem = {
+  id: string;
+  title: string;
+  active: boolean;
+  dirty: boolean;
+  onClick: () => void;
+};
+
 export function EditorTabsBar(props: {
   tabs: EditorTab[];
   activeTabId: string | null;
@@ -46,11 +56,8 @@ export function EditorTabsBar(props: {
 }) {
   const { tabs, activeTabId, dirtyByPath, busy, extraTabs = [], onSelect, onClose, onCloseAction, onPin, t } = props;
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const [hasOverflow, setHasOverflow] = useState(false);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [availableWidth, setAvailableWidth] = useState(0);
   const [menu, setMenu] = useState<ContextMenuState>(null);
   const [extraTabMenu, setExtraTabMenu] = useState<ExtraTabMenuState>(null);
 
@@ -72,40 +79,85 @@ export function EditorTabsBar(props: {
     })])),
     [extraTabs],
   );
+  const sizedItems = useMemo(
+    () => [
+      ...tabs.map((tab) => ({ id: tab.id, width: fileTabLayouts[tab.id]?.width ?? resolveFileTabLayout(tab, Boolean(dirtyByPath[tab.path])).width })),
+      ...extraTabs.map((tab) => ({
+        id: tab.id,
+        width: extraTabWidths[tab.id] ?? resolveExtraTabWidth(tab.title, {
+          dirty: Boolean(tab.dirty),
+          hasMenu: Boolean(tab.renderMenu),
+          hasClose: Boolean(tab.onClose),
+        }),
+      })),
+    ],
+    [dirtyByPath, extraTabWidths, extraTabs, fileTabLayouts, tabs],
+  );
+  const overflowLayout = useMemo(
+    () => resolveEditorTabOverflow(
+      sizedItems,
+      activeDomTabId,
+      availableWidth,
+      {
+        gap: editorTabOverflowConstants.DEFAULT_TAB_GAP,
+        overflowButtonWidth: editorTabOverflowConstants.DEFAULT_OVERFLOW_BUTTON_WIDTH,
+      },
+    ),
+    [activeDomTabId, availableWidth, sizedItems],
+  );
+  const hiddenTabIds = overflowLayout.hiddenIds;
+  const hiddenTabIdSet = useMemo(() => new Set(hiddenTabIds), [hiddenTabIds]);
+  const visibleTabs = useMemo(
+    () => tabs.filter((tab) => !hiddenTabIdSet.has(tab.id)),
+    [hiddenTabIdSet, tabs],
+  );
+  const visibleExtraTabs = useMemo(
+    () => extraTabs.filter((tab) => !hiddenTabIdSet.has(tab.id)),
+    [extraTabs, hiddenTabIdSet],
+  );
+  const overflowItems = useMemo<OverflowItem[]>(() => {
+    const fileItems = tabs.map((tab) => ({
+      id: tab.id,
+      title: tab.title,
+      active: tab.id === activeTabId,
+      dirty: Boolean(dirtyByPath[tab.path]),
+      onClick: () => onSelect(tab.id),
+    }));
+    const extItems = extraTabs.map((tab) => ({
+      id: tab.id,
+      title: tab.title,
+      active: tab.active,
+      dirty: Boolean(tab.dirty),
+      onClick: tab.onSelect,
+    }));
+    return [...fileItems, ...extItems].filter((item) => hiddenTabIdSet.has(item.id));
+  }, [activeTabId, dirtyByPath, extraTabs, hiddenTabIdSet, onSelect, tabs]);
 
   useEffect(() => {
-    const element = viewportRef.current;
+    const element = rootRef.current;
     if (!element) {
       return;
     }
-    const refreshOverflow = () => {
-      const overflow = element.scrollWidth > element.clientWidth + 4;
-      setHasOverflow(overflow);
-      setCanScrollLeft(element.scrollLeft > 2);
-      setCanScrollRight(element.scrollLeft + element.clientWidth < element.scrollWidth - 2);
+    const refreshWidth = () => {
+      setAvailableWidth(element.clientWidth);
     };
-    refreshOverflow();
-    const observer = new ResizeObserver(refreshOverflow);
+    refreshWidth();
+    const observer = new ResizeObserver(() => {
+      window.requestAnimationFrame(refreshWidth);
+    });
     observer.observe(element);
-    element.addEventListener("scroll", refreshOverflow, { passive: true });
-    const raf = window.requestAnimationFrame(refreshOverflow);
+    const raf = window.requestAnimationFrame(refreshWidth);
     return () => {
       observer.disconnect();
-      element.removeEventListener("scroll", refreshOverflow);
       window.cancelAnimationFrame(raf);
     };
-  }, [tabs, extraTabs]);
+  }, []);
 
   useEffect(() => {
-    if (!activeDomTabId || !rootRef.current) {
-      return;
+    if (!overflowLayout.hasOverflow) {
+      setOverflowOpen(false);
     }
-    const target = rootRef.current.querySelector<HTMLElement>(`[data-tab-id="${activeDomTabId}"]`);
-    if (!target) {
-      return;
-    }
-    target.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-  }, [activeDomTabId, tabs, extraTabs, fileTabLayouts, extraTabWidths]);
+  }, [overflowLayout.hasOverflow]);
 
   useEffect(() => {
     const closeAll = (event: MouseEvent) => {
@@ -130,31 +182,11 @@ export function EditorTabsBar(props: {
     };
   }, []);
 
-  const overflowItems = useMemo(() => {
-    const fileItems = [...tabs]
-      .sort((a, b) => b.lastAccessed - a.lastAccessed)
-      .map((tab) => ({
-        id: tab.id,
-        title: tab.title,
-        active: tab.id === activeTabId,
-        dirty: Boolean(dirtyByPath[tab.path]),
-        onClick: () => onSelect(tab.id),
-      }));
-    const extItems = extraTabs.map((tab) => ({
-      id: tab.id,
-      title: tab.title,
-      active: tab.active,
-      dirty: Boolean(tab.dirty),
-      onClick: tab.onSelect,
-    }));
-    return [...extItems, ...fileItems];
-  }, [activeTabId, dirtyByPath, extraTabs, onSelect, tabs]);
-
   return (
     <div ref={rootRef} className="editor-tabs-shell relative flex h-full items-center gap-1 px-1.5">
-      <div ref={viewportRef} className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div className="flex w-max min-w-full items-center gap-1 pr-2">
-          {tabs.map((tab) => {
+      <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-1 pr-1">
+          {visibleTabs.map((tab) => {
             const active = tab.id === activeTabId;
             const dirty = Boolean(dirtyByPath[tab.path]);
             const layout = fileTabLayouts[tab.id] ?? resolveFileTabLayout(tab, dirty);
@@ -195,9 +227,9 @@ export function EditorTabsBar(props: {
                 ) : null}
                 <button
                   className="editor-tab-action shrink-0 rounded p-0.5"
+                  onMouseDown={swallowTabButtonEvent}
                   onClick={(event) => {
-                    event.stopPropagation();
-                    onClose(tab.id);
+                    runTabButtonAction(event, () => onClose(tab.id));
                   }}
                   disabled={busy}
                   title={t("editor.tab.close")}
@@ -209,7 +241,7 @@ export function EditorTabsBar(props: {
             );
           })}
 
-          {extraTabs.map((tab) => {
+          {visibleExtraTabs.map((tab) => {
             const tabWidth = extraTabWidths[tab.id] ?? resolveExtraTabWidth(tab.title, {
               dirty: Boolean(tab.dirty),
               hasMenu: Boolean(tab.renderMenu),
@@ -237,14 +269,16 @@ export function EditorTabsBar(props: {
                 {tab.renderMenu ? (
                   <button
                     className="editor-tab-action shrink-0 rounded p-0.5"
+                    onMouseDown={swallowTabButtonEvent}
                     onClick={(event) => {
-                      event.stopPropagation();
-                      const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                      setExtraTabMenu((prev) =>
-                        prev && prev.tabId === tab.id
-                          ? null
-                          : { tabId: tab.id, x: rect.left, y: rect.bottom + 4 },
-                      );
+                      runTabButtonAction(event, () => {
+                        const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        setExtraTabMenu((prev) =>
+                          prev && prev.tabId === tab.id
+                            ? null
+                            : { tabId: tab.id, x: rect.left, y: rect.bottom + 4 },
+                        );
+                      });
                     }}
                     disabled={busy}
                     title={tab.menuLabel ?? t("editor.tab.more")}
@@ -256,9 +290,11 @@ export function EditorTabsBar(props: {
                 {tab.onClose ? (
                   <button
                     className="editor-tab-action shrink-0 rounded p-0.5"
+                    onMouseDown={swallowTabButtonEvent}
                     onClick={(event) => {
-                      event.stopPropagation();
-                      tab.onClose?.();
+                      runTabButtonAction(event, () => {
+                        tab.onClose?.();
+                      });
                     }}
                     disabled={busy}
                     title={tab.closeLabel ?? t("editor.tab.close")}
@@ -273,75 +309,45 @@ export function EditorTabsBar(props: {
         </div>
       </div>
 
-      {hasOverflow ? (
-        <div className="flex shrink-0 items-center gap-1">
+      {overflowLayout.hasOverflow ? (
+        <div className="relative shrink-0">
           <button
-            className="editor-tabs-scroll-btn rounded-full p-1 disabled:opacity-40"
-            onClick={() => {
-              const node = viewportRef.current;
-              if (!node) {
-                return;
-              }
-              node.scrollBy({ left: -Math.max(120, Math.floor(node.clientWidth * 0.6)), behavior: "smooth" });
-            }}
-            disabled={!canScrollLeft}
-            title={t("editor.tab.scrollLeft")}
-            aria-label={t("editor.tab.scrollLeft")}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="editor-tabs-scroll-btn rounded-full p-1 disabled:opacity-40"
-            onClick={() => {
-              const node = viewportRef.current;
-              if (!node) {
-                return;
-              }
-              node.scrollBy({ left: Math.max(120, Math.floor(node.clientWidth * 0.6)), behavior: "smooth" });
-            }}
-            disabled={!canScrollRight}
-            title={t("editor.tab.scrollRight")}
-            aria-label={t("editor.tab.scrollRight")}
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-          <div className="relative shrink-0">
-            <button
-              className="editor-tabs-scroll-btn rounded-full p-1"
-              onClick={(event) => {
-                event.stopPropagation();
+            className="editor-tabs-scroll-btn rounded-full p-1"
+            onMouseDown={swallowTabButtonEvent}
+            onClick={(event) => {
+              runTabButtonAction(event, () => {
                 setOverflowOpen((prev) => !prev);
-              }}
-              title={t("editor.tab.more")}
-              aria-label={t("editor.tab.more")}
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            {overflowOpen ? (
-              <div className="editor-tabs-overflow-menu absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto py-1">
-                {overflowItems.map((item) => (
-                  <button
-                    key={item.id}
-                    className={cn(
-                      "editor-tabs-overflow-item flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
-                      item.active
-                        ? "editor-tabs-overflow-item--active"
-                        : "editor-tabs-overflow-item--inactive",
-                    )}
-                    onClick={() => {
-                      setOverflowOpen(false);
-                      item.onClick();
-                    }}
-                  >
-                    <span className="truncate">{item.title}</span>
-                    {item.dirty ? (
-                      <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+              });
+            }}
+            title={t("editor.tab.more")}
+            aria-label={t("editor.tab.more")}
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          {overflowOpen ? (
+            <div className="editor-tabs-overflow-menu absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto py-1">
+              {overflowItems.map((item) => (
+                <button
+                  key={item.id}
+                  className={cn(
+                    "editor-tabs-overflow-item flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
+                    item.active
+                      ? "editor-tabs-overflow-item--active"
+                      : "editor-tabs-overflow-item--inactive",
+                  )}
+                  onClick={() => {
+                    setOverflowOpen(false);
+                    item.onClick();
+                  }}
+                >
+                  <span className="truncate">{item.title}</span>
+                  {item.dirty ? (
+                    <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

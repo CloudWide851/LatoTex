@@ -5,8 +5,15 @@ describe("editorTabSizing", () => {
   it("keeps short file names content-fit instead of forcing the old wide minimum", () => {
     const layout = resolveFileTabLayout({ title: "main.tex", preview: false, pinned: true }, false);
 
-    expect(layout.width).toBeLessThan(120);
+    expect(layout.width).toBeLessThan(96);
     expect(layout.width).toBeGreaterThanOrEqual(editorTabSizingConstants.FILE_TAB_MIN_WIDTH);
+    expect(layout.showPreviewBadge).toBe(false);
+  });
+
+  it("keeps medium file names compact so the close icon sits near the title", () => {
+    const layout = resolveFileTabLayout({ title: "product_catalog.csv", preview: false, pinned: true }, false);
+
+    expect(layout.width).toBeLessThan(150);
     expect(layout.showPreviewBadge).toBe(false);
   });
 
