@@ -433,8 +433,8 @@ export function useAppStartup(params: {
       await waitForResourceWarmup({
         projectId: targetProjectId,
         scopes: ["tectonic"],
-        timeoutMs: 240_000,
-        inactivityTimeoutMs: 90_000,
+        timeoutMs: 600_000,
+        inactivityTimeoutMs: 120_000,
         onProgress: (status) => {
           abortIfStale();
           updateStep(
@@ -576,6 +576,7 @@ export function useAppStartup(params: {
     handleStartupPrepareAnalysisEnv,
   };
 }
+
 
 
 

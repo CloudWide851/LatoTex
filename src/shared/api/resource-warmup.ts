@@ -30,6 +30,23 @@ export function createWarmupActivityKey(status: ResourceWarmupTaskStatus): strin
   ].join("|");
 }
 
+export function formatResourceWarmupTimeoutError(
+  status: Pick<ResourceWarmupTaskStatus, "stage" | "message" | "currentItem"> | null,
+): string {
+  const stage = String(status?.stage ?? "").trim();
+  const detail = String(status?.message ?? status?.currentItem ?? "").trim();
+  if (stage && detail) {
+    return `resource_warmup.timeout: ${stage} - ${detail}`;
+  }
+  if (stage) {
+    return `resource_warmup.timeout: ${stage}`;
+  }
+  if (detail) {
+    return `resource_warmup.timeout: ${detail}`;
+  }
+  return "resource_warmup.timeout";
+}
+
 export async function waitForResourceWarmup(input: {
   projectId: string;
   scopes: ResourceWarmupScope[];
@@ -56,9 +73,11 @@ export async function waitForResourceWarmup(input: {
   const startedAt = Date.now();
   let lastActivityAt = startedAt;
   let lastActivityKey = "";
+  let lastStatus: ResourceWarmupTaskStatus | null = null;
 
   for (;;) {
     const status = await resourceWarmupStatus(started.taskId);
+    lastStatus = status;
     input.onProgress?.(status);
     const now = Date.now();
     const activityKey = createWarmupActivityKey(status);
@@ -73,9 +92,8 @@ export async function waitForResourceWarmup(input: {
       throw new Error(String(status.error || status.diagnostics?.[0] || "resource warmup failed"));
     }
     if (now - startedAt >= timeoutMs || now - lastActivityAt >= inactivityTimeoutMs) {
-      throw new Error("resource_warmup.timeout");
+      throw new Error(formatResourceWarmupTimeoutError(lastStatus));
     }
     await new Promise((resolve) => globalThis.setTimeout(resolve, pollMs));
   }
 }
-

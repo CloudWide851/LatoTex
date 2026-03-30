@@ -5,7 +5,9 @@ use super::native_runtime_latex_tectonic::{ensure_runtime_bundle, write_fontconf
 use crate::models::TectonicWarmupInfo;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const TECTONIC_RESOURCE_SUBDIR: &str = "tools/tectonic";
 const TECTONIC_BINARY_RELATIVE_PATH: &str = "windows-x64/tectonic.exe";
@@ -14,6 +16,7 @@ const TECTONIC_MANAGED_CACHE_RELATIVE_PATH: &str = "cache";
 const TECTONIC_BUNDLED_CACHE_SEED_RELATIVE_PATH: &str = "cache-seed";
 const TECTONIC_MANAGED_SEARCH_RELATIVE_PATH: &str = "search/windows-x64";
 const TECTONIC_BUNDLED_PFB_RELATIVE_PATH: &str = "pfb";
+const WARMUP_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(4);
 pub(super) const TECTONIC_NOT_FOUND_DIAGNOSTIC: &str =
     "Tectonic was not found. Install Tectonic and retry.";
 const TECTONIC_REQUIRED_SEARCH_FILES: &[&str] = &[
@@ -193,7 +196,14 @@ fn summarize_process_output(stdout: &[u8], stderr: &[u8]) -> String {
     parts.join("; ")
 }
 
-fn ensure_tectonic_search_dir(bundle_path: &Path, search_dir: &Path) -> Result<(), String> {
+fn ensure_tectonic_search_dir<F>(
+    bundle_path: &Path,
+    search_dir: &Path,
+    mut on_progress: F,
+) -> Result<(), String>
+where
+    F: FnMut(),
+{
     if tectonic_search_dir_ready(search_dir) {
         return Ok(());
     }
@@ -203,13 +213,34 @@ fn ensure_tectonic_search_dir(bundle_path: &Path, search_dir: &Path) -> Result<(
     fs::create_dir_all(search_dir).map_err(|e| e.to_string())?;
     let mut command = Command::new(command_from_path_or_name("tar"));
     configure_hidden_process(&mut command);
-    let output = command
+    let mut child = command
         .arg("-xf")
         .arg(bundle_path)
         .arg("-C")
         .arg(search_dir)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| format!("tectonic.bundle_extract_spawn_failed: {e}"))?;
+    let mut next_progress_at = Instant::now() + WARMUP_HEARTBEAT_INTERVAL;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => break,
+            Ok(None) => {
+                if Instant::now() >= next_progress_at {
+                    on_progress();
+                    next_progress_at = Instant::now() + WARMUP_HEARTBEAT_INTERVAL;
+                }
+                thread::sleep(Duration::from_millis(250));
+            }
+            Err(error) => {
+                return Err(format!("tectonic.bundle_extract_wait_failed: {error}"));
+            }
+        }
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("tectonic.bundle_extract_wait_failed: {error}"))?;
     if output.status.success() || tectonic_search_dir_ready(search_dir) {
         return Ok(());
     }
@@ -226,10 +257,24 @@ fn ensure_tectonic_cache_seeded(source_root: &Path, cache_dir: &Path) -> Result<
         .iter()
         .all(|relative| cache_seed_dir.join(relative).is_dir())
     {
-        return Err("tectonic.cache_seed_missing: bundled Tectonic cache seed is incomplete".to_string());
+        return Err(
+            "tectonic.cache_seed_missing: bundled Tectonic cache seed is incomplete".to_string(),
+        );
     }
     copy_directory_contents_if_needed(&cache_seed_dir, cache_dir)?;
     Ok(())
+}
+
+fn emit_tectonic_warmup_progress_message<F>(
+    on_progress: &mut F,
+    percent: f64,
+    stage: &str,
+    current_item: Option<&str>,
+    message: &str,
+) where
+    F: FnMut(f64, &str, Option<&str>, Option<&str>),
+{
+    on_progress(percent, stage, current_item, Some(message));
 }
 
 fn emit_tectonic_warmup_progress<F>(
@@ -240,7 +285,30 @@ fn emit_tectonic_warmup_progress<F>(
 ) where
     F: FnMut(f64, &str, Option<&str>, Option<&str>),
 {
-    on_progress(percent, stage, current_item, Some(stage));
+    emit_tectonic_warmup_progress_message(on_progress, percent, stage, current_item, stage);
+}
+
+pub(super) fn format_warmup_heartbeat_message(stage: &str, elapsed: Duration) -> String {
+    format!("{stage} ({}s)", elapsed.as_secs())
+}
+
+fn emit_tectonic_warmup_heartbeat<F>(
+    on_progress: &mut F,
+    percent: f64,
+    stage: &str,
+    current_item: Option<&str>,
+    started_at: Instant,
+) where
+    F: FnMut(f64, &str, Option<&str>, Option<&str>),
+{
+    let message = format_warmup_heartbeat_message(stage, started_at.elapsed());
+    emit_tectonic_warmup_progress_message(
+        on_progress,
+        percent,
+        stage,
+        current_item,
+        message.as_str(),
+    );
 }
 
 fn ensure_bundled_tectonic_runtime_with_progress<F>(
@@ -271,32 +339,94 @@ where
 
     let engine_path = tool_root.join(TECTONIC_BINARY_RELATIVE_PATH);
     let engine_item = engine_path.to_string_lossy().to_string();
-    emit_tectonic_warmup_progress(&mut on_progress, 20.0, "copying_engine", Some(engine_item.as_str()));
-    copy_asset_if_needed(&source_root.join(TECTONIC_BINARY_RELATIVE_PATH), &engine_path)?;
+    emit_tectonic_warmup_progress(
+        &mut on_progress,
+        20.0,
+        "copying_engine",
+        Some(engine_item.as_str()),
+    );
+    copy_asset_if_needed(
+        &source_root.join(TECTONIC_BINARY_RELATIVE_PATH),
+        &engine_path,
+    )?;
 
-    let bundle_item = tool_root.join(TECTONIC_BUNDLE_RELATIVE_PATH).to_string_lossy().to_string();
-    emit_tectonic_warmup_progress(&mut on_progress, 38.0, "validating_bundle", Some(bundle_item.as_str()));
+    let bundle_item = tool_root
+        .join(TECTONIC_BUNDLE_RELATIVE_PATH)
+        .to_string_lossy()
+        .to_string();
+    emit_tectonic_warmup_progress(
+        &mut on_progress,
+        38.0,
+        "validating_bundle",
+        Some(bundle_item.as_str()),
+    );
+    let mut bundle_stage = String::from("validating_bundle");
+    let mut bundle_stage_started_at = Instant::now();
     let bundle_path = ensure_runtime_bundle(
         &tool_root,
         &source_root,
         TECTONIC_BUNDLE_RELATIVE_PATH,
         TECTONIC_REQUIRED_BUNDLE_ENTRIES,
+        |stage, current_item| {
+            let item = current_item.or(Some(bundle_item.as_str()));
+            if bundle_stage != stage {
+                bundle_stage.clear();
+                bundle_stage.push_str(stage);
+                bundle_stage_started_at = Instant::now();
+                emit_tectonic_warmup_progress(&mut on_progress, 38.0, stage, item);
+            } else {
+                emit_tectonic_warmup_heartbeat(
+                    &mut on_progress,
+                    38.0,
+                    stage,
+                    item,
+                    bundle_stage_started_at,
+                );
+            }
+        },
     )?;
 
     let cache_dir = tool_root.join(TECTONIC_MANAGED_CACHE_RELATIVE_PATH);
     let cache_item = cache_dir.to_string_lossy().to_string();
-    emit_tectonic_warmup_progress(&mut on_progress, 58.0, "seeding_cache", Some(cache_item.as_str()));
+    emit_tectonic_warmup_progress(
+        &mut on_progress,
+        58.0,
+        "seeding_cache",
+        Some(cache_item.as_str()),
+    );
     ensure_tectonic_cache_seeded(&source_root, &cache_dir)?;
 
     let pfb_dir = tool_root.join(TECTONIC_BUNDLED_PFB_RELATIVE_PATH);
-    copy_directory_contents_if_needed(&source_root.join(TECTONIC_BUNDLED_PFB_RELATIVE_PATH), &pfb_dir)?;
+    copy_directory_contents_if_needed(
+        &source_root.join(TECTONIC_BUNDLED_PFB_RELATIVE_PATH),
+        &pfb_dir,
+    )?;
 
     let search_dir = tool_root.join(TECTONIC_MANAGED_SEARCH_RELATIVE_PATH);
     let search_item = search_dir.to_string_lossy().to_string();
-    emit_tectonic_warmup_progress(&mut on_progress, 84.0, "extracting_search", Some(search_item.as_str()));
-    ensure_tectonic_search_dir(&bundle_path, &search_dir)?;
+    emit_tectonic_warmup_progress(
+        &mut on_progress,
+        84.0,
+        "extracting_search",
+        Some(search_item.as_str()),
+    );
+    let search_started_at = Instant::now();
+    ensure_tectonic_search_dir(&bundle_path, &search_dir, || {
+        emit_tectonic_warmup_heartbeat(
+            &mut on_progress,
+            84.0,
+            "extracting_search",
+            Some(search_item.as_str()),
+            search_started_at,
+        );
+    })?;
 
-    emit_tectonic_warmup_progress(&mut on_progress, 96.0, "writing_fontconfig", Some(search_item.as_str()));
+    emit_tectonic_warmup_progress(
+        &mut on_progress,
+        96.0,
+        "writing_fontconfig",
+        Some(search_item.as_str()),
+    );
     write_fontconfig_config(
         &tool_root,
         &[
@@ -320,7 +450,9 @@ pub(super) fn resolve_tectonic_paths_with_progress<F>(
 where
     F: FnMut(f64, &str, Option<&str>, Option<&str>),
 {
-    if let Some(paths) = ensure_bundled_tectonic_runtime_with_progress(app_data_dir, &mut on_progress)? {
+    if let Some(paths) =
+        ensure_bundled_tectonic_runtime_with_progress(app_data_dir, &mut on_progress)?
+    {
         return Ok(Some(paths));
     }
     emit_tectonic_warmup_progress(&mut on_progress, 12.0, "locating_assets", Some("tectonic"));
@@ -394,4 +526,3 @@ pub(crate) fn ensure_tectonic_runtime_warmup(
 #[cfg(test)]
 #[path = "native_runtime_latex_warmup_tests.rs"]
 mod tests;
-

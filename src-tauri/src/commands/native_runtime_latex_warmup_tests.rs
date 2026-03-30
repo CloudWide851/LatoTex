@@ -1,12 +1,23 @@
-use super::{managed_tectonic_runtime_ready, TECTONIC_BINARY_RELATIVE_PATH};
+use super::{
+    format_warmup_heartbeat_message, managed_tectonic_runtime_ready, TECTONIC_BINARY_RELATIVE_PATH,
+};
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use uuid::Uuid;
 
 fn create_temp_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("latotex-{name}-{}", Uuid::new_v4()));
     fs::create_dir_all(&dir).expect("temp dir");
     dir
+}
+
+#[test]
+fn warmup_heartbeat_message_includes_elapsed_seconds() {
+    assert_eq!(
+        format_warmup_heartbeat_message("extracting_search", Duration::from_secs(12)),
+        "extracting_search (12s)"
+    );
 }
 
 #[test]

@@ -8,7 +8,11 @@ vi.mock("./core", () => ({
   invokeCommand: invokeCommandMock,
 }));
 
-import { createWarmupActivityKey, waitForResourceWarmup } from "./resource-warmup";
+import {
+  createWarmupActivityKey,
+  formatResourceWarmupTimeoutError,
+  waitForResourceWarmup,
+} from "./resource-warmup";
 
 describe("resource warmup wait", () => {
   beforeEach(() => {
@@ -45,6 +49,16 @@ describe("resource warmup wait", () => {
     );
   });
 
+  it("formats timeout errors with last known stage and message", () => {
+    expect(
+      formatResourceWarmupTimeoutError({
+        stage: "extracting_search",
+        message: "extracting_search (12s)",
+        currentItem: "tectonic",
+      }),
+    ).toBe("resource_warmup.timeout: extracting_search - extracting_search (12s)");
+  });
+
   it("times out when warmup stops making progress", async () => {
     invokeCommandMock.mockImplementation(async (command: string) => {
       if (command === "resource_warmup_start") {
@@ -55,7 +69,7 @@ describe("resource warmup wait", () => {
         status: "running",
         percent: 10,
         stage: "extracting_search",
-        message: "extracting_search",
+        message: "extracting_search (12s)",
         currentItem: "tectonic",
         diagnostics: [],
       };
@@ -68,10 +82,53 @@ describe("resource warmup wait", () => {
       inactivityTimeoutMs: 2_500,
       pollMs: 1_000,
     });
-    const assertion = expect(promise).rejects.toThrow("resource_warmup.timeout");
+    const assertion = expect(promise).rejects.toThrow(
+      "resource_warmup.timeout: extracting_search - extracting_search (12s)",
+    );
 
     await vi.advanceTimersByTimeAsync(4_000);
     await assertion;
+  });
+
+  it("keeps waiting while heartbeat messages change within one stage", async () => {
+    let statusCall = 0;
+    invokeCommandMock.mockImplementation(async (command: string) => {
+      if (command === "resource_warmup_start") {
+        return { taskId: "task-heartbeat" };
+      }
+      statusCall += 1;
+      if (statusCall < 4) {
+        return {
+          taskId: "task-heartbeat",
+          status: "running",
+          percent: 84,
+          stage: "extracting_search",
+          message: `extracting_search (${statusCall * 4}s)`,
+          currentItem: "tectonic",
+          diagnostics: [],
+        };
+      }
+      return {
+        taskId: "task-heartbeat",
+        status: "completed",
+        percent: 100,
+        stage: "ready",
+        message: "ready",
+        currentItem: "tectonic",
+        diagnostics: [],
+      };
+    });
+
+    const promise = waitForResourceWarmup({
+      projectId: "project-1",
+      scopes: ["tectonic"],
+      timeoutMs: 10_000,
+      inactivityTimeoutMs: 1_500,
+      pollMs: 1_000,
+    });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    await expect(promise).resolves.toEqual(expect.objectContaining({ status: "completed" }));
   });
 
   it("keeps waiting while progress continues and resolves once completed", async () => {
@@ -137,4 +194,3 @@ describe("resource warmup wait", () => {
     await expect(promise).resolves.toEqual(expect.objectContaining({ status: "completed" }));
   });
 });
-
