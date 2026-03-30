@@ -80,8 +80,9 @@ pub async fn latex_compile_native(
 
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let response = tauri::async_runtime::spawn_blocking(move || {
-        compile_blocking(&db_path, &runtime_root, input)
+        compile_blocking(&db_path, &runtime_root, &app_data_dir, input)
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -141,6 +142,7 @@ pub fn latex_compile_start(
     let session_log_path = state.session_log_path.clone();
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let task_id_for_thread = task_id.clone();
     let project_id = input.project_id.clone();
     let main_path = input.main_path.clone();
@@ -165,6 +167,7 @@ pub fn latex_compile_start(
         match compile_blocking_with_progress(
             &db_path,
             &runtime_root,
+            &app_data_dir,
             input,
             |percent, stage, current_item, latest_log_line| {
                 with_task(&|task_ref| {

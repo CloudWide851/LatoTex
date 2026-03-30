@@ -1,6 +1,6 @@
 import { type Dispatch, type SetStateAction, useEffect } from "react";
 import { setTrayLabels } from "../../shared/api/app";
-import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
+import { resolveReachableWorkspacePreviewUrl } from "../../shared/utils/workspacePreview";
 
 type TranslationFn = (key: any) => string;
 
@@ -50,6 +50,18 @@ export function useCompiledPreviewResetOnProjectChange(params: {
     if (!activeProjectId || !compiledPdfRelativePath || page !== "latex") {
       return;
     }
-    setPdfUrl(buildWorkspacePreviewUrl(activeProjectId, compiledPdfRelativePath, Date.now()));
+    let cancelled = false;
+    void resolveReachableWorkspacePreviewUrl({
+      projectId: activeProjectId,
+      relativePath: compiledPdfRelativePath,
+      cacheKey: Date.now(),
+    }).then((resolved) => {
+      if (!cancelled) {
+        setPdfUrl(resolved.url);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [activeProjectId, compiledPdfRelativePath, page, setPdfUrl]);
 }

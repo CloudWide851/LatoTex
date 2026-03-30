@@ -133,6 +133,29 @@ fn write_cache_marker(actual_dir: &Path, policy: &str, requested_dir: &Path, usi
     );
 }
 
+fn resolve_drawio_marker_dir(dir: &Path) -> Option<PathBuf> {
+    let marker_path = dir.join(".cache-info.json");
+    let marker_raw = fs::read_to_string(marker_path).ok()?;
+    let marker_value: serde_json::Value = serde_json::from_str(&marker_raw).ok()?;
+    let actual_dir = marker_value.get("actualDir")?.as_str()?.trim();
+    if actual_dir.is_empty() {
+        return None;
+    }
+    let actual_path = PathBuf::from(actual_dir);
+    if has_required_assets(&actual_path, &REQUIRED_DRAWIO_ASSETS) {
+        Some(actual_path)
+    } else {
+        None
+    }
+}
+
+fn push_unique_dir(target: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if target.iter().any(|item| item == &candidate) {
+        return;
+    }
+    target.push(candidate);
+}
+
 fn drawio_cache_dirs(state: &AppState) -> DrawioCacheDirs {
     let install_dir = std::env::current_exe()
         .ok()
@@ -186,9 +209,19 @@ fn prepare_drawio_cache(state: &AppState, policy: &str) -> Result<CachePrepareRe
 
 fn resolve_existing_drawio_dir(state: &AppState) -> Option<PathBuf> {
     let dirs = drawio_cache_dirs(state);
-    [dirs.install_dir, dirs.appdata_dir]
-        .into_iter()
-        .find(|dir| has_required_assets(dir, &REQUIRED_DRAWIO_ASSETS))
+    let mut candidates = Vec::<PathBuf>::new();
+    for dir in [&dirs.install_dir, &dirs.appdata_dir] {
+        if let Some(actual_dir) = resolve_drawio_marker_dir(dir) {
+            push_unique_dir(&mut candidates, actual_dir);
+        }
+    }
+    if has_required_assets(&dirs.appdata_dir, &REQUIRED_DRAWIO_ASSETS) {
+        push_unique_dir(&mut candidates, dirs.appdata_dir.clone());
+    }
+    if has_required_assets(&dirs.install_dir, &REQUIRED_DRAWIO_ASSETS) {
+        push_unique_dir(&mut candidates, dirs.install_dir.clone());
+    }
+    candidates.into_iter().next()
 }
 
 fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
@@ -549,4 +582,3 @@ pub fn drawio_cache_prepare(
 #[cfg(test)]
 #[path = "local_resources_tests.rs"]
 mod tests;
-

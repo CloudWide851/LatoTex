@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
   libraryCitationSummary,
   libraryExtractPaperContext,
@@ -8,7 +8,7 @@ import { waitForResourceWarmup } from "../../../shared/api/resource-warmup";
 import { readFile } from "../../../shared/api/workspace";
 import type { LibraryCitationSummary, LibraryPdfPreview } from "../../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
-import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
+import { resolveReachableWorkspacePreviewUrl } from "../../../shared/utils/workspacePreview";
 
 type PaperPreview = {
   title?: string | null;
@@ -133,23 +133,6 @@ function toPaperPreview(
   };
 }
 
-function buildDocumentPreviewUrl(
-  previewUrl: string | null,
-  projectId: string | null,
-  relativePath: string | null,
-  previewVersion: number,
-): string | null {
-  const baseUrl = String(previewUrl || "").trim();
-  if (baseUrl) {
-    const separator = baseUrl.includes("?") ? "&" : "?";
-    return `${baseUrl}${separator}v=${encodeURIComponent(`${previewVersion}`)}`;
-  }
-  if (!projectId || !relativePath) {
-    return null;
-  }
-  return buildWorkspacePreviewUrl(projectId, relativePath, `${relativePath}:${previewVersion}`);
-}
-
 export function useLibraryDocumentData(params: {
   projectId: string | null;
   selectedPath: string | null;
@@ -168,6 +151,8 @@ export function useLibraryDocumentData(params: {
   const stateRef = useRef<DocumentDataState>(EMPTY_STATE);
   const previewVersionRef = useRef(0);
   const [previewVersion, setPreviewVersion] = useState(0);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [translatedPdfUrl, setTranslatedPdfUrl] = useState<string | null>(null);
 
   const bumpPreviewVersion = useCallback(() => {
     previewVersionRef.current += 1;
@@ -189,6 +174,8 @@ export function useLibraryDocumentData(params: {
     setPdfPreviewError(null);
     setPaperPreviewLoading(false);
     setPaperPreviewError(null);
+    setPdfUrl(null);
+    setTranslatedPdfUrl(null);
     setState(EMPTY_STATE);
   }, []);
 
@@ -539,25 +526,39 @@ export function useLibraryDocumentData(params: {
     };
   }, [active, hydratePdfPreview, projectId, selectedPath, state.pdfCacheState]);
 
-  const pdfUrl = useMemo(
-    () => buildDocumentPreviewUrl(
-      state.sourcePdfPreviewUrl,
+  useEffect(() => {
+    let cancelled = false;
+    void resolveReachableWorkspacePreviewUrl({
       projectId,
-      state.sourcePdfRelativePath,
-      previewVersion,
-    ),
-    [previewVersion, projectId, state.sourcePdfPreviewUrl, state.sourcePdfRelativePath],
-  );
-  const translatedPdfUrl = useMemo(
-    () => buildDocumentPreviewUrl(
-      state.translatedPdfPreviewUrl,
-      projectId,
-      state.translatedPdfRelativePath,
-      previewVersion,
-    ),
-    [previewVersion, projectId, state.translatedPdfPreviewUrl, state.translatedPdfRelativePath],
-  );
+      relativePath: state.sourcePdfRelativePath,
+      previewUrl: state.sourcePdfPreviewUrl,
+      cacheKey: `${state.sourcePdfRelativePath ?? "source"}:${previewVersion}`,
+    }).then((resolved) => {
+      if (!cancelled) {
+        setPdfUrl(resolved.url);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewVersion, projectId, state.sourcePdfPreviewUrl, state.sourcePdfRelativePath]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void resolveReachableWorkspacePreviewUrl({
+      projectId,
+      relativePath: state.translatedPdfRelativePath,
+      previewUrl: state.translatedPdfPreviewUrl,
+      cacheKey: `${state.translatedPdfRelativePath ?? "translated"}:${previewVersion}`,
+    }).then((resolved) => {
+      if (!cancelled) {
+        setTranslatedPdfUrl(resolved.url);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewVersion, projectId, state.translatedPdfPreviewUrl, state.translatedPdfRelativePath]);
   return {
     ...state,
     pdfUrl,
@@ -572,7 +573,3 @@ export function useLibraryDocumentData(params: {
     reset,
   };
 }
-
-
-
-

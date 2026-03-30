@@ -172,7 +172,10 @@ pub fn resource_warmup_start(
                         result.drawio = Some(info);
                     }
                     "tectonic" => {
-                        let info = ensure_tectonic_runtime_warmup(&state_for_thread.runtime_root)?;
+                        let info = ensure_tectonic_runtime_warmup(
+                            &state_for_thread.runtime_root,
+                            &state_for_thread.app_data_dir,
+                        )?;
                         result.tectonic = Some(info);
                     }
                     "librarypdf" => {

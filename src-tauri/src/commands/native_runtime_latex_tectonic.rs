@@ -86,13 +86,13 @@ fn download_to_file(url: &str, target_path: &Path) -> Result<(), String> {
 }
 
 pub(super) fn ensure_runtime_bundle(
-  runtime_root: &Path,
+  tool_root: &Path,
   source_root: &Path,
   bundle_relative_path: &str,
   required_entries: &[&str],
 ) -> Result<PathBuf, String> {
   let source_bundle = source_root.join(bundle_relative_path);
-  let runtime_bundle = runtime_root.join("tools/tectonic").join(bundle_relative_path);
+  let runtime_bundle = tool_root.join(bundle_relative_path);
   if let Some(parent) = runtime_bundle.parent() {
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
   }
@@ -168,4 +168,3 @@ pub(super) fn write_fontconfig_config(tool_root: &Path, font_dirs: &[PathBuf]) -
   }
   Ok((config_path, fontconfig_dir))
 }
-

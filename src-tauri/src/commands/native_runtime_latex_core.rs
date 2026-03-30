@@ -108,6 +108,10 @@ fn choose_bundled_tectonic_source_root() -> Option<PathBuf> {
         .find(|root| bundled_tectonic_assets_exist(root))
 }
 
+fn managed_tectonic_tool_root(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join("runtime-tools").join("tectonic")
+}
+
 fn copy_asset_if_needed(source: &Path, target: &Path) -> Result<(), String> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -209,14 +213,12 @@ fn ensure_tectonic_cache_seeded(source_root: &Path, cache_dir: &Path) -> Result<
     Ok(())
 }
 
-fn ensure_bundled_tectonic_runtime(
-    runtime_root: &Path,
-) -> Result<Option<ResolvedTectonicPaths>, String> {
+fn ensure_bundled_tectonic_runtime(app_data_dir: &Path) -> Result<Option<ResolvedTectonicPaths>, String> {
     let Some(source_root) = choose_bundled_tectonic_source_root() else {
         return Ok(None);
     };
 
-    let tool_root = runtime_root.join(TECTONIC_RESOURCE_SUBDIR);
+    let tool_root = managed_tectonic_tool_root(app_data_dir);
     let engine_path = tool_root.join(TECTONIC_BINARY_RELATIVE_PATH);
     let cache_dir = tool_root.join(TECTONIC_MANAGED_CACHE_RELATIVE_PATH);
     let search_dir = tool_root.join(TECTONIC_MANAGED_SEARCH_RELATIVE_PATH);
@@ -227,7 +229,7 @@ fn ensure_bundled_tectonic_runtime(
         &engine_path,
     )?;
     let bundle_path = ensure_runtime_bundle(
-        runtime_root,
+        &tool_root,
         &source_root,
         TECTONIC_BUNDLE_RELATIVE_PATH,
         TECTONIC_REQUIRED_BUNDLE_ENTRIES,
@@ -257,8 +259,11 @@ fn ensure_bundled_tectonic_runtime(
     }))
 }
 
-fn resolve_tectonic_paths(runtime_root: &Path) -> Result<Option<ResolvedTectonicPaths>, String> {
-    if let Some(paths) = ensure_bundled_tectonic_runtime(runtime_root)? {
+fn resolve_tectonic_paths(
+    runtime_root: &Path,
+    app_data_dir: &Path,
+) -> Result<Option<ResolvedTectonicPaths>, String> {
+    if let Some(paths) = ensure_bundled_tectonic_runtime(app_data_dir)? {
         return Ok(Some(paths));
     }
     if latex_tool_exists("tectonic") {
@@ -278,8 +283,11 @@ fn resolve_tectonic_paths(runtime_root: &Path) -> Result<Option<ResolvedTectonic
     Ok(None)
 }
 
-pub fn ensure_tectonic_runtime_warmup(runtime_root: &Path) -> Result<TectonicWarmupInfo, String> {
-    let paths = resolve_tectonic_paths(runtime_root)?
+pub fn ensure_tectonic_runtime_warmup(
+    runtime_root: &Path,
+    app_data_dir: &Path,
+) -> Result<TectonicWarmupInfo, String> {
+    let paths = resolve_tectonic_paths(runtime_root, app_data_dir)?
         .ok_or_else(|| TECTONIC_NOT_FOUND_DIAGNOSTIC.to_string())?;
     Ok(TectonicWarmupInfo {
         ready: true,
@@ -383,6 +391,7 @@ where
 
 fn run_compile_command_with_progress<F>(
     runtime_root: &Path,
+    app_data_dir: &Path,
     prefer_engine: Option<&str>,
     run_root: &Path,
     main_path: &str,
@@ -394,7 +403,7 @@ where
     if prefer_engine.is_some_and(|value| !value.eq_ignore_ascii_case("tectonic")) {
         return Err("compile.engine.missing".to_string());
     }
-    let Some(paths) = resolve_tectonic_paths(runtime_root)? else {
+    let Some(paths) = resolve_tectonic_paths(runtime_root, app_data_dir)? else {
         return Err(TECTONIC_NOT_FOUND_DIAGNOSTIC.to_string());
     };
 
@@ -487,6 +496,7 @@ where
 pub(crate) fn compile_blocking_with_progress<F>(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: &Path,
     input: LatexCompileInput,
     mut on_progress: F,
 ) -> Result<LatexCompileResponse, String>
@@ -500,7 +510,7 @@ where
     fs::create_dir_all(&run_root).map_err(|e| e.to_string())?;
 
     on_progress(6.0, "warming_resources", Some(&input.main_path), None);
-    ensure_tectonic_runtime_warmup(runtime_root)?;
+    ensure_tectonic_runtime_warmup(runtime_root, app_data_dir)?;
 
     on_progress(16.0, "materializing_workspace", Some(&input.main_path), None);
     write_compile_workspace(
@@ -521,6 +531,7 @@ where
     let started = Instant::now();
     let run = match run_compile_command_with_progress(
         runtime_root,
+        app_data_dir,
         input.prefer_engine.as_deref(),
         &run_root,
         &normalized_main_text,
@@ -593,15 +604,14 @@ where
 pub(crate) fn compile_blocking(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: &Path,
     input: LatexCompileInput,
 ) -> Result<LatexCompileResponse, String> {
     compile_blocking_with_progress(
         db_path,
         runtime_root,
+        app_data_dir,
         input,
         |_percent, _stage, _current_item, _latest_log_line| {},
     )
 }
-
-
-
