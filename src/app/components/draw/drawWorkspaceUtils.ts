@@ -61,7 +61,11 @@ export function buildDrawioEntryCandidates(info?: Pick<DrawioCacheInfo, "entryUr
 export async function resolveDrawioHostFrameCandidates(
   info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
 ): Promise<string[]> {
-  return prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(info));
+  const candidates = buildDrawioEntryCandidates(info);
+  if (String(info?.entryUrl || "").trim()) {
+    return candidates;
+  }
+  return prioritizeReachableLocalResourceCandidates(candidates);
 }
 
 export async function resolveDrawioHostFrameSrc(info?: Pick<DrawioCacheInfo, "entryUrl"> | null): Promise<string | null> {
@@ -276,6 +280,7 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
+
 
 
 

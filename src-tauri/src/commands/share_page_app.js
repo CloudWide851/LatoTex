@@ -1,9 +1,8 @@
-import * as Y from "https://esm.sh/yjs@13.6.29";
-import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.min.mjs";
+import * as Y from "/assets/vendor/yjs.mjs";
 import { createI18n, detectLocale } from "/assets/share_page_i18n.js";
-import { renderComments, renderParticipants, withHighlight } from "/assets/share_page_render.js";
+import { createSharePdfController } from "/assets/share_page_pdf.js";
+import { renderComments, renderParticipants } from "/assets/share_page_render.js";
 import { fromBase64, postJson, toBase64, trimQuote } from "/assets/share_page_utils.js";
-pdfjsLib.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
 
 export async function bootstrapSharePage() {
   const params = new URLSearchParams(window.location.search);
@@ -33,7 +32,9 @@ export async function bootstrapSharePage() {
     editor: document.getElementById("editor"),
     cursor: document.getElementById("cursor-info"),
     pdfWrap: document.getElementById("pdf-wrap"),
-    pdf: document.getElementById("pdf"),
+    pdfCanvasWrap: document.getElementById("pdf-canvas-wrap"),
+    pdfCanvas: document.getElementById("pdf-canvas"),
+    pdfEmpty: document.getElementById("pdf-empty"),
     pdfPrev: document.getElementById("pdf-prev"),
     pdfNext: document.getElementById("pdf-next"),
     pdfPage: document.getElementById("pdf-page-label"),
@@ -60,7 +61,6 @@ export async function bootstrapSharePage() {
 
   const doc = new Y.Doc();
   const yText = doc.getText("tex");
-
   const state = {
     clientId: `web-${Math.random().toString(36).slice(2, 10)}`,
     connected: false,
@@ -72,7 +72,6 @@ export async function bootstrapSharePage() {
     presenceTimer: 0,
     pdfStatusTimer: 0,
     pullInFlight: false,
-    presenceInFlight: false,
     action: i18n.actionReading,
     view: "tex",
     pdfDoc: null,
@@ -84,7 +83,6 @@ export async function bootstrapSharePage() {
     highlightQuote: "",
     comments: [],
   };
-
   const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
 
   function setStatus(text, isError = false) {
@@ -96,6 +94,15 @@ export async function bootstrapSharePage() {
     el.badge.textContent = connected ? i18n.connectedBadge : i18n.statusIdle;
     el.badge.classList.toggle("connected", connected);
   }
+
+  const pdf = createSharePdfController({
+    sid,
+    getPassword: () => el.pwd.value.trim(),
+    i18n,
+    state,
+    el,
+    setStatus,
+  });
 
   function setView(nextView) {
     state.view = nextView;
@@ -176,84 +183,10 @@ export async function bootstrapSharePage() {
     }
     const texSelection = readEditorSelection();
     if (texSelection) {
-      const rect = el.editor.getBoundingClientRect();
-      showQuickQuote(rect, texSelection);
+      showQuickQuote(el.editor.getBoundingClientRect(), texSelection);
       return;
     }
     hideQuickQuote();
-  }
-
-  function updatePdfPageLabel() {
-    const total = state.pdfDoc?.numPages || 1;
-    const page = Math.max(1, Math.min(total, state.pdfPage || 1));
-    state.pdfPage = page;
-    el.pdfPage.textContent = i18n.pdfPageLabel(page, total);
-  }
-
-  async function extractPdfPageText(pageNumber) {
-    if (!state.pdfDoc || pageNumber < 1 || pageNumber > state.pdfDoc.numPages) return "";
-    if (state.pdfTextByPage.has(pageNumber)) return state.pdfTextByPage.get(pageNumber);
-    const page = await state.pdfDoc.getPage(pageNumber);
-    const textContent = await page.getTextContent();
-    const text = textContent.items
-      .map((item) => ("str" in item ? String(item.str || "") : ""))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-    state.pdfTextByPage.set(pageNumber, text);
-    return text;
-  }
-
-  async function renderPdfTextPane() {
-    if (!state.pdfDoc) {
-      el.pdfText.textContent = i18n.noPdfText;
-      updatePdfPageLabel();
-      return;
-    }
-    updatePdfPageLabel();
-    const text = await extractPdfPageText(state.pdfPage);
-    el.pdfText.innerHTML = withHighlight(text || i18n.noPdfText, state.highlightQuote);
-  }
-
-  async function fetchPdfStatus() {
-    if (!state.connected) return { ready: false };
-    const response = await fetch(`/api/pdf/status?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&t=${Date.now()}`);
-    if (!response.ok) return { ready: false };
-    const payload = await response.json();
-    return {
-      ready: payload?.state === "ready",
-      state: payload?.state,
-      updatedAt: payload?.updatedAt,
-    };
-  }
-
-  async function reloadPdfContent() {
-    if (!state.connected) return;
-    const status = await fetchPdfStatus().catch(() => ({ ready: false }));
-    if (!status.ready) {
-      state.pdfReady = false;
-      state.pdfDoc = null;
-      state.pdfTextByPage.clear();
-      el.pdf.src = "about:blank";
-      el.pdfText.textContent = i18n.noPdfText;
-      setStatus(i18n.statusPdfPreparing);
-      return;
-    }
-    const pdfUrl = `/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&t=${Date.now()}`;
-    el.pdf.src = pdfUrl;
-    const response = await fetch(pdfUrl);
-    if (!response.ok) {
-      state.pdfReady = false;
-      setStatus(i18n.statusPdfPreparing);
-      return;
-    }
-    const buffer = await response.arrayBuffer();
-    state.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
-    state.pdfReady = true;
-    state.pdfTextByPage.clear();
-    if (state.pdfPage > state.pdfDoc.numPages) state.pdfPage = state.pdfDoc.numPages;
-    await renderPdfTextPane();
-    setStatus(i18n.statusPdfReady);
   }
 
   function jumpToComment(comment) {
@@ -261,7 +194,7 @@ export async function bootstrapSharePage() {
       state.highlightQuote = comment.quote || "";
       state.pdfPage = comment.page;
       setView("pdf");
-      void renderPdfTextPane();
+      void pdf.renderPdfPage();
       return;
     }
     if (comment.source === "tex") {
@@ -292,7 +225,7 @@ export async function bootstrapSharePage() {
       ? `&participantToken=${encodeURIComponent(state.participantToken)}`
       : "";
     const response = await fetch(
-      `/api/comments/list?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&participantId=${encodeURIComponent(state.participantId)}${token}&t=${Date.now()}`
+      `/api/comments/list?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&participantId=${encodeURIComponent(state.participantId)}${token}&t=${Date.now()}`,
     );
     if (!response.ok) throw new Error(await response.text());
     const payload = await response.json();
@@ -308,7 +241,7 @@ export async function bootstrapSharePage() {
         ? `&participantToken=${encodeURIComponent(state.participantToken)}`
         : "";
       const response = await fetch(
-        `/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&participantId=${encodeURIComponent(state.participantId)}${token}&cursor=${state.cursor}`
+        `/api/sync/pull?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(el.pwd.value.trim())}&participantId=${encodeURIComponent(state.participantId)}${token}&cursor=${state.cursor}`,
       );
       if (!response.ok) throw new Error(await response.text());
       const payload = await response.json();
@@ -361,7 +294,7 @@ export async function bootstrapSharePage() {
     state.pdfStatusTimer = window.setTimeout(async () => {
       if (!state.connected) return;
       if (state.view === "pdf") {
-        await reloadPdfContent().catch(() => undefined);
+        await pdf.reloadPdfContent().catch(() => undefined);
       }
       schedulePdfStatusLoop();
     }, hidden ? 5000 : 2600);
@@ -395,6 +328,7 @@ export async function bootstrapSharePage() {
     el.commentEditor.placeholder = i18n.commentPlaceholder;
     el.postComment.textContent = i18n.postComment;
     el.clearQuote.textContent = i18n.clearQuote;
+    el.pdfEmpty.textContent = i18n.noPdfPreview;
   }
 
   setupI18n();
@@ -403,7 +337,7 @@ export async function bootstrapSharePage() {
   setView("tex");
   el.pwd.value = pwdFromUrl;
   el.username.value = localStorage.getItem(usernameStorageKey) || "";
-  updatePdfPageLabel();
+  pdf.updatePdfPageLabel();
 
   yText.observe(() => {
     const value = yText.toString();
@@ -413,6 +347,7 @@ export async function bootstrapSharePage() {
       el.editor.setSelectionRange(Math.min(at, value.length), Math.min(at, value.length));
     }
   });
+
   doc.on("update", (update, origin) => {
     if (origin === "remote" || state.syncingRemote || !state.connected) return;
     void postJson("/api/sync/push", {
@@ -462,13 +397,15 @@ export async function bootstrapSharePage() {
   window.addEventListener("scroll", () => {
     if (!el.quickQuote.hidden) updateQuoteFromSelection();
   }, true);
+  window.addEventListener("beforeunload", () => {
+    pdf.dispose();
+  }, { once: true });
 
   el.quickQuote.addEventListener("click", () => {
     if (!state.selectionQuote) return;
     setDraftQuote(state.selectionQuote);
     hideQuickQuote();
   });
-
   el.clearQuote.addEventListener("click", () => setDraftQuote(null));
 
   el.postComment.addEventListener("click", async () => {
@@ -522,7 +459,7 @@ export async function bootstrapSharePage() {
   });
 
   el.reloadPdf.addEventListener("click", () => {
-    void reloadPdfContent();
+    void pdf.reloadPdfContent();
   });
   el.copyPwd.addEventListener("click", () => {
     const value = el.pwd.value.trim();
@@ -538,19 +475,19 @@ export async function bootstrapSharePage() {
   el.viewTex.addEventListener("click", () => setView("tex"));
   el.viewPdf.addEventListener("click", () => {
     setView("pdf");
-    void reloadPdfContent();
+    void pdf.reloadPdfContent();
   });
   el.viewComments.addEventListener("click", () => setView("comments"));
 
   el.pdfPrev.addEventListener("click", () => {
     if (!state.pdfDoc) return;
     state.pdfPage = Math.max(1, state.pdfPage - 1);
-    void renderPdfTextPane();
+    void pdf.renderPdfPage();
   });
   el.pdfNext.addEventListener("click", () => {
     if (!state.pdfDoc) return;
     state.pdfPage = Math.min(state.pdfDoc.numPages, state.pdfPage + 1);
-    void renderPdfTextPane();
+    void pdf.renderPdfPage();
   });
 
   el.connect.addEventListener("click", async () => {
@@ -589,7 +526,7 @@ export async function bootstrapSharePage() {
       schedulePresenceLoop();
       schedulePdfStatusLoop();
       await pingPresence(i18n.actionReading);
-      await reloadPdfContent().catch(() => undefined);
+      await pdf.reloadPdfContent().catch(() => undefined);
       await loadComments().catch(() => undefined);
       setStatus(i18n.statusConnected);
     } catch (error) {

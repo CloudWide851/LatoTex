@@ -51,6 +51,24 @@ describe("drawWorkspaceUtils", () => {
     ]);
   });
 
+  it("does not re-probe startup-prepared draw hosts before trying the provided entry", async () => {
+    vi.doMock("@tauri-apps/api/core", () => ({
+      isTauri: () => true,
+    }));
+    const prioritize = vi.fn(async (candidates: string[]) => [candidates[1], candidates[0]]);
+    vi.doMock("../../../shared/utils/localResourceProbe", () => ({
+      prioritizeReachableLocalResourceCandidates: prioritize,
+    }));
+
+    const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
+    const candidates = await resolveDrawioHostFrameCandidates({
+      entryUrl: "http://latotex-resource.localhost/tool/drawio/index.html",
+    });
+
+    expect(prioritize).not.toHaveBeenCalled();
+    expect(candidates[0]).toBe("http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min");
+  });
+
   it("keeps direct local-resource fallback ahead of same-origin host in tauri mode", async () => {
     vi.doMock("@tauri-apps/api/core", () => ({
       isTauri: () => true,
@@ -78,9 +96,7 @@ describe("drawWorkspaceUtils", () => {
     }));
 
     const { resolveDrawioHostFrameCandidates } = await import("./drawWorkspaceUtils");
-    await expect(resolveDrawioHostFrameCandidates({
-      entryUrl: "http://latotex-resource.localhost/tool/drawio/index.html",
-    })).resolves.toEqual([
+    await expect(resolveDrawioHostFrameCandidates()).resolves.toEqual([
       "/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
       "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
     ]);

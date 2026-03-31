@@ -7,15 +7,15 @@ export const zhCN_draw = {
   "draw.noTabs": "暂无绘图标签，点击 + 新建。",
   "draw.capture": "捕获",
   "draw.export": "导出",
-  "draw.waiting": "等待绘图编辑器启动...",
+  "draw.waiting": "正在连接绘图编辑器...",
+  "draw.hostReady": "绘图宿主已就绪，正在加载编辑器...",
   "draw.warming": "正在准备本地绘图资源...",
   "draw.pasteImage": "粘贴图片",
   "draw.pasteNoImage": "剪贴板中没有可用图片。",
   "draw.pasted": "图片已粘贴到绘图中。",
-  "draw.startFailed": "绘图编辑器启动失败。",
-  "draw.startFailedDetail": "绘图编辑器启动失败：{detail}。",
+  "draw.startFailed": "绘图编辑器连接失败。",
+  "draw.startFailedDetail": "绘图编辑器连接失败：{detail}。",
+  "draw.retry": "重试绘图编辑器",
   "draw.renameExists": "已存在同名绘图标签。",
   "draw.fileMissingRemoved": "源文件不存在，已自动清理失效绘图标签。",
 } as const;
-
-

@@ -71,6 +71,7 @@ export function DrawWorkspace(props: {
   const startupBlocked = componentStartupState !== "ready";
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
+  const frameHostLoadedRef = useRef(false);
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
@@ -83,6 +84,7 @@ export function DrawWorkspace(props: {
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
+  const [frameLoadStage, setFrameLoadStage] = useState<"idle" | "connecting" | "hostReady">("idle");
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -90,17 +92,21 @@ export function DrawWorkspace(props: {
 
   useEffect(() => {
     if (startupBlocked) {
+      frameHostLoadedRef.current = false;
       setReady(false);
       setFrameSrc(null);
       setFrameFailureDetail(null);
+      setFrameLoadStage("idle");
       return;
     }
 
     let cancelled = false;
 
     const loadFrameCandidates = async () => {
+      frameHostLoadedRef.current = false;
       setReady(false);
       setFrameFailureDetail(null);
+      setFrameLoadStage("connecting");
       setStatus(t("draw.waiting"));
       const nextCandidates = await resolveDrawioHostFrameCandidates(startupDrawioInfo);
       if (cancelled) {
@@ -115,12 +121,14 @@ export function DrawWorkspace(props: {
         setFrameCandidateIndex(0);
         setFrameSrc(null);
         setFrameFailureDetail(failure);
+        setFrameLoadStage("idle");
         setStatus(failure);
         return;
       }
 
       setFrameCandidates(resolved);
       setFrameCandidateIndex(0);
+      setFrameLoadStage("connecting");
       setFrameSrc(resolved[0]);
       setStatus(t("draw.waiting"));
     };
@@ -134,6 +142,7 @@ export function DrawWorkspace(props: {
       setFrameCandidateIndex(0);
       setFrameSrc(null);
       setFrameFailureDetail(failure);
+      setFrameLoadStage("idle");
       setStatus(failure);
     });
 
@@ -143,10 +152,12 @@ export function DrawWorkspace(props: {
   }, [frameReloadToken, projectId, startupBlocked, startupDrawioInfo, t]);
 
   const retryFrameLoad = useCallback(() => {
+    frameHostLoadedRef.current = false;
     setReady(false);
     setFrameCandidateIndex(0);
     setFrameSrc(null);
     setFrameFailureDetail(null);
+    setFrameLoadStage("connecting");
     setFrameReloadToken((prev) => prev + 1);
   }, []);
 
@@ -345,6 +356,7 @@ export function DrawWorkspace(props: {
       setFrameCandidateIndex(0);
       setFrameSrc(null);
       setFrameFailureDetail(null);
+      setFrameLoadStage("idle");
       setStatus("");
       setRenamingPath(null);
       setRenameInput("");
@@ -422,6 +434,12 @@ export function DrawWorkspace(props: {
       if (!message) {
         return;
       }
+      if (message.event === "host_loaded") {
+        frameHostLoadedRef.current = true;
+        setFrameLoadStage("hostReady");
+        setStatus(t("draw.hostReady"));
+        return;
+      }
       if (message.event === "configure") {
         postToFrame({
           action: "configure",
@@ -434,6 +452,7 @@ export function DrawWorkspace(props: {
       if (message.event === "init") {
         setReady(true);
         setFrameFailureDetail(null);
+        setFrameLoadStage("idle");
         if (initTimerRef.current !== null) {
           window.clearTimeout(initTimerRef.current);
           initTimerRef.current = null;
@@ -517,8 +536,10 @@ export function DrawWorkspace(props: {
       const nextIndex = frameCandidateIndex + 1;
       if (nextIndex < frameCandidates.length) {
         const nextSrc = frameCandidates[nextIndex];
+        frameHostLoadedRef.current = false;
         setFrameCandidateIndex(nextIndex);
         setReady(false);
+        setFrameLoadStage("connecting");
         setFrameSrc(nextSrc);
         setStatus(t("draw.waiting"));
         return;
@@ -526,15 +547,16 @@ export function DrawWorkspace(props: {
       const failure = formatDrawStartFailure(t, `tried ${frameCandidates.length} host(s), all failed`);
       setFrameSrc(null);
       setFrameFailureDetail(failure);
+      setFrameLoadStage("idle");
       setStatus(failure);
-    }, 12_000);
+    }, frameLoadStage === "hostReady" ? 20_000 : 10_000);
     return () => {
       if (initTimerRef.current !== null) {
         window.clearTimeout(initTimerRef.current);
         initTimerRef.current = null;
       }
     };
-  }, [frameCandidateIndex, frameCandidates, frameSrc, ready, t]);
+  }, [frameCandidateIndex, frameCandidates, frameLoadStage, frameSrc, ready, t]);
 
   if (!projectId) {
     return (
@@ -581,7 +603,7 @@ export function DrawWorkspace(props: {
                   className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
                   onClick={retryFrameLoad}
                 >
-                  {t("app.startup.retry")}
+                  {t("draw.retry")}
                 </button>
               </div>
             </div>
@@ -609,6 +631,9 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
+
+
+
 
 
 

@@ -21,6 +21,7 @@ const messages = {
     statusConnected: "已连接",
     statusPdfPreparing: "PDF 正在准备中...",
     statusPdfReady: "PDF 已就绪",
+    statusPdfLoadFailed: (reason) => `PDF 预览加载失败: ${reason}`,
     statusNeedFields: "会话/口令/用户名不能为空",
     statusQuoteNeeded: "请先在 PDF 或 TeX 中选中要引用的文本。",
     statusCommentPosted: "评论已发布",
@@ -50,6 +51,7 @@ const messages = {
     noCollaborators: "暂无在线协作者。",
     noComments: "暂无评论。",
     noPdfText: "暂无 PDF 文本内容。",
+    noPdfPreview: "当前没有可预览的 PDF。",
     pdfPageLabel: (page, total) => `PDF 页码 ${page}/${total}`,
     quoteFromPdf: (page) => `来自 PDF 第 ${page} 页`,
     quoteFromTex: "来自 TeX 编辑区",
@@ -78,6 +80,7 @@ const messages = {
     statusConnected: "connected",
     statusPdfPreparing: "PDF is being prepared...",
     statusPdfReady: "PDF ready",
+    statusPdfLoadFailed: (reason) => `failed to load PDF preview: ${reason}`,
     statusNeedFields: "session/password/username required",
     statusQuoteNeeded: "Select text in PDF or TeX first.",
     statusCommentPosted: "comment posted",
@@ -107,6 +110,7 @@ const messages = {
     noCollaborators: "No active collaborators.",
     noComments: "No comments yet.",
     noPdfText: "No PDF text available.",
+    noPdfPreview: "No PDF preview is available right now.",
     pdfPageLabel: (page, total) => `PDF page ${page}/${total}`,
     quoteFromPdf: (page) => `From PDF page ${page}`,
     quoteFromTex: "From TeX editor",
@@ -123,4 +127,3 @@ const messages = {
 export function createI18n(locale) {
   return messages[locale] || messages["en-US"];
 }
-
