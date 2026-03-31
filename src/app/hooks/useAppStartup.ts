@@ -27,6 +27,7 @@ import {
   type AppStartupStepKey,
   updateAppStartupSteps,
 } from "./startupState";
+import { shouldRunStartupForRetryToken } from "./startupRunGate";
 
 type TranslationFn = (...args: any[]) => string;
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
@@ -158,6 +159,7 @@ export function useAppStartup(params: {
   } = params;
   const mountedRef = useRef(true);
   const attemptRef = useRef(0);
+  const startedRetryTokenRef = useRef<number | null>(null);
   const startupProjectIdRef = useRef<string | null>(null);
   const currentStepKeyRef = useRef<AppStartupStepKey | null>(null);
   const [startupState, setStartupState] = useState<AppStartupState>(createInitialAppStartupState);
@@ -483,6 +485,10 @@ export function useAppStartup(params: {
   ]);
 
   useEffect(() => {
+    if (!shouldRunStartupForRetryToken(startedRetryTokenRef.current, retryToken)) {
+      return;
+    }
+    startedRetryTokenRef.current = retryToken;
     void runStartup();
   }, [retryToken, runStartup]);
 
@@ -584,12 +590,3 @@ export function useAppStartup(params: {
     handleStartupPrepareAnalysisEnv,
   };
 }
-
-
-
-
-
-
-
-
-
