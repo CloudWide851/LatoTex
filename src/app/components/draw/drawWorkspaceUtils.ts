@@ -1,5 +1,4 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { drawioCachePrepare } from "../../../shared/api/local-resources";
 import { prioritizeReachableLocalResourceCandidates } from "../../../shared/utils/localResourceProbe";
 import type { DrawioCacheInfo } from "../../../shared/types/app";
 
@@ -22,8 +21,8 @@ type PersistedDrawTabs = {
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
-const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 export const DRAWIO_HOST_URL = "/drawio/index.html";
+export const DRAWIO_LOCAL_RESOURCE_URL = "http://latotex-resource.localhost/tool/drawio/index.html";
 
 function appendQueryParams(url: string, values: Record<string, string>): string {
   const [withoutHash, hash = ""] = String(url || "").split("#", 2);
@@ -50,34 +49,23 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-export function buildDrawioEntryCandidates(info: Pick<DrawioCacheInfo, "entryUrl">): string[] {
-  const directCandidates = [String(info.entryUrl || "").trim()].filter(Boolean);
+export function buildDrawioEntryCandidates(info?: Pick<DrawioCacheInfo, "entryUrl"> | null): string[] {
+  const directCandidates = [String(info?.entryUrl || "").trim()].filter(Boolean);
+  if (isTauri()) {
+    directCandidates.push(DRAWIO_LOCAL_RESOURCE_URL);
+  }
   const rawCandidates = [...directCandidates, DRAWIO_HOST_URL].filter(Boolean);
   return Array.from(new Set(rawCandidates.map((candidate) => toDrawioEmbedUrl(candidate))));
 }
 
-export async function resolveDrawioHostFrameCandidates(): Promise<string[]> {
-  if (!isTauri()) {
-    return prioritizeReachableLocalResourceCandidates([toDrawioEmbedUrl(DRAWIO_HOST_URL)]);
-  }
-
-  try {
-    const preferredPolicy = typeof window !== "undefined"
-      ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
-      : null;
-    const policy = preferredPolicy ?? "install-first";
-    const info = await drawioCachePrepare(policy);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
-    }
-    return prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(info));
-  } catch {
-    return prioritizeReachableLocalResourceCandidates([toDrawioEmbedUrl(DRAWIO_HOST_URL)]);
-  }
+export async function resolveDrawioHostFrameCandidates(
+  info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
+): Promise<string[]> {
+  return prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(info));
 }
 
-export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
-  const candidates = await resolveDrawioHostFrameCandidates();
+export async function resolveDrawioHostFrameSrc(info?: Pick<DrawioCacheInfo, "entryUrl"> | null): Promise<string | null> {
+  const candidates = await resolveDrawioHostFrameCandidates(info);
   return candidates[0] ?? null;
 }
 
@@ -288,6 +276,9 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
+
+
+
 
 
 

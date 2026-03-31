@@ -8,7 +8,6 @@ import { useIdleSleep } from "./useIdleSleep";
 import { useRuntimePressureRelief } from "./useRuntimePressureRelief";
 import { useTextContentCacheBridge } from "./useTextContentCacheBridge";
 import { useAnalysisEnvPrompt } from "./useAnalysisEnvPrompt";
-import { useProjectResourceWarmup } from "@features/workbench";
 
 type AppContainerState = ReturnType<typeof useAppContainerState>;
 type TranslationFn = (...args: any[]) => string;
@@ -52,10 +51,6 @@ export function useWorkbenchRuntimeState(params: {
     setToast: s.setToast,
   });
 
-  useProjectResourceWarmup({
-    activeProjectId: startupReady ? s.activeProjectId : null,
-    suspended: idleSleep.sleeping,
-  });
 
   const analysisEnvPrompt = useAnalysisEnvPrompt({
     activeProjectId: s.activeProjectId,
@@ -103,3 +98,5 @@ export function useWorkbenchRuntimeState(params: {
     handleOutOfMemorySleep,
   };
 }
+
+

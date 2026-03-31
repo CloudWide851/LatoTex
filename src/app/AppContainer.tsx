@@ -410,6 +410,7 @@ export function AppContainer() {
       startupState={startup.startupState}
       componentStartupState={startup.componentStartupState}
       handleStartupRetry={startup.handleStartupRetry}
+      handleStartupExit={startup.handleStartupExit}
       handleStartupChooseAnalysisEnvLocation={startup.handleStartupChooseAnalysisEnvLocation}
       handleStartupPrepareAnalysisEnv={startup.handleStartupPrepareAnalysisEnv}
       sleeping={idleSleep.sleeping}
@@ -451,6 +452,7 @@ export function AppContainer() {
       latexLayout={panels.latexLayout}
       analysisLayout={panels.analysisLayout}
       libraryLayout={panels.libraryLayout}
+      drawioWarmupInfo={startup.startupState.drawioWarmupInfo}
       settings={s.settings}
       tree={s.tree}
       libraryTree={s.libraryTree}
@@ -567,3 +569,5 @@ export function AppContainer() {
     />
   );
 }
+
+

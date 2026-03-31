@@ -7,7 +7,7 @@ import {
   analysisEnvStatus,
   pickAnalysisEnvDirectory,
 } from "../../shared/api/analysis";
-import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
+import { exitApplication, getHealthCheck, windowSyncIcon } from "../../shared/api/app";
 import { listProjects } from "../../shared/api/projects";
 import { waitForResourceWarmup } from "../../shared/api/resource-warmup";
 import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
@@ -408,7 +408,7 @@ export function useAppStartup(params: {
       updateStep("git", { status: "ready", detail: targetProjectId, progress: 100 }, "warming");
 
       updateStep("drawio", { status: "running", detail: t("draw.warming"), progress: 10 }, "warming");
-      await waitForResourceWarmup({
+      const drawioWarmup = await waitForResourceWarmup({
         projectId: targetProjectId,
         scopes: ["drawio"],
         timeoutMs: 45_000,
@@ -427,7 +427,14 @@ export function useAppStartup(params: {
         },
       });
       abortIfStale();
-      updateStep("drawio", { status: "ready", detail: t("app.ready"), progress: 100 }, "warming");
+      updateStep(
+        "drawio",
+        { status: "ready", detail: t("app.ready"), progress: 100 },
+        "warming",
+        {
+          drawioWarmupInfo: drawioWarmup.result?.drawio ?? null,
+        },
+      );
 
       updateStep("tectonic", { status: "running", detail: t("workspace.compileStage.warming_resources"), progress: 10 }, "warming");
       await waitForResourceWarmup({
@@ -572,10 +579,14 @@ export function useAppStartup(params: {
     startupReady: startupState.phase === "ready",
     componentStartupState,
     handleStartupRetry,
+    handleStartupExit: exitApplication,
     handleStartupChooseAnalysisEnvLocation,
     handleStartupPrepareAnalysisEnv,
   };
 }
+
+
+
 
 
 

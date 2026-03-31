@@ -1,6 +1,7 @@
 import type {
   CloseTabsAction,
   ChannelPrefs,
+  DrawioCacheInfo,
   EditorTab,
   FsAction,
   FsScope,
@@ -33,6 +34,7 @@ export type AppWorkspaceShellProps = {
   latexLayout: number[];
   analysisLayout: number[];
   libraryLayout: number[];
+  drawioWarmupInfo: DrawioCacheInfo | null;
   tree: ResourceNode[];
   libraryTree: ResourceNode[];
   selectedFile: string | null;
@@ -142,3 +144,5 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
+
+

@@ -42,6 +42,7 @@ export function StartupOverlay(props: {
     } | null;
   };
   onRetry: () => void;
+  onExit: () => void;
   onChooseAnalysisEnvLocation: () => void;
   onPrepareAnalysisEnv: () => void;
   t: TranslationFn;
@@ -49,6 +50,7 @@ export function StartupOverlay(props: {
   const {
     startupState,
     onRetry,
+    onExit,
     onChooseAnalysisEnvLocation,
     onPrepareAnalysisEnv,
     t,
@@ -175,17 +177,32 @@ export function StartupOverlay(props: {
               </button>
             </>
           ) : failed ? (
-            <button
-              type="button"
-              className="rounded-xl border border-primary-600 bg-primary-600 px-3 py-2 text-sm text-white transition hover:bg-primary-700"
-              onClick={onRetry}
-            >
-              <RefreshCcw className="mr-1 inline h-3.5 w-3.5" />
-              {t("app.startup.retry")}
-            </button>
+            <>
+              <button
+                type="button"
+                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+                onClick={onExit}
+              >
+                {t("tray.exit")}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-primary-600 bg-primary-600 px-3 py-2 text-sm text-white transition hover:bg-primary-700"
+                onClick={onRetry}
+              >
+                <RefreshCcw className="mr-1 inline h-3.5 w-3.5" />
+                {t("app.startup.retry")}
+              </button>
+            </>
           ) : null}
         </div>
       </section>
     </div>
   );
 }
+
+
+
+
+
+

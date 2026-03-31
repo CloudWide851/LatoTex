@@ -1,4 +1,4 @@
-import type { AnalysisEnvStatus } from "../../shared/types/app";
+import type { AnalysisEnvStatus, DrawioCacheInfo } from "../../shared/types/app";
 
 export type AppStartupPhase = "booting" | "warming" | "actionRequired" | "ready" | "failed";
 export type AppStartupStepStatus = "pending" | "running" | "ready" | "actionRequired" | "failed";
@@ -28,6 +28,7 @@ export type AppStartupState = {
   blocking: boolean;
   currentStepKey: AppStartupStepKey | null;
   analysisEnvStatus: AnalysisEnvStatus | null;
+  drawioWarmupInfo: DrawioCacheInfo | null;
 };
 
 const STEP_LABELS: Record<AppStartupStepKey, string> = {
@@ -70,6 +71,7 @@ export function createInitialAppStartupState(): AppStartupState {
     blocking: true,
     currentStepKey: null,
     analysisEnvStatus: null,
+    drawioWarmupInfo: null,
   };
 }
 
@@ -127,3 +129,6 @@ export function deriveComponentStartupState(phase: AppStartupPhase): ComponentSt
   }
   return "startupBlocked";
 }
+
+
+

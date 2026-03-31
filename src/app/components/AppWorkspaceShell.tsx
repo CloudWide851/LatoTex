@@ -40,6 +40,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     latexLayout,
     analysisLayout,
     libraryLayout,
+    drawioWarmupInfo,
     tree,
     libraryTree,
     selectedFile,
@@ -381,6 +382,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
           <LazyDrawWorkspace
             componentStartupState={componentStartupState}
             projectId={activeProjectId}
+            startupDrawioInfo={drawioWarmupInfo}
             selectedPath={selectedFile}
             onSelectPath={onSelectFile}
             onRequestFsAction={onFsAction}
@@ -529,3 +531,5 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
+
+

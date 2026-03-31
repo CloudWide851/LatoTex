@@ -183,9 +183,9 @@ export function EditorTabsBar(props: {
   }, []);
 
   return (
-    <div ref={rootRef} className="editor-tabs-shell relative flex h-full items-center gap-1 px-1.5">
+    <div ref={rootRef} className="editor-tabs-shell relative flex h-full items-center gap-0 px-1">
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="flex min-w-0 items-center gap-1 pr-1">
+        <div className="flex min-w-0 items-center gap-1 pr-0.5">
           {visibleTabs.map((tab) => {
             const active = tab.id === activeTabId;
             const dirty = Boolean(dirtyByPath[tab.path]);
@@ -195,7 +195,7 @@ export function EditorTabsBar(props: {
                 key={tab.id}
                 data-tab-id={tab.id}
                 className={cn(
-                  "editor-tab group inline-flex h-7 shrink-0 items-center gap-1 rounded-[11px] px-2 text-xs transition",
+                  "editor-tab group inline-flex h-7 shrink-0 items-center gap-0.5 rounded-[11px] px-1.5 text-xs transition",
                   active
                     ? "editor-tab--active"
                     : "editor-tab--inactive",
@@ -252,7 +252,7 @@ export function EditorTabsBar(props: {
                 key={tab.id}
                 data-tab-id={tab.id}
                 className={cn(
-                  "editor-tab group inline-flex h-7 shrink-0 items-center gap-1 rounded-[11px] px-2 text-xs transition",
+                  "editor-tab group inline-flex h-7 shrink-0 items-center gap-0.5 rounded-[11px] px-1.5 text-xs transition",
                   tab.active
                     ? "editor-tab--active"
                     : "editor-tab--inactive",
@@ -310,16 +310,17 @@ export function EditorTabsBar(props: {
       </div>
 
       {overflowLayout.hasOverflow ? (
-        <div className="relative shrink-0">
+        <div className="editor-tabs-overflow-wrap relative ml-1 shrink-0 self-stretch">
+          <span className="editor-tabs-overflow-fade" aria-hidden="true" />
           <button
-            className="editor-tabs-scroll-btn rounded-full p-1"
+            className="editor-tabs-scroll-btn editor-tabs-overflow-trigger"
             onMouseDown={swallowTabButtonEvent}
             onClick={(event) => {
               runTabButtonAction(event, () => {
                 setOverflowOpen((prev) => !prev);
               });
             }}
-            title={t("editor.tab.more")}
+            title={`${t("editor.tab.more")} (${overflowItems.length})`}
             aria-label={t("editor.tab.more")}
           >
             <ChevronDown className="h-3.5 w-3.5" />
@@ -374,3 +375,7 @@ export function EditorTabsBar(props: {
     </div>
   );
 }
+
+
+
+

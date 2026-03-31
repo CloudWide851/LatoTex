@@ -18,6 +18,7 @@ export function AppContainerView(props: any) {
     startupState,
     componentStartupState,
     handleStartupRetry,
+    handleStartupExit,
     handleStartupChooseAnalysisEnvLocation,
     handleStartupPrepareAnalysisEnv,
     sleeping,
@@ -60,6 +61,7 @@ export function AppContainerView(props: any) {
     latexLayout,
     analysisLayout,
     libraryLayout,
+    drawioWarmupInfo,
     settings,
     tree,
     libraryTree,
@@ -263,6 +265,7 @@ export function AppContainerView(props: any) {
               latexLayout={latexLayout}
               analysisLayout={analysisLayout}
               libraryLayout={libraryLayout}
+              drawioWarmupInfo={drawioWarmupInfo}
               previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
               completionModelId={completionModelId}
               translationModelId={translationModelId}
@@ -378,6 +381,9 @@ export function AppContainerView(props: any) {
       <StartupOverlay
         startupState={startupState}
         onRetry={handleStartupRetry}
+        onExit={() => {
+          void handleStartupExit();
+        }}
         onChooseAnalysisEnvLocation={() => {
           void handleStartupChooseAnalysisEnvLocation();
         }}
@@ -442,3 +448,7 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
+
+
+
+

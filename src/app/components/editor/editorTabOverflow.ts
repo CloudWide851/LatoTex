@@ -15,7 +15,7 @@ type ResolveTabOverflowResult = {
 };
 
 const DEFAULT_TAB_GAP = 4;
-const DEFAULT_OVERFLOW_BUTTON_WIDTH = 34;
+const DEFAULT_OVERFLOW_BUTTON_WIDTH = 52;
 
 function resolveVisibleWindow(
   items: SizedTabItem[],
@@ -123,3 +123,4 @@ export const editorTabOverflowConstants = {
   DEFAULT_TAB_GAP,
   DEFAULT_OVERFLOW_BUTTON_WIDTH,
 };
+

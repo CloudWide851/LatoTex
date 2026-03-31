@@ -627,6 +627,39 @@ body::before {
   -webkit-backdrop-filter: blur(16px);
 }
 
+.editor-tabs-overflow-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.editor-tabs-overflow-fade {
+  width: 12px;
+  height: 24px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(148, 163, 184, 0.16)),
+    linear-gradient(90deg, rgba(226, 232, 240, 0), rgba(148, 163, 184, 0.34));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0.9;
+}
+
+.editor-tabs-overflow-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  padding: 0;
+}
+
+.editor-tabs-overflow-trigger:hover {
+  background: rgba(148, 163, 184, 0.14);
+}
+
 .editor-tabs-overflow-menu,
 .editor-tabs-floating-menu {
   border-radius: 16px;
@@ -778,6 +811,7 @@ body::before {
   color: rgba(148, 163, 184, 0.88) !important;
   border-bottom-color: rgba(71, 85, 105, 0.72);
 }
+
 
 
 
