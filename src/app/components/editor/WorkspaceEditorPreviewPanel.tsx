@@ -11,10 +11,12 @@ export function WorkspaceEditorPreviewPanel(props: {
   selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
+  selectedIsCode: boolean;
   editorContent: string;
   compiledPdfUrl: string | null;
-  previewMode: "pdf" | "image" | "markdown" | "svg" | "empty";
+  previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
   previewPdfUrl: string | null;
+  previewPdfFallbackRelativePath: string | null;
   imagePreviewUrl: string | null;
   canZoomPreview: boolean;
   previewZoom: number;
@@ -41,10 +43,12 @@ export function WorkspaceEditorPreviewPanel(props: {
       selectedIsImage={props.selectedIsImage}
       selectedIsSvg={props.selectedIsSvg}
       selectedIsTabular={props.selectedIsTabular}
+      selectedIsCode={props.selectedIsCode}
       editorContent={props.editorContent}
       compiledPdfUrl={props.compiledPdfUrl}
       previewMode={props.previewMode}
       previewPdfUrl={props.previewPdfUrl}
+      previewPdfFallbackRelativePath={props.previewPdfFallbackRelativePath}
       imagePreviewUrl={props.imagePreviewUrl}
       canZoomPreview={props.canZoomPreview}
       previewZoom={props.previewZoom}
@@ -64,3 +68,4 @@ export function WorkspaceEditorPreviewPanel(props: {
     />
   );
 }
+

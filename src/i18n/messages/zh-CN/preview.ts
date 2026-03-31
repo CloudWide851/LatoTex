@@ -2,6 +2,7 @@ export const zhCN_preview = {
   "preview.title": "预览",
   "preview.empty": "当前文件暂无可预览内容。",
   "preview.markdownEmpty": "Markdown 文件为空。",
+  "preview.textEmpty": "文本文件为空。",
   "preview.diagnostics": "诊断信息",
   "preview.events": "蜂群事件",
   "preview.annotationEnable": "启用荧光笔标注",
@@ -14,3 +15,4 @@ export const zhCN_preview = {
   "preview.zoomReset": "恢复默认缩放",
   "preview.none": "无",
 } as const;
+

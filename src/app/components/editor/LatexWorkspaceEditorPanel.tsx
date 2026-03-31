@@ -7,6 +7,7 @@ import { EditorTabsBar } from "./EditorTabsBar";
 import { getEditorSurfaceThemeName, registerEditorSurfaceThemes } from "./editorSurfaceTheme";
 import { ensureLatexCompletionProvider } from "./latexCompletion";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
+import { resolveCodeLanguage } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
@@ -166,6 +167,7 @@ export function LatexWorkspaceEditorPanel(props: {
   } = props;
   const [editorTheme, setEditorTheme] = useState(getEditorSurfaceThemeName);
   const agentCommandItems = buildAgentCommandItems(t);
+  const editorLanguage = resolveCodeLanguage(selectedFile).monaco;
 
   useEffect(() => {
     if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
@@ -319,7 +321,7 @@ export function LatexWorkspaceEditorPanel(props: {
           </div>
         ) : (
           <MonacoEditor
-            language="latex"
+            language={editorLanguage}
             theme={editorTheme}
             value={editorContent}
             beforeMount={(monaco) => {
@@ -423,6 +425,4 @@ export function LatexWorkspaceEditorPanel(props: {
     </div>
   );
 }
-
-
 

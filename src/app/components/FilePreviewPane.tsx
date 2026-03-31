@@ -5,7 +5,9 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Document, Page } from "react-pdf";
+import { CodePreviewPane } from "./CodePreviewPane";
 import { ensureReactPdfWorker } from "./pdf/reactPdfSetup";
+import { useWorkspacePdfSource } from "./pdf/useWorkspacePdfSource";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/github.css";
 
@@ -75,15 +77,19 @@ const LENS_SIZE = 220;
 const PDF_VIRTUAL_PADDING_PAGES = 2;
 
 export function FilePreviewPane(props: {
-  mode: "pdf" | "image" | "markdown" | "svg" | "empty";
+  mode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
   pdfUrl: string | null;
   imageUrl: string | null;
   markdownContent: string;
   svgContent: string;
+  codeContent: string;
+  selectedPath: string | null;
   title: string;
   emptyText: string;
   pdfZoom: number;
   onPdfZoomChange: (nextZoom: number) => void;
+  pdfFallbackProjectId?: string | null;
+  pdfFallbackRelativePath?: string | null;
   focusRequest?: { page: number; token: number } | null;
 }) {
   const {
@@ -92,10 +98,14 @@ export function FilePreviewPane(props: {
     imageUrl,
     markdownContent,
     svgContent,
+    codeContent,
+    selectedPath,
     title,
     emptyText,
     pdfZoom,
     onPdfZoomChange,
+    pdfFallbackProjectId,
+    pdfFallbackRelativePath,
     focusRequest,
   } = props;
 
@@ -123,12 +133,18 @@ export function FilePreviewPane(props: {
   const [visiblePage, setVisiblePage] = useState(1);
   const [pdfLoadFailed, setPdfLoadFailed] = useState(false);
 
+  const { effectivePdfUrl, tryFallbackToBlob } = useWorkspacePdfSource({
+    pdfUrl,
+    fallbackProjectId: pdfFallbackProjectId,
+    fallbackRelativePath: pdfFallbackRelativePath,
+  });
+
   useEffect(() => {
-    if (mode !== "pdf" || !pdfUrl) {
+    if (mode !== "pdf" || !effectivePdfUrl) {
       return;
     }
     setPdfLoadFailed(false);
-  }, [mode, pdfUrl]);
+  }, [effectivePdfUrl, mode]);
 
   useEffect(() => {
     return () => {
@@ -156,7 +172,7 @@ export function FilePreviewPane(props: {
     const observer = new ResizeObserver(update);
     observer.observe(root);
     return () => observer.disconnect();
-  }, [mode, pdfUrl]);
+  }, [effectivePdfUrl, mode]);
 
   const basePageWidth = useMemo(
     () => Math.max(320, Math.floor(Math.max(340, viewportWidth) - 24)),
@@ -228,8 +244,18 @@ export function FilePreviewPane(props: {
   const sanitizedSvg = useMemo(() => sanitizeSvgForPreview(svgContent ?? ""), [svgContent]);
   const svgDoc = useMemo(() => buildSvgPreviewDocument(sanitizedSvg), [sanitizedSvg]);
 
+  const handlePdfLoadError = useCallback(async () => {
+    const recovered = await tryFallbackToBlob();
+    if (recovered) {
+      setPdfLoadFailed(false);
+      return;
+    }
+    setPdfLoadFailed(true);
+    setPageCount(1);
+  }, [tryFallbackToBlob]);
+
   useEffect(() => {
-    if (mode !== "pdf" || !pdfUrl) {
+    if (mode !== "pdf" || !effectivePdfUrl) {
       return;
     }
     const viewport = viewportRef.current;
@@ -261,10 +287,10 @@ export function FilePreviewPane(props: {
         scrollRafRef.current = null;
       }
     };
-  }, [estimatedPageHeight, mode, pageCount, pdfUrl]);
+  }, [effectivePdfUrl, estimatedPageHeight, mode, pageCount]);
 
   useEffect(() => {
-    if (mode !== "pdf" || !pdfUrl || !focusRequest || !viewportRef.current) {
+    if (mode !== "pdf" || !effectivePdfUrl || !focusRequest || !viewportRef.current) {
       return;
     }
     const page = Math.max(1, Math.min(pageCount, Math.floor(focusRequest.page || 1)));
@@ -275,9 +301,9 @@ export function FilePreviewPane(props: {
       behavior: "smooth",
     });
     setVisiblePage(page);
-  }, [estimatedPageHeight, focusRequest, mode, pageCount, pdfUrl]);
+  }, [effectivePdfUrl, estimatedPageHeight, focusRequest, mode, pageCount]);
 
-  if (mode === "pdf" && pdfUrl) {
+  if (mode === "pdf" && effectivePdfUrl) {
     const pages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1);
     const virtualStart = Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES);
     const virtualEnd = Math.min(pageCount, visiblePage + PDF_VIRTUAL_PADDING_PAGES);
@@ -305,8 +331,8 @@ export function FilePreviewPane(props: {
           </div>
         ) : (
           <Document
-            key={pdfUrl}
-            file={pdfUrl}
+            key={effectivePdfUrl}
+            file={effectivePdfUrl}
             loading={
               <div className="py-6 text-center text-xs text-slate-500">{emptyText}</div>
             }
@@ -321,8 +347,7 @@ export function FilePreviewPane(props: {
               }
             }}
             onLoadError={() => {
-              setPdfLoadFailed(true);
-              setPageCount(1);
+              void handlePdfLoadError();
             }}
             className="space-y-3 p-3"
           >
@@ -425,7 +450,7 @@ export function FilePreviewPane(props: {
                 transform: "translate3d(0, 0, 0)",
               }}
             >
-              <Document key={`lens-${pdfUrl}`} file={pdfUrl} loading={null} error={null}>
+              <Document key={`lens-${effectivePdfUrl}`} file={effectivePdfUrl} loading={null} error={null}>
                 <Page
                   pageNumber={Math.max(1, Math.min(pageCount, lensPage))}
                   width={lensPageWidth}
@@ -507,6 +532,16 @@ export function FilePreviewPane(props: {
     );
   }
 
+  if (mode === "code") {
+    return (
+      <CodePreviewPane
+        filePath={selectedPath}
+        codeContent={codeContent}
+        emptyText={emptyText}
+      />
+    );
+  }
+
   if (mode === "svg") {
     return sanitizedSvg.trim().length === 0 ? (
       <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
@@ -530,3 +565,4 @@ export function FilePreviewPane(props: {
     </div>
   );
 }
+

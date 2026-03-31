@@ -1,5 +1,9 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { prioritizeReachableLocalResourceCandidates } from "../../../shared/utils/localResourceProbe";
+import {
+  buildLocalResourceBaseCandidates,
+  buildLocalResourceEntryCandidates,
+  prioritizeReachableLocalResourceCandidates,
+} from "../../../shared/utils/localResourceProbe";
 import type { DrawioCacheInfo } from "../../../shared/types/app";
 
 export type DrawMessage = {
@@ -49,26 +53,34 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-export function buildDrawioEntryCandidates(info?: Pick<DrawioCacheInfo, "entryUrl"> | null): string[] {
-  const directCandidates = [String(info?.entryUrl || "").trim()].filter(Boolean);
-  if (isTauri()) {
-    directCandidates.push(DRAWIO_LOCAL_RESOURCE_URL);
+export function buildDrawioEntryCandidates(
+  info?: Pick<DrawioCacheInfo, "entryUrl" | "actualDir"> | null,
+): string[] {
+  const rawCandidates: string[] = [];
+  const actualDir = String(info?.actualDir || "").trim();
+  if (isTauri() && actualDir) {
+    rawCandidates.push(...buildLocalResourceEntryCandidates(buildLocalResourceBaseCandidates(actualDir), "index.html"));
   }
-  const rawCandidates = [...directCandidates, DRAWIO_HOST_URL].filter(Boolean);
-  return Array.from(new Set(rawCandidates.map((candidate) => toDrawioEmbedUrl(candidate))));
+  const entryUrl = String(info?.entryUrl || "").trim();
+  if (entryUrl) {
+    rawCandidates.push(entryUrl);
+  }
+  if (isTauri()) {
+    rawCandidates.push(DRAWIO_LOCAL_RESOURCE_URL);
+  }
+  rawCandidates.push(DRAWIO_HOST_URL);
+  return Array.from(new Set(rawCandidates.filter(Boolean).map((candidate) => toDrawioEmbedUrl(candidate))));
 }
 
 export async function resolveDrawioHostFrameCandidates(
-  info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
+  info?: Pick<DrawioCacheInfo, "entryUrl" | "actualDir"> | null,
 ): Promise<string[]> {
-  const candidates = buildDrawioEntryCandidates(info);
-  if (String(info?.entryUrl || "").trim()) {
-    return candidates;
-  }
-  return prioritizeReachableLocalResourceCandidates(candidates);
+  return prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(info));
 }
 
-export async function resolveDrawioHostFrameSrc(info?: Pick<DrawioCacheInfo, "entryUrl"> | null): Promise<string | null> {
+export async function resolveDrawioHostFrameSrc(
+  info?: Pick<DrawioCacheInfo, "entryUrl" | "actualDir"> | null,
+): Promise<string | null> {
   const candidates = await resolveDrawioHostFrameCandidates(info);
   return candidates[0] ?? null;
 }
@@ -280,10 +292,4 @@ export async function persistDrawExportToWorkspace(params: {
   }
   throw lastError ?? new Error("write failed");
 }
-
-
-
-
-
-
 

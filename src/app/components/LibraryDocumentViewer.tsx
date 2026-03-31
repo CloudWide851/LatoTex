@@ -81,6 +81,7 @@ export function LibraryDocumentViewer(props: {
     paperPreviewError,
     bibPreview,
     pdfUrl,
+    translatedPdfRelativePath,
     translatedPdfUrl,
     resolvedLink,
     refresh: refreshDocumentData,
@@ -428,6 +429,7 @@ export function LibraryDocumentViewer(props: {
       <div className="relative min-h-0">
         <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
         <LibraryViewerContentPanel
+        projectId={projectId}
         viewMode={viewMode}
         loading={loading}
         loadError={loadError}
@@ -473,6 +475,7 @@ export function LibraryDocumentViewer(props: {
         runTranslation={handleRunTranslation}
         hasComparePair={hasComparePair}
         translatedPdfUrl={translatedPdfUrl}
+        translatedPdfRelativePath={translatedPdfRelativePath}
         bibPreview={bibPreview}
         citation={citation}
         paperPreview={paperPreview}
@@ -486,3 +489,4 @@ export function LibraryDocumentViewer(props: {
     </div>
   );
 }
+

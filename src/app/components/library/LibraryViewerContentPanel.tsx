@@ -19,6 +19,7 @@ type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type ViewMode = "bib" | "pdf" | "compare";
 
 type LibraryViewerContentPanelProps = {
+  projectId: string | null;
   viewMode: ViewMode;
   loading: boolean;
   loadError: string | null;
@@ -74,6 +75,7 @@ type LibraryViewerContentPanelProps = {
   paperPreviewError: string | null;
   onAnalyzePaper?: (() => void) | null;
   translatedPdfUrl: string | null;
+  translatedPdfRelativePath: string | null;
   bibPreview: string;
   citation: LibraryCitationSummary | null;
   linkError: string | null;
@@ -82,6 +84,7 @@ type LibraryViewerContentPanelProps = {
 
 export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps) {
   const {
+    projectId,
     viewMode,
     loading,
     loadError,
@@ -127,6 +130,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     runTranslation,
     hasComparePair,
     translatedPdfUrl,
+    translatedPdfRelativePath,
     bibPreview,
     citation,
     paperPreview,
@@ -206,6 +210,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               }}
               onPageCountChange={setPageCount}
               onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
+              fallbackProjectId={projectId}
+              fallbackRelativePath={selectedPath}
               t={t}
             />
           </div>
@@ -266,6 +272,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 syncId="source"
                 syncGroupRef={compareSyncGroupRef}
                 containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
+                fallbackProjectId={projectId}
+                fallbackRelativePath={selectedPath}
                 t={t}
               />
             </div>
@@ -291,6 +299,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 syncId="translated"
                 syncGroupRef={compareSyncGroupRef}
                 containerClassName="h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
+                fallbackProjectId={projectId}
+                fallbackRelativePath={translatedPdfRelativePath}
                 t={t}
               />
             </div>
@@ -333,3 +343,4 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     </div>
   );
 }
+

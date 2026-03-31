@@ -1,19 +1,12 @@
+import { extensionOfPath } from "./codeLanguage";
+
 const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
 const CSV_EXTENSIONS = new Set(["csv", "tsv"]);
 const EXCEL_EXTENSIONS = new Set(["xlsx", "xlsm", "xls"]);
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp"]);
 
-function normalizePath(input: string | null | undefined): string {
-  return (input ?? "").trim().toLowerCase();
-}
-
 function extensionOf(path: string): string {
-  const normalized = normalizePath(path);
-  const dot = normalized.lastIndexOf(".");
-  if (dot < 0 || dot === normalized.length - 1) {
-    return "";
-  }
-  return normalized.slice(dot + 1);
+  return extensionOfPath(path ?? "");
 }
 
 export function isPdfPath(path: string | null | undefined): boolean {
@@ -43,3 +36,14 @@ export function isImagePath(path: string | null | undefined): boolean {
 export function isTabularPath(path: string | null | undefined): boolean {
   return isCsvPath(path) || isExcelPath(path);
 }
+
+export function isCodePath(path: string | null | undefined): boolean {
+  const ext = extensionOf(path ?? "");
+  return Boolean(ext)
+    && !isPdfPath(path)
+    && !isImagePath(path)
+    && !isMarkdownPath(path)
+    && !isSvgPath(path)
+    && !isTabularPath(path);
+}
+

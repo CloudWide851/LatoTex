@@ -279,6 +279,7 @@ export function AppContainerView(props: any) {
               activeTabId={activeTabId}
               dirtyByPath={dirtyByPath}
               compiledPdfUrl={pdfUrl}
+              compiledPdfRelativePath={props.compiledPdfRelativePath}
               preferCompiledPreview={preferCompiledPreview}
               selectedFilePdfUrl={selectedFilePdfUrl}
               selectedImagePreviewUrl={selectedImagePreviewUrl}
@@ -448,7 +449,4 @@ export function AppContainerView(props: any) {
     </div>
   );
 }
-
-
-
 

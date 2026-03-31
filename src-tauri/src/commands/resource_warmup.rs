@@ -168,7 +168,7 @@ pub fn resource_warmup_start(
                 update_progress(percent_base + 5.0, scope, Some(scope.as_str()), Some(scope.as_str()));
                 match scope.as_str() {
                     "drawio" => {
-                        let info = prepare_drawio_cache_info(&state_for_thread, "install-first")?;
+                        let info = prepare_drawio_cache_info(&state_for_thread, "appdata-only")?;
                         result.drawio = Some(info);
                     }
                     "tectonic" => {
@@ -310,9 +310,4 @@ pub fn resource_warmup_status(
         .ok_or_else(|| "resource_warmup.task_not_found".to_string())?;
     snapshot_resource_warmup_task(task)
 }
-
-
-
-
-
 

@@ -464,6 +464,7 @@ export function AppContainer() {
       activeTabId={s.activeTabId}
       dirtyByPath={s.dirtyByPath}
       pdfUrl={s.pdfUrl}
+      compiledPdfRelativePath={s.compiledPdfRelativePath}
       preferCompiledPreview={s.preferCompiledPreview}
       selectedFilePdfUrl={s.selectedFilePdfUrl}
       selectedImagePreviewUrl={s.selectedImagePreviewUrl}
@@ -569,5 +570,4 @@ export function AppContainer() {
     />
   );
 }
-
 

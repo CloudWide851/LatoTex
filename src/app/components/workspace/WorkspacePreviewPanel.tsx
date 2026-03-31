@@ -16,10 +16,12 @@ export function WorkspacePreviewPanel(props: {
   selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
+  selectedIsCode: boolean;
   editorContent: string;
   compiledPdfUrl: string | null;
-  previewMode: "pdf" | "image" | "markdown" | "svg" | "empty";
+  previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
   previewPdfUrl: string | null;
+  previewPdfFallbackRelativePath: string | null;
   imagePreviewUrl: string | null;
   canZoomPreview: boolean;
   previewZoom: number;
@@ -45,10 +47,12 @@ export function WorkspacePreviewPanel(props: {
     selectedIsImage,
     selectedIsSvg,
     selectedIsTabular,
+    selectedIsCode,
     editorContent,
     compiledPdfUrl,
     previewMode,
     previewPdfUrl,
+    previewPdfFallbackRelativePath,
     imagePreviewUrl,
     canZoomPreview,
     previewZoom,
@@ -173,10 +177,14 @@ export function WorkspacePreviewPanel(props: {
             imageUrl={imagePreviewUrl ?? null}
             markdownContent={selectedIsMarkdown ? editorContent : ""}
             svgContent={selectedIsSvg ? editorContent : ""}
+            codeContent={selectedIsCode ? editorContent : ""}
+            selectedPath={selectedFile}
             title={t("preview.title")}
-            emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage ? t("preview.markdownEmpty") : t("preview.empty")}
+            emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage || selectedIsCode ? t("preview.textEmpty") : t("preview.empty")}
             pdfZoom={previewZoom}
             onPdfZoomChange={onPreviewZoomChange}
+            pdfFallbackProjectId={activeProjectId}
+            pdfFallbackRelativePath={previewPdfFallbackRelativePath}
             focusRequest={previewFocusRequest}
           />
         )}
@@ -217,7 +225,4 @@ export function WorkspacePreviewPanel(props: {
     </aside>
   );
 }
-
-
-
 

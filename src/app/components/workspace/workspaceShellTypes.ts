@@ -45,6 +45,7 @@ export type AppWorkspaceShellProps = {
   activeTabId: string | null;
   dirtyByPath: Record<string, boolean>;
   compiledPdfUrl: string | null;
+  compiledPdfRelativePath: string | null;
   preferCompiledPreview: boolean;
   selectedFilePdfUrl: string | null;
   selectedImagePreviewUrl: string | null;
@@ -144,5 +145,4 @@ export type AppWorkspaceShellProps = {
   ) => Promise<boolean>;
   t: TranslationFn;
 };
-
 

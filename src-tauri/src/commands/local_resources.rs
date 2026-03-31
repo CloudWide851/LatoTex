@@ -228,7 +228,7 @@ fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
     if let Some(dir) = resolve_existing_drawio_dir(state) {
         return Ok(dir);
     }
-    let prepared = prepare_drawio_cache(state, "install-first")?;
+    let prepared = prepare_drawio_cache(state, "appdata-only")?;
     Ok(PathBuf::from(prepared.actual_dir))
 }
 
@@ -582,3 +582,4 @@ pub fn drawio_cache_prepare(
 #[cfg(test)]
 #[path = "local_resources_tests.rs"]
 mod tests;
+

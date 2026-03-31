@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { PageRail } from "./PageRail";
 import {
   isCsvPath,
+  isCodePath,
   isExcelPath,
   isImagePath,
   isMarkdownPath,
@@ -51,6 +52,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     activeTabId,
     dirtyByPath,
     compiledPdfUrl,
+    compiledPdfRelativePath,
     preferCompiledPreview,
     selectedFilePdfUrl,
     selectedImagePreviewUrl,
@@ -193,7 +195,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const selectedIsCsv = isCsvPath(previewSelectedPath);
   const selectedIsTabular = isTabularPath(previewSelectedPath);
   const selectedIsDraw = Boolean(selectedFile && /\.drawio$/i.test(selectedFile));
-  const previewMode: "pdf" | "image" | "markdown" | "svg" | "empty" = selectedIsImage
+  const selectedIsTex = Boolean(previewSelectedPath && /\.tex$/i.test(previewSelectedPath));
+  const selectedIsCode = !selectedIsDraw && !selectedIsTex && isCodePath(previewSelectedPath);
+  const previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty" = selectedIsImage
     ? (selectedImagePreviewUrl ? "image" : "empty")
     : selectedIsPdf
       ? (selectedFilePdfUrl ? "pdf" : "empty")
@@ -201,16 +205,18 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         ? "empty"
         : selectedIsSvg
           ? "svg"
-          : preferCompiledPreview && compiledPdfUrl
-            ? "pdf"
-            : selectedIsMarkdown
-              ? "markdown"
-              : compiledPdfUrl
+          : selectedIsMarkdown
+            ? "markdown"
+            : selectedIsCode
+              ? "code"
+              : compiledPdfUrl && (!previewSelectedPath || selectedIsTex || preferCompiledPreview)
                 ? "pdf"
                 : "empty";
   const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
+  const previewPdfFallbackRelativePath = previewMode === "pdf"
+    ? (selectedIsPdf ? previewSelectedPath : compiledPdfRelativePath)
+    : null;
   const canZoomPreview = previewMode === "pdf" && Boolean(previewPdfUrl);
-  const selectedIsTex = Boolean(selectedFile && /\.tex$/i.test(selectedFile));
   const compileAssistKey = compileDiagnostics.join("\n").slice(0, 2400);
 
   const sourceCjkIssue = useMemo(
@@ -345,10 +351,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedIsImage={selectedIsImage}
       selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}
+      selectedIsCode={selectedIsCode}
       editorContent={editorContent}
       compiledPdfUrl={compiledPdfUrl}
       previewMode={previewMode}
       previewPdfUrl={previewPdfUrl ?? null}
+      previewPdfFallbackRelativePath={previewPdfFallbackRelativePath}
       imagePreviewUrl={selectedImagePreviewUrl}
       canZoomPreview={canZoomPreview}
       previewZoom={previewZoom}
@@ -531,5 +539,4 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-
 

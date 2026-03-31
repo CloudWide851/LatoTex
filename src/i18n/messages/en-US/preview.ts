@@ -2,6 +2,7 @@ export const enUS_preview = {
   "preview.title": "Preview",
   "preview.empty": "No preview available for the current file.",
   "preview.markdownEmpty": "Markdown file is empty.",
+  "preview.textEmpty": "Text file is empty.",
   "preview.diagnostics": "Diagnostics",
   "preview.events": "Swarm Events",
   "preview.annotationEnable": "Enable highlight mode",
@@ -14,3 +15,4 @@ export const enUS_preview = {
   "preview.zoomReset": "Reset Zoom",
   "preview.none": "None",
 } as const;
+
