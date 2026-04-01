@@ -45,6 +45,42 @@ fn find_remote_pdf_url(summary: &LibraryCitationSummaryResponse) -> Option<Strin
         .map(|arxiv_id| format!("https://arxiv.org/pdf/{arxiv_id}.pdf"))
 }
 
+fn pdf_bytes_valid(bytes: &[u8]) -> bool {
+    let first_non_whitespace = bytes
+        .iter()
+        .position(|byte| !byte.is_ascii_whitespace())
+        .unwrap_or(bytes.len());
+    bytes
+        .get(first_non_whitespace..)
+        .map(|value| value.starts_with(b"%PDF-"))
+        .unwrap_or(false)
+}
+
+fn cached_pdf_file_ready(cache_path: &Path) -> bool {
+    let Ok(mut file) = std::fs::File::open(cache_path) else {
+        return false;
+    };
+    let Ok(metadata) = file.metadata() else {
+        return false;
+    };
+    if metadata.len() == 0 {
+        return false;
+    }
+    let mut header = [0_u8; 16];
+    let Ok(read) = std::io::Read::read(&mut file, &mut header) else {
+        return false;
+    };
+    pdf_bytes_valid(&header[..read])
+}
+
+fn temp_cache_path(cache_target: &Path) -> PathBuf {
+    let file_name = cache_target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("paper.pdf");
+    cache_target.with_file_name(format!("{file_name}.download"))
+}
+
 fn cache_remote_pdf_file(cache_target: &Path, source_url: &str) -> Result<(), String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(24))
@@ -57,11 +93,18 @@ fn cache_remote_pdf_file(cache_target: &Path, source_url: &str) -> Result<(), St
         return Err(format!("HTTP {status}"));
     }
     let bytes = response.bytes().map_err(|e| e.to_string())?;
-    let is_pdf = bytes.starts_with(b"%PDF-") || source_url.to_lowercase().contains(".pdf");
-    if !is_pdf {
+    if !pdf_bytes_valid(&bytes) {
         return Err("Remote file is not a valid PDF stream".to_string());
     }
-    fs::write(cache_target, bytes).map_err(|e| e.to_string())
+    if let Some(parent) = cache_target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let temp_path = temp_cache_path(cache_target);
+    fs::write(&temp_path, &bytes).map_err(|e| e.to_string())?;
+    fs::rename(&temp_path, cache_target).map_err(|e| {
+        let _ = fs::remove_file(&temp_path);
+        e.to_string()
+    })
 }
 
 fn to_library_relative_path_from_workspace(workspace_relative: &str) -> Option<String> {
@@ -92,8 +135,15 @@ fn resolve_translated_pdf_workspace_path(
     to_workspace_relative(project_root, &translated_abs).ok()
 }
 
-fn cache_path_ready(cache_path: &Path) -> bool {
-    cache_path.exists() && fs::metadata(cache_path).map(|meta| meta.len()).unwrap_or(0) > 0
+fn clear_pdf_cache_entry(
+    tasks: &std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, crate::state::LibraryPdfCacheTask>>>,
+    task_key: &str,
+    cache_path: &Path,
+) {
+    let _ = fs::remove_file(cache_path);
+    if let Ok(mut tasks_guard) = tasks.lock() {
+        tasks_guard.remove(task_key);
+    }
 }
 
 fn resolve_local_pdf_candidate(source: &Path) -> Option<PathBuf> {
@@ -354,7 +404,8 @@ pub fn library_resolve_pdf_preview(
     fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
     let cache_path = cache_dir.join(format!("{}.pdf", hash_remote_url(&source_url)));
 
-    if !cache_path_ready(&cache_path) {
+    if !cached_pdf_file_ready(&cache_path) {
+        let _ = fs::remove_file(&cache_path);
         cache_remote_pdf_file(&cache_path, &source_url)?;
     }
 
@@ -374,6 +425,7 @@ pub fn library_resolve_pdf_preview_runtime(
     state: &crate::state::AppState,
     project_id: &str,
     relative_path: &str,
+    bust_cache: bool,
 ) -> Result<LibraryPdfPreviewResponse, String> {
     let project_root = load_project_root(&state.db_path, project_id)?;
     let papers_root = library_root(&project_root);
@@ -420,7 +472,14 @@ pub fn library_resolve_pdf_preview_runtime(
     let cache_path = cache_dir.join(format!("{}.pdf", hash_remote_url(&source_url)));
     let task_key = pdf_cache_task_key(project_id, &normalized_relative);
 
-    if cache_path_ready(&cache_path) {
+    if bust_cache {
+        clear_pdf_cache_entry(&state.library_pdf_cache_tasks, &task_key, &cache_path);
+    } else if cache_path.exists() && !cached_pdf_file_ready(&cache_path) {
+        clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
+        clear_pdf_cache_entry(&state.library_pdf_cache_tasks, &task_key, &cache_path);
+    }
+
+    if cached_pdf_file_ready(&cache_path) {
         clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
         let source_workspace_relative = to_workspace_relative(&project_root, &cache_path)?;
         return Ok(build_preview_response(
@@ -501,7 +560,7 @@ pub fn wait_for_library_pdf_preview_ready(
 ) -> Result<LibraryPdfPreviewResponse, String> {
     let started_at = std::time::Instant::now();
     loop {
-        let preview = library_resolve_pdf_preview_runtime(state, project_id, relative_path)?;
+        let preview = library_resolve_pdf_preview_runtime(state, project_id, relative_path, false)?;
         match preview.cache_state.as_str() {
             LIBRARY_PDF_CACHE_STATE_READY
             | LIBRARY_PDF_CACHE_STATE_ERROR
@@ -521,7 +580,6 @@ pub fn wait_for_library_pdf_preview_ready(
         std::thread::sleep(std::time::Duration::from_millis(350));
     }
 }
-
-
-
-
+#[cfg(test)]
+#[path = "library_pdf_preview_cache_tests.rs"]
+mod library_pdf_preview_cache_tests;

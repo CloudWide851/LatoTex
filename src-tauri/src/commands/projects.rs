@@ -317,6 +317,7 @@ pub fn library_resolve_pdf_preview(
         &state,
         &input.project_id,
         &input.relative_path,
+        input.bust_cache.unwrap_or(false),
     )?;
     preview.preview_url = preview
         .relative_path

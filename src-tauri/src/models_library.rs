@@ -16,6 +16,7 @@ pub struct LibraryCitationSummaryInput {
 pub struct LibraryPdfPreviewInput {
     pub project_id: String,
     pub relative_path: String,
+    pub bust_cache: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

@@ -111,8 +111,13 @@ export function libraryCitationSummaryRemote(
 export function libraryResolvePdfPreview(
   projectId: string,
   relativePath: string,
+  options?: { bustCache?: boolean },
 ): Promise<LibraryPdfPreview> {
   return invokeCommand<LibraryPdfPreview>("library_resolve_pdf_preview", {
-    input: { projectId, relativePath },
+    input: {
+      projectId,
+      relativePath,
+      bustCache: options?.bustCache ?? false,
+    },
   });
 }

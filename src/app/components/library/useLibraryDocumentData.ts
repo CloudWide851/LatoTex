@@ -363,7 +363,7 @@ export function useLibraryDocumentData(params: {
       setPaperPreviewError(null);
 
       try {
-        const previewPromise = libraryResolvePdfPreview(projectId, selectedPath);
+        const previewPromise = libraryResolvePdfPreview(projectId, selectedPath, { bustCache: options?.bustCache ?? false });
         const summary = await libraryCitationSummary(projectId, selectedPath);
         if (requestIdRef.current !== requestId) {
           return null;

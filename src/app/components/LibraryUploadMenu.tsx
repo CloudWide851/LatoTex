@@ -31,13 +31,21 @@ function buildFloatingPanelStyle(trigger: HTMLButtonElement, kind: FloatingPanel
   const rect = trigger.getBoundingClientRect();
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const width = Math.max(
-    kind === "link" ? Math.min(288, viewportWidth - 24) : Math.max(176, rect.width),
-    156,
-  );
+  const width = kind === "menu"
+    ? Math.min(Math.max(236, rect.width + 128), Math.max(236, viewportWidth - 24))
+    : Math.min(Math.max(340, rect.width + 236), Math.max(340, viewportWidth - 24));
   const maxLeft = Math.max(12, viewportWidth - width - 12);
-  const left = Math.min(Math.max(12, rect.right - width), maxLeft);
-  const top = Math.min(rect.bottom + 8, viewportHeight - 72);
+  const alignedLeft = kind === "menu"
+    ? rect.right - width
+    : rect.left + (rect.width / 2) - (width / 2);
+  const left = Math.min(Math.max(12, alignedLeft), maxLeft);
+  const menuHeight = kind === "menu" ? 228 : 208;
+  const spaceBelow = viewportHeight - rect.bottom - 12;
+  const spaceAbove = rect.top - 12;
+  const renderAbove = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+  const top = renderAbove
+    ? Math.max(12, rect.top - 8 - Math.min(menuHeight, Math.max(160, spaceAbove)))
+    : Math.min(rect.bottom + 8, viewportHeight - 72);
   return {
     position: "fixed",
     left,
@@ -108,9 +116,14 @@ export function LibraryUploadMenu(props: {
   const renderFloatingPanel = useCallback((
     content: ReactNode,
     panelRef: MutableRefObject<HTMLDivElement | null>,
+    className?: string,
   ) => {
     const panel = (
-      <div ref={panelRef} className={dropdownSurfaceClassName("fixed z-[520] overflow-auto")} style={panelStyle}>
+      <div
+        ref={panelRef}
+        className={dropdownSurfaceClassName(`fixed z-[520] ${className ?? "overflow-y-auto overflow-x-hidden"}`)}
+        style={panelStyle}
+      >
         {content}
       </div>
     );
@@ -142,9 +155,9 @@ export function LibraryUploadMenu(props: {
       </button>
 
       {menuOpen && renderFloatingPanel(
-        <div className="min-w-44 py-1.5">
+        <div className="min-w-0 py-1.5">
           <button
-            className={dropdownItemClassName()}
+            className={dropdownItemClassName("whitespace-nowrap")}
             onClick={() => {
               setMenuOpen(false);
               onImportPdf();
@@ -154,7 +167,7 @@ export function LibraryUploadMenu(props: {
             <span>{t("library.uploadPdf")}</span>
           </button>
           <button
-            className={dropdownItemClassName()}
+            className={dropdownItemClassName("whitespace-nowrap")}
             onClick={() => {
               setLinkKind("link");
               setMenuOpen(false);
@@ -166,7 +179,7 @@ export function LibraryUploadMenu(props: {
             <span>{t("library.addLink")}</span>
           </button>
           <button
-            className={dropdownItemClassName()}
+            className={dropdownItemClassName("whitespace-nowrap")}
             onClick={() => {
               setLinkKind("zotero");
               setMenuOpen(false);
@@ -178,7 +191,7 @@ export function LibraryUploadMenu(props: {
             <span>{t("library.importZotero")}</span>
           </button>
           <button
-            className={dropdownItemClassName()}
+            className={dropdownItemClassName("whitespace-nowrap")}
             onClick={() => {
               setLinkKind("zotero-sync");
               setMenuOpen(false);
@@ -228,10 +241,11 @@ export function LibraryUploadMenu(props: {
               onChange={(event) => setLinkDraft(event.target.value)}
             />
           )}
-          <div className="mt-2.5 flex justify-end gap-2">
+          <div className="mt-3 flex justify-center gap-4">
             <Button
               variant="surface"
               size="sm"
+              className="min-w-[84px]"
               onClick={() => {
                 setLinkDraft("");
                 setZoteroOwnerId("");
@@ -244,6 +258,7 @@ export function LibraryUploadMenu(props: {
             <Button
               variant={canConfirm ? "default" : "surface"}
               size="sm"
+              className="min-w-[84px]"
               disabled={!canConfirm || busy}
               onClick={() => {
                 if (linkKind === "zotero-sync") {
@@ -271,6 +286,7 @@ export function LibraryUploadMenu(props: {
           </div>
         </div>,
         linkPanelRef,
+        "overflow-visible",
       )}
     </div>
   );
