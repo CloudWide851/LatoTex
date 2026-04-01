@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { drawioCachePrepare } from "../../../shared/api/local-resources";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { DrawioCacheInfo, FsAction, FsScope } from "../../../shared/types/app";
 import type { ComponentStartupState } from "../../hooks/startupState";
@@ -9,7 +10,7 @@ import {
   normalizePath,
   parseDrawMessage,
   persistDrawExportToWorkspace,
-  resolveDrawioHostFrameCandidates,
+  resolveDrawioHostFrameSrc,
   savePersistedTabs,
   tabTitleFromPath,
 } from "./drawWorkspaceUtils";
@@ -45,6 +46,14 @@ function formatDrawStartFailure(t: TranslationFn, detail?: string | null): strin
   return t("draw.startFailedDetail").replace("{detail}", normalized);
 }
 
+function withReloadToken(url: string, reloadToken: number): string {
+  const normalized = String(url || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  return `${normalized}${normalized.includes("?") ? "&" : "?"}latotexReload=${reloadToken}`;
+}
+
 export function DrawWorkspace(props: {
   componentStartupState: ComponentStartupState;
   projectId: string | null;
@@ -71,7 +80,6 @@ export function DrawWorkspace(props: {
   const startupBlocked = componentStartupState !== "ready";
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
-  const frameHostLoadedRef = useRef(false);
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
@@ -79,8 +87,7 @@ export function DrawWorkspace(props: {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [frameCandidates, setFrameCandidates] = useState<string[]>([]);
-  const [frameCandidateIndex, setFrameCandidateIndex] = useState(0);
+  const [runtimeDrawioInfo, setRuntimeDrawioInfo] = useState<DrawioCacheInfo | null>(startupDrawioInfo);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
@@ -91,8 +98,11 @@ export function DrawWorkspace(props: {
   const [renameInput, setRenameInput] = useState("");
 
   useEffect(() => {
+    setRuntimeDrawioInfo(startupDrawioInfo);
+  }, [projectId, startupDrawioInfo]);
+
+  useEffect(() => {
     if (startupBlocked) {
-      frameHostLoadedRef.current = false;
       setReady(false);
       setFrameSrc(null);
       setFrameFailureDetail(null);
@@ -100,67 +110,49 @@ export function DrawWorkspace(props: {
       return;
     }
 
-    let cancelled = false;
-
-    const loadFrameCandidates = async () => {
-      frameHostLoadedRef.current = false;
-      setReady(false);
-      setFrameFailureDetail(null);
-      setFrameLoadStage("connecting");
-      setStatus(t("draw.waiting"));
-      const nextCandidates = await resolveDrawioHostFrameCandidates(startupDrawioInfo);
-      if (cancelled) {
-        return;
-      }
-      const resolved = Array.isArray(nextCandidates)
-        ? nextCandidates.map((item) => String(item || "").trim()).filter(Boolean)
-        : [];
-      if (resolved.length === 0) {
-        const failure = formatDrawStartFailure(t, "no reachable drawio host found");
-        setFrameCandidates([]);
-        setFrameCandidateIndex(0);
+    try {
+      const resolved = resolveDrawioHostFrameSrc(runtimeDrawioInfo);
+      if (!resolved) {
+        const failure = formatDrawStartFailure(t, "drawio entry url is missing");
+        setReady(false);
         setFrameSrc(null);
         setFrameFailureDetail(failure);
         setFrameLoadStage("idle");
         setStatus(failure);
         return;
       }
-
-      setFrameCandidates(resolved);
-      setFrameCandidateIndex(0);
+      setReady(false);
+      setFrameFailureDetail(null);
       setFrameLoadStage("connecting");
-      setFrameSrc(resolved[0]);
+      setFrameSrc(withReloadToken(resolved, frameReloadToken));
       setStatus(t("draw.waiting"));
-    };
-
-    void loadFrameCandidates().catch((error) => {
-      if (cancelled) {
-        return;
-      }
+    } catch (error) {
       const failure = formatDrawStartFailure(t, String(error));
-      setFrameCandidates([]);
-      setFrameCandidateIndex(0);
+      setReady(false);
       setFrameSrc(null);
       setFrameFailureDetail(failure);
       setFrameLoadStage("idle");
       setStatus(failure);
-    });
+    }
+  }, [frameReloadToken, runtimeDrawioInfo, startupBlocked, t]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [frameReloadToken, projectId, startupBlocked, startupDrawioInfo, t]);
-
-  const retryFrameLoad = useCallback(() => {
-    frameHostLoadedRef.current = false;
+  const retryFrameLoad = useCallback(async () => {
     setReady(false);
-    setFrameCandidateIndex(0);
     setFrameSrc(null);
     setFrameFailureDetail(null);
     setFrameLoadStage("connecting");
-    setFrameReloadToken((prev) => prev + 1);
-  }, []);
-
+    setStatus(t("draw.waiting"));
+    try {
+      const prepared = await drawioCachePrepare("appdata-only");
+      setRuntimeDrawioInfo(prepared);
+      setFrameReloadToken((prev) => prev + 1);
+    } catch (error) {
+      const failure = formatDrawStartFailure(t, String(error));
+      setFrameFailureDetail(failure);
+      setFrameLoadStage("idle");
+      setStatus(failure);
+    }
+  }, [t]);
   useEffect(() => {
     activePathRef.current = activePath;
   }, [activePath]);
@@ -352,8 +344,7 @@ export function DrawWorkspace(props: {
       setActivePath(null);
       activePathRef.current = null;
       setReady(false);
-      setFrameCandidates([]);
-      setFrameCandidateIndex(0);
+      setRuntimeDrawioInfo(startupDrawioInfo);
       setFrameSrc(null);
       setFrameFailureDetail(null);
       setFrameLoadStage("idle");
@@ -435,7 +426,6 @@ export function DrawWorkspace(props: {
         return;
       }
       if (message.event === "host_loaded") {
-        frameHostLoadedRef.current = true;
         setFrameLoadStage("hostReady");
         setStatus(t("draw.hostReady"));
         return;
@@ -533,18 +523,7 @@ export function DrawWorkspace(props: {
       if (ready) {
         return;
       }
-      const nextIndex = frameCandidateIndex + 1;
-      if (nextIndex < frameCandidates.length) {
-        const nextSrc = frameCandidates[nextIndex];
-        frameHostLoadedRef.current = false;
-        setFrameCandidateIndex(nextIndex);
-        setReady(false);
-        setFrameLoadStage("connecting");
-        setFrameSrc(nextSrc);
-        setStatus(t("draw.waiting"));
-        return;
-      }
-      const failure = formatDrawStartFailure(t, `tried ${frameCandidates.length} host(s), all failed`);
+      const failure = formatDrawStartFailure(t, "drawio local resource channel did not initialize in time");
       setFrameSrc(null);
       setFrameFailureDetail(failure);
       setFrameLoadStage("idle");
@@ -556,7 +535,7 @@ export function DrawWorkspace(props: {
         initTimerRef.current = null;
       }
     };
-  }, [frameCandidateIndex, frameCandidates, frameLoadStage, frameSrc, ready, t]);
+  }, [frameLoadStage, frameSrc, ready, t]);
 
   if (!projectId) {
     return (
@@ -601,7 +580,9 @@ export function DrawWorkspace(props: {
                 <button
                   type="button"
                   className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
-                  onClick={retryFrameLoad}
+                  onClick={() => {
+                    void retryFrameLoad();
+                  }}
                 >
                   {t("draw.retry")}
                 </button>
@@ -611,6 +592,7 @@ export function DrawWorkspace(props: {
             <>
               <iframe
                 ref={frameRef}
+                key={frameSrc}
                 src={frameSrc}
                 title="drawio"
                 className={`h-full w-full border-0 transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
@@ -631,16 +613,3 @@ export function DrawWorkspace(props: {
     </section>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

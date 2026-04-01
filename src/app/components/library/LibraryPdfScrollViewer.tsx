@@ -5,11 +5,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
 } from "react";
 import { Document, Page } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
-import { useWorkspacePdfSource } from "../pdf/useWorkspacePdfSource";
 import type {
   AnnotationStroke,
   AnnotationTextBox,
@@ -49,8 +49,6 @@ type LibraryPdfScrollViewerProps = {
   syncId?: string;
   syncGroupRef?: MutableRefObject<LibraryPdfScrollSyncGroup | null>;
   containerClassName?: string;
-  fallbackProjectId?: string | null;
-  fallbackRelativePath?: string | null;
   t: TranslationFn;
 };
 
@@ -106,8 +104,6 @@ export const LibraryPdfScrollViewer = forwardRef<
     syncId = "viewer",
     syncGroupRef,
     containerClassName = "h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7",
-    fallbackProjectId = null,
-    fallbackRelativePath = null,
     t,
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -119,12 +115,8 @@ export const LibraryPdfScrollViewer = forwardRef<
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [visiblePage, setVisiblePage] = useState(1);
+  const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
   const lastVisiblePageRef = useRef<number>(1);
-  const { effectivePdfUrl, tryFallbackToBlob } = useWorkspacePdfSource({
-    pdfUrl,
-    fallbackProjectId,
-    fallbackRelativePath,
-  });
 
   const pages = useMemo(
     () => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1),
@@ -158,6 +150,10 @@ export const LibraryPdfScrollViewer = forwardRef<
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     },
   }), [documentPages, estimatedPageHeight]);
+
+  useEffect(() => {
+    setDocumentLoadError(null);
+  }, [pdfUrl]);
 
   useEffect(() => {
     if (!scrollRef.current || pages.length === 0) {
@@ -276,7 +272,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
-  }, [effectivePdfUrl, onPageCountChange, onVisiblePageChange]);
+  }, [onPageCountChange, onVisiblePageChange, pageCount, pdfUrl]);
 
   useEffect(() => {
     const pending = pendingScrollPageRef.current;
@@ -291,26 +287,39 @@ export const LibraryPdfScrollViewer = forwardRef<
     pendingScrollPageRef.current = null;
   }, [pages, visiblePage]);
 
+  const rootProps = {
+    ref: scrollRef,
+    className: containerClassName,
+    onContextMenu: readOnly || !onRequestToolConfig
+      ? undefined
+      : (event: ReactMouseEvent<HTMLDivElement>) => {
+          event.preventDefault();
+          onRequestToolConfig();
+        },
+  };
+
+  if (documentLoadError) {
+    return (
+      <div {...rootProps}>
+        <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {t("library.viewer.error")} {documentLoadError}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      ref={scrollRef}
-      className={containerClassName}
-      onContextMenu={readOnly || !onRequestToolConfig
-        ? undefined
-        : (event) => {
-            event.preventDefault();
-            onRequestToolConfig();
-          }}
-    >
+    <div {...rootProps}>
       <Document
-        key={effectivePdfUrl}
-        file={effectivePdfUrl}
+        key={pdfUrl}
+        file={pdfUrl}
         loading={
           <div className="py-6 text-center text-xs text-slate-500">
             {t("library.viewer.loading")}
           </div>
         }
         onLoadSuccess={({ numPages }) => {
+          setDocumentLoadError(null);
           const next = Math.max(1, numPages || 1);
           setDocumentPages(next);
           setVisiblePage((prev) => Math.max(1, Math.min(next, prev)));
@@ -330,18 +339,13 @@ export const LibraryPdfScrollViewer = forwardRef<
             onVisiblePageChange(1);
           }
         }}
-        onLoadError={() => {
-          void (async () => {
-            const recovered = await tryFallbackToBlob();
-            if (recovered) {
-              return;
-            }
-            setDocumentPages(1);
-            setVisiblePage(1);
-            onPageCountChange(1);
-            lastVisiblePageRef.current = 1;
-            onVisiblePageChange(1);
-          })();
+        onLoadError={(error) => {
+          setDocumentLoadError(String(error || "pdf_load_failed"));
+          setDocumentPages(1);
+          setVisiblePage(1);
+          onPageCountChange(1);
+          lastVisiblePageRef.current = 1;
+          onVisiblePageChange(1);
         }}
       >
         <div className="space-y-3">
@@ -392,4 +396,3 @@ export const LibraryPdfScrollViewer = forwardRef<
     </div>
   );
 });
-

@@ -1,9 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
-import {
-  buildLocalResourceBaseCandidates,
-  buildLocalResourceEntryCandidates,
-  prioritizeReachableLocalResourceCandidates,
-} from "../../../shared/utils/localResourceProbe";
 import type { DrawioCacheInfo } from "../../../shared/types/app";
 
 export type DrawMessage = {
@@ -25,7 +19,6 @@ type PersistedDrawTabs = {
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
-export const DRAWIO_HOST_URL = "/drawio/index.html";
 export const DRAWIO_LOCAL_RESOURCE_URL = "http://latotex-resource.localhost/tool/drawio/index.html";
 
 function appendQueryParams(url: string, values: Record<string, string>): string {
@@ -53,36 +46,14 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-export function buildDrawioEntryCandidates(
-  info?: Pick<DrawioCacheInfo, "entryUrl" | "actualDir"> | null,
-): string[] {
-  const rawCandidates: string[] = [];
-  const actualDir = String(info?.actualDir || "").trim();
-  if (isTauri() && actualDir) {
-    rawCandidates.push(...buildLocalResourceEntryCandidates(buildLocalResourceBaseCandidates(actualDir), "index.html"));
+export function resolveDrawioHostFrameSrc(
+  info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
+): string | null {
+  const entryUrl = String(info?.entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
+  if (!entryUrl) {
+    return null;
   }
-  const entryUrl = String(info?.entryUrl || "").trim();
-  if (entryUrl) {
-    rawCandidates.push(entryUrl);
-  }
-  if (isTauri()) {
-    rawCandidates.push(DRAWIO_LOCAL_RESOURCE_URL);
-  }
-  rawCandidates.push(DRAWIO_HOST_URL);
-  return Array.from(new Set(rawCandidates.filter(Boolean).map((candidate) => toDrawioEmbedUrl(candidate))));
-}
-
-export async function resolveDrawioHostFrameCandidates(
-  info?: Pick<DrawioCacheInfo, "entryUrl" | "actualDir"> | null,
-): Promise<string[]> {
-  return prioritizeReachableLocalResourceCandidates(buildDrawioEntryCandidates(info));
-}
-
-export async function resolveDrawioHostFrameSrc(
-  info?: Pick<DrawioCacheInfo, "entryUrl" | "actualDir"> | null,
-): Promise<string | null> {
-  const candidates = await resolveDrawioHostFrameCandidates(info);
-  return candidates[0] ?? null;
+  return toDrawioEmbedUrl(entryUrl);
 }
 
 export function normalizePath(value: string | null | undefined): string {

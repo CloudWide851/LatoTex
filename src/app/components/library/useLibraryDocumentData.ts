@@ -5,11 +5,9 @@ import {
   libraryExtractPaperContext,
   libraryResolvePdfPreview,
 } from "../../../shared/api/library";
-import { waitForResourceWarmup } from "../../../shared/api/resource-warmup";
 import { readFile } from "../../../shared/api/workspace";
 import type { LibraryCitationSummary, LibraryPdfPreview } from "../../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
-import { resolveReachableWorkspacePreviewUrl } from "../../../shared/utils/workspacePreview";
 
 type PaperPreview = {
   title?: string | null;
@@ -148,17 +146,9 @@ export function useLibraryDocumentData(params: {
   const [paperPreviewError, setPaperPreviewError] = useState<string | null>(null);
   const [state, setState] = useState<DocumentDataState>(EMPTY_STATE);
   const requestIdRef = useRef(0);
-  const pdfWarmupKeyRef = useRef<string | null>(null);
   const stateRef = useRef<DocumentDataState>(EMPTY_STATE);
-  const previewVersionRef = useRef(0);
-  const [previewVersion, setPreviewVersion] = useState(0);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [translatedPdfUrl, setTranslatedPdfUrl] = useState<string | null>(null);
-
-  const bumpPreviewVersion = useCallback(() => {
-    previewVersionRef.current += 1;
-    setPreviewVersion(previewVersionRef.current);
-  }, []);
 
   useEffect(() => {
     stateRef.current = state;
@@ -166,8 +156,6 @@ export function useLibraryDocumentData(params: {
 
   const reset = useCallback(() => {
     requestIdRef.current += 1;
-    previewVersionRef.current = 0;
-    setPreviewVersion(0);
     stateRef.current = EMPTY_STATE;
     setLoading(false);
     setLoadError(null);
@@ -184,6 +172,8 @@ export function useLibraryDocumentData(params: {
     stateRef.current = next;
     startTransition(() => {
       setState(next);
+      setPdfUrl(next.sourcePdfPreviewUrl ?? null);
+      setTranslatedPdfUrl(next.translatedPdfPreviewUrl ?? null);
       setLoading(Boolean(options?.loading));
       setLoadError(options?.loadError ?? null);
       setPdfPreviewLoading(Boolean(options?.pdfPreviewLoading));
@@ -211,6 +201,7 @@ export function useLibraryDocumentData(params: {
     setCachedDocumentState(cacheKey, nextState);
     startTransition(() => setState(nextState));
   }, []);
+
   const hydratePaperPreview = useCallback(async (options: {
     requestId: number;
     cacheKey: string;
@@ -288,9 +279,6 @@ export function useLibraryDocumentData(params: {
         && nextState.pdfCacheState === "ready"
         && nextState.paperPreview?.sourcePath !== preview.relativePath;
 
-      if (preview.relativePath || preview.translatedRelativePath) {
-        bumpPreviewVersion();
-      }
       setCachedDocumentState(cacheKey, nextState);
       applyState(nextState, {
         pdfPreviewLoading: nextState.pdfCacheState === "pending",
@@ -330,7 +318,7 @@ export function useLibraryDocumentData(params: {
       }
       return errorState;
     }
-  }, [applyState, bumpPreviewVersion, hydratePaperPreview, projectId, selectedPath]);
+  }, [applyState, hydratePaperPreview, projectId, selectedPath]);
 
   const refresh = useCallback(
     async (options?: RefreshOptions) => {
@@ -343,9 +331,6 @@ export function useLibraryDocumentData(params: {
       if (!options?.bustCache && options?.preferCache) {
         const cached = getCachedDocumentState(cacheKey);
         if (cached) {
-          if (active && (cached.sourcePdfRelativePath || cached.translatedPdfRelativePath)) {
-            bumpPreviewVersion();
-          }
           applyState(cached, {
             loading: false,
             loadError: null,
@@ -438,6 +423,10 @@ export function useLibraryDocumentData(params: {
         });
       } catch (error) {
         if (requestIdRef.current === requestId) {
+          stateRef.current = EMPTY_STATE;
+          setState(EMPTY_STATE);
+          setPdfUrl(null);
+          setTranslatedPdfUrl(null);
           setLoading(false);
           setLoadError(String(error));
           setPdfPreviewLoading(false);
@@ -448,7 +437,7 @@ export function useLibraryDocumentData(params: {
         return null;
       }
     },
-    [active, applyState, bumpPreviewVersion, hydratePaperPreview, hydratePdfPreview, mergeRemoteCitationSummary, projectId, reset, selectedPath],
+    [applyState, hydratePaperPreview, hydratePdfPreview, mergeRemoteCitationSummary, projectId, reset, selectedPath],
   );
 
   useEffect(() => {
@@ -458,56 +447,6 @@ export function useLibraryDocumentData(params: {
     }
     void refresh({ preferCache: true });
   }, [projectId, refresh, reset, selectedPath]);
-
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    if (!state.sourcePdfRelativePath && !state.translatedPdfRelativePath) {
-      return;
-    }
-    bumpPreviewVersion();
-  }, [active, bumpPreviewVersion, state.sourcePdfRelativePath, state.translatedPdfRelativePath]);
-
-  useEffect(() => {
-    if (!active || !projectId || !selectedPath) {
-      pdfWarmupKeyRef.current = null;
-      return;
-    }
-    const warmupKey = `${projectId}::${selectedPath}`;
-    if (pdfWarmupKeyRef.current === warmupKey) {
-      return;
-    }
-    pdfWarmupKeyRef.current = warmupKey;
-    let cancelled = false;
-
-    void waitForResourceWarmup({
-      projectId,
-      scopes: ["libraryPdf"],
-      libraryRelativePath: selectedPath,
-      timeoutMs: 45_000,
-      pollMs: 400,
-    })
-      .then((status) => {
-        if (cancelled) {
-          return;
-        }
-        const preview = status.result?.libraryPdf;
-        if (preview?.relativePath || preview?.translatedRelativePath || preview?.cacheState === "ready") {
-          bumpPreviewVersion();
-        }
-        void refresh({ bustCache: true });
-      })
-      .catch(() => {
-        if (!cancelled) {
-          void refresh({ bustCache: true });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [active, bumpPreviewVersion, projectId, refresh, selectedPath]);
 
   useEffect(() => {
     if (!active || !projectId || !selectedPath || state.pdfCacheState !== "pending") {
@@ -550,39 +489,6 @@ export function useLibraryDocumentData(params: {
     };
   }, [active, hydratePdfPreview, projectId, selectedPath, state.pdfCacheState]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void resolveReachableWorkspacePreviewUrl({
-      projectId,
-      relativePath: state.sourcePdfRelativePath,
-      previewUrl: state.sourcePdfPreviewUrl,
-      cacheKey: `${state.sourcePdfRelativePath ?? "source"}:${previewVersion}`,
-    }).then((resolved) => {
-      if (!cancelled) {
-        setPdfUrl(resolved.url);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [previewVersion, projectId, state.sourcePdfPreviewUrl, state.sourcePdfRelativePath]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void resolveReachableWorkspacePreviewUrl({
-      projectId,
-      relativePath: state.translatedPdfRelativePath,
-      previewUrl: state.translatedPdfPreviewUrl,
-      cacheKey: `${state.translatedPdfRelativePath ?? "translated"}:${previewVersion}`,
-    }).then((resolved) => {
-      if (!cancelled) {
-        setTranslatedPdfUrl(resolved.url);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [previewVersion, projectId, state.translatedPdfPreviewUrl, state.translatedPdfRelativePath]);
   return {
     ...state,
     pdfUrl,

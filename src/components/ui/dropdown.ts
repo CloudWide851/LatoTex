@@ -4,9 +4,10 @@ import { cn } from "../../lib/utils";
 export function useDropdownDismiss(params: {
   open: boolean;
   rootRef: RefObject<HTMLElement | null>;
+  includeRefs?: Array<RefObject<HTMLElement | null>>;
   onClose: () => void;
 }) {
-  const { open, rootRef, onClose } = params;
+  const { open, rootRef, includeRefs = [], onClose } = params;
 
   useEffect(() => {
     if (!open) {
@@ -15,7 +16,13 @@ export function useDropdownDismiss(params: {
 
     const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      if (rootRef.current && target && rootRef.current.contains(target)) {
+      if (!target) {
+        return;
+      }
+      if (rootRef.current?.contains(target)) {
+        return;
+      }
+      if (includeRefs.some((ref) => ref.current?.contains(target))) {
         return;
       }
       onClose();
@@ -33,7 +40,7 @@ export function useDropdownDismiss(params: {
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, open, rootRef]);
+  }, [includeRefs, onClose, open, rootRef]);
 }
 
 export function dropdownSurfaceClassName(extraClassName?: string) {
