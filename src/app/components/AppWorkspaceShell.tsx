@@ -7,6 +7,7 @@ import {
   isImagePath,
   isMarkdownPath,
   isPdfPath,
+  isPlainTextPath,
   isSvgPath,
   isTabularPath,
 } from "../../shared/utils/fileKind";
@@ -194,9 +195,13 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const selectedIsSvg = isSvgPath(previewSelectedPath);
   const selectedIsCsv = isCsvPath(previewSelectedPath);
   const selectedIsTabular = isTabularPath(previewSelectedPath);
+  const selectedIsPlainText = isPlainTextPath(previewSelectedPath);
   const selectedIsDraw = Boolean(selectedFile && /\.drawio$/i.test(selectedFile));
   const selectedIsTex = Boolean(previewSelectedPath && /\.tex$/i.test(previewSelectedPath));
-  const selectedIsCode = !selectedIsDraw && !selectedIsTex && isCodePath(previewSelectedPath);
+  const selectedIsCode = !selectedIsDraw
+    && !selectedIsTex
+    && !selectedIsPlainText
+    && isCodePath(previewSelectedPath);
   const previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty" = selectedIsImage
     ? (selectedImagePreviewUrl ? "image" : "empty")
     : selectedIsPdf
@@ -539,4 +544,3 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     </main>
   );
 }
-

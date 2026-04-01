@@ -19,6 +19,22 @@ import {
 } from "../workspace/workspaceShellLazy";
 
 type TranslationFn = (key: any) => string;
+const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
+
+function ensureMonacoOverflowWidgetRoot(): HTMLElement | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const existing = document.getElementById(MONACO_OVERFLOW_WIDGET_ROOT_ID);
+  if (existing) {
+    return existing;
+  }
+  const root = document.createElement("div");
+  root.id = MONACO_OVERFLOW_WIDGET_ROOT_ID;
+  root.className = "latotex-monaco-overflow-root";
+  document.body.appendChild(root);
+  return root;
+}
 
 export function LatexWorkspaceEditorPanel(props: {
   activeProjectId: string | null;
@@ -167,6 +183,7 @@ export function LatexWorkspaceEditorPanel(props: {
     t,
   } = props;
   const [editorTheme, setEditorTheme] = useState(getEditorSurfaceThemeName);
+  const [monacoOverflowWidgetRoot, setMonacoOverflowWidgetRoot] = useState<HTMLElement | null>(null);
   const agentCommandItems = buildAgentCommandItems(t);
   const editorLanguage = resolveCodeLanguage(selectedFile).monaco;
 
@@ -180,6 +197,10 @@ export function LatexWorkspaceEditorPanel(props: {
     const observer = new MutationObserver(syncTheme);
     observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setMonacoOverflowWidgetRoot(ensureMonacoOverflowWidgetRoot());
   }, []);
 
   return (
@@ -362,6 +383,7 @@ export function LatexWorkspaceEditorPanel(props: {
               cursorBlinking: "smooth",
               cursorSmoothCaretAnimation: "on",
               fixedOverflowWidgets: true,
+              overflowWidgetsDomNode: monacoOverflowWidgetRoot ?? undefined,
               stickyScroll: { enabled: false },
               scrollbar: {
                 verticalScrollbarSize: 10,
@@ -427,4 +449,3 @@ export function LatexWorkspaceEditorPanel(props: {
     </div>
   );
 }
-

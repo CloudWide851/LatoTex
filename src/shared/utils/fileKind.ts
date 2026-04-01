@@ -17,6 +17,10 @@ export function isSvgPath(path: string | null | undefined): boolean {
   return extensionOf(path ?? "") === "svg";
 }
 
+export function isPlainTextPath(path: string | null | undefined): boolean {
+  return extensionOf(path ?? "") === "txt";
+}
+
 export function isMarkdownPath(path: string | null | undefined): boolean {
   return MARKDOWN_EXTENSIONS.has(extensionOf(path ?? ""));
 }
@@ -46,4 +50,3 @@ export function isCodePath(path: string | null | undefined): boolean {
     && !isSvgPath(path)
     && !isTabularPath(path);
 }
-
