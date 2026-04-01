@@ -287,6 +287,21 @@ pub fn library_citation_summary(
 }
 
 #[tauri::command]
+pub fn library_citation_summary_remote(
+    state: State<'_, AppState>,
+    input: LibraryCitationSummaryInput,
+) -> Result<LibraryCitationSummaryResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "library_citation_summary_remote: project={}, path={}",
+            input.project_id, input.relative_path
+        ),
+    );
+    storage::library_citation_summary_remote(&state.db_path, &input.project_id, &input.relative_path)
+}
+
+#[tauri::command]
 pub fn library_resolve_pdf_preview(
     state: State<'_, AppState>,
     input: LibraryPdfPreviewInput,

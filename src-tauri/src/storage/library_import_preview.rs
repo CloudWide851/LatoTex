@@ -298,32 +298,46 @@ fn normalize_url(value: &str) -> Option<String> {
     None
 }
 
-pub fn library_citation_summary(
-    db_path: &Path,
-    project_id: &str,
-    relative_path: &str,
+fn merge_remote_citation_summary(
+    summary: &mut LibraryCitationSummaryResponse,
+    remote: CitationRemoteMetadata,
+) {
+    if summary.title.is_none() {
+        summary.title = remote.title;
+    }
+    for author in remote.authors {
+        push_unique_author(&mut summary.authors, author);
+    }
+    if summary.published_at.is_none() {
+        summary.published_at = remote.published_at;
+    }
+    if summary.doi.is_none() {
+        summary.doi = remote.doi;
+    }
+    if summary.arxiv_id.is_none() {
+        summary.arxiv_id = remote.arxiv_id;
+    }
+    if summary.source.is_none() {
+        summary.source = remote.source;
+    }
+    for url in remote.urls {
+        push_unique_url(&mut summary.urls, url);
+    }
+}
+
+fn build_local_citation_summary(
+    project_root: &Path,
+    papers_root: &Path,
+    normalized_relative: &str,
+    source: &Path,
 ) -> Result<LibraryCitationSummaryResponse, String> {
-    let project_root = load_project_root(db_path, project_id)?;
-    let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
-
-    let normalized_relative = relative_path.trim().replace('\\', "/");
-    if normalized_relative.is_empty() {
-        return Err("Library path cannot be empty".to_string());
-    }
-
-    let source = safe_join(&papers_root, &normalized_relative)?;
-    if !source.exists() || !source.is_file() {
-        return Err("Library file does not exist".to_string());
-    }
-
     let bib_candidate = if source
         .extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or_default()
         .eq_ignore_ascii_case("bib")
     {
-        Some(source.clone())
+        Some(source.to_path_buf())
     } else {
         let candidate = source.with_extension("bib");
         if candidate.exists() && candidate.is_file() {
@@ -377,37 +391,23 @@ pub fn library_citation_summary(
         }
 
         let rel = bib_path
-            .strip_prefix(&papers_root)
+            .strip_prefix(papers_root)
             .map_err(|e| e.to_string())?
             .to_string_lossy()
             .replace('\\', "/");
         bib_relative_path = Some(rel);
     }
 
-    if let Some(remote) = fetch_remote_metadata(doi.as_deref(), arxiv_id.as_deref(), &urls) {
-        if title.is_none() {
-            title = remote.title;
-        }
-        for author in remote.authors {
-            push_unique_author(&mut authors, author);
-        }
-        if published_at.is_none() {
-            published_at = remote.published_at;
-        }
-        if doi.is_none() {
-            doi = remote.doi;
-        }
-        if arxiv_id.is_none() {
-            arxiv_id = remote.arxiv_id;
-        }
-        source_name = remote.source;
-        for url in remote.urls {
-            push_unique_url(&mut urls, url);
+    if let Some(local_pdf_path) = resolve_local_pdf_candidate(source) {
+        let workspace_relative = to_workspace_relative(project_root, &local_pdf_path)?;
+        if let Some(arxiv_value) = extract_arxiv_id(&workspace_relative) {
+            arxiv_id = arxiv_id.or(Some(arxiv_value.clone()));
+            push_unique_url(&mut urls, format!("https://arxiv.org/abs/{arxiv_value}"));
         }
     }
 
     Ok(LibraryCitationSummaryResponse {
-        source_path: normalized_relative,
+        source_path: normalized_relative.to_string(),
         bib_path: bib_relative_path,
         citation_key,
         title,
@@ -415,8 +415,46 @@ pub fn library_citation_summary(
         published_at,
         doi,
         arxiv_id,
-        source: source_name,
+        source: source_name.take(),
         urls,
     })
+}
+
+pub fn library_citation_summary(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<LibraryCitationSummaryResponse, String> {
+    let project_root = load_project_root(db_path, project_id)?;
+    let papers_root = library_root(&project_root);
+    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+
+    let normalized_relative = relative_path.trim().replace('\\', "/");
+    if normalized_relative.is_empty() {
+        return Err("Library path cannot be empty".to_string());
+    }
+
+    let source = safe_join(&papers_root, &normalized_relative)?;
+    if !source.exists() || !source.is_file() {
+        return Err("Library file does not exist".to_string());
+    }
+
+    build_local_citation_summary(&project_root, &papers_root, &normalized_relative, &source)
+}
+
+pub fn library_citation_summary_remote(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<LibraryCitationSummaryResponse, String> {
+    let mut summary = library_citation_summary(db_path, project_id, relative_path)?;
+    if let Some(remote) = fetch_remote_metadata(
+        summary.doi.as_deref(),
+        summary.arxiv_id.as_deref(),
+        &summary.urls,
+    ) {
+        merge_remote_citation_summary(&mut summary, remote);
+    }
+    Ok(summary)
 }
 

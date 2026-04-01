@@ -5,6 +5,7 @@ import { AgentProposalMiniBar } from "./AgentProposalMiniBar";
 import { CompileAssistPopover } from "./CompileAssistPopover";
 import { EditorTabsBar } from "./EditorTabsBar";
 import { getEditorSurfaceThemeName, registerEditorSurfaceThemes } from "./editorSurfaceTheme";
+import { registerEditorCodeLanguages } from "./editorCodeLanguages";
 import { ensureLatexCompletionProvider } from "./latexCompletion";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
 import { resolveCodeLanguage } from "../../../shared/utils/codeLanguage";
@@ -326,6 +327,7 @@ export function LatexWorkspaceEditorPanel(props: {
             value={editorContent}
             beforeMount={(monaco) => {
               registerEditorSurfaceThemes(monaco);
+              registerEditorCodeLanguages(monaco);
             }}
             onChange={(value) => onEditorChange(value ?? "")}
             onMount={(editor, monaco) => {

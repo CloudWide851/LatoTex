@@ -31,7 +31,7 @@ use commands::native_runtime::{
 };
 use commands::projects::{
     file_read, file_read_binary, file_write, file_write_binary, fs_operation,
-    library_citation_summary, library_import_link, library_import_pdf, library_rescan,
+    library_citation_summary, library_citation_summary_remote, library_import_link, library_import_pdf, library_rescan,
     library_resolve_pdf_preview, library_tree, library_zotero_sync, open_external_link,
     project_create, project_init_from_folder, project_integrity_repair, project_integrity_status,
     project_list, project_open, project_search_content, workspace_export_pdf,
@@ -168,6 +168,7 @@ pub fn run() {
             library_translate_status,
             library_zotero_sync,
             library_citation_summary,
+            library_citation_summary_remote,
             library_resolve_pdf_preview,
             share_session_create,
             share_session_status,
@@ -238,9 +239,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-
-
-
-
 

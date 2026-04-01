@@ -17,6 +17,10 @@ describe("codeLanguage", () => {
       monaco: "powershell",
       highlight: "powershell",
     });
+    expect(resolveCodeLanguage("papers/ref.bib")).toEqual({
+      monaco: "bibtex",
+      highlight: "latex",
+    });
     expect(resolveCodeLanguage("README.unknown")).toEqual({
       monaco: "plaintext",
       highlight: null,

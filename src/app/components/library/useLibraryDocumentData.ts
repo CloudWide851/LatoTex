@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
   libraryCitationSummary,
+  libraryCitationSummaryRemote,
   libraryExtractPaperContext,
   libraryResolvePdfPreview,
 } from "../../../shared/api/library";
@@ -192,6 +193,24 @@ export function useLibraryDocumentData(params: {
     });
   }, []);
 
+  const mergeRemoteCitationSummary = useCallback((
+    requestId: number,
+    cacheKey: string,
+    remoteSummary: LibraryCitationSummary,
+  ) => {
+    if (requestIdRef.current !== requestId) {
+      return;
+    }
+    const current = stateRef.current;
+    const nextState: DocumentDataState = {
+      ...current,
+      citation: applySummaryDefaults(remoteSummary),
+      resolvedLink: remoteSummary.urls?.[0] ?? current.resolvedLink,
+    };
+    stateRef.current = nextState;
+    setCachedDocumentState(cacheKey, nextState);
+    startTransition(() => setState(nextState));
+  }, []);
   const hydratePaperPreview = useCallback(async (options: {
     requestId: number;
     cacheKey: string;
@@ -406,6 +425,11 @@ export function useLibraryDocumentData(params: {
           paperPreviewLoading: false,
           paperPreviewError: null,
         });
+        void libraryCitationSummaryRemote(projectId, selectedPath)
+          .then((remoteSummary) => {
+            mergeRemoteCitationSummary(requestId, cacheKey, remoteSummary);
+          })
+          .catch(() => undefined);
         return await hydratePdfPreview({
           requestId,
           cacheKey,
@@ -424,7 +448,7 @@ export function useLibraryDocumentData(params: {
         return null;
       }
     },
-    [active, applyState, bumpPreviewVersion, hydratePaperPreview, hydratePdfPreview, projectId, reset, selectedPath],
+    [active, applyState, bumpPreviewVersion, hydratePaperPreview, hydratePdfPreview, mergeRemoteCitationSummary, projectId, reset, selectedPath],
   );
 
   useEffect(() => {

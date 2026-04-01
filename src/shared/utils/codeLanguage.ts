@@ -5,7 +5,7 @@ type CodeLanguageInfo = {
 
 const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   tex: { monaco: "latex", highlight: "latex" },
-  bib: { monaco: "latex", highlight: "latex" },
+  bib: { monaco: "bibtex", highlight: "latex" },
   sty: { monaco: "latex", highlight: "latex" },
   cls: { monaco: "latex", highlight: "latex" },
   ltx: { monaco: "latex", highlight: "latex" },

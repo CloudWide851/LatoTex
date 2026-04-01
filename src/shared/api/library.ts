@@ -99,6 +99,15 @@ export function libraryCitationSummary(
   });
 }
 
+export function libraryCitationSummaryRemote(
+  projectId: string,
+  relativePath: string,
+): Promise<LibraryCitationSummary> {
+  return invokeCommand<LibraryCitationSummary>("library_citation_summary_remote", {
+    input: { projectId, relativePath },
+  });
+}
+
 export function libraryResolvePdfPreview(
   projectId: string,
   relativePath: string,
