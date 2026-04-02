@@ -1,5 +1,6 @@
 use regex::Regex;
 use reqwest::blocking::Client;
+use reqwest::Url;
 use std::time::Duration;
 
 #[derive(Default)]
@@ -43,6 +44,14 @@ fn push_unique_author(authors: &mut Vec<String>, author: String) {
         return;
     }
     authors.push(normalized);
+}
+
+fn push_unique_metadata_url(urls: &mut Vec<String>, url: String) {
+    if let Some(normalized) = normalize_pdf_like_url(&url, None) {
+        push_unique_url(urls, normalized);
+        return;
+    }
+    push_unique_url(urls, url);
 }
 
 fn extract_bib_authors(content: &str) -> Vec<String> {
@@ -100,6 +109,56 @@ fn http_client() -> Option<Client> {
         .ok()
 }
 
+fn looks_like_pdf_url(value: &str) -> bool {
+    let lower = value.trim().to_lowercase();
+    lower.ends_with(".pdf")
+        || lower.contains(".pdf?")
+        || lower.contains("/pdf/")
+        || lower.contains("downloadpdf")
+}
+
+fn normalize_pdf_like_url(value: &str, base_url: Option<&str>) -> Option<String> {
+    let trimmed = value.trim().trim_end_matches(',').trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Some(normalized) = normalize_url(trimmed) {
+        return Some(normalized);
+    }
+    let base = base_url?;
+    let base = Url::parse(base).ok()?;
+    base.join(trimmed)
+        .ok()
+        .map(|resolved| resolved.to_string())
+        .filter(|resolved| resolved.starts_with("http://") || resolved.starts_with("https://"))
+}
+
+fn extract_crossref_pdf_urls(message: &Value) -> Vec<String> {
+    let mut urls = Vec::new();
+    let Some(items) = message.get("link").and_then(|value| value.as_array()) else {
+        return urls;
+    };
+    for item in items {
+        let url = item
+            .get("URL")
+            .or_else(|| item.get("url"))
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        let content_type = item
+            .get("content-type")
+            .or_else(|| item.get("content_type"))
+            .and_then(|value| value.as_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        if content_type.contains("pdf") || looks_like_pdf_url(url) {
+            if let Some(normalized) = normalize_pdf_like_url(url, None) {
+                push_unique_url(&mut urls, normalized);
+            }
+        }
+    }
+    urls
+}
+
 fn fetch_crossref_metadata(doi: &str) -> Option<CitationRemoteMetadata> {
     let client = http_client()?;
     let encoded = urlencoding::encode(doi);
@@ -137,6 +196,9 @@ fn fetch_crossref_metadata(doi: &str) -> Option<CitationRemoteMetadata> {
         .and_then(normalize_url)
     {
         push_unique_url(&mut metadata.urls, url);
+    }
+    for pdf_url in extract_crossref_pdf_urls(message) {
+        push_unique_url(&mut metadata.urls, pdf_url);
     }
 
     if let Some(author_items) = message.get("author").and_then(|value| value.as_array()) {
@@ -200,6 +262,10 @@ fn fetch_arxiv_metadata(arxiv_id: &str) -> Option<CitationRemoteMetadata> {
     if let Some(url) = extract_xml_tag_value(entry, "id").and_then(|value| normalize_url(&value)) {
         push_unique_url(&mut metadata.urls, url);
     }
+    push_unique_url(
+        &mut metadata.urls,
+        format!("https://arxiv.org/pdf/{arxiv_id}.pdf"),
+    );
 
     let author_regex = Regex::new(r"(?is)<author>\s*<name>(.*?)</name>\s*</author>").ok()?;
     for capture in author_regex.captures_iter(entry) {
@@ -274,6 +340,76 @@ fn extract_html_title(html: &str) -> Option<String> {
     }
 }
 
+fn extract_pdf_links_from_html(html: &str, page_url: &str) -> Vec<String> {
+    let mut urls = Vec::new();
+    for key in ["citation_pdf_url", "pdf_url", "og:pdf"] {
+        if let Some(value) = extract_meta_content_single(html, key)
+            .and_then(|item| normalize_pdf_like_url(&item, Some(page_url)))
+        {
+            push_unique_url(&mut urls, value);
+        }
+    }
+
+    let href_regex = Regex::new(
+        r#"(?is)<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>"#,
+    )
+    .ok();
+    if let Some(regex) = href_regex {
+        for capture in regex.captures_iter(html) {
+            let href = capture.get(1).map(|value| value.as_str()).unwrap_or_default();
+            let body = capture.get(2).map(|value| value.as_str()).unwrap_or_default();
+            let body_text = normalize_whitespace(&decode_entities(body)).to_lowercase();
+            let href_lower = href.trim().to_lowercase();
+            if href_lower.contains("type=printable") {
+                continue;
+            }
+            let likely_pdf = looks_like_pdf_url(href)
+                || body_text.contains("pdf")
+                || body_text.contains("download");
+            if !likely_pdf {
+                continue;
+            }
+            if let Some(normalized) = normalize_pdf_like_url(href, Some(page_url)) {
+                let lower = normalized.to_lowercase();
+                if lower.ends_with(".pdf")
+                    || lower.contains(".pdf?")
+                    || lower.contains("/pdf/")
+                {
+                    push_unique_url(&mut urls, normalized);
+                }
+            }
+        }
+    }
+    urls
+}
+
+fn merge_remote_metadata(
+    target: &mut CitationRemoteMetadata,
+    source: CitationRemoteMetadata,
+) {
+    if target.title.is_none() {
+        target.title = source.title;
+    }
+    for author in source.authors {
+        push_unique_author(&mut target.authors, author);
+    }
+    if target.published_at.is_none() {
+        target.published_at = source.published_at;
+    }
+    if target.doi.is_none() {
+        target.doi = source.doi;
+    }
+    if target.arxiv_id.is_none() {
+        target.arxiv_id = source.arxiv_id;
+    }
+    if target.source.is_none() {
+        target.source = source.source;
+    }
+    for url in source.urls {
+        push_unique_metadata_url(&mut target.urls, url);
+    }
+}
+
 fn fetch_url_metadata(url: &str) -> Option<CitationRemoteMetadata> {
     let client = http_client()?;
     let response = client.get(url).send().ok()?;
@@ -309,6 +445,9 @@ fn fetch_url_metadata(url: &str) -> Option<CitationRemoteMetadata> {
         push_unique_url(&mut metadata.urls, canonical);
     }
     push_unique_url(&mut metadata.urls, url.to_string());
+    for pdf_url in extract_pdf_links_from_html(&html, url) {
+        push_unique_url(&mut metadata.urls, pdf_url);
+    }
     metadata.arxiv_id = extract_arxiv_id(url);
 
     Some(metadata)
@@ -319,32 +458,64 @@ fn fetch_remote_metadata(
     arxiv_id: Option<&str>,
     urls: &[String],
 ) -> Option<CitationRemoteMetadata> {
+    let mut merged: Option<CitationRemoteMetadata> = None;
     if let Some(doi_value) = doi {
         if let Some(result) = fetch_crossref_metadata(doi_value) {
-            return Some(result);
+            merged = Some(result);
         }
     }
     if let Some(arxiv_value) = arxiv_id {
         if let Some(result) = fetch_arxiv_metadata(arxiv_value) {
-            return Some(result);
+            if let Some(current) = merged.as_mut() {
+                merge_remote_metadata(current, result);
+            } else {
+                merged = Some(result);
+            }
+        }
+    }
+    let mut candidate_urls = urls.to_vec();
+    if let Some(current) = merged.as_ref() {
+        for url in &current.urls {
+            if !candidate_urls
+                .iter()
+                .any(|item| item.eq_ignore_ascii_case(url))
+            {
+                candidate_urls.push(url.clone());
+            }
         }
     }
     for url in urls {
         if let Some(doi_from_url) = normalize_doi(url) {
             if let Some(result) = fetch_crossref_metadata(&doi_from_url) {
-                return Some(result);
+                if let Some(current) = merged.as_mut() {
+                    merge_remote_metadata(current, result);
+                } else {
+                    merged = Some(result);
+                }
             }
         }
         if let Some(arxiv_from_url) = extract_arxiv_id(url) {
             if let Some(result) = fetch_arxiv_metadata(&arxiv_from_url) {
-                return Some(result);
+                if let Some(current) = merged.as_mut() {
+                    merge_remote_metadata(current, result);
+                } else {
+                    merged = Some(result);
+                }
             }
         }
     }
-    for url in urls {
-        if let Some(result) = fetch_url_metadata(url) {
-            return Some(result);
+    for url in candidate_urls {
+        if let Some(result) = fetch_url_metadata(&url) {
+            if let Some(current) = merged.as_mut() {
+                merge_remote_metadata(current, result);
+            } else {
+                merged = Some(result);
+            }
         }
     }
-    None
+    merged
 }
+
+#[cfg(test)]
+#[path = "remote_metadata_fetch_tests.rs"]
+mod remote_metadata_fetch_tests;

@@ -387,7 +387,7 @@ pub fn library_resolve_pdf_preview(
         ));
     }
 
-    let citation = library_citation_summary(db_path, project_id, &normalized_relative)?;
+    let citation = library_citation_summary_remote(db_path, project_id, &normalized_relative)?;
     let Some(source_url) = find_remote_pdf_url(&citation) else {
         return Ok(build_preview_response(
             &project_root,
@@ -454,7 +454,7 @@ pub fn library_resolve_pdf_preview_runtime(
         ));
     }
 
-    let citation = library_citation_summary(&state.db_path, project_id, &normalized_relative)?;
+    let citation = library_citation_summary_remote(&state.db_path, project_id, &normalized_relative)?;
     let Some(source_url) = find_remote_pdf_url(&citation) else {
         return Ok(build_preview_response(
             &project_root,

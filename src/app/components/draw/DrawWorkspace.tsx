@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { drawioCachePrepare } from "../../../shared/api/local-resources";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { DrawioCacheInfo, FsAction, FsScope } from "../../../shared/types/app";
 import type { ComponentStartupState } from "../../hooks/startupState";
 import {
   buildRenamedDrawPath,
+  DRAWIO_CONFIG_MESSAGE,
+  interpretDrawHandshakeMessage,
   isDrawPath,
   loadPersistedTabs,
   normalizePath,
@@ -136,35 +137,31 @@ export function DrawWorkspace(props: {
     }
   }, [frameReloadToken, runtimeDrawioInfo, startupBlocked, t]);
 
-  const retryFrameLoad = useCallback(async () => {
+  const retryFrameLoad = useCallback(() => {
     setReady(false);
     setFrameSrc(null);
     setFrameFailureDetail(null);
     setFrameLoadStage("connecting");
     setStatus(t("draw.waiting"));
-    try {
-      const prepared = await drawioCachePrepare("appdata-only");
-      setRuntimeDrawioInfo(prepared);
-      setFrameReloadToken((prev) => prev + 1);
-    } catch (error) {
-      const failure = formatDrawStartFailure(t, String(error));
-      setFrameFailureDetail(failure);
-      setFrameLoadStage("idle");
-      setStatus(failure);
-    }
-  }, [t]);
+    setRuntimeDrawioInfo(startupDrawioInfo ?? runtimeDrawioInfo);
+    setFrameReloadToken((prev) => prev + 1);
+  }, [runtimeDrawioInfo, startupDrawioInfo, t]);
   useEffect(() => {
     activePathRef.current = activePath;
   }, [activePath]);
 
 
-  const postToFrame = useCallback((payload: Record<string, unknown>) => {
+  const postToFrameRaw = useCallback((payload: string) => {
     const frame = frameRef.current?.contentWindow;
     if (!frame) {
       return;
     }
-    frame.postMessage(JSON.stringify(payload), "*");
+    frame.postMessage(payload, "*");
   }, []);
+
+  const postToFrame = useCallback((payload: Record<string, unknown>) => {
+    postToFrameRaw(JSON.stringify(payload));
+  }, [postToFrameRaw]);
 
   const loadActiveToFrame = useCallback((xmlOverride?: string) => {
     if (!ready || !activePath) {
@@ -425,21 +422,17 @@ export function DrawWorkspace(props: {
       if (!message) {
         return;
       }
-      if (message.event === "host_loaded") {
+      const handshakeAction = interpretDrawHandshakeMessage(message);
+      if (handshakeAction.kind === "hostLoaded") {
         setFrameLoadStage("hostReady");
         setStatus(t("draw.hostReady"));
         return;
       }
-      if (message.event === "configure") {
-        postToFrame({
-          action: "configure",
-          config: {
-            css: "body{overflow:hidden;}"
-          },
-        });
+      if (handshakeAction.kind === "configure") {
+        postToFrameRaw(DRAWIO_CONFIG_MESSAGE);
         return;
       }
-      if (message.event === "init") {
+      if (handshakeAction.kind === "init") {
         setReady(true);
         setFrameFailureDetail(null);
         setFrameLoadStage("idle");
@@ -451,6 +444,10 @@ export function DrawWorkspace(props: {
           loadActiveToFrame();
         }
         setStatus(t("draw.ready"));
+        return;
+      }
+      if (handshakeAction.kind === "error") {
+        setStatus(handshakeAction.detail);
         return;
       }
       if ((message.event === "save" || message.event === "autosave") && typeof message.xml === "string") {
@@ -503,17 +500,11 @@ export function DrawWorkspace(props: {
         })();
         return;
       }
-      if (message.event === "error") {
-        const err = typeof message.error === "string" ? message.error.trim() : "";
-        if (err) {
-          setStatus(err);
-        }
-      }
     };
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [activePath, loadActiveToFrame, postToFrame, projectId, t]);
+  }, [activePath, loadActiveToFrame, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
     if (!frameSrc) {

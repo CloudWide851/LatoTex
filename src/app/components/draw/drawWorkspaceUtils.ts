@@ -13,6 +13,13 @@ export type DrawMessage = {
   [key: string]: unknown;
 };
 
+export type DrawHandshakeAction =
+  | { kind: "ignore" }
+  | { kind: "hostLoaded" }
+  | { kind: "configure"; outboundMessage: string }
+  | { kind: "init" }
+  | { kind: "error"; detail: string };
+
 type PersistedDrawTabs = {
   paths: string[];
   activePath: string | null;
@@ -20,6 +27,12 @@ type PersistedDrawTabs = {
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
 export const DRAWIO_LOCAL_RESOURCE_URL = "http://latotex-resource.localhost/tool/drawio/index.html";
+export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
+  action: "configure",
+  config: {
+    css: "body{overflow:hidden;}",
+  },
+});
 
 function appendQueryParams(url: string, values: Record<string, string>): string {
   const [withoutHash, hash = ""] = String(url || "").split("#", 2);
@@ -119,6 +132,115 @@ export function parseDrawMessage(payload: unknown): DrawMessage | null {
     return payload as DrawMessage;
   }
   return null;
+}
+
+export function interpretDrawHandshakeMessage(message: DrawMessage | null): DrawHandshakeAction {
+  const event = String(message?.event ?? "").trim();
+  if (event === "host_loaded") {
+    return { kind: "hostLoaded" };
+  }
+  if (event === "configure") {
+    return {
+      kind: "configure",
+      outboundMessage: DRAWIO_CONFIG_MESSAGE,
+    };
+  }
+  if (event === "init") {
+    return { kind: "init" };
+  }
+  if (event === "error") {
+    const detail = String(message?.error ?? "").trim();
+    if (detail) {
+      return { kind: "error", detail };
+    }
+  }
+  return { kind: "ignore" };
+}
+
+function hiddenProbeFrameStyle(frame: HTMLIFrameElement) {
+  frame.setAttribute("aria-hidden", "true");
+  frame.tabIndex = -1;
+  frame.style.position = "fixed";
+  frame.style.left = "-10000px";
+  frame.style.top = "0";
+  frame.style.width = "1px";
+  frame.style.height = "1px";
+  frame.style.opacity = "0";
+  frame.style.pointerEvents = "none";
+  frame.style.border = "0";
+}
+
+export async function probeDrawioHostFrame(
+  info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
+): Promise<string> {
+  const frameSrc = resolveDrawioHostFrameSrc(info);
+  if (!frameSrc) {
+    throw new Error("drawio entry url is missing");
+  }
+  if (typeof window === "undefined" || typeof document === "undefined" || !document.body) {
+    return frameSrc;
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const frame = document.createElement("iframe");
+    hiddenProbeFrameStyle(frame);
+
+    let stage: "idle" | "hostReady" = "idle";
+    let timer: number | null = null;
+
+    const cleanup = () => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      window.removeEventListener("message", handleMessage);
+      frame.remove();
+    };
+
+    const fail = (detail: string) => {
+      cleanup();
+      reject(new Error(detail));
+    };
+
+    const scheduleTimeout = (ms: number, detail: string) => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+      timer = window.setTimeout(() => fail(detail), ms);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.source !== frame.contentWindow) {
+        return;
+      }
+      const action = interpretDrawHandshakeMessage(parseDrawMessage(event.data));
+      if (action.kind === "ignore") {
+        return;
+      }
+      if (action.kind === "hostLoaded") {
+        stage = "hostReady";
+        scheduleTimeout(20_000, "drawio host loaded but editor init timed out");
+        return;
+      }
+      if (action.kind === "configure") {
+        frame.contentWindow?.postMessage(action.outboundMessage, "*");
+        return;
+      }
+      if (action.kind === "init") {
+        cleanup();
+        resolve(frameSrc);
+        return;
+      }
+      if (action.kind === "error") {
+        fail(action.detail);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    scheduleTimeout(12_000, "drawio local resource channel did not initialize in time");
+    frame.src = `${frameSrc}${frameSrc.includes("?") ? "&" : "?"}latotexProbe=${Date.now()}`;
+    document.body.appendChild(frame);
+  });
 }
 
 export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {

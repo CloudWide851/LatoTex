@@ -2,7 +2,6 @@ import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon
 import { useCallback } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
-import telegramIcon from "../../assets/brands/telegram.svg";
 import { Button } from "../../components/ui/button";
 import { Select } from "../../components/ui/select";
 import type {
@@ -22,6 +21,7 @@ import {
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
 import { BackgroundImageCard } from "./settings/BackgroundImageCard";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
+import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 
 type TranslationFn = (key: any) => string;
@@ -455,80 +455,7 @@ export function SettingsPanel(props: {
         )}
 
         {settingsSection === "channels" && (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-slate-200 p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <img src={telegramIcon} alt="" className="h-4 w-4 rounded-sm" />
-                <span>{t("settings.channels.telegram")}</span>
-              </div>
-                            <SettingsBooleanRow
-                label={t("settings.channels.telegramEnabled")}
-                checked={Boolean(localSettings.uiPrefs?.channels?.telegramEnabled)}
-                className="mb-2 rounded-md border-transparent bg-slate-50 px-0 py-0 text-xs text-slate-600 shadow-none focus-visible:ring-0"
-                textClassName="px-0"
-                onCheckedChange={(nextValue) =>
-                  setSettings((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          uiPrefs: {
-                            ...(prev.uiPrefs ?? {}),
-                            channels: {
-                              ...(prev.uiPrefs?.channels ?? {}),
-                              telegramEnabled: nextValue,
-                            },
-                          },
-                        }
-                      : prev,
-                  )
-                }
-              />
-              <div className="grid gap-2">
-                <input
-                  value={localSettings.uiPrefs?.channels?.telegramBotToken ?? ""}
-                  onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            uiPrefs: {
-                              ...(prev.uiPrefs ?? {}),
-                              channels: {
-                                ...(prev.uiPrefs?.channels ?? {}),
-                                telegramBotToken: event.target.value,
-                              },
-                            },
-                          }
-                        : prev,
-                    )
-                  }
-                  placeholder={t("settings.channels.telegramToken")}
-                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-                />
-                <input
-                  value={localSettings.uiPrefs?.channels?.telegramChatId ?? ""}
-                  onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            uiPrefs: {
-                              ...(prev.uiPrefs ?? {}),
-                              channels: {
-                                ...(prev.uiPrefs?.channels ?? {}),
-                                telegramChatId: event.target.value,
-                              },
-                            },
-                          }
-                        : prev,
-                    )
-                  }
-                  placeholder={t("settings.channels.telegramChatId")}
-                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
-                />
-              </div>
-            </div>
-          </div>
+          <ChannelsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
         )}
 
         {settingsSection === "diagnostics" && (

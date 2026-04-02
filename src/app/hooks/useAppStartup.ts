@@ -13,6 +13,7 @@ import { waitForResourceWarmup } from "../../shared/api/resource-warmup";
 import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
 import { getSettings } from "../../shared/api/settings";
 import type { AnalysisEnvStatus, AppSettings, ProjectSummary, ResourceWarmupTaskStatus } from "../../shared/types/app";
+import { probeDrawioHostFrame } from "../components/draw/drawWorkspaceUtils";
 import {
   applyTheme,
   DEFAULT_PANEL_LAYOUT,
@@ -428,6 +429,13 @@ export function useAppStartup(params: {
           );
         },
       });
+      abortIfStale();
+      updateStep(
+        "drawio",
+        { status: "running", detail: t("draw.hostReady"), progress: 92 },
+        "warming",
+      );
+      await probeDrawioHostFrame(drawioWarmup.result?.drawio ?? null);
       abortIfStale();
       updateStep(
         "drawio",
