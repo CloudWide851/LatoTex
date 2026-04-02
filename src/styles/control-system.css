@@ -78,64 +78,42 @@
 }
 
 .app-topbar-field {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--topbar-field-bg) 84%, white 16%),
-      var(--topbar-field-bg)
-    );
-  border: 1px solid color-mix(in srgb, var(--topbar-field-border) 84%, white 16%);
+  background-color: color-mix(in srgb, var(--topbar-field-bg) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--topbar-field-border) 90%, white 10%);
   color: var(--topbar-fg);
-  border-radius: 14px;
-  box-shadow:
-    0 12px 24px rgba(2, 6, 23, 0.18),
-    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  border-radius: 12px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   transition:
-    border-color 180ms var(--motion-ease-out-quart),
-    background-color 180ms var(--motion-ease-out-quart),
-    box-shadow 180ms var(--motion-ease-out-quart),
-    transform 160ms var(--motion-ease-out-quart);
+    border-color 150ms var(--motion-ease-out-quart),
+    background-color 150ms var(--motion-ease-out-quart),
+    box-shadow 150ms var(--motion-ease-out-quart),
+    color 150ms var(--motion-ease-out-quart);
 }
 
-.app-topbar-field:hover {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--topbar-field-hover) 78%, white 22%),
-      var(--topbar-field-hover)
-    );
-  border-color: color-mix(in srgb, var(--topbar-field-border) 76%, white 24%);
-  box-shadow:
-    0 16px 28px rgba(2, 6, 23, 0.22),
-    0 1px 0 rgba(255, 255, 255, 0.1) inset;
-  transform: translate3d(0, -1px, 0);
+.app-topbar-field:hover,
+.app-topbar-field:focus-within {
+  background-color: color-mix(in srgb, var(--topbar-field-hover) 92%, transparent);
+  border-color: color-mix(in srgb, var(--topbar-field-border) 78%, white 22%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 }
 
 .app-topbar-btn {
   color: var(--topbar-muted);
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 10px;
   transition:
-    border-color 180ms var(--motion-ease-out-quart),
-    background-color 180ms var(--motion-ease-out-quart),
-    color 180ms var(--motion-ease-out-quart),
-    transform 160ms var(--motion-ease-out-quart),
-    box-shadow 180ms var(--motion-ease-out-quart);
+    border-color 150ms var(--motion-ease-out-quart),
+    background-color 150ms var(--motion-ease-out-quart),
+    color 150ms var(--motion-ease-out-quart),
+    box-shadow 150ms var(--motion-ease-out-quart);
 }
 
-.app-topbar-btn:hover {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--topbar-field-hover) 78%, white 22%),
-      var(--topbar-field-hover)
-    );
-  border-color: color-mix(in srgb, var(--topbar-field-border) 78%, white 22%);
+.app-topbar-btn:hover,
+.app-topbar-btn:focus-visible {
+  background-color: color-mix(in srgb, var(--topbar-field-hover) 86%, transparent);
+  border-color: color-mix(in srgb, var(--topbar-field-border) 76%, white 24%);
   color: var(--topbar-fg);
-  box-shadow:
-    0 12px 22px rgba(2, 6, 23, 0.18),
-    0 1px 0 rgba(255, 255, 255, 0.08) inset;
-  transform: translate3d(0, -1px, 0);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.04) inset;
 }
 
 .app-topbar-btn-close {
@@ -144,6 +122,7 @@
 
 .app-topbar-btn-close:hover {
   background-color: #e11d48;
+  border-color: #e11d48;
   color: #ffffff;
 }
 
@@ -167,26 +146,19 @@
 .control-surface {
   color: var(--control-text);
   border: 1px solid var(--control-border);
-  border-radius: 14px;
-  background: linear-gradient(180deg, var(--control-surface-top), var(--control-surface-bottom));
-  box-shadow:
-    var(--control-shadow),
-    0 1px 0 var(--control-highlight) inset;
+  border-radius: 12px;
+  background-color: var(--control-surface-top);
+  box-shadow: 0 1px 0 var(--control-highlight) inset;
   transition:
-    border-color 180ms var(--motion-ease-out-quart),
-    background-color 180ms var(--motion-ease-out-quart),
-    box-shadow 180ms var(--motion-ease-out-quart),
-    color 180ms var(--motion-ease-out-quart),
-    transform 160ms var(--motion-ease-out-quart);
+    border-color 150ms var(--motion-ease-out-quart),
+    background-color 150ms var(--motion-ease-out-quart),
+    box-shadow 150ms var(--motion-ease-out-quart),
+    color 150ms var(--motion-ease-out-quart);
 }
 
 .control-surface:hover:not(:disabled) {
   border-color: var(--control-border-strong);
-  background: linear-gradient(180deg, var(--control-surface-hover-top), var(--control-surface-hover-bottom));
-  box-shadow:
-    var(--control-shadow-hover),
-    0 1px 0 var(--control-highlight) inset;
-  transform: translate3d(0, -1px, 0);
+  background-color: var(--control-surface-hover-top);
 }
 
 .control-surface:focus-visible,
@@ -194,22 +166,17 @@
   border-color: color-mix(in srgb, var(--control-primary-border) 72%, var(--control-border) 28%);
   box-shadow:
     0 0 0 3px var(--control-ring),
-    var(--control-shadow-hover),
     0 1px 0 var(--control-highlight) inset;
   outline: none;
-  transform: translate3d(0, -1px, 0);
 }
 
 .control-surface:active:not(:disabled) {
-  transform: translate3d(0, 0, 0) scale(0.985);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--control-border-strong) 72%, transparent);
 }
 
 .control-surface:disabled {
   cursor: not-allowed;
   opacity: 0.58;
-  box-shadow:
-    0 8px 18px rgba(15, 23, 42, 0.05),
-    0 1px 0 var(--control-highlight) inset;
 }
 
 .control-surface::placeholder,
@@ -219,8 +186,8 @@
 
 .control-menu-surface {
   border: 1px solid color-mix(in srgb, var(--control-border) 92%, white 8%);
-  border-radius: 18px;
-  background: linear-gradient(180deg, var(--control-menu-top), var(--control-menu-bottom));
+  border-radius: 16px;
+  background-color: var(--control-menu-top);
   box-shadow: var(--control-menu-shadow);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -229,34 +196,28 @@
 .control-menu-item {
   color: var(--control-text);
   border: 1px solid transparent;
-  border-radius: 13px;
+  border-radius: 10px;
   transition:
     border-color 150ms var(--motion-ease-out-quart),
     background-color 150ms var(--motion-ease-out-quart),
     box-shadow 150ms var(--motion-ease-out-quart),
-    color 150ms var(--motion-ease-out-quart),
-    transform 150ms var(--motion-ease-out-quart);
+    color 150ms var(--motion-ease-out-quart);
 }
 
 .control-menu-item:hover,
 .control-menu-item:focus-visible {
   border-color: color-mix(in srgb, var(--control-border) 86%, white 14%);
-  background: linear-gradient(180deg, var(--control-surface-top), var(--control-surface-bottom));
-  box-shadow:
-    0 10px 18px rgba(15, 23, 42, 0.08),
-    0 1px 0 var(--control-highlight) inset;
+  background-color: var(--control-surface-hover-top);
+  box-shadow: 0 1px 0 var(--control-highlight) inset;
   color: var(--control-text);
   outline: none;
-  transform: translate3d(0, -1px, 0);
 }
 
 .control-menu-search {
   border: 1px solid color-mix(in srgb, var(--control-border) 88%, white 12%);
-  border-radius: 14px;
-  background: linear-gradient(180deg, var(--control-surface-top), var(--control-surface-bottom));
-  box-shadow:
-    0 8px 18px rgba(15, 23, 42, 0.06),
-    0 1px 0 var(--control-highlight) inset;
+  border-radius: 12px;
+  background-color: var(--control-surface-top);
+  box-shadow: 0 1px 0 var(--control-highlight) inset;
 }
 
 .control-menu-input {
@@ -264,23 +225,22 @@
 }
 
 .control-button {
-  border-radius: 14px;
+  border-radius: 10px;
   font-weight: 600;
   letter-spacing: 0.01em;
   transition:
-    border-color 180ms var(--motion-ease-out-quart),
-    background-color 180ms var(--motion-ease-out-quart),
-    box-shadow 180ms var(--motion-ease-out-quart),
-    color 180ms var(--motion-ease-out-quart),
-    transform 160ms var(--motion-ease-out-quart);
+    border-color 150ms var(--motion-ease-out-quart),
+    background-color 150ms var(--motion-ease-out-quart),
+    box-shadow 150ms var(--motion-ease-out-quart),
+    color 150ms var(--motion-ease-out-quart);
 }
 
 .control-button:hover:not(:disabled) {
-  transform: translate3d(0, -1px, 0);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
 .control-button:active:not(:disabled) {
-  transform: translate3d(0, 0, 0) scale(0.985);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--control-border-strong) 60%, transparent);
 }
 
 .control-button:focus-visible {
@@ -290,27 +250,24 @@
 .control-button--primary {
   color: #eff6ff;
   border: 1px solid var(--control-primary-border);
-  background: linear-gradient(180deg, var(--control-primary-top), var(--control-primary-bottom));
-  box-shadow: var(--control-primary-shadow);
+  background-color: var(--control-primary-top);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset;
 }
 
 .control-button--primary:hover:not(:disabled),
 .control-button--primary:focus-visible {
-  background: linear-gradient(180deg, var(--control-primary-top-hover), var(--control-primary-bottom-hover));
+  background-color: var(--control-primary-top-hover);
   box-shadow:
     0 0 0 3px var(--control-primary-ring),
-    0 20px 36px rgba(37, 99, 235, 0.28),
-    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+    0 1px 0 rgba(255, 255, 255, 0.16) inset;
 }
 
 .control-button--secondary,
 .control-button--surface {
   color: var(--control-text);
   border: 1px solid var(--control-border);
-  background: linear-gradient(180deg, var(--control-surface-top), var(--control-surface-bottom));
-  box-shadow:
-    var(--control-shadow),
-    0 1px 0 var(--control-highlight) inset;
+  background-color: var(--control-surface-top);
+  box-shadow: 0 1px 0 var(--control-highlight) inset;
 }
 
 .control-button--secondary:hover:not(:disabled),
@@ -318,10 +275,9 @@
 .control-button--surface:hover:not(:disabled),
 .control-button--surface:focus-visible {
   border-color: var(--control-border-strong);
-  background: linear-gradient(180deg, var(--control-surface-hover-top), var(--control-surface-hover-bottom));
+  background-color: var(--control-surface-hover-top);
   box-shadow:
     0 0 0 3px var(--control-ring),
-    var(--control-shadow-hover),
     0 1px 0 var(--control-highlight) inset;
 }
 
@@ -335,27 +291,23 @@
 .control-button--ghost:focus-visible {
   color: var(--control-text);
   border-color: color-mix(in srgb, var(--control-border) 82%, white 18%);
-  background: linear-gradient(180deg, var(--control-surface-top), var(--control-surface-bottom));
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--control-ring) 72%, transparent),
-    0 10px 18px rgba(15, 23, 42, 0.08),
-    0 1px 0 var(--control-highlight) inset;
+  background-color: color-mix(in srgb, var(--control-surface-top) 72%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--control-ring) 72%, transparent);
 }
 
 .control-button--danger {
   color: #fff1f2;
   border: 1px solid rgba(225, 29, 72, 0.92);
-  background: linear-gradient(180deg, #fb7185, #e11d48);
-  box-shadow: 0 18px 32px rgba(225, 29, 72, 0.24), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+  background-color: #e11d48;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset;
 }
 
 .control-button--danger:hover:not(:disabled),
 .control-button--danger:focus-visible {
-  background: linear-gradient(180deg, #fda4af, #e11d48);
+  background-color: #be123c;
   box-shadow:
     0 0 0 3px rgba(251, 113, 133, 0.22),
-    0 24px 40px rgba(225, 29, 72, 0.28),
-    0 1px 0 rgba(255, 255, 255, 0.2) inset;
+    0 1px 0 rgba(255, 255, 255, 0.16) inset;
 }
 
 .control-select-trigger {
@@ -368,46 +320,39 @@
 
 .control-menu-item--selected {
   border-color: color-mix(in srgb, var(--control-primary-border) 72%, white 12%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--control-primary-top) 16%, white 84%), color-mix(in srgb, var(--control-primary-bottom) 12%, white 88%));
-  box-shadow:
-    0 12px 20px rgba(37, 99, 235, 0.12),
-    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  background-color: color-mix(in srgb, var(--control-primary-top) 12%, white 88%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
   color: color-mix(in srgb, var(--control-primary-bottom) 76%, var(--control-text) 24%);
 }
 
 [data-theme="dark"] .control-menu-item--selected {
-  background: linear-gradient(180deg, rgba(59, 130, 246, 0.22), rgba(37, 99, 235, 0.18));
+  background-color: rgba(59, 130, 246, 0.22);
   color: #dbeafe;
 }
 
 .panel-topbar-btn {
   color: var(--control-text);
   border-color: color-mix(in srgb, var(--control-border) 92%, white 8%);
-  background: linear-gradient(180deg, var(--control-surface-top), var(--control-surface-bottom));
-  box-shadow:
-    0 10px 20px rgba(15, 23, 42, 0.07),
-    0 1px 0 var(--control-highlight) inset;
+  background-color: var(--control-surface-top);
+  box-shadow: 0 1px 0 var(--control-highlight) inset;
   transition:
-    border-color 180ms var(--motion-ease-out-quart),
-    background-color 180ms var(--motion-ease-out-quart),
-    color 180ms var(--motion-ease-out-quart),
-    box-shadow 180ms var(--motion-ease-out-quart),
-    transform 160ms var(--motion-ease-out-quart);
+    border-color 150ms var(--motion-ease-out-quart),
+    background-color 150ms var(--motion-ease-out-quart),
+    color 150ms var(--motion-ease-out-quart),
+    box-shadow 150ms var(--motion-ease-out-quart);
 }
 
 .panel-topbar-btn:hover:not(:disabled),
 .panel-topbar-btn:focus-visible {
   border-color: var(--control-border-strong);
-  background: linear-gradient(180deg, var(--control-surface-hover-top), var(--control-surface-hover-bottom));
+  background-color: var(--control-surface-hover-top);
   color: var(--control-text);
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--control-ring) 72%, transparent),
-    0 14px 26px rgba(15, 23, 42, 0.1),
     0 1px 0 var(--control-highlight) inset;
   outline: none;
-  transform: translate3d(0, -1px, 0);
 }
 
 .panel-topbar-btn:active:not(:disabled) {
-  transform: translate3d(0, 0, 0) scale(0.985);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--control-border-strong) 72%, transparent);
 }

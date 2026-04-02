@@ -1,3 +1,4 @@
+import { resolveCodeLanguage, resolveCodeLanguageTag } from "../../shared/utils/codeLanguage";
 import type { CloseTabsAction, EditorTab } from "../../shared/types/app";
 
 export function buildEditorTab(path: string, pinned: boolean, preview: boolean): EditorTab {
@@ -8,6 +9,8 @@ export function buildEditorTab(path: string, pinned: boolean, preview: boolean):
     title: parts[parts.length - 1] ?? path,
     pinned,
     preview,
+    language: resolveCodeLanguage(path),
+    languageTag: resolveCodeLanguageTag(path),
     lastAccessed: Date.now(),
   };
 }

@@ -9,6 +9,8 @@ function tab(id: string, path: string): EditorTab {
     title: path,
     pinned: true,
     preview: false,
+    language: { monaco: "latex", highlight: "latex" },
+    languageTag: "tex",
     lastAccessed: 0,
   };
 }

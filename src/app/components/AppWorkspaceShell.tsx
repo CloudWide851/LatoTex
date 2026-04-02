@@ -11,6 +11,7 @@ import {
   isSvgPath,
   isTabularPath,
 } from "../../shared/utils/fileKind";
+import { resolveCodeLanguage, resolveCodeLanguageTag } from "../../shared/utils/codeLanguage";
 import {
   applyCjkAutoFixToSource,
   buildCompileAssistCjkDiagnostics,
@@ -202,6 +203,14 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     && !selectedIsTex
     && !selectedIsPlainText
     && isCodePath(previewSelectedPath);
+  const selectedCodeLanguage = useMemo(
+    () => editorTabs.find((tab) => tab.path === previewSelectedPath)?.language ?? resolveCodeLanguage(previewSelectedPath),
+    [editorTabs, previewSelectedPath],
+  );
+  const selectedCodeLanguageTag = useMemo(
+    () => editorTabs.find((tab) => tab.path === previewSelectedPath)?.languageTag ?? resolveCodeLanguageTag(previewSelectedPath),
+    [editorTabs, previewSelectedPath],
+  );
   const previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty" = selectedIsImage
     ? (selectedImagePreviewUrl ? "image" : "empty")
     : selectedIsPdf
@@ -357,6 +366,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}
       selectedIsCode={selectedIsCode}
+      selectedCodeLanguage={selectedCodeLanguage}
+      selectedCodeLanguageTag={selectedCodeLanguageTag}
       editorContent={editorContent}
       compiledPdfUrl={compiledPdfUrl}
       previewMode={previewMode}
@@ -425,6 +436,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         selectedFile={selectedFile}
         selectedIsDraw={selectedIsDraw}
         selectedIsExcel={selectedIsExcel}
+        selectedCodeLanguage={selectedCodeLanguage}
         editorContent={editorContent}
         editorTabs={editorTabs}
         activeTabId={activeTabId}

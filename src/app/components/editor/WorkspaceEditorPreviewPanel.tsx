@@ -1,3 +1,4 @@
+import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import { WorkspacePreviewPanel } from "../workspace/WorkspacePreviewPanel";
 
@@ -12,6 +13,8 @@ export function WorkspaceEditorPreviewPanel(props: {
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
   selectedIsCode: boolean;
+  selectedCodeLanguage?: CodeLanguageInfo;
+  selectedCodeLanguageTag?: string;
   editorContent: string;
   compiledPdfUrl: string | null;
   previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
@@ -44,6 +47,8 @@ export function WorkspaceEditorPreviewPanel(props: {
       selectedIsSvg={props.selectedIsSvg}
       selectedIsTabular={props.selectedIsTabular}
       selectedIsCode={props.selectedIsCode}
+      selectedCodeLanguage={props.selectedCodeLanguage}
+      selectedCodeLanguageTag={props.selectedCodeLanguageTag}
       editorContent={props.editorContent}
       compiledPdfUrl={props.compiledPdfUrl}
       previewMode={props.previewMode}
@@ -68,4 +73,3 @@ export function WorkspaceEditorPreviewPanel(props: {
     />
   );
 }
-

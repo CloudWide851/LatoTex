@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "control-button motion-hover-rise inline-flex items-center justify-center whitespace-nowrap border text-sm focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50",
+  "control-button inline-flex items-center justify-center whitespace-nowrap border text-sm focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {

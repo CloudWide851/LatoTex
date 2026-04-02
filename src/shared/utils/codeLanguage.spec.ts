@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extensionOfPath, isLatexLikePath, resolveCodeLanguage } from "./codeLanguage";
+import { extensionOfPath, isLatexLikePath, resolveCodeLanguage, resolveCodeLanguageTag } from "./codeLanguage";
 
 describe("codeLanguage", () => {
   it("normalizes extensions across Windows and Unix-style paths", () => {
@@ -21,10 +21,24 @@ describe("codeLanguage", () => {
       monaco: "bibtex",
       highlight: "latex",
     });
+    expect(resolveCodeLanguage("frontend/components/App.vue")).toEqual({
+      monaco: "html",
+      highlight: "xml",
+    });
+    expect(resolveCodeLanguage("Gemfile.gemspec")).toEqual({
+      monaco: "ruby",
+      highlight: "ruby",
+    });
     expect(resolveCodeLanguage("README.unknown")).toEqual({
       monaco: "plaintext",
       highlight: null,
     });
+  });
+
+  it("builds stable language tags for file-scoped highlight caches", () => {
+    expect(resolveCodeLanguageTag("src/main.tsx")).toBe("tsx");
+    expect(resolveCodeLanguageTag("Dockerfile")).toBe("dockerfile");
+    expect(resolveCodeLanguageTag("README")).toBe("plaintext");
   });
 
   it("keeps LaTeX-like files classified for editor language decisions", () => {
@@ -33,4 +47,3 @@ describe("codeLanguage", () => {
     expect(isLatexLikePath("src/main.rs")).toBe(false);
   });
 });
-

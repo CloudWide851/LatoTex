@@ -561,14 +561,14 @@ body::before {
 
 .editor-toolbar-btn--primary {
   border-color: rgba(37, 99, 235, 0.9);
-  background: linear-gradient(180deg, #4f8cff, #2563eb);
+  background-color: #2563eb;
   color: #eff6ff;
-  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.22), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset;
 }
 
 .editor-toolbar-btn--primary:hover:not(:disabled),
 .editor-toolbar-btn--primary:focus-visible {
-  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  background-color: #1d4ed8;
   color: #ffffff;
 }
 
@@ -785,7 +785,7 @@ body::before {
 .settings-bool-row {
   border: 1px solid var(--settings-row-border);
   background: var(--settings-row-bg);
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.07), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
 }
 
 .settings-bool-row:hover,
@@ -793,20 +793,19 @@ body::before {
   border-color: color-mix(in srgb, var(--control-primary-border) 48%, var(--settings-row-border));
   box-shadow:
     0 0 0 3px rgba(59, 130, 246, 0.12),
-    0 18px 34px rgba(15, 23, 42, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.78) inset;
+    0 1px 0 rgba(255, 255, 255, 0.72) inset;
 }
 
 .settings-checkbox__input {
   border-color: rgba(100, 116, 139, 0.5);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.94));
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  background-color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
 }
 
 .settings-checkbox__input:checked {
   border-color: rgba(37, 99, 235, 0.96);
-  background: linear-gradient(180deg, #4f8cff, #2563eb);
-  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.24), 0 0 0 1px rgba(37, 99, 235, 0.24);
+  background-color: #2563eb;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.24);
 }
 
 .settings-checkbox__icon {
@@ -816,8 +815,8 @@ body::before {
 
 [data-theme="dark"] .settings-checkbox__input {
   border-color: rgba(148, 163, 184, 0.34);
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96));
-  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.22), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  background-color: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
 
 .monaco-editor .ghost-text,

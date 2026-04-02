@@ -1,3 +1,4 @@
+import type { CodeLanguageInfo } from "../../shared/utils/codeLanguage";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -84,6 +85,8 @@ export function FilePreviewPane(props: {
   svgContent: string;
   codeContent: string;
   selectedPath: string | null;
+  codeLanguage?: CodeLanguageInfo;
+  codeLanguageTag?: string;
   title: string;
   emptyText: string;
   pdfZoom: number;
@@ -100,6 +103,8 @@ export function FilePreviewPane(props: {
     svgContent,
     codeContent,
     selectedPath,
+    codeLanguage,
+    codeLanguageTag,
     title,
     emptyText,
     pdfZoom,
@@ -538,6 +543,8 @@ export function FilePreviewPane(props: {
         filePath={selectedPath}
         codeContent={codeContent}
         emptyText={emptyText}
+        language={codeLanguage}
+        languageTag={codeLanguageTag}
       />
     );
   }

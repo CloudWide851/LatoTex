@@ -156,7 +156,6 @@
 
 .motion-hover-rise {
   transition:
-    transform 170ms var(--motion-ease-out-quart),
     box-shadow 170ms var(--motion-ease-out-quart),
     background-color 170ms var(--motion-ease-out-quart),
     border-color 170ms var(--motion-ease-out-quart),
@@ -164,11 +163,11 @@
 }
 
 .motion-hover-rise:hover:not(:disabled) {
-  transform: translate3d(0, -1px, 0);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
 .motion-hover-rise:active:not(:disabled) {
-  transform: translate3d(0, 0, 0) scale(0.985);
+  filter: brightness(0.98);
 }
 
 .motion-status-chip {

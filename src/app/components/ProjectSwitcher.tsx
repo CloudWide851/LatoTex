@@ -78,7 +78,7 @@ export function ProjectSwitcher(props: {
                   className={dropdownItemClassName(cn(
                     "mb-1 justify-between text-sm last:mb-0",
                     selected
-                      ? "border-primary-500/60 bg-[linear-gradient(180deg,#3b82f6,#2563eb)] text-white shadow-[0_16px_28px_rgba(37,99,235,0.24)] hover:text-white"
+                      ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700 hover:text-white"
                       : "text-[color:var(--control-text)]",
                   ))}
                   onClick={() => {

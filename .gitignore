@@ -39,6 +39,12 @@ Thumbs.db
 
 # Local collaboration / agent files
 .latotex/
+.stitch/cache/
+.stitch/designs/
+.stitch/screenshots/
+.stitch/snapshots/
+.stitch/tmp/
+.stitch/auth/
 AGENTS.md
 CLAUDE.md
 .claude/

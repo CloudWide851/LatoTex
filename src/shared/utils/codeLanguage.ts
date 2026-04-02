@@ -32,7 +32,10 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   cjs: { monaco: "javascript", highlight: "javascript" },
   ts: { monaco: "typescript", highlight: "typescript" },
   tsx: { monaco: "typescript", highlight: "typescript" },
+  vue: { monaco: "html", highlight: "xml" },
+  svelte: { monaco: "html", highlight: "xml" },
   py: { monaco: "python", highlight: "python" },
+  ipynb: { monaco: "json", highlight: "json" },
   rs: { monaco: "rust", highlight: "rust" },
   go: { monaco: "go", highlight: "go" },
   java: { monaco: "java", highlight: "java" },
@@ -47,13 +50,27 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   cc: { monaco: "cpp", highlight: "cpp" },
   hpp: { monaco: "cpp", highlight: "cpp" },
   cs: { monaco: "csharp", highlight: "csharp" },
+  fs: { monaco: "fsharp", highlight: "fsharp" },
+  fsx: { monaco: "fsharp", highlight: "fsharp" },
   sh: { monaco: "shell", highlight: "bash" },
   bash: { monaco: "shell", highlight: "bash" },
   zsh: { monaco: "shell", highlight: "bash" },
   fish: { monaco: "shell", highlight: "bash" },
   ps1: { monaco: "powershell", highlight: "powershell" },
   sql: { monaco: "sql", highlight: "sql" },
+  php: { monaco: "php", highlight: "php" },
+  rb: { monaco: "ruby", highlight: "ruby" },
+  gemspec: { monaco: "ruby", highlight: "ruby" },
+  pl: { monaco: "perl", highlight: "perl" },
+  pm: { monaco: "perl", highlight: "perl" },
+  r: { monaco: "r", highlight: "r" },
+  lua: { monaco: "lua", highlight: "lua" },
+  makefile: { monaco: "plaintext", highlight: "makefile" },
+  mk: { monaco: "plaintext", highlight: "makefile" },
+  gradle: { monaco: "groovy", highlight: "gradle" },
   dockerfile: { monaco: "dockerfile", highlight: "dockerfile" },
+  env: { monaco: "shell", highlight: "bash" },
+  log: { monaco: "plaintext", highlight: null },
 };
 
 function normalizePath(value: string | null | undefined): string {
@@ -78,7 +95,13 @@ export function resolveCodeLanguage(path: string | null | undefined): CodeLangua
   return CODE_LANGUAGE_BY_EXTENSION[extension] ?? { monaco: "plaintext", highlight: null };
 }
 
+export function resolveCodeLanguageTag(path: string | null | undefined): string {
+  const extension = extensionOfPath(path);
+  return extension || "plaintext";
+}
+
 export function isLatexLikePath(path: string | null | undefined): boolean {
   return ["tex", "bib", "sty", "cls", "ltx", "tikz", "pgf"].includes(extensionOfPath(path));
 }
 
+export type { CodeLanguageInfo };

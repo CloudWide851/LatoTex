@@ -8,7 +8,7 @@ import { getEditorSurfaceThemeName, registerEditorSurfaceThemes } from "./editor
 import { registerEditorCodeLanguages } from "./editorCodeLanguages";
 import { ensureLatexCompletionProvider } from "./latexCompletion";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
-import { resolveCodeLanguage } from "../../../shared/utils/codeLanguage";
+import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
@@ -43,6 +43,7 @@ export function LatexWorkspaceEditorPanel(props: {
   selectedFile: string | null;
   selectedIsDraw: boolean;
   selectedIsExcel: boolean;
+  selectedCodeLanguage: CodeLanguageInfo;
   editorContent: string;
   editorTabs: any[];
   activeTabId: string | null;
@@ -116,6 +117,7 @@ export function LatexWorkspaceEditorPanel(props: {
     selectedFile,
     selectedIsDraw,
     selectedIsExcel,
+    selectedCodeLanguage,
     editorContent,
     editorTabs,
     activeTabId,
@@ -185,7 +187,7 @@ export function LatexWorkspaceEditorPanel(props: {
   const [editorTheme, setEditorTheme] = useState(getEditorSurfaceThemeName);
   const [monacoOverflowWidgetRoot, setMonacoOverflowWidgetRoot] = useState<HTMLElement | null>(null);
   const agentCommandItems = buildAgentCommandItems(t);
-  const editorLanguage = resolveCodeLanguage(selectedFile).monaco;
+  const editorLanguage = selectedCodeLanguage.monaco;
 
   useEffect(() => {
     if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
@@ -343,9 +345,11 @@ export function LatexWorkspaceEditorPanel(props: {
           </div>
         ) : (
           <MonacoEditor
+            path={selectedFile ?? undefined}
             language={editorLanguage}
             theme={editorTheme}
             value={editorContent}
+            saveViewState
             beforeMount={(monaco) => {
               registerEditorSurfaceThemes(monaco);
               registerEditorCodeLanguages(monaco);
@@ -368,6 +372,7 @@ export function LatexWorkspaceEditorPanel(props: {
               tabCompletion: "on",
               inlineSuggest: { enabled: true, mode: "subword" },
               bracketPairColorization: { enabled: true },
+              colorDecorators: false,
               acceptSuggestionOnCommitCharacter: true,
               wordWrap: "on",
               wordWrapColumn: 0,

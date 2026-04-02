@@ -1,5 +1,6 @@
 const EDITOR_THEME_LIGHT = "latotex-editor-light";
 const EDITOR_THEME_DARK = "latotex-editor-dark";
+const registeredThemeHosts = new WeakSet<object>();
 
 type MonacoLike = {
   editor?: {
@@ -18,9 +19,13 @@ export function getEditorSurfaceThemeName(): string {
 
 export function registerEditorSurfaceThemes(monaco: MonacoLike) {
   const defineTheme = monaco.editor?.defineTheme;
-  if (!defineTheme) {
+  if (!defineTheme || !monaco || typeof monaco !== "object") {
     return;
   }
+  if (registeredThemeHosts.has(monaco)) {
+    return;
+  }
+  registeredThemeHosts.add(monaco);
 
   defineTheme(EDITOR_THEME_LIGHT, {
     base: "vs",

@@ -1,5 +1,6 @@
 const LATEX_LANGUAGE_ID = "latex";
 const BIBTEX_LANGUAGE_ID = "bibtex";
+const registeredMonacoInstances = new WeakSet<object>();
 
 const LATEX_CONFIGURATION = {
   comments: { lineComment: "%" },
@@ -61,6 +62,13 @@ function ensureLanguage(monaco: any, id: string) {
 }
 
 export function registerEditorCodeLanguages(monaco: any) {
+  if (!monaco || typeof monaco !== "object") {
+    return;
+  }
+  if (registeredMonacoInstances.has(monaco)) {
+    return;
+  }
+  registeredMonacoInstances.add(monaco);
   ensureLanguage(monaco, LATEX_LANGUAGE_ID);
   ensureLanguage(monaco, BIBTEX_LANGUAGE_ID);
   monaco.languages.setLanguageConfiguration(LATEX_LANGUAGE_ID, LATEX_CONFIGURATION);

@@ -1,3 +1,4 @@
+import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import { AlertTriangle, Download, ListChecks, Minus, Plus, RotateCcw } from "lucide-react";
 import { FilePreviewPane } from "../FilePreviewPane";
 import { TablePreviewPane } from "../table/TablePreviewPane";
@@ -17,6 +18,8 @@ export function WorkspacePreviewPanel(props: {
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
   selectedIsCode: boolean;
+  selectedCodeLanguage?: CodeLanguageInfo;
+  selectedCodeLanguageTag?: string;
   editorContent: string;
   compiledPdfUrl: string | null;
   previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
@@ -48,6 +51,8 @@ export function WorkspacePreviewPanel(props: {
     selectedIsSvg,
     selectedIsTabular,
     selectedIsCode,
+    selectedCodeLanguage,
+    selectedCodeLanguageTag,
     editorContent,
     compiledPdfUrl,
     previewMode,
@@ -179,6 +184,8 @@ export function WorkspacePreviewPanel(props: {
             svgContent={selectedIsSvg ? editorContent : ""}
             codeContent={selectedIsCode ? editorContent : ""}
             selectedPath={selectedFile}
+            codeLanguage={selectedCodeLanguage}
+            codeLanguageTag={selectedCodeLanguageTag}
             title={t("preview.title")}
             emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage || selectedIsCode ? t("preview.textEmpty") : t("preview.empty")}
             pdfZoom={previewZoom}

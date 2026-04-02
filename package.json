@@ -8,6 +8,12 @@
     "dev": "node scripts/ensure-share-web-assets.mjs && vite --host 0.0.0.0 --port 1420",
     "build": "node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-tectonic-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
+    "stitch:init": "pnpm exec stitch-mcp init --client codex --transport stdio",
+    "stitch:doctor": "pnpm exec stitch-mcp doctor",
+    "stitch:proxy": "pnpm exec stitch-mcp proxy",
+    "stitch:view": "pnpm exec stitch-mcp view",
+    "stitch:serve": "pnpm exec stitch-mcp serve",
+    "stitch:site": "pnpm exec stitch-mcp site",
     "arch:check": "node scripts/check-architecture.mjs",
     "test:unit": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -46,6 +52,7 @@
     "yjs": "^13.6.29"
   },
   "devDependencies": {
+    "@_davideast/stitch-mcp": "^0.5.3",
     "@tauri-apps/cli": "^2.0.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.2.48",

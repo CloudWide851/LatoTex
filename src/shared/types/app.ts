@@ -1,3 +1,5 @@
+import type { CodeLanguageInfo } from "../utils/codeLanguage";
+
 export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
 
 export type EditorTab = {
@@ -6,6 +8,8 @@ export type EditorTab = {
   title: string;
   pinned: boolean;
   preview: boolean;
+  language: CodeLanguageInfo;
+  languageTag: string;
   lastAccessed: number;
 };
 
@@ -315,7 +319,4 @@ export type AppBackgroundImagePayload = {
 };
 
 export * from "./app-extended";
-
-
-
 
