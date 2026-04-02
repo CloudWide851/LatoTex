@@ -2,7 +2,7 @@ const LIBRARY_PDF_CACHE_STATE_READY: &str = "ready";
 const LIBRARY_PDF_CACHE_STATE_PENDING: &str = "pending";
 const LIBRARY_PDF_CACHE_STATE_ERROR: &str = "error";
 const LIBRARY_PDF_CACHE_STATE_MISSING: &str = "missing";
-const LIBRARY_PDF_CACHE_TASK_STALE_MS: u64 = 40_000;
+const LIBRARY_PDF_CACHE_TASK_STALE_MS: u64 = 180_000;
 
 fn current_unix_ms() -> u64 {
     std::time::SystemTime::now()
@@ -81,30 +81,64 @@ fn temp_cache_path(cache_target: &Path) -> PathBuf {
     cache_target.with_file_name(format!("{file_name}.download"))
 }
 
-fn cache_remote_pdf_file(cache_target: &Path, source_url: &str) -> Result<(), String> {
+fn cache_remote_pdf_file<F>(
+    cache_target: &Path,
+    source_url: &str,
+    mut on_progress: F,
+) -> Result<(), String>
+where
+    F: FnMut(u64, Option<u64>),
+{
+    use std::io::{Read, Write};
+
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(24))
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .timeout(std::time::Duration::from_secs(180))
         .user_agent("LatoTex/0.1.0")
         .build()
         .map_err(|e| e.to_string())?;
-    let response = client.get(source_url).send().map_err(|e| e.to_string())?;
+    let mut response = client.get(source_url).send().map_err(|e| e.to_string())?;
     let status = response.status();
     if !status.is_success() {
         return Err(format!("HTTP {status}"));
     }
-    let bytes = response.bytes().map_err(|e| e.to_string())?;
-    if !pdf_bytes_valid(&bytes) {
-        return Err("Remote file is not a valid PDF stream".to_string());
-    }
+
     if let Some(parent) = cache_target.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let temp_path = temp_cache_path(cache_target);
-    fs::write(&temp_path, &bytes).map_err(|e| e.to_string())?;
+    let mut file = std::fs::File::create(&temp_path).map_err(|e| e.to_string())?;
+    let total_bytes = response.content_length();
+    let mut downloaded_bytes = 0_u64;
+    let mut header = Vec::<u8>::with_capacity(32);
+    let mut buffer = [0_u8; 64 * 1024];
+    on_progress(downloaded_bytes, total_bytes);
+
+    loop {
+        let read = response.read(&mut buffer).map_err(|e| e.to_string())?;
+        if read == 0 {
+            break;
+        }
+        file.write_all(&buffer[..read]).map_err(|e| e.to_string())?;
+        if header.len() < 32 {
+            let remaining = 32_usize.saturating_sub(header.len());
+            header.extend_from_slice(&buffer[..read.min(remaining)]);
+        }
+        downloaded_bytes = downloaded_bytes.saturating_add(read as u64);
+        on_progress(downloaded_bytes, total_bytes);
+    }
+
+    file.flush().map_err(|e| e.to_string())?;
+    if !pdf_bytes_valid(&header) {
+        let _ = fs::remove_file(&temp_path);
+        return Err("Remote file is not a valid PDF stream".to_string());
+    }
     fs::rename(&temp_path, cache_target).map_err(|e| {
         let _ = fs::remove_file(&temp_path);
         e.to_string()
-    })
+    })?;
+    on_progress(downloaded_bytes, total_bytes);
+    Ok(())
 }
 
 fn to_library_relative_path_from_workspace(workspace_relative: &str) -> Option<String> {
@@ -171,6 +205,8 @@ fn build_preview_response(
     cached: bool,
     cache_state: &str,
     cache_error: Option<String>,
+    downloaded_bytes: Option<u64>,
+    total_bytes: Option<u64>,
 ) -> LibraryPdfPreviewResponse {
     let translated_relative_path = source_workspace_relative
         .as_deref()
@@ -182,6 +218,8 @@ fn build_preview_response(
         cached,
         cache_state: cache_state.to_string(),
         cache_error,
+        downloaded_bytes,
+        total_bytes,
         translated_relative_path,
         translated_preview_url: None,
     }
@@ -194,17 +232,22 @@ fn pdf_cache_task_key(project_id: &str, relative_path: &str) -> String {
 fn read_pdf_cache_task(
     tasks: &std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, crate::state::LibraryPdfCacheTask>>>,
     task_key: &str,
-) -> (Option<String>, Option<String>, Option<u64>) {
+) -> (Option<String>, Option<String>, Option<u64>, Option<u64>, Option<u64>) {
     let Ok(tasks_guard) = tasks.lock() else {
-        return (None, None, None);
+        return (None, None, None, None, None);
     };
     let Some(task) = tasks_guard.get(task_key) else {
-        return (None, None, None);
+        return (None, None, None, None, None);
     };
     let status = task.status.lock().ok().map(|value| value.clone());
     let error = task.error.lock().ok().and_then(|value| value.clone());
     let updated_at = Some(task.updated_at_unix_ms.load(std::sync::atomic::Ordering::Relaxed));
-    (status, error, updated_at)
+    let downloaded_bytes = Some(task.downloaded_bytes.load(std::sync::atomic::Ordering::Relaxed));
+    let total_bytes = match task.total_bytes.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => None,
+        value => Some(value),
+    };
+    (status, error, updated_at, downloaded_bytes, total_bytes)
 }
 
 fn mark_pdf_cache_task_timed_out(
@@ -266,8 +309,11 @@ fn start_library_pdf_cache_task(
             LIBRARY_PDF_CACHE_STATE_PENDING.to_string(),
         )),
         error: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        downloaded_bytes: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        total_bytes: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
         updated_at_unix_ms: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(current_unix_ms())),
     };
+    let task_handle = task.clone();
 
     let mut should_spawn = false;
     if let Ok(mut tasks_guard) = state.library_pdf_cache_tasks.lock() {
@@ -291,8 +337,6 @@ fn start_library_pdf_cache_task(
     }
 
     let session_log_path = state.session_log_path.clone();
-    let tasks = state.library_pdf_cache_tasks.clone();
-    let task_key_value = task_key.to_string();
     let project_id_value = project_id.to_string();
     let relative_path_value = relative_path.to_string();
     let source_url_value = source_url.to_string();
@@ -309,22 +353,31 @@ fn start_library_pdf_cache_task(
 
     std::thread::spawn(move || {
         let update_task = |status: &str, error: Option<String>| {
-            if let Ok(tasks_guard) = tasks.lock() {
-                if let Some(task_ref) = tasks_guard.get(&task_key_value) {
-                    if let Ok(mut task_status) = task_ref.status.lock() {
-                        *task_status = status.to_string();
-                    }
-                    if let Ok(mut task_error) = task_ref.error.lock() {
-                        *task_error = error;
-                    }
-                    task_ref
-                        .updated_at_unix_ms
-                        .store(current_unix_ms(), std::sync::atomic::Ordering::Relaxed)
-                }
+            if let Ok(mut task_status) = task_handle.status.lock() {
+                *task_status = status.to_string();
             }
+            if let Ok(mut task_error) = task_handle.error.lock() {
+                *task_error = error;
+            }
+            task_handle
+                .updated_at_unix_ms
+                .store(current_unix_ms(), std::sync::atomic::Ordering::Relaxed);
         };
 
-        match cache_remote_pdf_file(&cache_path_value, &source_url_value) {
+        let update_progress = |downloaded_bytes: u64, total_bytes: Option<u64>| {
+            task_handle
+                .downloaded_bytes
+                .store(downloaded_bytes, std::sync::atomic::Ordering::Relaxed);
+            task_handle.total_bytes.store(
+                total_bytes.unwrap_or(0),
+                std::sync::atomic::Ordering::Relaxed,
+            );
+            task_handle
+                .updated_at_unix_ms
+                .store(current_unix_ms(), std::sync::atomic::Ordering::Relaxed);
+        };
+
+        match cache_remote_pdf_file(&cache_path_value, &source_url_value, update_progress) {
             Ok(_) => {
                 update_task(LIBRARY_PDF_CACHE_STATE_READY, None);
                 let _ = crate::logging::append_log_line(
@@ -384,6 +437,8 @@ pub fn library_resolve_pdf_preview(
             false,
             LIBRARY_PDF_CACHE_STATE_READY,
             None,
+            None,
+            None,
         ));
     }
 
@@ -397,6 +452,8 @@ pub fn library_resolve_pdf_preview(
             false,
             LIBRARY_PDF_CACHE_STATE_MISSING,
             None,
+            None,
+            None,
         ));
     };
 
@@ -406,7 +463,7 @@ pub fn library_resolve_pdf_preview(
 
     if !cached_pdf_file_ready(&cache_path) {
         let _ = fs::remove_file(&cache_path);
-        cache_remote_pdf_file(&cache_path, &source_url)?;
+        cache_remote_pdf_file(&cache_path, &source_url, |_, _| {})?;
     }
 
     let source_workspace_relative = to_workspace_relative(&project_root, &cache_path)?;
@@ -417,6 +474,8 @@ pub fn library_resolve_pdf_preview(
         Some(source_url),
         true,
         LIBRARY_PDF_CACHE_STATE_READY,
+        None,
+        None,
         None,
     ))
 }
@@ -451,6 +510,8 @@ pub fn library_resolve_pdf_preview_runtime(
             false,
             LIBRARY_PDF_CACHE_STATE_READY,
             None,
+            None,
+            None,
         ));
     }
 
@@ -463,6 +524,8 @@ pub fn library_resolve_pdf_preview_runtime(
             None,
             false,
             LIBRARY_PDF_CACHE_STATE_MISSING,
+            None,
+            None,
             None,
         ));
     };
@@ -490,10 +553,12 @@ pub fn library_resolve_pdf_preview_runtime(
             true,
             LIBRARY_PDF_CACHE_STATE_READY,
             None,
+            None,
+            None,
         ));
     }
 
-    let (task_status, task_error, task_updated_at) =
+    let (task_status, task_error, task_updated_at, downloaded_bytes, total_bytes) =
         read_pdf_cache_task(&state.library_pdf_cache_tasks, &task_key);
     if matches!(task_status.as_deref(), Some(LIBRARY_PDF_CACHE_STATE_PENDING)) {
         let updated_at = task_updated_at.unwrap_or(0);
@@ -508,6 +573,8 @@ pub fn library_resolve_pdf_preview_runtime(
                 false,
                 LIBRARY_PDF_CACHE_STATE_ERROR,
                 timeout_error,
+                downloaded_bytes,
+                total_bytes,
             ));
         }
         return Ok(build_preview_response(
@@ -518,6 +585,8 @@ pub fn library_resolve_pdf_preview_runtime(
             false,
             LIBRARY_PDF_CACHE_STATE_PENDING,
             None,
+            downloaded_bytes,
+            total_bytes,
         ));
     }
     if matches!(task_status.as_deref(), Some(LIBRARY_PDF_CACHE_STATE_ERROR)) {
@@ -530,6 +599,8 @@ pub fn library_resolve_pdf_preview_runtime(
             false,
             LIBRARY_PDF_CACHE_STATE_ERROR,
             task_error,
+            downloaded_bytes,
+            total_bytes,
         ));
     }
 
@@ -549,6 +620,8 @@ pub fn library_resolve_pdf_preview_runtime(
         Some(source_url),
         false,
         LIBRARY_PDF_CACHE_STATE_PENDING,
+        None,
+        Some(0),
         None,
     ))
 }

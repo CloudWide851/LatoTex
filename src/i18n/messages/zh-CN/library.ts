@@ -18,6 +18,8 @@ export const zhCN_library = {
   "library.linkPlaceholder": "粘贴 DOI、arXiv 或 URL",
   "library.zoteroPlaceholder": "粘贴 Zotero 本地/云端链接",
   "library.viewer.loading": "正在加载论文预览...",
+  "library.viewer.downloadingPdf": "正在下载论文 PDF...",
+  "library.viewer.downloadProgress": "下载进度",
   "library.viewer.error": "论文预览加载失败。",
   "library.viewer.unsupported": "当前文件类型暂不支持预览。",
   "library.viewer.previewTab": "预览",

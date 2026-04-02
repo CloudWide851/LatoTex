@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { resolveLocale } from "../../i18n";
 import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
+import { resumeLibraryPdfDownloads } from "../../shared/api/library";
 import { listProjects } from "../../shared/api/projects";
 import { runtimeLogInfo, runtimeLogWrite } from "../../shared/api/runtime";
 import { getSettings } from "../../shared/api/settings";
@@ -15,11 +16,6 @@ import {
 type TranslationFn = (...args: any[]) => string;
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 type SetLocale = (value: "en-US" | "zh-CN") => void;
-
-type LoadProjectData = (
-  projectId: string,
-  options?: { includeGitRefresh?: boolean },
-) => Promise<void>;
 
 function normalizeSettings(appSettings: AppSettings): AppSettings {
   const backgroundList = Array.from(
@@ -78,8 +74,6 @@ function resolveInitialProjectId(
 
 export function useAppStartup(params: {
   isTauriRuntime: boolean;
-  loadProjectData: LoadProjectData;
-  refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   settingsRef: MutableRefObject<AppSettings | null>;
   setStatus: (value: "ready" | "offline") => void;
   setProjects: (value: ProjectSummary[]) => void;
@@ -92,8 +86,6 @@ export function useAppStartup(params: {
 }) {
   const {
     isTauriRuntime,
-    loadProjectData,
-    refreshGitWorkspace,
     settingsRef,
     setStatus,
     setProjects,
@@ -168,26 +160,17 @@ export function useAppStartup(params: {
           `frontend bootstrap completed, project=${targetProjectId ?? "-"}, installMode=${info.installMode}, version=${info.version}`,
         ).catch(() => undefined);
 
-        if (!targetProjectId) {
-          return;
-        }
-
-        try {
-          await loadProjectData(targetProjectId, { includeGitRefresh: false });
-          if (!mountedRef.current) {
-            return;
-          }
-          await refreshGitWorkspace(targetProjectId);
-        } catch (error) {
-          if (!mountedRef.current) {
-            return;
-          }
-          const message = String(error || t("common.loading"));
-          setToast({ type: "error", message });
-          await runtimeLogWrite(
-            "ERROR",
-            `frontend bootstrap project load failed, project=${targetProjectId}, reason=${message}`,
-          ).catch(() => undefined);
+        if (targetProjectId) {
+          void resumeLibraryPdfDownloads(targetProjectId)
+            .then((result) => runtimeLogWrite(
+              "INFO",
+              `frontend startup resumed library pdf downloads, project=${targetProjectId}, queued=${result.queued}, skipped=${result.skipped}, failed=${result.failed}`,
+            ))
+            .catch((error) => runtimeLogWrite(
+              "ERROR",
+              `frontend startup resume library pdf downloads failed, project=${targetProjectId}, reason=${String(error)}`,
+            ))
+            .catch(() => undefined);
         }
       } catch (error) {
         if (!mountedRef.current) {
@@ -206,8 +189,6 @@ export function useAppStartup(params: {
     void bootstrap();
   }, [
     isTauriRuntime,
-    loadProjectData,
-    refreshGitWorkspace,
     setActiveProjectId,
     setLocale,
     setProjects,

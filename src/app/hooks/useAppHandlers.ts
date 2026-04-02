@@ -108,6 +108,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setGitInstallerLaunched,
     setSuppressAutoGitInstall,
     setLibraryTree,
+    setSelectedLibraryPath,
     refreshGitWorkspace,
   });
   const rememberWindowCloseBehavior = useCallback(async (behavior: "tray" | "exit") => {

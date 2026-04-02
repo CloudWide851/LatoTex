@@ -43,8 +43,27 @@ pub struct LibraryPdfPreviewResponse {
     pub cached: bool,
     pub cache_state: String,
     pub cache_error: Option<String>,
+    pub downloaded_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
     pub translated_relative_path: Option<String>,
     pub translated_preview_url: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryLinkImportResponse {
+    pub ok: bool,
+    pub message: String,
+    pub relative_path: String,
+    pub pdf_preview: LibraryPdfPreviewResponse,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPdfResumeResponse {
+    pub queued: u32,
+    pub skipped: u32,
+    pub failed: u32,
 }
 
 #[derive(Debug, Deserialize)]

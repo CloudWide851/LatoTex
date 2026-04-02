@@ -88,6 +88,7 @@ export function DrawWorkspace(props: {
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
   const [frameLoadStage, setFrameLoadStage] = useState<"idle" | "connecting" | "hostReady">("idle");
+  const [frameDocumentLoaded, setFrameDocumentLoaded] = useState(false);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
@@ -108,6 +109,7 @@ export function DrawWorkspace(props: {
       setReady(false);
       setFrameFailureDetail(null);
       setFrameLoadStage("connecting");
+      setFrameDocumentLoaded(false);
       setFrameSrc(withReloadToken(resolved, frameReloadToken));
       setStatus(t("draw.waiting"));
     } catch (error) {
@@ -125,6 +127,7 @@ export function DrawWorkspace(props: {
     setFrameSrc(null);
     setFrameFailureDetail(null);
     setFrameLoadStage("connecting");
+    setFrameDocumentLoaded(false);
     setStatus(t("draw.waiting"));
     setFrameReloadToken((prev) => prev + 1);
   }, [t]);
@@ -326,6 +329,7 @@ export function DrawWorkspace(props: {
       setFrameSrc(null);
       setFrameFailureDetail(null);
       setFrameLoadStage("idle");
+      setFrameDocumentLoaded(false);
       setStatus("");
       setRenamingPath(null);
       setRenameInput("");
@@ -488,7 +492,7 @@ export function DrawWorkspace(props: {
   }, [activePath, loadActiveToFrame, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
-    if (!frameSrc) {
+    if (!frameSrc || !frameDocumentLoaded) {
       return;
     }
     initTimerRef.current = window.setTimeout(() => {
@@ -500,14 +504,14 @@ export function DrawWorkspace(props: {
       setFrameFailureDetail(failure);
       setFrameLoadStage("idle");
       setStatus(failure);
-    }, frameLoadStage === "hostReady" ? 20_000 : 10_000);
+    }, frameLoadStage === "hostReady" ? 20_000 : 15_000);
     return () => {
       if (initTimerRef.current !== null) {
         window.clearTimeout(initTimerRef.current);
         initTimerRef.current = null;
       }
     };
-  }, [frameLoadStage, frameSrc, ready, t]);
+  }, [frameDocumentLoaded, frameLoadStage, frameSrc, ready, t]);
 
   if (!projectId) {
     return (
@@ -568,6 +572,9 @@ export function DrawWorkspace(props: {
                 src={frameSrc}
                 title="drawio"
                 className={`h-full w-full border-0 transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
+                onLoad={() => {
+                  setFrameDocumentLoaded(true);
+                }}
               />
               {!ready ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/92 px-4 text-center text-xs text-slate-500">

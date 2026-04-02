@@ -84,6 +84,8 @@ export function LibraryDocumentViewer(props: {
     translatedPdfRelativePath,
     translatedPdfUrl,
     resolvedLink,
+    pdfDownloadedBytes,
+    pdfTotalBytes,
     refresh: refreshDocumentData,
     reset: resetDocumentData,
   } = useLibraryDocumentData({
@@ -434,6 +436,8 @@ export function LibraryDocumentViewer(props: {
         loadError={loadError}
         pdfPreviewLoading={pdfPreviewLoading}
         pdfPreviewError={pdfPreviewError}
+        pdfDownloadedBytes={pdfDownloadedBytes}
+        pdfTotalBytes={pdfTotalBytes}
         hasPdf={hasPdf}
         pdfUrl={pdfUrl}
         annotationMode={annotationMode}

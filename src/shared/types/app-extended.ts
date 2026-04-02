@@ -27,8 +27,23 @@ export type LibraryPdfPreview = {
   cached: boolean;
   cacheState: "ready" | "pending" | "error" | "missing";
   cacheError?: string | null;
+  downloadedBytes?: number | null;
+  totalBytes?: number | null;
   translatedRelativePath?: string | null;
   translatedPreviewUrl?: string | null;
+};
+
+export type LibraryLinkImportResult = {
+  ok: boolean;
+  message: string;
+  relativePath: string;
+  pdfPreview: LibraryPdfPreview;
+};
+
+export type LibraryPdfResumeResult = {
+  queued: number;
+  skipped: number;
+  failed: number;
 };
 
 export type LibraryZoteroSyncResult = {

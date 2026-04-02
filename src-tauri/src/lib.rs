@@ -29,11 +29,12 @@ use commands::native_runtime::{
 };
 use commands::projects::{
     file_read, file_read_binary, file_write, file_write_binary, fs_operation,
-    library_citation_summary, library_citation_summary_remote, library_import_link, library_import_pdf, library_rescan,
-    library_resolve_pdf_preview, library_tree, library_zotero_sync, open_external_link,
-    project_create, project_init_from_folder, project_integrity_repair, project_integrity_status,
-    project_list, project_open, project_search_content, workspace_export_pdf,
-    workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
+    library_citation_summary, library_citation_summary_remote, library_import_link,
+    library_import_pdf, library_rescan, library_resolve_pdf_preview,
+    library_resume_pdf_downloads, library_tree, library_zotero_sync, open_external_link,
+    project_create, project_init_from_folder, project_integrity_repair,
+    project_integrity_status, project_list, project_open, project_search_content,
+    workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::projects_translation::{
     library_extract_paper_context, library_translate_document, library_translate_start,
@@ -159,6 +160,7 @@ pub fn run() {
             library_rescan,
             library_import_pdf,
             library_import_link,
+            library_resume_pdf_downloads,
             library_translate_document,
             library_extract_paper_context,
             library_translate_start,

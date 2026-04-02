@@ -30,6 +30,7 @@ export function useGitHandlers(params: {
   setGitInstallerLaunched: (value: boolean) => void;
   setSuppressAutoGitInstall: (value: boolean) => void;
   setLibraryTree: (value: any) => void;
+  setSelectedLibraryPath: (value: string | null) => void;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
 }) {
   const {
@@ -44,6 +45,7 @@ export function useGitHandlers(params: {
     setGitInstallerLaunched,
     setSuppressAutoGitInstall,
     setLibraryTree,
+    setSelectedLibraryPath,
     refreshGitWorkspace,
   } = params;
 
@@ -181,8 +183,9 @@ export function useGitHandlers(params: {
     }
     await runAppAction({
       action: async () => {
-        await importLibraryLink(activeProjectId, normalized);
+        const result = await importLibraryLink(activeProjectId, normalized);
         await refreshLibraryTree();
+        setSelectedLibraryPath(result.relativePath);
       },
       fallbackValue: undefined,
       setBusy,
@@ -190,7 +193,7 @@ export function useGitHandlers(params: {
       successMessage: t("toast.fsUpdated"),
       errorLogLabel: "library.import_link",
     });
-  }, [activeProjectId, refreshLibraryTree, setBusy, setToast, t]);
+  }, [activeProjectId, refreshLibraryTree, setBusy, setSelectedLibraryPath, setToast, t]);
 
   const handleLibrarySyncZotero = useCallback(async (input: {
     ownerId: string;

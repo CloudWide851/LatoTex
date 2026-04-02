@@ -18,6 +18,8 @@ export const enUS_library = {
   "library.linkPlaceholder": "Paste DOI, arXiv, or URL",
   "library.zoteroPlaceholder": "Paste Zotero local/cloud link",
   "library.viewer.loading": "Loading paper preview...",
+  "library.viewer.downloadingPdf": "Downloading paper PDF...",
+  "library.viewer.downloadProgress": "Download progress",
   "library.viewer.error": "Failed to load paper preview.",
   "library.viewer.unsupported": "Preview is not available for this file type.",
   "library.viewer.previewTab": "Preview",

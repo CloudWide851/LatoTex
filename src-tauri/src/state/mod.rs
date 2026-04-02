@@ -45,6 +45,8 @@ pub struct LibraryTranslateTask {
 pub struct LibraryPdfCacheTask {
     pub status: Arc<Mutex<String>>,
     pub error: Arc<Mutex<Option<String>>>,
+    pub downloaded_bytes: Arc<AtomicU64>,
+    pub total_bytes: Arc<AtomicU64>,
     pub updated_at_unix_ms: Arc<AtomicU64>,
 }
 
@@ -136,10 +138,6 @@ impl AppState {
         let install_mode =
             detect_install_mode_and_persist(&runtime_root, &app_data_dir, &app_version)?;
         let _ = persist_runtime_root_pointer(&app_data_dir, &runtime_root);
-        #[cfg(target_os = "windows")]
-        let _ = windows_shortcuts::sync_shortcuts("LatoTex");
-        #[cfg(target_os = "windows")]
-        let _ = dedupe_desktop_shortcuts("LatoTex");
 
         let state = Self {
             app_name: "LatoTex".to_string(),
@@ -160,6 +158,8 @@ impl AppState {
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };
+        #[cfg(target_os = "windows")]
+        schedule_windows_shortcut_sync(&state);
         state.log("INFO", "application startup completed");
         Ok(state)
     }
@@ -167,6 +167,40 @@ impl AppState {
     pub fn log(&self, level: &str, message: &str) {
         let _ = logging::append_log_line(&self.session_log_path, level, message);
     }
+}
+
+#[cfg(target_os = "windows")]
+fn schedule_windows_shortcut_sync(state: &AppState) {
+    if state.install_mode != "fresh-install" && state.install_mode != "updated-install" {
+        return;
+    }
+
+    let session_log_path = state.session_log_path.clone();
+    let install_mode = state.install_mode.clone();
+    std::thread::spawn(move || {
+        let _ = logging::append_log_line(
+            &session_log_path,
+            "INFO",
+            &format!("windows_shortcuts.sync.start: mode={install_mode}"),
+        );
+        match windows_shortcuts::sync_shortcuts("LatoTex") {
+            Ok(_) => {
+                let _ = dedupe_desktop_shortcuts("LatoTex");
+                let _ = logging::append_log_line(
+                    &session_log_path,
+                    "INFO",
+                    &format!("windows_shortcuts.sync.completed: mode={install_mode}"),
+                );
+            }
+            Err(error) => {
+                let _ = logging::append_log_line(
+                    &session_log_path,
+                    "ERROR",
+                    &format!("windows_shortcuts.sync.failed: mode={install_mode}, reason={error}"),
+                );
+            }
+        }
+    });
 }
 
 fn resolve_runtime_root() -> Result<PathBuf, String> {

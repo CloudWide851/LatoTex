@@ -3,10 +3,11 @@ use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse,
     FileWriteBinaryInput, FileWriteInput, FsOperationInput, FsOperationResult,
     LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryLinkImportInput,
-    LibraryPdfPreviewInput, LibraryPdfPreviewResponse, LibraryRefInput, LibraryZoteroSyncInput,
-    LibraryZoteroSyncResponse, OpenExternalLinkInput, ProjectIntegrityStatus,
-    ProjectPathActionInput, ProjectRefInput, ProjectSearchHit, ProjectSearchInput, ProjectSnapshot,
-    ProjectSummary, ResourceNode, WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
+    LibraryLinkImportResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
+    LibraryPdfResumeResponse, LibraryRefInput, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
+    OpenExternalLinkInput, ProjectIntegrityStatus, ProjectPathActionInput, ProjectRefInput,
+    ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode,
+    WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -241,12 +242,37 @@ pub fn library_import_pdf(
 pub fn library_import_link(
     state: State<'_, AppState>,
     input: LibraryLinkImportInput,
-) -> Result<Ack, String> {
+) -> Result<LibraryLinkImportResponse, String> {
     state.log(
         "INFO",
         &format!("library_import_link: {}", input.project_id),
     );
-    storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())
+    let mut result = storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())?;
+    result.pdf_preview =
+        storage::queue_library_pdf_download(&state, &input.project_id, &result.relative_path)?;
+    result.pdf_preview.preview_url = result
+        .pdf_preview
+        .relative_path
+        .as_ref()
+        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
+    result.pdf_preview.translated_preview_url = result
+        .pdf_preview
+        .translated_relative_path
+        .as_ref()
+        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn library_resume_pdf_downloads(
+    state: State<'_, AppState>,
+    input: LibraryRefInput,
+) -> Result<LibraryPdfResumeResponse, String> {
+    state.log(
+        "INFO",
+        &format!("library_resume_pdf_downloads: {}", input.project_id),
+    );
+    storage::resume_library_pdf_downloads(&state, &input.project_id)
 }
 
 #[tauri::command]

@@ -162,7 +162,11 @@ pub fn import_library_pdf(db_path: &Path, project_id: &str, source_path: &Path) 
     })
 }
 
-pub fn import_library_link(db_path: &Path, project_id: &str, link: &str) -> Result<Ack, String> {
+pub fn import_library_link(
+    db_path: &Path,
+    project_id: &str,
+    link: &str,
+) -> Result<LibraryLinkImportResponse, String> {
     let trimmed = link.trim();
     if trimmed.is_empty() {
         return Err("Link cannot be empty".to_string());
@@ -218,15 +222,34 @@ pub fn import_library_link(db_path: &Path, project_id: &str, link: &str) -> Resu
     } else {
         format!("@misc{{{citation_key},\n  url = {{{trimmed}}}\n}}\n")
     };
-    fs::write(bib_path, final_entry).map_err(|e| e.to_string())?;
+    fs::write(&bib_path, final_entry).map_err(|e| e.to_string())?;
 
     refresh_workspace_index(&project_root)?;
     refresh_library_index(&project_root)?;
     touch_project_updated_at(db_path, project_id)?;
 
-    Ok(Ack {
+    let relative_path = bib_path
+        .strip_prefix(&papers_root)
+        .map_err(|e| e.to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    Ok(LibraryLinkImportResponse {
         ok: true,
         message: "Paper link imported".to_string(),
+        relative_path: relative_path.clone(),
+        pdf_preview: LibraryPdfPreviewResponse {
+            relative_path: None,
+            preview_url: None,
+            source_url: None,
+            cached: false,
+            cache_state: "missing".to_string(),
+            cache_error: None,
+            downloaded_bytes: None,
+            total_bytes: None,
+            translated_relative_path: None,
+            translated_preview_url: None,
+        },
     })
 }
 

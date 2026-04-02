@@ -18,12 +18,24 @@ type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type ViewMode = "bib" | "pdf" | "compare";
 
+function formatByteCount(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / (1024 ** index);
+  return `${value >= 100 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
+}
+
 type LibraryViewerContentPanelProps = {
   viewMode: ViewMode;
   loading: boolean;
   loadError: string | null;
   pdfPreviewLoading: boolean;
   pdfPreviewError: string | null;
+  pdfDownloadedBytes: number | null;
+  pdfTotalBytes: number | null;
   hasPdf: boolean;
   pdfUrl: string | null;
   annotationMode: ToolMode;
@@ -87,6 +99,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     loadError,
     pdfPreviewLoading,
     pdfPreviewError,
+    pdfDownloadedBytes,
+    pdfTotalBytes,
     hasPdf,
     pdfUrl,
     annotationMode,
@@ -139,12 +153,37 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
   const pdfPaneLoading = loading || pdfPreviewLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
+  const pdfProgressPercent = pdfTotalBytes && pdfTotalBytes > 0
+    ? Math.max(0, Math.min(100, (Math.max(pdfDownloadedBytes ?? 0, 0) / pdfTotalBytes) * 100))
+    : null;
 
   if (viewMode === "pdf") {
     return (
       <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2 motion-card-pop">
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
+          <div className="flex h-full items-center justify-center">
+            <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              <div>{t("library.viewer.downloadingPdf")}</div>
+              {pdfPreviewLoading ? (
+                <div className="mt-2">
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                      style={{ width: `${pdfProgressPercent ?? 20}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                    <span>{t("library.viewer.downloadProgress")}</span>
+                    <span>
+                      {pdfTotalBytes && pdfTotalBytes > 0
+                        ? `${formatByteCount(pdfDownloadedBytes ?? 0)} / ${formatByteCount(pdfTotalBytes)}`
+                        : formatByteCount(pdfDownloadedBytes ?? 0)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
         ) : pdfPaneError ? (
           <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {pdfPaneError}</div>
         ) : hasPdf && pdfUrl ? (

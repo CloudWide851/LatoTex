@@ -1,8 +1,10 @@
 import type {
   Ack,
   LibraryCitationSummary,
+  LibraryLinkImportResult,
   LibraryPaperExtractResult,
   LibraryPdfPreview,
+  LibraryPdfResumeResult,
   LibraryTranslateResult,
   LibraryTranslateStartResult,
   LibraryTranslateStatus,
@@ -23,8 +25,14 @@ export function importLibraryPdf(projectId: string): Promise<Ack | null> {
   return invokeCommand<Ack | null>("library_import_pdf", { input: { projectId } });
 }
 
-export function importLibraryLink(projectId: string, link: string): Promise<Ack> {
-  return invokeCommand<Ack>("library_import_link", { input: { projectId, link } });
+export function importLibraryLink(projectId: string, link: string): Promise<LibraryLinkImportResult> {
+  return invokeCommand<LibraryLinkImportResult>("library_import_link", { input: { projectId, link } });
+}
+
+export function resumeLibraryPdfDownloads(projectId: string): Promise<LibraryPdfResumeResult> {
+  return invokeCommand<LibraryPdfResumeResult>("library_resume_pdf_downloads", {
+    input: { projectId },
+  });
 }
 
 export function syncLibraryZotero(input: {

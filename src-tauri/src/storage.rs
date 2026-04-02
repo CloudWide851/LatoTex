@@ -1,10 +1,10 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
     FileReadBinaryResponse, FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult,
-    LibraryCitationSummaryResponse, LibraryPdfPreviewResponse, ModelCatalogItem,
-    ModelCatalogItemInput, ModelProtocol, ModelProtocolInput, ProjectIntegrityStatus,
-    ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode,
-    SettingsUpdateInput, SwarmEvent, UiPrefs,
+    LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfPreviewResponse,
+    LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
+    ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchHit, ProjectSearchInput,
+    ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
@@ -23,6 +23,7 @@ include!("storage/agent_cache_time.rs");
 include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
 include!("storage/library_pdf_preview_cache.rs");
+include!("storage/library_pdf_download_queue.rs");
 include!("storage/library_translation_engine.rs");
 include!("storage/workspace_ops_compile.rs");
 include!("storage/remote_metadata_fetch.rs");

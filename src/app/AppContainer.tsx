@@ -97,8 +97,6 @@ export function AppContainer() {
   );
   const startup = useAppStartup({
     isTauriRuntime,
-    loadProjectData,
-    refreshGitWorkspace,
     settingsRef: s.settingsRef,
     setStatus: s.setStatus,
     setProjects: s.setProjects,

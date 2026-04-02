@@ -213,6 +213,9 @@ fn resolve_existing_drawio_dir(state: &AppState) -> Option<PathBuf> {
 }
 
 fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
+    if let Some(source_dir) = choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio") {
+        return Ok(source_dir);
+    }
     if let Some(dir) = resolve_existing_drawio_dir(state) {
         return Ok(dir);
     }
