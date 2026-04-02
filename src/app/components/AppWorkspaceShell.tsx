@@ -34,7 +34,6 @@ import { createChatSessionInStore } from "../hooks/chatSessionStore";
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
     page,
-    componentStartupState,
     pageRailItems,
     activeProjectId,
     busy,
@@ -43,7 +42,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     latexLayout,
     analysisLayout,
     libraryLayout,
-    drawioWarmupInfo,
     tree,
     libraryTree,
     selectedFile,
@@ -404,9 +402,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return (
         <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
           <LazyDrawWorkspace
-            componentStartupState={componentStartupState}
             projectId={activeProjectId}
-            startupDrawioInfo={drawioWarmupInfo}
             selectedPath={selectedFile}
             onSelectPath={onSelectFile}
             onRequestFsAction={onFsAction}
@@ -417,16 +413,16 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       );
     }
     if (page === "library") {
-      return <NoProjectPanel busy={busy} componentStartupState={componentStartupState} onOpenFolder={onOpenFolder} t={t} />;
+      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
     if (page === "git") {
-      return activeProjectId ? gitPanel : <NoProjectPanel busy={busy} componentStartupState={componentStartupState} onOpenFolder={onOpenFolder} t={t} />;
+      return activeProjectId ? gitPanel : <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
     if (page === "settings") {
       return settingsPanel;
     }
     if (!activeProjectId) {
-      return <NoProjectPanel busy={busy} componentStartupState={componentStartupState} onOpenFolder={onOpenFolder} t={t} />;
+      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
     return (
       <LatexWorkspaceEditorPanel
@@ -511,7 +507,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   };
 
   return (
-    <main className="flex-1 min-h-0 overflow-hidden p-1" data-startup-state={componentStartupState} aria-busy={componentStartupState !== "ready"}>
+    <main className="flex-1 min-h-0 overflow-hidden p-1">
       <div className="flex h-full gap-0">
         <div className="w-14 shrink-0">
           <PageRail items={pageRailItems} activePage={page} onChange={onPageChange} />
@@ -521,7 +517,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             page={page}
             activeProjectId={activeProjectId}
             busy={busy}
-            componentStartupState={componentStartupState}
             latexLayout={latexLayout}
             analysisLayout={analysisLayout}
             libraryLayout={libraryLayout}

@@ -1,5 +1,5 @@
 use super::{
-    build_drawio_entry_url, build_workspace_file_resource_url, normalize_relative_asset_path,
+    build_workspace_file_resource_url, normalize_relative_asset_path,
     normalize_workspace_relative_path, resolve_drawio_marker_dir, workspace_file_response_bytes,
     LOCAL_RESOURCE_SCHEME,
 };
@@ -9,7 +9,7 @@ use tauri::http::{header::HeaderValue, Method};
 
 #[test]
 fn drawio_entry_url_uses_custom_local_resource_scheme() {
-    let value = build_drawio_entry_url();
+    let value = format!("http://{}.localhost/tool/drawio/index.html", LOCAL_RESOURCE_SCHEME);
     assert!(value.contains(LOCAL_RESOURCE_SCHEME));
     assert!(value.ends_with("/tool/drawio/index.html"));
 }

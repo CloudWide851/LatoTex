@@ -1,7 +1,6 @@
 import { Download, FolderOpen, Plus } from "lucide-react";
 import { useMemo, useState, type DragEvent } from "react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
-import type { ComponentStartupState } from "../../hooks/startupState";
 import { AnalysisLiveRail } from "./AnalysisLiveRail";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
@@ -69,7 +68,6 @@ function renderArtifacts(
 
 export function AnalysisWorkspace(props: {
   busy: boolean;
-  componentStartupState?: ComponentStartupState;
   prompt: string;
   canRun: boolean;
   running: boolean;
@@ -97,7 +95,6 @@ export function AnalysisWorkspace(props: {
 }) {
   const {
     busy,
-    componentStartupState = "ready",
     prompt,
     canRun,
     running,
@@ -123,7 +120,6 @@ export function AnalysisWorkspace(props: {
     t,
   } = props;
   const [dragActive, setDragActive] = useState(false);
-  const startupBlocked = componentStartupState !== "ready";
   const hasLiveStream = running || Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
   const activeTaskName = useMemo(
@@ -132,7 +128,7 @@ export function AnalysisWorkspace(props: {
   );
 
   return (
-    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow">
       <AnalysisTaskTabs
         tasks={tasks}
         activeTaskId={activeTaskId}
@@ -176,7 +172,7 @@ export function AnalysisWorkspace(props: {
             <button
               className="flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 transition motion-hover-rise hover:border-primary-300 hover:bg-primary-50/40 hover:text-primary-700"
               onClick={onCreateTask}
-              disabled={running || startupBlocked}
+              disabled={running}
             >
               <span className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white">
                 <Plus className="h-5 w-5" />
@@ -293,9 +289,9 @@ export function AnalysisWorkspace(props: {
             <AnalysisPromptOverlay
               embedded
               prompt={prompt}
-              canRun={canRun && !startupBlocked}
+              canRun={canRun}
               running={running}
-              busy={busy || startupBlocked}
+              busy={busy}
               candidateFiles={candidateFiles}
               onPromptChange={onPromptChange}
               onDropPaths={onDropPaths}

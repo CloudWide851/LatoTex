@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
-import type { DrawioCacheInfo, FsAction, FsScope } from "../../../shared/types/app";
-import type { ComponentStartupState } from "../../hooks/startupState";
+import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
   buildRenamedDrawPath,
   DRAWIO_CONFIG_MESSAGE,
@@ -56,9 +55,7 @@ function withReloadToken(url: string, reloadToken: number): string {
 }
 
 export function DrawWorkspace(props: {
-  componentStartupState: ComponentStartupState;
   projectId: string | null;
-  startupDrawioInfo: DrawioCacheInfo | null;
   selectedPath: string | null;
   onSelectPath: (path: string | null) => void;
   onRequestFsAction: (
@@ -77,8 +74,7 @@ export function DrawWorkspace(props: {
   ) => Promise<boolean>;
   t: TranslationFn;
 }) {
-  const { componentStartupState, projectId, startupDrawioInfo, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
-  const startupBlocked = componentStartupState !== "ready";
+  const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
   const xmlByPathRef = useRef<Record<string, string>>({});
@@ -88,7 +84,6 @@ export function DrawWorkspace(props: {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [runtimeDrawioInfo, setRuntimeDrawioInfo] = useState<DrawioCacheInfo | null>(startupDrawioInfo);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
@@ -99,20 +94,8 @@ export function DrawWorkspace(props: {
   const [renameInput, setRenameInput] = useState("");
 
   useEffect(() => {
-    setRuntimeDrawioInfo(startupDrawioInfo);
-  }, [projectId, startupDrawioInfo]);
-
-  useEffect(() => {
-    if (startupBlocked) {
-      setReady(false);
-      setFrameSrc(null);
-      setFrameFailureDetail(null);
-      setFrameLoadStage("idle");
-      return;
-    }
-
     try {
-      const resolved = resolveDrawioHostFrameSrc(runtimeDrawioInfo);
+      const resolved = resolveDrawioHostFrameSrc();
       if (!resolved) {
         const failure = formatDrawStartFailure(t, "drawio entry url is missing");
         setReady(false);
@@ -135,7 +118,7 @@ export function DrawWorkspace(props: {
       setFrameLoadStage("idle");
       setStatus(failure);
     }
-  }, [frameReloadToken, runtimeDrawioInfo, startupBlocked, t]);
+  }, [frameReloadToken, t]);
 
   const retryFrameLoad = useCallback(() => {
     setReady(false);
@@ -143,9 +126,8 @@ export function DrawWorkspace(props: {
     setFrameFailureDetail(null);
     setFrameLoadStage("connecting");
     setStatus(t("draw.waiting"));
-    setRuntimeDrawioInfo(startupDrawioInfo ?? runtimeDrawioInfo);
     setFrameReloadToken((prev) => prev + 1);
-  }, [runtimeDrawioInfo, startupDrawioInfo, t]);
+  }, [t]);
   useEffect(() => {
     activePathRef.current = activePath;
   }, [activePath]);
@@ -341,7 +323,6 @@ export function DrawWorkspace(props: {
       setActivePath(null);
       activePathRef.current = null;
       setReady(false);
-      setRuntimeDrawioInfo(startupDrawioInfo);
       setFrameSrc(null);
       setFrameFailureDetail(null);
       setFrameLoadStage("idle");
@@ -530,20 +511,20 @@ export function DrawWorkspace(props: {
 
   if (!projectId) {
     return (
-      <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+      <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
         {t("workspace.noProject")}
       </section>
     );
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+    <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <DrawWorkspaceTabs
         tabPaths={tabPaths}
         activePath={activePath}
         renamingPath={renamingPath}
         renameInput={renameInput}
-        busy={busy || startupBlocked}
+        busy={busy}
         status={status}
         onRenameInputChange={setRenameInput}
         onSelectPath={selectTabPath}

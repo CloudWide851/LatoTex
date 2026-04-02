@@ -1,5 +1,3 @@
-import type { DrawioCacheInfo } from "../../../shared/types/app";
-
 export type DrawMessage = {
   event?: string;
   xml?: string;
@@ -60,13 +58,13 @@ function drawTabsStorageKey(projectId: string): string {
 }
 
 export function resolveDrawioHostFrameSrc(
-  info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
+  entryUrl?: string | null,
 ): string | null {
-  const entryUrl = String(info?.entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
-  if (!entryUrl) {
+  const resolvedEntryUrl = String(entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
+  if (!resolvedEntryUrl) {
     return null;
   }
-  return toDrawioEmbedUrl(entryUrl);
+  return toDrawioEmbedUrl(resolvedEntryUrl);
 }
 
 export function normalizePath(value: string | null | undefined): string {
@@ -155,92 +153,6 @@ export function interpretDrawHandshakeMessage(message: DrawMessage | null): Draw
     }
   }
   return { kind: "ignore" };
-}
-
-function hiddenProbeFrameStyle(frame: HTMLIFrameElement) {
-  frame.setAttribute("aria-hidden", "true");
-  frame.tabIndex = -1;
-  frame.style.position = "fixed";
-  frame.style.left = "-10000px";
-  frame.style.top = "0";
-  frame.style.width = "1px";
-  frame.style.height = "1px";
-  frame.style.opacity = "0";
-  frame.style.pointerEvents = "none";
-  frame.style.border = "0";
-}
-
-export async function probeDrawioHostFrame(
-  info?: Pick<DrawioCacheInfo, "entryUrl"> | null,
-): Promise<string> {
-  const frameSrc = resolveDrawioHostFrameSrc(info);
-  if (!frameSrc) {
-    throw new Error("drawio entry url is missing");
-  }
-  if (typeof window === "undefined" || typeof document === "undefined" || !document.body) {
-    return frameSrc;
-  }
-
-  return new Promise<string>((resolve, reject) => {
-    const frame = document.createElement("iframe");
-    hiddenProbeFrameStyle(frame);
-
-    let stage: "idle" | "hostReady" = "idle";
-    let timer: number | null = null;
-
-    const cleanup = () => {
-      if (timer !== null) {
-        window.clearTimeout(timer);
-        timer = null;
-      }
-      window.removeEventListener("message", handleMessage);
-      frame.remove();
-    };
-
-    const fail = (detail: string) => {
-      cleanup();
-      reject(new Error(detail));
-    };
-
-    const scheduleTimeout = (ms: number, detail: string) => {
-      if (timer !== null) {
-        window.clearTimeout(timer);
-      }
-      timer = window.setTimeout(() => fail(detail), ms);
-    };
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.source !== frame.contentWindow) {
-        return;
-      }
-      const action = interpretDrawHandshakeMessage(parseDrawMessage(event.data));
-      if (action.kind === "ignore") {
-        return;
-      }
-      if (action.kind === "hostLoaded") {
-        stage = "hostReady";
-        scheduleTimeout(20_000, "drawio host loaded but editor init timed out");
-        return;
-      }
-      if (action.kind === "configure") {
-        frame.contentWindow?.postMessage(action.outboundMessage, "*");
-        return;
-      }
-      if (action.kind === "init") {
-        cleanup();
-        resolve(frameSrc);
-        return;
-      }
-      if (action.kind === "error") {
-        fail(action.detail);
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    scheduleTimeout(12_000, "drawio local resource channel did not initialize in time");
-    frame.src = `${frameSrc}${frameSrc.includes("?") ? "&" : "?"}latotexProbe=${Date.now()}`;
-    document.body.appendChild(frame);
-  });
 }
 
 export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {

@@ -17,9 +17,9 @@ describe("drawWorkspaceUtils", () => {
     );
   });
 
-  it("resolves a single canonical host frame src from startup info", async () => {
+  it("resolves a single canonical host frame src from an explicit entry url", async () => {
     const { resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc({ entryUrl: "http://latotex-resource.localhost/tool/drawio/index.html" })).toBe(
+    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html")).toBe(
       "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
     );
   });

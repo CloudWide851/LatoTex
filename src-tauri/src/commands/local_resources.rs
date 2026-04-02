@@ -1,4 +1,3 @@
-use crate::models::{DrawioCacheInfo, DrawioCachePrepareInput};
 use crate::state::AppState;
 use crate::storage;
 use std::fs;
@@ -7,7 +6,6 @@ use tauri::http::{
     header::{CACHE_CONTROL, CONTENT_TYPE},
     Method, Request, Response, StatusCode,
 };
-use tauri::State;
 use urlencoding::{decode, encode};
 
 pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
@@ -23,11 +21,7 @@ const REQUIRED_DRAWIO_ASSETS: [&str; 6] = [
 ];
 
 struct CachePrepareResult {
-    policy: String,
-    requested_dir: String,
     actual_dir: String,
-    install_dir_writable: bool,
-    using_fallback: bool,
 }
 
 struct DrawioCacheDirs {
@@ -180,13 +174,11 @@ fn prepare_drawio_cache(state: &AppState, policy: &str) -> Result<CachePrepareRe
     };
 
     let mut actual_dir = requested_dir.clone();
-    let mut install_dir_writable = true;
     let mut using_fallback = false;
 
     let ensure_result = ensure_cache_dir(&requested_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS);
     if let Err(error) = ensure_result {
         if requested_dir == dirs.install_dir && is_permission_denied(&error) {
-            install_dir_writable = false;
             using_fallback = true;
             actual_dir = dirs.appdata_dir.clone();
             ensure_cache_dir(&actual_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS)?;
@@ -199,11 +191,7 @@ fn prepare_drawio_cache(state: &AppState, policy: &str) -> Result<CachePrepareRe
     write_cache_marker(&actual_dir, policy, &requested_dir, using_fallback);
 
     Ok(CachePrepareResult {
-        policy: policy.to_string(),
-        requested_dir: requested_dir.to_string_lossy().to_string(),
         actual_dir: actual_dir.to_string_lossy().to_string(),
-        install_dir_writable,
-        using_fallback,
     })
 }
 
@@ -420,20 +408,6 @@ fn workspace_file_response_bytes(
     }
 }
 
-fn build_drawio_entry_url() -> String {
-    #[cfg(target_os = "windows")]
-    {
-        return format!(
-            "http://{}.localhost{DRAWIO_ROUTE_PREFIX}/index.html",
-            LOCAL_RESOURCE_SCHEME
-        );
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        format!("{LOCAL_RESOURCE_SCHEME}://localhost{DRAWIO_ROUTE_PREFIX}/index.html")
-    }
-}
-
 pub fn build_workspace_file_resource_url(project_id: &str, relative_path: &str) -> String {
     let encoded_project_id = encode(project_id.trim());
     let encoded_relative_path = encode(relative_path.trim().trim_start_matches('/'));
@@ -554,29 +528,6 @@ pub fn handle_local_resource_request(
         Ok(bytes) => build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes),
         Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
     }
-}
-
-pub fn prepare_drawio_cache_info(
-    state: &AppState,
-    policy: &str,
-) -> Result<DrawioCacheInfo, String> {
-    let prepared = prepare_drawio_cache(state, policy.trim())?;
-    Ok(DrawioCacheInfo {
-        policy: prepared.policy,
-        requested_dir: prepared.requested_dir,
-        actual_dir: prepared.actual_dir,
-        install_dir_writable: prepared.install_dir_writable,
-        using_fallback: prepared.using_fallback,
-        entry_url: build_drawio_entry_url(),
-    })
-}
-
-#[tauri::command]
-pub fn drawio_cache_prepare(
-    state: State<'_, AppState>,
-    input: DrawioCachePrepareInput,
-) -> Result<DrawioCacheInfo, String> {
-    prepare_drawio_cache_info(&state, input.policy.trim())
 }
 
 #[cfg(test)]

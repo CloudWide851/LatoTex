@@ -552,34 +552,6 @@ pub fn library_resolve_pdf_preview_runtime(
         None,
     ))
 }
-pub fn wait_for_library_pdf_preview_ready(
-    state: &crate::state::AppState,
-    project_id: &str,
-    relative_path: &str,
-    timeout: std::time::Duration,
-) -> Result<LibraryPdfPreviewResponse, String> {
-    let started_at = std::time::Instant::now();
-    loop {
-        let preview = library_resolve_pdf_preview_runtime(state, project_id, relative_path, false)?;
-        match preview.cache_state.as_str() {
-            LIBRARY_PDF_CACHE_STATE_READY
-            | LIBRARY_PDF_CACHE_STATE_ERROR
-            | LIBRARY_PDF_CACHE_STATE_MISSING => return Ok(preview),
-            _ => {}
-        }
-        if started_at.elapsed() >= timeout {
-            return Ok(LibraryPdfPreviewResponse {
-                cache_state: LIBRARY_PDF_CACHE_STATE_ERROR.to_string(),
-                cache_error: Some(format!(
-                    "library.pdf_cache_timeout: warmup exceeded {} ms",
-                    timeout.as_millis()
-                )),
-                ..preview
-            });
-        }
-        std::thread::sleep(std::time::Duration::from_millis(350));
-    }
-}
 #[cfg(test)]
 #[path = "library_pdf_preview_cache_tests.rs"]
 mod library_pdf_preview_cache_tests;

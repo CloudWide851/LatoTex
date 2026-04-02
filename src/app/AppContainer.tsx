@@ -99,7 +99,6 @@ export function AppContainer() {
     isTauriRuntime,
     loadProjectData,
     refreshGitWorkspace,
-    persistSettings,
     settingsRef: s.settingsRef,
     setStatus: s.setStatus,
     setProjects: s.setProjects,
@@ -407,12 +406,6 @@ export function AppContainer() {
   return (
     <AppContainerView
       status={s.status}
-      startupState={startup.startupState}
-      componentStartupState={startup.componentStartupState}
-      handleStartupRetry={startup.handleStartupRetry}
-      handleStartupExit={startup.handleStartupExit}
-      handleStartupChooseAnalysisEnvLocation={startup.handleStartupChooseAnalysisEnvLocation}
-      handleStartupPrepareAnalysisEnv={startup.handleStartupPrepareAnalysisEnv}
       sleeping={idleSleep.sleeping}
       onWakeFromSleep={idleSleep.wake}
       logoMark={logoMark}
@@ -452,7 +445,6 @@ export function AppContainer() {
       latexLayout={panels.latexLayout}
       analysisLayout={panels.analysisLayout}
       libraryLayout={panels.libraryLayout}
-      drawioWarmupInfo={startup.startupState.drawioWarmupInfo}
       settings={s.settings}
       tree={s.tree}
       libraryTree={s.libraryTree}

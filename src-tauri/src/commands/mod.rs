@@ -7,7 +7,6 @@ pub mod local_resources;
 pub mod native_runtime;
 pub mod projects;
 pub mod projects_translation;
-pub mod resource_warmup;
 pub mod settings;
 pub mod share;
 pub mod swarm;

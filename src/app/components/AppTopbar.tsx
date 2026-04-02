@@ -6,7 +6,6 @@ import {
   X,
 } from "lucide-react";
 import type { ProjectSearchHit, ProjectSummary } from "../../shared/types/app";
-import type { ComponentStartupState } from "../hooks/startupState";
 import { ProjectSearch } from "./ProjectSearch";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
@@ -14,7 +13,6 @@ type TranslationFn = (key: any) => string;
 
 export function AppTopbar(props: {
   status: "ready" | "offline";
-  componentStartupState: ComponentStartupState;
   logoMark: string;
   projects: ProjectSummary[];
   activeProjectId: string | null;
@@ -36,7 +34,6 @@ export function AppTopbar(props: {
 }) {
   const {
     status,
-    componentStartupState,
     logoMark,
     projects,
     activeProjectId,
@@ -56,13 +53,10 @@ export function AppTopbar(props: {
     onWindowControl,
     t,
   } = props;
-  const startupBlocked = componentStartupState !== "ready";
 
   return (
     <header
       className="app-topbar tauri-drag-region relative grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto] items-center border-b"
-      data-startup-state={componentStartupState}
-      aria-busy={startupBlocked}
       data-tauri-drag-region
     >
       <div className="absolute inset-x-0 top-0 h-2" data-tauri-drag-region />
@@ -89,7 +83,7 @@ export function AppTopbar(props: {
           <ProjectSwitcher
             projects={projects}
             activeProjectId={activeProjectId}
-            disabled={projects.length === 0 || startupBlocked}
+            disabled={projects.length === 0}
             onChange={onProjectChange}
             t={t}
           />
@@ -104,7 +98,7 @@ export function AppTopbar(props: {
             onSearch={onProjectSearch}
             onSelect={onProjectSearchSelect}
             onClear={onProjectSearchClear}
-            disabled={!activeProjectId || startupBlocked}
+            disabled={!activeProjectId}
             t={t}
           />
         </div>
@@ -113,7 +107,7 @@ export function AppTopbar(props: {
           type="button"
           className="app-topbar-field app-topbar-action-btn tauri-no-drag shrink-0 rounded"
           onClick={onOpenFolder}
-          disabled={busy || startupBlocked}
+          disabled={busy}
           title={t("topbar.openFolder")}
           aria-label={t("topbar.openFolder")}
         >
@@ -127,7 +121,6 @@ export function AppTopbar(props: {
           aria-label={t("window.minimize")}
           className="app-topbar-btn app-topbar-window-btn tauri-no-drag flex items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("minimize")}
-          disabled={startupBlocked}
         >
           <Minus className="h-4 w-4" />
         </button>
@@ -136,7 +129,7 @@ export function AppTopbar(props: {
           aria-label={t("window.maximize")}
           className="app-topbar-btn app-topbar-window-btn tauri-no-drag flex items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("toggle")}
-          disabled={!isTauriRuntime || startupBlocked}
+          disabled={!isTauriRuntime}
         >
           {isMaximized ? (
             <Minimize2 className="h-4 w-4" />
@@ -149,7 +142,6 @@ export function AppTopbar(props: {
           aria-label={t("window.close")}
           className="app-topbar-btn-close app-topbar-window-btn tauri-no-drag flex items-center justify-center rounded transition disabled:opacity-40"
           onClick={() => onWindowControl("close")}
-          disabled={startupBlocked}
         >
           <X className="h-4 w-4" />
         </button>

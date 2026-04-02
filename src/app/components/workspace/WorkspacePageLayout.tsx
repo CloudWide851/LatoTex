@@ -8,7 +8,6 @@ import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 type WorkspacePageLayoutProps = Pick<
   AppWorkspaceShellProps,
   | "page"
-  | "componentStartupState"
   | "activeProjectId"
   | "busy"
   | "latexLayout"
@@ -44,7 +43,6 @@ type WorkspacePageLayoutProps = Pick<
 
 export function WorkspacePageLayout({
   page,
-  componentStartupState,
   activeProjectId,
   busy,
   latexLayout,
@@ -76,8 +74,6 @@ export function WorkspacePageLayout({
   renderPdfPreviewPanel,
   onSelectWorkspaceFile,
 }: WorkspacePageLayoutProps) {
-  const startupBlocked = componentStartupState !== "ready";
-
   const renderLatexPanel = () => {
     if (page !== "latex" || !activeProjectId) {
       return null;
@@ -107,7 +103,7 @@ export function WorkspacePageLayout({
         </Panel>
         <PanelResizeHandle className="resizable-handle" />
         <Panel className="min-w-0" id={`latex-editor-${activeProjectId}`} order={2} defaultSize={latexLayout[1]} minSize={30}>
-          <section className="h-full min-h-0 min-w-0 motion-page-in" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+          <section className="h-full min-h-0 min-w-0 motion-page-in">
             {renderMainPanel()}
           </section>
         </Panel>
@@ -148,7 +144,7 @@ export function WorkspacePageLayout({
         </Panel>
         <PanelResizeHandle className="resizable-handle" />
         <Panel className="min-w-0" id={`analysis-main-${activeProjectId ?? "none"}`} order={2} defaultSize={analysisLayout[1]} minSize={30}>
-          <section className="h-full min-h-0 min-w-0 motion-page-in" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+          <section className="h-full min-h-0 min-w-0 motion-page-in">
             {renderMainPanel()}
           </section>
         </Panel>
@@ -159,7 +155,7 @@ export function WorkspacePageLayout({
   const renderCurrentPage = () => {
     if (!activeProjectId) {
       return (
-        <section className="h-full min-h-0 min-w-0 motion-page-in" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+        <section className="h-full min-h-0 min-w-0 motion-page-in">
           {renderMainPanel()}
         </section>
       );
@@ -168,7 +164,7 @@ export function WorkspacePageLayout({
       renderLatexPanel()
       ?? renderAnalysisPanel()
       ?? (
-        <section className="h-full min-h-0 min-w-0 motion-page-in" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+        <section className="h-full min-h-0 min-w-0 motion-page-in">
           {renderMainPanel()}
         </section>
       )
@@ -198,7 +194,7 @@ export function WorkspacePageLayout({
       </Panel>
       <PanelResizeHandle className="resizable-handle" />
       <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
-        <section className="h-full min-h-0 min-w-0 motion-page-in" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+        <section className="h-full min-h-0 min-w-0 motion-page-in">
           <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
             <LazyLibraryDocumentViewer
               projectId={activeProjectId}
@@ -222,7 +218,7 @@ export function WorkspacePageLayout({
   }
 
   return (
-    <div className="relative h-full min-h-0 min-w-0" data-startup-state={componentStartupState} aria-busy={startupBlocked}>
+    <div className="relative h-full min-h-0 min-w-0">
       <section
         className={page === "library"
           ? "absolute inset-0 z-10 min-h-0 min-w-0"
