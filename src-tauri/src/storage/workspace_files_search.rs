@@ -270,7 +270,6 @@ pub fn list_library_tree(db_path: &Path, project_id: &str) -> Result<Vec<Resourc
     let root = load_project_root(db_path, project_id)?;
     let papers_root = library_root(&root);
     fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
-    refresh_library_index(&root)?;
     list_workspace_tree(&papers_root)
 }
 

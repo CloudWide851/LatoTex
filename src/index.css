@@ -699,23 +699,39 @@ body::before {
 }
 
 .editor-content-stage .monaco-editor,
-.editor-content-stage .monaco-editor-background,
+.editor-content-stage .monaco-editor-background {
+  background: var(--editor-paper-bg) !important;
+}
+
 .editor-content-stage .monaco-editor .margin,
 .editor-content-stage .monaco-editor .margin-view-overlays {
-  background: transparent !important;
+  background: color-mix(in srgb, var(--editor-paper-bg) 94%, #dbeafe) !important;
+}
+
+.editor-content-stage .monaco-editor .margin {
+  border-right: 1px solid color-mix(in srgb, var(--editor-paper-edge) 78%, #cbd5e1);
 }
 
 .editor-content-stage .monaco-editor .scroll-decoration {
   box-shadow: none !important;
 }
 
+.editor-content-stage .monaco-editor .margin-view-overlays .line-numbers {
+  display: inline-block !important;
+  min-width: calc(100% - 6px);
+  padding-right: 8px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .editor-content-stage .monaco-editor .line-numbers {
   opacity: 1 !important;
-  color: #64748b !important;
+  color: #475569 !important;
 }
 
 .editor-content-stage .monaco-editor .line-numbers.active-line-number {
   color: #0f172a !important;
+  font-weight: 600;
 }
 
 .editor-chat-scroll {
@@ -797,6 +813,15 @@ body::before {
 
 [data-theme="dark"] .editor-content-stage .monaco-editor .line-numbers.active-line-number {
   color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .editor-content-stage .monaco-editor .margin,
+[data-theme="dark"] .editor-content-stage .monaco-editor .margin-view-overlays {
+  background: color-mix(in srgb, #0f172a 88%, #1e293b) !important;
+}
+
+[data-theme="dark"] .editor-content-stage .monaco-editor .margin {
+  border-right-color: rgba(71, 85, 105, 0.92);
 }
 
 .settings-bool-row {

@@ -109,7 +109,7 @@ pub fn workspace_tree(
 }
 
 #[tauri::command]
-pub fn file_read(
+pub async fn file_read(
     state: State<'_, AppState>,
     input: FileReadInput,
 ) -> Result<FileReadResponse, String> {
@@ -117,11 +117,16 @@ pub fn file_read(
         "INFO",
         &format!("file_read: {} ({})", input.relative_path, input.project_id),
     );
-    storage::read_project_file(&state.db_path, &input.project_id, &input.relative_path)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+    spawn_blocking(move || storage::read_project_file(&db_path, &project_id, &relative_path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn file_read_binary(
+pub async fn file_read_binary(
     state: State<'_, AppState>,
     input: FileReadInput,
 ) -> Result<FileReadBinaryResponse, String> {
@@ -132,7 +137,12 @@ pub fn file_read_binary(
             input.relative_path, input.project_id
         ),
     );
-    storage::read_project_file_binary(&state.db_path, &input.project_id, &input.relative_path)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+    spawn_blocking(move || storage::read_project_file_binary(&db_path, &project_id, &relative_path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -284,7 +294,7 @@ pub fn library_import_link(
 }
 
 #[tauri::command]
-pub fn library_resume_pdf_downloads(
+pub async fn library_resume_pdf_downloads(
     state: State<'_, AppState>,
     input: LibraryRefInput,
 ) -> Result<LibraryPdfResumeResponse, String> {
@@ -292,7 +302,11 @@ pub fn library_resume_pdf_downloads(
         "INFO",
         &format!("library_resume_pdf_downloads: {}", input.project_id),
     );
-    storage::resume_library_pdf_downloads(&state, &input.project_id)
+    let project_id = input.project_id;
+    let app_state = state.inner().clone();
+    spawn_blocking(move || storage::resume_library_pdf_downloads(&app_state, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

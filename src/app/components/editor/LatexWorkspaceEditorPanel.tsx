@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import { PenTool, Play, Redo2, Save, Undo2 } from "lucide-react";
 import { AgentProposalMiniBar } from "./AgentProposalMiniBar";
@@ -187,8 +187,13 @@ export function LatexWorkspaceEditorPanel(props: {
   } = props;
   const [editorTheme, setEditorTheme] = useState(getEditorSurfaceThemeName);
   const [monacoOverflowWidgetRoot, setMonacoOverflowWidgetRoot] = useState<HTMLElement | null>(null);
+  const editorInstanceRef = useRef<any | null>(null);
   const agentCommandItems = buildAgentCommandItems(t);
   const editorLanguage = selectedCodeLanguage.monaco;
+  const editorOptions = useMemo(
+    () => createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot),
+    [monacoOverflowWidgetRoot],
+  );
 
   useEffect(() => {
     if (typeof document === "undefined" || typeof MutationObserver === "undefined") {
@@ -205,6 +210,15 @@ export function LatexWorkspaceEditorPanel(props: {
   useEffect(() => {
     setMonacoOverflowWidgetRoot(ensureMonacoOverflowWidgetRoot());
   }, []);
+
+  useEffect(() => {
+    const editor = editorInstanceRef.current;
+    if (!editor || showChatWorkspace || selectedIsExcel) {
+      return;
+    }
+    editor.updateOptions(editorOptions);
+    editor.layout();
+  }, [editorLanguage, editorOptions, editorTheme, selectedFile, selectedIsExcel, showChatWorkspace]);
 
   return (
     <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
@@ -357,11 +371,13 @@ export function LatexWorkspaceEditorPanel(props: {
             }}
             onChange={(value) => onEditorChange(value ?? "")}
             onMount={(editor, monaco) => {
+              editorInstanceRef.current = editor;
               ensureLatexCompletionProvider(monaco);
-              editor.updateOptions(createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot));
+              editor.updateOptions(editorOptions);
+              editor.layout();
               onEditorMount(editor, monaco);
             }}
-            options={createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot)}
+            options={editorOptions}
           />
         )}
 

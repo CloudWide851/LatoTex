@@ -187,9 +187,6 @@ Create new files from the explorer, then use the Agent panel to iterate on your 
         fs::write(editorconfig_path, format!("{content}\n")).map_err(|e| e.to_string())?;
     }
 
-    refresh_workspace_index(root)?;
-    refresh_library_index(root)?;
-
     Ok(())
 }
 
@@ -378,8 +375,6 @@ pub fn project_snapshot(db_path: &Path, project_id: &str) -> Result<ProjectSnaps
 
     let root_path = PathBuf::from(&summary.root_path);
     ensure_workspace_bootstrap_files(&root_path)?;
-    refresh_workspace_index(&root_path)?;
-    refresh_library_index(&root_path)?;
     let tree = list_workspace_tree(&root_path)?;
     Ok(ProjectSnapshot {
         summary,

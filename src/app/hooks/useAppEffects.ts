@@ -30,7 +30,7 @@ export function useAppEffects(params: {
   gitDownloadTaskId: string | null;
   gitInstallerLaunched: boolean;
   settingsTheme: ThemeMode | undefined;
-  loadProjectData: (projectId: string, options?: { includeGitRefresh?: boolean }) => Promise<void>;
+  loadProjectData: (projectId: string, options?: { includeGitRefresh?: boolean; deferLibraryLoad?: boolean }) => Promise<void>;
   lastLoadedProjectIdRef: React.MutableRefObject<string | null>;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   handleGitRunInstaller: () => Promise<void>;
@@ -181,7 +181,7 @@ export function useAppEffects(params: {
     if (lastLoadedProjectIdRef.current === activeProjectId) {
       return;
     }
-    void loadProjectData(activeProjectId, { includeGitRefresh: false })
+    void loadProjectData(activeProjectId, { includeGitRefresh: false, deferLibraryLoad: true })
       .then(() => refreshGitWorkspace(activeProjectId).catch(() => undefined))
       .catch((error) => {
         setToast({ type: "error", message: String(error) });

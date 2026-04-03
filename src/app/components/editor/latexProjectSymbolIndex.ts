@@ -4,6 +4,8 @@ const INDEXABLE_FILE = /\.(tex|bib|sty|cls|bst|bbx|cbx|ltx|tikz|pgf|md|txt|csv|t
 const MAX_FILES = 180;
 const MAX_FILE_CHARS = 64_000;
 const MAX_SYMBOLS = 3_200;
+const BACKGROUND_INDEX_START_DELAY_MS = 480;
+const BACKGROUND_INDEX_BATCH_SIZE = 18;
 
 type IndexEntry = {
   stamp: string;
@@ -63,6 +65,33 @@ function buildStamp(fileList: string[], selectedFile: string | null): string {
   return `${selectedFile ?? ""}::${fileList.slice().sort().join("|")}`;
 }
 
+function mergeSymbols(base: Iterable<string>, next: Iterable<string>): string[] {
+  const merged = new Set<string>();
+  for (const item of base) {
+    if (!item) {
+      continue;
+    }
+    merged.add(item);
+    if (merged.size >= MAX_SYMBOLS) {
+      return Array.from(merged).sort((a, b) => a.localeCompare(b));
+    }
+  }
+  for (const item of next) {
+    if (!item) {
+      continue;
+    }
+    merged.add(item);
+    if (merged.size >= MAX_SYMBOLS) {
+      break;
+    }
+  }
+  return Array.from(merged).sort((a, b) => a.localeCompare(b));
+}
+
+async function delay(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function scheduleProjectSymbolIndexSync(params: {
   projectId: string | null;
   fileList: string[];
@@ -82,18 +111,18 @@ export function scheduleProjectSymbolIndexSync(params: {
     return;
   }
 
+  const immediateSymbols = selectedFile && INDEXABLE_FILE.test(selectedFile) && selectedFileContent.trim()
+    ? extractSymbolsFromText(selectedFileContent.slice(0, MAX_FILE_CHARS))
+    : [];
   const entry: IndexEntry = {
     stamp,
-    symbols: [],
-    ready: false,
+    symbols: mergeSymbols([], immediateSymbols),
+    ready: immediateSymbols.length > 0,
   };
   const loadPromise = (async () => {
-    const out = new Set<string>();
-    if (selectedFile && INDEXABLE_FILE.test(selectedFile) && selectedFileContent.trim()) {
-      for (const symbol of extractSymbolsFromText(selectedFileContent.slice(0, MAX_FILE_CHARS))) {
-        out.add(symbol);
-      }
-    }
+    const out = new Set<string>(entry.symbols);
+    await delay(BACKGROUND_INDEX_START_DELAY_MS);
+    let processed = 0;
     for (const path of candidates) {
       if (selectedFile && path === selectedFile) {
         continue;
@@ -112,6 +141,12 @@ export function scheduleProjectSymbolIndexSync(params: {
         }
       } catch {
         // Ignore per-file indexing failure.
+      }
+      processed += 1;
+      if (processed % BACKGROUND_INDEX_BATCH_SIZE === 0) {
+        entry.symbols = Array.from(out).sort((a, b) => a.localeCompare(b));
+        entry.ready = entry.symbols.length > 0;
+        await delay(0);
       }
     }
     entry.symbols = Array.from(out).sort((a, b) => a.localeCompare(b));

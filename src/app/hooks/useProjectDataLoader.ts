@@ -8,6 +8,7 @@ import type { AppSettings, ResourceNode, WorkspacePage } from "../../shared/type
 export type ProjectIntegrityIssue = { projectId: string; missingRequired: string[] };
 export type LoadProjectDataOptions = {
   includeGitRefresh?: boolean;
+  deferLibraryLoad?: boolean;
 };
 
 function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
@@ -139,21 +140,39 @@ export function useProjectDataLoader(params: {
       }
       integrityCheckedRef.current.add(projectId);
     }
-    const [snapshot, papers] = await Promise.all([
-      openProject(projectId),
-      getLibraryTree(projectId),
-    ]);
+    const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
-    setLibraryTree(papers);
-    setSelectedLibraryPath(resolvePersistedLibrarySelection(settingsRef.current, projectId, papers));
-    loadedLibraryProjectIdRef.current = projectId;
+    loadedLibraryProjectIdRef.current = null;
     lastLoadedProjectIdRef.current = projectId;
+    setLibraryTree([]);
+    setSelectedLibraryPath(null);
+    const applyLibraryState = (papers: ResourceNode[]) => {
+      if (activeProjectIdRef.current !== projectId) {
+        return;
+      }
+      setLibraryTree(papers);
+      setSelectedLibraryPath(resolvePersistedLibrarySelection(settingsRef.current, projectId, papers));
+      loadedLibraryProjectIdRef.current = projectId;
+    };
+
+    if (options?.deferLibraryLoad) {
+      void getLibraryTree(projectId)
+        .then((papers) => {
+          applyLibraryState(papers);
+        })
+        .catch(() => undefined);
+    } else {
+      const papers = await getLibraryTree(projectId);
+      applyLibraryState(papers);
+    }
+
     if (options?.includeGitRefresh === false) {
       return;
     }
     await refreshGitWorkspace(projectId);
   }, [
+    activeProjectIdRef,
     integrityCheckedRef,
     lastLoadedProjectIdRef,
     loadedLibraryProjectIdRef,

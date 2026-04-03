@@ -13,7 +13,7 @@ export function useWorkbenchRuntimeEffects(params: {
   runtime: WorkbenchRuntimeState;
   t: TranslationFn;
   isTauriRuntime: boolean;
-  loadProjectData: (projectId: string, options?: { includeGitRefresh?: boolean }) => Promise<void>;
+  loadProjectData: (projectId: string, options?: { includeGitRefresh?: boolean; deferLibraryLoad?: boolean }) => Promise<void>;
   refreshGitWorkspace: (projectIdOverride?: string) => Promise<void>;
   handleGitRunInstaller: () => Promise<void>;
 }) {
