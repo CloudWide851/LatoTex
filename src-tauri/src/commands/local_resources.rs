@@ -1,6 +1,7 @@
 use crate::state::AppState;
 use crate::storage;
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
 use tauri::http::{
     header::{CACHE_CONTROL, CONTENT_TYPE},
@@ -326,6 +327,29 @@ fn build_binary_response_with_headers(
         .unwrap_or_else(|_| Response::new(bytes))
 }
 
+fn build_head_response(
+    status: StatusCode,
+    mime: &str,
+    content_length: usize,
+    extra_headers: &[(&str, String)],
+) -> Response<Vec<u8>> {
+    let mut builder = Response::builder()
+        .status(status)
+        .header(CONTENT_TYPE, mime)
+        .header(CACHE_CONTROL, "no-store")
+        .header("Accept-Ranges", "bytes")
+        .header("Content-Length", content_length.to_string());
+    for (name, value) in local_resource_header_values() {
+        builder = builder.header(name, value);
+    }
+    for (name, value) in extra_headers {
+        builder = builder.header(*name, value);
+    }
+    builder
+        .body(Vec::new())
+        .unwrap_or_else(|_| Response::new(Vec::new()))
+}
+
 fn build_options_response() -> Response<Vec<u8>> {
     build_binary_response_with_headers(StatusCode::NO_CONTENT, "application/octet-stream", Vec::new(), &[])
 }
@@ -374,33 +398,59 @@ fn parse_byte_range(range_header: &str, total_len: usize) -> Result<Option<(usiz
     Ok(Some((start, end.min(total_len - 1))))
 }
 
-fn workspace_file_response_bytes(
+fn read_workspace_file_bytes(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|e| e.to_string())
+}
+
+fn read_workspace_file_segment(path: &Path, start: usize, end: usize) -> Result<Vec<u8>, String> {
+    let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
+    file.seek(SeekFrom::Start(start as u64))
+        .map_err(|e| e.to_string())?;
+    let len = end.saturating_sub(start).saturating_add(1);
+    let mut buffer = vec![0_u8; len];
+    file.read_exact(&mut buffer).map_err(|e| e.to_string())?;
+    Ok(buffer)
+}
+
+fn workspace_file_response(
     method: &Method,
-    bytes: Vec<u8>,
+    asset_path: &Path,
     mime: &str,
     range_header: Option<&str>,
 ) -> Response<Vec<u8>> {
+    let total_len = match fs::metadata(asset_path) {
+        Ok(metadata) => metadata.len() as usize,
+        Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
+    };
+
     if *method == Method::HEAD {
-        return build_binary_response(StatusCode::OK, mime, Vec::new());
+        return build_head_response(StatusCode::OK, mime, total_len, &[]);
     }
 
-    let total_len = bytes.len();
     let Some(range_value) = range_header.map(str::trim).filter(|value| !value.is_empty()) else {
-        return build_binary_response(StatusCode::OK, mime, bytes);
+        return match read_workspace_file_bytes(asset_path) {
+            Ok(bytes) => build_binary_response(StatusCode::OK, mime, bytes),
+            Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+        };
     };
 
     match parse_byte_range(range_value, total_len) {
-        Ok(Some((start, end))) => {
-            let content_range = format!("bytes {start}-{end}/{total_len}");
-            let partial = bytes[start..=end].to_vec();
-            build_binary_response_with_headers(
-                StatusCode::PARTIAL_CONTENT,
-                mime,
-                partial,
-                &[("Content-Range", content_range)],
-            )
-        }
-        Ok(None) => build_binary_response(StatusCode::OK, mime, bytes),
+        Ok(Some((start, end))) => match read_workspace_file_segment(asset_path, start, end) {
+            Ok(partial) => {
+                let content_range = format!("bytes {start}-{end}/{total_len}");
+                build_binary_response_with_headers(
+                    StatusCode::PARTIAL_CONTENT,
+                    mime,
+                    partial,
+                    &[("Content-Range", content_range)],
+                )
+            }
+            Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+        },
+        Ok(None) => match read_workspace_file_bytes(asset_path) {
+            Ok(bytes) => build_binary_response(StatusCode::OK, mime, bytes),
+            Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+        },
         Err(error) if error == "resource.range.unsatisfiable" => build_binary_response_with_headers(
             StatusCode::RANGE_NOT_SATISFIABLE,
             mime,
@@ -485,18 +535,15 @@ fn serve_workspace_file(state: &AppState, request: &Request<Vec<u8>>) -> Respons
     if !asset_path.exists() || !asset_path.is_file() {
         return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
     }
-    match fs::read(&asset_path) {
-        Ok(bytes) => workspace_file_response_bytes(
-            request.method(),
-            bytes,
-            mime_type_for_path(&asset_path),
-            request
-                .headers()
-                .get("range")
-                .and_then(|value| value.to_str().ok()),
-        ),
-        Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
-    }
+    workspace_file_response(
+        request.method(),
+        &asset_path,
+        mime_type_for_path(&asset_path),
+        request
+            .headers()
+            .get("range")
+            .and_then(|value| value.to_str().ok()),
+    )
 }
 
 pub fn handle_local_resource_request(

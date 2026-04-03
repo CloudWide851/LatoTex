@@ -47,115 +47,135 @@ pub fn git_run_installer(state: State<'_, AppState>, input: GitTaskInput) -> Res
 }
 
 #[tauri::command]
-pub fn git_status(state: State<'_, AppState>, input: GitRefInput) -> Result<GitStatusResponse, String> {
+pub async fn git_status(
+    state: State<'_, AppState>,
+    input: GitRefInput,
+) -> Result<GitStatusResponse, String> {
     state.log("INFO", &format!("git_status: {}", input.project_id));
-    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || {
+        let root = storage::load_project_root(&db_path, &project_id)?;
 
-    let repo_check = run_git(&root, &["rev-parse", "--is-inside-work-tree"]);
-    if repo_check.is_err() {
-        return Ok(GitStatusResponse {
-            is_repo: false,
-            branch: "-".to_string(),
-            upstream: None,
-            ahead: 0,
-            behind: 0,
-            changes: Vec::new(),
-        });
-    }
-
-    let raw = run_git(
-        &root,
-        &[
-            "status",
-            "--porcelain=v1",
-            "-b",
-            "--untracked-files=all",
-            "--ignored=matching",
-        ],
-    )?;
-    let unstaged_numstat = parse_numstat(&run_git(&root, &["diff", "--numstat"]).unwrap_or_default());
-    let staged_numstat = parse_numstat(&run_git(&root, &["diff", "--cached", "--numstat"]).unwrap_or_default());
-    let mut lines = raw.lines();
-    let header = lines.next().unwrap_or_default();
-    let (branch, upstream, ahead, behind) = parse_branch_header(header);
-
-    let mut changes = Vec::new();
-    for line in lines {
-        if line.len() < 4 {
-            continue;
+        let repo_check = run_git(&root, &["rev-parse", "--is-inside-work-tree"]);
+        if repo_check.is_err() {
+            return Ok(GitStatusResponse {
+                is_repo: false,
+                branch: "-".to_string(),
+                upstream: None,
+                ahead: 0,
+                behind: 0,
+                changes: Vec::new(),
+            });
         }
-        let mut chars = line.chars();
-        let index_status_char = chars.next().unwrap_or(' ');
-        let worktree_status_char = chars.next().unwrap_or(' ');
-        let index_status = index_status_char.to_string();
-        let worktree_status = worktree_status_char.to_string();
-        let ignored = index_status_char == '!' && worktree_status_char == '!';
-        let untracked = index_status_char == '?' || worktree_status_char == '?';
-        let status_implies_change = matches!(index_status_char, 'R' | 'C' | 'T' | 'U' | 'D')
-            || matches!(worktree_status_char, 'R' | 'C' | 'T' | 'U' | 'D');
-        let path = normalize_status_path(&line[3..]);
-        let absolute_path = root.join(&path);
-        if absolute_path.exists() && absolute_path.is_dir() {
-            continue;
-        }
-        let staged = staged_numstat.get(&path).copied().unwrap_or((0, 0));
-        let unstaged = unstaged_numstat.get(&path).copied().unwrap_or((0, 0));
-        let mut added_lines = staged.0.saturating_add(unstaged.0);
-        let removed_lines = staged.1.saturating_add(unstaged.1);
-        if added_lines == 0 && removed_lines == 0 {
-            if untracked {
-                added_lines = estimate_untracked_added_lines(&root, &path);
-            } else if !ignored
-                && !status_implies_change
-                && !path_has_effective_content_change(
-                    &root,
-                    &path,
-                    index_status_char,
-                    worktree_status_char,
-                )?
-            {
+
+        let raw = run_git(
+            &root,
+            &[
+                "status",
+                "--porcelain=v1",
+                "-b",
+                "--untracked-files=all",
+                "--ignored=matching",
+            ],
+        )?;
+        let unstaged_numstat =
+            parse_numstat(&run_git(&root, &["diff", "--numstat"]).unwrap_or_default());
+        let staged_numstat =
+            parse_numstat(&run_git(&root, &["diff", "--cached", "--numstat"]).unwrap_or_default());
+        let mut lines = raw.lines();
+        let header = lines.next().unwrap_or_default();
+        let (branch, upstream, ahead, behind) = parse_branch_header(header);
+
+        let mut changes = Vec::new();
+        for line in lines {
+            if line.len() < 4 {
                 continue;
             }
+            let mut chars = line.chars();
+            let index_status_char = chars.next().unwrap_or(' ');
+            let worktree_status_char = chars.next().unwrap_or(' ');
+            let index_status = index_status_char.to_string();
+            let worktree_status = worktree_status_char.to_string();
+            let ignored = index_status_char == '!' && worktree_status_char == '!';
+            let untracked = index_status_char == '?' || worktree_status_char == '?';
+            let status_implies_change = matches!(index_status_char, 'R' | 'C' | 'T' | 'U' | 'D')
+                || matches!(worktree_status_char, 'R' | 'C' | 'T' | 'U' | 'D');
+            let path = normalize_status_path(&line[3..]);
+            let absolute_path = root.join(&path);
+            if absolute_path.exists() && absolute_path.is_dir() {
+                continue;
+            }
+            let staged = staged_numstat.get(&path).copied().unwrap_or((0, 0));
+            let unstaged = unstaged_numstat.get(&path).copied().unwrap_or((0, 0));
+            let mut added_lines = staged.0.saturating_add(unstaged.0);
+            let removed_lines = staged.1.saturating_add(unstaged.1);
+            if added_lines == 0 && removed_lines == 0 {
+                if untracked {
+                    added_lines = estimate_untracked_added_lines(&root, &path);
+                } else if !ignored
+                    && !status_implies_change
+                    && !path_has_effective_content_change(
+                        &root,
+                        &path,
+                        index_status_char,
+                        worktree_status_char,
+                    )?
+                {
+                    continue;
+                }
+            }
+            changes.push(GitStatusEntry {
+                path,
+                index_status,
+                worktree_status,
+                added_lines,
+                removed_lines,
+                ignored,
+            });
         }
-        changes.push(GitStatusEntry {
-            path,
-            index_status,
-            worktree_status,
-            added_lines,
-            removed_lines,
-            ignored,
-        });
-    }
 
-    Ok(GitStatusResponse {
-        is_repo: true,
-        branch,
-        upstream,
-        ahead,
-        behind,
-        changes,
+        Ok(GitStatusResponse {
+            is_repo: true,
+            branch,
+            upstream,
+            ahead,
+            behind,
+            changes,
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn git_branches(state: State<'_, AppState>, input: GitRefInput) -> Result<Vec<GitBranchInfo>, String> {
+pub async fn git_branches(
+    state: State<'_, AppState>,
+    input: GitRefInput,
+) -> Result<Vec<GitBranchInfo>, String> {
     state.log("INFO", &format!("git_branches: {}", input.project_id));
-    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let raw = run_git(&root, &["branch", "--format=%(HEAD)%09%(refname:short)"])?;
-    let mut branches = Vec::new();
-    for line in raw.lines() {
-        let mut parts = line.split('\t');
-        let head = parts.next().unwrap_or_default();
-        let name = parts.next().unwrap_or_default().trim();
-        if name.is_empty() {
-            continue;
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || {
+        let root = storage::load_project_root(&db_path, &project_id)?;
+        let raw = run_git(&root, &["branch", "--format=%(HEAD)%09%(refname:short)"])?;
+        let mut branches = Vec::new();
+        for line in raw.lines() {
+            let mut parts = line.split('\t');
+            let head = parts.next().unwrap_or_default();
+            let name = parts.next().unwrap_or_default().trim();
+            if name.is_empty() {
+                continue;
+            }
+            branches.push(GitBranchInfo {
+                name: name.to_string(),
+                current: head.trim() == "*",
+            });
         }
-        branches.push(GitBranchInfo {
-            name: name.to_string(),
-            current: head.trim() == "*",
-        });
-    }
-    Ok(branches)
+        Ok(branches)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

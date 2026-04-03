@@ -87,7 +87,7 @@ export function DrawWorkspace(props: {
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
-  const [frameLoadStage, setFrameLoadStage] = useState<"idle" | "connecting" | "hostReady">("idle");
+  const [frameLoadStage, setFrameLoadStage] = useState<"idle" | "connecting">("idle");
   const [frameDocumentLoaded, setFrameDocumentLoaded] = useState(false);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -123,10 +123,10 @@ export function DrawWorkspace(props: {
   }, [frameReloadToken, t]);
 
   const retryFrameLoad = useCallback(() => {
-    setReady(false);
-    setFrameSrc(null);
-    setFrameFailureDetail(null);
-    setFrameLoadStage("connecting");
+      setReady(false);
+      setFrameSrc(null);
+      setFrameFailureDetail(null);
+      setFrameLoadStage("connecting");
     setFrameDocumentLoaded(false);
     setStatus(t("draw.waiting"));
     setFrameReloadToken((prev) => prev + 1);
@@ -327,9 +327,9 @@ export function DrawWorkspace(props: {
       activePathRef.current = null;
       setReady(false);
       setFrameSrc(null);
-      setFrameFailureDetail(null);
-      setFrameLoadStage("idle");
-      setFrameDocumentLoaded(false);
+        setFrameFailureDetail(null);
+        setFrameLoadStage("idle");
+        setFrameDocumentLoaded(false);
       setStatus("");
       setRenamingPath(null);
       setRenameInput("");
@@ -409,11 +409,11 @@ export function DrawWorkspace(props: {
       }
       const handshakeAction = interpretDrawHandshakeMessage(message);
       if (handshakeAction.kind === "hostLoaded") {
-        setFrameLoadStage("hostReady");
         setStatus(t("draw.hostReady"));
         return;
       }
       if (handshakeAction.kind === "configure") {
+        setStatus(t("draw.hostReady"));
         postToFrameRaw(DRAWIO_CONFIG_MESSAGE);
         return;
       }
@@ -432,7 +432,12 @@ export function DrawWorkspace(props: {
         return;
       }
       if (handshakeAction.kind === "error") {
-        setStatus(handshakeAction.detail);
+        const failure = formatDrawStartFailure(t, handshakeAction.detail);
+        setReady(false);
+        setFrameSrc(null);
+        setFrameFailureDetail(failure);
+        setFrameLoadStage("idle");
+        setStatus(failure);
         return;
       }
       if ((message.event === "save" || message.event === "autosave") && typeof message.xml === "string") {
@@ -504,7 +509,7 @@ export function DrawWorkspace(props: {
       setFrameFailureDetail(failure);
       setFrameLoadStage("idle");
       setStatus(failure);
-    }, frameLoadStage === "hostReady" ? 20_000 : 15_000);
+    }, 20_000);
     return () => {
       if (initTimerRef.current !== null) {
         window.clearTimeout(initTimerRef.current);

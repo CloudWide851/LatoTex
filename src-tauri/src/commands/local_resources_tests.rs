@@ -1,11 +1,32 @@
 use super::{
     build_workspace_file_resource_url, normalize_relative_asset_path,
-    normalize_workspace_relative_path, resolve_drawio_marker_dir, workspace_file_response_bytes,
+    normalize_workspace_relative_path, resolve_drawio_marker_dir, workspace_file_response,
     LOCAL_RESOURCE_SCHEME,
 };
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::http::{header::HeaderValue, Method};
+
+fn temp_workspace_file_path(name: &str, bytes: &[u8]) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "latotex-local-resource-test-{}-{}",
+        name,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    fs::write(&path, bytes).unwrap();
+    path
+}
+
+fn cleanup_temp_workspace_file(path: &Path) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+}
 
 #[test]
 fn drawio_entry_url_uses_custom_local_resource_scheme() {
@@ -37,9 +58,10 @@ fn workspace_file_resource_url_encodes_project_and_relative_path() {
 
 #[test]
 fn workspace_file_response_sets_cors_headers_for_pdf_reads() {
-    let response = workspace_file_response_bytes(
+    let path = temp_workspace_file_path("sample.pdf", b"%PDF-demo");
+    let response = workspace_file_response(
         &Method::GET,
-        b"%PDF-demo".to_vec(),
+        &path,
         "application/pdf",
         None,
     );
@@ -56,13 +78,15 @@ fn workspace_file_response_sets_cors_headers_for_pdf_reads() {
         response.headers().get("Content-Length"),
         Some(&HeaderValue::from_static("9"))
     );
+    cleanup_temp_workspace_file(&path);
 }
 
 #[test]
 fn workspace_file_response_supports_single_byte_ranges() {
-    let response = workspace_file_response_bytes(
+    let path = temp_workspace_file_path("range.pdf", b"0123456789");
+    let response = workspace_file_response(
         &Method::GET,
-        b"0123456789".to_vec(),
+        &path,
         "application/pdf",
         Some("bytes=2-5"),
     );
@@ -72,13 +96,15 @@ fn workspace_file_response_supports_single_byte_ranges() {
         response.headers().get("Content-Range"),
         Some(&HeaderValue::from_static("bytes 2-5/10"))
     );
+    cleanup_temp_workspace_file(&path);
 }
 
 #[test]
 fn workspace_file_response_rejects_unsatisfiable_ranges() {
-    let response = workspace_file_response_bytes(
+    let path = temp_workspace_file_path("unsat.pdf", b"0123");
+    let response = workspace_file_response(
         &Method::GET,
-        b"0123".to_vec(),
+        &path,
         "application/pdf",
         Some("bytes=99-120"),
     );
@@ -87,6 +113,25 @@ fn workspace_file_response_rejects_unsatisfiable_ranges() {
         response.headers().get("Content-Range"),
         Some(&HeaderValue::from_static("bytes */4"))
     );
+    cleanup_temp_workspace_file(&path);
+}
+
+#[test]
+fn workspace_file_response_head_reports_real_content_length() {
+    let path = temp_workspace_file_path("head.pdf", b"%PDF-1.7\npayload");
+    let response = workspace_file_response(
+        &Method::HEAD,
+        &path,
+        "application/pdf",
+        None,
+    );
+    assert_eq!(response.status(), 200);
+    assert!(response.body().is_empty());
+    assert_eq!(
+        response.headers().get("Content-Length"),
+        Some(&HeaderValue::from_static("16"))
+    );
+    cleanup_temp_workspace_file(&path);
 }
 
 #[test]

@@ -40,6 +40,12 @@ export type LibraryLinkImportResult = {
   pdfPreview: LibraryPdfPreview;
 };
 
+export type LibraryPdfImportResult = {
+  ok: boolean;
+  message: string;
+  relativePath: string;
+};
+
 export type LibraryPdfResumeResult = {
   queued: number;
   skipped: number;

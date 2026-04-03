@@ -18,7 +18,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::State;
+use tauri::{async_runtime::spawn_blocking, State};
 use uuid::Uuid;
 
 const GIT_RELEASE_API: &str = "https://api.github.com/repos/git-for-windows/git/releases/latest";

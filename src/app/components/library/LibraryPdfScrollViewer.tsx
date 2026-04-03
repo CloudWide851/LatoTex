@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Document, Page } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
+import { useWorkspacePdfSource } from "../pdf/useWorkspacePdfSource";
 import type {
   AnnotationStroke,
   AnnotationTextBox,
@@ -30,6 +31,8 @@ export type LibraryPdfScrollSyncGroup = {
 
 type LibraryPdfScrollViewerProps = {
   pdfUrl: string;
+  fallbackProjectId?: string | null;
+  fallbackRelativePath?: string | null;
   pageCount: number;
   zoom: number;
   mode: ToolMode;
@@ -85,6 +88,8 @@ export const LibraryPdfScrollViewer = forwardRef<
 >(function LibraryPdfScrollViewer(props, ref) {
   const {
     pdfUrl,
+    fallbackProjectId = null,
+    fallbackRelativePath = null,
     pageCount,
     zoom,
     mode,
@@ -117,6 +122,11 @@ export const LibraryPdfScrollViewer = forwardRef<
   const [visiblePage, setVisiblePage] = useState(1);
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
   const lastVisiblePageRef = useRef<number>(1);
+  const { effectivePdfUrl, tryFallbackToBlob } = useWorkspacePdfSource({
+    pdfUrl,
+    fallbackProjectId,
+    fallbackRelativePath,
+  });
 
   const pages = useMemo(
     () => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1),
@@ -153,7 +163,7 @@ export const LibraryPdfScrollViewer = forwardRef<
 
   useEffect(() => {
     setDocumentLoadError(null);
-  }, [pdfUrl]);
+  }, [effectivePdfUrl]);
 
   useEffect(() => {
     if (!scrollRef.current || pages.length === 0) {
@@ -273,6 +283,9 @@ export const LibraryPdfScrollViewer = forwardRef<
       scrollRef.current.scrollTop = 0;
     }
   }, [onPageCountChange, onVisiblePageChange, pageCount, pdfUrl]);
+  useEffect(() => {
+    setDocumentLoadError(null);
+  }, [pdfUrl]);
 
   useEffect(() => {
     const pending = pendingScrollPageRef.current;
@@ -311,8 +324,8 @@ export const LibraryPdfScrollViewer = forwardRef<
   return (
     <div {...rootProps}>
       <Document
-        key={pdfUrl}
-        file={pdfUrl}
+        key={effectivePdfUrl}
+        file={effectivePdfUrl}
         loading={
           <div className="py-6 text-center text-xs text-slate-500">
             {t("library.viewer.loading")}
@@ -340,12 +353,27 @@ export const LibraryPdfScrollViewer = forwardRef<
           }
         }}
         onLoadError={(error) => {
-          setDocumentLoadError(String(error || "pdf_load_failed"));
-          setDocumentPages(1);
-          setVisiblePage(1);
-          onPageCountChange(1);
-          lastVisiblePageRef.current = 1;
-          onVisiblePageChange(1);
+          void tryFallbackToBlob()
+            .then((recovered) => {
+              if (recovered) {
+                setDocumentLoadError(null);
+                return;
+              }
+              setDocumentLoadError(String(error || "pdf_load_failed"));
+              setDocumentPages(1);
+              setVisiblePage(1);
+              onPageCountChange(1);
+              lastVisiblePageRef.current = 1;
+              onVisiblePageChange(1);
+            })
+            .catch(() => {
+              setDocumentLoadError(String(error || "pdf_load_failed"));
+              setDocumentPages(1);
+              setVisiblePage(1);
+              onPageCountChange(1);
+              lastVisiblePageRef.current = 1;
+              onVisiblePageChange(1);
+            });
         }}
       >
         <div className="space-y-3">

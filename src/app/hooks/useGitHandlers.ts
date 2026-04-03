@@ -164,6 +164,7 @@ export function useGitHandlers(params: {
           return;
         }
         await refreshLibraryTree();
+        setSelectedLibraryPath(result.relativePath);
       },
       fallbackValue: undefined,
       setBusy,

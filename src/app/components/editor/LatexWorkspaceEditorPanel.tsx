@@ -7,6 +7,7 @@ import { EditorTabsBar } from "./EditorTabsBar";
 import { getEditorSurfaceThemeName, registerEditorSurfaceThemes } from "./editorSurfaceTheme";
 import { registerEditorCodeLanguages } from "./editorCodeLanguages";
 import { ensureLatexCompletionProvider } from "./latexCompletion";
+import { createWorkspaceEditorMonacoOptions } from "./editorMonacoOptions";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
 import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
@@ -357,45 +358,10 @@ export function LatexWorkspaceEditorPanel(props: {
             onChange={(value) => onEditorChange(value ?? "")}
             onMount={(editor, monaco) => {
               ensureLatexCompletionProvider(monaco);
+              editor.updateOptions(createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot));
               onEditorMount(editor, monaco);
             }}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 14,
-              fontLigatures: true,
-              letterSpacing: 0.15,
-              lineHeight: 22,
-              smoothScrolling: true,
-              automaticLayout: true,
-              quickSuggestions: { other: true, comments: false, strings: true },
-              suggestOnTriggerCharacters: true,
-              tabCompletion: "on",
-              inlineSuggest: { enabled: true, mode: "subword" },
-              bracketPairColorization: { enabled: true },
-              colorDecorators: false,
-              acceptSuggestionOnCommitCharacter: true,
-              wordWrap: "on",
-              wordWrapColumn: 0,
-              wrappingIndent: "same",
-              padding: { top: 20, bottom: 28 },
-              scrollBeyondLastLine: false,
-              hideCursorInOverviewRuler: true,
-              overviewRulerBorder: false,
-              roundedSelection: true,
-              selectionHighlight: false,
-              renderLineHighlight: "line",
-              renderLineHighlightOnlyWhenFocus: true,
-              cursorBlinking: "smooth",
-              cursorSmoothCaretAnimation: "on",
-              fixedOverflowWidgets: true,
-              overflowWidgetsDomNode: monacoOverflowWidgetRoot ?? undefined,
-              stickyScroll: { enabled: false },
-              scrollbar: {
-                verticalScrollbarSize: 10,
-                horizontalScrollbarSize: 10,
-                alwaysConsumeMouseWheel: false,
-              },
-            }}
+            options={createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot)}
           />
         )}
 

@@ -10,7 +10,7 @@ use crate::storage;
 use reqwest::blocking::Client;
 use reqwest::StatusCode;
 use std::time::Duration;
-use tauri::State;
+use tauri::{async_runtime::spawn_blocking, State};
 #[path = "settings_background.rs"]
 mod settings_background;
 #[path = "settings_fonts.rs"]
@@ -32,9 +32,13 @@ pub use settings_runtime_logs::{
     runtime_log_read, runtime_log_write,
 };
 #[tauri::command]
-pub fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
+pub async fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");
-    storage::load_settings(&state.db_path, &state.runtime_root)
+    let db_path = state.db_path.clone();
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || storage::load_settings(&db_path, &runtime_root))
+        .await
+        .map_err(|e| e.to_string())?
 }
 #[tauri::command]
 pub fn settings_update(

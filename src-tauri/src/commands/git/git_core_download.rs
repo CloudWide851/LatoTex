@@ -256,13 +256,19 @@ fn select_git_windows_asset(release: GitHubRelease) -> Option<GitHubAsset> {
 }
 
 #[tauri::command]
-pub fn git_check_installed(state: State<'_, AppState>) -> Result<GitAvailabilityResponse, String> {
+pub async fn git_check_installed(
+    state: State<'_, AppState>,
+) -> Result<GitAvailabilityResponse, String> {
     state.log("INFO", "git_check_installed");
-    let version = read_git_version();
-    Ok(GitAvailabilityResponse {
-        installed: version.is_some(),
-        version,
+    spawn_blocking(move || {
+        let version = read_git_version();
+        Ok(GitAvailabilityResponse {
+            installed: version.is_some(),
+            version,
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

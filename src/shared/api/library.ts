@@ -1,6 +1,7 @@
 import type {
   Ack,
   LibraryCitationSummary,
+  LibraryPdfImportResult,
   LibraryLinkImportResult,
   LibraryPaperExtractResult,
   LibraryPdfPreview,
@@ -21,8 +22,8 @@ export function rescanLibrary(projectId: string): Promise<Ack> {
   return invokeCommand<Ack>("library_rescan", { input: { projectId } });
 }
 
-export function importLibraryPdf(projectId: string): Promise<Ack | null> {
-  return invokeCommand<Ack | null>("library_import_pdf", { input: { projectId } });
+export function importLibraryPdf(projectId: string): Promise<LibraryPdfImportResult | null> {
+  return invokeCommand<LibraryPdfImportResult | null>("library_import_pdf", { input: { projectId } });
 }
 
 export function importLibraryLink(projectId: string, link: string): Promise<LibraryLinkImportResult> {

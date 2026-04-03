@@ -1,8 +1,8 @@
 use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
     FileReadBinaryResponse, FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult,
-    LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfPreviewResponse,
-    LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
+    LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
+    LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
     ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchHit, ProjectSearchInput,
     ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };

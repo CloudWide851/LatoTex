@@ -51,6 +51,14 @@ pub struct LibraryPdfPreviewResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LibraryPdfImportResponse {
+    pub ok: bool,
+    pub message: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LibraryLinkImportResponse {
     pub ok: bool,
     pub message: String,

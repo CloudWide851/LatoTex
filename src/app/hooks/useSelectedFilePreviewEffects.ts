@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { readFile } from "../../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
-import { resolveReachableWorkspacePreviewUrl } from "../../shared/utils/workspacePreview";
-import { buildWorkspaceResourceUrl } from "../../shared/utils/workspaceResource";
+import { buildWorkspaceResourceUrl, buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -92,21 +91,9 @@ export function useSelectedFilePreviewEffects(params: {
       setSelectedFilePdfUrl(null);
       return;
     }
-    let cancelled = false;
-    void resolveReachableWorkspacePreviewUrl({
-      projectId: activeProjectId,
-      relativePath: selectedFile,
-      cacheKey: `${page}-${Date.now()}`,
-    }).then((resolved) => {
-      if (cancelled) {
-        return;
-      }
-      selectedFilePdfUrlRef.current = resolved.url;
-      setSelectedFilePdfUrl(resolved.url);
-    });
-    return () => {
-      cancelled = true;
-    };
+    const nextUrl = buildWorkspacePreviewUrl(activeProjectId, selectedFile, `${page}-${Date.now()}`);
+    selectedFilePdfUrlRef.current = nextUrl;
+    setSelectedFilePdfUrl(nextUrl);
   }, [activeProjectId, page, selectedFile, setSelectedFilePdfUrl]);
 
   useEffect(() => {

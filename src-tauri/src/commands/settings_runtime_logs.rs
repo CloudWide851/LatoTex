@@ -8,7 +8,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use tauri::State;
+use tauri::{async_runtime::spawn_blocking, State};
 
 const CLEAR_SESSION_TOKEN: &str = "CLEAR_CURRENT_SESSION";
 
@@ -76,14 +76,23 @@ pub fn runtime_log_write(
 }
 
 #[tauri::command]
-pub fn runtime_log_info(state: State<'_, AppState>) -> Result<RuntimeLogInfo, String> {
-    Ok(RuntimeLogInfo {
-        session_log_file: state.session_log_path.to_string_lossy().to_string(),
-        logs_dir: state.logs_dir.to_string_lossy().to_string(),
-        runtime_root: state.runtime_root.to_string_lossy().to_string(),
-        install_mode: state.install_mode.clone(),
-        version: state.app_version.clone(),
+pub async fn runtime_log_info(state: State<'_, AppState>) -> Result<RuntimeLogInfo, String> {
+    let session_log_path = state.session_log_path.clone();
+    let logs_dir = state.logs_dir.clone();
+    let runtime_root = state.runtime_root.clone();
+    let install_mode = state.install_mode.clone();
+    let app_version = state.app_version.clone();
+    spawn_blocking(move || {
+        Ok(RuntimeLogInfo {
+            session_log_file: session_log_path.to_string_lossy().to_string(),
+            logs_dir: logs_dir.to_string_lossy().to_string(),
+            runtime_root: runtime_root.to_string_lossy().to_string(),
+            install_mode,
+            version: app_version,
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

@@ -115,7 +115,11 @@ fn touch_project_updated_at(db_path: &Path, project_id: &str) -> Result<(), Stri
     Ok(())
 }
 
-pub fn import_library_pdf(db_path: &Path, project_id: &str, source_path: &Path) -> Result<Ack, String> {
+pub fn import_library_pdf(
+    db_path: &Path,
+    project_id: &str,
+    source_path: &Path,
+) -> Result<LibraryPdfImportResponse, String> {
     if !source_path.exists() || !source_path.is_file() {
         return Err("Selected PDF file is not accessible".to_string());
     }
@@ -156,9 +160,16 @@ pub fn import_library_pdf(db_path: &Path, project_id: &str, source_path: &Path) 
     refresh_library_index(&project_root)?;
     touch_project_updated_at(db_path, project_id)?;
 
-    Ok(Ack {
+    let relative_path = target_pdf
+        .strip_prefix(&papers_root)
+        .map_err(|e| e.to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    Ok(LibraryPdfImportResponse {
         ok: true,
         message: "Paper PDF imported".to_string(),
+        relative_path,
     })
 }
 

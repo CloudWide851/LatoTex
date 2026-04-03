@@ -111,6 +111,7 @@ export function useAppStartup(params: {
     startedRef.current = true;
 
     const bootstrap = async () => {
+      let targetProjectId: string | null = null;
       try {
         try {
           await getHealthCheck();
@@ -122,15 +123,9 @@ export function useAppStartup(params: {
             setStatus("offline");
           }
         }
-
-        if (isTauriRuntime) {
-          await windowSyncIcon().catch(() => undefined);
-        }
-
-        const [projectList, appSettings, info] = await Promise.all([
+        const [projectList, appSettings] = await Promise.all([
           listProjects(),
           getSettings(),
-          runtimeLogInfo(),
         ]);
         if (!mountedRef.current) {
           return;
@@ -140,7 +135,6 @@ export function useAppStartup(params: {
         const normalizedSettings = normalizeSettings(appSettings);
         settingsRef.current = normalizedSettings;
         setSettings(normalizedSettings);
-        setRuntimeInfo(info);
 
         const initialLocale = resolveLocale(
           normalizedSettings.uiPrefs?.language
@@ -152,26 +146,8 @@ export function useAppStartup(params: {
         }
 
         applyTheme((normalizedSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system");
-        const targetProjectId = resolveInitialProjectId(projectList, normalizedSettings);
+        targetProjectId = resolveInitialProjectId(projectList, normalizedSettings);
         setActiveProjectId(targetProjectId);
-
-        await runtimeLogWrite(
-          "INFO",
-          `frontend bootstrap completed, project=${targetProjectId ?? "-"}, installMode=${info.installMode}, version=${info.version}`,
-        ).catch(() => undefined);
-
-        if (targetProjectId) {
-          void resumeLibraryPdfDownloads(targetProjectId)
-            .then((result) => runtimeLogWrite(
-              "INFO",
-              `frontend startup resumed library pdf downloads, project=${targetProjectId}, queued=${result.queued}, skipped=${result.skipped}, failed=${result.failed}`,
-            ))
-            .catch((error) => runtimeLogWrite(
-              "ERROR",
-              `frontend startup resume library pdf downloads failed, project=${targetProjectId}, reason=${String(error)}`,
-            ))
-            .catch(() => undefined);
-        }
       } catch (error) {
         if (!mountedRef.current) {
           return;
@@ -183,6 +159,40 @@ export function useAppStartup(params: {
         if (mountedRef.current) {
           setStartupReady(true);
         }
+      }
+
+      if (isTauriRuntime) {
+        void windowSyncIcon().catch(() => undefined);
+      }
+
+      void runtimeLogInfo()
+        .then((info) => {
+          if (!mountedRef.current) {
+            return;
+          }
+          setRuntimeInfo(info);
+          return runtimeLogWrite(
+            "INFO",
+            `frontend bootstrap completed, project=${targetProjectId ?? "-"}, installMode=${info.installMode}, version=${info.version}`,
+          ).catch(() => undefined);
+        })
+        .catch((error) => runtimeLogWrite(
+          "ERROR",
+          `frontend bootstrap runtime info failed: ${String(error)}`,
+        ))
+        .catch(() => undefined);
+
+      if (targetProjectId) {
+        void resumeLibraryPdfDownloads(targetProjectId)
+          .then((result) => runtimeLogWrite(
+            "INFO",
+            `frontend startup resumed library pdf downloads, project=${targetProjectId}, queued=${result.queued}, skipped=${result.skipped}, failed=${result.failed}`,
+          ))
+          .catch((error) => runtimeLogWrite(
+            "ERROR",
+            `frontend startup resume library pdf downloads failed, project=${targetProjectId}, reason=${String(error)}`,
+          ))
+          .catch(() => undefined);
       }
     };
 

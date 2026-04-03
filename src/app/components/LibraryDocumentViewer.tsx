@@ -81,6 +81,7 @@ export function LibraryDocumentViewer(props: {
     paperPreviewError,
     bibPreview,
     pdfUrl,
+    sourcePdfRelativePath,
     translatedPdfRelativePath,
     translatedPdfUrl,
     resolvedLink,
@@ -431,6 +432,7 @@ export function LibraryDocumentViewer(props: {
       <div className="relative min-h-0">
         <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
         <LibraryViewerContentPanel
+        projectId={projectId}
         viewMode={viewMode}
         loading={loading}
         loadError={loadError}
@@ -440,6 +442,7 @@ export function LibraryDocumentViewer(props: {
         pdfTotalBytes={pdfTotalBytes}
         hasPdf={hasPdf}
         pdfUrl={pdfUrl}
+        sourcePdfRelativePath={sourcePdfRelativePath}
         annotationMode={annotationMode}
         setAnnotationMode={setAnnotationMode}
         highlightColor={highlightColor}
@@ -477,6 +480,7 @@ export function LibraryDocumentViewer(props: {
         selectedPath={selectedPath}
         runTranslation={handleRunTranslation}
         hasComparePair={hasComparePair}
+        translatedPdfRelativePath={translatedPdfRelativePath}
         translatedPdfUrl={translatedPdfUrl}
         bibPreview={bibPreview}
         citation={citation}

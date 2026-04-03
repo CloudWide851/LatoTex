@@ -181,10 +181,12 @@ export function useAppEffects(params: {
     if (lastLoadedProjectIdRef.current === activeProjectId) {
       return;
     }
-    loadProjectData(activeProjectId).catch((error) => {
-      setToast({ type: "error", message: String(error) });
-    });
-  }, [activeProjectId, lastLoadedProjectIdRef, loadProjectData, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setSelectedTextFileReadyPath, setToast, setTree]);
+    void loadProjectData(activeProjectId, { includeGitRefresh: false })
+      .then(() => refreshGitWorkspace(activeProjectId).catch(() => undefined))
+      .catch((error) => {
+        setToast({ type: "error", message: String(error) });
+      });
+  }, [activeProjectId, lastLoadedProjectIdRef, loadProjectData, refreshGitWorkspace, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setSelectedTextFileReadyPath, setToast, setTree]);
 
   useSelectedFilePreviewEffects({
     activeProjectId,

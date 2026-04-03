@@ -18,12 +18,15 @@ use latotex_workspace::{
 use rfd::FileDialog;
 use std::fs;
 use std::process::Command;
-use tauri::State;
+use tauri::{async_runtime::spawn_blocking, State};
 
 #[tauri::command]
-pub fn project_list(state: State<'_, AppState>) -> Result<Vec<ProjectSummary>, String> {
+pub async fn project_list(state: State<'_, AppState>) -> Result<Vec<ProjectSummary>, String> {
     state.log("INFO", "project_list");
-    storage::list_projects(&state.db_path)
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || storage::list_projects(&db_path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -40,16 +43,20 @@ pub fn project_create(
 }
 
 #[tauri::command]
-pub fn project_open(
+pub async fn project_open(
     state: State<'_, AppState>,
     input: ProjectRefInput,
 ) -> Result<ProjectSnapshot, String> {
     state.log("INFO", &format!("project_open: {}", input.project_id));
-    storage::project_snapshot(&state.db_path, &input.project_id)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::project_snapshot(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn project_integrity_status(
+pub async fn project_integrity_status(
     state: State<'_, AppState>,
     input: ProjectRefInput,
 ) -> Result<ProjectIntegrityStatus, String> {
@@ -57,7 +64,11 @@ pub fn project_integrity_status(
         "INFO",
         &format!("project_integrity_status: {}", input.project_id),
     );
-    storage::project_integrity_status(&state.db_path, &input.project_id)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::project_integrity_status(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -209,12 +220,16 @@ pub fn workspace_export_pdf(
 }
 
 #[tauri::command]
-pub fn library_tree(
+pub async fn library_tree(
     state: State<'_, AppState>,
     input: LibraryRefInput,
 ) -> Result<Vec<ResourceNode>, String> {
     state.log("INFO", &format!("library_tree: {}", input.project_id));
-    storage::list_library_tree(&state.db_path, &input.project_id)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::list_library_tree(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -224,15 +239,20 @@ pub fn library_rescan(state: State<'_, AppState>, input: LibraryRefInput) -> Res
 }
 
 #[tauri::command]
-pub fn library_import_pdf(
+pub async fn library_import_pdf(
     state: State<'_, AppState>,
     input: LibraryRefInput,
-) -> Result<Option<Ack>, String> {
+) -> Result<Option<crate::models::LibraryPdfImportResponse>, String> {
     state.log("INFO", &format!("library_import_pdf: {}", input.project_id));
     let selected = FileDialog::new().add_filter("PDF", &["pdf"]).pick_file();
     match selected {
         Some(path) => {
-            storage::import_library_pdf(&state.db_path, &input.project_id, &path).map(Some)
+            let db_path = state.db_path.clone();
+            let project_id = input.project_id;
+            spawn_blocking(move || storage::import_library_pdf(&db_path, &project_id, &path))
+                .await
+                .map_err(|e| e.to_string())?
+                .map(Some)
         }
         None => Ok(None),
     }

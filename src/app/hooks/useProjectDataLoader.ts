@@ -139,10 +139,12 @@ export function useProjectDataLoader(params: {
       }
       integrityCheckedRef.current.add(projectId);
     }
-    const snapshot = await openProject(projectId);
+    const [snapshot, papers] = await Promise.all([
+      openProject(projectId),
+      getLibraryTree(projectId),
+    ]);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
-    const papers = await getLibraryTree(projectId);
     setLibraryTree(papers);
     setSelectedLibraryPath(resolvePersistedLibrarySelection(settingsRef.current, projectId, papers));
     loadedLibraryProjectIdRef.current = projectId;
