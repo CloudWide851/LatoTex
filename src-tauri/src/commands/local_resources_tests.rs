@@ -155,4 +155,7 @@ fn required_drawio_assets_include_runtime_lazy_scripts() {
     assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/extensions.min.js"));
     assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/stencils.min.js"));
     assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/shapes-14-6-5.min.js"));
+    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/PreConfig.js"));
+    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/PostConfig.js"));
+    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"styles/high-contrast.css"));
 }

@@ -29,7 +29,6 @@ function formatByteCount(bytes: number): string {
 }
 
 type LibraryViewerContentPanelProps = {
-  projectId: string | null;
   viewMode: ViewMode;
   loading: boolean;
   loadError: string | null;
@@ -39,7 +38,6 @@ type LibraryViewerContentPanelProps = {
   pdfTotalBytes: number | null;
   hasPdf: boolean;
   pdfUrl: string | null;
-  sourcePdfRelativePath: string | null;
   annotationMode: ToolMode;
   setAnnotationMode: (mode: ToolMode) => void;
   highlightColor: string;
@@ -77,7 +75,6 @@ type LibraryViewerContentPanelProps = {
   selectedPath: string | null;
   runTranslation: (onSuccess?: () => void) => void;
   hasComparePair: boolean;
-  translatedPdfRelativePath: string | null;
   translatedPdfUrl: string | null;
   bibPreview: string;
   citation: LibraryCitationSummary | null;
@@ -97,7 +94,6 @@ type LibraryViewerContentPanelProps = {
 
 export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps) {
   const {
-    projectId,
     viewMode,
     loading,
     loadError,
@@ -107,7 +103,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     pdfTotalBytes,
     hasPdf,
     pdfUrl,
-    sourcePdfRelativePath,
     annotationMode,
     setAnnotationMode,
     highlightColor,
@@ -145,7 +140,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     selectedPath,
     runTranslation,
     hasComparePair,
-    translatedPdfRelativePath,
     translatedPdfUrl,
     bibPreview,
     citation,
@@ -236,8 +230,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             <LibraryPdfScrollViewer
               ref={viewerRef}
               pdfUrl={pdfUrl}
-              fallbackProjectId={projectId}
-              fallbackRelativePath={sourcePdfRelativePath}
               pageCount={pageCount}
               zoom={pdfZoom}
               mode={annotationMode}
@@ -298,8 +290,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareOriginal")}</div>
               <LibraryPdfScrollViewer
                 pdfUrl={pdfUrl}
-                fallbackProjectId={projectId}
-                fallbackRelativePath={sourcePdfRelativePath}
                 pageCount={pageCount}
                 zoom={pdfZoom}
                 mode="select"
@@ -325,8 +315,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareTranslated")}</div>
               <LibraryPdfScrollViewer
                 pdfUrl={translatedPdfUrl}
-                fallbackProjectId={projectId}
-                fallbackRelativePath={translatedPdfRelativePath}
                 pageCount={pageCount}
                 zoom={pdfZoom}
                 mode="select"

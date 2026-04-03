@@ -7,28 +7,16 @@ describe("drawWorkspaceUtils", () => {
     }
   });
 
-  it("builds embed frame URLs for drawio host pages", async () => {
-    const { toDrawioEmbedUrl } = await import("./drawWorkspaceUtils");
-    expect(toDrawioEmbedUrl("http://latotex-resource.localhost/tool/drawio/index.html")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
-    );
-    expect(toDrawioEmbedUrl("http://latotex-resource.localhost/tool/drawio/index.html?foo=1")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html?foo=1&embed=1&proto=json&spin=0&configure=1&ui=min",
-    );
-  });
-
   it("resolves a single canonical host frame src from an explicit entry url", async () => {
     const { resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
     expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
+      "http://latotex-resource.localhost/tool/drawio/index.html",
     );
   });
 
   it("falls back to the backend local resource route when startup info is missing", async () => {
     const { DRAWIO_LOCAL_RESOURCE_URL, resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc()).toBe(
-      `${DRAWIO_LOCAL_RESOURCE_URL}?embed=1&proto=json&spin=0&configure=1&ui=min`,
-    );
+    expect(resolveDrawioHostFrameSrc()).toBe(DRAWIO_LOCAL_RESOURCE_URL);
   });
 
   it("classifies draw handshake messages for startup and page runtime", async () => {

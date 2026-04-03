@@ -8,6 +8,8 @@ const requiredFiles = [
   "js/bootstrap.js",
   "js/main.js",
   "js/app.min.js",
+  "js/PreConfig.js",
+  "js/PostConfig.js",
   "styles/grapheditor.css",
   "styles/high-contrast.css",
   "images/spin.gif",

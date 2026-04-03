@@ -47,8 +47,13 @@ pub fn library_open_document_runtime(
 ) -> Result<crate::models::LibraryDocumentOpenResponse, String> {
     let citation = library_citation_summary(&state.db_path, project_id, relative_path)?;
     let bib_preview = read_library_bib_preview(&state.db_path, project_id, relative_path)?;
-    let pdf_preview =
-        library_resolve_pdf_preview_runtime(state, project_id, relative_path, bust_cache)?;
+    let pdf_preview = library_resolve_pdf_preview_runtime_with_summary(
+        state,
+        project_id,
+        relative_path,
+        bust_cache,
+        &citation,
+    )?;
 
     Ok(crate::models::LibraryDocumentOpenResponse {
         citation,

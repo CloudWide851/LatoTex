@@ -23,6 +23,7 @@ include!("storage/agent_cache_time.rs");
 include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
 include!("storage/library_document_state.rs");
+include!("storage/library_pdf_preview_core.rs");
 include!("storage/library_pdf_preview_cache.rs");
 include!("storage/library_pdf_download_queue.rs");
 include!("storage/library_translation_engine.rs");

@@ -32,27 +32,6 @@ export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   },
 });
 
-function appendQueryParams(url: string, values: Record<string, string>): string {
-  const [withoutHash, hash = ""] = String(url || "").split("#", 2);
-  const [basePath, query = ""] = withoutHash.split("?", 2);
-  const params = new URLSearchParams(query);
-  for (const [key, value] of Object.entries(values)) {
-    params.set(key, value);
-  }
-  const nextQuery = params.toString();
-  return `${basePath}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
-}
-
-export function toDrawioEmbedUrl(entryUrl: string): string {
-  return appendQueryParams(entryUrl, {
-    embed: "1",
-    proto: "json",
-    spin: "0",
-    configure: "1",
-    ui: "min",
-  });
-}
-
 function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
@@ -64,7 +43,7 @@ export function resolveDrawioHostFrameSrc(
   if (!resolvedEntryUrl) {
     return null;
   }
-  return toDrawioEmbedUrl(resolvedEntryUrl);
+  return resolvedEntryUrl;
 }
 
 export function normalizePath(value: string | null | undefined): string {
