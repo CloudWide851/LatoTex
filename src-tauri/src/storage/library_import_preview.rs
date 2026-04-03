@@ -115,6 +115,19 @@ fn touch_project_updated_at(db_path: &Path, project_id: &str) -> Result<(), Stri
     Ok(())
 }
 
+fn to_library_relative(papers_root: &Path, path: &Path) -> Result<String, String> {
+    let canonical_root = papers_root.canonicalize().map_err(|e| e.to_string())?;
+    let normalized_path = if path.exists() {
+        path.canonicalize().map_err(|e| e.to_string())?
+    } else {
+        path.to_path_buf()
+    };
+    normalized_path
+        .strip_prefix(&canonical_root)
+        .map_err(|e| e.to_string())
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+}
+
 pub fn import_library_pdf(
     db_path: &Path,
     project_id: &str,
@@ -160,11 +173,7 @@ pub fn import_library_pdf(
     refresh_library_index(&project_root)?;
     touch_project_updated_at(db_path, project_id)?;
 
-    let relative_path = target_pdf
-        .strip_prefix(&papers_root)
-        .map_err(|e| e.to_string())?
-        .to_string_lossy()
-        .replace('\\', "/");
+    let relative_path = to_library_relative(&papers_root, &target_pdf)?;
 
     Ok(LibraryPdfImportResponse {
         ok: true,
@@ -239,11 +248,7 @@ pub fn import_library_link(
     refresh_library_index(&project_root)?;
     touch_project_updated_at(db_path, project_id)?;
 
-    let relative_path = bib_path
-        .strip_prefix(&papers_root)
-        .map_err(|e| e.to_string())?
-        .to_string_lossy()
-        .replace('\\', "/");
+    let relative_path = to_library_relative(&papers_root, &bib_path)?;
 
     Ok(LibraryLinkImportResponse {
         ok: true,
@@ -424,11 +429,7 @@ fn build_local_citation_summary(
             }
         }
 
-        let rel = bib_path
-            .strip_prefix(papers_root)
-            .map_err(|e| e.to_string())?
-            .to_string_lossy()
-            .replace('\\', "/");
+        let rel = to_library_relative(papers_root, &bib_path)?;
         bib_relative_path = Some(rel);
     }
 

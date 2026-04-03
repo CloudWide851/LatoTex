@@ -1,7 +1,5 @@
 import { FileUp, RotateCcw } from "lucide-react";
 import { useRef, type MutableRefObject } from "react";
-import type { LibraryCitationSummary } from "../../../shared/types/app";
-import { LibraryCitationMetaPanel } from "./LibraryCitationMetaPanel";
 import {
   LibraryPdfScrollViewer,
   type LibraryPdfScrollSyncGroup,
@@ -78,20 +76,8 @@ type LibraryViewerContentPanelProps = {
   runTranslation: (onSuccess?: () => void) => void;
   hasComparePair: boolean;
   translatedPdfRelativePath: string | null;
-  paperPreview?: {
-    title?: string | null;
-    detectedLanguage?: string | null;
-    extractionEngine?: string | null;
-    pageCount?: number;
-    excerpt?: string | null;
-  } | null;
-  paperPreviewLoading: boolean;
-  paperPreviewError: string | null;
-  onAnalyzePaper?: (() => void) | null;
   translatedPdfUrl: string | null;
   bibPreview: string;
-  citation: LibraryCitationSummary | null;
-  linkError: string | null;
   t: TranslationFn;
 };
 
@@ -148,14 +134,9 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     translatedPdfRelativePath,
     translatedPdfUrl,
     bibPreview,
-    citation,
-    paperPreview,
-    paperPreviewLoading,
-    paperPreviewError,
-    onAnalyzePaper,
-    linkError,
     t,
   } = props;
+
   const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
   const pdfPaneLoading = loading || pdfPreviewLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
@@ -165,10 +146,10 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
 
   if (viewMode === "pdf") {
     return (
-      <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white p-2 motion-card-pop">
+      <section className="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white">
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <div className="flex h-full items-center justify-center px-4">
+            <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               <div>{t("library.viewer.downloadingPdf")}</div>
               {pdfPreviewLoading ? (
                 <div className="mt-2">
@@ -191,9 +172,11 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             </div>
           </div>
         ) : pdfPaneError ? (
-          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {pdfPaneError}</div>
+          <div className="m-3 rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {t("library.viewer.error")} {pdfPaneError}
+          </div>
         ) : hasPdf && pdfUrl ? (
-          <div className="grid h-full min-h-0 grid-cols-[56px_minmax(0,1fr)] gap-3">
+          <div className="grid h-full min-h-0 grid-cols-[56px_minmax(0,1fr)] gap-3 p-3">
             <LibraryPdfToolSidebar
               t={t}
               hasPdf={hasPdf}
@@ -257,7 +240,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             />
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500 m-3">
             <FileUp className="mr-2 h-3.5 w-3.5" />
             {t("library.viewer.noPdf")}
           </div>
@@ -268,31 +251,36 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
 
   if (viewMode === "compare") {
     return (
-      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 motion-card-pop motion-layered-backdrop">
-        <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
           <div className="truncate text-xs text-slate-500">{translationDetail || t("library.viewer.compareTitle")}</div>
           <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 transition motion-hover-rise hover:bg-slate-100 disabled:opacity-50"
+            type="button"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
             onClick={() => {
               runTranslation();
             }}
             disabled={translationBusy || !selectedPath}
             title={t("library.viewer.translatePaper")}
           >
-            <RotateCcw className={`h-3.5 w-3.5 ${translationBusy ? "motion-rotate-soft" : ""}`} />
+            <RotateCcw className={`h-3.5 w-3.5 ${translationBusy ? "animate-spin" : ""}`} />
             {t("library.viewer.translatePaper")}
           </button>
         </div>
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
             {t("library.viewer.loading")}
           </div>
         ) : pdfPaneError ? (
-          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {pdfPaneError}</div>
+          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {t("library.viewer.error")} {pdfPaneError}
+          </div>
         ) : hasComparePair && pdfUrl && translatedPdfUrl ? (
-          <div className="grid h-full min-h-0 grid-cols-2 gap-2">
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
-              <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareOriginal")}</div>
+          <div className="grid h-full min-h-0 gap-3 xl:grid-cols-2">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <div className="border-b border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">
+                {t("library.viewer.compareOriginal")}
+              </div>
               <LibraryPdfScrollViewer
                 pdfUrl={pdfUrl}
                 fallbackProjectId={projectId}
@@ -318,8 +306,10 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 t={t}
               />
             </div>
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
-              <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareTranslated")}</div>
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+              <div className="border-b border-slate-200 px-3 py-2 text-xs font-medium text-slate-600">
+                {t("library.viewer.compareTranslated")}
+              </div>
               <LibraryPdfScrollViewer
                 pdfUrl={translatedPdfUrl}
                 fallbackProjectId={projectId}
@@ -347,7 +337,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
             {t("library.viewer.compareUnavailable")}
           </div>
         )}
@@ -356,31 +346,24 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(210px,0.95fr)] gap-2">
-      <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3 motion-card-pop">
-        {loading ? (
-          <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
-        ) : loadError ? (
-          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
-        ) : bibPreview.trim().length > 0 ? (
-          <pre className="min-h-full whitespace-pre-wrap break-words rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700">
-            {bibPreview}
-          </pre>
-        ) : (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-            {t("library.viewer.noBib")}
-          </div>
-        )}
-      </section>
-      <LibraryCitationMetaPanel
-        citation={citation}
-        paperPreview={paperPreview}
-        paperPreviewLoading={paperPreviewLoading}
-        paperPreviewError={paperPreviewError}
-        onAnalyzePaper={onAnalyzePaper}
-        linkError={linkError}
-        t={t}
-      />
-    </div>
+    <section className="min-h-0 overflow-auto rounded-xl border border-slate-200 bg-white p-3">
+      {loading ? (
+        <div className="flex h-full items-center justify-center text-xs text-slate-500">
+          {t("library.viewer.loading")}
+        </div>
+      ) : loadError ? (
+        <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {t("library.viewer.error")} {loadError}
+        </div>
+      ) : bibPreview.trim().length > 0 ? (
+        <pre className="min-h-full whitespace-pre-wrap break-words rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-700">
+          {bibPreview}
+        </pre>
+      ) : (
+        <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          {t("library.viewer.noBib")}
+        </div>
+      )}
+    </section>
   );
 }

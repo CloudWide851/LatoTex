@@ -19,6 +19,14 @@ pub struct LibraryPdfPreviewInput {
     pub bust_cache: Option<bool>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryDocumentOpenInput {
+    pub project_id: String,
+    pub relative_path: String,
+    pub bust_cache: Option<bool>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCitationSummaryResponse {
@@ -72,6 +80,14 @@ pub struct LibraryPdfResumeResponse {
     pub queued: u32,
     pub skipped: u32,
     pub failed: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryDocumentOpenResponse {
+    pub citation: LibraryCitationSummaryResponse,
+    pub bib_preview: String,
+    pub pdf_preview: LibraryPdfPreviewResponse,
 }
 
 #[derive(Debug, Deserialize)]

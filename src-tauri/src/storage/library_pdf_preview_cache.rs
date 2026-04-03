@@ -19,8 +19,14 @@ fn hash_remote_url(url: &str) -> String {
 }
 
 fn to_workspace_relative(project_root: &Path, path: &Path) -> Result<String, String> {
-    let relative = path
-        .strip_prefix(project_root)
+    let canonical_root = project_root.canonicalize().map_err(|e| e.to_string())?;
+    let normalized_path = if path.exists() {
+        path.canonicalize().map_err(|e| e.to_string())?
+    } else {
+        path.to_path_buf()
+    };
+    let relative = normalized_path
+        .strip_prefix(&canonical_root)
         .map_err(|e| e.to_string())?
         .to_string_lossy()
         .replace('\\', "/");

@@ -1,7 +1,6 @@
 use super::{
-    build_workspace_file_resource_url, normalize_relative_asset_path,
-    normalize_workspace_relative_path, resolve_drawio_marker_dir, workspace_file_response,
-    LOCAL_RESOURCE_SCHEME,
+    build_workspace_file_resource_url, candidate_source_dirs, normalize_relative_asset_path,
+    normalize_workspace_relative_path, workspace_file_response, LOCAL_RESOURCE_SCHEME,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -140,36 +139,12 @@ fn normalize_workspace_relative_path_rejects_traversal() {
 }
 
 #[test]
-fn resolve_drawio_marker_dir_prefers_marker_actual_dir() {
-    let base = std::env::temp_dir().join(format!(
-        "latotex-drawio-marker-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    let marker_dir = base.join("install-cache");
-    let actual_dir = base.join("appdata-cache");
-    fs::create_dir_all(actual_dir.join("js")).unwrap();
-    fs::create_dir_all(actual_dir.join("styles")).unwrap();
-    fs::write(actual_dir.join("index.html"), "ok").unwrap();
-    fs::write(actual_dir.join("app.html"), "ok").unwrap();
-    fs::write(actual_dir.join("js/app.min.js"), "ok").unwrap();
-    fs::write(actual_dir.join("js/bootstrap.js"), "ok").unwrap();
-    fs::write(actual_dir.join("js/main.js"), "ok").unwrap();
-    fs::write(actual_dir.join("styles/grapheditor.css"), "ok").unwrap();
-    fs::create_dir_all(&marker_dir).unwrap();
-    fs::write(
-        marker_dir.join(".cache-info.json"),
-        format!(
-            "{{\"actualDir\":\"{}\"}}",
-            actual_dir.to_string_lossy().replace('\\', "\\\\")
-        ),
-    )
-    .unwrap();
+fn candidate_source_dirs_include_packaged_and_dev_drawio_locations() {
+    let values = candidate_source_dirs("drawio")
+        .iter()
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .collect::<Vec<_>>();
 
-    let resolved = resolve_drawio_marker_dir(&marker_dir).unwrap();
-    assert_eq!(resolved, actual_dir);
-
-    let _ = fs::remove_dir_all(base);
+    assert!(values.iter().any(|value| value.ends_with("/resources/core/drawio")));
+    assert!(values.iter().any(|value| value.ends_with("/public/core/drawio")));
 }

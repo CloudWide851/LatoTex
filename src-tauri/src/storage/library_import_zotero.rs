@@ -218,11 +218,8 @@ pub fn sync_zotero_library(
     refresh_library_index(&project_root)?;
     touch_project_updated_at(db_path, project_id)?;
 
-    let relative_path = target_bib
-        .strip_prefix(&papers_root)
-        .map_err(|_| "zotero.sync_path_failed".to_string())?
-        .to_string_lossy()
-        .replace('\\', "/");
+    let relative_path =
+        to_library_relative(&papers_root, &target_bib).map_err(|_| "zotero.sync_path_failed".to_string())?;
     Ok(crate::models::LibraryZoteroSyncResponse {
         relative_path,
         entry_count,

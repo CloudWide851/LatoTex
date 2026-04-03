@@ -52,6 +52,12 @@ export type LibraryPdfResumeResult = {
   failed: number;
 };
 
+export type LibraryDocumentOpenResult = {
+  citation: LibraryCitationSummary;
+  bibPreview: string;
+  pdfPreview: LibraryPdfPreview;
+};
+
 export type LibraryZoteroSyncResult = {
   relativePath: string;
   entryCount: number;

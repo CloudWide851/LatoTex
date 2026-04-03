@@ -21,34 +21,6 @@ const REQUIRED_DRAWIO_ASSETS: [&str; 6] = [
     "styles/grapheditor.css",
 ];
 
-struct CachePrepareResult {
-    actual_dir: String,
-}
-
-struct DrawioCacheDirs {
-    install_dir: PathBuf,
-    appdata_dir: PathBuf,
-}
-
-fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
-    if source.is_dir() {
-        fs::create_dir_all(target).map_err(|e| e.to_string())?;
-        for item in fs::read_dir(source).map_err(|e| e.to_string())? {
-            let item = item.map_err(|e| e.to_string())?;
-            let from = item.path();
-            let to = target.join(item.file_name());
-            copy_recursively(&from, &to)?;
-        }
-        return Ok(());
-    }
-
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::copy(source, target).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
     required_assets.iter().all(|name| dir.join(name).exists())
 }
@@ -76,152 +48,9 @@ fn choose_existing_source_dir(required_assets: &[&str], relative_subdir: &str) -
         .into_iter()
         .find(|dir| has_required_assets(dir, required_assets))
 }
-
-fn ensure_cache_dir(
-    cache_dir: &Path,
-    source_dir: &Path,
-    required_assets: &[&str],
-) -> Result<(), String> {
-    if cache_dir.exists() && has_required_assets(cache_dir, required_assets) {
-        return Ok(());
-    }
-    if !cache_dir.exists() {
-        fs::create_dir_all(cache_dir).map_err(|e| e.to_string())?;
-    }
-    copy_recursively(source_dir, cache_dir)?;
-    Ok(())
-}
-
-fn sync_cache_files(cache_dir: &Path, source_dir: &Path, files: &[&str]) -> Result<(), String> {
-    for relative in files {
-        let source = source_dir.join(relative);
-        if !source.exists() {
-            continue;
-        }
-        let target = cache_dir.join(relative);
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        fs::copy(&source, &target).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn is_permission_denied(message: &str) -> bool {
-    let lower = message.to_lowercase();
-    lower.contains("access is denied")
-        || lower.contains("permission denied")
-        || lower.contains("os error 5")
-}
-
-fn write_cache_marker(actual_dir: &Path, policy: &str, requested_dir: &Path, using_fallback: bool) {
-    let marker_path = actual_dir.join(".cache-info.json");
-    let marker_json = serde_json::json!({
-        "policy": policy,
-        "requestedDir": requested_dir.to_string_lossy().to_string(),
-        "actualDir": actual_dir.to_string_lossy().to_string(),
-        "usingFallback": using_fallback
-    });
-    let _ = fs::write(
-        marker_path,
-        serde_json::to_string_pretty(&marker_json).unwrap_or_else(|_| "{}".to_string()),
-    );
-}
-
-fn resolve_drawio_marker_dir(dir: &Path) -> Option<PathBuf> {
-    let marker_path = dir.join(".cache-info.json");
-    let marker_raw = fs::read_to_string(marker_path).ok()?;
-    let marker_value: serde_json::Value = serde_json::from_str(&marker_raw).ok()?;
-    let actual_dir = marker_value.get("actualDir")?.as_str()?.trim();
-    if actual_dir.is_empty() {
-        return None;
-    }
-    let actual_path = PathBuf::from(actual_dir);
-    if has_required_assets(&actual_path, &REQUIRED_DRAWIO_ASSETS) {
-        Some(actual_path)
-    } else {
-        None
-    }
-}
-
-fn push_unique_dir(target: &mut Vec<PathBuf>, candidate: PathBuf) {
-    if target.iter().any(|item| item == &candidate) {
-        return;
-    }
-    target.push(candidate);
-}
-
-fn drawio_cache_dirs(state: &AppState) -> DrawioCacheDirs {
-    let install_dir = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(|parent| parent.join("drawio-cache")))
-        .unwrap_or_else(|| state.runtime_root.join("drawio-cache"));
-    let appdata_dir = state.app_data_dir.join("drawio-cache");
-    DrawioCacheDirs {
-        install_dir,
-        appdata_dir,
-    }
-}
-
-fn prepare_drawio_cache(state: &AppState, policy: &str) -> Result<CachePrepareResult, String> {
-    let source_dir = choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio")
-        .ok_or_else(|| "Drawio source assets were not found in app resources".to_string())?;
-    let dirs = drawio_cache_dirs(state);
-
-    let requested_dir = if policy == "appdata-only" {
-        dirs.appdata_dir.clone()
-    } else {
-        dirs.install_dir.clone()
-    };
-
-    let mut actual_dir = requested_dir.clone();
-    let mut using_fallback = false;
-
-    let ensure_result = ensure_cache_dir(&requested_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS);
-    if let Err(error) = ensure_result {
-        if requested_dir == dirs.install_dir && is_permission_denied(&error) {
-            using_fallback = true;
-            actual_dir = dirs.appdata_dir.clone();
-            ensure_cache_dir(&actual_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS)?;
-        } else {
-            return Err(error);
-        }
-    }
-
-    sync_cache_files(&actual_dir, &source_dir, &REQUIRED_DRAWIO_ASSETS)?;
-    write_cache_marker(&actual_dir, policy, &requested_dir, using_fallback);
-
-    Ok(CachePrepareResult {
-        actual_dir: actual_dir.to_string_lossy().to_string(),
-    })
-}
-
-fn resolve_existing_drawio_dir(state: &AppState) -> Option<PathBuf> {
-    let dirs = drawio_cache_dirs(state);
-    let mut candidates = Vec::<PathBuf>::new();
-    for dir in [&dirs.install_dir, &dirs.appdata_dir] {
-        if let Some(actual_dir) = resolve_drawio_marker_dir(dir) {
-            push_unique_dir(&mut candidates, actual_dir);
-        }
-    }
-    if has_required_assets(&dirs.appdata_dir, &REQUIRED_DRAWIO_ASSETS) {
-        push_unique_dir(&mut candidates, dirs.appdata_dir.clone());
-    }
-    if has_required_assets(&dirs.install_dir, &REQUIRED_DRAWIO_ASSETS) {
-        push_unique_dir(&mut candidates, dirs.install_dir.clone());
-    }
-    candidates.into_iter().next()
-}
-
-fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
-    if let Some(source_dir) = choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio") {
-        return Ok(source_dir);
-    }
-    if let Some(dir) = resolve_existing_drawio_dir(state) {
-        return Ok(dir);
-    }
-    let prepared = prepare_drawio_cache(state, "appdata-only")?;
-    Ok(PathBuf::from(prepared.actual_dir))
+fn ensure_drawio_serving_dir() -> Result<PathBuf, String> {
+    choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio")
+        .ok_or_else(|| "Drawio source assets were not found in app resources".to_string())
 }
 
 fn normalize_relative_asset_path(request_path: &str) -> Result<PathBuf, String> {
@@ -565,7 +394,7 @@ pub fn handle_local_resource_request(
         Ok(path) => path,
         Err(error) => return build_text_response(StatusCode::BAD_REQUEST, &error),
     };
-    let root = match ensure_drawio_serving_dir(state) {
+    let root = match ensure_drawio_serving_dir() {
         Ok(dir) => dir,
         Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
     };

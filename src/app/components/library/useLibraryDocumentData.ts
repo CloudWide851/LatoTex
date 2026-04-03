@@ -1,13 +1,14 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
-  libraryCitationSummary,
   libraryCitationSummaryRemote,
   libraryExtractPaperContext,
-  libraryResolvePdfPreview,
+  openLibraryDocument,
 } from "../../../shared/api/library";
-import { readFile } from "../../../shared/api/workspace";
-import type { LibraryCitationSummary, LibraryPdfPreview } from "../../../shared/types/app";
-import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
+import type {
+  LibraryCitationSummary,
+  LibraryDocumentOpenResult,
+  LibraryPdfPreview,
+} from "../../../shared/types/app";
 
 type PaperPreview = {
   title?: string | null;
@@ -87,10 +88,7 @@ function getCachedDocumentState(cacheKey: string): DocumentDataState | null {
     return null;
   }
   documentCache.delete(cacheKey);
-  documentCache.set(cacheKey, {
-    updatedAt: Date.now(),
-    value: cached.value,
-  });
+  documentCache.set(cacheKey, { updatedAt: Date.now(), value: cached.value });
   return cached.value;
 }
 
@@ -98,10 +96,7 @@ function setCachedDocumentState(cacheKey: string, value: DocumentDataState) {
   if (documentCache.has(cacheKey)) {
     documentCache.delete(cacheKey);
   }
-  documentCache.set(cacheKey, {
-    updatedAt: Date.now(),
-    value,
-  });
+  documentCache.set(cacheKey, { updatedAt: Date.now(), value });
   while (documentCache.size > DOCUMENT_CACHE_MAX) {
     const oldest = documentCache.keys().next().value;
     if (!oldest) {
@@ -119,6 +114,32 @@ function applySummaryDefaults(summary: LibraryCitationSummary): LibraryCitationS
   };
 }
 
+function mergeSummaries(
+  current: LibraryCitationSummary | null,
+  nextLocal: LibraryCitationSummary | null,
+): LibraryCitationSummary | null {
+  if (!nextLocal) {
+    return current;
+  }
+  if (!current) {
+    return applySummaryDefaults(nextLocal);
+  }
+  const normalizedCurrent = applySummaryDefaults(current);
+  const normalizedNext = applySummaryDefaults(nextLocal);
+  return {
+    ...normalizedNext,
+    title: normalizedNext.title ?? normalizedCurrent.title ?? null,
+    publishedAt: normalizedNext.publishedAt ?? normalizedCurrent.publishedAt ?? null,
+    doi: normalizedNext.doi ?? normalizedCurrent.doi ?? null,
+    arxivId: normalizedNext.arxivId ?? normalizedCurrent.arxivId ?? null,
+    source: normalizedNext.source ?? normalizedCurrent.source ?? null,
+    bibPath: normalizedNext.bibPath ?? normalizedCurrent.bibPath ?? null,
+    citationKey: normalizedNext.citationKey ?? normalizedCurrent.citationKey ?? null,
+    authors: Array.from(new Set([...normalizedNext.authors, ...normalizedCurrent.authors])),
+    urls: Array.from(new Set([...normalizedNext.urls, ...normalizedCurrent.urls])),
+  };
+}
+
 function toPaperPreview(
   paperContext: Awaited<ReturnType<typeof libraryExtractPaperContext>>,
   sourcePdfRelativePath: string,
@@ -133,6 +154,34 @@ function toPaperPreview(
     pageCount: Number(paperContext.pageCount ?? 0),
     excerpt: String(paperContext.chunks?.[0]?.text ?? "").slice(0, 520),
     sourcePath: sourcePdfRelativePath || paperContext.pdfRelativePath || null,
+  };
+}
+
+function toDocumentState(
+  document: LibraryDocumentOpenResult,
+  current: DocumentDataState,
+): DocumentDataState {
+  const preview = document.pdfPreview;
+  const citation = mergeSummaries(current.citation, applySummaryDefaults(document.citation));
+  const nextSourcePdfRelativePath = preview.relativePath ?? null;
+  const keepPaperPreview =
+    current.paperPreview?.sourcePath
+    && nextSourcePdfRelativePath
+    && current.paperPreview.sourcePath === nextSourcePdfRelativePath;
+
+  return {
+    citation,
+    bibPreview: document.bibPreview ?? "",
+    paperPreview: keepPaperPreview ? current.paperPreview : null,
+    resolvedLink: preview.sourceUrl ?? citation?.urls?.[0] ?? current.resolvedLink,
+    sourcePdfRelativePath: nextSourcePdfRelativePath,
+    sourcePdfPreviewUrl: preview.previewUrl ?? null,
+    translatedPdfRelativePath: preview.translatedRelativePath ?? null,
+    translatedPdfPreviewUrl: preview.translatedPreviewUrl ?? null,
+    pdfCacheState: preview.cacheState ?? (preview.relativePath ? "ready" : "missing"),
+    pdfCacheError: preview.cacheError ?? null,
+    pdfDownloadedBytes: preview.downloadedBytes ?? null,
+    pdfTotalBytes: preview.totalBytes ?? null,
   };
 }
 
@@ -158,20 +207,6 @@ export function useLibraryDocumentData(params: {
     stateRef.current = state;
   }, [state]);
 
-  const reset = useCallback(() => {
-    requestIdRef.current += 1;
-    stateRef.current = EMPTY_STATE;
-    setLoading(false);
-    setLoadError(null);
-    setPdfPreviewLoading(false);
-    setPdfPreviewError(null);
-    setPaperPreviewLoading(false);
-    setPaperPreviewError(null);
-    setPdfUrl(null);
-    setTranslatedPdfUrl(null);
-    setState(EMPTY_STATE);
-  }, []);
-
   const applyState = useCallback((next: DocumentDataState, options?: ApplyStateOptions) => {
     stateRef.current = next;
     startTransition(() => {
@@ -187,6 +222,20 @@ export function useLibraryDocumentData(params: {
     });
   }, []);
 
+  const reset = useCallback(() => {
+    requestIdRef.current += 1;
+    stateRef.current = EMPTY_STATE;
+    setLoading(false);
+    setLoadError(null);
+    setPdfPreviewLoading(false);
+    setPdfPreviewError(null);
+    setPaperPreviewLoading(false);
+    setPaperPreviewError(null);
+    setPdfUrl(null);
+    setTranslatedPdfUrl(null);
+    setState(EMPTY_STATE);
+  }, []);
+
   const mergeRemoteCitationSummary = useCallback((
     requestId: number,
     cacheKey: string,
@@ -195,11 +244,11 @@ export function useLibraryDocumentData(params: {
     if (requestIdRef.current !== requestId) {
       return;
     }
-    const current = stateRef.current;
+    const nextCitation = mergeSummaries(stateRef.current.citation, remoteSummary);
     const nextState: DocumentDataState = {
-      ...current,
-      citation: applySummaryDefaults(remoteSummary),
-      resolvedLink: remoteSummary.urls?.[0] ?? current.resolvedLink,
+      ...stateRef.current,
+      citation: nextCitation,
+      resolvedLink: stateRef.current.resolvedLink ?? nextCitation?.urls?.[0] ?? null,
     };
     stateRef.current = nextState;
     setCachedDocumentState(cacheKey, nextState);
@@ -246,209 +295,119 @@ export function useLibraryDocumentData(params: {
     }
   }, [applyState, projectId]);
 
-  const hydratePdfPreview = useCallback(async (options: {
+  const applyDocumentPayload = useCallback(async (options: {
     requestId: number;
     cacheKey: string;
-    baseState: DocumentDataState;
-    previewPromise?: Promise<Awaited<ReturnType<typeof libraryResolvePdfPreview>>>;
+    document: LibraryDocumentOpenResult;
   }) => {
-    const { requestId, cacheKey, baseState, previewPromise } = options;
-    if (!projectId || !selectedPath) {
-      applyState(baseState, { pdfPreviewLoading: false, pdfPreviewError: null });
-      return baseState;
+    const { requestId, cacheKey, document } = options;
+    if (requestIdRef.current !== requestId) {
+      return null;
     }
+    const nextState = toDocumentState(document, stateRef.current);
+    const shouldLoadPaperPreview = Boolean(nextState.sourcePdfRelativePath)
+      && nextState.pdfCacheState === "ready"
+      && nextState.paperPreview?.sourcePath !== nextState.sourcePdfRelativePath;
 
-    startTransition(() => {
-      setPdfPreviewLoading(true);
-      setPdfPreviewError(null);
+    setCachedDocumentState(cacheKey, nextState);
+    applyState(nextState, {
+      loading: false,
+      loadError: null,
+      pdfPreviewLoading: nextState.pdfCacheState === "pending",
+      pdfPreviewError: nextState.pdfCacheState === "error" ? nextState.pdfCacheError : null,
+      paperPreviewLoading: shouldLoadPaperPreview,
+      paperPreviewError: null,
     });
 
+    if (shouldLoadPaperPreview && nextState.sourcePdfRelativePath) {
+      void hydratePaperPreview({
+        requestId,
+        cacheKey,
+        baseState: nextState,
+        sourcePdfRelativePath: nextState.sourcePdfRelativePath,
+      });
+    }
+    return nextState;
+  }, [applyState, hydratePaperPreview]);
+
+  const loadDocument = useCallback(async (options?: RefreshOptions) => {
+    if (!projectId || !selectedPath) {
+      reset();
+      return null;
+    }
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const cacheKey = documentCacheKey(projectId, selectedPath);
+
+    setLoading(true);
+    setLoadError(null);
+    setPdfPreviewLoading(false);
+    setPdfPreviewError(null);
+    setPaperPreviewLoading(false);
+    setPaperPreviewError(null);
+
     try {
-      const preview = await (previewPromise ?? libraryResolvePdfPreview(projectId, selectedPath));
+      const document = await openLibraryDocument(projectId, selectedPath, {
+        bustCache: options?.bustCache ?? false,
+      });
       if (requestIdRef.current !== requestId) {
         return null;
       }
-
-      const nextState: DocumentDataState = {
-        ...baseState,
-        resolvedLink: preview.sourceUrl ?? baseState.resolvedLink,
-        sourcePdfRelativePath: preview.relativePath ?? null,
-        sourcePdfPreviewUrl: preview.previewUrl ?? null,
-        translatedPdfRelativePath: preview.translatedRelativePath ?? null,
-        translatedPdfPreviewUrl: preview.translatedPreviewUrl ?? null,
-        pdfCacheState: preview.cacheState ?? (preview.relativePath ? "ready" : "missing"),
-        pdfCacheError: preview.cacheError ?? null,
-        pdfDownloadedBytes: preview.downloadedBytes ?? null,
-        pdfTotalBytes: preview.totalBytes ?? null,
-      };
-      const shouldLoadPaperPreview = Boolean(preview.relativePath)
-        && nextState.pdfCacheState === "ready"
-        && nextState.paperPreview?.sourcePath !== preview.relativePath;
-
-      setCachedDocumentState(cacheKey, nextState);
-      applyState(nextState, {
-        pdfPreviewLoading: nextState.pdfCacheState === "pending",
-        pdfPreviewError: nextState.pdfCacheState === "error" ? nextState.pdfCacheError : null,
-        paperPreviewLoading: shouldLoadPaperPreview,
-        paperPreviewError: null,
-      });
-
-      if (shouldLoadPaperPreview && preview.relativePath) {
-        void hydratePaperPreview({
-          requestId,
-          cacheKey,
-          baseState: nextState,
-          sourcePdfRelativePath: preview.relativePath,
-        });
-      }
-      return nextState;
+      void libraryCitationSummaryRemote(projectId, selectedPath)
+        .then((remoteSummary) => {
+          mergeRemoteCitationSummary(requestId, cacheKey, remoteSummary);
+        })
+        .catch(() => undefined);
+      return await applyDocumentPayload({ requestId, cacheKey, document });
     } catch (error) {
-      const errorMessage = String(error);
-      const errorState: DocumentDataState = {
-        ...baseState,
-        sourcePdfRelativePath: null,
-        sourcePdfPreviewUrl: null,
-        translatedPdfRelativePath: null,
-        translatedPdfPreviewUrl: null,
-        pdfCacheState: "error",
-        pdfCacheError: errorMessage,
-        pdfDownloadedBytes: null,
-        pdfTotalBytes: null,
-      };
-      setCachedDocumentState(cacheKey, errorState);
       if (requestIdRef.current === requestId) {
-        applyState(errorState, {
-          pdfPreviewLoading: false,
-          pdfPreviewError: errorMessage,
-          paperPreviewLoading: false,
-          paperPreviewError: null,
-        });
+        stateRef.current = EMPTY_STATE;
+        setState(EMPTY_STATE);
+        setPdfUrl(null);
+        setTranslatedPdfUrl(null);
+        setLoading(false);
+        setLoadError(String(error));
+        setPdfPreviewLoading(false);
+        setPdfPreviewError(null);
+        setPaperPreviewLoading(false);
+        setPaperPreviewError(null);
       }
-      return errorState;
+      return null;
     }
-  }, [applyState, hydratePaperPreview, projectId, selectedPath]);
+  }, [applyDocumentPayload, mergeRemoteCitationSummary, projectId, reset, selectedPath]);
 
-  const refresh = useCallback(
-    async (options?: RefreshOptions) => {
-      if (!projectId || !selectedPath) {
-        reset();
-        return null;
-      }
-
-      const cacheKey = documentCacheKey(projectId, selectedPath);
-      if (!options?.bustCache && options?.preferCache) {
-        const cached = getCachedDocumentState(cacheKey);
-        if (cached) {
-          applyState(cached, {
-            loading: false,
-            loadError: null,
-            pdfPreviewLoading: cached.pdfCacheState === "pending",
-            pdfPreviewError: cached.pdfCacheState === "error" ? cached.pdfCacheError : null,
-            paperPreviewLoading: false,
-            paperPreviewError: null,
-          });
-          if (cached.sourcePdfRelativePath && !cached.paperPreview) {
-            const requestId = requestIdRef.current + 1;
-            requestIdRef.current = requestId;
-            void hydratePaperPreview({
-              requestId,
-              cacheKey,
-              baseState: cached,
-              sourcePdfRelativePath: cached.sourcePdfRelativePath,
-            });
-          }
-          return cached;
-        }
-      }
-
-      const requestId = requestIdRef.current + 1;
-      requestIdRef.current = requestId;
-      setLoading(true);
-      setLoadError(null);
-      setPdfPreviewLoading(false);
-      setPdfPreviewError(null);
-      setPaperPreviewLoading(false);
-      setPaperPreviewError(null);
-
-      try {
-        const previewPromise = libraryResolvePdfPreview(projectId, selectedPath, { bustCache: options?.bustCache ?? false });
-        const summary = await libraryCitationSummary(projectId, selectedPath);
-        if (requestIdRef.current !== requestId) {
-          return null;
-        }
-
-        const normalizedSummary = applySummaryDefaults(summary);
-        const bibRelative =
-          normalizedSummary.bibPath
-          ?? (selectedPath.toLowerCase().endsWith(".bib") ? selectedPath : "");
-
-        const bibPreview = await (
-          bibRelative
-            ? readFile(projectId, toLibraryWorkspacePath(bibRelative))
-                .then((result) => result.content ?? "")
-                .catch((error) => {
-                  console.error("Failed to read bib file:", bibRelative, error);
-                  return "";
-                })
-            : Promise.resolve("")
-        );
-        if (requestIdRef.current !== requestId) {
-          return null;
-        }
-
-        const baseState: DocumentDataState = {
-          citation: normalizedSummary,
-          bibPreview,
-          resolvedLink: normalizedSummary.urls?.[0] ?? null,
-          sourcePdfRelativePath: null,
-          sourcePdfPreviewUrl: null,
-          translatedPdfRelativePath: null,
-          translatedPdfPreviewUrl: null,
-          paperPreview: null,
-          pdfCacheState: "pending",
-          pdfCacheError: null,
-          pdfDownloadedBytes: null,
-          pdfTotalBytes: null,
-        };
-
-        setCachedDocumentState(cacheKey, baseState);
-        applyState(baseState, {
+  const refresh = useCallback(async (options?: RefreshOptions) => {
+    if (!projectId || !selectedPath) {
+      reset();
+      return null;
+    }
+    const cacheKey = documentCacheKey(projectId, selectedPath);
+    if (!options?.bustCache && options?.preferCache) {
+      const cached = getCachedDocumentState(cacheKey);
+      if (cached) {
+        applyState(cached, {
           loading: false,
           loadError: null,
-          pdfPreviewLoading: true,
-          pdfPreviewError: null,
+          pdfPreviewLoading: cached.pdfCacheState === "pending",
+          pdfPreviewError: cached.pdfCacheState === "error" ? cached.pdfCacheError : null,
           paperPreviewLoading: false,
           paperPreviewError: null,
         });
-        void libraryCitationSummaryRemote(projectId, selectedPath)
-          .then((remoteSummary) => {
-            mergeRemoteCitationSummary(requestId, cacheKey, remoteSummary);
-          })
-          .catch(() => undefined);
-        return await hydratePdfPreview({
-          requestId,
-          cacheKey,
-          baseState,
-          previewPromise,
-        });
-      } catch (error) {
-        if (requestIdRef.current === requestId) {
-          stateRef.current = EMPTY_STATE;
-          setState(EMPTY_STATE);
-          setPdfUrl(null);
-          setTranslatedPdfUrl(null);
-          setLoading(false);
-          setLoadError(String(error));
-          setPdfPreviewLoading(false);
-          setPdfPreviewError(null);
-          setPaperPreviewLoading(false);
-          setPaperPreviewError(null);
+        if (cached.sourcePdfRelativePath && !cached.paperPreview) {
+          const requestId = requestIdRef.current + 1;
+          requestIdRef.current = requestId;
+          void hydratePaperPreview({
+            requestId,
+            cacheKey,
+            baseState: cached,
+            sourcePdfRelativePath: cached.sourcePdfRelativePath,
+          });
         }
-        return null;
+        return cached;
       }
-    },
-    [applyState, hydratePaperPreview, hydratePdfPreview, mergeRemoteCitationSummary, projectId, reset, selectedPath],
-  );
+    }
+    return await loadDocument(options);
+  }, [applyState, hydratePaperPreview, loadDocument, projectId, reset, selectedPath]);
 
   useEffect(() => {
     if (!projectId || !selectedPath) {
@@ -462,25 +421,14 @@ export function useLibraryDocumentData(params: {
     if (!active || !projectId || !selectedPath || state.pdfCacheState !== "pending") {
       return;
     }
-    const cacheKey = documentCacheKey(projectId, selectedPath);
     let timer: number | null = null;
     let cancelled = false;
-
     const poll = async () => {
       if (cancelled) {
         return;
       }
-      const requestId = requestIdRef.current + 1;
-      requestIdRef.current = requestId;
-      const result = await hydratePdfPreview({
-        requestId,
-        cacheKey,
-        baseState: stateRef.current,
-      });
-      if (cancelled) {
-        return;
-      }
-      if (result?.pdfCacheState === "pending") {
+      await loadDocument({ preferCache: false, bustCache: false });
+      if (!cancelled && stateRef.current.pdfCacheState === "pending") {
         timer = window.setTimeout(() => {
           void poll();
         }, PDF_PREVIEW_POLL_MS);
@@ -497,7 +445,7 @@ export function useLibraryDocumentData(params: {
         window.clearTimeout(timer);
       }
     };
-  }, [active, hydratePdfPreview, projectId, selectedPath, state.pdfCacheState]);
+  }, [active, loadDocument, projectId, selectedPath, state.pdfCacheState]);
 
   return {
     ...state,
