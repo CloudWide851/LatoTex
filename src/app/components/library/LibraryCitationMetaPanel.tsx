@@ -7,7 +7,7 @@ type PaperPreview = {
   title?: string | null;
   detectedLanguage?: string | null;
   extractionEngine?: string | null;
-  pageCount?: number;
+  pageCount?: number | null;
   excerpt?: string | null;
 };
 

@@ -34,7 +34,7 @@ describe("drawWorkspaceUtils", () => {
   it("classifies draw handshake messages for startup and page runtime", async () => {
     const { DRAWIO_CONFIG_MESSAGE, interpretDrawHandshakeMessage } = await import("./drawWorkspaceUtils");
 
-    expect(interpretDrawHandshakeMessage({ event: "host_loaded" })).toEqual({ kind: "ignore" });
+    expect(interpretDrawHandshakeMessage({ event: "host_loaded" })).toEqual({ kind: "hostLoaded" });
     expect(interpretDrawHandshakeMessage({ event: "configure" })).toEqual({
       kind: "configure",
       outboundMessage: DRAWIO_CONFIG_MESSAGE,

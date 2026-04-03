@@ -1,6 +1,7 @@
 use super::{
     build_workspace_file_resource_url, candidate_source_dirs, normalize_relative_asset_path,
     normalize_workspace_relative_path, workspace_file_response, LOCAL_RESOURCE_SCHEME,
+    REQUIRED_DRAWIO_ASSETS,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -147,4 +148,11 @@ fn candidate_source_dirs_include_packaged_and_dev_drawio_locations() {
 
     assert!(values.iter().any(|value| value.ends_with("/resources/core/drawio")));
     assert!(values.iter().any(|value| value.ends_with("/public/core/drawio")));
+}
+
+#[test]
+fn required_drawio_assets_include_runtime_lazy_scripts() {
+    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/extensions.min.js"));
+    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/stencils.min.js"));
+    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/shapes-14-6-5.min.js"));
 }

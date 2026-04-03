@@ -13,6 +13,7 @@ export type DrawMessage = {
 
 export type DrawHandshakeAction =
   | { kind: "ignore" }
+  | { kind: "hostLoaded" }
   | { kind: "configure"; outboundMessage: string }
   | { kind: "init" }
   | { kind: "error"; detail: string };
@@ -133,6 +134,9 @@ export function parseDrawMessage(payload: unknown): DrawMessage | null {
 
 export function interpretDrawHandshakeMessage(message: DrawMessage | null): DrawHandshakeAction {
   const event = String(message?.event ?? "").trim();
+  if (event === "host_loaded") {
+    return { kind: "hostLoaded" };
+  }
   if (event === "configure") {
     return {
       kind: "configure",

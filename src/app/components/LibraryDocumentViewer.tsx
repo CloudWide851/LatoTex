@@ -9,7 +9,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openExternalLink } from "../../shared/api/app";
 import { readFile, writeFile } from "../../shared/api/workspace";
-import { filenameFromPath } from "./library/viewerUtils";
 import type { LibraryPdfScrollViewerHandle } from "./library/LibraryPdfScrollViewer";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./library/annotationPalette";
 import {
@@ -20,36 +19,16 @@ import {
   type AnnotationTextStylePreset,
   type AnnotationTextBox,
 } from "./library/annotationModel";
-import { LibraryDocumentSidebar } from "./library/LibraryDocumentSidebar";
-import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
-import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
-import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
+import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
+import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
+import { filenameFromPath } from "./library/viewerUtils";
+import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
 
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type ViewMode = "bib" | "pdf" | "compare";
-
-function ViewModeButton(props: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-        props.active
-          ? "border-primary-500 bg-primary-50 text-primary-800"
-          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-      }`}
-      onClick={props.onClick}
-    >
-      {props.label}
-    </button>
-  );
-}
 
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
@@ -73,7 +52,6 @@ export function LibraryDocumentViewer(props: {
     translationModelId,
     t,
   } = props;
-
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode ?? "bib");
@@ -92,8 +70,7 @@ export function LibraryDocumentViewer(props: {
   const [pdfZoom, setPdfZoom] = useState(1);
   const [toolConfigSignal, setToolConfigSignal] = useState(0);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
-  const lastAnnotationPayloadRef = useRef("");
-
+  const lastAnnotationPayloadRef = useRef<string>("");
   const {
     loading,
     loadError,
@@ -118,7 +95,6 @@ export function LibraryDocumentViewer(props: {
     selectedPath,
     active,
   });
-
   const hasPdf = Boolean(pdfUrl);
   const hasTranslated = Boolean(translatedPdfUrl);
   const documentBusy = loading || pdfPreviewLoading;
@@ -367,87 +343,95 @@ export function LibraryDocumentViewer(props: {
     );
   }
 
-  const sourcePdfState = (pdfPreviewError ? "error" : hasPdf ? "ready" : (pdfPreviewLoading ? "pending" : "missing")) as
-    | "ready"
-    | "pending"
-    | "error"
-    | "missing";
-  const translatedPdfState = hasTranslated ? "ready" : translationBusy ? "pending" : "missing";
-  const title = citation?.title || filenameFromPath(selectedPath);
+  const actionBtnClass = "panel-topbar-btn motion-hover-rise inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-xl border border-slate-200 bg-[#f8fafc] p-3">
-      <header className="grid gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            <FileText className="h-3.5 w-3.5" />
-            <span>{t("library.detailTitle")}</span>
-          </div>
-          <h2 className="mt-1 truncate text-sm font-semibold text-slate-900">{title}</h2>
-          <p className="mt-1 truncate text-xs text-slate-500">{selectedPath}</p>
+    <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
+      <section className="panel-topbar flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 motion-shell-stage motion-panel-glow">
+        <div className="flex min-w-0 items-center gap-2">
+          <FileText className="h-3.5 w-3.5 text-slate-500" />
+          <span className="panel-topbar-text truncate text-sm font-medium text-slate-700">{filenameFromPath(selectedPath)}</span>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <ViewModeButton
-            active={viewMode === "bib"}
-            label={t("library.viewer.showBib")}
-            onClick={() => applyViewMode("bib")}
-          />
-          <ViewModeButton
-            active={viewMode === "pdf"}
-            label={t("library.viewer.showPdf")}
-            onClick={() => applyViewMode("pdf")}
-          />
-          <ViewModeButton
-            active={viewMode === "compare"}
-            label={t("library.viewer.showCompare")}
-            onClick={() => applyViewMode("compare")}
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+        <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto py-1">
           <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-            onClick={() => onAnalyzePaper(selectedPath)}
-            disabled={analysisRunning}
+            className={`panel-topbar-text rounded border px-2 py-1 text-[11px] ${
+              viewMode === "bib"
+                ? "border-primary-300 bg-primary-50 text-primary-900"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+            onClick={() => applyViewMode("bib")}
+            title={t("library.viewer.showBib")}
+          >
+            {t("library.viewer.showBib")}
+          </button>
+          <button
+            className={`panel-topbar-text rounded border px-2 py-1 text-[11px] ${
+              viewMode === "pdf"
+                ? "border-primary-300 bg-primary-50 text-primary-900"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+            onClick={() => applyViewMode("pdf")}
+            title={t("library.viewer.showPdf")}
+            disabled={!hasPdf}
+          >
+            {t("library.viewer.showPdf")}
+          </button>
+
+          <button
+            className={actionBtnClass}
+            onClick={() => selectedPath && onAnalyzePaper(selectedPath)}
+            title={t("library.viewer.analyzePaper")}
+            disabled={!selectedPath || documentBusy || analysisRunning}
           >
             <FileSearch className="h-3.5 w-3.5" />
-            {t("library.viewer.analyzePaper")}
           </button>
+
           <button
-            type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-            onClick={() => handleRunTranslation()}
-            disabled={translationBusy || !selectedPath}
+            className={actionBtnClass}
+            onClick={() => {
+              if (hasTranslated && translatedPdfUrl) {
+                applyViewMode("compare");
+                return;
+              }
+              handleRunTranslation(() => applyViewMode("compare"));
+            }}
+            title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
+            disabled={!selectedPath || documentBusy || translationBusy}
           >
-            <Languages className="h-3.5 w-3.5" />
-            {t("library.viewer.translatePaper")}
+            <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
           </button>
-          {activeLink ? (
+
+          {viewMode === "pdf" ? (
             <>
               <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
-                onClick={handleOpenLink}
+                className={actionBtnClass}
+                onClick={() => void handleOpenLink()}
+                disabled={!activeLink}
                 title={t("library.viewer.openLink")}
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-3.5 w-3.5" />
               </button>
               <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
-                onClick={handleCopyLink}
-                title={t("library.viewer.copyLink")}
+                className={actionBtnClass}
+                onClick={() => void handleCopyLink()}
+                disabled={!activeLink}
+                title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
               >
-                {copyState ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copyState ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </>
           ) : null}
         </div>
-      </header>
+      </section>
 
-      <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+      {translationNotice ? (
+        <div className={`rounded border px-3 py-2 text-xs motion-card-pop ${translationNotice.type === "info" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+          {translationNotice.message}
+        </div>
+      ) : null}
+
+      <div className="relative min-h-0">
+        <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
         <LibraryViewerContentPanel
           projectId={projectId}
           viewMode={viewMode}
@@ -500,35 +484,15 @@ export function LibraryDocumentViewer(props: {
           translatedPdfRelativePath={translatedPdfRelativePath}
           translatedPdfUrl={translatedPdfUrl}
           bibPreview={bibPreview}
-          t={t}
-        />
-
-        <LibraryDocumentSidebar
           citation={citation}
-          activeLink={activeLink}
-          linkError={linkError}
-          copyState={copyState}
           paperPreview={paperPreview}
           paperPreviewLoading={paperPreviewLoading}
           paperPreviewError={paperPreviewError}
-          sourcePdfState={sourcePdfState}
-          translatedPdfState={translatedPdfState}
-          pdfDownloadedBytes={pdfDownloadedBytes}
-          pdfTotalBytes={pdfTotalBytes}
-          translationBusy={translationBusy}
-          translationDetail={translationDetail}
           onAnalyzePaper={selectedPath ? (() => onAnalyzePaper(selectedPath)) : null}
-          onOpenLink={handleOpenLink}
-          onCopyLink={handleCopyLink}
+          linkError={linkError}
           t={t}
         />
       </div>
-
-      <LibraryTranslationStatusToast
-        progress={translationProgress}
-        busy={translationBusy}
-        t={t}
-      />
-    </section>
+    </div>
   );
 }

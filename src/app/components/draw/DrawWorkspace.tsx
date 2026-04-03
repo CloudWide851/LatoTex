@@ -1,5 +1,4 @@
-import { AlertTriangle, LoaderCircle, PencilRuler } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
@@ -13,12 +12,12 @@ import {
   persistDrawExportToWorkspace,
   resolveDrawioHostFrameSrc,
   savePersistedTabs,
+  tabTitleFromPath,
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
 import { DrawWorkspaceTabs } from "./DrawWorkspaceTabs";
 
 type TranslationFn = (key: any) => string;
-type DrawFramePhase = "booting" | "ready" | "error";
 
 type WorkspaceFsEventDetail = {
   scope: FsScope;
@@ -55,19 +54,6 @@ function withReloadToken(url: string, reloadToken: number): string {
   return `${normalized}${normalized.includes("?") ? "&" : "?"}latotexReload=${reloadToken}`;
 }
 
-function frameStatusLabel(phase: DrawFramePhase, busy: boolean, t: TranslationFn): string {
-  if (busy) {
-    return t("draw.exporting");
-  }
-  if (phase === "ready") {
-    return t("draw.ready");
-  }
-  if (phase === "error") {
-    return t("draw.startFailed");
-  }
-  return t("draw.waiting");
-}
-
 export function DrawWorkspace(props: {
   projectId: string | null;
   selectedPath: string | null;
@@ -95,50 +81,52 @@ export function DrawWorkspace(props: {
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
 
+  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
-  const [framePhase, setFramePhase] = useState<DrawFramePhase>("booting");
-  const [frameErrorDetail, setFrameErrorDetail] = useState<string | null>(null);
+  const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
+  const [frameLoadStage, setFrameLoadStage] = useState<"idle" | "connecting" | "hostReady">("idle");
   const [frameDocumentLoaded, setFrameDocumentLoaded] = useState(false);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
 
-  const resolvedFrameStatus = useMemo(() => {
-    if (status.trim()) {
-      return status;
-    }
-    return frameStatusLabel(framePhase, busy, t);
-  }, [busy, framePhase, status, t]);
-
   useEffect(() => {
     try {
       const resolved = resolveDrawioHostFrameSrc();
       if (!resolved) {
-        throw new Error("drawio entry url is missing");
+        const failure = formatDrawStartFailure(t, "drawio entry url is missing");
+        setReady(false);
+        setFrameSrc(null);
+        setFrameFailureDetail(failure);
+        setFrameLoadStage("idle");
+        setStatus(failure);
+        return;
       }
-      setFramePhase("booting");
-      setFrameErrorDetail(null);
+      setReady(false);
+      setFrameFailureDetail(null);
+      setFrameLoadStage("connecting");
       setFrameDocumentLoaded(false);
       setFrameSrc(withReloadToken(resolved, frameReloadToken));
       setStatus(t("draw.waiting"));
     } catch (error) {
       const failure = formatDrawStartFailure(t, String(error));
-      setFramePhase("error");
+      setReady(false);
       setFrameSrc(null);
-      setFrameErrorDetail(failure);
-      setFrameDocumentLoaded(false);
+      setFrameFailureDetail(failure);
+      setFrameLoadStage("idle");
       setStatus(failure);
     }
   }, [frameReloadToken, t]);
 
   const retryFrameLoad = useCallback(() => {
-    setFramePhase("booting");
+    setReady(false);
     setFrameSrc(null);
-    setFrameErrorDetail(null);
+    setFrameFailureDetail(null);
+    setFrameLoadStage("connecting");
     setFrameDocumentLoaded(false);
     setStatus(t("draw.waiting"));
     setFrameReloadToken((prev) => prev + 1);
@@ -161,12 +149,12 @@ export function DrawWorkspace(props: {
   }, [postToFrameRaw]);
 
   const loadActiveToFrame = useCallback((xmlOverride?: string) => {
-    if (framePhase !== "ready" || !activePath) {
+    if (!ready || !activePath) {
       return;
     }
     const xml = xmlOverride ?? xmlByPathRef.current[activePath] ?? EMPTY_DIAGRAM;
     postToFrame({ action: "load", autosave: 1, xml });
-  }, [activePath, framePhase, postToFrame]);
+  }, [activePath, postToFrame, ready]);
 
   const selectTabPath = useCallback((path: string | null) => {
     activePathRef.current = path;
@@ -275,13 +263,16 @@ export function DrawWorkspace(props: {
   }, [ensureTabPath, projectId, t, tabPaths]);
 
   const startRename = useCallback((path: string) => {
-    const title = path.split("/").pop()?.replace(/\.drawio$/i, "") ?? "diagram";
+    const title = tabTitleFromPath(path).replace(/\.drawio$/i, "");
     setRenamingPath(path);
     setRenameInput(title);
   }, []);
 
   const commitRename = useCallback(async (path: string) => {
-    if (!projectId || renameCommittingPathRef.current === path) {
+    if (!projectId) {
+      return;
+    }
+    if (renameCommittingPathRef.current === path) {
       return;
     }
     const trimmed = renameInput.trim();
@@ -310,6 +301,9 @@ export function DrawWorkspace(props: {
       if (!ok) {
         return;
       }
+      if (activePathRef.current === path) {
+        activePathRef.current = nextPath;
+      }
       replaceTabPath(path, nextPath);
       setRenamingPath(null);
       setStatus(t("toast.fsUpdated"));
@@ -329,7 +323,17 @@ export function DrawWorkspace(props: {
   useEffect(() => {
     if (!projectId) {
       setTabPaths([]);
-      selectTabPath(null);
+      setActivePath(null);
+      activePathRef.current = null;
+      setReady(false);
+      setFrameSrc(null);
+      setFrameFailureDetail(null);
+      setFrameLoadStage("idle");
+      setFrameDocumentLoaded(false);
+      setStatus("");
+      setRenamingPath(null);
+      setRenameInput("");
+      xmlByPathRef.current = {};
       return;
     }
     const persisted = loadPersistedTabs(projectId);
@@ -345,7 +349,7 @@ export function DrawWorkspace(props: {
     setTabPaths(paths);
     setActivePath(resolvedActive);
     activePathRef.current = resolvedActive;
-  }, [projectId, selectTabPath, selectedPath]);
+  }, [projectId, selectedPath]);
 
   useEffect(() => {
     if (!projectId) {
@@ -404,13 +408,20 @@ export function DrawWorkspace(props: {
         return;
       }
       const handshakeAction = interpretDrawHandshakeMessage(message);
+      if (handshakeAction.kind === "hostLoaded") {
+        setFrameLoadStage("hostReady");
+        setStatus(t("draw.hostReady"));
+        return;
+      }
       if (handshakeAction.kind === "configure") {
+        setStatus(t("draw.hostReady"));
         postToFrameRaw(DRAWIO_CONFIG_MESSAGE);
         return;
       }
       if (handshakeAction.kind === "init") {
-        setFramePhase("ready");
-        setFrameErrorDetail(null);
+        setReady(true);
+        setFrameFailureDetail(null);
+        setFrameLoadStage("idle");
         if (initTimerRef.current !== null) {
           window.clearTimeout(initTimerRef.current);
           initTimerRef.current = null;
@@ -423,8 +434,10 @@ export function DrawWorkspace(props: {
       }
       if (handshakeAction.kind === "error") {
         const failure = formatDrawStartFailure(t, handshakeAction.detail);
-        setFramePhase("error");
-        setFrameErrorDetail(failure);
+        setReady(false);
+        setFrameSrc(null);
+        setFrameFailureDetail(failure);
+        setFrameLoadStage("idle");
         setStatus(failure);
         return;
       }
@@ -438,10 +451,11 @@ export function DrawWorkspace(props: {
         }
         const nextXml = message.xml;
         xmlByPathRef.current[currentActivePath] = nextXml;
+        const targetPath = currentActivePath;
         void (async () => {
           setBusy(true);
           try {
-            await writeFile(projectId, currentActivePath, nextXml);
+            await writeFile(projectId, targetPath, nextXml);
             setStatus(t("draw.saved"));
           } catch (error) {
             setStatus(String(error));
@@ -483,22 +497,26 @@ export function DrawWorkspace(props: {
   }, [activePath, loadActiveToFrame, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
-    if (!frameSrc || !frameDocumentLoaded || framePhase !== "booting") {
+    if (!frameSrc || !frameDocumentLoaded) {
       return;
     }
     initTimerRef.current = window.setTimeout(() => {
+      if (ready) {
+        return;
+      }
       const failure = formatDrawStartFailure(t, "drawio local resource channel did not initialize in time");
-      setFramePhase("error");
-      setFrameErrorDetail(failure);
+      setFrameSrc(null);
+      setFrameFailureDetail(failure);
+      setFrameLoadStage("idle");
       setStatus(failure);
-    }, 20_000);
+    }, frameLoadStage === "hostReady" ? 20_000 : 15_000);
     return () => {
       if (initTimerRef.current !== null) {
         window.clearTimeout(initTimerRef.current);
         initTimerRef.current = null;
       }
     };
-  }, [frameDocumentLoaded, framePhase, frameSrc, t]);
+  }, [frameDocumentLoaded, frameLoadStage, frameSrc, ready, t]);
 
   if (!projectId) {
     return (
@@ -509,14 +527,14 @@ export function DrawWorkspace(props: {
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-[#f8fafc]">
+    <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <DrawWorkspaceTabs
         tabPaths={tabPaths}
         activePath={activePath}
         renamingPath={renamingPath}
         renameInput={renameInput}
         busy={busy}
-        status={resolvedFrameStatus}
+        status={status}
         onRenameInputChange={setRenameInput}
         onSelectPath={selectTabPath}
         onStartRename={startRename}
@@ -533,84 +551,47 @@ export function DrawWorkspace(props: {
         t={t}
       />
 
-      <div className="relative min-h-0 p-3">
+      <div className="relative min-h-0">
         {activePath ? (
-          <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-xl border border-slate-200 bg-white p-3">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  <PencilRuler className="h-3.5 w-3.5" />
-                  <span>DrawIO</span>
-                </div>
-                <div className="mt-1 truncate text-sm font-medium text-slate-900">{activePath}</div>
-              </div>
-              <div
-                className={`rounded-full border px-2.5 py-1 text-[11px] ${
-                  framePhase === "ready"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : framePhase === "error"
-                      ? "border-rose-200 bg-rose-50 text-rose-700"
-                      : "border-sky-200 bg-sky-50 text-sky-700"
-                }`}
-              >
-                {resolvedFrameStatus}
+          frameFailureDetail ? (
+            <div className="flex h-full items-center justify-center p-4">
+              <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-left shadow-sm">
+                <div className="text-sm font-semibold text-amber-950">{t("draw.startFailed")}</div>
+                <div className="mt-2 break-all text-xs leading-5 text-amber-900">{frameFailureDetail}</div>
+                <button
+                  type="button"
+                  className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+                  onClick={() => {
+                    void retryFrameLoad();
+                  }}
+                >
+                  {t("draw.retry")}
+                </button>
               </div>
             </div>
-
-            {framePhase === "error" ? (
-              <div className="flex h-full items-center justify-center p-4">
-                <div className="w-full max-w-lg rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-left shadow-sm">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-rose-950">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>{t("draw.startFailed")}</span>
-                  </div>
-                  <div className="mt-2 break-all text-xs leading-5 text-rose-900">
-                    {frameErrorDetail || t("draw.startFailed")}
-                  </div>
-                  <button
-                    type="button"
-                    className="mt-4 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
-                    onClick={() => {
-                      retryFrameLoad();
-                    }}
-                  >
-                    {t("draw.retry")}
-                  </button>
+          ) : frameSrc ? (
+            <>
+              <iframe
+                ref={frameRef}
+                key={frameSrc}
+                src={frameSrc}
+                title="drawio"
+                className={`h-full w-full border-0 transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
+                onLoad={() => {
+                  setFrameDocumentLoaded(true);
+                }}
+              />
+              {!ready ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/92 px-4 text-center text-xs text-slate-500">
+                  {status || t("draw.waiting")}
                 </div>
-              </div>
-            ) : frameSrc ? (
-              <div className="relative min-h-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                <iframe
-                  ref={frameRef}
-                  key={frameSrc}
-                  src={frameSrc}
-                  title="drawio"
-                  className={`h-full w-full border-0 transition-opacity duration-200 ${framePhase === "ready" ? "opacity-100" : "opacity-0"}`}
-                  onLoad={() => {
-                    setFrameDocumentLoaded(true);
-                  }}
-                />
-                {framePhase !== "ready" ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/92 px-4 text-center">
-                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600 shadow-sm">
-                      <div className="flex items-center gap-2">
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                        <span>{t("draw.waiting")}</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-                {t("draw.waiting")}
-              </div>
-            )}
-          </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("draw.waiting")}</div>
+          )
         ) : (
-          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white text-xs text-slate-500">
-            {t("draw.noTabs")}
-          </div>
+          <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("draw.noTabs")}</div>
         )}
       </div>
     </section>

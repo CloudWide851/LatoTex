@@ -709,6 +709,15 @@ body::before {
   box-shadow: none !important;
 }
 
+.editor-content-stage .monaco-editor .line-numbers {
+  opacity: 1 !important;
+  color: #64748b !important;
+}
+
+.editor-content-stage .monaco-editor .line-numbers.active-line-number {
+  color: #0f172a !important;
+}
+
 .editor-chat-scroll {
   overflow-anchor: none;
 }
@@ -780,6 +789,14 @@ body::before {
 
 [data-theme="dark"] .editor-empty-state {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(11, 18, 32, 0.68));
+}
+
+[data-theme="dark"] .editor-content-stage .monaco-editor .line-numbers {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .editor-content-stage .monaco-editor .line-numbers.active-line-number {
+  color: #e2e8f0 !important;
 }
 
 .settings-bool-row {
