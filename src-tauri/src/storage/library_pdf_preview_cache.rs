@@ -238,8 +238,10 @@ fn resolve_runtime_remote_preview(
     let task_key = pdf_cache_task_key(project_id, &ctx.normalized_relative);
 
     if bust_cache {
+        clear_remote_cache_binding(ctx);
         clear_pdf_cache_entry(&state.library_pdf_cache_tasks, &task_key, &cache_path);
     } else if cache_path.exists() && !cached_pdf_file_ready(&cache_path) {
+        clear_remote_cache_binding(ctx);
         clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
         clear_pdf_cache_entry(&state.library_pdf_cache_tasks, &task_key, &cache_path);
     }
@@ -323,7 +325,7 @@ pub fn library_resolve_pdf_preview(
     relative_path: &str,
 ) -> Result<LibraryPdfPreviewResponse, String> {
     let ctx = prepare_library_pdf_preview_context(db_path, project_id, relative_path)?;
-    if let Some(preview) = build_local_preview_response(&ctx)? {
+    if let Some(preview) = build_local_preview_response(&ctx, true)? {
         return Ok(preview);
     }
 
@@ -339,7 +341,7 @@ pub fn library_resolve_pdf_preview_runtime_with_summary(
     summary: &LibraryCitationSummaryResponse,
 ) -> Result<LibraryPdfPreviewResponse, String> {
     let ctx = prepare_library_pdf_preview_context(&state.db_path, project_id, relative_path)?;
-    if let Some(preview) = build_local_preview_response(&ctx)? {
+    if let Some(preview) = build_local_preview_response(&ctx, !bust_cache)? {
         return Ok(preview);
     }
 

@@ -87,3 +87,36 @@ fn library_open_document_returns_missing_pdf_for_bib_only_entry() {
 
     let _ = fs::remove_dir_all(base);
 }
+
+#[test]
+fn library_open_document_reuses_cached_remote_pdf_without_remote_lookup() {
+    let (base, state, project_id, papers_root) = setup_project("paper-remote-cache");
+    fs::create_dir_all(&papers_root).unwrap();
+    fs::write(
+        papers_root.join("remote-cached.bib"),
+        "@misc{remotecached,\n  url = {https://example.com/paper}\n}\n",
+    )
+    .unwrap();
+
+    let ctx =
+        prepare_library_pdf_preview_context(&state.db_path, &project_id, "remote-cached.bib")
+            .unwrap();
+    let source_url = "https://example.com/files/remote-cached.pdf";
+    let cache_path = build_remote_cache_path(&ctx, source_url).unwrap();
+    fs::write(&cache_path, b"%PDF-1.7\ncached").unwrap();
+    write_remote_cache_binding(&ctx, source_url, &cache_path).unwrap();
+
+    let result =
+        library_open_document_runtime(&state, &project_id, "remote-cached.bib", false).unwrap();
+    assert_eq!(result.pdf_preview.cache_state, "ready");
+    assert!(result.pdf_preview.cached);
+    assert_eq!(result.pdf_preview.source_url.as_deref(), Some(source_url));
+    let expected_relative =
+        to_workspace_relative(&ctx.project_root, &cache_path).unwrap();
+    assert_eq!(
+        result.pdf_preview.relative_path.as_deref(),
+        Some(expected_relative.as_str())
+    );
+
+    let _ = fs::remove_dir_all(base);
+}

@@ -159,3 +159,14 @@ fn required_drawio_assets_include_runtime_lazy_scripts() {
     assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/PostConfig.js"));
     assert!(REQUIRED_DRAWIO_ASSETS.contains(&"styles/high-contrast.css"));
 }
+
+#[test]
+fn drawio_host_page_uses_minimal_embed_query_params() {
+    let host_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/drawio/index.html");
+    let host_html = fs::read_to_string(host_path).unwrap();
+    assert!(host_html.contains(
+        "src=\"./app.html?embed=1&ui=min&spin=1&proto=json&configure=1&saveAndExit=0\""
+    ));
+    assert!(!host_html.contains("offline=1"));
+    assert!(!host_html.contains("stealth=1"));
+}

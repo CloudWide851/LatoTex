@@ -716,17 +716,10 @@ body::before {
   box-shadow: none !important;
 }
 
-.editor-content-stage .monaco-editor .margin-view-overlays .line-numbers {
-  display: inline-block !important;
-  min-width: calc(100% - 6px);
-  padding-right: 8px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
 .editor-content-stage .monaco-editor .line-numbers {
   opacity: 1 !important;
   color: #475569 !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .editor-content-stage .monaco-editor .line-numbers.active-line-number {
