@@ -1,7 +1,6 @@
 use super::{
-    build_workspace_file_resource_url, candidate_source_dirs, normalize_relative_asset_path,
-    normalize_workspace_relative_path, workspace_file_response, LOCAL_RESOURCE_SCHEME,
-    REQUIRED_DRAWIO_ASSETS,
+    candidate_source_dirs, normalize_relative_asset_path, normalize_workspace_relative_path,
+    workspace_file_response, LOCAL_RESOURCE_SCHEME, REQUIRED_DRAWIO_ASSETS,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,14 +45,6 @@ fn normalize_relative_asset_path_defaults_to_index() {
 #[test]
 fn normalize_relative_asset_path_rejects_traversal() {
     assert!(normalize_relative_asset_path("/tool/drawio/../secret.txt").is_err());
-}
-
-#[test]
-fn workspace_file_resource_url_encodes_project_and_relative_path() {
-    let value = build_workspace_file_resource_url("project/one", ".latotex/papers/cache file.pdf");
-    assert!(value.contains(LOCAL_RESOURCE_SCHEME));
-    assert!(value.contains("project%2Fone"));
-    assert!(value.contains("cache%20file.pdf"));
 }
 
 #[test]

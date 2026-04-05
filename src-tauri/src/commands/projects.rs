@@ -1,9 +1,8 @@
-use crate::commands::local_resources::build_workspace_file_resource_url;
 use crate::models::{
     Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse,
     FileWriteBinaryInput, FileWriteInput, FsOperationInput, FsOperationResult,
-    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryDocumentOpenInput,
-    LibraryDocumentOpenResponse, LibraryLinkImportInput, LibraryLinkImportResponse, LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
+    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryLinkImportInput, LibraryLinkImportResponse,
+    LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
     LibraryPdfResumeResponse, LibraryRefInput, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
     OpenExternalLinkInput, ProjectIntegrityStatus, ProjectPathActionInput, ProjectRefInput,
     ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode,
@@ -280,16 +279,6 @@ pub fn library_import_link(
     let mut result = storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())?;
     result.pdf_preview =
         storage::queue_library_pdf_download(&state, &input.project_id, &result.relative_path)?;
-    result.pdf_preview.preview_url = result
-        .pdf_preview
-        .relative_path
-        .as_ref()
-        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
-    result.pdf_preview.translated_preview_url = result
-        .pdf_preview
-        .translated_relative_path
-        .as_ref()
-        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
     Ok(result)
 }
 
@@ -362,43 +351,6 @@ pub fn library_citation_summary_remote(
 }
 
 #[tauri::command]
-pub async fn library_document_open(
-    state: State<'_, AppState>,
-    input: LibraryDocumentOpenInput,
-) -> Result<LibraryDocumentOpenResponse, String> {
-    state.log(
-        "INFO",
-        &format!(
-            "library_document_open: project={}, path={}, bust_cache={}",
-            input.project_id,
-            input.relative_path,
-            input.bust_cache.unwrap_or(false)
-        ),
-    );
-    let app_state = state.inner().clone();
-    let project_id = input.project_id;
-    let relative_path = input.relative_path;
-    let bust_cache = input.bust_cache.unwrap_or(false);
-    let command_project_id = project_id.clone();
-    let mut document = spawn_blocking(move || {
-        storage::library_open_document_runtime(&app_state, &command_project_id, &relative_path, bust_cache)
-    })
-    .await
-    .map_err(|e| e.to_string())??;
-    document.pdf_preview.preview_url = document
-        .pdf_preview
-        .relative_path
-        .as_ref()
-        .map(|path| build_workspace_file_resource_url(&project_id, path));
-    document.pdf_preview.translated_preview_url = document
-        .pdf_preview
-        .translated_relative_path
-        .as_ref()
-        .map(|path| build_workspace_file_resource_url(&project_id, path));
-    Ok(document)
-}
-
-#[tauri::command]
 pub fn library_resolve_pdf_preview(
     state: State<'_, AppState>,
     input: LibraryPdfPreviewInput,
@@ -410,20 +362,12 @@ pub fn library_resolve_pdf_preview(
             input.project_id, input.relative_path
         ),
     );
-    let mut preview = storage::library_resolve_pdf_preview_runtime(
+    let preview = storage::library_resolve_pdf_preview_runtime(
         &state,
         &input.project_id,
         &input.relative_path,
         input.bust_cache.unwrap_or(false),
     )?;
-    preview.preview_url = preview
-        .relative_path
-        .as_ref()
-        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
-    preview.translated_preview_url = preview
-        .translated_relative_path
-        .as_ref()
-        .map(|path| build_workspace_file_resource_url(&input.project_id, path));
     Ok(preview)
 }
 

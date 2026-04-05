@@ -6,8 +6,9 @@ describe("editorMonacoOptions", () => {
     const options = createWorkspaceEditorMonacoOptions();
 
     expect(options.lineNumbers).toBe("on");
-    expect(options.lineNumbersMinChars).toBeGreaterThanOrEqual(4);
-    expect(options.glyphMargin).toBe(true);
+    expect(options.lineNumbersMinChars).toBe(2);
+    expect(options.lineDecorationsWidth).toBe(8);
+    expect(options.glyphMargin).toBe(false);
     expect(options.folding).toBe(true);
     expect(options.renderValidationDecorations).toBe("on");
     expect(options.renderLineHighlightGutter).toBe("all");

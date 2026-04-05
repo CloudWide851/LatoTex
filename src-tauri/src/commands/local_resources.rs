@@ -7,7 +7,7 @@ use tauri::http::{
     header::{CACHE_CONTROL, CONTENT_TYPE},
     Method, Request, Response, StatusCode,
 };
-use urlencoding::{decode, encode};
+use urlencoding::decode;
 
 pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
 const DRAWIO_ROUTE_PREFIX: &str = "/tool/drawio";
@@ -293,25 +293,6 @@ fn workspace_file_response(
             &[("Content-Range", format!("bytes */{total_len}"))],
         ),
         Err(error) => build_text_response(StatusCode::BAD_REQUEST, &error),
-    }
-}
-
-pub fn build_workspace_file_resource_url(project_id: &str, relative_path: &str) -> String {
-    let encoded_project_id = encode(project_id.trim());
-    let encoded_relative_path = encode(relative_path.trim().trim_start_matches('/'));
-    #[cfg(target_os = "windows")]
-    {
-        return format!(
-            "http://{}.localhost{WORKSPACE_FILE_ROUTE_PREFIX}/{}/{}",
-            LOCAL_RESOURCE_SCHEME, encoded_project_id, encoded_relative_path
-        );
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        format!(
-            "{LOCAL_RESOURCE_SCHEME}://localhost{WORKSPACE_FILE_ROUTE_PREFIX}/{}/{}",
-            encoded_project_id, encoded_relative_path
-        )
     }
 }
 

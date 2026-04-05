@@ -22,7 +22,6 @@ export type LibraryCitationSummary = {
 
 export type LibraryPdfPreview = {
   relativePath?: string | null;
-  previewUrl?: string | null;
   sourceUrl?: string | null;
   cached: boolean;
   cacheState: "ready" | "pending" | "error" | "missing";
@@ -30,7 +29,6 @@ export type LibraryPdfPreview = {
   downloadedBytes?: number | null;
   totalBytes?: number | null;
   translatedRelativePath?: string | null;
-  translatedPreviewUrl?: string | null;
 };
 
 export type LibraryLinkImportResult = {
@@ -50,12 +48,6 @@ export type LibraryPdfResumeResult = {
   queued: number;
   skipped: number;
   failed: number;
-};
-
-export type LibraryDocumentOpenResult = {
-  citation: LibraryCitationSummary;
-  bibPreview: string;
-  pdfPreview: LibraryPdfPreview;
 };
 
 export type LibraryZoteroSyncResult = {

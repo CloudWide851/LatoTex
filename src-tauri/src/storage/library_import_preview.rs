@@ -256,7 +256,6 @@ pub fn import_library_link(
         relative_path: relative_path.clone(),
         pdf_preview: LibraryPdfPreviewResponse {
             relative_path: None,
-            preview_url: None,
             source_url: None,
             cached: false,
             cache_state: "missing".to_string(),
@@ -264,7 +263,6 @@ pub fn import_library_link(
             downloaded_bytes: None,
             total_bytes: None,
             translated_relative_path: None,
-            translated_preview_url: None,
         },
     })
 }

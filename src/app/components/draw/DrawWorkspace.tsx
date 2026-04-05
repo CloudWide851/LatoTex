@@ -81,13 +81,12 @@ export function DrawWorkspace(props: {
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
 
-  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [framePhase, setFramePhase] = useState<"loading" | "ready" | "error">("loading");
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
-  const [frameLoadStage, setFrameLoadStage] = useState<"idle" | "connecting" | "hostReady">("idle");
   const [frameDocumentLoaded, setFrameDocumentLoaded] = useState(false);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -99,34 +98,30 @@ export function DrawWorkspace(props: {
       const resolved = resolveDrawioHostFrameSrc();
       if (!resolved) {
         const failure = formatDrawStartFailure(t, "drawio entry url is missing");
-        setReady(false);
+        setFramePhase("error");
         setFrameSrc(null);
         setFrameFailureDetail(failure);
-        setFrameLoadStage("idle");
         setStatus(failure);
         return;
       }
-      setReady(false);
+      setFramePhase("loading");
       setFrameFailureDetail(null);
-      setFrameLoadStage("connecting");
       setFrameDocumentLoaded(false);
       setFrameSrc(withReloadToken(resolved, frameReloadToken));
       setStatus(t("draw.waiting"));
     } catch (error) {
       const failure = formatDrawStartFailure(t, String(error));
-      setReady(false);
+      setFramePhase("error");
       setFrameSrc(null);
       setFrameFailureDetail(failure);
-      setFrameLoadStage("idle");
       setStatus(failure);
     }
   }, [frameReloadToken, t]);
 
   const retryFrameLoad = useCallback(() => {
-    setReady(false);
+    setFramePhase("loading");
     setFrameSrc(null);
     setFrameFailureDetail(null);
-    setFrameLoadStage("connecting");
     setFrameDocumentLoaded(false);
     setStatus(t("draw.waiting"));
     setFrameReloadToken((prev) => prev + 1);
@@ -149,12 +144,12 @@ export function DrawWorkspace(props: {
   }, [postToFrameRaw]);
 
   const loadActiveToFrame = useCallback((xmlOverride?: string) => {
-    if (!ready || !activePath) {
+    if (framePhase !== "ready" || !activePath) {
       return;
     }
     const xml = xmlOverride ?? xmlByPathRef.current[activePath] ?? EMPTY_DIAGRAM;
     postToFrame({ action: "load", autosave: 1, xml });
-  }, [activePath, postToFrame, ready]);
+  }, [activePath, framePhase, postToFrame]);
 
   const selectTabPath = useCallback((path: string | null) => {
     activePathRef.current = path;
@@ -325,10 +320,9 @@ export function DrawWorkspace(props: {
       setTabPaths([]);
       setActivePath(null);
       activePathRef.current = null;
-      setReady(false);
+      setFramePhase("loading");
       setFrameSrc(null);
       setFrameFailureDetail(null);
-      setFrameLoadStage("idle");
       setFrameDocumentLoaded(false);
       setStatus("");
       setRenamingPath(null);
@@ -409,7 +403,6 @@ export function DrawWorkspace(props: {
       }
       const handshakeAction = interpretDrawHandshakeMessage(message);
       if (handshakeAction.kind === "hostLoaded") {
-        setFrameLoadStage("hostReady");
         setStatus(t("draw.hostReady"));
         return;
       }
@@ -419,9 +412,8 @@ export function DrawWorkspace(props: {
         return;
       }
       if (handshakeAction.kind === "init") {
-        setReady(true);
+        setFramePhase("ready");
         setFrameFailureDetail(null);
-        setFrameLoadStage("idle");
         if (initTimerRef.current !== null) {
           window.clearTimeout(initTimerRef.current);
           initTimerRef.current = null;
@@ -434,10 +426,9 @@ export function DrawWorkspace(props: {
       }
       if (handshakeAction.kind === "error") {
         const failure = formatDrawStartFailure(t, handshakeAction.detail);
-        setReady(false);
+        setFramePhase("error");
         setFrameSrc(null);
         setFrameFailureDetail(failure);
-        setFrameLoadStage("idle");
         setStatus(failure);
         return;
       }
@@ -497,26 +488,23 @@ export function DrawWorkspace(props: {
   }, [activePath, loadActiveToFrame, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
-    if (!frameSrc || !frameDocumentLoaded) {
+    if (!frameSrc || !frameDocumentLoaded || framePhase !== "loading") {
       return;
     }
     initTimerRef.current = window.setTimeout(() => {
-      if (ready) {
-        return;
-      }
       const failure = formatDrawStartFailure(t, "drawio local resource channel did not initialize in time");
+      setFramePhase("error");
       setFrameSrc(null);
       setFrameFailureDetail(failure);
-      setFrameLoadStage("idle");
       setStatus(failure);
-    }, frameLoadStage === "hostReady" ? 20_000 : 15_000);
+    }, 20_000);
     return () => {
       if (initTimerRef.current !== null) {
         window.clearTimeout(initTimerRef.current);
         initTimerRef.current = null;
       }
     };
-  }, [frameDocumentLoaded, frameLoadStage, frameSrc, ready, t]);
+  }, [frameDocumentLoaded, framePhase, frameSrc, t]);
 
   if (!projectId) {
     return (
@@ -576,12 +564,12 @@ export function DrawWorkspace(props: {
                 key={frameSrc}
                 src={frameSrc}
                 title="drawio"
-                className={`h-full w-full border-0 transition-opacity duration-200 ${ready ? "opacity-100" : "opacity-0"}`}
+                className={`h-full w-full border-0 transition-opacity duration-200 ${framePhase === "ready" ? "opacity-100" : "opacity-0"}`}
                 onLoad={() => {
                   setFrameDocumentLoaded(true);
                 }}
               />
-              {!ready ? (
+              {framePhase !== "ready" ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/92 px-4 text-center text-xs text-slate-500">
                   {status || t("draw.waiting")}
                 </div>

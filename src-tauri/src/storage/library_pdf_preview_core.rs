@@ -318,7 +318,6 @@ fn build_preview_response(
         .and_then(|path| resolve_translated_pdf_workspace_path(project_root, papers_root, path));
     LibraryPdfPreviewResponse {
         relative_path: source_workspace_relative,
-        preview_url: None,
         source_url,
         cached,
         cache_state: cache_state.to_string(),
@@ -326,7 +325,6 @@ fn build_preview_response(
         downloaded_bytes,
         total_bytes,
         translated_relative_path,
-        translated_preview_url: None,
     }
 }
 

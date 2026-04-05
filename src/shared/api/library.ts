@@ -1,7 +1,6 @@
 import type {
   Ack,
   LibraryCitationSummary,
-  LibraryDocumentOpenResult,
   LibraryPdfImportResult,
   LibraryLinkImportResult,
   LibraryPaperExtractResult,
@@ -124,20 +123,6 @@ export function libraryResolvePdfPreview(
   options?: { bustCache?: boolean },
 ): Promise<LibraryPdfPreview> {
   return invokeCommand<LibraryPdfPreview>("library_resolve_pdf_preview", {
-    input: {
-      projectId,
-      relativePath,
-      bustCache: options?.bustCache ?? false,
-    },
-  });
-}
-
-export function openLibraryDocument(
-  projectId: string,
-  relativePath: string,
-  options?: { bustCache?: boolean },
-): Promise<LibraryDocumentOpenResult> {
-  return invokeCommand<LibraryDocumentOpenResult>("library_document_open", {
     input: {
       projectId,
       relativePath,
