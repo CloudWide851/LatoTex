@@ -8,7 +8,7 @@ export const zhCN_draw = {
   "draw.capture": "捕获",
   "draw.export": "导出",
   "draw.waiting": "正在连接绘图编辑器...",
-  "draw.hostReady": "绘图宿主已就绪，正在加载编辑器...",
+  "draw.hostReady": "正在加载编辑器...",
   "draw.warming": "正在准备本地绘图资源...",
   "draw.pasteImage": "粘贴图片",
   "draw.pasteNoImage": "剪贴板中没有可用图片。",

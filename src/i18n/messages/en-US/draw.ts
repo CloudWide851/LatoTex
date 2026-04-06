@@ -8,7 +8,7 @@ export const enUS_draw = {
   "draw.capture": "Capture",
   "draw.export": "Export",
   "draw.waiting": "Connecting draw editor...",
-  "draw.hostReady": "Draw host ready. Loading editor...",
+  "draw.hostReady": "Loading editor...",
   "draw.warming": "Preparing local draw resources...",
   "draw.pasteImage": "Paste Image",
   "draw.pasteNoImage": "No image found in clipboard.",
