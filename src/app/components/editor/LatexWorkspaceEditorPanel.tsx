@@ -18,6 +18,7 @@ import {
   LazyChatWorkspace,
   WorkspacePanelFallback,
 } from "../workspace/workspaceShellLazy";
+import { isTexPath } from "../../../shared/utils/fileKind";
 
 type TranslationFn = (key: any) => string;
 const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
@@ -190,6 +191,7 @@ export function LatexWorkspaceEditorPanel(props: {
   const editorInstanceRef = useRef<any | null>(null);
   const agentCommandItems = buildAgentCommandItems(t);
   const editorLanguage = selectedCodeLanguage.monaco;
+  const canCompileSelectedFile = isTexPath(selectedFile);
   const editorOptions = useMemo(
     () => createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot),
     [monacoOverflowWidgetRoot],
@@ -290,7 +292,7 @@ export function LatexWorkspaceEditorPanel(props: {
               <button
                 className="panel-topbar-btn editor-toolbar-btn editor-toolbar-btn--primary motion-hover-rise disabled:opacity-50"
                 onClick={onCompileClick}
-                disabled={busy}
+                disabled={busy || !canCompileSelectedFile}
                 title={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
                 aria-label={composeTitleWithShortcut(t("workspace.compile"), t("shortcut.compile"))}
               >

@@ -162,6 +162,10 @@ fn build_binary_response_with_headers(
         .unwrap_or_else(|_| Response::new(bytes))
 }
 
+fn log_local_resource(state: &AppState, level: &str, message: &str) {
+    state.log(level, &format!("local_resource: {message}"));
+}
+
 fn build_head_response(
     status: StatusCode,
     mime: &str,
@@ -186,10 +190,18 @@ fn build_head_response(
 }
 
 fn build_options_response() -> Response<Vec<u8>> {
-    build_binary_response_with_headers(StatusCode::NO_CONTENT, "application/octet-stream", Vec::new(), &[])
+    build_binary_response_with_headers(
+        StatusCode::NO_CONTENT,
+        "application/octet-stream",
+        Vec::new(),
+        &[],
+    )
 }
 
-fn parse_byte_range(range_header: &str, total_len: usize) -> Result<Option<(usize, usize)>, String> {
+fn parse_byte_range(
+    range_header: &str,
+    total_len: usize,
+) -> Result<Option<(usize, usize)>, String> {
     if total_len == 0 {
         return Ok(None);
     }
@@ -255,14 +267,19 @@ fn workspace_file_response(
 ) -> Response<Vec<u8>> {
     let total_len = match fs::metadata(asset_path) {
         Ok(metadata) => metadata.len() as usize,
-        Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
+        Err(error) => {
+            return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+        }
     };
 
     if *method == Method::HEAD {
         return build_head_response(StatusCode::OK, mime, total_len, &[]);
     }
 
-    let Some(range_value) = range_header.map(str::trim).filter(|value| !value.is_empty()) else {
+    let Some(range_value) = range_header
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
         return match read_workspace_file_bytes(asset_path) {
             Ok(bytes) => build_binary_response(StatusCode::OK, mime, bytes),
             Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
@@ -286,12 +303,14 @@ fn workspace_file_response(
             Ok(bytes) => build_binary_response(StatusCode::OK, mime, bytes),
             Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
         },
-        Err(error) if error == "resource.range.unsatisfiable" => build_binary_response_with_headers(
-            StatusCode::RANGE_NOT_SATISFIABLE,
-            mime,
-            Vec::new(),
-            &[("Content-Range", format!("bytes */{total_len}"))],
-        ),
+        Err(error) if error == "resource.range.unsatisfiable" => {
+            build_binary_response_with_headers(
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                mime,
+                Vec::new(),
+                &[("Content-Range", format!("bytes */{total_len}"))],
+            )
+        }
         Err(error) => build_text_response(StatusCode::BAD_REQUEST, &error),
     }
 }
@@ -316,10 +335,7 @@ fn normalize_workspace_relative_path(relative_path: &str) -> Result<PathBuf, Str
     Ok(out)
 }
 
-fn resolve_workspace_file_request(
-    state: &AppState,
-    request_path: &str,
-) -> Result<PathBuf, String> {
+fn resolve_workspace_file_request(state: &AppState, request_path: &str) -> Result<PathBuf, String> {
     let tail = request_path
         .trim()
         .strip_prefix(WORKSPACE_FILE_ROUTE_PREFIX)
@@ -334,9 +350,12 @@ fn resolve_workspace_file_request(
     let relative_path = decode(relative_path_raw)
         .map_err(|_| "resource.path.invalid".to_string())?
         .into_owned();
-    let project_root = storage::load_project_root(&state.db_path, &project_id)?;
     let safe_relative_path = normalize_workspace_relative_path(&relative_path)?;
-    Ok(project_root.join(safe_relative_path))
+    storage::resolve_project_relative_path(
+        &state.db_path,
+        &project_id,
+        &safe_relative_path.to_string_lossy(),
+    )
 }
 
 fn serve_workspace_file(state: &AppState, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
@@ -344,13 +363,55 @@ fn serve_workspace_file(state: &AppState, request: &Request<Vec<u8>>) -> Respons
     let asset_path = match resolve_workspace_file_request(state, request_path) {
         Ok(path) => path,
         Err(error) if error.starts_with("resource.") => {
-            return build_text_response(StatusCode::BAD_REQUEST, &error)
+            log_local_resource(
+                state,
+                "WARN",
+                &format!(
+                    "workspace-file request={} method={} rejected={}",
+                    request_path,
+                    request.method(),
+                    error
+                ),
+            );
+            return build_text_response(StatusCode::BAD_REQUEST, &error);
         }
-        Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+        Err(error) => {
+            log_local_resource(
+                state,
+                "ERROR",
+                &format!(
+                    "workspace-file request={} method={} resolve_failed={}",
+                    request_path,
+                    request.method(),
+                    error
+                ),
+            );
+            return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+        }
     };
     if !asset_path.exists() || !asset_path.is_file() {
+        log_local_resource(
+            state,
+            "WARN",
+            &format!(
+                "workspace-file request={} method={} resolved={} status=404",
+                request_path,
+                request.method(),
+                asset_path.to_string_lossy()
+            ),
+        );
         return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
     }
+    log_local_resource(
+        state,
+        "INFO",
+        &format!(
+            "workspace-file request={} method={} resolved={}",
+            request_path,
+            request.method(),
+            asset_path.to_string_lossy()
+        ),
+    );
     workspace_file_response(
         request.method(),
         &asset_path,
@@ -374,29 +435,104 @@ pub fn handle_local_resource_request(
         return serve_workspace_file(state, request);
     }
     if !path.starts_with(DRAWIO_ROUTE_PREFIX) {
+        log_local_resource(
+            state,
+            "WARN",
+            &format!(
+                "request={} method={} status=404 reason=unsupported_route",
+                path,
+                request.method()
+            ),
+        );
         return build_text_response(StatusCode::NOT_FOUND, "resource.not_found");
     }
 
     let relative_path = match normalize_relative_asset_path(path) {
         Ok(path) => path,
-        Err(error) => return build_text_response(StatusCode::BAD_REQUEST, &error),
+        Err(error) => {
+            log_local_resource(
+                state,
+                "WARN",
+                &format!(
+                    "drawio request={} method={} status=400 reason={}",
+                    path,
+                    request.method(),
+                    error
+                ),
+            );
+            return build_text_response(StatusCode::BAD_REQUEST, &error);
+        }
     };
     let root = match ensure_drawio_serving_dir() {
         Ok(dir) => dir,
-        Err(error) => return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error),
+        Err(error) => {
+            log_local_resource(
+                state,
+                "ERROR",
+                &format!(
+                    "drawio request={} method={} status=500 reason={} candidates={}",
+                    path,
+                    request.method(),
+                    error,
+                    candidate_source_dirs("drawio")
+                        .into_iter()
+                        .map(|value| value.to_string_lossy().to_string())
+                        .collect::<Vec<_>>()
+                        .join(" | ")
+                ),
+            );
+            return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+        }
     };
     let asset_path = root.join(&relative_path);
     if !asset_path.exists() || !asset_path.is_file() {
+        log_local_resource(
+            state,
+            "WARN",
+            &format!(
+                "drawio request={} method={} root={} resolved={} status=404",
+                path,
+                request.method(),
+                root.to_string_lossy(),
+                asset_path.to_string_lossy()
+            ),
+        );
         return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
     }
 
     match fs::read(&asset_path) {
-        Ok(bytes) => build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes),
-        Err(error) => build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string()),
+        Ok(bytes) => {
+            log_local_resource(
+                state,
+                "INFO",
+                &format!(
+                    "drawio request={} method={} root={} resolved={} status=200",
+                    path,
+                    request.method(),
+                    root.to_string_lossy(),
+                    asset_path.to_string_lossy()
+                ),
+            );
+            build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes)
+        }
+        Err(error) => {
+            log_local_resource(
+                state,
+                "ERROR",
+                &format!(
+                    "drawio request={} method={} root={} resolved={} status=500 reason={}",
+                    path,
+                    request.method(),
+                    root.to_string_lossy(),
+                    asset_path.to_string_lossy(),
+                    error
+                ),
+            );
+            build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+        }
     }
 }
 
 #[cfg(test)]
 #[path = "local_resources_tests.rs"]
 mod tests;
-

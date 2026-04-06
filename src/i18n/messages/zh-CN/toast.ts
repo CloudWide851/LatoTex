@@ -3,6 +3,7 @@ export const zhCN_toast = {
   "toast.fileSaved": "文件已保存。",
   "toast.compileSuccess": "编译成功。",
   "toast.compileFailed": "编译失败，请查看诊断信息。",
+  "toast.compileTexOnly": "请先选择一个 .tex 文件再编译。",
   "toast.settingsSaved": "设置已保存。",
   "toast.projectCreated": "项目已创建。",
   "toast.pdfSaved": "PDF 已保存到项目中。",

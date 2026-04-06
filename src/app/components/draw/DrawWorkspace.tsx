@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { runtimeLogWrite } from "../../../shared/api/runtime";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
@@ -77,6 +78,7 @@ export function DrawWorkspace(props: {
   const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
+  const handshakeStageRef = useRef("boot");
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
@@ -93,39 +95,50 @@ export function DrawWorkspace(props: {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
 
+  const logDrawRuntime = useCallback((level: "INFO" | "WARN" | "ERROR", message: string) => {
+    void runtimeLogWrite(level, `draw.workspace: ${message}`).catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     try {
       const resolved = resolveDrawioHostFrameSrc();
       if (!resolved) {
         const failure = formatDrawStartFailure(t, "drawio entry url is missing");
+        handshakeStageRef.current = "missing_entry_url";
         setFramePhase("error");
         setFrameSrc(null);
         setFrameFailureDetail(failure);
         setStatus(failure);
+        logDrawRuntime("ERROR", "entry_url_missing");
         return;
       }
+      handshakeStageRef.current = "frame_src_resolved";
       setFramePhase("loading");
       setFrameFailureDetail(null);
       setFrameDocumentLoaded(false);
       setFrameSrc(withReloadToken(resolved, frameReloadToken));
       setStatus(t("draw.waiting"));
+      logDrawRuntime("INFO", `frame_load_start: src=${resolved}, reload_token=${frameReloadToken}`);
     } catch (error) {
       const failure = formatDrawStartFailure(t, String(error));
+      handshakeStageRef.current = "frame_src_failed";
       setFramePhase("error");
       setFrameSrc(null);
       setFrameFailureDetail(failure);
       setStatus(failure);
+      logDrawRuntime("ERROR", `frame_src_failed: ${String(error)}`);
     }
-  }, [frameReloadToken, t]);
+  }, [frameReloadToken, logDrawRuntime, t]);
 
   const retryFrameLoad = useCallback(() => {
+    logDrawRuntime("WARN", `frame_retry_requested: stage=${handshakeStageRef.current}`);
     setFramePhase("loading");
     setFrameSrc(null);
     setFrameFailureDetail(null);
     setFrameDocumentLoaded(false);
     setStatus(t("draw.waiting"));
     setFrameReloadToken((prev) => prev + 1);
-  }, [t]);
+  }, [logDrawRuntime, t]);
 
   useEffect(() => {
     activePathRef.current = activePath;
@@ -403,15 +416,21 @@ export function DrawWorkspace(props: {
       }
       const handshakeAction = interpretDrawHandshakeMessage(message);
       if (handshakeAction.kind === "hostLoaded") {
+        handshakeStageRef.current = "host_loaded";
+        logDrawRuntime("INFO", "handshake_host_loaded");
         setStatus(t("draw.hostReady"));
         return;
       }
       if (handshakeAction.kind === "configure") {
+        handshakeStageRef.current = "configure";
+        logDrawRuntime("INFO", "handshake_configure");
         setStatus(t("draw.hostReady"));
         postToFrameRaw(DRAWIO_CONFIG_MESSAGE);
         return;
       }
       if (handshakeAction.kind === "init") {
+        handshakeStageRef.current = "init";
+        logDrawRuntime("INFO", "handshake_init");
         setFramePhase("ready");
         setFrameFailureDetail(null);
         if (initTimerRef.current !== null) {
@@ -426,10 +445,12 @@ export function DrawWorkspace(props: {
       }
       if (handshakeAction.kind === "error") {
         const failure = formatDrawStartFailure(t, handshakeAction.detail);
+        handshakeStageRef.current = "error";
         setFramePhase("error");
         setFrameSrc(null);
         setFrameFailureDetail(failure);
         setStatus(failure);
+        logDrawRuntime("ERROR", `handshake_error: ${handshakeAction.detail}`);
         return;
       }
       if ((message.event === "save" || message.event === "autosave") && typeof message.xml === "string") {
@@ -485,14 +506,20 @@ export function DrawWorkspace(props: {
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [activePath, loadActiveToFrame, postToFrameRaw, projectId, t]);
+  }, [activePath, loadActiveToFrame, logDrawRuntime, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
     if (!frameSrc || !frameDocumentLoaded || framePhase !== "loading") {
       return;
     }
+    handshakeStageRef.current = "iframe_loaded";
+    logDrawRuntime("INFO", "iframe_document_loaded");
     initTimerRef.current = window.setTimeout(() => {
-      const failure = formatDrawStartFailure(t, "drawio local resource channel did not initialize in time");
+      const failure = formatDrawStartFailure(
+        t,
+        `drawio local resource channel did not initialize in time (last stage: ${handshakeStageRef.current})`,
+      );
+      logDrawRuntime("ERROR", `handshake_timeout: last_stage=${handshakeStageRef.current}`);
       setFramePhase("error");
       setFrameSrc(null);
       setFrameFailureDetail(failure);
@@ -504,7 +531,7 @@ export function DrawWorkspace(props: {
         initTimerRef.current = null;
       }
     };
-  }, [frameDocumentLoaded, framePhase, frameSrc, t]);
+  }, [frameDocumentLoaded, framePhase, frameSrc, logDrawRuntime, t]);
 
   if (!projectId) {
     return (
@@ -566,6 +593,8 @@ export function DrawWorkspace(props: {
                 title="drawio"
                 className={`h-full w-full border-0 transition-opacity duration-200 ${framePhase === "ready" ? "opacity-100" : "opacity-0"}`}
                 onLoad={() => {
+                  handshakeStageRef.current = "iframe_load_event";
+                  logDrawRuntime("INFO", "iframe_load_event");
                   setFrameDocumentLoaded(true);
                 }}
               />

@@ -13,6 +13,10 @@ export function isPdfPath(path: string | null | undefined): boolean {
   return extensionOf(path ?? "") === "pdf";
 }
 
+export function isTexPath(path: string | null | undefined): boolean {
+  return extensionOf(path ?? "") === "tex";
+}
+
 export function isSvgPath(path: string | null | undefined): boolean {
   return extensionOf(path ?? "") === "svg";
 }

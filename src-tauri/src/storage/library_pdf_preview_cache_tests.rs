@@ -1,5 +1,8 @@
 use super::*;
 use std::fs;
+use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Condvar, Mutex};
 
 fn temp_test_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -30,6 +33,88 @@ fn cached_pdf_file_ready_rejects_non_pdf_cached_file() {
     assert!(!cached_pdf_file_ready(&cache_path));
 
     let _ = fs::remove_dir_all(dir);
+}
+
+fn create_runtime_fixture(name: &str) -> (crate::state::AppState, String, PathBuf, PathBuf) {
+    let temp_root = std::env::temp_dir().join(format!(
+        "latotex-library-runtime-preview-{}-{}",
+        name,
+        uuid::Uuid::new_v4()
+    ));
+    let runtime_root = temp_root.join("runtime");
+    let app_data_dir = temp_root.join("app-data");
+    let projects_dir = runtime_root.join("projects");
+    let logs_dir = runtime_root.join("logs");
+    let downloads_dir = runtime_root.join("downloads");
+    let db_path = runtime_root.join("latotex.db");
+    let session_log_path = logs_dir.join("session.log");
+
+    fs::create_dir_all(&projects_dir).unwrap();
+    fs::create_dir_all(&logs_dir).unwrap();
+    fs::create_dir_all(&downloads_dir).unwrap();
+    fs::create_dir_all(&app_data_dir).unwrap();
+    fs::write(&session_log_path, b"").unwrap();
+
+    crate::storage::initialize_database(&db_path).unwrap();
+    let snapshot = crate::storage::create_project(&db_path, &projects_dir, "Library Runtime Test").unwrap();
+    let project_id = snapshot.summary.id;
+    let project_root = PathBuf::from(snapshot.summary.root_path);
+
+    let state = crate::state::AppState {
+        app_name: "LatoTex".to_string(),
+        runtime_root,
+        app_data_dir,
+        projects_dir,
+        db_path,
+        logs_dir,
+        downloads_dir,
+        session_log_path,
+        install_mode: "test".to_string(),
+        app_version: "0.1.0-test".to_string(),
+        git_download_tasks: Arc::new(Mutex::new(HashMap::new())),
+        library_pdf_cache_tasks: Arc::new(Mutex::new(HashMap::new())),
+        library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
+        analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
+        latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),
+        agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
+        agent_cancel_flags: Arc::new(Mutex::new(HashMap::<String, Arc<AtomicBool>>::new())),
+    };
+
+    (state, project_id, project_root, temp_root)
+}
+
+#[test]
+fn runtime_preview_returns_cached_remote_binding_without_remote_lookup() {
+    let (state, project_id, project_root, temp_root) = create_runtime_fixture("cached-binding");
+    let papers_root = crate::storage::library_root(&project_root);
+    fs::create_dir_all(&papers_root).unwrap();
+
+    let source_relative = "cached-paper.bib";
+    let source_path = papers_root.join(source_relative);
+    fs::write(
+        &source_path,
+        "@article{cachedpaper,\n  title={Cached Paper}\n}\n",
+    )
+    .unwrap();
+
+    let cache_dir = papers_root.join(".cache").join("remote-pdf");
+    fs::create_dir_all(&cache_dir).unwrap();
+    let cache_path = cache_dir.join("cached-paper.pdf");
+    fs::write(&cache_path, b"%PDF-1.7\ncached\n").unwrap();
+
+    let ctx = prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
+    write_remote_cache_binding(&ctx, "https://example.com/cached-paper.pdf", &cache_path).unwrap();
+
+    let preview = library_resolve_pdf_preview_runtime(&state, &project_id, source_relative, false).unwrap();
+
+    assert_eq!(preview.cache_state, LIBRARY_PDF_CACHE_STATE_READY);
+    assert_eq!(preview.source_url.as_deref(), Some("https://example.com/cached-paper.pdf"));
+    assert_eq!(
+        preview.relative_path.as_deref(),
+        Some(".latotex/papers/.cache/remote-pdf/cached-paper.pdf")
+    );
+
+    let _ = fs::remove_dir_all(temp_root);
 }
 
 #[test]

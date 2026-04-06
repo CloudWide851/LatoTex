@@ -3,6 +3,11 @@ const LIBRARY_PDF_CACHE_STATE_PENDING: &str = "pending";
 const LIBRARY_PDF_CACHE_STATE_ERROR: &str = "error";
 const LIBRARY_PDF_CACHE_STATE_MISSING: &str = "missing";
 const LIBRARY_PDF_CACHE_TASK_STALE_MS: u64 = 180_000;
+
+fn log_library_pdf_preview(state: &crate::state::AppState, message: &str) {
+    let _ = crate::logging::append_log_line(&state.session_log_path, "INFO", message);
+}
+
 fn pdf_cache_task_key(project_id: &str, relative_path: &str) -> String {
     format!("{project_id}::{}", relative_path.trim().replace('\\', "/"))
 }
@@ -333,35 +338,55 @@ pub fn library_resolve_pdf_preview(
     resolve_sync_remote_preview(&ctx, &citation)
 }
 
-pub fn library_resolve_pdf_preview_runtime_with_summary(
-    state: &crate::state::AppState,
-    project_id: &str,
-    relative_path: &str,
-    bust_cache: bool,
-    summary: &LibraryCitationSummaryResponse,
-) -> Result<LibraryPdfPreviewResponse, String> {
-    let ctx = prepare_library_pdf_preview_context(&state.db_path, project_id, relative_path)?;
-    if let Some(preview) = build_local_preview_response(&ctx, !bust_cache)? {
-        return Ok(preview);
-    }
-
-    resolve_runtime_remote_preview(state, &ctx, project_id, summary, bust_cache)
-}
-
 pub fn library_resolve_pdf_preview_runtime(
     state: &crate::state::AppState,
     project_id: &str,
     relative_path: &str,
     bust_cache: bool,
 ) -> Result<LibraryPdfPreviewResponse, String> {
-    let citation = library_citation_summary_remote(&state.db_path, project_id, relative_path)?;
-    library_resolve_pdf_preview_runtime_with_summary(
+    let ctx = prepare_library_pdf_preview_context(&state.db_path, project_id, relative_path)?;
+    if let Some(preview) = build_local_preview_response(&ctx, !bust_cache)? {
+        let source = if preview.cached {
+            "cached_remote_binding"
+        } else {
+            "local_pdf"
+        };
+        log_library_pdf_preview(
+            state,
+            &format!(
+                "library_pdf_preview.local_hit: project={}, path={}, source={}, preview_path={}",
+                project_id,
+                relative_path,
+                source,
+                preview.relative_path.as_deref().unwrap_or("-")
+            ),
+        );
+        return Ok(preview);
+    }
+
+    log_library_pdf_preview(
         state,
-        project_id,
-        relative_path,
-        bust_cache,
-        &citation,
-    )
+        &format!(
+            "library_pdf_preview.remote_lookup_start: project={}, path={}, bust_cache={}",
+            project_id, relative_path, bust_cache
+        ),
+    );
+    let citation = library_citation_summary_remote(&state.db_path, project_id, relative_path)?;
+    let preview = resolve_runtime_remote_preview(state, &ctx, project_id, &citation, bust_cache)?;
+    let preview_state = preview.cache_state.clone();
+    let source_url = preview.source_url.clone().unwrap_or_else(|| "-".to_string());
+    log_library_pdf_preview(
+        state,
+        &format!(
+            "library_pdf_preview.remote_result: project={}, path={}, state={}, source_url={}, preview_path={}",
+            project_id,
+            relative_path,
+            preview_state,
+            source_url,
+            preview.relative_path.as_deref().unwrap_or("-")
+        ),
+    );
+    Ok(preview)
 }
 
 #[cfg(test)]

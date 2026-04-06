@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { openProject } from "../../shared/api/projects";
 import { readFileBinary, workspaceExportPdf } from "../../shared/api/workspace";
-import { isPdfPath } from "../../shared/utils/fileKind";
+import { isPdfPath, isTexPath } from "../../shared/utils/fileKind";
 import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 import { runCompilePass as runCompilePassWorkflow } from "./compileWorkflow";
 import type { CompileInstallProgress } from "./compileWorkflow";
@@ -104,6 +104,14 @@ export function useCompileActions(params: {
     if (!activeProjectId || !selectedFile) {
       return null;
     }
+    if (!isTexPath(selectedFile)) {
+      await writeRuntimeLog("WARN", `latex.compile.skipped_invalid_target: ${selectedFile}`);
+      setToast({ type: "error", message: t("toast.compileTexOnly") });
+      setCompileInstallProgress(null);
+      setLastCompileFailed(true);
+      setCompileDiagnostics([t("toast.compileTexOnly")]);
+      return null;
+    }
     setCompileDiagnostics([]);
 
     const result = await runAppAction<CompileActionResult | null>({
@@ -143,6 +151,7 @@ export function useCompileActions(params: {
   }, [
     activeProjectId,
     editorContent,
+    isTexPath,
     resolveSelectedFileContent,
     runCompilePass,
     selectedFile,
@@ -151,6 +160,7 @@ export function useCompileActions(params: {
     setCompileInstallProgress,
     setLastCompileFailed,
     setToast,
+    t,
   ]);
 
   const handleExportCompiledPdf = useCallback(async () => {

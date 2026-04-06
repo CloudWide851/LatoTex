@@ -3,6 +3,7 @@ export const enUS_toast = {
   "toast.fileSaved": "File saved.",
   "toast.compileSuccess": "Compile succeeded.",
   "toast.compileFailed": "Compile failed. Check diagnostics.",
+  "toast.compileTexOnly": "Select a .tex file before compiling.",
   "toast.settingsSaved": "Settings saved.",
   "toast.projectCreated": "Project created.",
   "toast.pdfSaved": "PDF has been saved into the project.",

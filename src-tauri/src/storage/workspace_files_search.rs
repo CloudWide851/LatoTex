@@ -89,13 +89,21 @@ fn safe_join(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
     Ok(normalized_candidate)
 }
 
+pub fn resolve_project_relative_path(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    let root = load_project_root(db_path, project_id)?;
+    safe_join(&root, relative_path)
+}
+
 pub fn read_project_file(
     db_path: &Path,
     project_id: &str,
     relative_path: &str,
 ) -> Result<FileReadResponse, String> {
-    let root = load_project_root(db_path, project_id)?;
-    let target = safe_join(&root, relative_path)?;
+    let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
     let content = fs::read_to_string(target).map_err(|e| e.to_string())?;
     Ok(FileReadResponse {
         relative_path: relative_path.to_string(),
@@ -108,8 +116,7 @@ pub fn read_project_file_binary(
     project_id: &str,
     relative_path: &str,
 ) -> Result<FileReadBinaryResponse, String> {
-    let root = load_project_root(db_path, project_id)?;
-    let target = safe_join(&root, relative_path)?;
+    let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
     let bytes = fs::read(target).map_err(|e| e.to_string())?;
     Ok(FileReadBinaryResponse {
         relative_path: relative_path.to_string(),
@@ -118,8 +125,7 @@ pub fn read_project_file_binary(
 }
 
 pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, String> {
-    let root = load_project_root(db_path, &input.project_id)?;
-    let target = safe_join(&root, &input.relative_path)?;
+    let target = resolve_project_relative_path(db_path, &input.project_id, &input.relative_path)?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -144,8 +150,7 @@ pub fn write_project_file_binary(
     relative_path: &str,
     bytes: &[u8],
 ) -> Result<Ack, String> {
-    let root = load_project_root(db_path, project_id)?;
-    let target = safe_join(&root, relative_path)?;
+    let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
