@@ -20,13 +20,7 @@
       }
     ],
     "security": {
-      "csp": null,
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$APPDATA/drawio-cache/**"
-        ]
-      }
+      "csp": null
     }
   },
   "bundle": {

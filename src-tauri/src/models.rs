@@ -24,6 +24,7 @@ pub struct ResourceNode {
     pub name: String,
     pub relative_path: String,
     pub kind: String,
+    pub directory_role: Option<String>,
     pub children: Vec<ResourceNode>,
 }
 

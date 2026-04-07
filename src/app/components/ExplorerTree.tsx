@@ -12,6 +12,11 @@ import {
   resolveDecorationTone,
 } from "./explorer/treeUtils";
 type TranslationFn = (key: any) => string;
+
+function shouldAutoExpandNode(node: ResourceNode): boolean {
+  return node.kind === "directory" && node.directoryRole !== "pythonVenv";
+}
+
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
@@ -87,7 +92,7 @@ export function ExplorerTree(props: {
     const defaults: Record<string, boolean> = {};
     const walk = (nodes: ResourceNode[]) => {
       for (const node of nodes) {
-        if (node.kind === "directory") {
+        if (shouldAutoExpandNode(node)) {
           defaults[node.relativePath] = true;
           walk(node.children);
         }

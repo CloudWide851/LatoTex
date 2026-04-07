@@ -20,6 +20,7 @@ import {
   type AnnotationTextBox,
 } from "./library/annotationModel";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
+import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
 import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
 import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
@@ -81,9 +82,11 @@ export function LibraryDocumentViewer(props: {
     paperPreviewLoading,
     paperPreviewError,
     bibPreview,
-    pdfUrl,
-    translatedPdfUrl,
     resolvedLink,
+    sourcePdfRelativePath,
+    translatedPdfRelativePath,
+    pdfCacheState,
+    previewRevision,
     pdfDownloadedBytes,
     pdfTotalBytes,
     refresh: refreshDocumentData,
@@ -93,9 +96,21 @@ export function LibraryDocumentViewer(props: {
     selectedPath,
     active,
   });
+  const {
+    pdfUrl,
+    translatedPdfUrl,
+    loading: pdfObjectUrlLoading,
+    error: pdfObjectUrlError,
+  } = useLibraryPdfObjectUrls({
+    projectId,
+    previewRevision,
+    cacheState: pdfCacheState,
+    sourcePdfRelativePath,
+    translatedPdfRelativePath,
+  });
   const hasPdf = Boolean(pdfUrl);
   const hasTranslated = Boolean(translatedPdfUrl);
-  const documentBusy = loading || pdfPreviewLoading;
+  const documentBusy = loading || pdfPreviewLoading || pdfObjectUrlLoading;
 
   const {
     translationBusy,
@@ -435,7 +450,8 @@ export function LibraryDocumentViewer(props: {
           loading={loading}
           loadError={loadError}
           pdfPreviewLoading={pdfPreviewLoading}
-          pdfPreviewError={pdfPreviewError}
+          pdfObjectUrlLoading={pdfObjectUrlLoading}
+          pdfPreviewError={pdfPreviewError ?? pdfObjectUrlError}
           pdfDownloadedBytes={pdfDownloadedBytes}
           pdfTotalBytes={pdfTotalBytes}
           hasPdf={hasPdf}

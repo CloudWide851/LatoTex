@@ -12,6 +12,7 @@ dist/
 .vite/
 coverage/
 public/core/busytex/
+public/core/drawio/
 src-tauri/resources/core/busytex/
 src-tauri/resources/core/busytex-assets.tar.gz
 *.log

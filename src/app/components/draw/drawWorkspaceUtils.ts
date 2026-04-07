@@ -24,7 +24,7 @@ type PersistedDrawTabs = {
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
-export const DRAWIO_LOCAL_RESOURCE_URL = "http://latotex-resource.localhost/tool/drawio/index.html";
+export const DRAWIO_FRONTEND_HOST_PATH = "/drawio/index.html";
 export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   action: "configure",
   config: {
@@ -39,11 +39,14 @@ function drawTabsStorageKey(projectId: string): string {
 export function resolveDrawioHostFrameSrc(
   entryUrl?: string | null,
 ): string | null {
-  const resolvedEntryUrl = String(entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
+  const resolvedEntryUrl = String(entryUrl || DRAWIO_FRONTEND_HOST_PATH).trim();
   if (!resolvedEntryUrl) {
     return null;
   }
-  return resolvedEntryUrl;
+  if (typeof window === "undefined") {
+    return resolvedEntryUrl;
+  }
+  return new URL(resolvedEntryUrl, window.location.href).toString();
 }
 
 export function normalizePath(value: string | null | undefined): string {

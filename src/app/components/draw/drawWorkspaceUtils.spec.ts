@@ -9,14 +9,12 @@ describe("drawWorkspaceUtils", () => {
 
   it("resolves a single canonical host frame src from an explicit entry url", async () => {
     const { resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html",
-    );
+    expect(resolveDrawioHostFrameSrc("/drawio/index.html")).toContain("/drawio/index.html");
   });
 
-  it("falls back to the backend local resource route when startup info is missing", async () => {
-    const { DRAWIO_LOCAL_RESOURCE_URL, resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc()).toBe(DRAWIO_LOCAL_RESOURCE_URL);
+  it("falls back to the frontend host route when startup info is missing", async () => {
+    const { DRAWIO_FRONTEND_HOST_PATH, resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
+    expect(resolveDrawioHostFrameSrc()).toContain(DRAWIO_FRONTEND_HOST_PATH);
   });
 
   it("classifies draw handshake messages for startup and page runtime", async () => {

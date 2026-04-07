@@ -75,16 +75,12 @@ export function ChannelsSettingsSection(props: {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-                <img src={telegramIcon} alt="" className="h-3.5 w-3.5 rounded-sm" />
                 <span>{t("settings.section.channels")}</span>
               </div>
               <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <img src={telegramIcon} alt="" className="h-5 w-5 rounded-md" />
                 <span>{t("settings.channels.telegram")}</span>
               </div>
-            </div>
-            <div className="rounded-full border border-slate-200/80 bg-white/78 px-2.5 py-1 text-[11px] font-medium text-slate-500">
-              {t("settings.channels.telegram")}
             </div>
           </div>
 

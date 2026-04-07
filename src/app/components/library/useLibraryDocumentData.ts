@@ -11,7 +11,6 @@ import type {
   LibraryPdfPreview,
 } from "../../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
-import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
 
 type PaperPreview = {
   title?: string | null;
@@ -219,24 +218,14 @@ export function useLibraryDocumentData(params: {
   const [pdfPreviewError, setPdfPreviewError] = useState<string | null>(null);
   const [paperPreviewLoading, setPaperPreviewLoading] = useState(false);
   const [paperPreviewError, setPaperPreviewError] = useState<string | null>(null);
+  const [previewRevision, setPreviewRevision] = useState(0);
   const [state, setState] = useState<DocumentDataState>(EMPTY_STATE);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [translatedPdfUrl, setTranslatedPdfUrl] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const stateRef = useRef<DocumentDataState>(EMPTY_STATE);
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
-
-  const updatePreviewUrls = useCallback((nextPdfUrl: string | null, nextTranslatedPdfUrl: string | null) => {
-    setPdfUrl(nextPdfUrl);
-    setTranslatedPdfUrl(nextTranslatedPdfUrl);
-  }, []);
-
-  const clearPreviewUrls = useCallback(() => {
-    updatePreviewUrls(null, null);
-  }, [updatePreviewUrls]);
 
   const applyState = useCallback((next: DocumentDataState, options?: ApplyStateOptions) => {
     stateRef.current = next;
@@ -254,7 +243,6 @@ export function useLibraryDocumentData(params: {
   const reset = useCallback(() => {
     requestIdRef.current += 1;
     stateRef.current = EMPTY_STATE;
-    clearPreviewUrls();
     setLoading(false);
     setLoadError(null);
     setPdfPreviewLoading(false);
@@ -262,38 +250,7 @@ export function useLibraryDocumentData(params: {
     setPaperPreviewLoading(false);
     setPaperPreviewError(null);
     setState(EMPTY_STATE);
-  }, [clearPreviewUrls]);
-
-  const updatePdfPreviewUrls = useCallback((options: {
-    requestId: number;
-    sourcePdfRelativePath: string | null;
-    translatedPdfRelativePath: string | null;
-    cacheState: LibraryPdfPreview["cacheState"];
-  }) => {
-    const {
-      requestId,
-      sourcePdfRelativePath,
-      translatedPdfRelativePath,
-      cacheState,
-    } = options;
-
-    if (!projectId || cacheState !== "ready" || !sourcePdfRelativePath) {
-      if (requestIdRef.current === requestId) {
-        clearPreviewUrls();
-      }
-      return;
-    }
-
-    if (requestIdRef.current !== requestId) {
-      return;
-    }
-    updatePreviewUrls(
-      buildWorkspacePreviewUrl(projectId, sourcePdfRelativePath, `library-${requestId}-source`),
-      translatedPdfRelativePath
-        ? buildWorkspacePreviewUrl(projectId, translatedPdfRelativePath, `library-${requestId}-translated`)
-        : null,
-    );
-  }, [clearPreviewUrls, projectId, updatePreviewUrls]);
+  }, []);
 
   const mergeRemoteCitationSummary = useCallback((
     requestId: number,
@@ -380,12 +337,7 @@ export function useLibraryDocumentData(params: {
       paperPreviewLoading: shouldLoadPaperPreview,
       paperPreviewError: null,
     });
-    updatePdfPreviewUrls({
-      requestId,
-      sourcePdfRelativePath: nextState.sourcePdfRelativePath,
-      translatedPdfRelativePath: nextState.translatedPdfRelativePath,
-      cacheState: nextState.pdfCacheState,
-    });
+    setPreviewRevision(requestId);
 
     if (shouldLoadPaperPreview && nextState.sourcePdfRelativePath) {
       void hydratePaperPreview({
@@ -396,7 +348,7 @@ export function useLibraryDocumentData(params: {
       });
     }
     return nextState;
-  }, [applyState, hydratePaperPreview, updatePdfPreviewUrls]);
+  }, [applyState, hydratePaperPreview]);
 
   const applyDocumentPayload = useCallback(async (options: {
     requestId: number;
@@ -428,12 +380,7 @@ export function useLibraryDocumentData(params: {
       paperPreviewLoading: shouldLoadPaperPreview,
       paperPreviewError: null,
     });
-    updatePdfPreviewUrls({
-      requestId,
-      sourcePdfRelativePath: nextState.sourcePdfRelativePath,
-      translatedPdfRelativePath: nextState.translatedPdfRelativePath,
-      cacheState: nextState.pdfCacheState,
-    });
+    setPreviewRevision(requestId);
 
     if (shouldLoadPaperPreview && nextState.sourcePdfRelativePath) {
       void hydratePaperPreview({
@@ -444,7 +391,7 @@ export function useLibraryDocumentData(params: {
       });
     }
     return nextState;
-  }, [applyState, hydratePaperPreview, updatePdfPreviewUrls]);
+  }, [applyState, hydratePaperPreview]);
 
   const resolveRemotePdfPreview = useCallback(async (options: {
     requestId: number;
@@ -513,7 +460,6 @@ export function useLibraryDocumentData(params: {
     } catch (error) {
       if (requestIdRef.current === requestId) {
         stateRef.current = EMPTY_STATE;
-        clearPreviewUrls();
         setState(EMPTY_STATE);
         setLoading(false);
         setLoadError(String(error));
@@ -524,7 +470,7 @@ export function useLibraryDocumentData(params: {
       }
       return null;
     }
-  }, [applyDocumentPayload, clearPreviewUrls, mergeRemoteCitationSummary, projectId, reset, resolveRemotePdfPreview, selectedPath]);
+  }, [applyDocumentPayload, mergeRemoteCitationSummary, projectId, reset, resolveRemotePdfPreview, selectedPath]);
 
   const refresh = useCallback(async (options?: RefreshOptions) => {
     if (!projectId || !selectedPath) {
@@ -545,12 +491,7 @@ export function useLibraryDocumentData(params: {
           paperPreviewLoading: false,
           paperPreviewError: null,
         });
-        updatePdfPreviewUrls({
-          requestId,
-          sourcePdfRelativePath: cached.sourcePdfRelativePath,
-          translatedPdfRelativePath: cached.translatedPdfRelativePath,
-          cacheState: cached.pdfCacheState,
-        });
+        setPreviewRevision(requestId);
         if (cached.sourcePdfRelativePath && !cached.paperPreview) {
           void hydratePaperPreview({
             requestId,
@@ -563,7 +504,7 @@ export function useLibraryDocumentData(params: {
       }
     }
     return await loadDocument(options);
-  }, [applyState, hydratePaperPreview, loadDocument, projectId, reset, selectedPath, updatePdfPreviewUrls]);
+  }, [applyState, hydratePaperPreview, loadDocument, projectId, reset, selectedPath]);
 
   useEffect(() => {
     if (!projectId || !selectedPath) {
@@ -609,14 +550,13 @@ export function useLibraryDocumentData(params: {
 
   return {
     ...state,
-    pdfUrl,
-    translatedPdfUrl,
     loading,
     loadError,
     pdfPreviewLoading,
     pdfPreviewError,
     paperPreviewLoading,
     paperPreviewError,
+    previewRevision,
     refresh,
     reset,
   };

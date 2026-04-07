@@ -43,6 +43,7 @@ export type ResourceNode = {
   name: string;
   relativePath: string;
   kind: "file" | "directory";
+  directoryRole?: "pythonVenv";
   children: ResourceNode[];
 };
 

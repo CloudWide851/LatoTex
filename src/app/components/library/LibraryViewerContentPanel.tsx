@@ -33,6 +33,7 @@ type LibraryViewerContentPanelProps = {
   loading: boolean;
   loadError: string | null;
   pdfPreviewLoading: boolean;
+  pdfObjectUrlLoading: boolean;
   pdfPreviewError: string | null;
   pdfDownloadedBytes: number | null;
   pdfTotalBytes: number | null;
@@ -98,6 +99,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     loading,
     loadError,
     pdfPreviewLoading,
+    pdfObjectUrlLoading,
     pdfPreviewError,
     pdfDownloadedBytes,
     pdfTotalBytes,
@@ -152,7 +154,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   } = props;
 
   const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
-  const pdfPaneLoading = loading || pdfPreviewLoading;
+  const pdfPaneLoading = loading || pdfPreviewLoading || pdfObjectUrlLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
   const pdfProgressPercent = pdfTotalBytes && pdfTotalBytes > 0
     ? Math.max(0, Math.min(100, (Math.max(pdfDownloadedBytes ?? 0, 0) / pdfTotalBytes) * 100))
@@ -164,7 +166,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         {pdfPaneLoading ? (
           <div className="flex h-full items-center justify-center px-4">
             <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              <div>{t("library.viewer.downloadingPdf")}</div>
+              <div>{pdfPreviewLoading ? t("library.viewer.downloadingPdf") : t("library.viewer.loading")}</div>
               {pdfPreviewLoading ? (
                 <div className="mt-2">
                   <div className="h-2 overflow-hidden rounded-full bg-slate-200">

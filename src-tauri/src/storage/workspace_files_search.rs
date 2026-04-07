@@ -13,6 +13,31 @@ fn should_show_workspace_entry(name: &str, is_dir: bool) -> bool {
     matches!(name, ".gitignore" | ".editorconfig")
 }
 
+fn looks_like_python_venv_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        ".venv" | "venv" | "env" | ".env" | "virtualenv"
+    )
+}
+
+fn is_python_venv_dir(path: &Path, name: &str) -> bool {
+    if !looks_like_python_venv_name(name) {
+        return false;
+    }
+    path.join("pyvenv.cfg").exists()
+        || path.join("Scripts").join("python.exe").exists()
+        || path.join("Scripts").join("activate").exists()
+        || path.join("bin").join("python").exists()
+        || path.join("bin").join("activate").exists()
+}
+
+fn directory_role_for_path(path: &Path, name: &str) -> Option<String> {
+    if is_python_venv_dir(path, name) {
+        return Some("pythonVenv".to_string());
+    }
+    None
+}
+
 fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, String> {
     let relative_path = path
         .strip_prefix(root_path)
@@ -25,6 +50,7 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
         .unwrap_or_else(|| relative_path.clone());
 
     if path.is_dir() {
+        let directory_role = directory_role_for_path(path, &name);
         let mut children = Vec::new();
         for item in fs::read_dir(path).map_err(|e| e.to_string())? {
             let item = item.map_err(|e| e.to_string())?;
@@ -40,6 +66,7 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
             name,
             relative_path,
             kind: "directory".to_string(),
+            directory_role,
             children,
         })
     } else {
@@ -47,6 +74,7 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
             name,
             relative_path,
             kind: "file".to_string(),
+            directory_role: None,
             children: Vec::new(),
         })
     }
@@ -286,5 +314,48 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
         ok: true,
         message: "Library index refreshed".to_string(),
     })
+}
+
+#[cfg(test)]
+mod workspace_files_search_tests {
+    use super::is_python_venv_dir;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "latotex-workspace-tree-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn python_venv_detection_requires_real_markers() {
+        let root = unique_temp_dir("venv-marker");
+        let venv_dir = root.join(".venv");
+        fs::create_dir_all(&venv_dir).unwrap();
+        assert!(!is_python_venv_dir(&venv_dir, ".venv"));
+
+        fs::write(venv_dir.join("pyvenv.cfg"), "home = C:/Python312").unwrap();
+        assert!(is_python_venv_dir(&venv_dir, ".venv"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn python_venv_detection_ignores_normal_folders_with_env_like_names() {
+        let root = unique_temp_dir("not-venv");
+        let env_dir = root.join("env");
+        fs::create_dir_all(env_dir.join("src")).unwrap();
+
+        assert!(!is_python_venv_dir(&env_dir, "env"));
+
+        let _ = fs::remove_dir_all(root);
+    }
 }
 

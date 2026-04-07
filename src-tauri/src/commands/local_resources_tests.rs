@@ -1,7 +1,6 @@
 use super::{
-    candidate_source_dirs, handle_local_resource_request, normalize_relative_asset_path,
-    normalize_workspace_relative_path, workspace_file_response, LOCAL_RESOURCE_SCHEME,
-    REQUIRED_DRAWIO_ASSETS,
+    handle_local_resource_request, normalize_workspace_relative_path, workspace_file_response,
+    LOCAL_RESOURCE_SCHEME,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -104,26 +103,6 @@ fn create_test_fixture(name: &str) -> TestFixture {
 }
 
 #[test]
-fn drawio_entry_url_uses_custom_local_resource_scheme() {
-    let value = format!("http://{}.localhost/tool/drawio/index.html", LOCAL_RESOURCE_SCHEME);
-    assert!(value.contains(LOCAL_RESOURCE_SCHEME));
-    assert!(value.ends_with("/tool/drawio/index.html"));
-}
-
-#[test]
-fn normalize_relative_asset_path_defaults_to_index() {
-    assert_eq!(
-        normalize_relative_asset_path("/tool/drawio").unwrap(),
-        PathBuf::from("index.html")
-    );
-}
-
-#[test]
-fn normalize_relative_asset_path_rejects_traversal() {
-    assert!(normalize_relative_asset_path("/tool/drawio/../secret.txt").is_err());
-}
-
-#[test]
 fn workspace_file_response_sets_cors_headers_for_pdf_reads() {
     let path = temp_workspace_file_path("sample.pdf", b"%PDF-demo");
     let response = workspace_file_response(
@@ -207,61 +186,6 @@ fn normalize_workspace_relative_path_rejects_traversal() {
 }
 
 #[test]
-fn candidate_source_dirs_include_packaged_and_dev_drawio_locations() {
-    let values = candidate_source_dirs("drawio")
-        .iter()
-        .map(|value| value.to_string_lossy().replace('\\', "/"))
-        .collect::<Vec<_>>();
-
-    assert!(values.iter().any(|value| value.ends_with("/resources/core/drawio")));
-    assert!(values.iter().any(|value| value.ends_with("/public/core/drawio")));
-}
-
-#[test]
-fn required_drawio_assets_include_runtime_lazy_scripts() {
-    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/extensions.min.js"));
-    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/stencils.min.js"));
-    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/shapes-14-6-5.min.js"));
-    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/PreConfig.js"));
-    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"js/PostConfig.js"));
-    assert!(REQUIRED_DRAWIO_ASSETS.contains(&"styles/high-contrast.css"));
-}
-
-#[test]
-fn drawio_host_page_uses_minimal_embed_query_params() {
-    let host_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/drawio/index.html");
-    let host_html = fs::read_to_string(host_path).unwrap();
-    assert!(host_html.contains(
-        "src=\"./app.html?embed=1&ui=min&spin=1&proto=json&configure=1&saveAndExit=0\""
-    ));
-    assert!(!host_html.contains("offline=1"));
-    assert!(!host_html.contains("stealth=1"));
-}
-
-#[test]
-fn handle_local_resource_request_serves_drawio_host_page() {
-    let fixture = create_test_fixture("drawio-host");
-    let request = Request::builder()
-        .method(Method::GET)
-        .uri(format!(
-            "http://{}.localhost/tool/drawio/index.html",
-            LOCAL_RESOURCE_SCHEME
-        ))
-        .body(Vec::new())
-        .unwrap();
-
-    let response = handle_local_resource_request(&fixture.state, &request);
-    let body = String::from_utf8_lossy(response.body());
-
-    assert_eq!(response.status(), 200);
-    assert_eq!(
-        response.headers().get("Content-Type"),
-        Some(&HeaderValue::from_static("text/html; charset=utf-8"))
-    );
-    assert!(body.contains("drawio-frame"));
-}
-
-#[test]
 fn handle_local_resource_request_serves_library_pdf_from_workspace_route() {
     let fixture = create_test_fixture("library-pdf");
     let relative_path = ".latotex/papers/Deep Learning Survey 2026.pdf";
@@ -331,4 +255,21 @@ fn handle_local_resource_request_preserves_head_and_range_for_library_pdf() {
         range_response.headers().get("Content-Range"),
         Some(&HeaderValue::from_static("bytes 5-9/16"))
     );
+}
+
+#[test]
+fn handle_local_resource_request_rejects_removed_drawio_route() {
+    let fixture = create_test_fixture("drawio-removed");
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!(
+            "http://{}.localhost/tool/drawio/index.html",
+            LOCAL_RESOURCE_SCHEME
+        ))
+        .body(Vec::new())
+        .unwrap();
+
+    let response = handle_local_resource_request(&fixture.state, &request);
+
+    assert_eq!(response.status(), 404);
 }
