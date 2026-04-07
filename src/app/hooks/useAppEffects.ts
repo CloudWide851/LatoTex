@@ -21,6 +21,7 @@ export function useAppEffects(params: {
   isTauriRuntime: boolean;
   activeProjectId: string | null;
   selectedFile: string | null;
+  fileSet: Set<string>;
   pendingRevealLine: number | null;
   page: string;
   cursor: number;
@@ -66,6 +67,7 @@ export function useAppEffects(params: {
     isTauriRuntime,
     activeProjectId,
     selectedFile,
+    fileSet,
     pendingRevealLine,
     page,
     cursor,
@@ -191,6 +193,7 @@ export function useAppEffects(params: {
   useSelectedFilePreviewEffects({
     activeProjectId,
     selectedFile,
+    fileSet,
     page,
     previewOverridePath,
     setEditorContent,
@@ -198,6 +201,7 @@ export function useAppEffects(params: {
     setSelectedImagePreviewUrl,
     setSelectedTextFileReadyPath,
     setToast,
+    t,
     getCachedTextContent,
     onTextFileLoaded,
   });

@@ -163,7 +163,11 @@ pub fn read_project_file(
     relative_path: &str,
 ) -> Result<FileReadResponse, String> {
     let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
-    let content = fs::read_to_string(target).map_err(|e| e.to_string())?;
+    let metadata = fs::metadata(&target).map_err(map_workspace_read_error)?;
+    if !metadata.is_file() {
+        return Err("workspace.file_read.not_file".to_string());
+    }
+    let content = fs::read_to_string(target).map_err(map_workspace_read_error)?;
     Ok(FileReadResponse {
         relative_path: relative_path.to_string(),
         content,
@@ -176,11 +180,22 @@ pub fn read_project_file_binary(
     relative_path: &str,
 ) -> Result<FileReadBinaryResponse, String> {
     let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
-    let bytes = fs::read(target).map_err(|e| e.to_string())?;
+    let metadata = fs::metadata(&target).map_err(map_workspace_read_error)?;
+    if !metadata.is_file() {
+        return Err("workspace.file_read.not_file".to_string());
+    }
+    let bytes = fs::read(target).map_err(map_workspace_read_error)?;
     Ok(FileReadBinaryResponse {
         relative_path: relative_path.to_string(),
         bytes,
     })
+}
+
+fn map_workspace_read_error(error: io::Error) -> String {
+    match error.kind() {
+        io::ErrorKind::PermissionDenied => "workspace.file_read.access_denied".to_string(),
+        _ => error.to_string(),
+    }
 }
 
 pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, String> {

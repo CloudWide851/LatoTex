@@ -24,6 +24,7 @@ export function useWorkbenchRuntimeEffects(params: {
     isTauriRuntime,
     activeProjectId: s.activeProjectId,
     selectedFile: s.selectedFile,
+    fileSet: s.fileSet,
     pendingRevealLine: s.pendingRevealLine,
     page: s.page,
     cursor: s.cursor,

@@ -290,12 +290,17 @@ export function useAppContainerWorkspaceActions(
       setPreferCompiledPreview(false);
       return;
     }
+    if (!fileSet.has(normalized)) {
+      setPreviewOverridePath(null);
+      setPreferCompiledPreview(false);
+      return;
+    }
     setPreviewOverridePath(null);
     openWorkspaceFile(normalized, "pinned");
     if (selectedFile !== normalized) {
       setSelectedFile(normalized);
     }
-  }, [openWorkspaceFile, selectedFile, setPreferCompiledPreview, setPreviewOverridePath, setSelectedFile]);
+  }, [fileSet, openWorkspaceFile, selectedFile, setPreferCompiledPreview, setPreviewOverridePath, setSelectedFile]);
 
   useEffect(() => {
     if (!selectedFile || !fileSet.has(selectedFile)) {

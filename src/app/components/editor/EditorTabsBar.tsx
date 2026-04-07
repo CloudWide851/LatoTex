@@ -40,6 +40,8 @@ type OverflowItem = {
   active: boolean;
   dirty: boolean;
   onClick: () => void;
+  onClose?: () => void;
+  closeLabel?: string;
 };
 
 export function EditorTabsBar(props: {
@@ -122,6 +124,8 @@ export function EditorTabsBar(props: {
       active: tab.id === activeTabId,
       dirty: Boolean(dirtyByPath[tab.path]),
       onClick: () => onSelect(tab.id),
+      onClose: () => onClose(tab.id),
+      closeLabel: t("editor.tab.close"),
     }));
     const extItems = extraTabs.map((tab) => ({
       id: tab.id,
@@ -129,9 +133,11 @@ export function EditorTabsBar(props: {
       active: tab.active,
       dirty: Boolean(tab.dirty),
       onClick: tab.onSelect,
+      onClose: tab.onClose,
+      closeLabel: tab.closeLabel ?? t("editor.tab.close"),
     }));
     return [...fileItems, ...extItems].filter((item) => hiddenTabIdSet.has(item.id));
-  }, [activeTabId, dirtyByPath, extraTabs, hiddenTabIdSet, onSelect, tabs]);
+  }, [activeTabId, dirtyByPath, extraTabs, hiddenTabIdSet, onClose, onSelect, t, tabs]);
 
   useEffect(() => {
     const element = rootRef.current;
@@ -328,24 +334,45 @@ export function EditorTabsBar(props: {
           {overflowOpen ? (
             <div className="editor-tabs-overflow-menu absolute right-0 top-8 z-[65] max-h-64 min-w-56 overflow-auto py-1">
               {overflowItems.map((item) => (
-                <button
+                <div
                   key={item.id}
                   className={cn(
-                    "editor-tabs-overflow-item flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs",
+                    "editor-tabs-overflow-item flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs",
                     item.active
                       ? "editor-tabs-overflow-item--active"
                       : "editor-tabs-overflow-item--inactive",
                   )}
-                  onClick={() => {
-                    setOverflowOpen(false);
-                    item.onClick();
-                  }}
                 >
-                  <span className="truncate">{item.title}</span>
+                  <button
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => {
+                      setOverflowOpen(false);
+                      item.onClick();
+                    }}
+                  >
+                    <span className="truncate">{item.title}</span>
+                  </button>
                   {item.dirty ? (
                     <Circle className="h-2 w-2 shrink-0 fill-current text-slate-400" />
                   ) : null}
-                </button>
+                  {item.onClose ? (
+                    <button
+                      className="editor-tab-action shrink-0 rounded p-0.5"
+                      onMouseDown={swallowTabButtonEvent}
+                      onClick={(event) => {
+                        runTabButtonAction(event, () => {
+                          setOverflowOpen(false);
+                          item.onClose?.();
+                        });
+                      }}
+                      disabled={busy}
+                      title={item.closeLabel ?? t("editor.tab.close")}
+                      aria-label={item.closeLabel ?? t("editor.tab.close")}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </div>
               ))}
             </div>
           ) : null}

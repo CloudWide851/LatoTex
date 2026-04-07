@@ -121,6 +121,9 @@ export function AppContainer() {
     if (!s.activeProjectId || !selectedPath) {
       return null;
     }
+    if (!s.fileSet.has(selectedPath)) {
+      return null;
+    }
     if (isPdfPath(selectedPath) || isExcelPath(selectedPath) || isImagePath(selectedPath)) {
       return null;
     }
@@ -137,7 +140,7 @@ export function AppContainer() {
     }
     const loaded = await readFile(s.activeProjectId, selectedPath);
     return loaded.content ?? "";
-  }, [s.activeProjectId, s.editorContent, s.selectedFile, s.selectedTextFileReadyPath, s.savedContentByPathRef, s.workingContentByPathRef]);
+  }, [s.activeProjectId, s.editorContent, s.fileSet, s.selectedFile, s.selectedTextFileReadyPath, s.savedContentByPathRef, s.workingContentByPathRef]);
   const handlers = useAppHandlers({
     isTauriRuntime,
     t,

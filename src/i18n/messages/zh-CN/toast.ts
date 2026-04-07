@@ -1,6 +1,8 @@
 export const zhCN_toast = {
   "toast.initFailed": "初始化失败。",
   "toast.fileSaved": "文件已保存。",
+  "toast.fileNotReadable": "当前选择的路径不是可读取的文件。",
+  "toast.fileAccessDenied": "无法打开当前文件，系统拒绝了访问。",
   "toast.compileSuccess": "编译成功。",
   "toast.compileFailed": "编译失败，请查看诊断信息。",
   "toast.compileTexOnly": "请先选择一个 .tex 文件再编译。",

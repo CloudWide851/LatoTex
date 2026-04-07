@@ -1,6 +1,8 @@
 export const enUS_toast = {
   "toast.initFailed": "Initialization failed.",
   "toast.fileSaved": "File saved.",
+  "toast.fileNotReadable": "The selected path is not a readable file.",
+  "toast.fileAccessDenied": "The selected file could not be opened because access was denied.",
   "toast.compileSuccess": "Compile succeeded.",
   "toast.compileFailed": "Compile failed. Check diagnostics.",
   "toast.compileTexOnly": "Select a .tex file before compiling.",

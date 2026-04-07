@@ -8,6 +8,7 @@ type ToastSetter = (value: { type: "info" | "error"; message: string } | null) =
 export function useSelectedFilePreviewEffects(params: {
   activeProjectId: string | null;
   selectedFile: string | null;
+  fileSet: Set<string>;
   page: string;
   previewOverridePath: string | null;
   setEditorContent: (value: string) => void;
@@ -15,12 +16,14 @@ export function useSelectedFilePreviewEffects(params: {
   setSelectedImagePreviewUrl: (value: string | null) => void;
   setSelectedTextFileReadyPath: (value: string | null) => void;
   setToast: ToastSetter;
+  t: (key: any) => string;
   getCachedTextContent?: (relativePath: string) => string | null;
   onTextFileLoaded?: (relativePath: string, content: string) => void;
 }) {
   const {
     activeProjectId,
     selectedFile,
+    fileSet,
     page,
     previewOverridePath,
     setEditorContent,
@@ -28,6 +31,7 @@ export function useSelectedFilePreviewEffects(params: {
     setSelectedImagePreviewUrl,
     setSelectedTextFileReadyPath,
     setToast,
+    t,
     getCachedTextContent,
     onTextFileLoaded,
   } = params;
@@ -35,8 +39,24 @@ export function useSelectedFilePreviewEffects(params: {
   const selectedFilePdfUrlRef = useRef<string | null>(null);
   const selectedImageUrlRef = useRef<string | null>(null);
 
+  const mapReadErrorMessage = (error: unknown): string => {
+    const message = String(error ?? "").trim();
+    if (message === "workspace.file_read.not_file") {
+      return t("toast.fileNotReadable");
+    }
+    if (message === "workspace.file_read.access_denied") {
+      return t("toast.fileAccessDenied");
+    }
+    return message;
+  };
+
   useEffect(() => {
     if (!activeProjectId || !selectedFile) {
+      setSelectedTextFileReadyPath(null);
+      setEditorContent("");
+      return;
+    }
+    if (!fileSet.has(selectedFile)) {
       setSelectedTextFileReadyPath(null);
       setEditorContent("");
       return;
@@ -68,7 +88,7 @@ export function useSelectedFilePreviewEffects(params: {
       })
       .catch((error) => {
         if (!cancelled) {
-          setToast({ type: "error", message: String(error) });
+          setToast({ type: "error", message: mapReadErrorMessage(error) });
         }
       });
 
@@ -77,12 +97,14 @@ export function useSelectedFilePreviewEffects(params: {
     };
   }, [
     activeProjectId,
+    fileSet,
     getCachedTextContent,
     onTextFileLoaded,
     selectedFile,
     setEditorContent,
     setSelectedTextFileReadyPath,
     setToast,
+    t,
   ]);
 
   useEffect(() => {

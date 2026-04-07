@@ -284,6 +284,24 @@ export function useAppContainerState(t: (...args: any[]) => string) {
       };
     });
   }, [activeProjectId, libraryFileSet, selectedLibraryPath]);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      return;
+    }
+    if (fileSet.has(selectedFile)) {
+      return;
+    }
+
+    const activeTabPath = editorTabsRef.current.find((tab) => tab.id === activeTabIdRef.current)?.path ?? null;
+    const fallbackPath = activeTabPath && fileSet.has(activeTabPath)
+      ? activeTabPath
+      : editorTabsRef.current.find((tab) => fileSet.has(tab.path))?.path ?? null;
+
+    setSelectedTextFileReadyPath(null);
+    setPreviewOverridePath(null);
+    setSelectedFile(fallbackPath);
+  }, [fileSet, selectedFile]);
   return {
     status,
     setStatus,

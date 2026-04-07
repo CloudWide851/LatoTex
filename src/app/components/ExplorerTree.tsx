@@ -385,7 +385,10 @@ export function ExplorerTree(props: {
             });
           }}
           onClick={() => {
-            if (isDirectory) setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
+            if (isDirectory) {
+              setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
+              return;
+            }
             onSelect(node.relativePath);
           }}
           onDoubleClick={(event) => {
