@@ -3,9 +3,12 @@ fn node_sort_key(node: &ResourceNode) -> (u8, String) {
     (rank, node.name.to_lowercase())
 }
 
-fn should_show_workspace_entry(name: &str, is_dir: bool) -> bool {
+fn should_show_workspace_entry(path: &Path, name: &str, is_dir: bool) -> bool {
     if is_dir && name == ".git" {
         return false;
+    }
+    if is_dir && is_python_venv_dir(path, name) {
+        return true;
     }
     if !name.starts_with('.') {
         return true;
@@ -38,6 +41,32 @@ fn directory_role_for_path(path: &Path, name: &str) -> Option<String> {
     None
 }
 
+pub fn is_workspace_path_within_python_venv(root_path: &Path, relative_path: &str) -> bool {
+    let normalized = relative_path.trim().replace('\\', "/");
+    let trimmed = normalized.trim_matches('/');
+    if trimmed.is_empty() {
+        return false;
+    }
+    let candidate = root_path.join(trimmed);
+    let mut current = candidate.as_path();
+    while current.starts_with(root_path) {
+        let Some(name) = current.file_name().and_then(|value| value.to_str()) else {
+            break;
+        };
+        if is_python_venv_dir(current, name) {
+            return true;
+        }
+        let Some(parent) = current.parent() else {
+            break;
+        };
+        if parent == current {
+            break;
+        }
+        current = parent;
+    }
+    false
+}
+
 fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, String> {
     let relative_path = path
         .strip_prefix(root_path)
@@ -52,16 +81,18 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
     if path.is_dir() {
         let directory_role = directory_role_for_path(path, &name);
         let mut children = Vec::new();
-        for item in fs::read_dir(path).map_err(|e| e.to_string())? {
-            let item = item.map_err(|e| e.to_string())?;
-            let item_name = item.file_name().to_string_lossy().to_string();
-            let item_path = item.path();
-            if !should_show_workspace_entry(&item_name, item_path.is_dir()) {
-                continue;
+        if directory_role.as_deref() != Some("pythonVenv") {
+            for item in fs::read_dir(path).map_err(|e| e.to_string())? {
+                let item = item.map_err(|e| e.to_string())?;
+                let item_name = item.file_name().to_string_lossy().to_string();
+                let item_path = item.path();
+                if !should_show_workspace_entry(&item_path, &item_name, item_path.is_dir()) {
+                    continue;
+                }
+                children.push(build_resource_node(root_path, &item_path)?);
             }
-            children.push(build_resource_node(root_path, &item_path)?);
+            children.sort_by_key(node_sort_key);
         }
-        children.sort_by_key(node_sort_key);
         Ok(ResourceNode {
             name,
             relative_path,
@@ -354,6 +385,29 @@ mod workspace_files_search_tests {
         fs::create_dir_all(env_dir.join("src")).unwrap();
 
         assert!(!is_python_venv_dir(&env_dir, "env"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn workspace_tree_keeps_real_python_venv_collapsed() {
+        let root = unique_temp_dir("tree-venv-collapsed");
+        let venv_dir = root.join(".venv");
+        fs::create_dir_all(venv_dir.join("Lib").join("site-packages")).unwrap();
+        fs::write(venv_dir.join("pyvenv.cfg"), "home = C:/Python312").unwrap();
+        fs::write(
+            venv_dir.join("Lib").join("site-packages").join("demo.py"),
+            "print('demo')",
+        )
+        .unwrap();
+
+        let tree = super::list_workspace_tree(&root).unwrap();
+        let venv_node = tree
+            .iter()
+            .find(|node| node.relative_path == ".venv")
+            .expect("venv node should exist");
+        assert_eq!(venv_node.directory_role.as_deref(), Some("pythonVenv"));
+        assert!(venv_node.children.is_empty());
 
         let _ = fs::remove_dir_all(root);
     }

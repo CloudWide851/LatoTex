@@ -75,7 +75,7 @@ pub async fn git_status(
                 "status",
                 "--porcelain=v1",
                 "-b",
-                "--untracked-files=all",
+                "--untracked-files=normal",
                 "--ignored=matching",
             ],
         )?;
@@ -102,6 +102,9 @@ pub async fn git_status(
             let status_implies_change = matches!(index_status_char, 'R' | 'C' | 'T' | 'U' | 'D')
                 || matches!(worktree_status_char, 'R' | 'C' | 'T' | 'U' | 'D');
             let path = normalize_status_path(&line[3..]);
+            if storage::is_workspace_path_within_python_venv(&root, &path) {
+                continue;
+            }
             let absolute_path = root.join(&path);
             if absolute_path.exists() && absolute_path.is_dir() {
                 continue;
@@ -274,7 +277,7 @@ pub fn git_stage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack
         &[
             "status",
             "--porcelain=v1",
-            "--untracked-files=all",
+            "--untracked-files=normal",
             "--ignored=matching",
         ],
     )?;
@@ -288,7 +291,10 @@ pub fn git_stage(state: State<'_, AppState>, input: GitPathsInput) -> Result<Ack
         explicit_paths.push(normalized);
     }
     let target_paths = if explicit_paths.is_empty() {
-        stageable.into_iter().collect::<Vec<_>>()
+        stageable
+            .into_iter()
+            .filter(|path| !storage::is_workspace_path_within_python_venv(&root, path))
+            .collect::<Vec<_>>()
     } else {
         explicit_paths
     };

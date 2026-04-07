@@ -258,8 +258,8 @@ fn handle_local_resource_request_preserves_head_and_range_for_library_pdf() {
 }
 
 #[test]
-fn handle_local_resource_request_rejects_removed_drawio_route() {
-    let fixture = create_test_fixture("drawio-removed");
+fn handle_local_resource_request_serves_drawio_index_from_local_resources() {
+    let fixture = create_test_fixture("drawio-index");
     let request = Request::builder()
         .method(Method::GET)
         .uri(format!(
@@ -271,5 +271,39 @@ fn handle_local_resource_request_rejects_removed_drawio_route() {
 
     let response = handle_local_resource_request(&fixture.state, &request);
 
-    assert_eq!(response.status(), 404);
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("Content-Type"),
+        Some(&HeaderValue::from_static("text/html; charset=utf-8"))
+    );
+    assert!(
+        String::from_utf8_lossy(response.body()).contains("<!DOCTYPE html>")
+            || String::from_utf8_lossy(response.body()).contains("<html"),
+        "drawio host page should be served as html"
+    );
+}
+
+#[test]
+fn handle_local_resource_request_serves_drawio_runtime_script() {
+    let fixture = create_test_fixture("drawio-script");
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!(
+            "http://{}.localhost/tool/drawio/js/bootstrap.js",
+            LOCAL_RESOURCE_SCHEME
+        ))
+        .body(Vec::new())
+        .unwrap();
+
+    let response = handle_local_resource_request(&fixture.state, &request);
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("Content-Type"),
+        Some(&HeaderValue::from_static("application/javascript; charset=utf-8"))
+    );
+    assert!(
+        !response.body().is_empty(),
+        "drawio runtime script should not be empty"
+    );
 }

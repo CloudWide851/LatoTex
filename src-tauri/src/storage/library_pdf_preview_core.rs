@@ -79,16 +79,16 @@ fn find_remote_pdf_url(summary: &LibraryCitationSummaryResponse) -> Option<Strin
         if lower.ends_with(".pdf") || lower.contains(".pdf?") {
             return Some(url.clone());
         }
-        if lower.contains("arxiv.org/abs/") {
+        if lower.contains("arxiv.org/abs/") || lower.contains("/abs/") {
             if let Some(arxiv_id) = extract_arxiv_id(url) {
-                return Some(format!("https://arxiv.org/pdf/{arxiv_id}.pdf"));
+                return arxiv_pdf_url_candidates(&arxiv_id).into_iter().next();
             }
         }
     }
     summary
         .arxiv_id
         .as_ref()
-        .map(|arxiv_id| format!("https://arxiv.org/pdf/{arxiv_id}.pdf"))
+        .and_then(|arxiv_id| arxiv_pdf_url_candidates(arxiv_id).into_iter().next())
 }
 
 fn pdf_bytes_valid(bytes: &[u8]) -> bool {

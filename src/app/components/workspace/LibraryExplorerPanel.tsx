@@ -88,7 +88,7 @@ export function LibraryExplorerPanel(props: {
       </div>
       <div className="h-[calc(100%-32px)] overflow-auto pr-1">
         <ExplorerTree
-          mode="workspace"
+          mode="library"
           tree={filteredLibraryTree}
           selectedPath={selectedLibraryPath}
           busy={busy}

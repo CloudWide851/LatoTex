@@ -98,13 +98,16 @@ pub fn project_init_from_folder(
 }
 
 #[tauri::command]
-pub fn workspace_tree(
+pub async fn workspace_tree(
     state: State<'_, AppState>,
     input: ProjectRefInput,
 ) -> Result<Vec<ResourceNode>, String> {
     state.log("INFO", &format!("workspace_tree: {}", input.project_id));
-    let snapshot = storage::project_snapshot(&state.db_path, &input.project_id)?;
-    Ok(snapshot.tree)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::project_snapshot(&db_path, &project_id).map(|snapshot| snapshot.tree))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

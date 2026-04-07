@@ -60,7 +60,7 @@ fn parse_zotero_target(link: &str) -> Option<ZoteroTarget> {
 }
 
 fn fetch_zotero_bibtex(target: &ZoteroTarget) -> Result<String, String> {
-    let (scope, owner_id, endpoint) = match target {
+    let (scope, owner_id, endpoint_candidates) = match target {
         ZoteroTarget::Item {
             scope,
             owner_id,
@@ -68,9 +68,9 @@ fn fetch_zotero_bibtex(target: &ZoteroTarget) -> Result<String, String> {
         } => (
             scope.as_str(),
             owner_id.as_str(),
-            format!(
-                "https://api.zotero.org/{scope}/{owner_id}/items/{key}?format=bibtex"
-            ),
+            zotero_api_url_candidates(&format!(
+                "{scope}/{owner_id}/items/{key}?format=bibtex"
+            )),
         ),
         ZoteroTarget::Collection {
             scope,
@@ -79,36 +79,52 @@ fn fetch_zotero_bibtex(target: &ZoteroTarget) -> Result<String, String> {
         } => (
             scope.as_str(),
             owner_id.as_str(),
-            format!(
-                "https://api.zotero.org/{scope}/{owner_id}/collections/{key}/items?format=bibtex&limit=100"
-            ),
+            zotero_api_url_candidates(&format!(
+                "{scope}/{owner_id}/collections/{key}/items?format=bibtex&limit=100"
+            )),
         ),
     };
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
-    let mut request = client
-        .get(endpoint)
-        .header("Zotero-API-Version", "3");
-    if let Ok(api_key) = std::env::var("ZOTERO_API_KEY") {
-        let key = api_key.trim();
-        if !key.is_empty() {
+    let api_key = std::env::var("ZOTERO_API_KEY")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let mut last_error = None;
+    for endpoint in endpoint_candidates {
+        let mut request = client
+            .get(&endpoint)
+            .header("Zotero-API-Version", "3");
+        if let Some(key) = api_key.as_deref() {
             request = request.header("Zotero-API-Key", key);
         }
+        match request.send() {
+            Ok(response) if response.status().is_success() => {
+                let text = response.text().map_err(|e| e.to_string())?;
+                if text.trim().is_empty() {
+                    last_error = Some("zotero.empty_response".to_string());
+                    continue;
+                }
+                return Ok(text);
+            }
+            Ok(response) => {
+                last_error = Some(format!(
+                    "zotero.fetch_failed: scope={scope}, owner={owner_id}, endpoint={endpoint}, status={}",
+                    response.status()
+                ));
+            }
+            Err(error) => {
+                last_error = Some(format!(
+                    "zotero.fetch_failed: scope={scope}, owner={owner_id}, endpoint={endpoint}, error={error}"
+                ));
+            }
+        }
     }
-    let response = request.send().map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "zotero.fetch_failed: scope={scope}, owner={owner_id}, status={}",
-            response.status()
-        ));
-    }
-    let text = response.text().map_err(|e| e.to_string())?;
-    if text.trim().is_empty() {
-        return Err("zotero.empty_response".to_string());
-    }
-    Ok(text)
+    Err(last_error.unwrap_or_else(|| {
+        format!("zotero.fetch_failed: scope={scope}, owner={owner_id}, reason=no_endpoint")
+    }))
 }
 
 fn parse_total_results(response: &reqwest::blocking::Response) -> Option<u32> {
@@ -163,18 +179,38 @@ pub fn sync_zotero_library(
     let mut entry_count = 0_u32;
 
     loop {
-        let endpoint = format!(
-            "https://api.zotero.org/{normalized_scope}/{owner}/items/top?format=bibtex&limit={limit}&start={start}"
-        );
-        let response = client
-            .get(endpoint)
-            .header("Zotero-API-Version", "3")
-            .header("Zotero-API-Key", token)
-            .send()
-            .map_err(|e| format!("zotero.sync_request_failed: {e}"))?;
-        if !response.status().is_success() {
-            return Err(format!("zotero.sync_http_failed: {}", response.status()));
+        let endpoint_candidates = zotero_api_url_candidates(&format!(
+            "{normalized_scope}/{owner}/items/top?format=bibtex&limit={limit}&start={start}"
+        ));
+        let mut response = None;
+        let mut last_error = None;
+        for endpoint in endpoint_candidates {
+            match client
+                .get(&endpoint)
+                .header("Zotero-API-Version", "3")
+                .header("Zotero-API-Key", token)
+                .send()
+            {
+                Ok(candidate) if candidate.status().is_success() => {
+                    response = Some(candidate);
+                    break;
+                }
+                Ok(candidate) => {
+                    last_error = Some(format!(
+                        "zotero.sync_http_failed: endpoint={endpoint}, status={}",
+                        candidate.status()
+                    ));
+                }
+                Err(error) => {
+                    last_error = Some(format!(
+                        "zotero.sync_request_failed: endpoint={endpoint}, error={error}"
+                    ));
+                }
+            }
         }
+        let response = response.ok_or_else(|| {
+            last_error.unwrap_or_else(|| "zotero.sync_request_failed: no_endpoint".to_string())
+        })?;
         if total_results.is_none() {
             total_results = parse_total_results(&response);
         }

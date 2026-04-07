@@ -24,13 +24,34 @@ type PersistedDrawTabs = {
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
-export const DRAWIO_FRONTEND_HOST_PATH = "/drawio/index.html";
+export const DRAWIO_LOCAL_RESOURCE_URL = "http://latotex-resource.localhost/tool/drawio/index.html";
 export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   action: "configure",
   config: {
     css: "body{overflow:hidden;}",
   },
 });
+
+function appendQueryParams(url: string, values: Record<string, string>): string {
+  const [withoutHash, hash = ""] = String(url || "").split("#", 2);
+  const [basePath, query = ""] = withoutHash.split("?", 2);
+  const params = new URLSearchParams(query);
+  for (const [key, value] of Object.entries(values)) {
+    params.set(key, value);
+  }
+  const nextQuery = params.toString();
+  return `${basePath}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
+}
+
+export function toDrawioEmbedUrl(entryUrl: string): string {
+  return appendQueryParams(entryUrl, {
+    embed: "1",
+    proto: "json",
+    spin: "0",
+    configure: "1",
+    ui: "min",
+  });
+}
 
 function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
@@ -39,14 +60,17 @@ function drawTabsStorageKey(projectId: string): string {
 export function resolveDrawioHostFrameSrc(
   entryUrl?: string | null,
 ): string | null {
-  const resolvedEntryUrl = String(entryUrl || DRAWIO_FRONTEND_HOST_PATH).trim();
+  const resolvedEntryUrl = String(entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
   if (!resolvedEntryUrl) {
     return null;
   }
-  if (typeof window === "undefined") {
-    return resolvedEntryUrl;
+  const absoluteEntryUrl = typeof window === "undefined"
+    ? resolvedEntryUrl
+    : new URL(resolvedEntryUrl, window.location.href).toString();
+  if (!absoluteEntryUrl) {
+    return null;
   }
-  return new URL(resolvedEntryUrl, window.location.href).toString();
+  return toDrawioEmbedUrl(absoluteEntryUrl);
 }
 
 export function normalizePath(value: string | null | undefined): string {

@@ -10,7 +10,80 @@ use tauri::http::{
 use urlencoding::decode;
 
 pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
+const DRAWIO_ROUTE_PREFIX: &str = "/tool/drawio";
 const WORKSPACE_FILE_ROUTE_PREFIX: &str = "/workspace-file";
+const REQUIRED_DRAWIO_ASSETS: [&str; 12] = [
+    "index.html",
+    "app.html",
+    "js/app.min.js",
+    "js/bootstrap.js",
+    "js/extensions.min.js",
+    "js/main.js",
+    "js/PostConfig.js",
+    "js/PreConfig.js",
+    "js/shapes-14-6-5.min.js",
+    "js/stencils.min.js",
+    "styles/high-contrast.css",
+    "styles/grapheditor.css",
+];
+
+fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
+    required_assets.iter().all(|name| dir.join(name).exists())
+}
+
+fn candidate_source_dirs(relative_subdir: &str) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/core/{relative_subdir}")),
+    );
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../public/core/{relative_subdir}")),
+    );
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join(format!("resources/core/{relative_subdir}")));
+            candidates.push(exe_dir.join(format!("core/{relative_subdir}")));
+            candidates.push(exe_dir.join(format!("../resources/core/{relative_subdir}")));
+        }
+    }
+    candidates
+}
+
+fn choose_existing_source_dir(required_assets: &[&str], relative_subdir: &str) -> Option<PathBuf> {
+    candidate_source_dirs(relative_subdir)
+        .into_iter()
+        .find(|dir| has_required_assets(dir, required_assets))
+}
+
+fn ensure_drawio_serving_dir() -> Result<PathBuf, String> {
+    choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio")
+        .ok_or_else(|| "Drawio source assets were not found in app resources".to_string())
+}
+
+fn normalize_relative_asset_path(request_path: &str) -> Result<PathBuf, String> {
+    let relative = request_path
+        .trim()
+        .strip_prefix(DRAWIO_ROUTE_PREFIX)
+        .ok_or_else(|| "resource.path.unsupported".to_string())?
+        .trim_start_matches('/');
+    if relative.is_empty() {
+        return Ok(PathBuf::from("index.html"));
+    }
+
+    let mut out = PathBuf::new();
+    for component in Path::new(relative).components() {
+        match component {
+            Component::Normal(value) => out.push(value),
+            Component::CurDir => {}
+            _ => return Err("resource.path.invalid".to_string()),
+        }
+    }
+
+    if out.as_os_str().is_empty() {
+        return Ok(PathBuf::from("index.html"));
+    }
+    Ok(out)
+}
 
 fn mime_type_for_path(path: &Path) -> &'static str {
     match path
@@ -351,6 +424,96 @@ fn serve_workspace_file(state: &AppState, request: &Request<Vec<u8>>) -> Respons
     )
 }
 
+fn serve_drawio_asset(state: &AppState, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+    let request_path = request.uri().path();
+    let relative_path = match normalize_relative_asset_path(request_path) {
+        Ok(path) => path,
+        Err(error) => {
+            log_local_resource(
+                state,
+                "WARN",
+                &format!(
+                    "drawio request={} method={} rejected={}",
+                    request_path,
+                    request.method(),
+                    error
+                ),
+            );
+            return build_text_response(StatusCode::BAD_REQUEST, &error);
+        }
+    };
+
+    let root = match ensure_drawio_serving_dir() {
+        Ok(dir) => dir,
+        Err(error) => {
+            log_local_resource(
+                state,
+                "ERROR",
+                &format!(
+                    "drawio request={} method={} resolve_failed={} candidates={}",
+                    request_path,
+                    request.method(),
+                    error,
+                    candidate_source_dirs("drawio")
+                        .into_iter()
+                        .map(|value| value.to_string_lossy().to_string())
+                        .collect::<Vec<_>>()
+                        .join(" | ")
+                ),
+            );
+            return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error);
+        }
+    };
+
+    let asset_path = root.join(&relative_path);
+    if !asset_path.exists() || !asset_path.is_file() {
+        log_local_resource(
+            state,
+            "WARN",
+            &format!(
+                "drawio request={} method={} root={} resolved={} status=404",
+                request_path,
+                request.method(),
+                root.to_string_lossy(),
+                asset_path.to_string_lossy()
+            ),
+        );
+        return build_text_response(StatusCode::NOT_FOUND, "resource.asset_missing");
+    }
+
+    match fs::read(&asset_path) {
+        Ok(bytes) => {
+            log_local_resource(
+                state,
+                "INFO",
+                &format!(
+                    "drawio request={} method={} root={} resolved={} status=200",
+                    request_path,
+                    request.method(),
+                    root.to_string_lossy(),
+                    asset_path.to_string_lossy()
+                ),
+            );
+            build_binary_response(StatusCode::OK, mime_type_for_path(&asset_path), bytes)
+        }
+        Err(error) => {
+            log_local_resource(
+                state,
+                "ERROR",
+                &format!(
+                    "drawio request={} method={} root={} resolved={} status=500 reason={}",
+                    request_path,
+                    request.method(),
+                    root.to_string_lossy(),
+                    asset_path.to_string_lossy(),
+                    error
+                ),
+            );
+            build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
+        }
+    }
+}
+
 pub fn handle_local_resource_request(
     state: &AppState,
     request: &Request<Vec<u8>>,
@@ -361,6 +524,9 @@ pub fn handle_local_resource_request(
     let path = request.uri().path();
     if path.starts_with(WORKSPACE_FILE_ROUTE_PREFIX) {
         return serve_workspace_file(state, request);
+    }
+    if path.starts_with(DRAWIO_ROUTE_PREFIX) {
+        return serve_drawio_asset(state, request);
     }
     log_local_resource(
         state,

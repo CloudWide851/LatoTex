@@ -230,17 +230,24 @@ fn extract_xml_tag_value(block: &str, tag: &str) -> Option<String> {
 
 fn fetch_arxiv_metadata(arxiv_id: &str) -> Option<CitationRemoteMetadata> {
     let client = http_client()?;
-    let response = client
-        .get(format!(
-            "https://export.arxiv.org/api/query?id_list={}",
-            urlencoding::encode(arxiv_id)
-        ))
-        .send()
-        .ok()?;
-    if !response.status().is_success() {
-        return None;
+    let mut body = None;
+    for endpoint in arxiv_api_query_candidates(arxiv_id) {
+        let Ok(response) = client.get(&endpoint).send() else {
+            continue;
+        };
+        if !response.status().is_success() {
+            continue;
+        }
+        let Ok(candidate_body) = response.text() else {
+            continue;
+        };
+        if !looks_like_arxiv_atom_feed(&candidate_body) {
+            continue;
+        }
+        body = Some(candidate_body);
+        break;
     }
-    let body = response.text().ok()?;
+    let body = body?;
     let entry_regex = Regex::new(r"(?is)<entry>(.*?)</entry>").ok()?;
     let entry = entry_regex
         .captures(&body)
@@ -262,10 +269,9 @@ fn fetch_arxiv_metadata(arxiv_id: &str) -> Option<CitationRemoteMetadata> {
     if let Some(url) = extract_xml_tag_value(entry, "id").and_then(|value| normalize_url(&value)) {
         push_unique_url(&mut metadata.urls, url);
     }
-    push_unique_url(
-        &mut metadata.urls,
-        format!("https://arxiv.org/pdf/{arxiv_id}.pdf"),
-    );
+    for url in arxiv_pdf_url_candidates(arxiv_id) {
+        push_unique_url(&mut metadata.urls, url);
+    }
 
     let author_regex = Regex::new(r"(?is)<author>\s*<name>(.*?)</name>\s*</author>").ok()?;
     for capture in author_regex.captures_iter(entry) {
