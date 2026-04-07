@@ -1,6 +1,7 @@
 use super::native_runtime_common::{configure_hidden_process, safe_relative_path, sanitize_log_lines};
 use super::native_runtime_latex_warmup::{
-    ensure_tectonic_runtime_warmup, resolve_tectonic_paths, TECTONIC_NOT_FOUND_DIAGNOSTIC,
+    ensure_tectonic_runtime_warmup_with_progress, resolve_tectonic_paths,
+    TECTONIC_NOT_FOUND_DIAGNOSTIC,
 };
 use crate::models::{LatexCompileInput, LatexCompileResponse};
 use crate::storage;
@@ -228,8 +229,15 @@ where
     let run_root = compile_root.join(&run_id);
     fs::create_dir_all(&run_root).map_err(|e| e.to_string())?;
 
-    on_progress(6.0, "warming_resources", Some(&input.main_path), None);
-    ensure_tectonic_runtime_warmup(runtime_root, app_data_dir)?;
+    on_progress(6.0, "warming_resources", Some(&input.main_path), Some("warming_resources"));
+    ensure_tectonic_runtime_warmup_with_progress(
+        runtime_root,
+        app_data_dir,
+        |percent, stage, current_item, message| {
+            let mapped_percent = 6.0 + (percent.clamp(0.0, 100.0) * 0.1);
+            on_progress(mapped_percent, stage, current_item, message);
+        },
+    )?;
 
     on_progress(16.0, "materializing_workspace", Some(&input.main_path), None);
     write_compile_workspace(

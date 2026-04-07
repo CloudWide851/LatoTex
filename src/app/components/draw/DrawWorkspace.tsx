@@ -78,6 +78,7 @@ export function DrawWorkspace(props: {
   const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
+  const loadTimerRef = useRef<number | null>(null);
   const handshakeStageRef = useRef("boot");
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
@@ -132,6 +133,10 @@ export function DrawWorkspace(props: {
 
   const retryFrameLoad = useCallback(() => {
     logDrawRuntime("WARN", `frame_retry_requested: stage=${handshakeStageRef.current}`);
+    if (loadTimerRef.current !== null) {
+      window.clearTimeout(loadTimerRef.current);
+      loadTimerRef.current = null;
+    }
     setFramePhase("loading");
     setFrameSrc(null);
     setFrameFailureDetail(null);
@@ -509,6 +514,32 @@ export function DrawWorkspace(props: {
   }, [activePath, loadActiveToFrame, logDrawRuntime, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
+    if (!frameSrc || frameDocumentLoaded || framePhase !== "loading") {
+      return;
+    }
+    if (loadTimerRef.current !== null) {
+      window.clearTimeout(loadTimerRef.current);
+    }
+    loadTimerRef.current = window.setTimeout(() => {
+      const failure = formatDrawStartFailure(
+        t,
+        `drawio frame did not finish loading in time (last stage: ${handshakeStageRef.current})`,
+      );
+      logDrawRuntime("ERROR", `iframe_load_timeout: last_stage=${handshakeStageRef.current}`);
+      setFramePhase("error");
+      setFrameSrc(null);
+      setFrameFailureDetail(failure);
+      setStatus(failure);
+    }, 15_000);
+    return () => {
+      if (loadTimerRef.current !== null) {
+        window.clearTimeout(loadTimerRef.current);
+        loadTimerRef.current = null;
+      }
+    };
+  }, [frameDocumentLoaded, framePhase, frameSrc, logDrawRuntime, t]);
+
+  useEffect(() => {
     if (!frameSrc || !frameDocumentLoaded || framePhase !== "loading") {
       return;
     }
@@ -526,6 +557,10 @@ export function DrawWorkspace(props: {
       setStatus(failure);
     }, 20_000);
     return () => {
+      if (loadTimerRef.current !== null) {
+        window.clearTimeout(loadTimerRef.current);
+        loadTimerRef.current = null;
+      }
       if (initTimerRef.current !== null) {
         window.clearTimeout(initTimerRef.current);
         initTimerRef.current = null;
@@ -595,7 +630,26 @@ export function DrawWorkspace(props: {
                 onLoad={() => {
                   handshakeStageRef.current = "iframe_load_event";
                   logDrawRuntime("INFO", "iframe_load_event");
+                  if (loadTimerRef.current !== null) {
+                    window.clearTimeout(loadTimerRef.current);
+                    loadTimerRef.current = null;
+                  }
                   setFrameDocumentLoaded(true);
+                }}
+                onError={() => {
+                  const failure = formatDrawStartFailure(
+                    t,
+                    `drawio frame failed to load (last stage: ${handshakeStageRef.current})`,
+                  );
+                  logDrawRuntime("ERROR", `iframe_load_error: last_stage=${handshakeStageRef.current}`);
+                  if (loadTimerRef.current !== null) {
+                    window.clearTimeout(loadTimerRef.current);
+                    loadTimerRef.current = null;
+                  }
+                  setFramePhase("error");
+                  setFrameSrc(null);
+                  setFrameFailureDetail(failure);
+                  setStatus(failure);
                 }}
               />
               {framePhase !== "ready" ? (

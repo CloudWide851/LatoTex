@@ -15,7 +15,8 @@ export type NativeLatexCompileResult = {
 };
 
 const COMPILE_STATUS_POLL_MS = 260;
-const COMPILE_STATUS_POLL_LIMIT = 2400;
+const COMPILE_STATUS_TIMEOUT_MS = 10 * 60 * 1000;
+const COMPILE_STATUS_STALL_TIMEOUT_MS = 90 * 1000;
 
 function sanitizeDiagnostics(lines: string[]): string[] {
   const seen = new Set<string>();
@@ -90,7 +91,11 @@ export async function compileWithNativeLatexTask(input: {
     includePdfBytes: false,
   });
 
-  for (let round = 0; round < COMPILE_STATUS_POLL_LIMIT; round += 1) {
+  const startedAt = Date.now();
+  let lastMeaningfulProgressAt = startedAt;
+  let lastProgressFingerprint = "";
+
+  for (;;) {
     const status = await compileNativeLatexStatus(started.taskId);
     if (status.status === "running" && String(status.stage || "").trim().toLowerCase() !== "queued") {
       input.onProgress?.(status);
@@ -102,10 +107,33 @@ export async function compileWithNativeLatexTask(input: {
       const errorLine = String(status.error || status.diagnostics?.[0] || "compile task failed");
       throw new Error(errorLine);
     }
+    const progressFingerprint = [
+      status.status,
+      Number(status.percent ?? 0).toFixed(1),
+      String(status.stage || "").trim(),
+      String(status.currentItem || "").trim(),
+      String(status.latestLogLine || "").trim(),
+      String(status.message || "").trim(),
+    ].join("|");
+    if (progressFingerprint !== lastProgressFingerprint) {
+      lastProgressFingerprint = progressFingerprint;
+      lastMeaningfulProgressAt = Date.now();
+    }
+    const now = Date.now();
+    if (now - startedAt > COMPILE_STATUS_TIMEOUT_MS) {
+      throw new Error("compile.task.timeout");
+    }
+    const normalizedStage = String(status.stage || "").trim().toLowerCase();
+    const stageAllowsLongWait = normalizedStage.startsWith("validating_bundle")
+      || normalizedStage.startsWith("repairing_bundle")
+      || normalizedStage.startsWith("extracting_search")
+      || normalizedStage.startsWith("compiling")
+      || normalizedStage.startsWith("writing_artifacts");
+    if (!stageAllowsLongWait && now - lastMeaningfulProgressAt > COMPILE_STATUS_STALL_TIMEOUT_MS) {
+      throw new Error("compile.task.timeout");
+    }
     await new Promise((resolve) => window.setTimeout(resolve, COMPILE_STATUS_POLL_MS));
   }
-
-  throw new Error("compile.task.timeout");
 }
 
 export function disposeNativeLatexRuntime() {

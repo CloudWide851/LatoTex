@@ -307,3 +307,34 @@ fn handle_local_resource_request_serves_drawio_runtime_script() {
         "drawio runtime script should not be empty"
     );
 }
+
+#[test]
+fn handle_local_resource_request_serves_required_drawio_support_assets() {
+    let fixture = create_test_fixture("drawio-support-assets");
+    for (request_path, expected_content_type) in [
+        ("mxgraph/css/common.css", "text/css; charset=utf-8"),
+        ("math4/es5/startup.js", "application/javascript; charset=utf-8"),
+        ("resources/dia.txt", "application/octet-stream"),
+    ] {
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(format!(
+                "http://{}.localhost/tool/drawio/{}",
+                LOCAL_RESOURCE_SCHEME, request_path
+            ))
+            .body(Vec::new())
+            .unwrap();
+
+        let response = handle_local_resource_request(&fixture.state, &request);
+
+        assert_eq!(response.status(), 200, "expected {request_path} to be served");
+        assert_eq!(
+            response.headers().get("Content-Type"),
+            Some(&HeaderValue::from_str(expected_content_type).unwrap())
+        );
+        assert!(
+            !response.body().is_empty(),
+            "expected {request_path} body to be non-empty"
+        );
+    }
+}

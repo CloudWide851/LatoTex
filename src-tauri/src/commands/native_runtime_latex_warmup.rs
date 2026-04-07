@@ -512,17 +512,6 @@ where
     Ok(build_tectonic_warmup_info(&paths))
 }
 
-pub(crate) fn ensure_tectonic_runtime_warmup(
-    runtime_root: &Path,
-    app_data_dir: &Path,
-) -> Result<TectonicWarmupInfo, String> {
-    ensure_tectonic_runtime_warmup_with_progress(
-        runtime_root,
-        app_data_dir,
-        |_percent, _stage, _current_item, _message| {},
-    )
-}
-
 #[cfg(test)]
 #[path = "native_runtime_latex_warmup_tests.rs"]
 mod tests;

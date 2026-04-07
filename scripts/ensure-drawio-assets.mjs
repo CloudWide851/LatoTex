@@ -17,6 +17,9 @@ const requiredFiles = [
   "styles/grapheditor.css",
   "styles/high-contrast.css",
   "images/spin.gif",
+  "mxgraph/css/common.css",
+  "math4/es5/startup.js",
+  "resources/dia.txt",
 ];
 
 const missing = requiredFiles.filter((file) => !fs.existsSync(path.join(sourceDir, file)));

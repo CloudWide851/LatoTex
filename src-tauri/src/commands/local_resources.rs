@@ -12,7 +12,7 @@ use urlencoding::decode;
 pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
 const DRAWIO_ROUTE_PREFIX: &str = "/tool/drawio";
 const WORKSPACE_FILE_ROUTE_PREFIX: &str = "/workspace-file";
-const REQUIRED_DRAWIO_ASSETS: [&str; 12] = [
+const REQUIRED_DRAWIO_ASSETS: [&str; 15] = [
     "index.html",
     "app.html",
     "js/app.min.js",
@@ -23,6 +23,9 @@ const REQUIRED_DRAWIO_ASSETS: [&str; 12] = [
     "js/PreConfig.js",
     "js/shapes-14-6-5.min.js",
     "js/stencils.min.js",
+    "math4/es5/startup.js",
+    "mxgraph/css/common.css",
+    "resources/dia.txt",
     "styles/high-contrast.css",
     "styles/grapheditor.css",
 ];

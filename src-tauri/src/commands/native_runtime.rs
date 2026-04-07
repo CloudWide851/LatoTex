@@ -29,7 +29,7 @@ pub(crate) use native_runtime_common::{configure_hidden_process, sanitize_log_li
 
 
 #[allow(unused_imports)]
-pub(crate) use native_runtime_latex_warmup::{ensure_tectonic_runtime_warmup, ensure_tectonic_runtime_warmup_with_progress};
+pub(crate) use native_runtime_latex_warmup::ensure_tectonic_runtime_warmup_with_progress;
 
 
 

@@ -121,6 +121,17 @@ where
     Ok(())
 }
 
+fn replace_runtime_bundle(source: &Path, target: &Path) -> Result<(), String> {
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    if target.exists() {
+        fs::remove_file(target).map_err(|error| error.to_string())?;
+    }
+    fs::copy(source, target).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 pub(super) fn ensure_runtime_bundle<F>(
     tool_root: &Path,
     source_root: &Path,
@@ -134,8 +145,13 @@ where
     let source_bundle = source_root.join(bundle_relative_path);
     let runtime_bundle = tool_root.join(bundle_relative_path);
     let runtime_bundle_text = runtime_bundle.to_string_lossy().to_string();
+    let source_bundle_text = source_bundle.to_string_lossy().to_string();
     if let Some(parent) = runtime_bundle.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let temp_bundle = runtime_bundle.with_extension("download");
+    if temp_bundle.exists() {
+        let _ = fs::remove_file(&temp_bundle);
     }
 
     let should_copy = match (fs::metadata(&source_bundle), fs::metadata(&runtime_bundle)) {
@@ -144,9 +160,13 @@ where
         (Err(error), _) => return Err(error.to_string()),
     };
     if should_copy {
-        fs::copy(&source_bundle, &runtime_bundle).map_err(|error| error.to_string())?;
+        replace_runtime_bundle(&source_bundle, &runtime_bundle)?;
     }
 
+    let source_valid = validate_bundle_entries(&source_bundle, required_entries, || {
+        on_progress("validating_bundle", Some(source_bundle_text.as_str()));
+    })
+    .is_ok();
     if validate_bundle_entries(&runtime_bundle, required_entries, || {
         on_progress("validating_bundle", Some(runtime_bundle_text.as_str()));
     })
@@ -155,7 +175,15 @@ where
         return Ok(runtime_bundle);
     }
 
-    let temp_bundle = runtime_bundle.with_extension("download");
+    if source_valid {
+        on_progress("repairing_bundle", Some(source_bundle_text.as_str()));
+        replace_runtime_bundle(&source_bundle, &runtime_bundle)?;
+        validate_bundle_entries(&runtime_bundle, required_entries, || {
+            on_progress("validating_bundle", Some(runtime_bundle_text.as_str()));
+        })?;
+        return Ok(runtime_bundle);
+    }
+
     let mut errors = Vec::<String>::new();
     for url in load_redirect_urls(source_root) {
         on_progress("repairing_bundle", Some(url.as_str()));
@@ -166,9 +194,7 @@ where
                 on_progress("repairing_bundle", Some(url.as_str()));
             }) {
                 Ok(()) => {
-                    if runtime_bundle.exists() {
-                        let _ = fs::remove_file(&runtime_bundle);
-                    }
+                    let _ = fs::remove_file(&runtime_bundle);
                     fs::rename(&temp_bundle, &runtime_bundle).map_err(|error| error.to_string())?;
                     return Ok(runtime_bundle);
                 }

@@ -339,7 +339,7 @@ pub fn library_citation_summary(
 }
 
 #[tauri::command]
-pub fn library_citation_summary_remote(
+pub async fn library_citation_summary_remote(
     state: State<'_, AppState>,
     input: LibraryCitationSummaryInput,
 ) -> Result<LibraryCitationSummaryResponse, String> {
@@ -350,11 +350,16 @@ pub fn library_citation_summary_remote(
             input.project_id, input.relative_path
         ),
     );
-    storage::library_citation_summary_remote(&state.db_path, &input.project_id, &input.relative_path)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+    spawn_blocking(move || storage::library_citation_summary_remote(&db_path, &project_id, &relative_path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn library_resolve_pdf_preview(
+pub async fn library_resolve_pdf_preview(
     state: State<'_, AppState>,
     input: LibraryPdfPreviewInput,
 ) -> Result<LibraryPdfPreviewResponse, String> {
@@ -365,13 +370,20 @@ pub fn library_resolve_pdf_preview(
             input.project_id, input.relative_path
         ),
     );
-    let preview = storage::library_resolve_pdf_preview_runtime(
-        &state,
-        &input.project_id,
-        &input.relative_path,
-        input.bust_cache.unwrap_or(false),
-    )?;
-    Ok(preview)
+    let app_state = state.inner().clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+    let bust_cache = input.bust_cache.unwrap_or(false);
+    spawn_blocking(move || {
+        storage::library_resolve_pdf_preview_runtime(
+            &app_state,
+            &project_id,
+            &relative_path,
+            bust_cache,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

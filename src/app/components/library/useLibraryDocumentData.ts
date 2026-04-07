@@ -206,6 +206,18 @@ async function readBibPreview(
   return result.content;
 }
 
+function toCitationOnlyDocumentState(
+  current: DocumentDataState,
+  citation: LibraryCitationSummary,
+  bibPreview: string,
+): DocumentDataState {
+  return {
+    ...EMPTY_STATE,
+    citation: mergeSummaries(current.citation, applySummaryDefaults(citation)),
+    bibPreview,
+  };
+}
+
 export function useLibraryDocumentData(params: {
   projectId: string | null;
   selectedPath: string | null;
@@ -433,14 +445,29 @@ export function useLibraryDocumentData(params: {
     setPaperPreviewError(null);
 
     try {
-      const [citation, pdfPreview] = await Promise.all([
-        libraryCitationSummary(projectId, selectedPath),
-        libraryResolvePdfPreview(projectId, selectedPath, { bustCache: options?.bustCache ?? false }),
-      ]);
+      const citation = await libraryCitationSummary(projectId, selectedPath);
       const bibPreview = await readBibPreview(projectId, selectedPath, citation);
       if (requestIdRef.current !== requestId) {
         return null;
       }
+      const nextState = toCitationOnlyDocumentState(stateRef.current, citation, bibPreview);
+      setCachedDocumentState(cacheKey, nextState);
+      applyState(nextState, {
+        loading: false,
+        loadError: null,
+        pdfPreviewLoading: true,
+        pdfPreviewError: null,
+        paperPreviewLoading: false,
+        paperPreviewError: null,
+      });
+      setPreviewRevision(requestId);
+
+      void resolveRemotePdfPreview({
+        requestId,
+        cacheKey,
+        bustCache: options?.bustCache ?? false,
+      });
+
       void libraryCitationSummaryRemote(projectId, selectedPath)
         .then((remoteSummary) => {
           mergeRemoteCitationSummary(requestId, cacheKey, remoteSummary);
@@ -450,13 +477,7 @@ export function useLibraryDocumentData(params: {
           }
         })
         .catch(() => undefined);
-      return await applyDocumentPayload({
-        requestId,
-        cacheKey,
-        citation,
-        bibPreview,
-        pdfPreview,
-      });
+      return nextState;
     } catch (error) {
       if (requestIdRef.current === requestId) {
         stateRef.current = EMPTY_STATE;
@@ -470,7 +491,7 @@ export function useLibraryDocumentData(params: {
       }
       return null;
     }
-  }, [applyDocumentPayload, mergeRemoteCitationSummary, projectId, reset, resolveRemotePdfPreview, selectedPath]);
+  }, [applyState, mergeRemoteCitationSummary, projectId, reset, resolveRemotePdfPreview, selectedPath]);
 
   const refresh = useCallback(async (options?: RefreshOptions) => {
     if (!projectId || !selectedPath) {
