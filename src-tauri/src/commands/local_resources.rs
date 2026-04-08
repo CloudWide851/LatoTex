@@ -12,22 +12,26 @@ use urlencoding::decode;
 pub const LOCAL_RESOURCE_SCHEME: &str = "latotex-resource";
 const DRAWIO_ROUTE_PREFIX: &str = "/tool/drawio";
 const WORKSPACE_FILE_ROUTE_PREFIX: &str = "/workspace-file";
-const REQUIRED_DRAWIO_ASSETS: [&str; 15] = [
+const REQUIRED_DRAWIO_ASSETS: [&str; 19] = [
     "index.html",
-    "app.html",
-    "js/app.min.js",
-    "js/bootstrap.js",
-    "js/extensions.min.js",
-    "js/main.js",
-    "js/PostConfig.js",
-    "js/PreConfig.js",
-    "js/shapes-14-6-5.min.js",
-    "js/stencils.min.js",
-    "math4/es5/startup.js",
-    "mxgraph/css/common.css",
-    "resources/dia.txt",
-    "styles/high-contrast.css",
-    "styles/grapheditor.css",
+    "drawio-version.json",
+    "vendor/index.html",
+    "vendor/js/app.min.js",
+    "vendor/js/bootstrap.js",
+    "vendor/js/extensions.min.js",
+    "vendor/js/main.js",
+    "vendor/js/PostConfig.js",
+    "vendor/js/PreConfig.js",
+    "vendor/js/shapes-14-6-5.min.js",
+    "vendor/js/stencils.min.js",
+    "vendor/math4/es5/startup.js",
+    "vendor/mxgraph/css/common.css",
+    "vendor/mxgraph/images/maximize.gif",
+    "vendor/resources/dia.txt",
+    "vendor/styles/high-contrast.css",
+    "vendor/styles/grapheditor.css",
+    "vendor/images/spin.gif",
+    "vendor/images/github-logo.svg",
 ];
 
 fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {

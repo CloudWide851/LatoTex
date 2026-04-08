@@ -364,7 +364,8 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
 
 #[cfg(test)]
 mod workspace_files_search_tests {
-    use super::is_python_venv_dir;
+    use super::{is_python_venv_dir, read_project_file_binary};
+    use crate::storage;
     use std::fs;
     use std::path::PathBuf;
 
@@ -378,6 +379,21 @@ mod workspace_files_search_tests {
         ));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    fn create_project_fixture(name: &str) -> (PathBuf, String, PathBuf, PathBuf) {
+        let temp_root = unique_temp_dir(name);
+        let runtime_root = temp_root.join("runtime");
+        let projects_dir = runtime_root.join("projects");
+        let db_path = runtime_root.join("latotex.db");
+
+        fs::create_dir_all(&projects_dir).unwrap();
+        storage::initialize_database(&db_path).unwrap();
+        let snapshot = storage::create_project(&db_path, &projects_dir, "Workspace Binary Read Test")
+            .unwrap();
+        let project_id = snapshot.summary.id;
+        let project_root = PathBuf::from(snapshot.summary.root_path);
+        (temp_root, project_id, project_root, db_path)
     }
 
     #[test]
@@ -425,6 +441,42 @@ mod workspace_files_search_tests {
         assert!(venv_node.children.is_empty());
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn read_project_file_binary_reads_local_library_pdf_bytes() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("binary-library");
+        let relative_path = ".latotex/papers/demo-paper.pdf";
+        let pdf_path = project_root.join(".latotex").join("papers").join("demo-paper.pdf");
+        fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
+        fs::write(&pdf_path, b"%PDF-local-library").unwrap();
+
+        let result = read_project_file_binary(&db_path, &project_id, relative_path).unwrap();
+
+        assert_eq!(result.relative_path, relative_path);
+        assert_eq!(result.bytes, b"%PDF-local-library");
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
+    fn read_project_file_binary_reads_cached_remote_library_pdf_bytes() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("binary-remote-cache");
+        let relative_path = ".latotex/cache/papers/remote-preview.pdf";
+        let pdf_path = project_root
+            .join(".latotex")
+            .join("cache")
+            .join("papers")
+            .join("remote-preview.pdf");
+        fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
+        fs::write(&pdf_path, b"%PDF-remote-cache").unwrap();
+
+        let result = read_project_file_binary(&db_path, &project_id, relative_path).unwrap();
+
+        assert_eq!(result.relative_path, relative_path);
+        assert_eq!(result.bytes, b"%PDF-remote-cache");
+
+        let _ = fs::remove_dir_all(temp_root);
     }
 }
 

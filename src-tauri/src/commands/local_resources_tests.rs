@@ -289,7 +289,7 @@ fn handle_local_resource_request_serves_drawio_runtime_script() {
     let request = Request::builder()
         .method(Method::GET)
         .uri(format!(
-            "http://{}.localhost/tool/drawio/js/bootstrap.js",
+            "http://{}.localhost/tool/drawio/vendor/js/bootstrap.js",
             LOCAL_RESOURCE_SCHEME
         ))
         .body(Vec::new())
@@ -312,9 +312,11 @@ fn handle_local_resource_request_serves_drawio_runtime_script() {
 fn handle_local_resource_request_serves_required_drawio_support_assets() {
     let fixture = create_test_fixture("drawio-support-assets");
     for (request_path, expected_content_type) in [
-        ("mxgraph/css/common.css", "text/css; charset=utf-8"),
-        ("math4/es5/startup.js", "application/javascript; charset=utf-8"),
-        ("resources/dia.txt", "application/octet-stream"),
+        ("vendor/mxgraph/css/common.css", "text/css; charset=utf-8"),
+        ("vendor/mxgraph/images/maximize.gif", "image/gif"),
+        ("vendor/math4/es5/startup.js", "application/javascript; charset=utf-8"),
+        ("vendor/resources/dia.txt", "application/octet-stream"),
+        ("vendor/images/github-logo.svg", "image/svg+xml"),
     ] {
         let request = Request::builder()
             .method(Method::GET)
