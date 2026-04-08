@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useI18n } from "../../../i18n";
 import { runtimeLogWrite } from "../../../shared/api/runtime";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
@@ -76,6 +77,7 @@ export function DrawWorkspace(props: {
   t: TranslationFn;
 }) {
   const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
+  const { locale } = useI18n();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
   const loadTimerRef = useRef<number | null>(null);
@@ -102,7 +104,7 @@ export function DrawWorkspace(props: {
 
   useEffect(() => {
     try {
-      const resolved = resolveDrawioHostFrameSrc();
+      const resolved = resolveDrawioHostFrameSrc(undefined, locale);
       if (!resolved) {
         const failure = formatDrawStartFailure(t, "drawio entry url is missing");
         handshakeStageRef.current = "missing_entry_url";
@@ -129,7 +131,7 @@ export function DrawWorkspace(props: {
       setStatus(failure);
       logDrawRuntime("ERROR", `frame_src_failed: ${String(error)}`);
     }
-  }, [frameReloadToken, logDrawRuntime, t]);
+  }, [frameReloadToken, locale, logDrawRuntime, t]);
 
   const retryFrameLoad = useCallback(() => {
     logDrawRuntime("WARN", `frame_retry_requested: stage=${handshakeStageRef.current}`);

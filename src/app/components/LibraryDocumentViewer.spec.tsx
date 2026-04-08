@@ -52,6 +52,8 @@ vi.mock("./library/LibraryViewerContentPanel", () => ({
       <div
         data-testid="library-viewer-content-panel"
         data-pdf-url={props.pdfUrl}
+        data-loading={String(Boolean(props.loading))}
+        data-bib-preview={props.bibPreview}
       />
     );
   }),
@@ -163,6 +165,8 @@ describe("LibraryDocumentViewer", () => {
       ".latotex/papers/demo.pdf",
     );
     expect(viewer?.getAttribute("data-pdf-url")).toBe("blob:library-document-pdf");
+    expect(viewer?.getAttribute("data-loading")).toBe("false");
+    expect(viewer?.getAttribute("data-bib-preview")).toBe("@article{demo,title={Demo Paper}}");
 
     await act(async () => {
       root.unmount();

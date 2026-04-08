@@ -9,15 +9,24 @@ describe("drawWorkspaceUtils", () => {
 
   it("resolves a single canonical host frame src from an explicit entry url", async () => {
     const { resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min",
+    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html", "en-US")).toBe(
+      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min&lang=en",
     );
   });
 
   it("falls back to the backend local-resource route when startup info is missing", async () => {
     const { DRAWIO_LOCAL_RESOURCE_URL, resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc()).toBe(
-      `${DRAWIO_LOCAL_RESOURCE_URL}?embed=1&proto=json&spin=0&configure=1&ui=min`,
+    expect(resolveDrawioHostFrameSrc(undefined, "en-US")).toBe(
+      `${DRAWIO_LOCAL_RESOURCE_URL}?embed=1&proto=json&spin=0&configure=1&ui=min&lang=en`,
+    );
+  });
+
+  it("maps the app locale to the DrawIO language parameter", async () => {
+    const { resolveDrawioHostFrameSrc, toDrawioLanguage } = await import("./drawWorkspaceUtils");
+    expect(toDrawioLanguage("zh-CN")).toBe("zh");
+    expect(toDrawioLanguage("en-US")).toBe("en");
+    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html", "zh-CN")).toBe(
+      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min&lang=zh",
     );
   });
 

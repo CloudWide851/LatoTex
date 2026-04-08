@@ -241,15 +241,13 @@ export function useLibraryDocumentData(params: {
 
   const applyState = useCallback((next: DocumentDataState, options?: ApplyStateOptions) => {
     stateRef.current = next;
-    startTransition(() => {
-      setState(next);
-      setLoading(Boolean(options?.loading));
-      setLoadError(options?.loadError ?? null);
-      setPdfPreviewLoading(Boolean(options?.pdfPreviewLoading));
-      setPdfPreviewError(options?.pdfPreviewError ?? null);
-      setPaperPreviewLoading(Boolean(options?.paperPreviewLoading));
-      setPaperPreviewError(options?.paperPreviewError ?? null);
-    });
+    setState(next);
+    setLoading(Boolean(options?.loading));
+    setLoadError(options?.loadError ?? null);
+    setPdfPreviewLoading(Boolean(options?.pdfPreviewLoading));
+    setPdfPreviewError(options?.pdfPreviewError ?? null);
+    setPaperPreviewLoading(Boolean(options?.paperPreviewLoading));
+    setPaperPreviewError(options?.paperPreviewError ?? null);
   }, []);
 
   const reset = useCallback(() => {

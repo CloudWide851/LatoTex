@@ -32,6 +32,14 @@ export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   },
 });
 
+export function toDrawioLanguage(locale?: string | null): string {
+  const normalized = String(locale ?? "").trim().toLowerCase();
+  if (normalized.startsWith("zh")) {
+    return "zh";
+  }
+  return "en";
+}
+
 function appendQueryParams(url: string, values: Record<string, string>): string {
   const [withoutHash, hash = ""] = String(url || "").split("#", 2);
   const [basePath, query = ""] = withoutHash.split("?", 2);
@@ -43,13 +51,14 @@ function appendQueryParams(url: string, values: Record<string, string>): string 
   return `${basePath}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
-export function toDrawioEmbedUrl(entryUrl: string): string {
+export function toDrawioEmbedUrl(entryUrl: string, locale?: string | null): string {
   return appendQueryParams(entryUrl, {
     embed: "1",
     proto: "json",
     spin: "0",
     configure: "1",
     ui: "min",
+    lang: toDrawioLanguage(locale),
   });
 }
 
@@ -59,6 +68,7 @@ function drawTabsStorageKey(projectId: string): string {
 
 export function resolveDrawioHostFrameSrc(
   entryUrl?: string | null,
+  locale?: string | null,
 ): string | null {
   const resolvedEntryUrl = String(entryUrl || DRAWIO_LOCAL_RESOURCE_URL).trim();
   if (!resolvedEntryUrl) {
@@ -70,7 +80,7 @@ export function resolveDrawioHostFrameSrc(
   if (!absoluteEntryUrl) {
     return null;
   }
-  return toDrawioEmbedUrl(absoluteEntryUrl);
+  return toDrawioEmbedUrl(absoluteEntryUrl, locale);
 }
 
 export function normalizePath(value: string | null | undefined): string {
