@@ -146,6 +146,13 @@ export function ModelModal(props: {
     modelDisplayName.trim().length > 0 &&
     modelRequestName.trim().length > 0;
 
+  const syncExistingProtocolSelection = (nextProtocolId: string) => {
+    const nextProtocol = protocols.find((item) => item.id === nextProtocolId);
+    setProtocolId(nextProtocolId);
+    setExistingProtocolBaseUrl(nextProtocol?.baseUrl ?? "");
+    setSaveMessage("");
+  };
+
   const handleSave = async () => {
     if (!canSubmitBase) {
       return;
@@ -204,13 +211,20 @@ export function ModelModal(props: {
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant={protocolMode === "existing" ? "default" : "secondary"}
-              onClick={() => setProtocolMode("existing")}
+              onClick={() => {
+                setProtocolMode("existing");
+                setExistingProtocolBaseUrl(selectedProtocol?.baseUrl ?? "");
+                setSaveMessage("");
+              }}
             >
               {t("settings.modal.useExistingProtocol")}
             </Button>
             <Button
               variant={protocolMode === "new" ? "default" : "secondary"}
-              onClick={() => setProtocolMode("new")}
+              onClick={() => {
+                setProtocolMode("new");
+                setSaveMessage("");
+              }}
             >
               <Plus className="mr-2 h-4 w-4" />
               {t("settings.modal.createProtocol")}
@@ -224,8 +238,7 @@ export function ModelModal(props: {
                 <Select
                   value={protocolId}
                   onChange={(event) => {
-                    setProtocolId(event.target.value);
-                    setSaveMessage("");
+                    syncExistingProtocolSelection(event.target.value);
                   }}
                 >
                   {protocols.map((protocol) => (

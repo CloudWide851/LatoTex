@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   libraryCitationSummary,
   libraryCitationSummaryRemote,
+  libraryExtractPaperContext,
   libraryResolvePdfPreview,
 } from "../../../shared/api/library";
 import type { LibraryPdfPreview } from "../../../shared/types/app";
@@ -84,6 +85,7 @@ function readProbeState(container: HTMLDivElement) {
 describe("useLibraryDocumentData", () => {
   const libraryCitationSummaryMock = vi.mocked(libraryCitationSummary);
   const libraryCitationSummaryRemoteMock = vi.mocked(libraryCitationSummaryRemote);
+  const libraryExtractPaperContextMock = vi.mocked(libraryExtractPaperContext);
   const libraryResolvePdfPreviewMock = vi.mocked(libraryResolvePdfPreview);
   const readFileMock = vi.mocked(readFile);
 
@@ -97,6 +99,18 @@ describe("useLibraryDocumentData", () => {
       authors: ["Remote Author"],
       urls: ["https://example.com/demo"],
       title: "Remote Demo",
+    });
+    libraryExtractPaperContextMock.mockResolvedValue({
+      sourcePath: "demo.bib",
+      title: "Demo Paper",
+      metadataBlock: "Title: Demo Paper",
+      chunks: [],
+      pdfRelativePath: ".latotex/papers/demo.pdf",
+      detectedLanguage: "en",
+      extractionEngine: "pdfmathtranslate.extract.pymupdf",
+      extractionMode: "native",
+      pageCount: 12,
+      ocrPageCount: 0,
     });
   });
 
@@ -270,6 +284,119 @@ describe("useLibraryDocumentData", () => {
       bibPreview: "@article{new,title={New Demo}}",
       sourcePdfRelativePath: ".latotex/papers/new.pdf",
       resolvedLink: "https://example.com/new.bib",
+    });
+
+    await unmountProbe(view.root, view.container);
+  });
+
+  it("uses the first non-empty extracted chunk for the paper excerpt", async () => {
+    libraryCitationSummaryMock.mockResolvedValue({
+      sourcePath: "excerpt-demo.bib",
+      bibPath: "excerpt-demo.bib",
+      authors: ["Author"],
+      urls: ["https://example.com/demo"],
+      title: "Demo Paper",
+    });
+    readFileMock.mockResolvedValue({
+      relativePath: ".latotex/papers/excerpt-demo.bib",
+      content: "@article{demo,title={Demo Paper}}",
+    });
+    libraryResolvePdfPreviewMock.mockResolvedValue({
+      relativePath: ".latotex/papers/excerpt-demo.pdf",
+      translatedRelativePath: null,
+      sourceUrl: "https://example.com/demo.pdf",
+      cached: true,
+      cacheState: "ready",
+      cacheError: null,
+      downloadedBytes: 10,
+      totalBytes: 10,
+    });
+    libraryExtractPaperContextMock.mockResolvedValue({
+      sourcePath: "excerpt-demo.bib",
+      title: "Demo Paper",
+      metadataBlock: "Title: Demo Paper",
+      chunks: [
+        { chunkIndex: 0, pageStart: 1, pageEnd: 1, text: "   " },
+        { chunkIndex: 1, pageStart: 1, pageEnd: 2, text: "This is the first readable abstract block." },
+      ],
+      pdfRelativePath: ".latotex/papers/excerpt-demo.pdf",
+      detectedLanguage: "en",
+      extractionEngine: "pdfmathtranslate.extract.pymupdf",
+      extractionMode: "native",
+      pageCount: 12,
+      ocrPageCount: 0,
+    });
+
+    const view = await renderProbe({
+      projectId: "project-1",
+      selectedPath: "excerpt-demo.bib",
+      active: true,
+    });
+
+    await flushAsyncWork(5);
+
+    expect(readProbeState(view.container)).toMatchObject({
+      paperPreviewLoading: false,
+      paperPreviewError: null,
+      paperPreview: {
+        excerpt: "This is the first readable abstract block.",
+        pageCount: 12,
+      },
+    });
+
+    await unmountProbe(view.root, view.container);
+  });
+
+  it("stops loading even when extraction returns no readable excerpt", async () => {
+    libraryCitationSummaryMock.mockResolvedValue({
+      sourcePath: "empty-preview.bib",
+      bibPath: "empty-preview.bib",
+      authors: ["Author"],
+      urls: ["https://example.com/demo"],
+      title: "Demo Paper",
+    });
+    readFileMock.mockResolvedValue({
+      relativePath: ".latotex/papers/empty-preview.bib",
+      content: "@article{demo,title={Demo Paper}}",
+    });
+    libraryResolvePdfPreviewMock.mockResolvedValue({
+      relativePath: ".latotex/papers/empty-preview.pdf",
+      translatedRelativePath: null,
+      sourceUrl: "https://example.com/demo.pdf",
+      cached: true,
+      cacheState: "ready",
+      cacheError: null,
+      downloadedBytes: 10,
+      totalBytes: 10,
+    });
+    libraryExtractPaperContextMock.mockResolvedValue({
+      sourcePath: "empty-preview.bib",
+      title: "Demo Paper",
+      metadataBlock: "Title: Demo Paper",
+      chunks: [],
+      pdfRelativePath: ".latotex/papers/empty-preview.pdf",
+      detectedLanguage: "en",
+      extractionEngine: "pdfmathtranslate.extract.pymupdf",
+      extractionMode: "native",
+      pageCount: 12,
+      ocrPageCount: 0,
+    });
+
+    const view = await renderProbe({
+      projectId: "project-1",
+      selectedPath: "empty-preview.bib",
+      active: true,
+    });
+
+    await flushAsyncWork(5);
+
+    expect(readProbeState(view.container)).toMatchObject({
+      paperPreviewLoading: false,
+      paperPreviewError: null,
+      paperPreview: {
+        excerpt: "",
+        pageCount: 12,
+      },
     });
 
     await unmountProbe(view.root, view.container);

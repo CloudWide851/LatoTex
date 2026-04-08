@@ -32,6 +32,20 @@ export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   },
 });
 
+export function buildDrawLoadPayload(xml: string): {
+  action: "load";
+  autosave: 1;
+  exportProtocol: true;
+  xml: string;
+} {
+  return {
+    action: "load",
+    autosave: 1,
+    exportProtocol: true,
+    xml,
+  };
+}
+
 export function toDrawioLanguage(locale?: string | null): string {
   const normalized = String(locale ?? "").trim().toLowerCase();
   if (normalized.startsWith("zh")) {
@@ -234,7 +248,10 @@ export function toDrawExportTarget(activePath: string, extension: string, filena
   const stem = title.replace(/\.drawio$/i, "") || "diagram";
   const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
   const slashIndex = normalizedActivePath.lastIndexOf("/");
-  const parentDir = slashIndex >= 0 ? normalizedActivePath.slice(0, slashIndex) : "";
+  const sourceParentDir = slashIndex >= 0 ? normalizedActivePath.slice(0, slashIndex) : "";
+  const parentDir = normalizedActivePath.startsWith("drawings/")
+    ? sourceParentDir
+    : "drawings";
 
   const hintedBase = sanitizeExportFileName(filenameHint ?? "");
   const normalizedExtension = String(extension || "bin").replace(/[^a-z0-9.+-]/gi, "") || "bin";

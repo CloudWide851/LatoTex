@@ -66,7 +66,11 @@ export function LibraryCitationMetaPanel(props: {
                     <div className="mb-1 font-semibold text-slate-500">{t("library.viewer.paperExcerpt")}</div>
                     <p className="line-clamp-6 whitespace-pre-wrap break-words">{paperPreview.excerpt}</p>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="mt-2 rounded border border-dashed border-slate-300 bg-slate-50 p-2 text-[11px] leading-5 text-slate-500">
+                    {t("library.viewer.paperExcerptUnavailable")}
+                  </div>
+                )}
               </>
             ) : null}
           </div>

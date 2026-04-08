@@ -15,7 +15,7 @@ export function DrawWorkspaceTabs(props: {
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
   onCommitRename: (path: string) => void;
-  onDeletePath: (path: string) => void;
+  onClosePath: (path: string) => void;
   onCreateNewTab: () => void;
   t: TranslationFn;
 }) {
@@ -31,7 +31,7 @@ export function DrawWorkspaceTabs(props: {
     onStartRename,
     onCancelRename,
     onCommitRename,
-    onDeletePath,
+    onClosePath,
     onCreateNewTab,
     t,
   } = props;
@@ -89,7 +89,7 @@ export function DrawWorkspaceTabs(props: {
                     onCancelRename();
                     return;
                   }
-                  onDeletePath(path);
+                  onClosePath(path);
                 }}
                 title={t("common.close")}
                 aria-label={t("common.close")}

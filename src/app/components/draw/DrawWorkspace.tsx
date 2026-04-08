@@ -4,6 +4,7 @@ import { runtimeLogWrite } from "../../../shared/api/runtime";
 import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
+  buildDrawLoadPayload,
   buildRenamedDrawPath,
   DRAWIO_CONFIG_MESSAGE,
   interpretDrawHandshakeMessage,
@@ -60,13 +61,6 @@ export function DrawWorkspace(props: {
   projectId: string | null;
   selectedPath: string | null;
   onSelectPath: (path: string | null) => void;
-  onRequestFsAction: (
-    scope: FsScope,
-    action: FsAction,
-    path: string,
-    targetPath?: string,
-    content?: string,
-  ) => Promise<void>;
   onRunFsAction: (
     scope: FsScope,
     action: FsAction,
@@ -76,7 +70,7 @@ export function DrawWorkspace(props: {
   ) => Promise<boolean>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, onSelectPath, onRequestFsAction, onRunFsAction, t } = props;
+  const { projectId, selectedPath, onSelectPath, onRunFsAction, t } = props;
   const { locale } = useI18n();
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
@@ -168,7 +162,7 @@ export function DrawWorkspace(props: {
       return;
     }
     const xml = xmlOverride ?? xmlByPathRef.current[activePath] ?? EMPTY_DIAGRAM;
-    postToFrame({ action: "load", autosave: 1, xml });
+    postToFrame(buildDrawLoadPayload(xml));
   }, [activePath, framePhase, postToFrame]);
 
   const selectTabPath = useCallback((path: string | null) => {
@@ -327,13 +321,6 @@ export function DrawWorkspace(props: {
       setBusy(false);
     }
   }, [onRunFsAction, projectId, renameInput, replaceTabPath, t, tabPaths]);
-
-  const requestDeleteTabAndFile = useCallback(async (path: string) => {
-    if (!projectId || busy) {
-      return;
-    }
-    await onRequestFsAction("workspace", "delete", path);
-  }, [busy, onRequestFsAction, projectId]);
 
   useEffect(() => {
     if (!projectId) {
@@ -594,8 +581,8 @@ export function DrawWorkspace(props: {
         onCommitRename={(path) => {
           void commitRename(path);
         }}
-        onDeletePath={(path) => {
-          void requestDeleteTabAndFile(path);
+        onClosePath={(path) => {
+          removeTabPath(path);
         }}
         onCreateNewTab={() => {
           void createNewTab();

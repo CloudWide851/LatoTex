@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -350,6 +351,22 @@ def run_extract(payload: dict) -> dict:
                         "text": text,
                     }
                 )
+            if not page_texts:
+                fallback_text = str(page.get_text("text") or "").strip()
+                if fallback_text:
+                    fallback_parts = [part.strip() for part in re.split(r"\n\s*\n", fallback_text) if part.strip()]
+                    if not fallback_parts:
+                        fallback_parts = [fallback_text]
+                    for block_index, text in enumerate(fallback_parts, start=1):
+                        page_texts.append(text)
+                        blocks.append(
+                            {
+                                "id": f"pdf-{page_index}-fallback-{block_index}",
+                                "page": page_index,
+                                "role": "paragraph",
+                                "text": text,
+                            }
+                        )
             if page_texts:
                 previews.append("\n".join(page_texts[:4]))
 

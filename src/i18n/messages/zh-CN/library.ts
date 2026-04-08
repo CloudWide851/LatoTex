@@ -103,6 +103,7 @@ export const zhCN_library = {
   "library.viewer.paperPages": "页数",
   "library.viewer.paperEngine": "提取引擎",
   "library.viewer.paperExcerpt": "预览",
+  "library.viewer.paperExcerptUnavailable": "当前论文未提取到可展示的摘要片段，但元信息和 PDF 仍可正常查看。",
   "library.viewer.section.document": "文档",
   "library.viewer.section.links": "链接",
   "library.viewer.section.translation": "翻译",

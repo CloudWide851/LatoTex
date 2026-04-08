@@ -103,6 +103,7 @@ export const enUS_library = {
   "library.viewer.paperPages": "Pages",
   "library.viewer.paperEngine": "Extraction",
   "library.viewer.paperExcerpt": "Preview",
+  "library.viewer.paperExcerptUnavailable": "No readable abstract excerpt was extracted, but metadata and PDF content are still available.",
   "library.viewer.section.document": "Document",
   "library.viewer.section.links": "Links",
   "library.viewer.section.translation": "Translation",

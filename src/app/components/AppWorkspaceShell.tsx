@@ -405,7 +405,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             projectId={activeProjectId}
             selectedPath={selectedFile}
             onSelectPath={onSelectFile}
-            onRequestFsAction={onFsAction}
             onRunFsAction={onRunFsAction}
             t={t}
           />

@@ -261,7 +261,11 @@ export function LibraryDocumentSidebar(props: {
                     {paperPreview.excerpt}
                   </p>
                 </div>
-              ) : null}
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-3 text-slate-500">
+                  {t("library.viewer.paperExcerptUnavailable")}
+                </div>
+              )}
             </>
           ) : (
             <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-3 text-slate-500">

@@ -145,12 +145,15 @@ function toPaperPreview(
   if (!paperContext) {
     return null;
   }
+  const excerpt = paperContext.chunks
+    ?.map((chunk) => String(chunk?.text ?? "").trim())
+    .find((text) => text.length > 0) ?? "";
   return {
     title: paperContext.title,
     detectedLanguage: paperContext.detectedLanguage,
     extractionEngine: paperContext.extractionEngine,
     pageCount: Number(paperContext.pageCount ?? 0),
-    excerpt: String(paperContext.chunks?.[0]?.text ?? "").slice(0, 520),
+    excerpt: excerpt.slice(0, 520),
     sourcePath: sourcePdfRelativePath || paperContext.pdfRelativePath || null,
   };
 }

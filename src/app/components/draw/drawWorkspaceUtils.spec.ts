@@ -46,6 +46,16 @@ describe("drawWorkspaceUtils", () => {
     expect(interpretDrawHandshakeMessage({ event: "autosave" })).toEqual({ kind: "ignore" });
   });
 
+  it("enables export protocol on load payloads sent to draw.io", async () => {
+    const { buildDrawLoadPayload } = await import("./drawWorkspaceUtils");
+    expect(buildDrawLoadPayload("<mxfile />")).toEqual({
+      action: "load",
+      autosave: 1,
+      exportProtocol: true,
+      xml: "<mxfile />",
+    });
+  });
+
   it("exports beside the active draw file for nested drawings", async () => {
     const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
     expect(toDrawExportTarget("drawings/arch/system.drawio", "png")).toBe("drawings/arch/system.png");
@@ -58,7 +68,12 @@ describe("drawWorkspaceUtils", () => {
 
   it("exports beside the active draw file in the workspace root", async () => {
     const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
-    expect(toDrawExportTarget("system.drawio", "pdf")).toBe("system.pdf");
+    expect(toDrawExportTarget("system.drawio", "pdf")).toBe("drawings/system.pdf");
+  });
+
+  it("exports non-drawings files into the drawings root", async () => {
+    const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
+    expect(toDrawExportTarget("notes/system.drawio", "png")).toBe("drawings/system.png");
   });
 
   it("keeps only a safe file name from export hints", async () => {
