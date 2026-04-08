@@ -2,9 +2,15 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
 import { getLibraryTree } from "../../shared/api/library";
-import { initProjectFromFolder, openProject, projectSearchContent } from "../../shared/api/projects";
+import { initProjectFromFolder, projectSearchContent } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
-import { fsOperation, workspaceOpenTerminal, workspaceRevealInSystem, writeFile } from "../../shared/api/workspace";
+import {
+  fsOperation,
+  getWorkspaceTree,
+  workspaceOpenTerminal,
+  workspaceRevealInSystem,
+  writeFile,
+} from "../../shared/api/workspace";
 import { isExcelPath } from "../../shared/utils/fileKind";
 import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
@@ -413,8 +419,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
     setBusy(true);
     try {
-      const snapshot = await openProject(activeProjectId);
-      setTree(snapshot.tree);
+      setTree(await getWorkspaceTree(activeProjectId));
       await refreshGitWorkspace(activeProjectId).catch(() => undefined);
     } catch (error) {
       setToast({ type: "error", message: String(error) });
@@ -481,8 +486,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         content,
       });
       if (scope === "workspace") {
-        const snapshot = await openProject(activeProjectId);
-        setTree(snapshot.tree);
+        setTree(await getWorkspaceTree(activeProjectId));
         await refreshGitWorkspace(activeProjectId).catch(() => undefined);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {

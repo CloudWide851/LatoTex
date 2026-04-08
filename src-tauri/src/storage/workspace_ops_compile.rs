@@ -95,8 +95,11 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
     )
     .map_err(|e| e.to_string())?;
 
-    refresh_workspace_index(&project_root)?;
-    refresh_library_index(&project_root)?;
+    match input.scope.trim() {
+        "workspace" => refresh_workspace_index(&project_root)?,
+        "library" => refresh_library_index(&project_root)?,
+        _ => {}
+    }
 
     Ok(FsOperationResult {
         ok: true,

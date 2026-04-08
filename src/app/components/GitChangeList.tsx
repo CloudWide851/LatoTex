@@ -1,5 +1,5 @@
-import { CheckSquare, Square } from "lucide-react";
 import { memo } from "react";
+import { FlatCheckIndicator } from "../../components/ui/flat-check-indicator";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
 import { cn } from "../../lib/utils";
 import type { GitStatusEntry } from "../../shared/types/app";
@@ -94,11 +94,7 @@ export function GitChangeList(props: {
                   className="flex h-4 w-4 items-center justify-center"
                   onClick={() => onTogglePath(entry.path)}
                 >
-                  {excludedPaths.includes(entry.path) ? (
-                    <Square className="h-3.5 w-3.5 text-slate-400" />
-                  ) : (
-                    <CheckSquare className="h-3.5 w-3.5 text-primary-600" />
-                  )}
+                  <FlatCheckIndicator checked={!excludedPaths.includes(entry.path)} className="h-3.5 w-3.5 rounded-[4px]" />
                 </button>
                 <span className={cn("rounded border px-1 py-0 font-mono text-[9px]", tone.badgeClass)}>
                   {tone.code}

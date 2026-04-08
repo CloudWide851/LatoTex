@@ -160,7 +160,7 @@ pub struct LibraryPaperExtractInput {
     pub relative_path: String,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryPaperExtractChunk {
     pub chunk_index: u32,
@@ -169,7 +169,7 @@ pub struct LibraryPaperExtractChunk {
     pub text: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryPaperExtractResponse {
     pub source_path: String,

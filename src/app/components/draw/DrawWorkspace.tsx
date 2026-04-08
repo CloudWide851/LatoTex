@@ -478,18 +478,24 @@ export function DrawWorkspace(props: {
         }
         void (async () => {
           setBusy(true);
+          setStatus(t("draw.waiting"));
           try {
             const savedPath = await persistDrawExportToWorkspace({
               activePath: currentActivePath,
               message,
               writeText: (path, content) => writeFile(projectId, path, content),
               writeBinary: (path, bytes) => writeFileBinary(projectId, path, bytes),
-              onAfterSave: () => {
+              onAfterSave: (path) => {
+                window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
+                  detail: { scope: "workspace", action: "create_file", path },
+                }));
                 window.dispatchEvent(new CustomEvent("latotex.workspace.rescan"));
               },
             });
+            logDrawRuntime("INFO", `export_saved: ${savedPath}`);
             setStatus(`${t("draw.saved")} ${savedPath}`);
           } catch (error) {
+            logDrawRuntime("ERROR", `export_failed: ${String(error)}`);
             setStatus(String(error));
           } finally {
             setBusy(false);

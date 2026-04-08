@@ -97,6 +97,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const [menuStyle, setMenuStyle] = React.useState<React.CSSProperties>({});
     const wrapperRef = React.useRef<HTMLDivElement | null>(null);
     const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+    const menuRef = React.useRef<HTMLDivElement | null>(null);
     const hiddenSelectRef = React.useRef<HTMLSelectElement | null>(null);
     const activeValue = isControlled ? String(value ?? "") : internalValue;
     const selectedOption = options.find((option) => option.value === activeValue) ?? options[0] ?? null;
@@ -139,6 +140,9 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       const handlePointerDown = (event: MouseEvent) => {
         const target = event.target as Node | null;
         if (wrapperRef.current?.contains(target)) {
+          return;
+        }
+        if (menuRef.current?.contains(target)) {
           return;
         }
         setOpen(false);
@@ -195,7 +199,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 
     const menu = open && typeof document !== "undefined"
       ? createPortal(
-          <div className="control-select-portal z-[520]" style={menuStyle}>
+          <div ref={menuRef} className="control-select-portal z-[520]" style={menuStyle}>
             <div className="control-menu-surface overflow-hidden p-1.5">
               <div className="max-h-[inherit] overflow-auto pr-0.5">
                 {options.map((option) => {

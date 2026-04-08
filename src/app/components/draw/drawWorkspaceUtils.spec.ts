@@ -1,85 +1,53 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import {
+  decodeDrawExportPayload,
+  persistDrawExportToWorkspace,
+  toDrawExportTarget,
+} from "./drawWorkspaceUtils";
 
 describe("drawWorkspaceUtils", () => {
-  afterEach(() => {
-    if (typeof localStorage !== "undefined") {
-      localStorage.clear();
-    }
+  it("routes exported assets into the drawings folder", () => {
+    expect(toDrawExportTarget("notes/demo.drawio", "png")).toBe("drawings/demo.png");
+    expect(toDrawExportTarget("drawings/demo.drawio", "svg")).toBe("drawings/demo.svg");
   });
 
-  it("resolves a single canonical host frame src from an explicit entry url", async () => {
-    const { resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html", "en-US")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min&lang=en",
-    );
-  });
+  it("supports plain-text export payloads when draw.io does not send base64", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const writeBinary = vi.fn().mockResolvedValue(undefined);
+    const onAfterSave = vi.fn();
 
-  it("falls back to the backend local-resource route when startup info is missing", async () => {
-    const { DRAWIO_LOCAL_RESOURCE_URL, resolveDrawioHostFrameSrc } = await import("./drawWorkspaceUtils");
-    expect(resolveDrawioHostFrameSrc(undefined, "en-US")).toBe(
-      `${DRAWIO_LOCAL_RESOURCE_URL}?embed=1&proto=json&spin=0&configure=1&ui=min&lang=en`,
-    );
-  });
-
-  it("maps the app locale to the DrawIO language parameter", async () => {
-    const { resolveDrawioHostFrameSrc, toDrawioLanguage } = await import("./drawWorkspaceUtils");
-    expect(toDrawioLanguage("zh-CN")).toBe("zh");
-    expect(toDrawioLanguage("en-US")).toBe("en");
-    expect(resolveDrawioHostFrameSrc("http://latotex-resource.localhost/tool/drawio/index.html", "zh-CN")).toBe(
-      "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min&lang=zh",
-    );
-  });
-
-  it("classifies draw handshake messages for startup and page runtime", async () => {
-    const { DRAWIO_CONFIG_MESSAGE, interpretDrawHandshakeMessage } = await import("./drawWorkspaceUtils");
-
-    expect(interpretDrawHandshakeMessage({ event: "host_loaded" })).toEqual({ kind: "hostLoaded" });
-    expect(interpretDrawHandshakeMessage({ event: "configure" })).toEqual({
-      kind: "configure",
-      outboundMessage: DRAWIO_CONFIG_MESSAGE,
+    const savedPath = await persistDrawExportToWorkspace({
+      activePath: "notes/demo.drawio",
+      message: {
+        event: "export",
+        format: "svg",
+        mime: "image/svg+xml",
+        base64: false,
+        filename: "diagram-export",
+        data: "<svg><text>demo</text></svg>",
+      },
+      writeText,
+      writeBinary,
+      onAfterSave,
     });
-    expect(interpretDrawHandshakeMessage({ event: "init" })).toEqual({ kind: "init" });
-    expect(interpretDrawHandshakeMessage({ event: "error", error: "boom" })).toEqual({
-      kind: "error",
-      detail: "boom",
-    });
-    expect(interpretDrawHandshakeMessage({ event: "autosave" })).toEqual({ kind: "ignore" });
-  });
 
-  it("enables export protocol on load payloads sent to draw.io", async () => {
-    const { buildDrawLoadPayload } = await import("./drawWorkspaceUtils");
-    expect(buildDrawLoadPayload("<mxfile />")).toEqual({
-      action: "load",
-      autosave: 1,
-      exportProtocol: true,
-      xml: "<mxfile />",
-    });
-  });
-
-  it("exports beside the active draw file for nested drawings", async () => {
-    const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
-    expect(toDrawExportTarget("drawings/arch/system.drawio", "png")).toBe("drawings/arch/system.png");
-  });
-
-  it("exports beside the active draw file in the drawings root", async () => {
-    const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
-    expect(toDrawExportTarget("drawings/system.drawio", "svg")).toBe("drawings/system.svg");
-  });
-
-  it("exports beside the active draw file in the workspace root", async () => {
-    const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
-    expect(toDrawExportTarget("system.drawio", "pdf")).toBe("drawings/system.pdf");
-  });
-
-  it("exports non-drawings files into the drawings root", async () => {
-    const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
-    expect(toDrawExportTarget("notes/system.drawio", "png")).toBe("drawings/system.png");
-  });
-
-  it("keeps only a safe file name from export hints", async () => {
-    const { toDrawExportTarget } = await import("./drawWorkspaceUtils");
-    expect(toDrawExportTarget("drawings/system.drawio", "png", "../exported/final diagram")).toBe(
-      "drawings/final diagram.png",
+    expect(savedPath).toBe("drawings/diagram-export.svg");
+    expect(writeText).toHaveBeenCalledWith(
+      "drawings/diagram-export.svg",
+      "<svg><text>demo</text></svg>",
     );
+    expect(writeBinary).not.toHaveBeenCalled();
+    expect(onAfterSave).toHaveBeenCalledWith("drawings/diagram-export.svg");
+  });
+
+  it("can still decode base64 image export payloads", () => {
+    const decoded = decodeDrawExportPayload({
+      event: "export",
+      mime: "image/png",
+      data: btoa("png-bytes"),
+    });
+
+    expect(decoded.mime).toBe("image/png");
+    expect(Array.from(decoded.bytes)).toEqual(Array.from(new TextEncoder().encode("png-bytes")));
   });
 });

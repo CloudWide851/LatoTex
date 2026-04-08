@@ -1,4 +1,4 @@
-import { CheckSquare, Square } from "lucide-react";
+import { FlatCheckIndicator } from "../../../components/ui/flat-check-indicator";
 
 type TranslationFn = (key: any) => string;
 
@@ -46,11 +46,7 @@ export function AnalysisFilePickerDialog(props: {
                   className="flex w-full items-center gap-2 rounded border border-slate-200 bg-white px-2 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
                   onClick={() => onToggleFile(path)}
                 >
-                  {checked ? (
-                    <CheckSquare className="h-4 w-4 shrink-0 text-primary-600" />
-                  ) : (
-                    <Square className="h-4 w-4 shrink-0 text-slate-400" />
-                  )}
+                  <FlatCheckIndicator checked={checked} />
                   <span className="truncate">{path}</span>
                 </button>
               );
@@ -69,4 +65,3 @@ export function AnalysisFilePickerDialog(props: {
     </div>
   );
 }
-

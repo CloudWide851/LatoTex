@@ -21,6 +21,7 @@ import {
 } from "./library/annotationModel";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
+import { usePdfPaperPreview } from "./library/usePdfPaperPreview";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
 import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
 import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
@@ -79,8 +80,6 @@ export function LibraryDocumentViewer(props: {
     pdfPreviewError,
     citation,
     paperPreview,
-    paperPreviewLoading,
-    paperPreviewError,
     bibPreview,
     resolvedLink,
     sourcePdfRelativePath,
@@ -111,6 +110,14 @@ export function LibraryDocumentViewer(props: {
   const hasPdf = Boolean(pdfUrl);
   const hasTranslated = Boolean(translatedPdfUrl);
   const documentBusy = loading || pdfPreviewLoading || pdfObjectUrlLoading;
+  const {
+    paperPreview: pdfPaperPreview,
+    loading: paperPreviewLoading,
+    error: paperPreviewError,
+  } = usePdfPaperPreview({
+    pdfUrl,
+    fallbackTitle: citation?.title ?? null,
+  });
 
   const {
     translationBusy,
@@ -496,7 +503,7 @@ export function LibraryDocumentViewer(props: {
           translatedPdfUrl={translatedPdfUrl}
           bibPreview={bibPreview}
           citation={citation}
-          paperPreview={paperPreview}
+          paperPreview={pdfPaperPreview ?? paperPreview}
           paperPreviewLoading={paperPreviewLoading}
           paperPreviewError={paperPreviewError}
           onAnalyzePaper={selectedPath ? (() => onAnalyzePaper(selectedPath)) : null}

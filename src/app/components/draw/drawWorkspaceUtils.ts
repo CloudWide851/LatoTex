@@ -196,6 +196,33 @@ export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Arra
   return { mime, bytes };
 }
 
+function encodePlainTextExport(rawData: string, mime?: string): { mime: string; bytes: Uint8Array } {
+  return {
+    mime: String(mime ?? "text/plain").trim() || "text/plain",
+    bytes: new TextEncoder().encode(rawData),
+  };
+}
+
+export function decodeDrawExportPayload(message: DrawMessage): { mime: string; bytes: Uint8Array } {
+  const rawData = String(message.data ?? "");
+  if (!rawData) {
+    throw new Error("draw.export.missing_data");
+  }
+  if (rawData.startsWith("data:")) {
+    return decodeDataUrl(rawData);
+  }
+  if (message.base64 === false) {
+    return encodePlainTextExport(rawData, typeof message.mime === "string" ? message.mime : undefined);
+  }
+  if (rawData.trimStart().startsWith("<")) {
+    return encodePlainTextExport(rawData, typeof message.mime === "string" ? message.mime : "image/svg+xml");
+  }
+  return {
+    mime: String(message.mime ?? "application/octet-stream"),
+    bytes: Uint8Array.from(atob(rawData), (char) => char.charCodeAt(0)),
+  };
+}
+
 function mimeSubtype(mime: string): string {
   const normalized = String(mime || "").toLowerCase();
   if (!normalized.includes("/")) {
@@ -299,14 +326,7 @@ export async function persistDrawExportToWorkspace(params: {
   onAfterSave?: (path: string) => void;
 }): Promise<string> {
   const { activePath, message, writeText, writeBinary, onAfterSave } = params;
-  const rawData = String(message.data ?? "");
-  if (!rawData) {
-    throw new Error("draw.export.missing_data");
-  }
-
-  const decoded = rawData.startsWith("data:")
-    ? decodeDataUrl(rawData)
-    : { mime: String(message.mime ?? "application/octet-stream"), bytes: Uint8Array.from(atob(rawData), (char) => char.charCodeAt(0)) };
+  const decoded = decodeDrawExportPayload(message);
   const extension = inferExportExtension(message, decoded.mime);
   const targetPath = toDrawExportTarget(activePath, extension, typeof message.filename === "string" ? message.filename : undefined);
   const textContent = toTextIfPossible(extension, decoded.bytes);

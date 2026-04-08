@@ -1,8 +1,14 @@
-﻿import { Check, ChevronRight, FileCode2, Files, Folder, FolderOpen, X } from "lucide-react";
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, FileCode2, Files, Folder, FolderOpen } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
-import type { FsAction, ResourceNode } from "../../shared/types/app";
+import type { FsAction } from "../../shared/types/app";
+import { ExplorerLinkDraftPanel, ExplorerTransferPanel } from "./explorer/ExplorerInlinePanels";
+import {
+  collectVisibleFilePaths,
+  resolveExplorerSelection,
+  shouldAutoExpandNode,
+} from "./explorer/explorerSelection";
 import {
   dirnameOf,
   type EditingState,
@@ -11,12 +17,8 @@ import {
   type MoveCopyPanel,
   resolveDecorationTone,
 } from "./explorer/treeUtils";
+import type { ResourceNode } from "../../shared/types/app";
 type TranslationFn = (key: any) => string;
-
-function shouldAutoExpandNode(node: ResourceNode): boolean {
-  return node.kind === "directory" && node.directoryRole !== "pythonVenv";
-}
-
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
@@ -59,6 +61,8 @@ export function ExplorerTree(props: {
   const [editing, setEditing] = useState<EditingState>(null);
   const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<string[]>(selectedPath ? [selectedPath] : []);
+  const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(selectedPath);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
@@ -101,13 +105,30 @@ export function ExplorerTree(props: {
     walk(tree);
     return defaults;
   }, [expanded, tree]);
+  const visibleFilePaths = useMemo(
+    () => collectVisibleFilePaths(tree, expandedMap),
+    [expandedMap, tree],
+  );
+  useEffect(() => {
+    if (!selectedPath) {
+      setSelectedPaths([]);
+      setSelectionAnchorPath(null);
+      return;
+    }
+    setSelectedPaths((prev) => (prev.includes(selectedPath) ? prev : [selectedPath]));
+    setSelectionAnchorPath(selectedPath);
+  }, [selectedPath]);
+  useEffect(() => {
+    setSelectedPaths((prev) => prev.filter((path) => visibleFilePaths.includes(path)));
+    setSelectionAnchorPath((prev) => (prev && visibleFilePaths.includes(prev) ? prev : null));
+  }, [visibleFilePaths]);
   const triggerRename = (path: string, name: string) => {
     requestAnimationFrame(() => {
       setEditing({ mode: "rename", path, value: name });
     });
   };
-  const triggerCreate = (parentPath: string, mode: "create_file" | "create_folder") => {
-    setEditing({ mode, parentPath, value: "" });
+  const triggerCreate = (parentPath: string, createMode: "create_file" | "create_folder") => {
+    setEditing({ mode: createMode, parentPath, value: "" });
   };
   const submitEditing = async () => {
     if (submitLockRef.current) {
@@ -349,6 +370,7 @@ export function ExplorerTree(props: {
     const isExpanded = isDirectory ? expandedMap[node.relativePath] !== false : false;
     const isRenaming = editing?.mode === "rename" && editing.path === node.relativePath;
     const isDirty = !isDirectory && mode === "workspace" && Boolean(dirtyByPath?.[node.relativePath]);
+    const isSelected = !isDirectory && selectedPaths.includes(node.relativePath);
     const decoration = !isDirectory ? gitDecorations?.[node.relativePath] : undefined;
     const isIgnored = Boolean(decoration?.ignored);
     const decorationTone = resolveDecorationTone(decoration);
@@ -359,12 +381,13 @@ export function ExplorerTree(props: {
           data-explorer-node="true"
           className={cn(
             "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
-            selectedPath === node.relativePath
+            isSelected
               ? "bg-primary-100 text-primary-900"
               : isIgnored
                 ? "text-slate-400 hover:bg-slate-100 hover:text-slate-500"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
           )}
+          aria-selected={!isDirectory && isSelected}
           style={indentStyle}
           draggable={!isDirectory}
           title={node.relativePath}
@@ -384,11 +407,21 @@ export function ExplorerTree(props: {
               kind: node.kind,
             });
           }}
-          onClick={() => {
+          onClick={(event) => {
             if (isDirectory) {
               setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
               return;
             }
+            const nextSelection = resolveExplorerSelection({
+              current: selectedPaths,
+              anchorPath: selectionAnchorPath,
+              targetPath: node.relativePath,
+              visibleFilePaths,
+              range: event.shiftKey,
+              toggle: event.ctrlKey || event.metaKey,
+            });
+            setSelectedPaths(nextSelection.nextSelectedPaths);
+            setSelectionAnchorPath(nextSelection.nextAnchorPath);
             onSelect(node.relativePath);
           }}
           onDoubleClick={(event) => {
@@ -526,70 +559,37 @@ export function ExplorerTree(props: {
         )}
       </div>
       {mode === "workspace" && transferPanel && (
-        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
-          <div className="truncate text-slate-600">{transferPanel.sourcePath}</div>
-          <input
-            className="mt-2 w-full rounded border border-slate-300 bg-white px-2 py-1 outline-none focus:border-primary-500"
-            value={transferPanel.targetPath}
-            placeholder={t("explorer.prompt.targetPath")}
-            onChange={(event) =>
-              setTransferPanel((prev) =>
-                prev ? { ...prev, targetPath: event.target.value } : prev,
-              )
-            }
-          />
-          <div className="mt-2 flex justify-end gap-2">
-            <button
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-600 hover:bg-slate-100"
-              onClick={() => setTransferPanel(null)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-white hover:bg-primary-500 disabled:opacity-50"
-              disabled={busy || !transferPanel.targetPath.trim()}
-              onClick={async () => {
-                await onAction?.(
-                  transferPanel.action,
-                  transferPanel.sourcePath,
-                  transferPanel.targetPath.trim(),
-                );
-                setTransferPanel(null);
-              }}
-            >
-              <Check className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
+        <ExplorerTransferPanel
+          busy={busy}
+          sourcePath={transferPanel.sourcePath}
+          targetPath={transferPanel.targetPath}
+          onTargetPathChange={(value) =>
+            setTransferPanel((prev) => (prev ? { ...prev, targetPath: value } : prev))
+          }
+          onCancel={() => setTransferPanel(null)}
+          onConfirm={async () => {
+            await onAction?.(
+              transferPanel.action,
+              transferPanel.sourcePath,
+              transferPanel.targetPath.trim(),
+            );
+            setTransferPanel(null);
+          }}
+          t={t}
+        />
       )}
       {mode === "library" && linkDraft !== null && (
-        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
-          <div className="text-slate-600">{t("library.action.importLink")}</div>
-          <input
-            className="mt-2 w-full rounded border border-slate-300 bg-white px-2 py-1 outline-none focus:border-primary-500"
-            value={linkDraft}
-            placeholder={t("library.linkPlaceholder")}
-            onChange={(event) => setLinkDraft(event.target.value)}
-          />
-          <div className="mt-2 flex justify-end gap-2">
-            <button
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-600 hover:bg-slate-100"
-              onClick={() => setLinkDraft(null)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-            <button
-              className="rounded border border-primary-600 bg-primary-600 px-2 py-1 text-white hover:bg-primary-500 disabled:opacity-50"
-              disabled={busy || !linkDraft.trim()}
-              onClick={() => {
-                onImportLink?.(linkDraft.trim());
-                setLinkDraft(null);
-              }}
-            >
-              <Check className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
+        <ExplorerLinkDraftPanel
+          busy={busy}
+          value={linkDraft}
+          onChange={setLinkDraft}
+          onCancel={() => setLinkDraft(null)}
+          onConfirm={() => {
+            onImportLink?.(linkDraft.trim());
+            setLinkDraft(null);
+          }}
+          t={t}
+        />
       )}
       {renderMenu()}
     </div>
