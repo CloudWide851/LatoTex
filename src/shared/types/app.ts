@@ -68,6 +68,11 @@ export type WorkspaceExportPdfResponse = {
   fileName: string;
 };
 
+export type WorkspaceExportAssetResponse = {
+  savedPath: string;
+  fileName: string;
+};
+
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;

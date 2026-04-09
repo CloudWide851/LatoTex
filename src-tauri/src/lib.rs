@@ -34,7 +34,8 @@ use commands::projects::{
     library_resume_pdf_downloads, library_tree, library_zotero_sync, open_external_link,
     project_create, project_init_from_folder, project_integrity_repair,
     project_integrity_status, project_list, project_open, project_search_content,
-    workspace_export_pdf, workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
+    workspace_export_asset, workspace_export_pdf, workspace_open_terminal,
+    workspace_reveal_in_system, workspace_tree,
 };
 use commands::projects_translation::{
     library_extract_paper_context, library_translate_document, library_translate_start,
@@ -156,6 +157,7 @@ pub fn run() {
             file_write,
             file_write_binary,
             draw_export_asset,
+            workspace_export_asset,
             workspace_export_pdf,
             library_tree,
             library_rescan,

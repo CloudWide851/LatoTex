@@ -267,6 +267,130 @@ describe("LibraryDocumentViewer", () => {
     container.remove();
   });
 
+  it("keeps pdf view active on the first click until the blob url becomes available", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    let pdfPreviewRequested = false;
+    let objectUrlReady = false;
+    const refreshMock = vi.fn().mockResolvedValue(undefined);
+    const resetDocumentDataMock = vi.fn();
+    const setTranslationNoticeMock = vi.fn();
+    const resetTranslationStateMock = vi.fn();
+
+    const ensurePdfPreviewLoadedMock = vi.fn().mockImplementation(async () => {
+      pdfPreviewRequested = true;
+    });
+
+    mocks.useLibraryDocumentData.mockImplementation(() => ({
+      loading: false,
+      loadError: null,
+      pdfPreviewRequested,
+      pdfPreviewLoading: false,
+      pdfPreviewError: null,
+      citation: {
+        sourcePath: "library/demo.bib",
+        bibPath: "library/demo.bib",
+        authors: ["Test Author"],
+        urls: ["https://example.com/paper"],
+        title: "Demo Paper",
+      },
+      paperPreview: null,
+      paperPreviewLoading: false,
+      paperPreviewError: null,
+      bibPreview: "@article{demo,title={Demo Paper}}",
+      resolvedLink: "https://example.com/paper",
+      sourcePdfRelativePath: ".latotex/papers/demo.pdf",
+      translatedPdfRelativePath: null,
+      pdfCacheState: "ready",
+      previewRevision: objectUrlReady ? 12 : 11,
+      pdfDownloadedBytes: null,
+      pdfTotalBytes: null,
+      ensurePdfPreviewLoaded: ensurePdfPreviewLoadedMock,
+      refresh: refreshMock,
+      reset: resetDocumentDataMock,
+    }));
+    mocks.useLibraryTranslationPanel.mockImplementation(() => ({
+      translationBusy: false,
+      translationNotice: null,
+      translationDetail: null,
+      translationProgress: null,
+      setTranslationNotice: setTranslationNoticeMock,
+      resetTranslationState: resetTranslationStateMock,
+      runTranslation: vi.fn(),
+    }));
+    mocks.useLibraryPdfObjectUrls.mockImplementation((params: { enabled?: boolean }) => ({
+      pdfUrl: params.enabled && objectUrlReady ? "blob:library-document-pdf" : null,
+      translatedPdfUrl: null,
+      loading: false,
+      error: null,
+    }));
+
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/demo.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="bib"
+          translationModelId={null}
+          paperBriefEngine="auto"
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const pdfButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "library.viewer.showPdf",
+    );
+
+    await act(async () => {
+      pdfButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(ensurePdfPreviewLoadedMock).toHaveBeenCalledTimes(1);
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
+    ).toBe("pdf");
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-pdf-url"),
+    ).toBeNull();
+
+    objectUrlReady = true;
+
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/demo.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="bib"
+          translationModelId={null}
+          paperBriefEngine="auto"
+          t={(key) => String(key)}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
+    ).toBe("pdf");
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-pdf-url"),
+    ).toBe("blob:library-document-pdf");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("waits for the translated pdf before switching into compare mode", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

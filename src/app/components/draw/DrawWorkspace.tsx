@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
 import { runtimeLogWrite } from "../../../shared/api/runtime";
-import { drawExportAsset, readFile, writeFile } from "../../../shared/api/workspace";
+import { readFile, workspaceExportAsset, writeFile } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
   buildDrawExportAction,
   buildDrawLoadPayload,
   buildRenamedDrawPath,
+  decodeDrawExportPayload,
   DRAWIO_CONFIG_MESSAGE,
+  inferExportExtension,
   interpretDrawHandshakeMessage,
   isDrawPath,
   loadPersistedTabs,
@@ -15,11 +17,11 @@ import {
   normalizePath,
   parseDrawMessage,
   type PendingDrawExportRequest,
-  persistDrawExportToWorkspace,
   resolveDrawioHostFrameSrc,
   savePersistedTabs,
   shouldClearPendingDrawExport,
   tabTitleFromPath,
+  toDrawExportDialogDefaults,
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
 import { DrawWorkspaceTabs } from "./DrawWorkspaceTabs";
@@ -527,23 +529,33 @@ export function DrawWorkspace(props: {
               "INFO",
               `export_payload_received: format=${String(mergedExportMessage.format ?? "")}, filename=${String(mergedExportMessage.filename ?? "")}`,
             );
-            const savedPath = await persistDrawExportToWorkspace({
-              activePath: currentActivePath,
-              message: mergedExportMessage,
-              saveAsset: async (path, bytes) => {
-                const result = await drawExportAsset(projectId, path, bytes);
-                return result.savedPath;
-              },
-              onAfterSave: (path) => {
-                window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
-                  detail: { scope: "workspace", action: "create_file", path },
-                }));
-                window.dispatchEvent(new CustomEvent("latotex.workspace.rescan"));
-              },
-            });
+            const decoded = decodeDrawExportPayload(mergedExportMessage);
+            const extension = inferExportExtension(mergedExportMessage, decoded.mime);
+            const defaults = toDrawExportDialogDefaults(
+              currentActivePath,
+              extension,
+              typeof mergedExportMessage.filename === "string"
+                ? mergedExportMessage.filename
+                : undefined,
+            );
+            const exportResult = await workspaceExportAsset(
+              projectId,
+              defaults.defaultRelativeDir,
+              defaults.defaultFileName,
+              decoded.bytes,
+            );
             pendingExportRequestRef.current = null;
-            logDrawRuntime("INFO", `export_saved: ${savedPath}`);
-            setStatus(`${t("draw.saved")} ${savedPath}`);
+            if (!exportResult) {
+              logDrawRuntime("INFO", "export_cancelled");
+              setStatus(t("draw.ready"));
+              return;
+            }
+            window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
+              detail: { scope: "workspace", action: "create_file", path: exportResult.savedPath },
+            }));
+            window.dispatchEvent(new CustomEvent("latotex.workspace.rescan"));
+            logDrawRuntime("INFO", `export_saved: ${exportResult.savedPath}`);
+            setStatus(`${t("draw.saved")} ${exportResult.savedPath}`);
           } catch (error) {
             pendingExportRequestRef.current = null;
             logDrawRuntime("ERROR", `export_failed: ${String(error)}`);

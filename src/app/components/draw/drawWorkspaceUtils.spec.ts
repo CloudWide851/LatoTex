@@ -6,6 +6,7 @@ import {
   mergeDrawExportRequest,
   persistDrawExportToWorkspace,
   shouldClearPendingDrawExport,
+  toDrawExportDialogDefaults,
   toDrawExportTarget,
 } from "./drawWorkspaceUtils";
 
@@ -13,6 +14,17 @@ describe("drawWorkspaceUtils", () => {
   it("routes exported assets into the drawings folder", () => {
     expect(toDrawExportTarget("notes/demo.drawio", "png")).toBe("drawings/demo.png");
     expect(toDrawExportTarget("drawings/demo.drawio", "svg")).toBe("drawings/demo.svg");
+  });
+
+  it("derives save-dialog defaults from the project drawings folder", () => {
+    expect(toDrawExportDialogDefaults("notes/demo.drawio", "png")).toEqual({
+      defaultRelativeDir: "drawings",
+      defaultFileName: "demo.png",
+    });
+    expect(toDrawExportDialogDefaults("drawings/sub/demo.drawio", "svg", "custom-name")).toEqual({
+      defaultRelativeDir: "drawings/sub",
+      defaultFileName: "custom-name.svg",
+    });
   });
 
   it("supports plain-text export payloads when draw.io does not send base64", async () => {

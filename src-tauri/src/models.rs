@@ -78,6 +78,22 @@ pub struct WorkspaceExportPdfResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportAssetInput {
+    pub project_id: String,
+    pub default_relative_dir: String,
+    pub default_file_name: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportAssetResponse {
+    pub saved_path: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DrawExportAssetInput {
     pub project_id: String,
     pub relative_path: String,

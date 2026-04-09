@@ -331,7 +331,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 readOnly
                 syncId="source"
                 syncGroupRef={compareSyncGroupRef}
-                containerClassName="min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
+                containerClassName="relative min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100"
+                documentClassName="space-y-3 px-2 py-0 pr-4"
                 t={t}
               />
             </div>
@@ -356,7 +357,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 readOnly
                 syncId="translated"
                 syncGroupRef={compareSyncGroupRef}
-                containerClassName="min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100 px-2 py-0 pr-4"
+                containerClassName="relative min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100"
+                documentClassName="space-y-3 px-2 py-0 pr-4"
                 t={t}
               />
             </div>

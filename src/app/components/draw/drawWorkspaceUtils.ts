@@ -386,6 +386,20 @@ export function toDrawExportTarget(activePath: string, extension: string, filena
   return parentDir ? `${parentDir}/${fileName}` : fileName;
 }
 
+export function toDrawExportDialogDefaults(
+  activePath: string,
+  extension: string,
+  filenameHint?: string,
+): { defaultRelativeDir: string; defaultFileName: string } {
+  const targetPath = toDrawExportTarget(activePath, extension, filenameHint);
+  const normalized = normalizePath(targetPath);
+  const slashIndex = normalized.lastIndexOf("/");
+  return {
+    defaultRelativeDir: slashIndex >= 0 ? normalized.slice(0, slashIndex) : "",
+    defaultFileName: slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized,
+  };
+}
+
 export function buildRenamedDrawPath(currentPath: string, nextInput: string): string {
   const normalizedPath = normalizePath(currentPath);
   const slashIndex = normalizedPath.lastIndexOf("/");

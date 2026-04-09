@@ -50,6 +50,7 @@ type LibraryPdfScrollViewerProps = {
   syncId?: string;
   syncGroupRef?: MutableRefObject<LibraryPdfScrollSyncGroup | null>;
   containerClassName?: string;
+  documentClassName?: string;
   t: TranslationFn;
 };
 
@@ -104,7 +105,8 @@ export const LibraryPdfScrollViewer = forwardRef<
     readOnly = false,
     syncId = "viewer",
     syncGroupRef,
-    containerClassName = "min-h-0 min-w-0 h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7",
+    containerClassName = "relative min-h-0 min-w-0 h-full overflow-auto rounded border border-slate-200 bg-slate-100",
+    documentClassName = "space-y-3 p-3 pr-7",
     t,
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -369,51 +371,50 @@ export const LibraryPdfScrollViewer = forwardRef<
           lastVisiblePageRef.current = 1;
           onVisiblePageChange(1);
         }}
+        className={documentClassName}
       >
-        <div className="space-y-3">
-          {pages.map((page) => (
-            <div
-              key={page}
-              ref={(el) => {
-                pageRefs.current[page] = el;
-              }}
-              data-page={page}
-              className="relative mx-auto rounded bg-white shadow-sm"
-              style={{ width: `${frameWidth}px` }}
-            >
-              {page >= Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES)
-              && page <= Math.min(documentPages, visiblePage + PDF_VIRTUAL_PADDING_PAGES) ? (
-                <>
-                  <Page
-                    pageNumber={page}
-                    width={frameWidth}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                    loading={null}
+        {pages.map((page) => (
+          <div
+            key={page}
+            ref={(el) => {
+              pageRefs.current[page] = el;
+            }}
+            data-page={page}
+            className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
+            style={{ width: `${frameWidth}px` }}
+          >
+            {page >= Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES)
+            && page <= Math.min(documentPages, visiblePage + PDF_VIRTUAL_PADDING_PAGES) ? (
+              <>
+                <Page
+                  pageNumber={page}
+                  width={frameWidth}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  loading={null}
+                />
+                {readOnly ? null : (
+                  <PdfAnnotationLayer
+                    page={page}
+                    mode={mode}
+                    highlightColor={highlightColor}
+                    highlightWidth={highlightWidth}
+                    highlightOpacity={highlightOpacity}
+                    textColor={textColor}
+                    textBoxStylePreset={textBoxStylePreset}
+                    strokes={strokes}
+                    textBoxes={textBoxes}
+                    onStrokesChange={onStrokesChange}
+                    onTextBoxesChange={onTextBoxesChange}
+                    t={t}
                   />
-                  {readOnly ? null : (
-                    <PdfAnnotationLayer
-                      page={page}
-                      mode={mode}
-                      highlightColor={highlightColor}
-                      highlightWidth={highlightWidth}
-                      highlightOpacity={highlightOpacity}
-                      textColor={textColor}
-                      textBoxStylePreset={textBoxStylePreset}
-                      strokes={strokes}
-                      textBoxes={textBoxes}
-                      onStrokesChange={onStrokesChange}
-                      onTextBoxesChange={onTextBoxesChange}
-                      t={t}
-                    />
-                  )}
-                </>
-              ) : (
-                <div style={{ height: `${estimatedPageHeight}px` }} />
-              )}
-            </div>
-          ))}
-        </div>
+                )}
+              </>
+            ) : (
+              <div style={{ height: `${estimatedPageHeight}px` }} />
+            )}
+          </div>
+        ))}
       </Document>
     </div>
   );

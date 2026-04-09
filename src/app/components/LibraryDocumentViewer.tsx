@@ -73,6 +73,7 @@ export function LibraryDocumentViewer(props: {
   const [pageInput, setPageInput] = useState("1");
   const [pdfZoom, setPdfZoom] = useState(1);
   const [toolConfigSignal, setToolConfigSignal] = useState(0);
+  const [pendingPdfOpen, setPendingPdfOpen] = useState(false);
   const [pendingCompareOpen, setPendingCompareOpen] = useState(false);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
   const lastAnnotationPayloadRef = useRef<string>("");
@@ -190,6 +191,7 @@ export function LibraryDocumentViewer(props: {
       setHighlightWidth(16);
       setHighlightOpacity(0.65);
       setTextBoxStylePreset("minimal");
+      setPendingPdfOpen(false);
       setPendingCompareOpen(false);
       setTranslationNotice(null);
       resetTranslationState();
@@ -208,6 +210,7 @@ export function LibraryDocumentViewer(props: {
     setHighlightWidth(16);
     setHighlightOpacity(0.65);
     setTextBoxStylePreset("minimal");
+    setPendingPdfOpen(false);
     setPendingCompareOpen(false);
     setTranslationNotice(null);
     resetTranslationState();
@@ -279,7 +282,48 @@ export function LibraryDocumentViewer(props: {
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
 
   useEffect(() => {
-    if (documentBusy) {
+    if (pendingPdfOpen && hasPdf) {
+      setPendingPdfOpen(false);
+    }
+  }, [hasPdf, pendingPdfOpen]);
+
+  useEffect(() => {
+    if (!pendingPdfOpen) {
+      return;
+    }
+    const objectUrlPendingFromReadyPreview = (
+      pdfPreviewRequested
+      && pdfCacheState === "ready"
+      && Boolean(sourcePdfRelativePath)
+      && !pdfObjectUrlError
+      && !pdfPreviewError
+    );
+    if (
+      hasPdf
+      || pdfPreviewLoading
+      || pdfObjectUrlLoading
+      || pdfCacheState === "pending"
+      || objectUrlPendingFromReadyPreview
+    ) {
+      return;
+    }
+    setPendingPdfOpen(false);
+    applyViewMode("bib");
+  }, [
+    applyViewMode,
+    hasPdf,
+    pdfCacheState,
+    pdfObjectUrlError,
+    pdfObjectUrlLoading,
+    pdfPreviewError,
+    pdfPreviewLoading,
+    pdfPreviewRequested,
+    pendingPdfOpen,
+    sourcePdfRelativePath,
+  ]);
+
+  useEffect(() => {
+    if (documentBusy || pendingPdfOpen) {
       return;
     }
     if (viewMode === "compare" && !hasComparePair && !pendingCompareOpen) {
@@ -289,7 +333,7 @@ export function LibraryDocumentViewer(props: {
     if (viewMode === "pdf" && !hasPdf) {
       setViewMode("bib");
     }
-  }, [documentBusy, hasComparePair, hasPdf, pendingCompareOpen, viewMode]);
+  }, [documentBusy, hasComparePair, hasPdf, pendingCompareOpen, pendingPdfOpen, viewMode]);
 
   useEffect(() => {
     if (!pendingCompareOpen || documentBusy || !hasComparePair) {
@@ -358,10 +402,12 @@ export function LibraryDocumentViewer(props: {
 
   const handleCompareAction = useCallback(() => {
     if (hasTranslated && translatedPdfUrl) {
+      setPendingPdfOpen(false);
       setPendingCompareOpen(false);
       applyViewMode("compare");
       return;
     }
+    setPendingPdfOpen(true);
     applyViewMode("pdf");
     setPendingCompareOpen(true);
     void ensurePdfPreviewLoaded().then(() => {
@@ -379,6 +425,7 @@ export function LibraryDocumentViewer(props: {
   ]);
 
   const handleOpenPdf = useCallback(() => {
+    setPendingPdfOpen(true);
     applyViewMode("pdf");
     void ensurePdfPreviewLoaded();
   }, [applyViewMode, ensurePdfPreviewLoaded]);

@@ -6,6 +6,7 @@ import type {
   FsOperationInput,
   FsOperationResult,
   ResourceNode,
+  WorkspaceExportAssetResponse,
   WorkspaceExportPdfResponse,
 } from "../types/app";
 import { invokeCommand } from "./core";
@@ -81,6 +82,22 @@ export function workspaceExportPdf(
   return invokeCommand<WorkspaceExportPdfResponse | null>("workspace_export_pdf", {
     input: {
       projectId,
+      defaultFileName,
+      bytes: Array.from(bytes),
+    },
+  });
+}
+
+export function workspaceExportAsset(
+  projectId: string,
+  defaultRelativeDir: string,
+  defaultFileName: string,
+  bytes: Uint8Array | number[],
+): Promise<WorkspaceExportAssetResponse | null> {
+  return invokeCommand<WorkspaceExportAssetResponse | null>("workspace_export_asset", {
+    input: {
+      projectId,
+      defaultRelativeDir,
       defaultFileName,
       bytes: Array.from(bytes),
     },
