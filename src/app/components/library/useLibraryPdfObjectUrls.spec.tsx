@@ -12,6 +12,7 @@ vi.mock("../../../shared/api/workspace", () => ({
 
 type HookProbeProps = {
   projectId: string | null;
+  enabled: boolean;
   previewRevision: number;
   cacheState: "ready" | "pending" | "error" | "missing";
   sourcePdfRelativePath: string | null;
@@ -94,6 +95,7 @@ describe("useLibraryPdfObjectUrls", () => {
 
     const view = await renderProbe({
       projectId: "project-1",
+      enabled: true,
       previewRevision: 7,
       cacheState: "ready",
       sourcePdfRelativePath: ".latotex/papers/source.pdf",
@@ -134,6 +136,7 @@ describe("useLibraryPdfObjectUrls", () => {
 
     const view = await renderProbe({
       projectId: "project-1",
+      enabled: true,
       previewRevision: 8,
       cacheState: "ready",
       sourcePdfRelativePath: ".latotex/papers/denied.pdf",
@@ -149,6 +152,33 @@ describe("useLibraryPdfObjectUrls", () => {
     expect(state.pdfUrl).toBeNull();
     expect(state.loading).toBe(false);
     expect(String(state.error)).toContain("workspace.file_read.access_denied");
+
+    await unmountProbe(view.root, view.container);
+  });
+
+  it("stays idle until pdf loading is explicitly enabled", async () => {
+    const view = await renderProbe({
+      projectId: "project-1",
+      enabled: false,
+      previewRevision: 9,
+      cacheState: "ready",
+      sourcePdfRelativePath: ".latotex/papers/source.pdf",
+      translatedPdfRelativePath: null,
+    });
+
+    await flushAsyncWork();
+
+    const state = JSON.parse(
+      view.container.querySelector("[data-testid='hook-state']")?.textContent || "{}",
+    );
+
+    expect(readFileBinaryMock).not.toHaveBeenCalled();
+    expect(state).toMatchObject({
+      pdfUrl: null,
+      translatedPdfUrl: null,
+      loading: false,
+      error: null,
+    });
 
     await unmountProbe(view.root, view.container);
   });

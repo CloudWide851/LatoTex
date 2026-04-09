@@ -79,6 +79,7 @@ export function LibraryDocumentViewer(props: {
   const {
     loading,
     loadError,
+    pdfPreviewRequested,
     pdfPreviewLoading,
     pdfPreviewError,
     citation,
@@ -91,6 +92,7 @@ export function LibraryDocumentViewer(props: {
     previewRevision,
     pdfDownloadedBytes,
     pdfTotalBytes,
+    ensurePdfPreviewLoaded,
     refresh: refreshDocumentData,
     reset: resetDocumentData,
   } = useLibraryDocumentData({
@@ -105,6 +107,7 @@ export function LibraryDocumentViewer(props: {
     error: pdfObjectUrlError,
   } = useLibraryPdfObjectUrls({
     projectId,
+    enabled: pdfPreviewRequested || viewMode === "pdf" || pendingCompareOpen || viewMode === "compare",
     previewRevision,
     cacheState: pdfCacheState,
     sourcePdfRelativePath,
@@ -337,11 +340,13 @@ export function LibraryDocumentViewer(props: {
 
   const handleRunTranslation = useCallback((onDone?: () => void) => {
     runTranslation(() => {
-      void refreshDocumentData({ bustCache: true }).then(() => {
-        onDone?.();
-      });
+      void refreshDocumentData({ bustCache: true })
+        .then(() => ensurePdfPreviewLoaded({ bustCache: true }))
+        .then(() => {
+          onDone?.();
+        });
     });
-  }, [refreshDocumentData, runTranslation]);
+  }, [ensurePdfPreviewLoaded, refreshDocumentData, runTranslation]);
 
   const handleCompareAction = useCallback(() => {
     if (hasTranslated && translatedPdfUrl) {
@@ -349,9 +354,26 @@ export function LibraryDocumentViewer(props: {
       applyViewMode("compare");
       return;
     }
+    applyViewMode("pdf");
     setPendingCompareOpen(true);
-    handleRunTranslation();
-  }, [applyViewMode, handleRunTranslation, hasTranslated, translatedPdfUrl]);
+    void ensurePdfPreviewLoaded().then(() => {
+      if (!translatedPdfRelativePath) {
+        handleRunTranslation();
+      }
+    });
+  }, [
+    applyViewMode,
+    ensurePdfPreviewLoaded,
+    handleRunTranslation,
+    hasTranslated,
+    translatedPdfRelativePath,
+    translatedPdfUrl,
+  ]);
+
+  const handleOpenPdf = useCallback(() => {
+    applyViewMode("pdf");
+    void ensurePdfPreviewLoaded();
+  }, [applyViewMode, ensurePdfPreviewLoaded]);
 
   useLibraryPdfShortcuts({
     enabled: viewMode === "pdf" && hasPdf,
@@ -434,9 +456,8 @@ export function LibraryDocumentViewer(props: {
                 ? "border-primary-300 bg-primary-50 text-primary-900"
                 : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
             }`}
-            onClick={() => applyViewMode("pdf")}
+            onClick={handleOpenPdf}
             title={t("library.viewer.showPdf")}
-            disabled={!hasPdf}
           >
             {t("library.viewer.showPdf")}
           </button>

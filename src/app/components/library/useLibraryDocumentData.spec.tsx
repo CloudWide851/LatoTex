@@ -30,7 +30,20 @@ type ProbeProps = {
 
 function HookProbe(props: ProbeProps) {
   const state = useLibraryDocumentData(props);
-  return <pre data-testid="hook-state">{JSON.stringify(state)}</pre>;
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="ensure-pdf"
+        onClick={() => {
+          void state.ensurePdfPreviewLoaded();
+        }}
+      >
+        ensure
+      </button>
+      <pre data-testid="hook-state">{JSON.stringify(state)}</pre>
+    </>
+  );
 }
 
 function deferred<T>() {
@@ -104,7 +117,7 @@ describe("useLibraryDocumentData", () => {
     vi.restoreAllMocks();
   });
 
-  it("commits local citation and bib data before the PDF preview finishes", async () => {
+  it("commits local citation and bib data before the PDF preview is explicitly requested", async () => {
     const previewDeferred = deferred<LibraryPdfPreview>();
 
     libraryCitationSummaryMock.mockResolvedValue({
@@ -131,10 +144,30 @@ describe("useLibraryDocumentData", () => {
     expect(readProbeState(view.container)).toMatchObject({
       loading: false,
       loadError: null,
-      pdfPreviewLoading: true,
+      pdfPreviewLoading: false,
+      pdfPreviewRequested: false,
       bibPreview: "@article{demo,title={Local Demo}}",
     });
     expect(readFileMock).toHaveBeenCalledWith("project-1", ".latotex/papers/demo.bib");
+    expect(libraryResolvePdfPreviewMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      view.container
+        .querySelector("[data-testid='ensure-pdf']")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await flushAsyncWork();
+
+    expect(readProbeState(view.container)).toMatchObject({
+      pdfPreviewLoading: true,
+      pdfPreviewRequested: true,
+    });
+    expect(libraryResolvePdfPreviewMock).toHaveBeenCalledWith(
+      "project-1",
+      "demo.bib",
+      { bustCache: false },
+    );
 
     previewDeferred.resolve({
       relativePath: ".latotex/papers/demo.pdf",
@@ -152,6 +185,7 @@ describe("useLibraryDocumentData", () => {
     expect(readProbeState(view.container)).toMatchObject({
       loading: false,
       pdfPreviewLoading: false,
+      pdfPreviewRequested: true,
       pdfCacheState: "ready",
       sourcePdfRelativePath: ".latotex/papers/demo.pdf",
       resolvedLink: "https://example.com/demo.pdf",
@@ -195,9 +229,10 @@ describe("useLibraryDocumentData", () => {
     expect(readProbeState(view.container)).toMatchObject({
       loading: false,
       bibPreview: "@article{demo,title={PDF-backed Demo}}",
-      sourcePdfRelativePath: ".latotex/papers/demo.pdf",
-      pdfCacheState: "ready",
+      sourcePdfRelativePath: null,
+      pdfCacheState: "missing",
     });
+    expect(libraryResolvePdfPreviewMock).not.toHaveBeenCalled();
 
     await unmountProbe(view.root, view.container);
   });
@@ -267,9 +302,10 @@ describe("useLibraryDocumentData", () => {
     expect(readProbeState(view.container)).toMatchObject({
       loading: false,
       bibPreview: "@article{new,title={New Demo}}",
-      sourcePdfRelativePath: ".latotex/papers/new.pdf",
-      resolvedLink: "https://example.com/new.bib",
+      sourcePdfRelativePath: null,
+      resolvedLink: "https://example.com/new",
     });
+    expect(libraryResolvePdfPreviewMock).not.toHaveBeenCalled();
 
     await unmountProbe(view.root, view.container);
   });
@@ -309,8 +345,9 @@ describe("useLibraryDocumentData", () => {
       paperPreviewLoading: false,
       paperPreviewError: null,
       paperPreview: null,
-      sourcePdfRelativePath: ".latotex/papers/empty-preview.pdf",
+      sourcePdfRelativePath: null,
     });
+    expect(libraryResolvePdfPreviewMock).not.toHaveBeenCalled();
 
     await unmountProbe(view.root, view.container);
   });

@@ -4,14 +4,18 @@ import { runtimeLogWrite } from "../../../shared/api/runtime";
 import { drawExportAsset, readFile, writeFile } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
+  buildDrawExportAction,
   buildDrawLoadPayload,
   buildRenamedDrawPath,
   DRAWIO_CONFIG_MESSAGE,
   interpretDrawHandshakeMessage,
   isDrawPath,
+  isDrawImageExportFormat,
   loadPersistedTabs,
+  mergeDrawExportRequest,
   normalizePath,
   parseDrawMessage,
+  type PendingDrawExportRequest,
   persistDrawExportToWorkspace,
   resolveDrawioHostFrameSrc,
   savePersistedTabs,
@@ -79,6 +83,7 @@ export function DrawWorkspace(props: {
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
+  const pendingExportRequestRef = useRef<PendingDrawExportRequest | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -471,6 +476,40 @@ export function DrawWorkspace(props: {
         })();
         return;
       }
+      if (message.event === "export_request") {
+        const currentActivePath = activePathRef.current;
+        if (!projectId || !currentActivePath) {
+          return;
+        }
+        const request: PendingDrawExportRequest = {
+          filename: typeof message.filename === "string" ? message.filename : undefined,
+          format: typeof message.format === "string" ? message.format : undefined,
+          scale: typeof message.scale === "number" ? message.scale : undefined,
+          border: typeof message.border === "number" ? message.border : undefined,
+          dpi: typeof message.dpi === "number" ? message.dpi : undefined,
+          grid: typeof message.grid === "boolean" ? message.grid : undefined,
+          background:
+            message.background === null
+              ? null
+              : typeof message.background === "string"
+                ? message.background
+                : undefined,
+          pageId: typeof message.pageId === "string" ? message.pageId : undefined,
+          currentPage: typeof message.currentPage === "boolean" ? message.currentPage : undefined,
+          allPages: typeof message.allPages === "boolean" ? message.allPages : undefined,
+          embedImages: typeof message.embedImages === "boolean" ? message.embedImages : undefined,
+          shadow: typeof message.shadow === "boolean" ? message.shadow : undefined,
+        };
+        pendingExportRequestRef.current = request;
+        logDrawRuntime(
+          "INFO",
+          `export_requested: format=${String(request.format ?? "png")}, filename=${String(request.filename ?? "")}`,
+        );
+        setBusy(true);
+        setStatus(t("draw.waiting"));
+        postToFrame(buildDrawExportAction(request));
+        return;
+      }
       if (message.event === "export") {
         const currentActivePath = activePathRef.current;
         if (!projectId || !currentActivePath) {
@@ -480,9 +519,17 @@ export function DrawWorkspace(props: {
           setBusy(true);
           setStatus(t("draw.waiting"));
           try {
+            const mergedExportMessage = mergeDrawExportRequest(
+              message,
+              pendingExportRequestRef.current,
+            );
+            logDrawRuntime(
+              "INFO",
+              `export_payload_received: format=${String(mergedExportMessage.format ?? "")}, filename=${String(mergedExportMessage.filename ?? "")}`,
+            );
             const savedPath = await persistDrawExportToWorkspace({
               activePath: currentActivePath,
-              message,
+              message: mergedExportMessage,
               saveAsset: async (path, bytes) => {
                 const result = await drawExportAsset(projectId, path, bytes);
                 return result.savedPath;
@@ -494,21 +541,31 @@ export function DrawWorkspace(props: {
                 window.dispatchEvent(new CustomEvent("latotex.workspace.rescan"));
               },
             });
+            pendingExportRequestRef.current = null;
             logDrawRuntime("INFO", `export_saved: ${savedPath}`);
             setStatus(`${t("draw.saved")} ${savedPath}`);
           } catch (error) {
+            pendingExportRequestRef.current = null;
             logDrawRuntime("ERROR", `export_failed: ${String(error)}`);
             setStatus(String(error));
           } finally {
             setBusy(false);
           }
         })();
+        return;
+      }
+      if (
+        pendingExportRequestRef.current
+        && (message.event === "error" || (message.event === "status" && isDrawImageExportFormat(pendingExportRequestRef.current.format)))
+      ) {
+        pendingExportRequestRef.current = null;
+        setBusy(false);
       }
     };
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [activePath, loadActiveToFrame, logDrawRuntime, postToFrameRaw, projectId, t]);
+  }, [activePath, loadActiveToFrame, logDrawRuntime, postToFrame, postToFrameRaw, projectId, t]);
 
   useEffect(() => {
     if (!frameSrc || frameDocumentLoaded || framePhase !== "loading") {

@@ -104,7 +104,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     readOnly = false,
     syncId = "viewer",
     syncGroupRef,
-    containerClassName = "h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7",
+    containerClassName = "min-h-0 min-w-0 h-full overflow-auto rounded border border-slate-200 bg-slate-100 p-3 pr-7",
     t,
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -310,6 +310,8 @@ export const LibraryPdfScrollViewer = forwardRef<
   const rootProps = {
     ref: scrollRef,
     className: containerClassName,
+    tabIndex: 0,
+    style: { touchAction: "pan-y" as const },
     onContextMenu: readOnly || !onRequestToolConfig
       ? undefined
       : (event: ReactMouseEvent<HTMLDivElement>) => {

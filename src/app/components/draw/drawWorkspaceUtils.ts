@@ -11,6 +11,21 @@ export type DrawMessage = {
   [key: string]: unknown;
 };
 
+export type PendingDrawExportRequest = {
+  filename?: string;
+  format?: string;
+  scale?: number;
+  border?: number;
+  dpi?: number;
+  grid?: boolean;
+  background?: string | null;
+  pageId?: string;
+  currentPage?: boolean;
+  allPages?: boolean;
+  embedImages?: boolean;
+  shadow?: boolean;
+};
+
 export type DrawHandshakeAction =
   | { kind: "ignore" }
   | { kind: "hostLoaded" }
@@ -32,6 +47,8 @@ export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   },
 });
 
+const DRAW_EXPORT_IMAGE_FORMATS = new Set(["png", "xmlpng", "jpg", "jpeg", "gif", "webp"]);
+
 export function buildDrawLoadPayload(xml: string): {
   action: "load";
   autosave: 1;
@@ -43,6 +60,76 @@ export function buildDrawLoadPayload(xml: string): {
     autosave: 1,
     exportProtocol: true,
     xml,
+  };
+}
+
+export function isDrawImageExportFormat(format: unknown): boolean {
+  return DRAW_EXPORT_IMAGE_FORMATS.has(String(format ?? "").trim().toLowerCase());
+}
+
+export function buildDrawExportAction(
+  request: PendingDrawExportRequest,
+): Record<string, unknown> {
+  const action: Record<string, unknown> = {
+    action: "export",
+    format: String(request.format ?? "png").trim().toLowerCase() || "png",
+    currentPage: request.currentPage ?? true,
+    spinKey: "exporting",
+  };
+
+  if (typeof request.scale === "number" && Number.isFinite(request.scale) && request.scale > 0) {
+    action.scale = request.scale;
+  }
+  if (typeof request.border === "number" && Number.isFinite(request.border) && request.border >= 0) {
+    action.border = request.border;
+  }
+  if (typeof request.dpi === "number" && Number.isFinite(request.dpi) && request.dpi > 0) {
+    action.dpi = request.dpi;
+  }
+  if (typeof request.grid === "boolean") {
+    action.grid = request.grid;
+  }
+  if (request.background === null) {
+    action.background = "none";
+  } else if (typeof request.background === "string" && request.background.trim()) {
+    action.background = request.background.trim();
+  }
+  if (typeof request.pageId === "string" && request.pageId.trim()) {
+    action.pageId = request.pageId.trim();
+  }
+  if (typeof request.currentPage === "boolean") {
+    action.currentPage = request.currentPage;
+  }
+  if (typeof request.allPages === "boolean") {
+    action.allPages = request.allPages;
+  }
+  if (typeof request.embedImages === "boolean") {
+    action.embedImages = request.embedImages;
+  }
+  if (typeof request.shadow === "boolean") {
+    action.shadow = request.shadow;
+  }
+
+  return action;
+}
+
+export function mergeDrawExportRequest(
+  message: DrawMessage,
+  request?: PendingDrawExportRequest | null,
+): DrawMessage {
+  if (!request) {
+    return message;
+  }
+  return {
+    ...message,
+    filename:
+      typeof message.filename === "string" && message.filename.trim()
+        ? message.filename
+        : request.filename,
+    format:
+      typeof message.format === "string" && message.format.trim()
+        ? message.format
+        : request.format,
   };
 }
 

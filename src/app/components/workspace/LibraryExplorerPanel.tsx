@@ -5,7 +5,7 @@ import { LibraryUploadMenu } from "../LibraryUploadMenu";
 
 type TranslationFn = (key: any) => string;
 
-function filterPaperNodes(nodes: ResourceNode[]): ResourceNode[] {
+export function filterPaperNodes(nodes: ResourceNode[]): ResourceNode[] {
   const walk = (node: ResourceNode): ResourceNode | null => {
     if (node.kind === "file") {
       return /\.(pdf|bib)$/i.test(String(node.relativePath ?? "")) ? node : null;
@@ -28,9 +28,6 @@ function filterPaperNodes(nodes: ResourceNode[]): ResourceNode[] {
       const stem = child.name.replace(/\.pdf$/i, "").toLowerCase();
       return !bibStems.has(stem);
     });
-    if (children.length === 0) {
-      return null;
-    }
     return {
       ...node,
       children,

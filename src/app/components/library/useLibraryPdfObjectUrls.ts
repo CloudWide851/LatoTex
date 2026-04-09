@@ -7,6 +7,7 @@ import type { LibraryPdfPreview } from "../../../shared/types/app";
 
 type Params = {
   projectId: string | null;
+  enabled: boolean;
   previewRevision: number;
   cacheState: LibraryPdfPreview["cacheState"];
   sourcePdfRelativePath: string | null;
@@ -30,6 +31,7 @@ const EMPTY_STATE: ObjectUrlState = {
 export function useLibraryPdfObjectUrls(params: Params): ObjectUrlState {
   const {
     projectId,
+    enabled,
     previewRevision,
     cacheState,
     sourcePdfRelativePath,
@@ -49,7 +51,7 @@ export function useLibraryPdfObjectUrls(params: Params): ObjectUrlState {
       translatedUrlRef.current = null;
     };
 
-    if (!projectId || cacheState !== "ready" || !sourcePdfRelativePath) {
+    if (!enabled || !projectId || cacheState !== "ready" || !sourcePdfRelativePath) {
       resetUrls();
       setState(EMPTY_STATE);
       return () => {
@@ -109,7 +111,7 @@ export function useLibraryPdfObjectUrls(params: Params): ObjectUrlState {
     return () => {
       cancelled = true;
     };
-  }, [cacheState, previewRevision, projectId, sourcePdfRelativePath, translatedPdfRelativePath]);
+  }, [cacheState, enabled, previewRevision, projectId, sourcePdfRelativePath, translatedPdfRelativePath]);
 
   useEffect(() => {
     return () => {

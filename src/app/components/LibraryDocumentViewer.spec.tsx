@@ -88,6 +88,7 @@ describe("LibraryDocumentViewer", () => {
     const defaultDocumentState = {
       loading: false,
       loadError: null,
+      pdfPreviewRequested: false,
       pdfPreviewLoading: false,
       pdfPreviewError: null,
       citation: {
@@ -108,6 +109,7 @@ describe("LibraryDocumentViewer", () => {
       previewRevision: 11,
       pdfDownloadedBytes: null,
       pdfTotalBytes: null,
+      ensurePdfPreviewLoaded: vi.fn().mockResolvedValue(undefined),
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
     };
@@ -127,8 +129,11 @@ describe("LibraryDocumentViewer", () => {
       loading: false,
       error: null,
     });
-    mocks.useLibraryPdfObjectUrls.mockImplementation((params: { translatedPdfRelativePath?: string | null }) => ({
-      pdfUrl: "blob:library-document-pdf",
+    mocks.useLibraryPdfObjectUrls.mockImplementation((params: {
+      enabled?: boolean;
+      translatedPdfRelativePath?: string | null;
+    }) => ({
+      pdfUrl: params.enabled ? "blob:library-document-pdf" : null,
       translatedPdfUrl: params.translatedPdfRelativePath ? "blob:library-document-translated-pdf" : null,
       loading: false,
       error: null,
@@ -145,6 +150,34 @@ describe("LibraryDocumentViewer", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
+    mocks.useLibraryDocumentData.mockImplementation(() => ({
+      loading: false,
+      loadError: null,
+      pdfPreviewRequested: true,
+      pdfPreviewLoading: false,
+      pdfPreviewError: null,
+      citation: {
+        sourcePath: "library/demo.bib",
+        bibPath: "library/demo.bib",
+        authors: ["Test Author"],
+        urls: ["https://example.com/paper"],
+        title: "Demo Paper",
+      },
+      paperPreview: null,
+      paperPreviewLoading: false,
+      paperPreviewError: null,
+      bibPreview: "@article{demo,title={Demo Paper}}",
+      resolvedLink: "https://example.com/paper",
+      sourcePdfRelativePath: ".latotex/papers/demo.pdf",
+      translatedPdfRelativePath: null,
+      pdfCacheState: "ready",
+      previewRevision: 11,
+      pdfDownloadedBytes: null,
+      pdfTotalBytes: null,
+      ensurePdfPreviewLoaded: vi.fn().mockResolvedValue(undefined),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+    }));
 
     await act(async () => {
       root.render(
@@ -171,6 +204,7 @@ describe("LibraryDocumentViewer", () => {
     expect(viewer?.getAttribute("data-pdf-url")).toBe("blob:library-document-pdf");
     expect(viewer?.getAttribute("data-loading")).toBe("false");
     expect(viewer?.getAttribute("data-bib-preview")).toBe("@article{demo,title={Demo Paper}}");
+    expect(viewer?.getAttribute("data-view-mode")).toBe("bib");
 
     await act(async () => {
       root.unmount();
@@ -239,6 +273,7 @@ describe("LibraryDocumentViewer", () => {
     const root = createRoot(container);
     const refreshMock = vi.fn().mockResolvedValue(undefined);
     const resetMock = vi.fn();
+    const ensurePdfPreviewLoadedMock = vi.fn().mockResolvedValue(undefined);
     let translatedPdfRelativePath: string | null = null;
     const runTranslationMock = vi.fn((onDone?: () => void) => {
       translatedPdfRelativePath = ".latotex/papers/demo.translated.pdf";
@@ -248,6 +283,7 @@ describe("LibraryDocumentViewer", () => {
     mocks.useLibraryDocumentData.mockImplementation(() => ({
         loading: false,
         loadError: null,
+        pdfPreviewRequested: true,
         pdfPreviewLoading: false,
         pdfPreviewError: null,
         citation: {
@@ -268,6 +304,7 @@ describe("LibraryDocumentViewer", () => {
         previewRevision: translatedPdfRelativePath ? 12 : 11,
         pdfDownloadedBytes: null,
         pdfTotalBytes: null,
+        ensurePdfPreviewLoaded: ensurePdfPreviewLoadedMock,
         refresh: refreshMock,
         reset: resetMock,
       }));
@@ -304,13 +341,18 @@ describe("LibraryDocumentViewer", () => {
       await Promise.resolve();
     });
 
-    const compareButton = container.querySelectorAll("button")[3];
+    const compareButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.getAttribute("title") === "library.viewer.translatePaper",
+    );
     await act(async () => {
       compareButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
       await Promise.resolve();
     });
 
+    expect(ensurePdfPreviewLoadedMock).toHaveBeenCalledTimes(2);
+    expect(ensurePdfPreviewLoadedMock).toHaveBeenNthCalledWith(1);
+    expect(ensurePdfPreviewLoadedMock).toHaveBeenNthCalledWith(2, { bustCache: true });
     expect(runTranslationMock).toHaveBeenCalledTimes(1);
     expect(refreshMock).toHaveBeenCalledTimes(1);
 

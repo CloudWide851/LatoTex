@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildDrawExportAction,
   decodeDrawExportPayload,
+  isDrawImageExportFormat,
+  mergeDrawExportRequest,
   persistDrawExportToWorkspace,
   toDrawExportTarget,
 } from "./drawWorkspaceUtils";
@@ -46,5 +49,72 @@ describe("drawWorkspaceUtils", () => {
 
     expect(decoded.mime).toBe("image/png");
     expect(Array.from(decoded.bytes)).toEqual(Array.from(new TextEncoder().encode("png-bytes")));
+  });
+
+  it("builds an embed export action from the requested draw.io image options", () => {
+    expect(isDrawImageExportFormat("png")).toBe(true);
+    expect(isDrawImageExportFormat("svg")).toBe(false);
+    expect(buildDrawExportAction({
+      format: "PNG",
+      filename: "diagram-export",
+      scale: 2,
+      border: 12,
+      dpi: 144,
+      grid: true,
+      background: null,
+      pageId: "page-2",
+      currentPage: false,
+      allPages: true,
+      embedImages: true,
+      shadow: false,
+    })).toEqual({
+      action: "export",
+      format: "png",
+      currentPage: false,
+      spinKey: "exporting",
+      scale: 2,
+      border: 12,
+      dpi: 144,
+      grid: true,
+      background: "none",
+      pageId: "page-2",
+      allPages: true,
+      embedImages: true,
+      shadow: false,
+    });
+  });
+
+  it("merges a pending export request into the final draw.io export payload", () => {
+    expect(mergeDrawExportRequest(
+      {
+        event: "export",
+        data: "payload",
+      },
+      {
+        filename: "diagram-export",
+        format: "png",
+      },
+    )).toMatchObject({
+      event: "export",
+      data: "payload",
+      filename: "diagram-export",
+      format: "png",
+    });
+
+    expect(mergeDrawExportRequest(
+      {
+        event: "export",
+        data: "payload",
+        filename: "real-name.png",
+        format: "jpg",
+      },
+      {
+        filename: "fallback-name",
+        format: "png",
+      },
+    )).toMatchObject({
+      filename: "real-name.png",
+      format: "jpg",
+    });
   });
 });
