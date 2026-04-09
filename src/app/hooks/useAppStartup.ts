@@ -44,6 +44,7 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       closeBehaviorRemember: appSettings.uiPrefs?.closeBehaviorRemember ?? false,
       theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
       previewDefaultZoom: appSettings.uiPrefs?.previewDefaultZoom ?? 1,
+      paperBriefEngine: appSettings.uiPrefs?.paperBriefEngine ?? "auto",
       backgroundImagePath: activeBackgroundPath,
       backgroundImagePaths: backgroundList,
       backgroundBlurPx: normalizedBackgroundBlur,

@@ -1,12 +1,15 @@
 import argparse
+from contextlib import contextmanager
 import json
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 import fitz
+from pdf2zh.config import ConfigManager
+from pdf2zh.doclayout import ModelInstance, OnnxModel
+from pdf2zh.high_level import translate
 
 TARGET_LANGUAGE_ALIASES = {
     "chinese": "zh",
@@ -30,6 +33,7 @@ TARGET_LANGUAGE_ALIASES = {
     "russian": "ru",
     "ru": "ru",
 }
+PROGRESS_PREFIX = "LATOTEX_PROGRESS "
 
 
 class PaperRuntimeError(Exception):
@@ -79,15 +83,6 @@ def resolve_timeout_secs(payload: dict) -> int:
     return max(30, min(7200, timeout_secs))
 
 
-def compact_output(text: str, label: str) -> str | None:
-    normalized = (text or "").strip().replace("\r", " ").replace("\n", " | ")
-    if not normalized:
-        return None
-    if len(normalized) > 600:
-        normalized = normalized[-600:]
-    return f"{label}={normalized}"
-
-
 def normalize_runtime_path(value: str | Path) -> Path:
     raw = os.fspath(value)
     if os.name == "nt":
@@ -102,30 +97,13 @@ def path_text(value: str | Path) -> str:
     return str(normalize_runtime_path(value))
 
 
-def should_retry_without_subset_fonts(stdout: str, stderr: str) -> bool:
-    combined = f"{stdout}\n{stderr}".lower()
+def should_retry_without_subset_fonts(message: str) -> bool:
+    combined = (message or "").lower()
     return (
         "subset_fonts" in combined
         or "build_subset" in combined
         or "uncifile.txt" in combined
         or ("invalid argument" in combined and "pymupdf" in combined)
-    )
-
-
-def run_pdf2zh_command(
-    command: list[str],
-    env: dict[str, str],
-    timeout_secs: int,
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        env=env,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        timeout=timeout_secs,
     )
 
 
@@ -158,16 +136,16 @@ def ensure_pdf2zh_config(output_dir: Path) -> Path:
     return config_path
 
 
-def prepare_runtime_dirs(output_dir: Path, env: dict[str, str]) -> None:
+def prepare_runtime_dirs(output_dir: Path, env_updates: dict[str, str]) -> None:
     temp_dir = normalize_runtime_path(output_dir.joinpath(".tmp"))
     cache_dir = normalize_runtime_path(output_dir.joinpath(".cache"))
     temp_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
     temp_text = path_text(temp_dir)
-    env["TMPDIR"] = temp_text
-    env["TMP"] = temp_text
-    env["TEMP"] = temp_text
-    env["XDG_CACHE_HOME"] = path_text(cache_dir)
+    env_updates["TMPDIR"] = temp_text
+    env_updates["TMP"] = temp_text
+    env_updates["TEMP"] = temp_text
+    env_updates["XDG_CACHE_HOME"] = path_text(cache_dir)
 
 
 def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
@@ -175,7 +153,7 @@ def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
     model_name = str(service.get("model") or "").strip()
     base_url = str(service.get("baseUrl") or "").strip()
     api_key = str(service.get("apiKey") or "").strip()
-    env = os.environ.copy()
+    env_updates: dict[str, str] = {}
 
     if service_kind == "openai":
         if not base_url or not api_key or not model_name:
@@ -188,10 +166,10 @@ def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
                     f"api_key_set={bool(api_key)}",
                 ],
             )
-        env["OPENAI_BASE_URL"] = base_url
-        env["OPENAI_API_KEY"] = api_key
-        env["OPENAI_MODEL"] = model_name
-        return service_kind, env, model_name, base_url
+        env_updates["OPENAI_BASE_URL"] = base_url
+        env_updates["OPENAI_API_KEY"] = api_key
+        env_updates["OPENAI_MODEL"] = model_name
+        return service_kind, env_updates, model_name, base_url
 
     if service_kind == "gemini":
         if not api_key or not model_name:
@@ -203,15 +181,54 @@ def build_service_env(service: dict) -> tuple[str, dict[str, str], str, str]:
                     f"api_key_set={bool(api_key)}",
                 ],
             )
-        env["GEMINI_API_KEY"] = api_key
-        env["GEMINI_MODEL"] = model_name
-        return service_kind, env, model_name, base_url
+        env_updates["GEMINI_API_KEY"] = api_key
+        env_updates["GEMINI_MODEL"] = model_name
+        return service_kind, env_updates, model_name, base_url
 
     raise PaperRuntimeError(
         "translation.provider.unsupported",
         f"Unsupported translation service kind: {service_kind or '-'}.",
         [f"service_kind={service_kind or '-'}"],
     )
+
+
+@contextmanager
+def temporary_env(updates: dict[str, str]):
+    original: dict[str, str | None] = {}
+    try:
+        for key, value in updates.items():
+            original[key] = os.environ.get(key)
+            os.environ[key] = value
+        yield
+    finally:
+        for key, previous in original.items():
+            if previous is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = previous
+
+
+def emit_progress(
+    stage: str,
+    current_page: int | None = None,
+    total_pages: int | None = None,
+    message: str | None = None,
+) -> None:
+    print(
+        f"{PROGRESS_PREFIX}{json.dumps({
+            'stage': stage,
+            'currentPage': current_page,
+            'totalPages': total_pages,
+            'message': message,
+        }, ensure_ascii=False)}",
+        flush=True,
+    )
+
+
+def ensure_pdf2zh_model() -> OnnxModel:
+    if ModelInstance.value is None:
+        ModelInstance.value = OnnxModel.load_available()
+    return ModelInstance.value
 
 
 def run_translate(payload: dict) -> dict:
@@ -221,81 +238,73 @@ def run_translate(payload: dict) -> dict:
 
     target_lang = normalize_target_language(payload.get("targetLanguage"))
     timeout_secs = resolve_timeout_secs(payload)
-    service_kind, env, model_name, base_url = build_service_env(payload.get("service") or {})
-    prepare_runtime_dirs(output_dir, env)
+    service_kind, env_updates, model_name, base_url = build_service_env(payload.get("service") or {})
+    prepare_runtime_dirs(output_dir, env_updates)
 
     config_path = ensure_pdf2zh_config(output_dir)
-    base_command = [
-        sys.executable,
-        "-m",
-        "pdf2zh.pdf2zh",
-        path_text(pdf_path),
-        "-o",
-        path_text(output_dir),
-        "-s",
-        service_kind,
-        "-lo",
-        target_lang,
-        "--thread",
-        "2",
-        "--config",
-        path_text(config_path),
-    ]
-    try:
-        completed = run_pdf2zh_command(base_command, env, timeout_secs)
-    except subprocess.TimeoutExpired as error:
-        diagnostics = [
-            f"service={service_kind}",
-            f"model={model_name or '-'}",
-            f"base_url={base_url or '-'}",
-            f"timeout_secs={timeout_secs}",
-        ]
-        stdout_tail = compact_output(error.stdout or "", "stdout")
-        stderr_tail = compact_output(error.stderr or "", "stderr")
-        if stdout_tail:
-            diagnostics.append(stdout_tail)
-        if stderr_tail:
-            diagnostics.append(stderr_tail)
-        raise PaperRuntimeError(
-            "translation.pdfmathtranslate.timeout",
-            "pdf2zh did not finish within the backend timeout.",
-            diagnostics,
-        )
-    stdout = completed.stdout.strip()
-    stderr = completed.stderr.strip()
-    retry_without_subset_fonts = False
-    if completed.returncode != 0 and should_retry_without_subset_fonts(stdout, stderr):
-        retry_command = [*base_command, "--skip-subset-fonts"]
-        completed = run_pdf2zh_command(retry_command, env, timeout_secs)
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
-        retry_without_subset_fonts = True
-    if completed.returncode != 0:
-        diagnostics = [
-            f"service={service_kind}",
-            f"model={model_name or '-'}",
-            f"base_url={base_url or '-'}",
-            f"exit_code={completed.returncode}",
-            f"skip_subset_fonts_retry={retry_without_subset_fonts}",
-        ]
-        stdout_tail = compact_output(stdout, "stdout")
-        stderr_tail = compact_output(stderr, "stderr")
-        if stdout_tail:
-            diagnostics.append(stdout_tail)
-        if stderr_tail:
-            diagnostics.append(stderr_tail)
-        raise PaperRuntimeError(
-            "translation.pdfmathtranslate.failed",
-            "pdf2zh exited with a non-zero status.",
-            diagnostics,
-        )
+    ConfigManager.custome_config(path_text(config_path))
 
-    mono_path, dual_path, artifacts = collect_output_pdfs(output_dir)
+    emit_progress("translating", 0, None, f"model:{model_name}")
+
+    def run_pdf2zh(skip_subset_fonts: bool) -> tuple[str | None, str | None, list[str]]:
+        with temporary_env(env_updates):
+            with fitz.open(pdf_path) as doc:
+                total_pages = doc.page_count
+
+            def progress_callback(progress) -> None:
+                emit_progress(
+                    "translating",
+                    int(getattr(progress, "n", 0) or 0),
+                    int(getattr(progress, "total", total_pages) or total_pages),
+                    None,
+                )
+
+            result_files = translate(
+                files=[path_text(pdf_path)],
+                output=path_text(output_dir),
+                service=service_kind,
+                lang_out=target_lang,
+                thread=2,
+                callback=progress_callback,
+                model=ensure_pdf2zh_model(),
+                skip_subset_fonts=skip_subset_fonts,
+            )
+            if result_files:
+                mono_path, dual_path = result_files[0]
+                return mono_path, dual_path, [mono_path, dual_path]
+            return collect_output_pdfs(output_dir)
+
+    retry_without_subset_fonts = False
+    try:
+        mono_path, dual_path, artifacts = run_pdf2zh(False)
+    except Exception as error:
+        message = str(error)
+        if should_retry_without_subset_fonts(message):
+            retry_without_subset_fonts = True
+            mono_path, dual_path, artifacts = run_pdf2zh(True)
+        else:
+            raise PaperRuntimeError(
+                "translation.pdfmathtranslate.failed",
+                "pdf2zh exited with a non-zero status.",
+                [
+                    f"service={service_kind}",
+                    f"model={model_name or '-'}",
+                    f"base_url={base_url or '-'}",
+                    f"timeout_secs={timeout_secs}",
+                    f"skip_subset_fonts_retry={retry_without_subset_fonts}",
+                    f"error={message}",
+                ],
+            ) from error
+
     if not mono_path:
         raise PaperRuntimeError(
             "translation.pdfmathtranslate.mono_missing",
             "pdf2zh did not generate any translated PDF artifacts.",
-            [f"service={service_kind}", f"model={model_name or '-'}"],
+            [
+                f"service={service_kind}",
+                f"model={model_name or '-'}",
+                f"skip_subset_fonts_retry={retry_without_subset_fonts}",
+            ],
         )
 
     with fitz.open(pdf_path) as doc:
@@ -307,6 +316,9 @@ def run_translate(payload: dict) -> dict:
                 preview_text.append(text)
             if sum(len(item) for item in preview_text) > 2400:
                 break
+
+    emit_progress("rendering", page_count, page_count, None)
+    emit_progress("completed", page_count, page_count, None)
 
     return {
         "runtimeSource": "uv",
@@ -325,8 +337,6 @@ def run_translate(payload: dict) -> dict:
         "monoPdf": mono_path,
         "dualPdf": dual_path,
         "artifactPaths": artifacts,
-        "stdout": stdout,
-        "stderr": stderr,
     }
 
 

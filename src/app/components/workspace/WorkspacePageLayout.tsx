@@ -33,6 +33,7 @@ type WorkspacePageLayoutProps = Pick<
   | "libraryViewMode"
   | "onLibraryViewModeChange"
   | "translationModelId"
+  | "paperBriefEngine"
   | "onSavePanelLayout"
   | "t"
 > & {
@@ -68,6 +69,7 @@ export function WorkspacePageLayout({
   libraryViewMode,
   onLibraryViewModeChange,
   translationModelId,
+  paperBriefEngine,
   onSavePanelLayout,
   t,
   renderMainPanel,
@@ -205,6 +207,7 @@ export function WorkspacePageLayout({
               persistedViewMode={libraryViewMode}
               onPersistViewMode={onLibraryViewModeChange}
               translationModelId={translationModelId}
+              paperBriefEngine={paperBriefEngine}
               t={t}
             />
           </Suspense>

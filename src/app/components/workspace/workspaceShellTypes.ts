@@ -125,6 +125,7 @@ export type AppWorkspaceShellProps = {
   previewDefaultZoom: number;
   completionModelId: string | null;
   translationModelId: string | null;
+  paperBriefEngine: "auto" | "pdfjs" | "python";
   onFsAction: (
     scope: FsScope,
     action: FsAction,

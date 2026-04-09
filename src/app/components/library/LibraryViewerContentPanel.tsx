@@ -73,6 +73,7 @@ type LibraryViewerContentPanelProps = {
   setCurrentPage: (next: number) => void;
   translationDetail: string | null;
   translationBusy: boolean;
+  translationNotice: { type: "info" | "error"; message: string } | null;
   selectedPath: string | null;
   runTranslation: (onSuccess?: () => void) => void;
   hasComparePair: boolean;
@@ -139,6 +140,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     setCurrentPage,
     translationDetail,
     translationBusy,
+    translationNotice,
     selectedPath,
     runTranslation,
     hasComparePair,
@@ -267,17 +269,37 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     return (
       <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 motion-card-pop motion-layered-backdrop">
         <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-          <div className="truncate text-xs text-slate-500">{translationDetail || t("library.viewer.compareTitle")}</div>
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+            <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
+              {t("library.viewer.syncScroll")}
+            </span>
+            <span
+              className={`truncate rounded-full px-2 py-0.5 text-[11px] ${
+                translationBusy
+                  ? "border border-amber-200 bg-amber-50 text-amber-700"
+                  : translationNotice?.type === "error"
+                    ? "border border-rose-200 bg-rose-50 text-rose-700"
+                    : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+              title={translationDetail || translationNotice?.message || undefined}
+            >
+              {translationBusy
+                ? t("library.viewer.translating")
+                : translationNotice?.type === "error"
+                  ? translationNotice.message
+                  : t("library.viewer.translationReady")}
+            </span>
+          </div>
           <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 transition motion-hover-rise hover:bg-slate-100 disabled:opacity-50"
+            className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition motion-hover-rise hover:bg-slate-100 disabled:opacity-50"
             onClick={() => {
               runTranslation();
             }}
             disabled={translationBusy || !selectedPath}
             title={t("library.viewer.translatePaper")}
+            aria-label={t("library.viewer.translatePaper")}
           >
             <RotateCcw className={`h-3.5 w-3.5 ${translationBusy ? "motion-rotate-soft" : ""}`} />
-            {t("library.viewer.translatePaper")}
           </button>
         </div>
         {pdfPaneLoading ? (

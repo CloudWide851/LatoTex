@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { pdfjs } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
 
-type PaperPreview = {
+export type PaperPreview = {
   title?: string | null;
   detectedLanguage?: string | null;
   extractionEngine?: string | null;
@@ -32,14 +32,14 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   });
 }
 
-function normalizeText(value: string): string {
+export function normalizeText(value: string): string {
   return value
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .trim();
 }
 
-function extractExcerpt(text: string, fallbackTitle?: string | null): string {
+export function extractExcerpt(text: string, fallbackTitle?: string | null): string {
   const normalized = normalizeText(text);
   if (!normalized) {
     return "";
@@ -56,7 +56,10 @@ function extractExcerpt(text: string, fallbackTitle?: string | null): string {
   return withoutTitle.slice(0, 520);
 }
 
-async function buildPaperPreview(pdfUrl: string, fallbackTitle?: string | null): Promise<PaperPreview> {
+export async function buildPdfJsPaperPreview(
+  pdfUrl: string,
+  fallbackTitle?: string | null,
+): Promise<PaperPreview> {
   ensureReactPdfWorker();
   const loadingTask = pdfjs.getDocument(pdfUrl);
   const document = await withTimeout(loadingTask.promise, PDF_PREVIEW_TIMEOUT_MS);
@@ -110,7 +113,7 @@ export function usePdfPaperPreview(params: {
     setLoading(true);
     setError(null);
     setPaperPreview(null);
-    void buildPaperPreview(pdfUrl, fallbackTitle)
+    void buildPdfJsPaperPreview(pdfUrl, fallbackTitle)
       .then((nextPreview) => {
         if (!cancelled) {
           setPaperPreview(nextPreview);

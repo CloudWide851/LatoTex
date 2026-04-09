@@ -31,6 +31,7 @@ export function updateSettings(input: {
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
     previewDefaultZoom?: number;
+    paperBriefEngine?: "auto" | "pdfjs" | "python";
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: {
       latexAgentModelId?: string;

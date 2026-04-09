@@ -26,6 +26,7 @@ type TranslationFn = (key: any) => string;
 
 export type LibraryPdfScrollSyncGroup = {
   viewers: Map<string, (ratio: number) => void>;
+  lastRatio: number;
 };
 
 type LibraryPdfScrollViewerProps = {
@@ -74,7 +75,7 @@ function ensureSyncGroup(
     return null;
   }
   if (!syncGroupRef.current) {
-    syncGroupRef.current = { viewers: new Map() };
+    syncGroupRef.current = { viewers: new Map(), lastRatio: 0 };
   }
   return syncGroupRef.current;
 }
@@ -198,6 +199,7 @@ export const LibraryPdfScrollViewer = forwardRef<
       });
     };
     group.viewers.set(syncId, applyRatio);
+    applyRatio(group.lastRatio);
     return () => {
       group.viewers.delete(syncId);
       if (syncGroupRef?.current === group && group.viewers.size === 0) {
@@ -243,6 +245,7 @@ export const LibraryPdfScrollViewer = forwardRef<
         }
         const limit = maxScrollTop(root);
         const ratio = limit > 0 ? root.scrollTop / limit : 0;
+        group.lastRatio = clampRatio(ratio);
         for (const [viewerId, applyRatio] of group.viewers.entries()) {
           if (viewerId === syncId) {
             continue;
@@ -273,6 +276,20 @@ export const LibraryPdfScrollViewer = forwardRef<
       scrollRef.current.scrollTop = 0;
     }
   }, [onPageCountChange, onVisiblePageChange, pageCount, pdfUrl]);
+
+  useEffect(() => {
+    const group = syncGroupRef?.current;
+    if (!group) {
+      return;
+    }
+    const viewer = group.viewers.get(syncId);
+    if (!viewer) {
+      return;
+    }
+    const timer = window.setTimeout(() => viewer(group.lastRatio), 40);
+    return () => window.clearTimeout(timer);
+  }, [documentPages, pdfUrl, syncGroupRef, syncId, viewportWidth]);
+
   useEffect(() => {
     setDocumentLoadError(null);
   }, [pdfUrl]);

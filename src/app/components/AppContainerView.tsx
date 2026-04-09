@@ -172,6 +172,7 @@ export function AppContainerView(props: any) {
   const translationModelId =
     settings?.uiPrefs?.featureModelBindings?.translationModelId
     || null;
+  const paperBriefEngine = settings?.uiPrefs?.paperBriefEngine ?? "auto";
   const rawBackgroundPaths: string[] = Array.isArray(settings?.uiPrefs?.backgroundImagePaths)
     ? (settings.uiPrefs.backgroundImagePaths as string[])
     : [];
@@ -258,6 +259,7 @@ export function AppContainerView(props: any) {
               previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
               completionModelId={completionModelId}
               translationModelId={translationModelId}
+              paperBriefEngine={paperBriefEngine}
               tree={tree}
               libraryTree={libraryTree}
               selectedFile={selectedFile}

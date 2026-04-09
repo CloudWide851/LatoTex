@@ -1,5 +1,5 @@
 import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
@@ -45,6 +45,14 @@ const SETTINGS_SECTIONS: Array<{
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];
 const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
+const FEATURE_MODEL_BINDING_KEYS = [
+  "latexAgentModelId",
+  "analysisAgentModelId",
+  "gitSummaryModelId",
+  "translationModelId",
+  "completionModelId",
+] as const;
+
 export function SettingsPanel(props: {
   settings: AppSettings | null;
   activeProjectId: string | null;
@@ -124,6 +132,8 @@ export function SettingsPanel(props: {
 
   const deleteConfirmEnabled = !(localSettings.uiPrefs?.skipDeleteConfirm ?? false);
   const closeToTrayNoticeEnabled = localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true;
+  const paperBriefEngine = localSettings.uiPrefs?.paperBriefEngine ?? "auto";
+  const [bulkModelId, setBulkModelId] = useState("");
 
   const updateGeneralUiPrefs = useCallback((patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -139,6 +149,15 @@ export function SettingsPanel(props: {
       };
     });
   }, [locale, localSettings, setSettings]);
+
+  useEffect(() => {
+    if (!bulkModelId) {
+      return;
+    }
+    if (!activeModelCatalog.some((model) => model.id === bulkModelId)) {
+      setBulkModelId("");
+    }
+  }, [activeModelCatalog, bulkModelId]);
 
   return (
     <div className="relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
@@ -207,7 +226,27 @@ export function SettingsPanel(props: {
                 </p>
               </div>
             </div>
-                        <SettingsBooleanRow
+            <div className="rounded-lg border border-slate-200 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-slate-800">
+                {t("settings.paperBriefEngineTitle")}
+              </h3>
+              <div className="grid max-w-xs gap-2">
+                <Select
+                  value={paperBriefEngine}
+                  onChange={(event) =>
+                    updateGeneralUiPrefs({
+                      paperBriefEngine: event.target.value as "auto" | "pdfjs" | "python",
+                    })
+                  }
+                >
+                  <option value="auto">{t("settings.paperBriefEngine.auto")}</option>
+                  <option value="pdfjs">{t("settings.paperBriefEngine.pdfjs")}</option>
+                  <option value="python">{t("settings.paperBriefEngine.python")}</option>
+                </Select>
+                <p className="text-xs text-slate-500">{t("settings.paperBriefEngineHint")}</p>
+              </div>
+            </div>
+            <SettingsBooleanRow
               label={t("settings.deleteConfirm")}
               checked={deleteConfirmEnabled}
               onCheckedChange={(nextValue) =>
@@ -390,6 +429,52 @@ export function SettingsPanel(props: {
         {settingsSection === "agents" && (
           <div className="space-y-2">
             <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
+            <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
+              <span className="text-xs font-semibold text-slate-700">
+                {t("settings.agentBulkApplyLabel")}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-[220px] flex-1">
+                  <Select
+                    value={bulkModelId}
+                    onChange={(event) => setBulkModelId(event.target.value)}
+                  >
+                    <option value="">{t("settings.noModelAssigned")}</option>
+                    {activeModelCatalog.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.displayName} ({model.requestName || "-"})
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={!bulkModelId}
+                  onClick={() =>
+                    setSettings((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            uiPrefs: {
+                              ...(prev.uiPrefs ?? {}),
+                              featureModelBindings: FEATURE_MODEL_BINDING_KEYS.reduce(
+                                (bindings, key) => ({
+                                  ...bindings,
+                                  [key]: bulkModelId,
+                                }),
+                                { ...(prev.uiPrefs?.featureModelBindings ?? {}) },
+                              ),
+                            },
+                          }
+                        : prev
+                    )
+                  }
+                >
+                  {t("settings.agentBulkApplyAction")}
+                </Button>
+              </div>
+            </div>
             {[
               {
                 key: "latexAgentModelId",

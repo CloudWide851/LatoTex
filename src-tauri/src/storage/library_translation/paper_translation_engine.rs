@@ -11,8 +11,12 @@ use crate::secure;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::fs;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
+use std::time::Duration;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -49,6 +53,17 @@ struct PaperRuntimeTranslateResult {
     #[serde(rename = "artifactPaths")]
     _artifact_paths: Option<Vec<String>>,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaperRuntimeProgressPayload {
+    stage: String,
+    current_page: Option<u32>,
+    total_pages: Option<u32>,
+    message: Option<String>,
+}
+
+const PAPER_RUNTIME_PROGRESS_PREFIX: &str = "LATOTEX_PROGRESS ";
 
 fn preferred_target_language(target_language: Option<&str>) -> String {
     let value = target_language.unwrap_or("").trim();
@@ -199,14 +214,18 @@ fn parse_runtime_failure(
     Some(LibraryTranslateFailure::new(error.code, error.message, diagnostics))
 }
 
-fn run_pdfmathtranslate_bridge(
+fn run_pdfmathtranslate_bridge<F>(
     python_path: &Path,
     runtime_root: &Path,
     run_root: &Path,
     source_pdf_path: &Path,
     target_language: &str,
     service: &PdfMathTranslateServiceConfig,
-) -> Result<PaperRuntimeTranslateResult, LibraryTranslateFailure> {
+    mut on_progress: F,
+) -> Result<PaperRuntimeTranslateResult, LibraryTranslateFailure>
+where
+    F: FnMut(u32, u32, &str),
+{
     let input_path = run_root.join("paper-runtime-input.json");
     let output_path = run_root.join("paper-runtime-output.json");
     let generated_dir = run_root.join("generated");
@@ -236,13 +255,15 @@ fn run_pdfmathtranslate_bridge(
 
     let mut command = Command::new(python_path);
     configure_hidden_process(&mut command);
-    let output = command
+    let mut child = command
         .arg(runtime_root.join("paper_runtime.py"))
         .arg("--input")
         .arg(&input_path)
         .arg("--output")
         .arg(&output_path)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|error| {
             LibraryTranslateFailure::new(
                 "translation.python.spawn_failed",
@@ -254,17 +275,70 @@ fn run_pdfmathtranslate_bridge(
             )
         })?;
 
+    let stdout = child.stdout.take().ok_or_else(|| {
+        LibraryTranslateFailure::new(
+            "translation.python.stdout_unavailable",
+            "paper_runtime.py stdout stream was unavailable.",
+            Vec::new(),
+        )
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        LibraryTranslateFailure::new(
+            "translation.python.stderr_unavailable",
+            "paper_runtime.py stderr stream was unavailable.",
+            Vec::new(),
+        )
+    })?;
+    let stdout_buffer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let stderr_buffer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let (progress_tx, progress_rx) = mpsc::channel::<(u32, u32, String)>();
+    let stdout_handle =
+        spawn_runtime_output_reader(stdout, stdout_buffer.clone(), progress_tx.clone());
+    let stderr_handle =
+        spawn_runtime_output_reader(stderr, stderr_buffer.clone(), progress_tx.clone());
+    drop(progress_tx);
+
+    let status = loop {
+        while let Ok((current, total, stage)) = progress_rx.try_recv() {
+            on_progress(current, total, &stage);
+        }
+        match child.try_wait().map_err(|error| {
+            LibraryTranslateFailure::new(
+                "translation.python.wait_failed",
+                error.to_string(),
+                Vec::new(),
+            )
+        })? {
+            Some(status) => break status,
+            None => thread::sleep(Duration::from_millis(60)),
+        }
+    };
+
+    while let Ok((current, total, stage)) = progress_rx.try_recv() {
+        on_progress(current, total, &stage);
+    }
+    let _ = stdout_handle.join();
+    let _ = stderr_handle.join();
+    let stdout = stdout_buffer
+        .lock()
+        .map(|value| value.clone())
+        .unwrap_or_default();
+    let stderr = stderr_buffer
+        .lock()
+        .map(|value| value.clone())
+        .unwrap_or_default();
+
     let output_json = fs::read_to_string(&output_path).ok();
-    if !output.status.success() {
-        if let Some(failure) = parse_runtime_failure(output_json.as_deref(), &output.stdout, &output.stderr) {
+    if !status.success() {
+        if let Some(failure) = parse_runtime_failure(output_json.as_deref(), &stdout, &stderr) {
             return Err(failure);
         }
         let mut diagnostics = Vec::new();
-        diagnostics.push(format!("exit_code={}", output.status.code().unwrap_or(-1)));
-        if let Some(item) = summarize_output("stdout", &output.stdout) {
+        diagnostics.push(format!("exit_code={}", status.code().unwrap_or(-1)));
+        if let Some(item) = summarize_output("stdout", &stdout) {
             diagnostics.push(item);
         }
-        if let Some(item) = summarize_output("stderr", &output.stderr) {
+        if let Some(item) = summarize_output("stderr", &stderr) {
             diagnostics.push(item);
         }
         return Err(LibraryTranslateFailure::new(
@@ -281,15 +355,15 @@ fn run_pdfmathtranslate_bridge(
             Vec::new(),
         )
     })?;
-    if let Some(failure) = parse_runtime_failure(Some(&output_json), &output.stdout, &output.stderr) {
+    if let Some(failure) = parse_runtime_failure(Some(&output_json), &stdout, &stderr) {
         return Err(failure);
     }
     serde_json::from_str(&output_json).map_err(|error| {
         let mut diagnostics = Vec::new();
-        if let Some(item) = summarize_output("stdout", &output.stdout) {
+        if let Some(item) = summarize_output("stdout", &stdout) {
             diagnostics.push(item);
         }
-        if let Some(item) = summarize_output("stderr", &output.stderr) {
+        if let Some(item) = summarize_output("stderr", &stderr) {
             diagnostics.push(item);
         }
         LibraryTranslateFailure::new(
@@ -391,6 +465,7 @@ where
             &source_pdf_path,
             &target_language,
             &service,
+            |current, total, stage| on_progress(current, total, stage),
         ) {
             Ok(translated) => {
                 let mono_pdf = PathBuf::from(translated.mono_pdf.clone().ok_or_else(|| {
@@ -457,7 +532,7 @@ where
 mod tests {
     use super::{
         dual_pdf_relative_path, is_anthropic_candidate, is_gemini_candidate,
-        normalize_runtime_path_text, preferred_target_language,
+        normalize_runtime_path_text, parse_runtime_progress_line, preferred_target_language,
     };
     use crate::storage::TranslationModelCandidate;
     use std::path::Path;
@@ -512,4 +587,53 @@ mod tests {
         let normalized = normalize_runtime_path_text(Path::new("\\\\?\\C:\\papers\\demo.pdf"));
         assert_eq!(normalized, "C:\\papers\\demo.pdf");
     }
+
+    #[test]
+    fn parses_runtime_progress_lines() {
+        let parsed = parse_runtime_progress_line(
+            "LATOTEX_PROGRESS {\"stage\":\"translating\",\"currentPage\":3,\"totalPages\":12,\"message\":null}",
+        )
+        .expect("progress payload");
+        assert_eq!(parsed.0, 3);
+        assert_eq!(parsed.1, 12);
+        assert_eq!(parsed.2, "translating");
+    }
+}
+
+fn parse_runtime_progress_line(line: &str) -> Option<(u32, u32, String)> {
+    let payload = line.strip_prefix(PAPER_RUNTIME_PROGRESS_PREFIX)?.trim();
+    let parsed = serde_json::from_str::<PaperRuntimeProgressPayload>(payload).ok()?;
+    let stage = parsed
+        .message
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(parsed.stage);
+    Some((
+        parsed.current_page.unwrap_or(0),
+        parsed.total_pages.unwrap_or(0),
+        stage,
+    ))
+}
+
+fn spawn_runtime_output_reader<R: Read + Send + 'static>(
+    reader: R,
+    sink: Arc<Mutex<Vec<u8>>>,
+    progress_tx: mpsc::Sender<(u32, u32, String)>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let buffered = BufReader::new(reader);
+        for line_result in buffered.lines() {
+            let line = match line_result {
+                Ok(value) => value,
+                Err(_) => break,
+            };
+            if let Some(progress) = parse_runtime_progress_line(&line) {
+                let _ = progress_tx.send(progress);
+                continue;
+            }
+            if let Ok(mut bytes) = sink.lock() {
+                bytes.extend_from_slice(line.as_bytes());
+                bytes.push(b'\n');
+            }
+        }
+    })
 }

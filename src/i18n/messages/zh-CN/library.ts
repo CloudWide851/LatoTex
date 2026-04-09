@@ -34,6 +34,8 @@ export const zhCN_library = {
   "library.viewer.compareOriginal": "原文 PDF",
   "library.viewer.compareTranslated": "翻译 PDF",
   "library.viewer.compareUnavailable": "翻译 PDF 尚未就绪。",
+  "library.viewer.translationReady": "翻译已就绪",
+  "library.viewer.syncScroll": "同步滚动",
   "library.viewer.translating": "翻译中...",
   "library.viewer.translateProgress": "翻译进度",
   "library.viewer.translateTimeout": "翻译超时，请重试。",

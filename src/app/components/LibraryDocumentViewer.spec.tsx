@@ -4,22 +4,22 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
 } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readFile, readFileBinary, writeFile } from "../../shared/api/workspace";
+import { readFile, writeFile } from "../../shared/api/workspace";
 import { LibraryDocumentViewer } from "./LibraryDocumentViewer";
 
 const mocks = vi.hoisted(() => ({
   useLibraryDocumentData: vi.fn(),
   useLibraryTranslationPanel: vi.fn(),
   useLibraryPdfShortcuts: vi.fn(),
+  useLibraryPaperBrief: vi.fn(),
+  useLibraryPdfObjectUrls: vi.fn(),
 }));
 
 vi.mock("../../shared/api/workspace", () => ({
   readFile: vi.fn(),
-  readFileBinary: vi.fn(),
   writeFile: vi.fn(),
 }));
 
@@ -37,6 +37,14 @@ vi.mock("./library/useLibraryTranslationPanel", () => ({
 
 vi.mock("./library/useLibraryPdfShortcuts", () => ({
   useLibraryPdfShortcuts: mocks.useLibraryPdfShortcuts,
+}));
+
+vi.mock("./library/useLibraryPaperBrief", () => ({
+  useLibraryPaperBrief: mocks.useLibraryPaperBrief,
+}));
+
+vi.mock("./library/useLibraryPdfObjectUrls", () => ({
+  useLibraryPdfObjectUrls: mocks.useLibraryPdfObjectUrls,
 }));
 
 vi.mock("./library/LibraryTranslationStatusToast", () => ({
@@ -62,22 +70,12 @@ vi.mock("./library/LibraryViewerContentPanel", () => ({
 
 describe("LibraryDocumentViewer", () => {
   const readFileMock = vi.mocked(readFile);
-  const readFileBinaryMock = vi.mocked(readFileBinary);
   const writeFileMock = vi.mocked(writeFile);
-  let createObjectUrlSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
-    if (typeof URL.createObjectURL !== "function") {
-      Object.defineProperty(URL, "createObjectURL", {
-        configurable: true,
-        writable: true,
-        value: vi.fn(),
-      });
-    }
-    createObjectUrlSpy = vi.spyOn(URL, "createObjectURL");
     readFileMock.mockResolvedValue({
       relativePath: ".latotex/annotations/demo.json",
       content: "{\"version\":4,\"strokes\":[],\"textBoxes\":[]}",
@@ -86,13 +84,8 @@ describe("LibraryDocumentViewer", () => {
       ok: true,
       message: "saved",
     });
-    readFileBinaryMock.mockResolvedValue({
-      relativePath: ".latotex/papers/demo.pdf",
-      bytes: [0x25, 0x50, 0x44, 0x46],
-    });
-    createObjectUrlSpy.mockReturnValue("blob:library-document-pdf");
 
-    mocks.useLibraryDocumentData.mockReturnValue({
+    const defaultDocumentState = {
       loading: false,
       loadError: null,
       pdfPreviewLoading: false,
@@ -117,8 +110,9 @@ describe("LibraryDocumentViewer", () => {
       pdfTotalBytes: null,
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
-    });
-    mocks.useLibraryTranslationPanel.mockReturnValue({
+    };
+    mocks.useLibraryDocumentData.mockImplementation(() => defaultDocumentState);
+    const defaultTranslationPanelState = {
       translationBusy: false,
       translationNotice: null,
       translationDetail: null,
@@ -126,7 +120,19 @@ describe("LibraryDocumentViewer", () => {
       setTranslationNotice: vi.fn(),
       resetTranslationState: vi.fn(),
       runTranslation: vi.fn(),
+    };
+    mocks.useLibraryTranslationPanel.mockImplementation(() => defaultTranslationPanelState);
+    mocks.useLibraryPaperBrief.mockReturnValue({
+      paperPreview: null,
+      loading: false,
+      error: null,
     });
+    mocks.useLibraryPdfObjectUrls.mockImplementation((params: { translatedPdfRelativePath?: string | null }) => ({
+      pdfUrl: "blob:library-document-pdf",
+      translatedPdfUrl: params.translatedPdfRelativePath ? "blob:library-document-translated-pdf" : null,
+      loading: false,
+      error: null,
+    }));
     mocks.useLibraryPdfShortcuts.mockImplementation(() => undefined);
   });
 
@@ -150,6 +156,7 @@ describe("LibraryDocumentViewer", () => {
           analysisRunning={false}
           persistedViewMode="pdf"
           translationModelId={null}
+          paperBriefEngine="auto"
           t={(key) => String(key)}
         />,
       );
@@ -161,10 +168,6 @@ describe("LibraryDocumentViewer", () => {
     });
 
     const viewer = container.querySelector("[data-testid='library-viewer-content-panel']");
-    expect(readFileBinaryMock).toHaveBeenCalledWith(
-      "project-1",
-      ".latotex/papers/demo.pdf",
-    );
     expect(viewer?.getAttribute("data-pdf-url")).toBe("blob:library-document-pdf");
     expect(viewer?.getAttribute("data-loading")).toBe("false");
     expect(viewer?.getAttribute("data-bib-preview")).toBe("@article{demo,title={Demo Paper}}");
@@ -190,6 +193,7 @@ describe("LibraryDocumentViewer", () => {
           analysisRunning={false}
           persistedViewMode="pdf"
           translationModelId={null}
+          paperBriefEngine="auto"
           t={(key) => String(key)}
         />,
       );
@@ -213,6 +217,7 @@ describe("LibraryDocumentViewer", () => {
           analysisRunning={false}
           persistedViewMode="pdf"
           translationModelId={null}
+          paperBriefEngine="auto"
           t={(key) => String(key)}
         />,
       );
@@ -221,6 +226,115 @@ describe("LibraryDocumentViewer", () => {
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
     ).toBe("bib");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("waits for the translated pdf before switching into compare mode", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const refreshMock = vi.fn().mockResolvedValue(undefined);
+    const resetMock = vi.fn();
+    let translatedPdfRelativePath: string | null = null;
+    const runTranslationMock = vi.fn((onDone?: () => void) => {
+      translatedPdfRelativePath = ".latotex/papers/demo.translated.pdf";
+      onDone?.();
+    });
+
+    mocks.useLibraryDocumentData.mockImplementation(() => ({
+        loading: false,
+        loadError: null,
+        pdfPreviewLoading: false,
+        pdfPreviewError: null,
+        citation: {
+          sourcePath: "library/demo.bib",
+          bibPath: "library/demo.bib",
+          authors: ["Test Author"],
+          urls: ["https://example.com/paper"],
+          title: "Demo Paper",
+        },
+        paperPreview: null,
+        paperPreviewLoading: false,
+        paperPreviewError: null,
+        bibPreview: "@article{demo,title={Demo Paper}}",
+        resolvedLink: "https://example.com/paper",
+        sourcePdfRelativePath: ".latotex/papers/demo.pdf",
+        translatedPdfRelativePath,
+        pdfCacheState: "ready",
+        previewRevision: translatedPdfRelativePath ? 12 : 11,
+        pdfDownloadedBytes: null,
+        pdfTotalBytes: null,
+        refresh: refreshMock,
+        reset: resetMock,
+      }));
+
+    const translationPanelState = {
+      translationBusy: false,
+      translationNotice: { type: "info", message: "ready" },
+      translationDetail: null,
+      translationProgress: null,
+      setTranslationNotice: vi.fn(),
+      resetTranslationState: vi.fn(),
+      runTranslation: runTranslationMock,
+    };
+    mocks.useLibraryTranslationPanel.mockImplementation(() => translationPanelState);
+
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/demo.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="bib"
+          translationModelId={null}
+          paperBriefEngine="auto"
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const compareButton = container.querySelectorAll("button")[3];
+    await act(async () => {
+      compareButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(runTranslationMock).toHaveBeenCalledTimes(1);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/demo.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="bib"
+          translationModelId={null}
+          paperBriefEngine="auto"
+          t={(key) => String(key)}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
+    ).toBe("compare");
 
     await act(async () => {
       root.unmount();

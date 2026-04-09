@@ -133,6 +133,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     previewDefaultZoom,
     completionModelId,
     translationModelId,
+    paperBriefEngine,
     onFsAction,
     onRunFsAction,
     t,
@@ -539,6 +540,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             libraryViewMode={libraryViewMode}
             onLibraryViewModeChange={onLibraryViewModeChange}
             translationModelId={translationModelId}
+            paperBriefEngine={paperBriefEngine}
             onSavePanelLayout={onSavePanelLayout}
             renderMainPanel={renderMainPanel}
             renderPdfPreviewPanel={renderPdfPreviewPanel}

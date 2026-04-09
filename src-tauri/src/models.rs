@@ -418,6 +418,7 @@ pub struct UiPrefs {
     pub close_behavior_remember: Option<bool>,
     pub theme: Option<String>,
     pub preview_default_zoom: Option<f64>,
+    pub paper_brief_engine: Option<String>,
     pub panel_layout: Option<Value>,
     pub feature_model_bindings: Option<FeatureModelBindings>,
     pub channels: Option<ChannelPrefs>,
@@ -593,4 +594,3 @@ include!("models_git.rs");
 include!("models_agent_workflows.rs");
 include!("models_native_runtime.rs");
 include!("models_resource_warmup.rs");
-

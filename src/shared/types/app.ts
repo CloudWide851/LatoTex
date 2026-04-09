@@ -211,6 +211,7 @@ export type AppSettings = {
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
     previewDefaultZoom?: number;
+    paperBriefEngine?: "auto" | "pdfjs" | "python";
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: FeatureModelBindings;
     channels?: ChannelPrefs;
