@@ -15,8 +15,8 @@ export function CodePreviewPane(props: {
   const languageTag = useMemo(() => providedLanguageTag ?? resolveCodeLanguageTag(filePath), [filePath, providedLanguageTag]);
   const highlighted = useMemo(() => {
     const source = String(codeContent ?? "");
-    return renderCodePreviewHtml(source, language, languageTag);
-  }, [codeContent, language, languageTag]);
+    return renderCodePreviewHtml(source, language, languageTag, filePath);
+  }, [codeContent, filePath, language, languageTag]);
 
   if (!String(codeContent ?? "").trim()) {
     return (

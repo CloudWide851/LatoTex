@@ -138,7 +138,7 @@ function mergePdfPreviewState(
   const citation = citationOverride ?? current.citation;
   return {
     paperPreview: null,
-    resolvedLink: preview.sourceUrl ?? citation?.urls?.[0] ?? current.resolvedLink,
+    resolvedLink: current.resolvedLink ?? citation?.urls?.[0] ?? preview.sourceUrl ?? null,
     sourcePdfRelativePath: preview.relativePath ?? null,
     translatedPdfRelativePath: preview.translatedRelativePath ?? null,
     pdfCacheState: preview.cacheState ?? (preview.relativePath ? "ready" : "missing"),
@@ -205,6 +205,7 @@ export function useLibraryDocumentData(params: {
   const [pdfPreviewRequested, setPdfPreviewRequested] = useState(false);
   const [state, setState] = useState<DocumentDataState>(EMPTY_STATE);
   const requestIdRef = useRef(0);
+  const previewRequestRef = useRef<{ key: string; promise: Promise<DocumentDataState | null> } | null>(null);
   const pdfPreviewRequestedRef = useRef(false);
   const stateRef = useRef<DocumentDataState>(EMPTY_STATE);
 
@@ -225,6 +226,7 @@ export function useLibraryDocumentData(params: {
 
   const reset = useCallback(() => {
     requestIdRef.current += 1;
+    previewRequestRef.current = null;
     pdfPreviewRequestedRef.current = false;
     stateRef.current = EMPTY_STATE;
     setLoading(false);
@@ -321,18 +323,30 @@ export function useLibraryDocumentData(params: {
     if (!projectId || !selectedPath) {
       return null;
     }
-    try {
-      const preview = await libraryResolvePdfPreview(projectId, selectedPath, { bustCache });
-      return await applyResolvedPdfPreview({ requestId, cacheKey, preview });
-    } catch (error) {
-      if (requestIdRef.current === requestId) {
-        startTransition(() => {
-          setPdfPreviewLoading(false);
-          setPdfPreviewError(String(error));
-        });
-      }
-      return null;
+    const requestKey = `${requestId}:${projectId}:${selectedPath}:${bustCache ? "1" : "0"}`;
+    if (previewRequestRef.current?.key === requestKey) {
+      return await previewRequestRef.current.promise;
     }
+    const promise = (async () => {
+      try {
+        const preview = await libraryResolvePdfPreview(projectId, selectedPath, { bustCache });
+        return await applyResolvedPdfPreview({ requestId, cacheKey, preview });
+      } catch (error) {
+        if (requestIdRef.current === requestId) {
+          startTransition(() => {
+            setPdfPreviewLoading(false);
+            setPdfPreviewError(String(error));
+          });
+        }
+        return null;
+      } finally {
+        if (previewRequestRef.current?.key === requestKey) {
+          previewRequestRef.current = null;
+        }
+      }
+    })();
+    previewRequestRef.current = { key: requestKey, promise };
+    return await promise;
   }, [applyResolvedPdfPreview, projectId, selectedPath]);
 
   const loadDocument = useCallback(async (options?: RefreshOptions) => {
@@ -369,21 +383,18 @@ export function useLibraryDocumentData(params: {
       });
       setPreviewRevision(requestId);
 
-      if (pdfPreviewRequestedRef.current) {
-        void resolveRemotePdfPreview({
-          requestId,
-          cacheKey,
-          bustCache: options?.bustCache ?? false,
-        });
-      }
+      void resolveRemotePdfPreview({
+        requestId,
+        cacheKey,
+        bustCache: options?.bustCache ?? false,
+      });
 
       void libraryCitationSummaryRemote(projectId, selectedPath)
         .then((remoteSummary) => {
           mergeRemoteCitationSummary(requestId, cacheKey, remoteSummary);
           const currentState = stateRef.current;
           if (
-            pdfPreviewRequestedRef.current
-            && !currentState.sourcePdfRelativePath
+            !currentState.sourcePdfRelativePath
             && currentState.pdfCacheState === "missing"
           ) {
             void resolveRemotePdfPreview({ requestId, cacheKey, bustCache: false });
@@ -472,7 +483,6 @@ export function useLibraryDocumentData(params: {
   useEffect(() => {
     if (
       !active
-      || !pdfPreviewRequested
       || !projectId
       || !selectedPath
       || state.pdfCacheState !== "pending"
@@ -507,7 +517,7 @@ export function useLibraryDocumentData(params: {
         window.clearTimeout(timer);
       }
     };
-  }, [active, pdfPreviewRequested, projectId, resolveRemotePdfPreview, selectedPath, state.pdfCacheState]);
+  }, [active, projectId, resolveRemotePdfPreview, selectedPath, state.pdfCacheState]);
 
   return {
     ...state,

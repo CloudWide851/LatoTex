@@ -133,6 +133,16 @@ export function mergeDrawExportRequest(
   };
 }
 
+export function shouldClearPendingDrawExport(
+  pendingRequest: PendingDrawExportRequest | null,
+  message: DrawMessage,
+): boolean {
+  if (!pendingRequest) {
+    return false;
+  }
+  return message.event === "error";
+}
+
 export function toDrawioLanguage(locale?: string | null): string {
   const normalized = String(locale ?? "").trim().toLowerCase();
   if (normalized.startsWith("zh")) {

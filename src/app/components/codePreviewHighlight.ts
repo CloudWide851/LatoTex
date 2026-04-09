@@ -58,14 +58,32 @@ function writeCached(cacheKey: string, html: string): string {
   return html;
 }
 
-export function renderCodePreviewHtml(source: string, language: CodeLanguageInfo, languageTag: string): string {
+export function clearCodePreviewHighlightCache() {
+  highlightCache.clear();
+}
+
+export function renderCodePreviewHtml(
+  source: string,
+  language: CodeLanguageInfo,
+  languageTag: string,
+  filePath?: string | null,
+): string {
   if (!source.trim()) {
     return "";
   }
+  const cacheKey = [
+    normalizeCachePart(filePath),
+    languageTag,
+    language.highlight,
+    buildSourceStamp(source),
+  ].join(":");
   if (shouldSkipHighlight(source) || !language.highlight || !hljs.getLanguage(language.highlight)) {
-    return escapePreviewHtml(source);
+    const cached = readCached(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+    return writeCached(cacheKey, escapePreviewHtml(source));
   }
-  const cacheKey = `${languageTag}:${language.highlight}:${buildSourceStamp(source)}`;
   const cached = readCached(cacheKey);
   if (cached !== null) {
     return cached;
@@ -75,4 +93,8 @@ export function renderCodePreviewHtml(source: string, language: CodeLanguageInfo
     ignoreIllegals: true,
   }).value;
   return writeCached(cacheKey, highlighted);
+}
+
+function normalizeCachePart(value: string | null | undefined): string {
+  return String(value ?? "").trim().replace(/\\/g, "/");
 }

@@ -23,6 +23,7 @@ import {
 import { useCompileActions } from "./useCompileActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
+import { rewriteLibrarySelectionAfterFsAction } from "./librarySelectionState";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 import { signalWindowTransition } from "./windowTransitionSignal";
 export function useAppHandlers(params: UseAppHandlersParams) {
@@ -495,6 +496,12 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       } else {
         const nextTree = await getLibraryTree(activeProjectId);
         setLibraryTree(nextTree);
+        setSelectedLibraryPath((current) => rewriteLibrarySelectionAfterFsAction({
+          selectedPath: current,
+          action,
+          path,
+          targetPath,
+        }));
       }
       setToast({ type: "info", message: t("toast.fsUpdated") });
       return true;

@@ -5,6 +5,7 @@ import {
   isDrawImageExportFormat,
   mergeDrawExportRequest,
   persistDrawExportToWorkspace,
+  shouldClearPendingDrawExport,
   toDrawExportTarget,
 } from "./drawWorkspaceUtils";
 
@@ -116,5 +117,17 @@ describe("drawWorkspaceUtils", () => {
       filename: "real-name.png",
       format: "jpg",
     });
+  });
+
+  it("does not clear a pending image export on intermediate status messages", () => {
+    expect(shouldClearPendingDrawExport(
+      { format: "png", filename: "diagram-export" },
+      { event: "status", message: "exporting" },
+    )).toBe(false);
+
+    expect(shouldClearPendingDrawExport(
+      { format: "png", filename: "diagram-export" },
+      { event: "error", error: "failed" },
+    )).toBe(true);
   });
 });

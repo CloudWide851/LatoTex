@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { libraryExtractPaperContext } from "../../../shared/api/library";
+import { buildWorkspacePreviewBlobUrl, revokeObjectUrl } from "../../../shared/utils/workspacePreviewBlob";
 import {
   buildPdfJsPaperPreview,
   extractExcerpt,
@@ -7,8 +8,43 @@ import {
   type PaperPreview,
 } from "./usePdfPaperPreview";
 
+const PAPER_BRIEF_CACHE_MAX = 48;
+const paperBriefCache = new Map<string, PaperPreview>();
+
+export function clearLibraryPaperBriefCache() {
+  paperBriefCache.clear();
+}
+
 function hasUsableExcerpt(preview: PaperPreview | null): boolean {
   return Boolean(preview?.excerpt && preview.excerpt.trim().length > 0);
+}
+
+function readCachedPaperPreview(cacheKey: string | null): PaperPreview | null {
+  if (!cacheKey) {
+    return null;
+  }
+  const cached = paperBriefCache.get(cacheKey);
+  if (!cached) {
+    return null;
+  }
+  paperBriefCache.delete(cacheKey);
+  paperBriefCache.set(cacheKey, cached);
+  return cached;
+}
+
+function writeCachedPaperPreview(cacheKey: string | null, preview: PaperPreview): PaperPreview {
+  if (!cacheKey) {
+    return preview;
+  }
+  paperBriefCache.set(cacheKey, preview);
+  while (paperBriefCache.size > PAPER_BRIEF_CACHE_MAX) {
+    const oldestKey = paperBriefCache.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    paperBriefCache.delete(oldestKey);
+  }
+  return preview;
 }
 
 function toBackendPaperPreview(
@@ -38,19 +74,62 @@ async function buildBackendPaperPreview(input: {
   return toBackendPaperPreview(result, input.fallbackTitle);
 }
 
+async function buildPdfJsPaperPreviewFromSource(input: {
+  projectId: string;
+  sourcePdfRelativePath: string;
+  fallbackTitle?: string | null;
+}): Promise<PaperPreview> {
+  const objectUrl = await buildWorkspacePreviewBlobUrl(input.projectId, input.sourcePdfRelativePath);
+  if (!objectUrl) {
+    throw new Error("library.viewer.pdfBlobUnavailable");
+  }
+  try {
+    return await buildPdfJsPaperPreview(objectUrl, input.fallbackTitle);
+  } finally {
+    revokeObjectUrl(objectUrl);
+  }
+}
+
+function buildCacheKey(input: {
+  engine: "auto" | "pdfjs" | "python";
+  projectId: string | null;
+  selectedPath: string | null;
+  sourcePdfRelativePath?: string | null;
+  previewKey?: string | null;
+  pdfUrl: string | null;
+}): string | null {
+  const baseKey = input.sourcePdfRelativePath
+    ?? input.previewKey
+    ?? input.selectedPath
+    ?? input.pdfUrl;
+  if (!baseKey) {
+    return null;
+  }
+  return [
+    input.engine,
+    input.projectId ?? "",
+    input.selectedPath ?? "",
+    baseKey,
+  ].join("::");
+}
+
 export function useLibraryPaperBrief(params: {
   projectId: string | null;
   selectedPath: string | null;
   pdfUrl: string | null;
+  sourcePdfRelativePath?: string | null;
   fallbackTitle?: string | null;
   engine: "auto" | "pdfjs" | "python";
+  previewKey?: string | null;
 }) {
   const {
     projectId,
     selectedPath,
     pdfUrl,
+    sourcePdfRelativePath,
     fallbackTitle,
     engine,
+    previewKey,
   } = params;
   const [paperPreview, setPaperPreview] = useState<PaperPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -58,7 +137,30 @@ export function useLibraryPaperBrief(params: {
 
   useEffect(() => {
     let cancelled = false;
-    if (!pdfUrl) {
+    const cacheKey = buildCacheKey({
+      engine,
+      projectId,
+      selectedPath,
+      sourcePdfRelativePath,
+      previewKey,
+      pdfUrl,
+    });
+    const cached = readCachedPaperPreview(cacheKey);
+    if (cached) {
+      setPaperPreview(cached);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    const canBuildPdfJsPreview = Boolean(pdfUrl || (projectId && sourcePdfRelativePath));
+    const canBuildBackendPreview = Boolean(projectId && selectedPath);
+
+    if (
+      (engine === "pdfjs" && !canBuildPdfJsPreview)
+      || (engine === "python" && !canBuildBackendPreview)
+      || (engine === "auto" && !canBuildPdfJsPreview)
+    ) {
       setPaperPreview(null);
       setLoading(false);
       setError(null);
@@ -70,41 +172,58 @@ export function useLibraryPaperBrief(params: {
       setError(null);
       setPaperPreview(null);
       try {
+        const buildPdfPreview = async (): Promise<PaperPreview> => {
+          if (pdfUrl) {
+            return await buildPdfJsPaperPreview(pdfUrl, fallbackTitle);
+          }
+          if (projectId && sourcePdfRelativePath) {
+            return await buildPdfJsPaperPreviewFromSource({
+              projectId,
+              sourcePdfRelativePath,
+              fallbackTitle,
+            });
+          }
+          throw new Error("library.viewer.pdfBlobUnavailable");
+        };
+
         if (engine === "pdfjs") {
-          const preview = await buildPdfJsPaperPreview(pdfUrl, fallbackTitle);
+          const preview = await buildPdfPreview();
           if (!cancelled) {
-            setPaperPreview(preview);
+            setPaperPreview(writeCachedPaperPreview(cacheKey, preview));
           }
           return;
         }
 
         if (engine === "python") {
-          if (!projectId || !selectedPath) {
-            throw new Error("library.viewer.paperBriefError");
-          }
-          const preview = await buildBackendPaperPreview({ projectId, selectedPath, fallbackTitle });
+          const preview = await buildBackendPaperPreview({
+            projectId: projectId as string,
+            selectedPath: selectedPath as string,
+            fallbackTitle,
+          });
           if (!cancelled) {
-            setPaperPreview(preview);
+            setPaperPreview(writeCachedPaperPreview(cacheKey, preview));
           }
           return;
         }
 
-        const pdfjsPreview = await buildPdfJsPaperPreview(pdfUrl, fallbackTitle);
+        const pdfjsPreview = await buildPdfPreview();
         if (!cancelled && hasUsableExcerpt(pdfjsPreview)) {
-          setPaperPreview(pdfjsPreview);
+          setPaperPreview(writeCachedPaperPreview(cacheKey, pdfjsPreview));
           return;
         }
 
-        if (!projectId || !selectedPath) {
-          if (!cancelled) {
-            setPaperPreview(pdfjsPreview);
-          }
-          return;
-        }
-
-        const backendPreview = await buildBackendPaperPreview({ projectId, selectedPath, fallbackTitle });
+        const backendPreview = canBuildBackendPreview
+          ? await buildBackendPaperPreview({
+              projectId: projectId as string,
+              selectedPath: selectedPath as string,
+              fallbackTitle,
+            })
+          : null;
+        const nextPreview = backendPreview && hasUsableExcerpt(backendPreview)
+          ? backendPreview
+          : pdfjsPreview;
         if (!cancelled) {
-          setPaperPreview(hasUsableExcerpt(backendPreview) ? backendPreview : pdfjsPreview);
+          setPaperPreview(writeCachedPaperPreview(cacheKey, nextPreview));
         }
       } catch (nextError) {
         if (!cancelled) {
@@ -122,7 +241,7 @@ export function useLibraryPaperBrief(params: {
     return () => {
       cancelled = true;
     };
-  }, [engine, fallbackTitle, pdfUrl, projectId, selectedPath]);
+  }, [engine, fallbackTitle, pdfUrl, previewKey, projectId, selectedPath, sourcePdfRelativePath]);
 
   return {
     paperPreview,

@@ -10,7 +10,6 @@ import {
   DRAWIO_CONFIG_MESSAGE,
   interpretDrawHandshakeMessage,
   isDrawPath,
-  isDrawImageExportFormat,
   loadPersistedTabs,
   mergeDrawExportRequest,
   normalizePath,
@@ -19,6 +18,7 @@ import {
   persistDrawExportToWorkspace,
   resolveDrawioHostFrameSrc,
   savePersistedTabs,
+  shouldClearPendingDrawExport,
   tabTitleFromPath,
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
@@ -554,10 +554,7 @@ export function DrawWorkspace(props: {
         })();
         return;
       }
-      if (
-        pendingExportRequestRef.current
-        && (message.event === "error" || (message.event === "status" && isDrawImageExportFormat(pendingExportRequestRef.current.format)))
-      ) {
+      if (shouldClearPendingDrawExport(pendingExportRequestRef.current, message)) {
         pendingExportRequestRef.current = null;
         setBusy(false);
       }

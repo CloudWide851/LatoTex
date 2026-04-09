@@ -539,5 +539,28 @@ mod workspace_files_search_tests {
 
         let _ = fs::remove_dir_all(temp_root);
     }
+
+    #[test]
+    fn save_draw_export_asset_writes_verified_file_into_nested_workspace_folder() {
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("draw-export-nested");
+
+        let result = save_draw_export_asset(
+            &db_path,
+            &project_id,
+            "drawings/exports/demo.svg",
+            b"<svg>demo</svg>",
+        )
+        .unwrap();
+
+        assert_eq!(result.saved_path, "drawings/exports/demo.svg");
+        assert_eq!(result.file_name, "demo.svg");
+        assert_eq!(
+            fs::read(project_root.join("drawings").join("exports").join("demo.svg")).unwrap(),
+            b"<svg>demo</svg>"
+        );
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
 }
 

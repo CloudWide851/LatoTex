@@ -115,7 +115,13 @@ export function LibraryDocumentViewer(props: {
   });
   const hasPdf = Boolean(pdfUrl);
   const hasTranslated = Boolean(translatedPdfUrl);
-  const documentBusy = loading || pdfPreviewLoading || pdfObjectUrlLoading;
+  const pdfInteractionBusy = (
+    pdfPreviewRequested
+    || viewMode === "pdf"
+    || viewMode === "compare"
+    || pendingCompareOpen
+  ) && (pdfPreviewLoading || pdfObjectUrlLoading);
+  const documentBusy = loading || pdfInteractionBusy;
   const {
     paperPreview: computedPaperPreview,
     loading: paperPreviewLoading,
@@ -124,8 +130,10 @@ export function LibraryDocumentViewer(props: {
     projectId,
     selectedPath,
     pdfUrl,
+    sourcePdfRelativePath,
     fallbackTitle: citation?.title ?? null,
     engine: paperBriefEngine,
+    previewKey: sourcePdfRelativePath ?? selectedPath,
   });
 
   const {
