@@ -1,5 +1,6 @@
 import type {
   Ack,
+  DrawExportAssetResult,
   FileReadBinaryResponse,
   FileReadResponse,
   FsOperationInput,
@@ -50,6 +51,20 @@ export function writeFileBinary(
   bytes: Uint8Array | number[],
 ): Promise<Ack> {
   return invokeCommand<Ack>("file_write_binary", {
+    input: {
+      projectId,
+      relativePath,
+      bytes: Array.from(bytes),
+    },
+  });
+}
+
+export function drawExportAsset(
+  projectId: string,
+  relativePath: string,
+  bytes: Uint8Array | number[],
+): Promise<DrawExportAssetResult> {
+  return invokeCommand<DrawExportAssetResult>("draw_export_asset", {
     input: {
       projectId,
       relativePath,

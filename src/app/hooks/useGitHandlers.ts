@@ -147,11 +147,10 @@ export function useGitHandlers(params: {
         await refreshLibraryTree();
       },
       fallbackValue: undefined,
-      setBusy,
       setToast,
       errorLogLabel: "library.rescan",
     });
-  }, [activeProjectId, refreshLibraryTree, setBusy, setToast]);
+  }, [activeProjectId, refreshLibraryTree, setToast]);
 
   const handleLibraryImportPdf = useCallback(async () => {
     if (!activeProjectId) {
@@ -164,15 +163,14 @@ export function useGitHandlers(params: {
           return;
         }
         await refreshLibraryTree();
-        setSelectedLibraryPath(result.relativePath);
+        setSelectedLibraryPath(result.relativePath || result.pdfRelativePath);
       },
       fallbackValue: undefined,
-      setBusy,
       setToast,
       successMessage: t("toast.fsUpdated"),
       errorLogLabel: "library.import_pdf",
     });
-  }, [activeProjectId, refreshLibraryTree, setBusy, setToast, t]);
+  }, [activeProjectId, refreshLibraryTree, setSelectedLibraryPath, setToast, t]);
 
   const handleLibraryImportLink = useCallback(async (link: string) => {
     if (!activeProjectId) {
@@ -189,12 +187,11 @@ export function useGitHandlers(params: {
         setSelectedLibraryPath(result.relativePath);
       },
       fallbackValue: undefined,
-      setBusy,
       setToast,
       successMessage: t("toast.fsUpdated"),
       errorLogLabel: "library.import_link",
     });
-  }, [activeProjectId, refreshLibraryTree, setBusy, setSelectedLibraryPath, setToast, t]);
+  }, [activeProjectId, refreshLibraryTree, setSelectedLibraryPath, setToast, t]);
 
   const handleLibrarySyncZotero = useCallback(async (input: {
     ownerId: string;
@@ -220,12 +217,11 @@ export function useGitHandlers(params: {
         await refreshLibraryTree();
       },
       fallbackValue: undefined,
-      setBusy,
       setToast,
       successMessage: t("library.zoteroSyncDone"),
       errorLogLabel: "library.zotero_sync",
     });
-  }, [activeProjectId, refreshLibraryTree, setBusy, setToast, t]);
+  }, [activeProjectId, refreshLibraryTree, setToast, t]);
 
   return {
     handleGitAction,

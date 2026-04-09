@@ -78,6 +78,21 @@ pub struct WorkspaceExportPdfResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DrawExportAssetInput {
+    pub project_id: String,
+    pub relative_path: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawExportAssetResponse {
+    pub saved_path: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ShareSessionCreateInput {
     pub project_id: String,
     pub target_path: String,
@@ -578,5 +593,4 @@ include!("models_git.rs");
 include!("models_agent_workflows.rs");
 include!("models_native_runtime.rs");
 include!("models_resource_warmup.rs");
-
 

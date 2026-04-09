@@ -28,7 +28,7 @@ use commands::native_runtime::{
     latex_compile_native, latex_compile_start, latex_compile_status,
 };
 use commands::projects::{
-    file_read, file_read_binary, file_write, file_write_binary, fs_operation,
+    draw_export_asset, file_read, file_read_binary, file_write, file_write_binary, fs_operation,
     library_citation_summary, library_citation_summary_remote, library_import_link,
     library_import_pdf, library_rescan, library_resolve_pdf_preview,
     library_resume_pdf_downloads, library_tree, library_zotero_sync, open_external_link,
@@ -155,6 +155,7 @@ pub fn run() {
             file_read_binary,
             file_write,
             file_write_binary,
+            draw_export_asset,
             workspace_export_pdf,
             library_tree,
             library_rescan,
@@ -235,4 +236,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-

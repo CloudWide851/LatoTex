@@ -42,6 +42,12 @@ export type LibraryPdfImportResult = {
   ok: boolean;
   message: string;
   relativePath: string;
+  pdfRelativePath: string;
+};
+
+export type DrawExportAssetResult = {
+  savedPath: string;
+  fileName: string;
 };
 
 export type LibraryPdfResumeResult = {

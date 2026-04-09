@@ -130,7 +130,7 @@ export function ExplorerTree(props: {
   const triggerCreate = (parentPath: string, createMode: "create_file" | "create_folder") => {
     setEditing({ mode: createMode, parentPath, value: "" });
   };
-  const submitEditing = async () => {
+  const submitEditing = async (valueOverride?: string) => {
     if (submitLockRef.current) {
       return;
     }
@@ -145,7 +145,7 @@ export function ExplorerTree(props: {
       submitLockRef.current = false;
       return;
     }
-    const nextName = editingSnapshot.value.trim();
+    const nextName = (valueOverride ?? editingSnapshot.value).trim();
     if (!nextName) {
       setEditing(null);
       submitLockRef.current = false;
@@ -186,6 +186,10 @@ export function ExplorerTree(props: {
             setLinkDraft("");
           },
         },
+        {
+          key: "explorer.action.newFolder",
+          onClick: () => triggerCreate("", "create_folder"),
+        },
       );
       if (allowRescan && onRescan) {
         items.push({
@@ -219,8 +223,13 @@ export function ExplorerTree(props: {
         });
       }
     } else if (menu.kind === "directory") {
+      if (mode === "workspace") {
+        items.push({
+          key: "explorer.action.newFile",
+          onClick: () => triggerCreate(menu.path, "create_file"),
+        });
+      }
       items.push(
-        { key: "explorer.action.newFile", onClick: () => triggerCreate(menu.path, "create_file") },
         {
           key: "explorer.action.newFolder",
           onClick: () => triggerCreate(menu.path, "create_folder"),
@@ -247,15 +256,19 @@ export function ExplorerTree(props: {
           key: "explorer.action.delete",
           onClick: () => onAction?.("delete", menu.path),
         },
-        {
-          key: "explorer.action.revealInSystem",
-          onClick: () => onRevealInSystem?.(menu.path),
-        },
-        {
-          key: "explorer.action.openTerminal",
-          onClick: () => onOpenTerminal?.(menu.path),
-        },
       );
+      if (mode === "workspace") {
+        items.push(
+          {
+            key: "explorer.action.revealInSystem",
+            onClick: () => onRevealInSystem?.(menu.path),
+          },
+          {
+            key: "explorer.action.openTerminal",
+            onClick: () => onOpenTerminal?.(menu.path),
+          },
+        );
+      }
     } else {
       items.push(
         {
@@ -280,15 +293,19 @@ export function ExplorerTree(props: {
           key: "explorer.action.delete",
           onClick: () => onAction?.("delete", menu.path),
         },
-        {
-          key: "explorer.action.revealInSystem",
-          onClick: () => onRevealInSystem?.(menu.path),
-        },
-        {
-          key: "explorer.action.openTerminal",
-          onClick: () => onOpenTerminal?.(menu.path),
-        },
       );
+      if (mode === "workspace") {
+        items.push(
+          {
+            key: "explorer.action.revealInSystem",
+            onClick: () => onRevealInSystem?.(menu.path),
+          },
+          {
+            key: "explorer.action.openTerminal",
+            onClick: () => onOpenTerminal?.(menu.path),
+          },
+        );
+      }
     }
     const menuContent = (
       <div
@@ -317,9 +334,6 @@ export function ExplorerTree(props: {
     return createPortal(menuContent, document.body);
   };
   const renderCreateEditor = (parentPath: string) => {
-    if (mode !== "workspace") {
-      return null;
-    }
     if (
       !editing ||
       (editing.mode !== "create_file" && editing.mode !== "create_folder") ||
@@ -347,7 +361,7 @@ export function ExplorerTree(props: {
           onKeyDown={async (event) => {
             if (event.key === "Enter") {
               event.preventDefault();
-              await submitEditing();
+              await submitEditing(event.currentTarget.value);
             }
             if (event.key === "Escape") {
               skipCreateBlurSubmitRef.current = true;
@@ -359,7 +373,7 @@ export function ExplorerTree(props: {
               skipCreateBlurSubmitRef.current = false;
               return;
             }
-            void submitEditing();
+            void submitEditing(editing.value);
           }}
         />
       </div>
@@ -466,7 +480,7 @@ export function ExplorerTree(props: {
               }
               onKeyDown={async (event) => {
                 if (event.key === "Enter") {
-                  await submitEditing();
+                  await submitEditing(event.currentTarget.value);
                 }
                 if (event.key === "Escape") {
                   setEditing(null);
@@ -558,7 +572,7 @@ export function ExplorerTree(props: {
           </>
         )}
       </div>
-      {mode === "workspace" && transferPanel && (
+      {transferPanel && (
         <ExplorerTransferPanel
           busy={busy}
           sourcePath={transferPanel.sourcePath}

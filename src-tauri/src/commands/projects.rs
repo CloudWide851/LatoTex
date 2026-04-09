@@ -1,12 +1,13 @@
 use crate::models::{
-    Ack, CreateProjectInput, FileReadBinaryResponse, FileReadInput, FileReadResponse,
-    FileWriteBinaryInput, FileWriteInput, FsOperationInput, FsOperationResult,
-    LibraryCitationSummaryInput, LibraryCitationSummaryResponse, LibraryLinkImportInput, LibraryLinkImportResponse,
-    LibraryPdfPreviewInput, LibraryPdfPreviewResponse,
-    LibraryPdfResumeResponse, LibraryRefInput, LibraryZoteroSyncInput, LibraryZoteroSyncResponse,
-    OpenExternalLinkInput, ProjectIntegrityStatus, ProjectPathActionInput, ProjectRefInput,
-    ProjectSearchHit, ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode,
-    WorkspaceExportPdfInput, WorkspaceExportPdfResponse,
+    Ack, CreateProjectInput, DrawExportAssetInput, DrawExportAssetResponse,
+    FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteBinaryInput, FileWriteInput,
+    FsOperationInput, FsOperationResult, LibraryCitationSummaryInput,
+    LibraryCitationSummaryResponse, LibraryLinkImportInput, LibraryLinkImportResponse,
+    LibraryPdfPreviewInput, LibraryPdfPreviewResponse, LibraryPdfResumeResponse, LibraryRefInput,
+    LibraryZoteroSyncInput, LibraryZoteroSyncResponse, OpenExternalLinkInput,
+    ProjectIntegrityStatus, ProjectPathActionInput, ProjectRefInput, ProjectSearchHit,
+    ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode, WorkspaceExportPdfInput,
+    WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -148,16 +149,19 @@ pub async fn file_read_binary(
 }
 
 #[tauri::command]
-pub fn file_write(state: State<'_, AppState>, input: FileWriteInput) -> Result<Ack, String> {
+pub async fn file_write(state: State<'_, AppState>, input: FileWriteInput) -> Result<Ack, String> {
     state.log(
         "INFO",
         &format!("file_write: {} ({})", input.relative_path, input.project_id),
     );
-    storage::write_project_file(&state.db_path, input)
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || storage::write_project_file(&db_path, input))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn file_write_binary(
+pub async fn file_write_binary(
     state: State<'_, AppState>,
     input: FileWriteBinaryInput,
 ) -> Result<Ack, String> {
@@ -170,12 +174,44 @@ pub fn file_write_binary(
             input.bytes.len()
         ),
     );
-    storage::write_project_file_binary(
-        &state.db_path,
-        &input.project_id,
-        &input.relative_path,
-        &input.bytes,
-    )
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || {
+        storage::write_project_file_binary(
+            &db_path,
+            &input.project_id,
+            &input.relative_path,
+            &input.bytes,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn draw_export_asset(
+    state: State<'_, AppState>,
+    input: DrawExportAssetInput,
+) -> Result<DrawExportAssetResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "draw_export_asset: {} ({}) bytes={}",
+            input.relative_path,
+            input.project_id,
+            input.bytes.len()
+        ),
+    );
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || {
+        storage::save_draw_export_asset(
+            &db_path,
+            &input.project_id,
+            &input.relative_path,
+            &input.bytes,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -245,9 +281,16 @@ pub async fn library_tree(
 }
 
 #[tauri::command]
-pub fn library_rescan(state: State<'_, AppState>, input: LibraryRefInput) -> Result<Ack, String> {
+pub async fn library_rescan(
+    state: State<'_, AppState>,
+    input: LibraryRefInput,
+) -> Result<Ack, String> {
     state.log("INFO", &format!("library_rescan: {}", input.project_id));
-    storage::rescan_library(&state.db_path, &input.project_id)
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::rescan_library(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -271,7 +314,7 @@ pub async fn library_import_pdf(
 }
 
 #[tauri::command]
-pub fn library_import_link(
+pub async fn library_import_link(
     state: State<'_, AppState>,
     input: LibraryLinkImportInput,
 ) -> Result<LibraryLinkImportResponse, String> {
@@ -279,9 +322,17 @@ pub fn library_import_link(
         "INFO",
         &format!("library_import_link: {}", input.project_id),
     );
-    let mut result = storage::import_library_link(&state.db_path, &input.project_id, input.link.trim())?;
+    let app_state = state.inner().clone();
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let queue_project_id = project_id.clone();
+    let link = input.link.trim().to_string();
+    let mut result =
+        spawn_blocking(move || storage::import_library_link(&db_path, &project_id, &link))
+            .await
+            .map_err(|e| e.to_string())??;
     result.pdf_preview =
-        storage::queue_library_pdf_download(&state, &input.project_id, &result.relative_path)?;
+        storage::queue_library_pdf_download(&app_state, &queue_project_id, &result.relative_path)?;
     Ok(result)
 }
 
@@ -387,7 +438,7 @@ pub async fn library_resolve_pdf_preview(
 }
 
 #[tauri::command]
-pub fn fs_operation(
+pub async fn fs_operation(
     state: State<'_, AppState>,
     input: FsOperationInput,
 ) -> Result<FsOperationResult, String> {
@@ -398,7 +449,10 @@ pub fn fs_operation(
             input.action, input.scope, input.path, input.project_id
         ),
     );
-    storage::fs_operation(&state.db_path, input)
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || storage::fs_operation(&db_path, input))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

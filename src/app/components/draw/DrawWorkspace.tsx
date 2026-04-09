@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
 import { runtimeLogWrite } from "../../../shared/api/runtime";
-import { readFile, writeFile, writeFileBinary } from "../../../shared/api/workspace";
+import { drawExportAsset, readFile, writeFile } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
   buildDrawLoadPayload,
@@ -483,8 +483,10 @@ export function DrawWorkspace(props: {
             const savedPath = await persistDrawExportToWorkspace({
               activePath: currentActivePath,
               message,
-              writeText: (path, content) => writeFile(projectId, path, content),
-              writeBinary: (path, bytes) => writeFileBinary(projectId, path, bytes),
+              saveAsset: async (path, bytes) => {
+                const result = await drawExportAsset(projectId, path, bytes);
+                return result.savedPath;
+              },
               onAfterSave: (path) => {
                 window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
                   detail: { scope: "workspace", action: "create_file", path },

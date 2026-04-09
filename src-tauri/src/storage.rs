@@ -1,6 +1,7 @@
 use crate::models::{
-    Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, EventBatch, EventQuery,
-    FileReadBinaryResponse, FileReadResponse, FileWriteInput, FsOperationInput, FsOperationResult,
+    Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, DrawExportAssetResponse,
+    EventBatch, EventQuery, FileReadBinaryResponse, FileReadResponse, FileWriteInput,
+    FsOperationInput, FsOperationResult,
     LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
     LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
     ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchHit, ProjectSearchInput,

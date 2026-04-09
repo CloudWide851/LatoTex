@@ -243,6 +243,45 @@ pub fn write_project_file_binary(
     })
 }
 
+pub fn save_draw_export_asset(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+    bytes: &[u8],
+) -> Result<DrawExportAssetResponse, String> {
+    if bytes.is_empty() {
+        return Err("Draw export bytes are empty".to_string());
+    }
+
+    let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&target, bytes).map_err(|e| e.to_string())?;
+
+    let metadata = fs::metadata(&target).map_err(|e| e.to_string())?;
+    if !metadata.is_file() || metadata.len() == 0 {
+        return Err("Draw export verification failed".to_string());
+    }
+
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE projects SET updated_at = ?1 WHERE id = ?2",
+        params![now_iso(), project_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let file_name = target
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "diagram".to_string());
+
+    Ok(DrawExportAssetResponse {
+        saved_path: relative_path.replace('\\', "/"),
+        file_name,
+    })
+}
+
 const SEARCH_MAX_FILE_SIZE_BYTES: u64 = 1_048_576;
 
 fn truncate_chars(input: &str, max_chars: usize) -> String {
@@ -364,7 +403,7 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
 
 #[cfg(test)]
 mod workspace_files_search_tests {
-    use super::{is_python_venv_dir, read_project_file_binary};
+    use super::{is_python_venv_dir, read_project_file_binary, save_draw_export_asset};
     use crate::storage;
     use std::fs;
     use std::path::PathBuf;
@@ -475,6 +514,28 @@ mod workspace_files_search_tests {
 
         assert_eq!(result.relative_path, relative_path);
         assert_eq!(result.bytes, b"%PDF-remote-cache");
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
+    fn save_draw_export_asset_writes_verified_file_into_workspace() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("draw-export");
+
+        let result = save_draw_export_asset(
+            &db_path,
+            &project_id,
+            "drawings/demo.png",
+            b"png-binary-data",
+        )
+        .unwrap();
+
+        assert_eq!(result.saved_path, "drawings/demo.png");
+        assert_eq!(result.file_name, "demo.png");
+        assert_eq!(
+            fs::read(project_root.join("drawings").join("demo.png")).unwrap(),
+            b"png-binary-data"
+        );
 
         let _ = fs::remove_dir_all(temp_root);
     }

@@ -168,13 +168,13 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               <div>{pdfPreviewLoading ? t("library.viewer.downloadingPdf") : t("library.viewer.loading")}</div>
               {pdfPreviewLoading ? (
-                <div className="mt-2">
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                    <div
-                      className="h-full rounded-full bg-sky-500 transition-[width] duration-300"
-                      style={{ width: `${pdfProgressPercent ?? 20}%` }}
-                    />
-                  </div>
+                  <div className="mt-2">
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-primary-500 transition-[width] duration-300"
+                        style={{ width: `${pdfProgressPercent ?? 20}%` }}
+                      />
+                    </div>
                   <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
                     <span>{t("library.viewer.downloadProgress")}</span>
                     <span>

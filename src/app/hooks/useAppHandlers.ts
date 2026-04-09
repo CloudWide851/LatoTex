@@ -475,7 +475,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     if (!activeProjectId) {
       return false;
     }
-    setBusy(true);
     try {
       await fsOperation({
         projectId: activeProjectId,
@@ -502,10 +501,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     } catch (error) {
       setToast({ type: "error", message: String(error) });
       return false;
-    } finally {
-      setBusy(false);
     }
-  }, [activeProjectId, refreshGitWorkspace, setBusy, setLibraryTree, setToast, setTree, t]);
+  }, [activeProjectId, refreshGitWorkspace, setLibraryTree, setToast, setTree, t]);
   const requestFsAction = useCallback(async (
     scope: FsScope,
     action: FsAction,
@@ -544,10 +541,11 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         },
       };
       await persistSettings(nextSettings);
+      setSettings(nextSettings);
     }
     await runFsAction(deleteIntent.scope, "delete", deleteIntent.path);
     setDeleteIntent(null);
-  }, [deleteDontAskAgain, deleteIntent, locale, persistSettings, runFsAction, setDeleteIntent, settings]);
+  }, [deleteDontAskAgain, deleteIntent, locale, persistSettings, runFsAction, setDeleteIntent, setSettings, settings]);
   return {
     handleWindowControl,
     handleWindowCloseDecision,

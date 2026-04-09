@@ -53,6 +53,7 @@ pub struct LibraryPdfImportResponse {
     pub ok: bool,
     pub message: String,
     pub relative_path: String,
+    pub pdf_relative_path: String,
 }
 
 #[derive(Debug, Serialize)]

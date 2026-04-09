@@ -25,8 +25,8 @@ export function AnalysisLiveRail(props: {
     <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${running ? "bg-blue-500 animate-pulse" : "bg-slate-400"}`} />
-          <span className="text-xs font-medium uppercase text-blue-700">{t("analysis.liveStage")}</span>
+          <span className={`h-2 w-2 rounded-full ${running ? "bg-primary-500 animate-pulse" : "bg-slate-400"}`} />
+          <span className="text-xs font-medium uppercase text-primary-700">{t("analysis.liveStage")}</span>
           <span className="truncate text-sm font-medium text-slate-700">{normalizedStage}</span>
         </div>
         <span className="text-xs tabular-nums text-slate-500">{String(eventCount).padStart(2, "0")}</span>

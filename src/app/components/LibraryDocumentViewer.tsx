@@ -56,7 +56,7 @@ export function LibraryDocumentViewer(props: {
   } = props;
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>(persistedViewMode ?? "bib");
+  const [viewMode, setViewMode] = useState<ViewMode>("bib");
   const [annotationMode, setAnnotationMode] = useState<ToolMode>("select");
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0]);
   const [highlightWidth, setHighlightWidth] = useState<number>(16);
@@ -181,6 +181,7 @@ export function LibraryDocumentViewer(props: {
 
     setLinkError(null);
     setCopyState(false);
+    setViewMode("bib");
     setAnnotationMode("select");
     setCurrentPage(1);
     setPageCount(1);
@@ -257,10 +258,6 @@ export function LibraryDocumentViewer(props: {
       window.clearTimeout(timer);
     };
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
-
-  useEffect(() => {
-    setViewMode(persistedViewMode ?? "bib");
-  }, [persistedViewMode, projectId]);
 
   useEffect(() => {
     if (documentBusy) {

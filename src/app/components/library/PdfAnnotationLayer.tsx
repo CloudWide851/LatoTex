@@ -318,6 +318,7 @@ export function PdfAnnotationLayer(props: {
         ref={layerRef}
         className="absolute inset-0 z-20"
         style={{
+          pointerEvents: mode === "select" ? "none" : "auto",
           cursor:
             mode === "highlight"
               ? HIGHLIGHT_CURSOR
@@ -409,6 +410,7 @@ export function PdfAnnotationLayer(props: {
                 width: `${((dragPreview?.boxId === box.id ? dragPreview.w : box.w) / 1000) * 100}%`,
                 height: `${((dragPreview?.boxId === box.id ? dragPreview.h : box.h) / 1000) * 100}%`,
                 zIndex: box.z,
+                pointerEvents: "auto",
                 borderColor: box.style.borderColor,
                 borderStyle: box.style.borderWidth > 0 ? "solid" : "none",
                 borderWidth: `${box.style.borderWidth}px`,

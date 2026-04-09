@@ -34,7 +34,7 @@ function StatusPill(props: {
 }) {
   const toneClassName = {
     neutral: "border-slate-300 bg-white text-slate-600",
-    info: "border-sky-200 bg-sky-50 text-sky-700",
+    info: "border-primary-200 bg-primary-50 text-primary-700",
     success: "border-emerald-200 bg-emerald-50 text-emerald-700",
     danger: "border-rose-200 bg-rose-50 text-rose-700",
   }[props.tone];
@@ -126,18 +126,18 @@ export function LibraryDocumentSidebar(props: {
             <StatusPill label={statusLabel(translatedPdfState, t)} tone={statusTone(translatedPdfState)} />
           </div>
           {sourcePdfState === "pending" ? (
-            <div className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-800">
+            <div className="rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-2 text-[11px] text-primary-800">
               <div className="flex items-center gap-2">
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                 <span>{t("library.viewer.downloadingPdf")}</span>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sky-100">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary-100">
                 <div
-                  className="h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                  className="h-full rounded-full bg-primary-500 transition-[width] duration-300"
                   style={{ width: `${progressPercent ?? 20}%` }}
                 />
               </div>
-              <div className="mt-2 text-[11px] text-sky-700">
+              <div className="mt-2 text-[11px] text-primary-700">
                 {pdfTotalBytes && pdfTotalBytes > 0
                   ? `${formatByteCount(pdfDownloadedBytes ?? 0)} / ${formatByteCount(pdfTotalBytes)}`
                   : formatByteCount(pdfDownloadedBytes ?? 0)}

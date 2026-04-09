@@ -321,26 +321,20 @@ export function withExportRetrySuffix(path: string): string {
 export async function persistDrawExportToWorkspace(params: {
   activePath: string;
   message: DrawMessage;
-  writeText: (path: string, content: string) => Promise<unknown>;
-  writeBinary: (path: string, bytes: Uint8Array) => Promise<unknown>;
+  saveAsset: (path: string, bytes: Uint8Array) => Promise<string>;
   onAfterSave?: (path: string) => void;
 }): Promise<string> {
-  const { activePath, message, writeText, writeBinary, onAfterSave } = params;
+  const { activePath, message, saveAsset, onAfterSave } = params;
   const decoded = decodeDrawExportPayload(message);
   const extension = inferExportExtension(message, decoded.mime);
   const targetPath = toDrawExportTarget(activePath, extension, typeof message.filename === "string" ? message.filename : undefined);
-  const textContent = toTextIfPossible(extension, decoded.bytes);
 
   let lastError: unknown;
   for (const attemptPath of [targetPath, ...EXPORT_RETRY_DELAYS_MS.map(() => withExportRetrySuffix(targetPath))]) {
     try {
-      if (typeof textContent === "string") {
-        await writeText(attemptPath, textContent);
-      } else {
-        await writeBinary(attemptPath, decoded.bytes);
-      }
-      onAfterSave?.(attemptPath);
-      return attemptPath;
+      const savedPath = await saveAsset(attemptPath, decoded.bytes);
+      onAfterSave?.(savedPath);
+      return savedPath;
     } catch (error) {
       lastError = error;
       if (!isPermissionDeniedWriteError(error)) {

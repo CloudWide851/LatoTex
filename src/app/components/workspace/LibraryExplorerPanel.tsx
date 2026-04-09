@@ -6,14 +6,28 @@ import { LibraryUploadMenu } from "../LibraryUploadMenu";
 type TranslationFn = (key: any) => string;
 
 function filterPaperNodes(nodes: ResourceNode[]): ResourceNode[] {
-  const isPaperFile = (path: string) => /\.(pdf|bib)$/i.test(String(path ?? ""));
   const walk = (node: ResourceNode): ResourceNode | null => {
     if (node.kind === "file") {
-      return isPaperFile(node.relativePath) ? node : null;
+      return /\.(pdf|bib)$/i.test(String(node.relativePath ?? "")) ? node : null;
     }
-    const children = node.children
+    const rawChildren = node.children
       .map((child) => walk(child))
       .filter((child): child is ResourceNode => Boolean(child));
+    const bibStems = new Set(
+      rawChildren
+        .filter((child) => child.kind === "file" && /\.bib$/i.test(child.relativePath))
+        .map((child) => child.name.replace(/\.bib$/i, "").toLowerCase()),
+    );
+    const children = rawChildren.filter((child) => {
+      if (child.kind !== "file") {
+        return true;
+      }
+      if (!/\.pdf$/i.test(child.relativePath)) {
+        return true;
+      }
+      const stem = child.name.replace(/\.pdf$/i, "").toLowerCase();
+      return !bibStems.has(stem);
+    });
     if (children.length === 0) {
       return null;
     }

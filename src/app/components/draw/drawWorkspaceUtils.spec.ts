@@ -12,8 +12,7 @@ describe("drawWorkspaceUtils", () => {
   });
 
   it("supports plain-text export payloads when draw.io does not send base64", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    const writeBinary = vi.fn().mockResolvedValue(undefined);
+    const saveAsset = vi.fn().mockImplementation(async (path: string) => path);
     const onAfterSave = vi.fn();
 
     const savedPath = await persistDrawExportToWorkspace({
@@ -26,17 +25,15 @@ describe("drawWorkspaceUtils", () => {
         filename: "diagram-export",
         data: "<svg><text>demo</text></svg>",
       },
-      writeText,
-      writeBinary,
+      saveAsset,
       onAfterSave,
     });
 
     expect(savedPath).toBe("drawings/diagram-export.svg");
-    expect(writeText).toHaveBeenCalledWith(
+    expect(saveAsset).toHaveBeenCalledWith(
       "drawings/diagram-export.svg",
-      "<svg><text>demo</text></svg>",
+      new TextEncoder().encode("<svg><text>demo</text></svg>"),
     );
-    expect(writeBinary).not.toHaveBeenCalled();
     expect(onAfterSave).toHaveBeenCalledWith("drawings/diagram-export.svg");
   });
 

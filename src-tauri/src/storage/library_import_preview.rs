@@ -174,11 +174,13 @@ pub fn import_library_pdf(
     touch_project_updated_at(db_path, project_id)?;
 
     let relative_path = to_library_relative(&papers_root, &target_pdf)?;
+    let bib_relative_path = to_library_relative(&papers_root, &target_pdf.with_extension("bib"))?;
 
     Ok(LibraryPdfImportResponse {
         ok: true,
         message: "Paper PDF imported".to_string(),
-        relative_path,
+        relative_path: bib_relative_path,
+        pdf_relative_path: relative_path,
     })
 }
 
@@ -489,5 +491,51 @@ pub fn library_citation_summary_remote(
         merge_remote_citation_summary(&mut summary, remote);
     }
     Ok(summary)
+}
+
+#[cfg(test)]
+mod library_import_preview_tests {
+    use super::import_library_pdf;
+    use crate::storage;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "latotex-library-import-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn import_library_pdf_returns_bib_as_primary_path() {
+        let temp_root = unique_temp_dir("pdf-primary-bib");
+        let runtime_root = temp_root.join("runtime");
+        let projects_dir = runtime_root.join("projects");
+        let db_path = runtime_root.join("latotex.db");
+        fs::create_dir_all(&projects_dir).unwrap();
+        storage::initialize_database(&db_path).unwrap();
+        let snapshot = storage::create_project(&db_path, &projects_dir, "Library Import Test").unwrap();
+
+        let source_pdf = temp_root.join("sample-paper.pdf");
+        fs::write(&source_pdf, b"%PDF-sample-paper").unwrap();
+
+        let result = import_library_pdf(&db_path, &snapshot.summary.id, &source_pdf).unwrap();
+
+        assert!(result.relative_path.ends_with(".bib"));
+        assert!(result.pdf_relative_path.ends_with(".pdf"));
+        assert!(PathBuf::from(&snapshot.summary.root_path)
+            .join(".latotex")
+            .join("papers")
+            .join(result.relative_path.replace('/', "\\"))
+            .exists());
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
 }
 

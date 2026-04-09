@@ -54,6 +54,7 @@ vi.mock("./library/LibraryViewerContentPanel", () => ({
         data-pdf-url={props.pdfUrl}
         data-loading={String(Boolean(props.loading))}
         data-bib-preview={props.bibPreview}
+        data-view-mode={props.viewMode}
       />
     );
   }),
@@ -167,6 +168,59 @@ describe("LibraryDocumentViewer", () => {
     expect(viewer?.getAttribute("data-pdf-url")).toBe("blob:library-document-pdf");
     expect(viewer?.getAttribute("data-loading")).toBe("false");
     expect(viewer?.getAttribute("data-bib-preview")).toBe("@article{demo,title={Demo Paper}}");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("resets to bib view when a different library entry is selected", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/demo.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="pdf"
+          translationModelId={null}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
+    ).toBe("bib");
+
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/second.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="pdf"
+          translationModelId={null}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
+    ).toBe("bib");
 
     await act(async () => {
       root.unmount();
