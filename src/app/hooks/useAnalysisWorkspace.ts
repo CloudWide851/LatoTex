@@ -18,6 +18,21 @@ import { ensureAnalysisTasksLoaded, isRetryableAnalysisProviderError, runRolePro
 import type { AnalysisSourceType, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
 import { nowIso } from "./analysisTypes";
 import {
+  buildAnalysisPromptSignature,
+  buildPaperChunkSummariesCacheKey,
+  buildPaperCondensedSourceCacheKey,
+  buildPaperContextSignature,
+  buildPythonProfileCacheKey,
+  buildSnapshotSignature,
+  loadAnalysisStageCache,
+  readCachedAnalysisStageValue,
+  saveAnalysisStageCache,
+  trimCachedPythonProfile,
+  writeCachedAnalysisStageValue,
+  type AnalysisCachedChunkSummaries,
+  type AnalysisStageCacheStore,
+} from "./analysisStageCache";
+import {
   parsePayloadJson,
   summarizeSnapshotsForPrompt,
   upsertRun,
@@ -60,6 +75,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const [liveStageLabel, setLiveStageLabel] = useState("");
   const loadedRef = useRef(false);
   const tasksRef = useRef<AnalysisTask[]>([]);
+  const stageCacheRef = useRef<AnalysisStageCacheStore | null>(null);
+  const stageCacheProjectIdRef = useRef<string | null>(null);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runInFlightRef = useRef(false);
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
@@ -125,6 +142,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   useEffect(() => {
     tasksRef.current = tasks;
   }, [tasks]);
+  useEffect(() => {
+    if (stageCacheProjectIdRef.current !== projectId) {
+      stageCacheProjectIdRef.current = projectId;
+      stageCacheRef.current = null;
+    }
+  }, [projectId]);
   useEffect(() => {
     if (!projectId) {
       setTasks([]);
@@ -262,6 +285,25 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     });
   }, [activeTaskId]);
   const ensureTasksReady = useCallback(async () => ensureAnalysisTasksLoaded(loadedRef), []);
+  const ensureStageCache = useCallback(async () => {
+    if (!projectId) {
+      return { version: 1, entries: {} } as AnalysisStageCacheStore;
+    }
+    if (!stageCacheRef.current || stageCacheProjectIdRef.current !== projectId) {
+      stageCacheRef.current = await loadAnalysisStageCache(projectId);
+      stageCacheProjectIdRef.current = projectId;
+    }
+    return stageCacheRef.current;
+  }, [projectId]);
+  const persistStageCacheEntry = useCallback(async (key: string, value: unknown) => {
+    if (!projectId) {
+      return;
+    }
+    const store = await ensureStageCache();
+    const nextStore = writeCachedAnalysisStageValue(store, key, value);
+    stageCacheRef.current = nextStore;
+    await saveAnalysisStageCache(projectId, nextStore);
+  }, [ensureStageCache, projectId]);
   const runAnalysisForPrompt = useCallback(async (
     inputPrompt: string,
     options?: {
@@ -315,6 +357,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         setLiveStageLabel(label);
       };
       const runIds: string[] = [];
+      const stageCache = await ensureStageCache();
       const runRolePromptWithTrace = async (
         workflowId: string,
         promptText: string,
@@ -335,6 +378,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       };
       const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
       const outputLanguageLabel = languageLabel(outputLanguage);
+      const promptSignature = buildAnalysisPromptSignature(normalizedPrompt, outputLanguageLabel);
       const contextRefs: string[] = [];
       if (selectedFile) {
         contextRefs.push(`file:${selectedFile}`);
@@ -348,7 +392,14 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         setStage(t("analysis.step.paperExtract"));
         steps.push(currentStage);
         const paperContext = await buildPaperAnalysisContext(projectId, task.sourcePath);
-        const { chunkSummaries, chunkFailures } = await summarizePaperChunks({
+        const paperContextSignature = buildPaperContextSignature(paperContext);
+        const chunkCacheKey = buildPaperChunkSummariesCacheKey(
+          task.sourcePath,
+          outputLanguageLabel,
+          paperContextSignature,
+        );
+        const cachedChunks = readCachedAnalysisStageValue<AnalysisCachedChunkSummaries>(stageCache, chunkCacheKey);
+        const { chunkSummaries, chunkFailures } = cachedChunks ?? await summarizePaperChunks({
           chunks: paperContext.chunks,
           outputLanguageLabel,
           runChunkPrompt: (promptText) =>
@@ -360,6 +411,18 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
             ).catch(() => undefined);
           },
         });
+        if (cachedChunks) {
+          await runtimeLogWrite(
+            "INFO",
+            `analysis cache hit: paper chunk summaries, path=${task.sourcePath}`,
+          ).catch(() => undefined);
+        } else {
+          await persistStageCacheEntry(chunkCacheKey, { chunkSummaries, chunkFailures });
+          await runtimeLogWrite(
+            "INFO",
+            `analysis cache store: paper chunk summaries, path=${task.sourcePath}`,
+          ).catch(() => undefined);
+        }
         if (paperContext.chunks.length > 0 && chunkSummaries.length === 0) {
           throw new Error(`analysis.paper.chunk_failed_all(${chunkFailures})`);
         }
@@ -369,23 +432,40 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         if (shouldCondensePaperSource(rawPaperSourceBlock, paperContext.chunks.length)) {
           setStage(t("analysis.step.crossFile"));
           steps.push(currentStage);
-          try {
-            const condensedResult = await runRolePromptWithTrace(
-              "analysis.synthesize",
-              buildPaperCondensePrompt({
-                outputLanguageLabel,
-                normalizedPrompt,
-                paperContext,
-                chunkSummaries,
-              }),
-              contextRefs,
-              true,
-            );
-            sourceBlock = buildCondensedPaperSourceBlock(paperContext, condensedResult.output);
+          const condenseCacheKey = buildPaperCondensedSourceCacheKey(
+            task.sourcePath,
+            outputLanguageLabel,
+            paperContextSignature,
+            promptSignature,
+          );
+          const cachedCondensedSource = readCachedAnalysisStageValue<string>(stageCache, condenseCacheKey);
+          if (cachedCondensedSource) {
+            sourceBlock = cachedCondensedSource;
             synthesisFallbackSourceBlock = buildFallbackPaperSourceBlock(sourceBlock);
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
-            await runtimeLogWrite("WARN", `analysis paper condense failed: ${reason}`).catch(() => undefined);
+            await runtimeLogWrite(
+              "INFO",
+              `analysis cache hit: paper condensed source, path=${task.sourcePath}`,
+            ).catch(() => undefined);
+          } else {
+            try {
+              const condensedResult = await runRolePromptWithTrace(
+                "analysis.synthesize",
+                buildPaperCondensePrompt({
+                  outputLanguageLabel,
+                  normalizedPrompt,
+                  paperContext,
+                  chunkSummaries,
+                }),
+                contextRefs,
+                true,
+              );
+              sourceBlock = buildCondensedPaperSourceBlock(paperContext, condensedResult.output);
+              synthesisFallbackSourceBlock = buildFallbackPaperSourceBlock(sourceBlock);
+              await persistStageCacheEntry(condenseCacheKey, sourceBlock);
+            } catch (error) {
+              const reason = error instanceof Error ? error.message : String(error);
+              await runtimeLogWrite("WARN", `analysis paper condense failed: ${reason}`).catch(() => undefined);
+            }
           }
         }
         snapshots = [
@@ -415,20 +495,40 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         setStage(t("analysis.step.profileEachFile"));
         steps.push(currentStage);
         let pythonProfileText = "{}";
+        const snapshotSignature = buildSnapshotSignature(snapshots);
+        const pythonProfileCacheKey = buildPythonProfileCacheKey(
+          outputLanguageLabel,
+          promptSignature,
+          snapshotSignature,
+        );
+        const cachedPythonProfile = readCachedAnalysisStageValue<ReturnType<typeof trimCachedPythonProfile>>(
+          stageCache,
+          pythonProfileCacheKey,
+        );
         try {
-          const envStatus = await analysisEnvPrepare(projectId);
-          const pythonProfile = await analysisRunPython({
-            projectId,
-            taskId: task.id,
-            prompt: normalizedPrompt,
-            outputLanguage: outputLanguageLabel,
-            snapshots,
-          });
+          let pythonProfile: ReturnType<typeof trimCachedPythonProfile>;
+          if (cachedPythonProfile) {
+            pythonProfile = cachedPythonProfile;
+            await runtimeLogWrite(
+              "INFO",
+              `analysis cache hit: python profile, files=${snapshots.length}`,
+            ).catch(() => undefined);
+          } else {
+            const envStatus = await analysisEnvPrepare(projectId);
+            pythonProfile = trimCachedPythonProfile(await analysisRunPython({
+              projectId,
+              taskId: task.id,
+              prompt: normalizedPrompt,
+              outputLanguage: outputLanguageLabel,
+              snapshots,
+            }));
+            await runtimeLogWrite(
+              "INFO",
+              `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`,
+            ).catch(() => undefined);
+            await persistStageCacheEntry(pythonProfileCacheKey, pythonProfile);
+          }
           pythonProfileText = JSON.stringify(pythonProfile.profileJson, null, 2).slice(0, 12000);
-          await runtimeLogWrite(
-            "INFO",
-            `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`
-          ).catch(() => undefined);
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           pythonProfileText = JSON.stringify({
@@ -547,6 +647,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     candidateFiles,
     csvCandidateFiles,
     editorContent,
+    ensureStageCache,
     ensureTasksReady,
     locale,
     projectId,
@@ -554,6 +655,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     setToast,
     t,
     updateTaskById,
+    persistStageCacheEntry,
   ]);
   const runAnalysis = useCallback(async () => runAnalysisForPrompt(prompt), [prompt, runAnalysisForPrompt]);
   const runAnalysisWithPrompt = useCallback(
@@ -593,18 +695,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [projectId, setToast]);
   return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -16,9 +17,9 @@ import type {
   AnnotationTextStylePreset,
 } from "./annotationModel";
 import { PdfAnnotationLayer } from "./PdfAnnotationLayer";
+import { resolveVisiblePdfPage, type PdfPageMetrics } from "./libraryPdfScrollState";
 
 ensureReactPdfWorker();
-const PDF_VIRTUAL_PADDING_PAGES = 3;
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
@@ -81,6 +82,25 @@ function ensureSyncGroup(
   return syncGroupRef.current;
 }
 
+function collectPageMetrics(
+  pageRefs: Record<number, HTMLDivElement | null>,
+  pageCount: number,
+): PdfPageMetrics[] {
+  const metrics: PdfPageMetrics[] = [];
+  for (let page = 1; page <= Math.max(1, pageCount); page += 1) {
+    const node = pageRefs[page];
+    if (!node) {
+      continue;
+    }
+    metrics.push({
+      page,
+      top: node.offsetTop,
+      height: node.offsetHeight,
+    });
+  }
+  return metrics;
+}
+
 export const LibraryPdfScrollViewer = forwardRef<
   LibraryPdfScrollViewerHandle,
   LibraryPdfScrollViewerProps
@@ -117,7 +137,6 @@ export const LibraryPdfScrollViewer = forwardRef<
   const syncingScrollRef = useRef(false);
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
-  const [visiblePage, setVisiblePage] = useState(1);
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
   const lastVisiblePageRef = useRef<number>(1);
 
@@ -130,10 +149,22 @@ export const LibraryPdfScrollViewer = forwardRef<
     const base = Math.max(360, Math.floor((viewportWidth - 42) * 0.92));
     return Math.floor(base * zoom);
   }, [viewportWidth, zoom]);
-  const estimatedPageHeight = useMemo(
-    () => Math.max(340, Math.floor(frameWidth * 1.42) + 16),
-    [frameWidth],
-  );
+
+  const updateVisiblePage = useCallback(() => {
+    const root = scrollRef.current;
+    if (!root) {
+      return;
+    }
+    const next = resolveVisiblePdfPage(
+      collectPageMetrics(pageRefs.current, documentPages),
+      root.scrollTop,
+      root.clientHeight,
+    );
+    if (next !== lastVisiblePageRef.current) {
+      lastVisiblePageRef.current = next;
+      onVisiblePageChange(next);
+    }
+  }, [documentPages, onVisiblePageChange]);
 
   useImperativeHandle(ref, () => ({
     scrollToPage: (page: number) => {
@@ -141,18 +172,20 @@ export const LibraryPdfScrollViewer = forwardRef<
       const target = pageRefs.current[normalized];
       if (!target) {
         pendingScrollPageRef.current = normalized;
-        if (scrollRef.current) {
-          scrollRef.current.scrollTo({
-            top: Math.max(0, (normalized - 1) * estimatedPageHeight),
-            behavior: "smooth",
-          });
-        }
         return;
       }
       pendingScrollPageRef.current = null;
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      const root = scrollRef.current;
+      if (!root) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      root.scrollTo({
+        top: Math.max(0, target.offsetTop - 8),
+        behavior: "smooth",
+      });
     },
-  }), [documentPages, estimatedPageHeight]);
+  }), [documentPages]);
 
   useEffect(() => {
     setDocumentLoadError(null);
@@ -198,6 +231,7 @@ export const LibraryPdfScrollViewer = forwardRef<
       syncResetRafRef.current = window.requestAnimationFrame(() => {
         syncingScrollRef.current = false;
         syncResetRafRef.current = null;
+        updateVisiblePage();
       });
     };
     group.viewers.set(syncId, applyRatio);
@@ -212,24 +246,13 @@ export const LibraryPdfScrollViewer = forwardRef<
         syncResetRafRef.current = null;
       }
     };
-  }, [syncGroupRef, syncId]);
+  }, [syncGroupRef, syncId, updateVisiblePage]);
 
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) {
       return;
     }
-    const updateVisiblePage = () => {
-      const next = Math.max(
-        1,
-        Math.min(documentPages, Math.floor(root.scrollTop / Math.max(1, estimatedPageHeight)) + 1),
-      );
-      setVisiblePage((prev) => (prev === next ? prev : next));
-      if (next !== lastVisiblePageRef.current) {
-        lastVisiblePageRef.current = next;
-        onVisiblePageChange(next);
-      }
-    };
     updateVisiblePage();
     const onScroll = () => {
       if (scrollRafRef.current !== null) {
@@ -264,13 +287,12 @@ export const LibraryPdfScrollViewer = forwardRef<
         scrollRafRef.current = null;
       }
     };
-  }, [documentPages, estimatedPageHeight, onVisiblePageChange, syncGroupRef, syncId]);
+  }, [syncGroupRef, syncId, updateVisiblePage]);
 
   useEffect(() => {
     pendingScrollPageRef.current = null;
     pageRefs.current = {};
     setDocumentPages(Math.max(1, pageCount || 1));
-    setVisiblePage(1);
     lastVisiblePageRef.current = 1;
     onVisiblePageChange(1);
     onPageCountChange(Math.max(1, pageCount || 1));
@@ -293,21 +315,20 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [documentPages, pdfUrl, syncGroupRef, syncId, viewportWidth]);
 
   useEffect(() => {
-    setDocumentLoadError(null);
-  }, [pdfUrl]);
-
-  useEffect(() => {
     const pending = pendingScrollPageRef.current;
     if (pending === null) {
       return;
     }
     const target = pageRefs.current[pending];
-    if (!target) {
+    if (!target || !scrollRef.current) {
       return;
     }
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollRef.current.scrollTo({
+      top: Math.max(0, target.offsetTop - 8),
+      behavior: "smooth",
+    });
     pendingScrollPageRef.current = null;
-  }, [pages, visiblePage]);
+  }, [documentPages, pages, viewportWidth]);
 
   const rootProps = {
     ref: scrollRef,
@@ -346,27 +367,28 @@ export const LibraryPdfScrollViewer = forwardRef<
           setDocumentLoadError(null);
           const next = Math.max(1, numPages || 1);
           setDocumentPages(next);
-          setVisiblePage((prev) => Math.max(1, Math.min(next, prev)));
           onPageCountChange(next);
-          const pending = pendingScrollPageRef.current;
-          if (pending !== null) {
-            window.setTimeout(() => {
-              const target = pageRefs.current[Math.max(1, Math.min(next, pending))];
-              if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "start" });
-                pendingScrollPageRef.current = null;
-              }
-            }, 20);
-          }
           if (lastVisiblePageRef.current > next) {
             lastVisiblePageRef.current = 1;
             onVisiblePageChange(1);
           }
+          window.requestAnimationFrame(() => {
+            updateVisiblePage();
+            const pending = pendingScrollPageRef.current;
+            const root = scrollRef.current;
+            const target = pending === null ? null : pageRefs.current[Math.max(1, Math.min(next, pending))];
+            if (pending !== null && root && target) {
+              root.scrollTo({
+                top: Math.max(0, target.offsetTop - 8),
+                behavior: "smooth",
+              });
+              pendingScrollPageRef.current = null;
+            }
+          });
         }}
         onLoadError={(error) => {
           setDocumentLoadError(String(error || "pdf_load_failed"));
           setDocumentPages(1);
-          setVisiblePage(1);
           onPageCountChange(1);
           lastVisiblePageRef.current = 1;
           onVisiblePageChange(1);
@@ -383,35 +405,43 @@ export const LibraryPdfScrollViewer = forwardRef<
             className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
             style={{ width: `${frameWidth}px` }}
           >
-            {page >= Math.max(1, visiblePage - PDF_VIRTUAL_PADDING_PAGES)
-            && page <= Math.min(documentPages, visiblePage + PDF_VIRTUAL_PADDING_PAGES) ? (
-              <>
-                <Page
-                  pageNumber={page}
-                  width={frameWidth}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                  loading={null}
-                />
-                {readOnly ? null : (
-                  <PdfAnnotationLayer
-                    page={page}
-                    mode={mode}
-                    highlightColor={highlightColor}
-                    highlightWidth={highlightWidth}
-                    highlightOpacity={highlightOpacity}
-                    textColor={textColor}
-                    textBoxStylePreset={textBoxStylePreset}
-                    strokes={strokes}
-                    textBoxes={textBoxes}
-                    onStrokesChange={onStrokesChange}
-                    onTextBoxesChange={onTextBoxesChange}
-                    t={t}
-                  />
-                )}
-              </>
-            ) : (
-              <div style={{ height: `${estimatedPageHeight}px` }} />
+            <Page
+              pageNumber={page}
+              width={frameWidth}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+              loading={null}
+              onRenderSuccess={() => {
+                window.requestAnimationFrame(() => {
+                  updateVisiblePage();
+                  const pending = pendingScrollPageRef.current;
+                  const root = scrollRef.current;
+                  const target = pending === null ? null : pageRefs.current[pending];
+                  if (pending !== null && root && target && target.offsetHeight > 0) {
+                    root.scrollTo({
+                      top: Math.max(0, target.offsetTop - 8),
+                      behavior: "smooth",
+                    });
+                    pendingScrollPageRef.current = null;
+                  }
+                });
+              }}
+            />
+            {readOnly ? null : (
+              <PdfAnnotationLayer
+                page={page}
+                mode={mode}
+                highlightColor={highlightColor}
+                highlightWidth={highlightWidth}
+                highlightOpacity={highlightOpacity}
+                textColor={textColor}
+                textBoxStylePreset={textBoxStylePreset}
+                strokes={strokes}
+                textBoxes={textBoxes}
+                onStrokesChange={onStrokesChange}
+                onTextBoxesChange={onTextBoxesChange}
+                t={t}
+              />
             )}
           </div>
         ))}

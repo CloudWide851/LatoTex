@@ -1,8 +1,8 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
 import { getEvents } from "../../shared/api/agent";
-import { openProject } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
+import { getWorkspaceTree } from "../../shared/api/workspace";
 import type { SwarmEvent } from "../../shared/types/app";
 import {
   applyTheme,  type ThemeMode,
@@ -151,8 +151,7 @@ export function useAppEffects(params: {
       }
       void (async () => {
         try {
-          const snapshot = await openProject(activeProjectId);
-          setTree(snapshot.tree);
+          setTree(await getWorkspaceTree(activeProjectId));
           await refreshGitWorkspace(activeProjectId).catch(() => undefined);
         } catch {
           // ignore best-effort rescan failures for draw export refresh
