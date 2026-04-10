@@ -23,6 +23,7 @@ import { BackgroundImageCard } from "./settings/BackgroundImageCard";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
+import { SettingsSelectRow } from "./settings/SettingsSelectRow";
 
 type TranslationFn = (key: any) => string;
 
@@ -206,46 +207,35 @@ export function SettingsPanel(props: {
 
         {settingsSection === "general" && (
           <div className="grid gap-3">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-800">
-                {t("settings.languageTitle")}
-              </h3>
-              <div className="grid max-w-xs gap-2">
-                <Select
-                  value={locale}
-                  onChange={(event) => onLocaleChange(event.target.value as Locale)}
-                >
-                  <option value="zh-CN">{t("settings.language.zh-CN")}</option>
-                  <option value="en-US">{t("settings.language.en-US")}</option>
-                </Select>
-                <p className="text-xs text-slate-500">
-                  {t("settings.languageAuto")}: {" "}
-                  {detectSystemLocale() === "zh-CN"
-                    ? t("settings.language.zh-CN")
-                    : t("settings.language.en-US")}
-                </p>
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-800">
-                {t("settings.paperBriefEngineTitle")}
-              </h3>
-              <div className="grid max-w-xs gap-2">
-                <Select
-                  value={paperBriefEngine}
-                  onChange={(event) =>
-                    updateGeneralUiPrefs({
-                      paperBriefEngine: event.target.value as "auto" | "pdfjs" | "python",
-                    })
-                  }
-                >
-                  <option value="auto">{t("settings.paperBriefEngine.auto")}</option>
-                  <option value="pdfjs">{t("settings.paperBriefEngine.pdfjs")}</option>
-                  <option value="python">{t("settings.paperBriefEngine.python")}</option>
-                </Select>
-                <p className="text-xs text-slate-500">{t("settings.paperBriefEngineHint")}</p>
-              </div>
-            </div>
+            <SettingsSelectRow
+              title={t("settings.languageTitle")}
+              value={locale}
+              description={`${t("settings.languageAuto")}: ${
+                detectSystemLocale() === "zh-CN"
+                  ? t("settings.language.zh-CN")
+                  : t("settings.language.en-US")
+              }`}
+              options={[
+                { value: "zh-CN", label: t("settings.language.zh-CN") },
+                { value: "en-US", label: t("settings.language.en-US") },
+              ]}
+              onChange={(value) => onLocaleChange(value as Locale)}
+            />
+            <SettingsSelectRow
+              title={t("settings.paperBriefEngineTitle")}
+              value={paperBriefEngine}
+              description={t("settings.paperBriefEngineHint")}
+              options={[
+                { value: "auto", label: t("settings.paperBriefEngine.auto") },
+                { value: "pdfjs", label: t("settings.paperBriefEngine.pdfjs") },
+                { value: "python", label: t("settings.paperBriefEngine.python") },
+              ]}
+              onChange={(value) =>
+                updateGeneralUiPrefs({
+                  paperBriefEngine: value as "auto" | "pdfjs" | "python",
+                })
+              }
+            />
             <SettingsBooleanRow
               label={t("settings.deleteConfirm")}
               checked={deleteConfirmEnabled}

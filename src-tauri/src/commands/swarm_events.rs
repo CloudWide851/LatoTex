@@ -172,28 +172,76 @@ pub(super) fn emit_response_event(
     let card_key = format!("{run_id}:{stage}:{source}:{event_scope}:response");
     for chunk in output.as_bytes().chunks(520) {
         let text = String::from_utf8_lossy(chunk).to_string();
-        let mut payload = envelope(
-            run_id,
-            source,
-            stage,
-            "running",
-            &format!("{stage} · output"),
-            &text,
-            &card_key,
-        );
-        if let Some(object) = payload.as_object_mut() {
-            object.insert("append".to_string(), json!(true));
-        }
-        apply_metadata(&mut payload, metadata);
-        append_protocol_event(
+        emit_response_delta_event(
             db_path,
             run_id,
             project_id,
             event_scope,
-            "responses.output_text.delta",
-            payload,
+            source,
+            stage,
+            &text,
+            &card_key,
+            metadata,
         )?;
     }
+    emit_response_completed_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        output,
+        &card_key,
+        metadata,
+    )
+}
+
+pub(super) fn emit_response_delta_event(
+    db_path: &Path,
+    run_id: &str,
+    project_id: &str,
+    event_scope: &str,
+    source: &str,
+    stage: &str,
+    chunk: &str,
+    card_key: &str,
+    metadata: EventMetadata<'_>,
+) -> Result<(), String> {
+    let mut payload = envelope(
+        run_id,
+        source,
+        stage,
+        "running",
+        &format!("{stage} · output"),
+        chunk,
+        card_key,
+    );
+    if let Some(object) = payload.as_object_mut() {
+        object.insert("append".to_string(), json!(true));
+    }
+    apply_metadata(&mut payload, metadata);
+    append_protocol_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        "responses.output_text.delta",
+        payload,
+    )
+}
+
+pub(super) fn emit_response_completed_event(
+    db_path: &Path,
+    run_id: &str,
+    project_id: &str,
+    event_scope: &str,
+    source: &str,
+    stage: &str,
+    output: &str,
+    card_key: &str,
+    metadata: EventMetadata<'_>,
+) -> Result<(), String> {
     let mut completed_payload = envelope(
         run_id,
         source,
@@ -211,8 +259,7 @@ pub(super) fn emit_response_event(
         event_scope,
         "responses.output_text.completed",
         completed_payload,
-    )?;
-    Ok(())
+    )
 }
 
 pub(super) fn run_envelope(

@@ -11,6 +11,41 @@ import {
 
 type TranslationFn = (key: any) => string;
 
+export function buildPendingAnalysisRun(input: {
+  task: AnalysisTask;
+  prompt: string;
+  outputLanguage: AnalysisOutputLanguage;
+  runId?: string;
+  t: TranslationFn;
+}): AnalysisTaskRun {
+  const { task, prompt, outputLanguage, runId, t } = input;
+  const createdAt = nowIso();
+  return {
+    id: runId ?? newRunId("analysis-run"),
+    prompt,
+    title: `${task.name} - ${t("analysis.running")}`,
+    summary: "",
+    status: "running",
+    reportRelativePath: "",
+    assetRelativePaths: [],
+    labels: [],
+    values: [],
+    insights: [],
+    steps: [],
+    draftOutputText: "",
+    liveStageLabel: "",
+    failureMessage: undefined,
+    sourceType: task.sourceType,
+    sourcePath: task.sourcePath,
+    inputFiles: [],
+    outputLanguage,
+    agentRunId: undefined,
+    eventRunIds: [],
+    createdAt,
+    updatedAt: createdAt,
+  };
+}
+
 export function hasStructuredAnalysisOutput(parsed: AgentAnalysisPayload): boolean {
   return Boolean(
     (typeof parsed.title === "string" && parsed.title.trim().length > 0)
@@ -30,6 +65,7 @@ export function buildCompletedAnalysisRun(input: {
   agentRunId: string;
   prompt: string;
   steps: string[];
+  runId?: string;
   t: TranslationFn;
 }): { runRecord: AnalysisTaskRun; reportHtml: string; chartDataUrl: string } {
   const {
@@ -42,6 +78,7 @@ export function buildCompletedAnalysisRun(input: {
     agentRunId,
     prompt,
     steps,
+    runId,
     t,
   } = input;
 
@@ -65,7 +102,7 @@ export function buildCompletedAnalysisRun(input: {
     .filter((item) => item.trim())
     .slice(0, 24);
   const sections = deriveSections(parsed);
-  const runRecordId = newRunId("analysis-run");
+  const runRecordId = runId ?? newRunId("analysis-run");
   const resultTitle = (parsed.title?.trim() || `${task.name} - ${t("analysis.defaultTitle")}`).slice(0, 120);
   const resultSummary = parsed.summary?.trim() || t("analysis.defaultSummary");
   const report = buildReportHtml({
@@ -87,12 +124,16 @@ export function buildCompletedAnalysisRun(input: {
       prompt,
       title: resultTitle,
       summary: resultSummary,
+      status: "completed",
       reportRelativePath: "",
       assetRelativePaths: [],
       labels,
       values,
       insights,
       steps: mergedSteps,
+      draftOutputText: undefined,
+      liveStageLabel: undefined,
+      failureMessage: undefined,
       sourceType: task.sourceType,
       sourcePath: task.sourcePath,
       inputFiles: resolvedInputFiles,

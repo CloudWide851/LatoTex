@@ -36,6 +36,7 @@ export async function runRolePromptWithAgent(params: {
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
+  onAcceptedRunId?: (runId: string) => void;
 }): Promise<{ runId: string; output: string }> {
   const {
     projectId,
@@ -44,6 +45,7 @@ export async function runRolePromptWithAgent(params: {
     contextRefs,
     modelOverride,
     bypassCache = false,
+    onAcceptedRunId,
   } = params;
   const promptRefContext = extractPromptRefValues(promptText).map((path) => `file:${path}`);
   const mergedContextRefs = Array.from(new Set([...contextRefs, ...promptRefContext]));
@@ -62,6 +64,7 @@ export async function runRolePromptWithAgent(params: {
         modelOverride,
         bypassCache: runBypassCache,
       });
+      onAcceptedRunId?.(accepted.runId);
       return {
         runId: accepted.runId,
         output: await waitForRunOutput(accepted.runId),

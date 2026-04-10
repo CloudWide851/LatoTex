@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-tectonic-assets.mjs && node scripts/ensure-pdf-tools.mjs && tsc && vite build",
+    "dev": "node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-cloudflared-assets.mjs && vite --host 0.0.0.0 --port 1420",
+    "build": "node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-tectonic-assets.mjs && node scripts/ensure-pdf-tools.mjs && node scripts/ensure-cloudflared-assets.mjs && tsc && vite build",
     "typecheck": "tsc --noEmit",
     "stitch:init": "pnpm exec stitch-mcp init --client codex --transport stdio",
     "stitch:doctor": "pnpm exec stitch-mcp doctor",

@@ -52,6 +52,7 @@ import {
 } from "./analysisPaperSynthesis";
 import {
   buildCompletedAnalysisRun,
+  buildPendingAnalysisRun,
   hasStructuredAnalysisOutput,
 } from "./analysisWorkspaceRunResult";
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
@@ -79,6 +80,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const stageCacheProjectIdRef = useRef<string | null>(null);
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const runInFlightRef = useRef(false);
+  const liveTaskIdRef = useRef<string | null>(null);
+  const liveTaskRunIdRef = useRef<string | null>(null);
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
   const csvCandidateFiles = useMemo(
     () => candidateFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
@@ -222,6 +225,35 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
     setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
+  useEffect(() => {
+    const taskId = liveTaskIdRef.current;
+    const runId = liveTaskRunIdRef.current;
+    if (!running || !taskId || !runId) {
+      return;
+    }
+    updateTaskById(taskId, (task) => {
+      const existing = task.runs.find((item) => item.id === runId);
+      if (!existing) {
+        return task;
+      }
+      const nextDraft = liveOutput || existing.draftOutputText || "";
+      const nextStage = liveStage || existing.liveStageLabel || "";
+      if (
+        existing.status === "running"
+        && existing.draftOutputText === nextDraft
+        && existing.liveStageLabel === nextStage
+      ) {
+        return task;
+      }
+      return upsertRun(task, {
+        ...existing,
+        status: "running",
+        draftOutputText: nextDraft,
+        liveStageLabel: nextStage,
+        updatedAt: nowIso(),
+      });
+    });
+  }, [liveOutput, liveStage, running, updateTaskById]);
   const onDropPromptPaths = useCallback((paths: string[]) => {
     const resolvedPaths = resolveDroppedPromptRefs(paths, candidateFiles);
     if (resolvedPaths.length === 0) {
@@ -348,9 +380,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       updatedAt: nowIso(),
     }));
     setRunning(true);
+    setActiveRunHtml("");
     setLiveRunIds([]);
     setLiveStageLabel("");
     let currentStage = t("analysis.step.agentSynthesis");
+    let pendingRunFallback: AnalysisTaskRun | null = null;
+    let pendingRunId = "";
     try {
       const setStage = (label: string) => {
         currentStage = label;
@@ -358,26 +393,56 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       };
       const runIds: string[] = [];
       const stageCache = await ensureStageCache();
+      const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
+      const outputLanguageLabel = languageLabel(outputLanguage);
+      const nextPendingRun = buildPendingAnalysisRun({
+        task,
+        prompt: normalizedPrompt,
+        outputLanguage,
+        t,
+      });
+      pendingRunFallback = nextPendingRun;
+      pendingRunId = nextPendingRun.id;
+      liveTaskIdRef.current = task.id;
+      liveTaskRunIdRef.current = pendingRunId;
+      updateTaskById(task.id, (item) => ({
+        ...upsertRun(item, nextPendingRun),
+        lastError: null,
+      }));
+      setActiveTaskId(task.id);
+      const appendAcceptedRun = (acceptedRunId: string) => {
+        runIds.push(acceptedRunId);
+        setLiveRunIds((prev) => (prev.includes(acceptedRunId) ? prev : [...prev, acceptedRunId]));
+        updateTaskById(task.id, (item) => {
+          const existing = item.runs.find((candidate) => candidate.id === pendingRunId);
+          if (!existing) {
+            return item;
+          }
+          const nextEventRunIds = Array.from(new Set([...(existing.eventRunIds ?? []), acceptedRunId]));
+          if (nextEventRunIds.length === (existing.eventRunIds ?? []).length) {
+            return item;
+          }
+          return upsertRun(item, {
+            ...existing,
+            eventRunIds: nextEventRunIds,
+            updatedAt: nowIso(),
+          });
+        });
+      };
       const runRolePromptWithTrace = async (
         workflowId: string,
         promptText: string,
         contextRefs: string[],
         bypassCache = false,
-      ) => {
-        const result = await runRolePromptWithAgent({
-          projectId,
-          workflowId,
-          promptText,
-          contextRefs,
-          modelOverride: analysisModelOverride ?? undefined,
-          bypassCache,
-        });
-        runIds.push(result.runId);
-        setLiveRunIds((prev) => (prev.includes(result.runId) ? prev : [...prev, result.runId]));
-        return result;
-      };
-      const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
-      const outputLanguageLabel = languageLabel(outputLanguage);
+      ) => runRolePromptWithAgent({
+        projectId,
+        workflowId,
+        promptText,
+        contextRefs,
+        modelOverride: analysisModelOverride ?? undefined,
+        bypassCache,
+        onAcceptedRunId: appendAcceptedRun,
+      });
       const promptSignature = buildAnalysisPromptSignature(normalizedPrompt, outputLanguageLabel);
       const contextRefs: string[] = [];
       if (selectedFile) {
@@ -591,6 +656,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         agentRunId: finalResult.runId,
         prompt: normalizedPrompt,
         steps,
+        runId: pendingRunId,
         t,
       });
       const saved = await analysisSaveReport({
@@ -607,7 +673,13 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       };
       setActiveRunHtml(completed.reportHtml);
       updateTaskById(task.id, (item) => ({
-        ...upsertRun(item, runRecord),
+        ...upsertRun(item, {
+          ...runRecord,
+          eventRunIds: Array.from(new Set([
+            ...(item.runs.find((candidate) => candidate.id === pendingRunId)?.eventRunIds ?? []),
+            ...(runRecord.eventRunIds ?? []),
+          ])),
+        }),
         lastError: null,
         draftPrompt: options?.savePrompt === false ? item.draftPrompt : "",
       }));
@@ -617,9 +689,21 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       const rawMessage = String(error);
       if (rawMessage === "agent.run.cancelled" && suspended) {
         updateTaskById(task.id, (item) => ({
-          ...item,
+          ...(() => {
+            const fallbackRun = item.runs.find((candidate) => candidate.id === pendingRunId) ?? pendingRunFallback;
+            if (!fallbackRun) {
+              return item;
+            }
+            return upsertRun(item, {
+              ...fallbackRun,
+              status: "cancelled",
+              draftOutputText: liveOutput || item.runs.find((candidate) => candidate.id === pendingRunId)?.draftOutputText || "",
+              liveStageLabel: currentStage,
+              failureMessage: undefined,
+              updatedAt: nowIso(),
+            });
+          })(),
           lastError: null,
-          updatedAt: nowIso(),
         }));
         return;
       }
@@ -630,10 +714,23 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
           : rawMessage;
       const message = `${t("analysis.error.failed")}: ${currentStage} · ${reason}`;
       updateTaskById(task.id, (item) => ({
-        ...item,
+        ...(() => {
+          const fallbackRun = item.runs.find((candidate) => candidate.id === pendingRunId) ?? pendingRunFallback;
+          if (!fallbackRun) {
+            return item;
+          }
+          return upsertRun(item, {
+            ...fallbackRun,
+            status: "failed",
+            draftOutputText: liveOutput || item.runs.find((candidate) => candidate.id === pendingRunId)?.draftOutputText || "",
+            liveStageLabel: currentStage,
+            failureMessage: message,
+            updatedAt: nowIso(),
+          });
+        })(),
         lastError: message,
-        updatedAt: nowIso(),
       }));
+      setActiveRunHtml("");
       setToast({ type: "error", message });
       await runtimeLogWrite("ERROR", `analysis run failed: stage=${currentStage}; reason=${rawMessage}`).catch(() => undefined);
     } finally {
@@ -641,15 +738,19 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setRunning(false);
       setLiveRunIds([]);
       setLiveStageLabel("");
+      liveTaskIdRef.current = null;
+      liveTaskRunIdRef.current = null;
     }
   }, [
     activeTaskId,
+    analysisModelOverride,
     candidateFiles,
     csvCandidateFiles,
     editorContent,
     ensureStageCache,
     ensureTasksReady,
     locale,
+    liveOutput,
     projectId,
     selectedFile,
     setToast,

@@ -4,8 +4,11 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::call_provider_with_retry;
-use super::swarm_events::{emit_response_event, emit_stage_event, emit_tool_event, EventMetadata};
+use super::call_provider_with_retry_streaming;
+use super::swarm_events::{
+    emit_response_completed_event, emit_response_delta_event, emit_response_event, emit_stage_event,
+    emit_tool_event, EventMetadata,
+};
 use super::swarm_workflows::{WorkflowDefinition, WorkflowStep};
 
 #[derive(Debug, Clone)]
@@ -30,15 +33,19 @@ fn build_prompt(prompt: &str, context_refs: &[String]) -> String {
     format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
 }
 
-pub(super) fn call_model_output(
+pub(super) fn call_model_output_streaming<F>(
     db_path: &Path,
     connection: &ModelConnection,
     prompt: &str,
     context_refs: &[String],
     bypass_cache: bool,
-) -> Result<String, String> {
+    on_delta: F,
+) -> Result<String, String>
+where
+    F: FnMut(&str) -> Result<(), String>,
+{
     let full_prompt = build_prompt(prompt, context_refs);
-    call_provider_with_retry(
+    call_provider_with_retry_streaming(
         Some(db_path),
         &connection.protocol_id,
         &connection.base_url,
@@ -46,6 +53,7 @@ pub(super) fn call_model_output(
         &connection.model_name,
         &full_prompt,
         bypass_cache,
+        on_delta,
     )
 }
 
@@ -176,7 +184,33 @@ pub(super) fn run_provider_step(
         metadata,
     )?;
 
-    let output = call_model_output(db_path, connection, prompt, context_refs, bypass_cache)?;
+    let response_card_key = format!("{run_id}:{stage}:{source}:{event_scope}:response");
+    let mut streamed_output = String::new();
+    let output = call_model_output_streaming(
+        db_path,
+        connection,
+        prompt,
+        context_refs,
+        bypass_cache,
+        |chunk| {
+            ensure_not_cancelled(cancel_flag)?;
+            if !chunk.is_empty() {
+                streamed_output.push_str(chunk);
+                emit_response_delta_event(
+                    db_path,
+                    run_id,
+                    project_id,
+                    event_scope,
+                    source,
+                    stage,
+                    chunk,
+                    &response_card_key,
+                    metadata,
+                )?;
+            }
+            Ok(())
+        },
+    )?;
     ensure_not_cancelled(cancel_flag)?;
 
     emit_tool_event(
@@ -191,16 +225,30 @@ pub(super) fn run_provider_step(
         &format!("chars={}", output.chars().count()),
         metadata,
     )?;
-    emit_response_event(
-        db_path,
-        run_id,
-        project_id,
-        event_scope,
-        source,
-        stage,
-        &output,
-        metadata,
-    )?;
+    if streamed_output.is_empty() {
+        emit_response_event(
+            db_path,
+            run_id,
+            project_id,
+            event_scope,
+            source,
+            stage,
+            &output,
+            metadata,
+        )?;
+    } else {
+        emit_response_completed_event(
+            db_path,
+            run_id,
+            project_id,
+            event_scope,
+            source,
+            stage,
+            &output,
+            &response_card_key,
+            metadata,
+        )?;
+    }
     emit_stage_event(
         db_path,
         run_id,

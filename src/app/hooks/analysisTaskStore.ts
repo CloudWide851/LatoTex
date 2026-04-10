@@ -1,8 +1,56 @@
 import { readFile, writeFile } from "../../shared/api/workspace";
-import type { AnalysisTask, AnalysisTaskState } from "./analysisTypes";
+import type { AnalysisRunStatus, AnalysisTask, AnalysisTaskRun, AnalysisTaskState } from "./analysisTypes";
 import { nowIso, newTaskId } from "./analysisTypes";
 
 const TASK_STORE_PATH = ".latotex/analysis/tasks.json";
+
+function normalizeRun(input: unknown): AnalysisTaskRun | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const run = input as Partial<AnalysisTaskRun>;
+  const id = typeof run.id === "string" ? run.id.trim() : "";
+  if (!id) {
+    return null;
+  }
+  const createdAt = typeof run.createdAt === "string" && run.createdAt ? run.createdAt : nowIso();
+  const updatedAt = typeof run.updatedAt === "string" && run.updatedAt ? run.updatedAt : createdAt;
+  const status = ((): AnalysisRunStatus => {
+    if (run.status === "running" || run.status === "failed" || run.status === "cancelled") {
+      return run.status;
+    }
+    return "completed";
+  })();
+  return {
+    id,
+    prompt: typeof run.prompt === "string" ? run.prompt : "",
+    title: typeof run.title === "string" && run.title.trim() ? run.title.trim() : "Analysis Run",
+    summary: typeof run.summary === "string" ? run.summary : "",
+    status,
+    reportHtml: undefined,
+    reportRelativePath: typeof run.reportRelativePath === "string" && run.reportRelativePath.trim()
+      ? run.reportRelativePath.trim()
+      : undefined,
+    assetRelativePaths: Array.isArray(run.assetRelativePaths)
+      ? run.assetRelativePaths.map((item) => String(item))
+      : [],
+    labels: Array.isArray(run.labels) ? run.labels.map((item) => String(item)) : [],
+    values: Array.isArray(run.values) ? run.values.map((item) => Number(item)) : [],
+    insights: Array.isArray(run.insights) ? run.insights.map((item) => String(item)) : [],
+    steps: Array.isArray(run.steps) ? run.steps.map((item) => String(item)) : [],
+    draftOutputText: typeof run.draftOutputText === "string" ? run.draftOutputText : undefined,
+    liveStageLabel: typeof run.liveStageLabel === "string" ? run.liveStageLabel : undefined,
+    failureMessage: typeof run.failureMessage === "string" ? run.failureMessage : undefined,
+    sourceType: run.sourceType === "paper" ? "paper" : "data",
+    sourcePath: typeof run.sourcePath === "string" && run.sourcePath.trim() ? run.sourcePath : undefined,
+    inputFiles: Array.isArray(run.inputFiles) ? run.inputFiles.map((item) => String(item)) : [],
+    outputLanguage: run.outputLanguage === "zh-CN" ? "zh-CN" : "en-US",
+    agentRunId: typeof run.agentRunId === "string" && run.agentRunId.trim() ? run.agentRunId : undefined,
+    eventRunIds: Array.isArray(run.eventRunIds) ? run.eventRunIds.map((item) => String(item)) : undefined,
+    createdAt,
+    updatedAt,
+  };
+}
 
 function normalizeTask(input: Partial<AnalysisTask>): AnalysisTask | null {
   const id = typeof input.id === "string" ? input.id.trim() : "";
@@ -25,18 +73,8 @@ function normalizeTask(input: Partial<AnalysisTask>): AnalysisTask | null {
     : undefined;
   const runs = Array.isArray(input.runs)
     ? input.runs
-        .filter((item) => item && typeof item === "object")
-        .map((item) => {
-          const run = item as Record<string, unknown>;
-          const eventRunIds = Array.isArray(run.eventRunIds)
-            ? run.eventRunIds.map((id) => String(id))
-            : undefined;
-          return {
-            ...run,
-            reportHtml: undefined,
-            eventRunIds,
-          };
-        }) as any[]
+        .map((item) => normalizeRun(item))
+        .filter((item): item is AnalysisTaskRun => Boolean(item))
     : [];
   return {
     id,

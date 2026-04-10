@@ -1,6 +1,6 @@
-import { Select } from "../../../components/ui/select";
 import type { Dispatch, SetStateAction } from "react";
 import type { AppSettings } from "../../../shared/types/app";
+import { SettingsSelectRow } from "./SettingsSelectRow";
 
 type TranslationFn = (key: any) => string;
 
@@ -11,34 +11,29 @@ export function CloseBehaviorCard(props: {
 }) {
   const { settings, setSettings, t } = props;
   return (
-    <div className="rounded-lg border border-slate-200 p-4">
-      <h3 className="mb-2 text-sm font-semibold text-slate-800">
-        {t("settings.closeBehaviorTitle")}
-      </h3>
-      <div className="grid max-w-xs gap-2">
-        <Select
-          value={settings.uiPrefs?.closeBehavior ?? "ask"}
-          onChange={(event) =>
-            setSettings((prev) =>
-              prev
-                  ? {
-                      ...prev,
-                      uiPrefs: {
-                        ...(prev.uiPrefs ?? {}),
-                        closeBehavior: event.target.value as "ask" | "tray" | "exit",
-                        closeBehaviorRemember: false,
-                      },
-                    }
-                : prev,
-            )
-          }
-        >
-          <option value="ask">{t("settings.closeBehavior.ask")}</option>
-          <option value="tray">{t("settings.closeBehavior.tray")}</option>
-          <option value="exit">{t("settings.closeBehavior.exit")}</option>
-        </Select>
-        <p className="text-xs text-slate-500">{t("settings.closeBehaviorHint")}</p>
-      </div>
-    </div>
+    <SettingsSelectRow
+      title={t("settings.closeBehaviorTitle")}
+      value={settings.uiPrefs?.closeBehavior ?? "ask"}
+      description={t("settings.closeBehaviorHint")}
+      options={[
+        { value: "ask", label: t("settings.closeBehavior.ask") },
+        { value: "tray", label: t("settings.closeBehavior.tray") },
+        { value: "exit", label: t("settings.closeBehavior.exit") },
+      ]}
+      onChange={(value) =>
+        setSettings((prev) =>
+          prev
+            ? {
+                ...prev,
+                uiPrefs: {
+                  ...(prev.uiPrefs ?? {}),
+                  closeBehavior: value as "ask" | "tray" | "exit",
+                  closeBehaviorRemember: false,
+                },
+              }
+            : prev,
+        )
+      }
+    />
   );
 }

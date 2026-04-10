@@ -2,11 +2,14 @@ export type AnalysisOutputLanguage = "zh-CN" | "en-US";
 
 export type AnalysisSourceType = "data" | "paper";
 
+export type AnalysisRunStatus = "running" | "completed" | "failed" | "cancelled";
+
 export type AnalysisTaskRun = {
   id: string;
   prompt: string;
   title: string;
   summary: string;
+  status: AnalysisRunStatus;
   reportHtml?: string;
   reportRelativePath?: string;
   assetRelativePaths: string[];
@@ -14,6 +17,9 @@ export type AnalysisTaskRun = {
   values: number[];
   insights: string[];
   steps: string[];
+  draftOutputText?: string;
+  liveStageLabel?: string;
+  failureMessage?: string;
   sourceType: AnalysisSourceType;
   sourcePath?: string;
   inputFiles: string[];

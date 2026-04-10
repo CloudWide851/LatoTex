@@ -14,7 +14,7 @@ mod swarm_supervisor;
 mod swarm_tool_search;
 #[path = "swarm_workflows.rs"]
 mod swarm_workflows;
-pub(crate) use swarm_provider::call_provider_with_retry;
+pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_retry_streaming};
 
 use crate::models::{
     Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted, CompileRecord,

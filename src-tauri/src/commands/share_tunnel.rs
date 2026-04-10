@@ -1,4 +1,5 @@
 use super::*;
+use serde::Deserialize;
 use std::io::{BufRead, BufReader};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -13,10 +14,13 @@ const CLOUDFLARED_TARGET_NAME: &str = "cloudflared.exe";
 const CLOUDFLARED_RELEASE_NAME: &str = "cloudflared-windows-amd64.exe";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-const CLOUDFLARED_DOWNLOAD_URLS: [&str; 2] = [
-    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
-    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared.exe",
-];
+const CLOUDFLARED_MANIFEST_NAME: &str = "cloudflared-version.json";
+
+#[derive(Debug, Deserialize)]
+struct CloudflaredManifest {
+    version: Option<String>,
+    file: String,
+}
 
 #[cfg(target_os = "windows")]
 fn cloudflared_runtime_binary(runtime_root: &Path) -> PathBuf {
@@ -48,6 +52,38 @@ fn cloudflared_candidate_sources(runtime_root: &Path) -> Vec<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
+fn cloudflared_manifest_candidate_paths() -> Vec<PathBuf> {
+    let mut candidates =
+        vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/tools/{CLOUDFLARED_MANIFEST_NAME}"))];
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join(format!("resources/tools/{CLOUDFLARED_MANIFEST_NAME}")));
+            candidates.push(exe_dir.join(format!("tools/{CLOUDFLARED_MANIFEST_NAME}")));
+            candidates.push(exe_dir.join(format!("../resources/tools/{CLOUDFLARED_MANIFEST_NAME}")));
+        }
+    }
+    candidates
+}
+
+#[cfg(target_os = "windows")]
+fn load_cloudflared_manifest() -> Result<CloudflaredManifest, String> {
+    for candidate in cloudflared_manifest_candidate_paths() {
+        let Ok(text) = fs::read_to_string(&candidate) else {
+            continue;
+        };
+        let manifest: CloudflaredManifest = serde_json::from_str(&text)
+            .map_err(|error| format!("invalid cloudflared manifest at {}: {error}", candidate.display()))?;
+        if manifest.file.trim().is_empty() {
+            return Err(format!("invalid cloudflared manifest at {}: empty file", candidate.display()));
+        }
+        return Ok(manifest);
+    }
+    Err(format!(
+        "bundled cloudflared manifest missing; expected {CLOUDFLARED_MANIFEST_NAME} under resources/tools"
+    ))
+}
+
+#[cfg(target_os = "windows")]
 fn copy_first_existing_cloudflared(runtime_root: &Path) -> Result<Option<PathBuf>, String> {
     let target_binary = cloudflared_runtime_binary(runtime_root);
     let target_parent = target_binary
@@ -71,47 +107,16 @@ fn copy_first_existing_cloudflared(runtime_root: &Path) -> Result<Option<PathBuf
 }
 
 #[cfg(target_os = "windows")]
-fn download_cloudflared(runtime_root: &Path) -> Result<PathBuf, String> {
-    let target_binary = cloudflared_runtime_binary(runtime_root);
-    let target_parent = target_binary
-        .parent()
-        .ok_or_else(|| "invalid cloudflared target path".to_string())?;
-    fs::create_dir_all(target_parent).map_err(|e| e.to_string())?;
-    let mut errors = Vec::<String>::new();
-    for url in CLOUDFLARED_DOWNLOAD_URLS {
-        match reqwest::blocking::get(url) {
-            Ok(response) => {
-                if !response.status().is_success() {
-                    errors.push(format!("{url} => {}", response.status()));
-                    continue;
-                }
-                match response.bytes() {
-                    Ok(bytes) => {
-                        if bytes.len() < 1024 {
-                            errors.push(format!("{url} => body too small"));
-                            continue;
-                        }
-                        fs::write(&target_binary, &bytes).map_err(|e| e.to_string())?;
-                        return Ok(target_binary);
-                    }
-                    Err(error) => errors.push(format!("{url} => {}", error)),
-                }
-            }
-            Err(error) => errors.push(format!("{url} => {}", error)),
-        }
-    }
-    Err(format!(
-        "download failed; bundled binary expected at src-tauri/resources/tools/{CLOUDFLARED_RELEASE_NAME}; errors: {}",
-        errors.join(" | ")
-    ))
-}
-
-#[cfg(target_os = "windows")]
 fn ensure_cloudflared_binary(runtime_root: &Path) -> Result<PathBuf, String> {
     if let Some(binary) = copy_first_existing_cloudflared(runtime_root)? {
         return Ok(binary);
     }
-    download_cloudflared(runtime_root)
+    let manifest = load_cloudflared_manifest()?;
+    Err(format!(
+        "bundled cloudflared binary missing; expected resources/tools/{} (version {})",
+        manifest.file,
+        manifest.version.unwrap_or_else(|| "unknown".to_string())
+    ))
 }
 
 fn mark_share_failed(runtime: &Arc<Mutex<ShareRuntime>>, message: &str) {

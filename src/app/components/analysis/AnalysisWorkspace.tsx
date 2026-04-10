@@ -106,6 +106,7 @@ export function AnalysisWorkspace(props: {
     timelineCards,
     liveTimelineCards,
     liveStageLabel,
+    liveOutput,
     candidateFiles,
     onPromptChange,
     onDropPaths,
@@ -122,6 +123,8 @@ export function AnalysisWorkspace(props: {
   const [dragActive, setDragActive] = useState(false);
   const hasLiveStream = running || Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
+  const persistedDraftOutput = activeRun?.draftOutputText?.trim() ?? "";
+  const currentDraftOutput = liveOutput.trim() || persistedDraftOutput;
   const activeTaskName = useMemo(
     () => tasks.find((item) => item.id === activeTaskId)?.name?.trim() || t("analysis.defaultTaskName"),
     [activeTaskId, tasks, t],
@@ -190,12 +193,23 @@ export function AnalysisWorkspace(props: {
                   t={t}
                 />
               </div>
-              <section className="flex min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/80 p-4 motion-card-pop">
-                <div className="max-w-md text-center text-slate-600">
+              <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-4 motion-card-pop">
+                <div className="text-slate-600">
                   <div className="mb-2 inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-700">
                     {activeTaskName}
                   </div>
                   <p className="text-sm font-medium text-slate-700">{t("analysis.centerRunning")}</p>
+                </div>
+                <div className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
+                  {currentDraftOutput ? (
+                    <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-slate-700">
+                      {currentDraftOutput}
+                    </pre>
+                  ) : (
+                    <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
+                      {t("analysis.liveOutputEmpty")}
+                    </div>
+                  )}
                 </div>
               </section>
               <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact maxCards={3} />
@@ -212,6 +226,11 @@ export function AnalysisWorkspace(props: {
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
                   <h3 className="text-sm font-semibold text-slate-800">{activeRun.title}</h3>
                   <p className="mt-1 text-xs text-slate-600">{activeRun.summary}</p>
+                  {activeRun.failureMessage ? (
+                    <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+                      {activeRun.failureMessage}
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex items-center gap-1">
                     {activeRun.reportRelativePath && (
                       <>
@@ -233,12 +252,26 @@ export function AnalysisWorkspace(props: {
                     )}
                   </div>
                 </div>
-                <iframe
-                  key={activeRun.id}
-                  title={t("analysis.reportTitle")}
-                  srcDoc={activeRunHtml}
-                  className="h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white"
-                />
+                {activeRun.status === "completed" ? (
+                  <iframe
+                    key={activeRun.id}
+                    title={t("analysis.reportTitle")}
+                    srcDoc={activeRunHtml}
+                    className="h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white"
+                  />
+                ) : (
+                  <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
+                    {persistedDraftOutput ? (
+                      <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-slate-700">
+                        {persistedDraftOutput}
+                      </pre>
+                    ) : (
+                      <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-500">
+                        {t("analysis.liveOutputEmpty")}
+                      </div>
+                    )}
+                  </section>
+                )}
               </div>
 
               <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
