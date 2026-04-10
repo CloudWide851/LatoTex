@@ -366,6 +366,29 @@ function sanitizeExportFileName(filename: string): string {
     .trim();
 }
 
+function hasExtension(fileName: string): boolean {
+  return /\.[a-z0-9.+-]+$/i.test(fileName);
+}
+
+function stemOfFileName(fileName: string): string {
+  if (!hasExtension(fileName)) {
+    return fileName;
+  }
+  return fileName.replace(/\.[a-z0-9.+-]+$/i, "");
+}
+
+function shouldFallbackFromFilenameHint(fileName: string): boolean {
+  const trimmed = String(fileName || "").trim();
+  if (!trimmed) {
+    return true;
+  }
+  if (trimmed.startsWith(".")) {
+    return true;
+  }
+  const normalizedStem = stemOfFileName(trimmed).replace(/^\.+/, "").trim().toLowerCase();
+  return normalizedStem.length === 0 || normalizedStem === "drawio";
+}
+
 export function toDrawExportTarget(activePath: string, extension: string, filenameHint?: string): string {
   const normalizedActivePath = normalizePath(activePath);
   const title = tabTitleFromPath(normalizedActivePath);
@@ -379,7 +402,7 @@ export function toDrawExportTarget(activePath: string, extension: string, filena
 
   const hintedBase = sanitizeExportFileName(filenameHint ?? "");
   const normalizedExtension = String(extension || "bin").replace(/[^a-z0-9.+-]/gi, "") || "bin";
-  const fileName = hintedBase
+  const fileName = hintedBase && !shouldFallbackFromFilenameHint(hintedBase)
     ? (/\.[a-z0-9.+-]+$/i.test(hintedBase) ? hintedBase : `${hintedBase}.${normalizedExtension}`)
     : `${safeStem}.${normalizedExtension}`;
 

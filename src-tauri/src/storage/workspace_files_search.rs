@@ -3,11 +3,42 @@ fn node_sort_key(node: &ResourceNode) -> (u8, String) {
     (rank, node.name.to_lowercase())
 }
 
+fn is_legacy_draw_export_hidden_asset(path: &Path, name: &str, is_dir: bool) -> bool {
+    if is_dir || !name.starts_with('.') {
+        return false;
+    }
+    let extension = Path::new(name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg") {
+        return false;
+    }
+    let stem = Path::new(name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if stem != ".drawio" && stem != "drawio" {
+        return false;
+    }
+    path.parent().is_some_and(|parent| {
+        parent
+            .ancestors()
+            .filter_map(|entry| entry.file_name().and_then(|value| value.to_str()))
+            .any(|entry| entry.eq_ignore_ascii_case("drawings"))
+    })
+}
+
 fn should_show_workspace_entry(path: &Path, name: &str, is_dir: bool) -> bool {
     if is_dir && name == ".git" {
         return false;
     }
     if is_dir && is_python_venv_dir(path, name) {
+        return true;
+    }
+    if is_legacy_draw_export_hidden_asset(path, name, is_dir) {
         return true;
     }
     if !name.starts_with('.') {
@@ -403,7 +434,9 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
 
 #[cfg(test)]
 mod workspace_files_search_tests {
-    use super::{is_python_venv_dir, read_project_file_binary, save_draw_export_asset};
+    use super::{
+        is_python_venv_dir, list_workspace_tree, read_project_file_binary, save_draw_export_asset,
+    };
     use crate::storage;
     use std::fs;
     use std::path::PathBuf;
@@ -478,6 +511,32 @@ mod workspace_files_search_tests {
             .expect("venv node should exist");
         assert_eq!(venv_node.directory_role.as_deref(), Some("pythonVenv"));
         assert!(venv_node.children.is_empty());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn workspace_tree_keeps_legacy_hidden_draw_export_assets_visible() {
+        let root = unique_temp_dir("legacy-draw-export-visible");
+        let drawings_dir = root.join("drawings");
+        fs::create_dir_all(&drawings_dir).unwrap();
+        fs::write(drawings_dir.join(".drawio.png"), b"png").unwrap();
+        fs::write(drawings_dir.join(".hidden.txt"), b"secret").unwrap();
+
+        let tree = list_workspace_tree(&root).unwrap();
+        let drawings_node = tree
+            .iter()
+            .find(|node| node.relative_path == "drawings")
+            .expect("drawings directory should exist");
+
+        assert!(drawings_node
+            .children
+            .iter()
+            .any(|node| node.relative_path == "drawings/.drawio.png"));
+        assert!(!drawings_node
+            .children
+            .iter()
+            .any(|node| node.relative_path == "drawings/.hidden.txt"));
 
         let _ = fs::remove_dir_all(root);
     }

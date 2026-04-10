@@ -27,6 +27,14 @@ describe("drawWorkspaceUtils", () => {
     });
   });
 
+  it("falls back to the active draw file name when draw.io proposes a hidden export name", () => {
+    expect(toDrawExportTarget("drawings/demo.drawio", "png", ".drawio.png")).toBe("drawings/demo.png");
+    expect(toDrawExportDialogDefaults("notes/demo.drawio", "png", ".drawio.png")).toEqual({
+      defaultRelativeDir: "drawings",
+      defaultFileName: "demo.png",
+    });
+  });
+
   it("supports plain-text export payloads when draw.io does not send base64", async () => {
     const saveAsset = vi.fn().mockImplementation(async (path: string) => path);
     const onAfterSave = vi.fn();

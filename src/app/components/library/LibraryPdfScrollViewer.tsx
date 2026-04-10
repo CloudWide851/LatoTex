@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type WheelEvent as ReactWheelEvent,
   type MutableRefObject,
 } from "react";
 import { Document, Page } from "react-pdf";
@@ -28,6 +29,15 @@ type TranslationFn = (key: any) => string;
 export type LibraryPdfScrollSyncGroup = {
   viewers: Map<string, (ratio: number) => void>;
   lastRatio: number;
+};
+
+type LensPendingPoint = {
+  visible: boolean;
+  viewportX: number;
+  viewportY: number;
+  pageX: number;
+  pageY: number;
+  pageNumber: number;
 };
 
 type LibraryPdfScrollViewerProps = {
@@ -52,12 +62,19 @@ type LibraryPdfScrollViewerProps = {
   syncGroupRef?: MutableRefObject<LibraryPdfScrollSyncGroup | null>;
   containerClassName?: string;
   documentClassName?: string;
+  onZoomChange?: (next: number) => void;
+  enableLens?: boolean;
   t: TranslationFn;
 };
 
 export type LibraryPdfScrollViewerHandle = {
   scrollToPage: (page: number) => void;
 };
+
+const MIN_LIBRARY_PDF_ZOOM = 0.7;
+const MAX_LIBRARY_PDF_ZOOM = 2.4;
+const LENS_SCALE = 1.6;
+const LENS_SIZE = 220;
 
 function clampRatio(value: number): number {
   if (!Number.isFinite(value)) {
@@ -127,6 +144,8 @@ export const LibraryPdfScrollViewer = forwardRef<
     syncGroupRef,
     containerClassName = "relative min-h-0 min-w-0 h-full overflow-auto rounded border border-slate-200 bg-slate-100",
     documentClassName = "space-y-3 p-3 pr-7",
+    onZoomChange,
+    enableLens = true,
     t,
   } = props;
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -135,10 +154,27 @@ export const LibraryPdfScrollViewer = forwardRef<
   const scrollRafRef = useRef<number | null>(null);
   const syncResetRafRef = useRef<number | null>(null);
   const syncingScrollRef = useRef(false);
+  const lensViewportRef = useRef<HTMLDivElement | null>(null);
+  const lensContentRef = useRef<HTMLDivElement | null>(null);
+  const lensRafRef = useRef<number | null>(null);
+  const pendingLensPointRef = useRef<LensPendingPoint>({
+    visible: false,
+    viewportX: 0,
+    viewportY: 0,
+    pageX: 0,
+    pageY: 0,
+    pageNumber: 1,
+  });
+  const lensVisibleRef = useRef(false);
+  const lensPageRef = useRef(1);
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
+  const [lensActive, setLensActive] = useState(false);
+  const [lensVisible, setLensVisible] = useState(false);
+  const [lensPage, setLensPage] = useState(1);
   const lastVisiblePageRef = useRef<number>(1);
+  const lensEnabled = enableLens && (readOnly || mode === "select");
 
   const pages = useMemo(
     () => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1),
@@ -149,6 +185,10 @@ export const LibraryPdfScrollViewer = forwardRef<
     const base = Math.max(360, Math.floor((viewportWidth - 42) * 0.92));
     return Math.floor(base * zoom);
   }, [viewportWidth, zoom]);
+  const lensPageWidth = useMemo(
+    () => Math.max(280, Math.floor(frameWidth * LENS_SCALE)),
+    [frameWidth],
+  );
 
   const updateVisiblePage = useCallback(() => {
     const root = scrollRef.current;
@@ -165,6 +205,46 @@ export const LibraryPdfScrollViewer = forwardRef<
       onVisiblePageChange(next);
     }
   }, [documentPages, onVisiblePageChange]);
+
+  const applyLensPoint = useCallback(() => {
+    const lensViewport = lensViewportRef.current;
+    const lensContent = lensContentRef.current;
+    const pending = pendingLensPointRef.current;
+    if (!lensViewport || !lensContent) {
+      return;
+    }
+
+    if (pending.visible) {
+      const left = pending.viewportX - LENS_SIZE / 2;
+      const top = pending.viewportY - LENS_SIZE / 2;
+      lensViewport.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+      const tx = LENS_SIZE / 2 - pending.pageX * LENS_SCALE;
+      const ty = LENS_SIZE / 2 - pending.pageY * LENS_SCALE;
+      lensContent.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+    } else {
+      lensViewport.style.transform = "translate3d(-9999px, -9999px, 0)";
+    }
+
+    if (pending.pageNumber !== lensPageRef.current) {
+      lensPageRef.current = pending.pageNumber;
+      setLensPage(pending.pageNumber);
+    }
+    if (pending.visible !== lensVisibleRef.current) {
+      lensVisibleRef.current = pending.visible;
+      setLensVisible(pending.visible);
+    }
+  }, []);
+
+  const queueLensPoint = useCallback((next: LensPendingPoint) => {
+    pendingLensPointRef.current = next;
+    if (lensRafRef.current !== null) {
+      return;
+    }
+    lensRafRef.current = window.requestAnimationFrame(() => {
+      lensRafRef.current = null;
+      applyLensPoint();
+    });
+  }, [applyLensPoint]);
 
   useImperativeHandle(ref, () => ({
     scrollToPage: (page: number) => {
@@ -190,6 +270,34 @@ export const LibraryPdfScrollViewer = forwardRef<
   useEffect(() => {
     setDocumentLoadError(null);
   }, [pdfUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (lensRafRef.current !== null) {
+        window.cancelAnimationFrame(lensRafRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setLensActive(false);
+    queueLensPoint({
+      ...pendingLensPointRef.current,
+      visible: false,
+      pageNumber: 1,
+    });
+  }, [pdfUrl, queueLensPoint]);
+
+  useEffect(() => {
+    if (lensEnabled) {
+      return;
+    }
+    setLensActive(false);
+    queueLensPoint({
+      ...pendingLensPointRef.current,
+      visible: false,
+    });
+  }, [lensEnabled, queueLensPoint]);
 
   useEffect(() => {
     if (!scrollRef.current || pages.length === 0) {
@@ -332,9 +440,23 @@ export const LibraryPdfScrollViewer = forwardRef<
 
   const rootProps = {
     ref: scrollRef,
-    className: containerClassName,
+    className: `${containerClassName}${lensEnabled ? (lensActive ? " cursor-zoom-out" : " cursor-zoom-in") : ""}`,
     tabIndex: 0,
     style: { touchAction: "pan-y" as const },
+    onWheel: (event: ReactWheelEvent<HTMLDivElement>) => {
+      if (!event.ctrlKey || !onZoomChange) {
+        return;
+      }
+      event.preventDefault();
+      const step = event.deltaY < 0 ? 0.1 : -0.1;
+      const nextZoom = Math.max(
+        MIN_LIBRARY_PDF_ZOOM,
+        Math.min(MAX_LIBRARY_PDF_ZOOM, Number((zoom + step).toFixed(2))),
+      );
+      if (nextZoom !== zoom) {
+        onZoomChange(nextZoom);
+      }
+    },
     onContextMenu: readOnly || !onRequestToolConfig
       ? undefined
       : (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -427,6 +549,63 @@ export const LibraryPdfScrollViewer = forwardRef<
                 });
               }}
             />
+            {lensEnabled ? (
+              <div
+                className="absolute inset-0 z-10"
+                onClick={(event) => {
+                  const viewportRect = scrollRef.current?.getBoundingClientRect();
+                  const pageRect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  if (!viewportRect) {
+                    return;
+                  }
+                  const pageX = Math.max(0, Math.min(pageRect.width, event.clientX - pageRect.left));
+                  const pageY = Math.max(0, Math.min(pageRect.height, event.clientY - pageRect.top));
+                  const viewportX = event.clientX - viewportRect.left + (scrollRef.current?.scrollLeft || 0);
+                  const viewportY = event.clientY - viewportRect.top + (scrollRef.current?.scrollTop || 0);
+                  const nextActive = !lensActive;
+                  setLensActive(nextActive);
+                  queueLensPoint({
+                    visible: nextActive,
+                    pageNumber: page,
+                    pageX,
+                    pageY,
+                    viewportX,
+                    viewportY,
+                  });
+                }}
+                onMouseMove={(event) => {
+                  if (!lensActive) {
+                    return;
+                  }
+                  const viewportRect = scrollRef.current?.getBoundingClientRect();
+                  const pageRect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  if (!viewportRect) {
+                    return;
+                  }
+                  const pageX = Math.max(0, Math.min(pageRect.width, event.clientX - pageRect.left));
+                  const pageY = Math.max(0, Math.min(pageRect.height, event.clientY - pageRect.top));
+                  const viewportX = event.clientX - viewportRect.left + (scrollRef.current?.scrollLeft || 0);
+                  const viewportY = event.clientY - viewportRect.top + (scrollRef.current?.scrollTop || 0);
+                  queueLensPoint({
+                    visible: true,
+                    pageNumber: page,
+                    pageX,
+                    pageY,
+                    viewportX,
+                    viewportY,
+                  });
+                }}
+                onMouseLeave={() => {
+                  if (!lensActive) {
+                    return;
+                  }
+                  queueLensPoint({
+                    ...pendingLensPointRef.current,
+                    visible: false,
+                  });
+                }}
+              />
+            ) : null}
             {readOnly ? null : (
               <PdfAnnotationLayer
                 page={page}
@@ -446,6 +625,50 @@ export const LibraryPdfScrollViewer = forwardRef<
           </div>
         ))}
       </Document>
+      {lensEnabled && lensActive ? (
+        <div
+          ref={lensViewportRef}
+          className={`pointer-events-none absolute z-30 overflow-hidden rounded-full border border-slate-200/80 bg-white/20 shadow-[0_18px_36px_rgba(15,23,42,0.28)] backdrop-blur-[1px] transition-opacity duration-75 ${
+            lensVisible ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            width: `${LENS_SIZE}px`,
+            height: `${LENS_SIZE}px`,
+            left: "0px",
+            top: "0px",
+            transform: "translate3d(-9999px, -9999px, 0)",
+            willChange: "transform",
+          }}
+        >
+          <div
+            ref={lensContentRef}
+            className="absolute left-0 top-0"
+            style={{
+              width: `${lensPageWidth}px`,
+              willChange: "transform",
+              transform: "translate3d(0, 0, 0)",
+            }}
+          >
+            <Document key={`lens-${pdfUrl}`} file={pdfUrl} loading={null} error={null}>
+              <Page
+                pageNumber={Math.max(1, Math.min(documentPages, lensPage))}
+                width={lensPageWidth}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+                loading={null}
+              />
+            </Document>
+          </div>
+          <span
+            className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-slate-300/70"
+            aria-hidden
+          />
+          <span
+            className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-slate-300/70"
+            aria-hidden
+          />
+        </div>
+      ) : null}
     </div>
   );
 });

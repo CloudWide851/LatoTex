@@ -1,5 +1,5 @@
-import { FileUp, RotateCcw } from "lucide-react";
-import { useRef, type MutableRefObject } from "react";
+import { FileUp, Minus, Plus, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
 import { LibraryCitationMetaPanel } from "./LibraryCitationMetaPanel";
 import {
@@ -17,6 +17,8 @@ import type {
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type ViewMode = "bib" | "pdf" | "compare";
+const MIN_LIBRARY_COMPARE_ZOOM = 0.7;
+const MAX_LIBRARY_COMPARE_ZOOM = 2.4;
 
 function formatByteCount(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -26,6 +28,46 @@ function formatByteCount(bytes: number): string {
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / (1024 ** index);
   return `${value >= 100 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
+}
+
+function clampCompareZoom(next: number): number {
+  return Math.max(MIN_LIBRARY_COMPARE_ZOOM, Math.min(MAX_LIBRARY_COMPARE_ZOOM, Number(next.toFixed(2))));
+}
+
+function ComparePaneHeader(props: {
+  label: string;
+  zoom: number;
+  onZoomOut: () => void;
+  onZoomIn: () => void;
+  t: TranslationFn;
+}) {
+  const { label, zoom, onZoomOut, onZoomIn, t } = props;
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-2 py-1">
+      <div className="truncate text-xs font-medium text-slate-600">{label}</div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+          onClick={onZoomOut}
+          title={`${label} · ${t("preview.zoomOut")}`}
+          aria-label={`${label} · ${t("preview.zoomOut")}`}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <span className="w-11 text-center text-[11px] font-medium text-slate-600">{Math.round(zoom * 100)}%</span>
+        <button
+          type="button"
+          className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+          onClick={onZoomIn}
+          title={`${label} · ${t("preview.zoomIn")}`}
+          aria-label={`${label} · ${t("preview.zoomIn")}`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 type LibraryViewerContentPanelProps = {
@@ -156,11 +198,18 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   } = props;
 
   const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
+  const [compareSourceZoom, setCompareSourceZoom] = useState(1);
+  const [compareTranslatedZoom, setCompareTranslatedZoom] = useState(1);
   const pdfPaneLoading = loading || pdfPreviewLoading || pdfObjectUrlLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
   const pdfProgressPercent = pdfTotalBytes && pdfTotalBytes > 0
     ? Math.max(0, Math.min(100, (Math.max(pdfDownloadedBytes ?? 0, 0) / pdfTotalBytes) * 100))
     : null;
+
+  useEffect(() => {
+    setCompareSourceZoom(1);
+    setCompareTranslatedZoom(1);
+  }, [selectedPath, translatedPdfUrl]);
 
   if (viewMode === "pdf") {
     return (
@@ -251,6 +300,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 setPageInput(String(page));
               }}
               onPageCountChange={setPageCount}
+              onZoomChange={setPdfZoom}
               onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
               t={t}
             />
@@ -311,11 +361,17 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         ) : hasComparePair && pdfUrl && translatedPdfUrl ? (
           <div className="grid h-full min-h-0 grid-cols-2 gap-2">
             <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
-              <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareOriginal")}</div>
+              <ComparePaneHeader
+                label={t("library.viewer.compareOriginal")}
+                zoom={compareSourceZoom}
+                onZoomOut={() => setCompareSourceZoom((prev) => clampCompareZoom(prev - 0.1))}
+                onZoomIn={() => setCompareSourceZoom((prev) => clampCompareZoom(prev + 0.1))}
+                t={t}
+              />
               <LibraryPdfScrollViewer
                 pdfUrl={pdfUrl}
                 pageCount={pageCount}
-                zoom={pdfZoom}
+                zoom={compareSourceZoom}
                 mode="select"
                 highlightColor={highlightColor}
                 highlightWidth={highlightWidth}
@@ -333,15 +389,22 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 syncGroupRef={compareSyncGroupRef}
                 containerClassName="relative min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100"
                 documentClassName="space-y-3 px-2 py-0 pr-4"
+                onZoomChange={setCompareSourceZoom}
                 t={t}
               />
             </div>
             <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
-              <div className="border-b border-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t("library.viewer.compareTranslated")}</div>
+              <ComparePaneHeader
+                label={t("library.viewer.compareTranslated")}
+                zoom={compareTranslatedZoom}
+                onZoomOut={() => setCompareTranslatedZoom((prev) => clampCompareZoom(prev - 0.1))}
+                onZoomIn={() => setCompareTranslatedZoom((prev) => clampCompareZoom(prev + 0.1))}
+                t={t}
+              />
               <LibraryPdfScrollViewer
                 pdfUrl={translatedPdfUrl}
                 pageCount={pageCount}
-                zoom={pdfZoom}
+                zoom={compareTranslatedZoom}
                 mode="select"
                 highlightColor={highlightColor}
                 highlightWidth={highlightWidth}
@@ -359,6 +422,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 syncGroupRef={compareSyncGroupRef}
                 containerClassName="relative min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100"
                 documentClassName="space-y-3 px-2 py-0 pr-4"
+                onZoomChange={setCompareTranslatedZoom}
                 t={t}
               />
             </div>
