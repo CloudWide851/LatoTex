@@ -41,6 +41,8 @@ export const zhCN_library = {
   "library.viewer.translateTimeout": "翻译超时，请重试。",
   "library.viewer.translateSaved": "翻译结果已保存到论文库目录。",
   "library.viewer.translateFailed": "论文翻译失败。",
+  "library.viewer.retranslatePaper": "重新翻译",
+  "library.viewer.translationInterrupted": "翻译任务已中断，请重新发起翻译。",
   "library.viewer.translateProgressPending": "等待中...",
   "library.viewer.translationStage.queued": "已排队",
   "library.viewer.translationStage.starting": "正在启动",

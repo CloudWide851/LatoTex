@@ -23,7 +23,7 @@ export function LibraryCitationMetaPanel(props: {
   const { citation, linkError, paperPreview, paperPreviewLoading, paperPreviewError, onAnalyzePaper, t } = props;
 
   return (
-    <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
+    <section className="min-h-0 rounded-lg border border-slate-200 bg-white p-3">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         {t("library.viewer.metadataTab")}
       </h3>

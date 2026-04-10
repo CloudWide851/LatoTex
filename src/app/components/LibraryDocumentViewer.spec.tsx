@@ -76,6 +76,7 @@ describe("LibraryDocumentViewer", () => {
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
+    window.localStorage.clear();
     readFileMock.mockResolvedValue({
       relativePath: ".latotex/annotations/demo.json",
       content: "{\"version\":4,\"strokes\":[],\"textBoxes\":[]}",
@@ -119,8 +120,13 @@ describe("LibraryDocumentViewer", () => {
       translationNotice: null,
       translationDetail: null,
       translationProgress: null,
+      sourcePdfRelativePath: null,
+      translatedPdfRelativePath: null,
+      hasTranslated: false,
+      translationState: "idle",
       setTranslationNotice: vi.fn(),
       resetTranslationState: vi.fn(),
+      loadTranslatedFromCache: vi.fn(),
       runTranslation: vi.fn(),
     };
     mocks.useLibraryTranslationPanel.mockImplementation(() => defaultTranslationPanelState);
@@ -143,6 +149,7 @@ describe("LibraryDocumentViewer", () => {
 
   afterEach(() => {
     document.body.innerHTML = "";
+    window.localStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -204,7 +211,7 @@ describe("LibraryDocumentViewer", () => {
     expect(viewer?.getAttribute("data-pdf-url")).toBe("blob:library-document-pdf");
     expect(viewer?.getAttribute("data-loading")).toBe("false");
     expect(viewer?.getAttribute("data-bib-preview")).toBe("@article{demo,title={Demo Paper}}");
-    expect(viewer?.getAttribute("data-view-mode")).toBe("bib");
+    expect(viewer?.getAttribute("data-view-mode")).toBe("pdf");
 
     await act(async () => {
       root.unmount();
@@ -212,7 +219,7 @@ describe("LibraryDocumentViewer", () => {
     container.remove();
   });
 
-  it("resets to bib view when a different library entry is selected", async () => {
+  it("applies the persisted default view when a different library entry is selected", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -239,7 +246,7 @@ describe("LibraryDocumentViewer", () => {
 
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
-    ).toBe("bib");
+    ).toBe("pdf");
 
     await act(async () => {
       root.render(
@@ -259,7 +266,7 @@ describe("LibraryDocumentViewer", () => {
 
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
-    ).toBe("bib");
+    ).toBe("pdf");
 
     await act(async () => {
       root.unmount();
@@ -399,9 +406,12 @@ describe("LibraryDocumentViewer", () => {
     const resetMock = vi.fn();
     const ensurePdfPreviewLoadedMock = vi.fn().mockResolvedValue(undefined);
     let translatedPdfRelativePath: string | null = null;
-    const runTranslationMock = vi.fn((onDone?: () => void) => {
-      translatedPdfRelativePath = ".latotex/papers/demo.translated.pdf";
-      onDone?.();
+    let translatedSessionPath: string | null = null;
+    const runTranslationMock = vi.fn(() => {
+      translatedSessionPath = ".latotex/papers/demo.translated.pdf";
+    });
+    refreshMock.mockImplementation(async () => {
+      translatedPdfRelativePath = translatedSessionPath;
     });
 
     mocks.useLibraryDocumentData.mockImplementation(() => ({
@@ -433,16 +443,20 @@ describe("LibraryDocumentViewer", () => {
         reset: resetMock,
       }));
 
-    const translationPanelState = {
+    mocks.useLibraryTranslationPanel.mockImplementation(() => ({
       translationBusy: false,
       translationNotice: { type: "info", message: "ready" },
       translationDetail: null,
       translationProgress: null,
+      sourcePdfRelativePath: ".latotex/papers/demo.pdf",
+      translatedPdfRelativePath: translatedSessionPath,
+      hasTranslated: Boolean(translatedSessionPath),
+      translationState: translatedSessionPath ? "completed" : "idle",
       setTranslationNotice: vi.fn(),
       resetTranslationState: vi.fn(),
+      loadTranslatedFromCache: vi.fn(),
       runTranslation: runTranslationMock,
-    };
-    mocks.useLibraryTranslationPanel.mockImplementation(() => translationPanelState);
+    }));
 
     await act(async () => {
       root.render(
@@ -474,11 +488,11 @@ describe("LibraryDocumentViewer", () => {
       await Promise.resolve();
     });
 
-    expect(ensurePdfPreviewLoadedMock).toHaveBeenCalledTimes(2);
-    expect(ensurePdfPreviewLoadedMock).toHaveBeenNthCalledWith(1);
-    expect(ensurePdfPreviewLoadedMock).toHaveBeenNthCalledWith(2, { bustCache: true });
+    expect(
+      container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
+    ).toBe("pdf");
     expect(runTranslationMock).toHaveBeenCalledTimes(1);
-    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(ensurePdfPreviewLoadedMock.mock.calls.length).toBeGreaterThanOrEqual(1);
 
     await act(async () => {
       root.render(
@@ -496,8 +510,38 @@ describe("LibraryDocumentViewer", () => {
       );
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
     });
 
+    await act(async () => {
+      root.render(
+        <LibraryDocumentViewer
+          projectId="project-1"
+          selectedPath="library/demo.bib"
+          active
+          onAnalyzePaper={() => undefined}
+          analysisRunning={false}
+          persistedViewMode="bib"
+          translationModelId={null}
+          paperBriefEngine="auto"
+          t={(key) => String(key)}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const compareReadyButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.getAttribute("title") === "library.viewer.showCompare",
+    );
+    await act(async () => {
+      compareReadyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(refreshMock).toHaveBeenCalledWith({ bustCache: true });
+    expect(ensurePdfPreviewLoadedMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(ensurePdfPreviewLoadedMock.mock.calls.some(([arg]) => arg?.bustCache === true)).toBe(true);
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
     ).toBe("compare");

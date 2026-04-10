@@ -1,14 +1,7 @@
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  FileSearch,
-  FileText,
-  Languages,
-} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openExternalLink } from "../../shared/api/app";
 import { readFile, writeFile } from "../../shared/api/workspace";
+import { LibraryDocumentToolbar } from "./library/LibraryDocumentToolbar";
 import type { LibraryPdfScrollViewerHandle } from "./library/LibraryPdfScrollViewer";
 import { HIGHLIGHT_COLORS, TEXT_COLORS } from "./library/annotationPalette";
 import {
@@ -19,13 +12,13 @@ import {
   type AnnotationTextStylePreset,
   type AnnotationTextBox,
 } from "./library/annotationModel";
-import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
-import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
-import { useLibraryPaperBrief } from "./library/useLibraryPaperBrief";
-import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
 import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
 import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
-import { filenameFromPath } from "./library/viewerUtils";
+import { useLibraryPaperBrief } from "./library/useLibraryPaperBrief";
+import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
+import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
+import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
+import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
 
 type TranslationFn = (key: any) => string;
@@ -58,7 +51,6 @@ export function LibraryDocumentViewer(props: {
   } = props;
   const [linkError, setLinkError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("bib");
   const [annotationMode, setAnnotationMode] = useState<ToolMode>("select");
   const [highlightColor, setHighlightColor] = useState<string>(HIGHLIGHT_COLORS[0]);
   const [highlightWidth, setHighlightWidth] = useState<number>(16);
@@ -68,15 +60,24 @@ export function LibraryDocumentViewer(props: {
   const [annotationStrokes, setAnnotationStrokes] = useState<AnnotationStroke[]>([]);
   const [annotationTextBoxes, setAnnotationTextBoxes] = useState<AnnotationTextBox[]>([]);
   const [annotationLoaded, setAnnotationLoaded] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const [pageCount, setPageCount] = useState(1);
   const [pageInput, setPageInput] = useState("1");
-  const [pdfZoom, setPdfZoom] = useState(1);
   const [toolConfigSignal, setToolConfigSignal] = useState(0);
   const [pendingPdfOpen, setPendingPdfOpen] = useState(false);
   const [pendingCompareOpen, setPendingCompareOpen] = useState(false);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
   const lastAnnotationPayloadRef = useRef<string>("");
+  const {
+    session,
+    setSession,
+  } = useLibraryViewerSession({
+    projectId,
+    selectedPath,
+    fallbackViewMode: persistedViewMode ?? "bib",
+  });
+  const currentPage = session.currentPage;
+  const pdfZoom = session.pdfZoom;
+  const viewMode = session.viewMode;
   const {
     loading,
     loadError,
@@ -136,12 +137,13 @@ export function LibraryDocumentViewer(props: {
     engine: paperBriefEngine,
     previewKey: sourcePdfRelativePath ?? selectedPath,
   });
-
   const {
     translationBusy,
     translationNotice,
     translationDetail,
     translationProgress,
+    sourcePdfRelativePath: translatedSessionSourcePath,
+    translatedPdfRelativePath: translatedSessionPath,
     setTranslationNotice,
     resetTranslationState,
     runTranslation,
@@ -169,11 +171,16 @@ export function LibraryDocumentViewer(props: {
     [annotationTextBoxes, currentPage],
   );
   const hasComparePair = Boolean(hasPdf && translatedPdfUrl);
+  const hasTranslatedArtifact = Boolean(translatedSessionPath || translatedPdfRelativePath);
 
   const applyViewMode = useCallback((nextMode: ViewMode) => {
-    setViewMode(nextMode);
+    setSession({ viewMode: nextMode });
     onPersistViewMode?.(nextMode);
-  }, [onPersistViewMode]);
+  }, [onPersistViewMode, setSession]);
+
+  useEffect(() => {
+    setPageInput(String(currentPage));
+  }, [currentPage]);
 
   useEffect(() => {
     if (!projectId || !selectedPath) {
@@ -184,10 +191,8 @@ export function LibraryDocumentViewer(props: {
       setAnnotationStrokes([]);
       setAnnotationTextBoxes([]);
       setAnnotationLoaded(false);
-      setCurrentPage(1);
       setPageCount(1);
       setPageInput("1");
-      setPdfZoom(1);
       setHighlightWidth(16);
       setHighlightOpacity(0.65);
       setTextBoxStylePreset("minimal");
@@ -201,12 +206,9 @@ export function LibraryDocumentViewer(props: {
 
     setLinkError(null);
     setCopyState(false);
-    setViewMode("bib");
     setAnnotationMode("select");
-    setCurrentPage(1);
     setPageCount(1);
-    setPageInput("1");
-    setPdfZoom(1);
+    setPageInput(String(session.currentPage));
     setHighlightWidth(16);
     setHighlightOpacity(0.65);
     setTextBoxStylePreset("minimal");
@@ -214,17 +216,24 @@ export function LibraryDocumentViewer(props: {
     setPendingCompareOpen(false);
     setTranslationNotice(null);
     resetTranslationState();
-  }, [projectId, resetDocumentData, resetTranslationState, selectedPath, setTranslationNotice]);
+  }, [
+    projectId,
+    resetDocumentData,
+    resetTranslationState,
+    selectedPath,
+    session.currentPage,
+    setTranslationNotice,
+  ]);
 
   useEffect(() => {
-    let disposed = false;
-    if (!projectId || !annotationPath) {
+    if (!projectId || !selectedPath || !annotationPath) {
       lastAnnotationPayloadRef.current = "";
       setAnnotationLoaded(false);
       setAnnotationStrokes([]);
       setAnnotationTextBoxes([]);
       return;
     }
+    let disposed = false;
     setAnnotationLoaded(false);
     setAnnotationStrokes([]);
     setAnnotationTextBoxes([]);
@@ -257,7 +266,7 @@ export function LibraryDocumentViewer(props: {
     return () => {
       disposed = true;
     };
-  }, [annotationPath, projectId]);
+  }, [annotationPath, projectId, selectedPath]);
 
   useEffect(() => {
     if (!annotationLoaded || !projectId || !annotationPath) {
@@ -280,6 +289,35 @@ export function LibraryDocumentViewer(props: {
       window.clearTimeout(timer);
     };
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
+
+  useEffect(() => {
+    if (translatedSessionPath && translatedSessionPath !== translatedPdfRelativePath) {
+      void refreshDocumentData({ bustCache: true }).then(() => {
+        if (pdfPreviewRequested || viewMode === "pdf" || viewMode === "compare" || pendingCompareOpen) {
+          return ensurePdfPreviewLoaded({ bustCache: true });
+        }
+        return undefined;
+      });
+    }
+  }, [
+    ensurePdfPreviewLoaded,
+    pdfPreviewRequested,
+    pendingCompareOpen,
+    refreshDocumentData,
+    translatedPdfRelativePath,
+    translatedSessionPath,
+    viewMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      translatedSessionSourcePath
+      && sourcePdfRelativePath
+      && translatedSessionSourcePath !== sourcePdfRelativePath
+    ) {
+      void refreshDocumentData({ bustCache: true });
+    }
+  }, [refreshDocumentData, sourcePdfRelativePath, translatedSessionSourcePath]);
 
   useEffect(() => {
     if (pendingPdfOpen && hasPdf) {
@@ -327,13 +365,13 @@ export function LibraryDocumentViewer(props: {
       return;
     }
     if (viewMode === "compare" && !hasComparePair && !pendingCompareOpen) {
-      setViewMode(hasPdf ? "pdf" : "bib");
+      applyViewMode(hasPdf ? "pdf" : "bib");
       return;
     }
     if (viewMode === "pdf" && !hasPdf) {
-      setViewMode("bib");
+      applyViewMode("bib");
     }
-  }, [documentBusy, hasComparePair, hasPdf, pendingCompareOpen, pendingPdfOpen, viewMode]);
+  }, [applyViewMode, documentBusy, hasComparePair, hasPdf, pendingCompareOpen, pendingPdfOpen, viewMode]);
 
   useEffect(() => {
     if (!pendingCompareOpen || documentBusy || !hasComparePair) {
@@ -363,16 +401,16 @@ export function LibraryDocumentViewer(props: {
       return;
     }
     const next = Math.max(1, pageCount);
-    setCurrentPage(next);
+    setSession({ currentPage: next });
     setPageInput(String(next));
-  }, [currentPage, pageCount]);
+  }, [currentPage, pageCount, setSession]);
 
   const jumpToPage = useCallback((next: number) => {
     const normalized = Math.max(1, Math.min(pageCount || 1, Math.floor(next)));
-    setCurrentPage(normalized);
+    setSession({ currentPage: normalized });
     setPageInput(String(normalized));
     viewerRef.current?.scrollToPage(normalized);
-  }, [pageCount]);
+  }, [pageCount, setSession]);
 
   const handleUndoCurrentPage = useCallback(() => {
     setAnnotationStrokes((items) => {
@@ -390,16 +428,6 @@ export function LibraryDocumentViewer(props: {
     setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
   }, [currentPage]);
 
-  const handleRunTranslation = useCallback((onDone?: () => void) => {
-    runTranslation(() => {
-      void refreshDocumentData({ bustCache: true })
-        .then(() => ensurePdfPreviewLoaded({ bustCache: true }))
-        .then(() => {
-          onDone?.();
-        });
-    });
-  }, [ensurePdfPreviewLoaded, refreshDocumentData, runTranslation]);
-
   const handleCompareAction = useCallback(() => {
     if (hasTranslated && translatedPdfUrl) {
       setPendingPdfOpen(false);
@@ -410,19 +438,28 @@ export function LibraryDocumentViewer(props: {
     setPendingPdfOpen(true);
     applyViewMode("pdf");
     setPendingCompareOpen(true);
-    void ensurePdfPreviewLoaded().then(() => {
-      if (!translatedPdfRelativePath) {
-        handleRunTranslation();
-      }
-    });
+    void ensurePdfPreviewLoaded();
+    if (!hasTranslatedArtifact && !translationBusy) {
+      runTranslation();
+    }
   }, [
     applyViewMode,
     ensurePdfPreviewLoaded,
-    handleRunTranslation,
     hasTranslated,
-    translatedPdfRelativePath,
+    hasTranslatedArtifact,
+    runTranslation,
     translatedPdfUrl,
+    translationBusy,
   ]);
+
+  const handleRetranslate = useCallback(() => {
+    if (!selectedPath) {
+      return;
+    }
+    void ensurePdfPreviewLoaded();
+    setPendingCompareOpen(viewMode === "compare");
+    runTranslation();
+  }, [ensurePdfPreviewLoaded, runTranslation, selectedPath, viewMode]);
 
   const handleOpenPdf = useCallback(() => {
     setPendingPdfOpen(true);
@@ -436,7 +473,12 @@ export function LibraryDocumentViewer(props: {
     jumpToPage,
     setMode: setAnnotationMode,
     onUndo: handleUndoCurrentPage,
-    setZoom: setPdfZoom,
+    setZoom: (next) => {
+      setSession((current) => ({
+        ...current,
+        pdfZoom: typeof next === "function" ? next(current.pdfZoom) : next,
+      }));
+    },
   });
 
   const handleOpenLink = async () => {
@@ -472,92 +514,27 @@ export function LibraryDocumentViewer(props: {
     );
   }
 
-  const actionBtnClass = "panel-topbar-btn motion-hover-rise inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40";
-
   return (
     <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
-      <section className="panel-topbar flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 motion-shell-stage motion-panel-glow">
-        <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-3.5 w-3.5 text-slate-500" />
-          <span className="panel-topbar-text truncate text-sm font-medium text-slate-700">{filenameFromPath(selectedPath)}</span>
-          {translationNotice ? (
-            <span
-              className={`max-w-[240px] truncate rounded-full px-2 py-0.5 text-[11px] ${
-                translationNotice.type === "info"
-                  ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border border-rose-200 bg-rose-50 text-rose-700"
-              }`}
-              title={translationNotice.message}
-            >
-              {translationNotice.message}
-            </span>
-          ) : null}
-        </div>
-        <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto py-1">
-          <button
-            className={`panel-topbar-text rounded border px-2 py-1 text-[11px] ${
-              viewMode === "bib"
-                ? "border-primary-300 bg-primary-50 text-primary-900"
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-            onClick={() => applyViewMode("bib")}
-            title={t("library.viewer.showBib")}
-          >
-            {t("library.viewer.showBib")}
-          </button>
-          <button
-            className={`panel-topbar-text rounded border px-2 py-1 text-[11px] ${
-              viewMode === "pdf"
-                ? "border-primary-300 bg-primary-50 text-primary-900"
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-            }`}
-            onClick={handleOpenPdf}
-            title={t("library.viewer.showPdf")}
-          >
-            {t("library.viewer.showPdf")}
-          </button>
-
-          <button
-            className={actionBtnClass}
-            onClick={() => selectedPath && onAnalyzePaper(selectedPath)}
-            title={t("library.viewer.analyzePaper")}
-            disabled={!selectedPath || documentBusy || analysisRunning}
-          >
-            <FileSearch className="h-3.5 w-3.5" />
-          </button>
-
-          <button
-            className={actionBtnClass}
-            onClick={handleCompareAction}
-            title={translationBusy ? t("library.viewer.translating") : hasTranslated ? t("library.viewer.showCompare") : t("library.viewer.translatePaper")}
-            disabled={!selectedPath || documentBusy || translationBusy}
-          >
-            <Languages className={`h-3.5 w-3.5 ${translationBusy ? "animate-pulse" : ""}`} />
-          </button>
-
-          {viewMode === "pdf" ? (
-            <>
-              <button
-                className={actionBtnClass}
-                onClick={() => void handleOpenLink()}
-                disabled={!activeLink}
-                title={t("library.viewer.openLink")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </button>
-              <button
-                className={actionBtnClass}
-                onClick={() => void handleCopyLink()}
-                disabled={!activeLink}
-                title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}
-              >
-                {copyState ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </>
-          ) : null}
-        </div>
-      </section>
-
+      <LibraryDocumentToolbar
+        selectedPath={selectedPath}
+        viewMode={viewMode}
+        documentBusy={documentBusy}
+        analysisRunning={analysisRunning}
+        translationBusy={translationBusy}
+        hasTranslated={hasTranslated}
+        translationNotice={translationNotice}
+        activeLink={activeLink}
+        copyState={copyState}
+        onViewModeChange={applyViewMode}
+        onOpenPdf={handleOpenPdf}
+        onAnalyzePaper={() => onAnalyzePaper(selectedPath)}
+        onCompareAction={handleCompareAction}
+        onRetranslate={handleRetranslate}
+        onOpenLink={() => void handleOpenLink()}
+        onCopyLink={() => void handleCopyLink()}
+        t={t}
+      />
       <div className="relative min-h-0">
         <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
         <LibraryViewerContentPanel
@@ -592,7 +569,26 @@ export function LibraryDocumentViewer(props: {
           currentPage={currentPage}
           jumpToPage={jumpToPage}
           pdfZoom={pdfZoom}
-          setPdfZoom={setPdfZoom}
+          setPdfZoom={(next) => {
+            setSession((current) => ({
+              ...current,
+              pdfZoom: typeof next === "function" ? next(current.pdfZoom) : next,
+            }));
+          }}
+          compareSourceZoom={session.compareSourceZoom}
+          setCompareSourceZoom={(next) => {
+            setSession((current) => ({
+              ...current,
+              compareSourceZoom: typeof next === "function" ? next(current.compareSourceZoom) : next,
+            }));
+          }}
+          compareTranslatedZoom={session.compareTranslatedZoom}
+          setCompareTranslatedZoom={(next) => {
+            setSession((current) => ({
+              ...current,
+              compareTranslatedZoom: typeof next === "function" ? next(current.compareTranslatedZoom) : next,
+            }));
+          }}
           toolConfigSignal={toolConfigSignal}
           setToolConfigSignal={setToolConfigSignal}
           viewerRef={viewerRef}
@@ -602,12 +598,17 @@ export function LibraryDocumentViewer(props: {
           annotationTextBoxes={annotationTextBoxes}
           setAnnotationStrokes={setAnnotationStrokes}
           setAnnotationTextBoxes={setAnnotationTextBoxes}
-          setCurrentPage={setCurrentPage}
-          translationDetail={translationDetail}
-          translationBusy={translationBusy}
-          translationNotice={translationNotice}
-          selectedPath={selectedPath}
-          runTranslation={handleRunTranslation}
+          setCurrentPage={(next) => setSession({ currentPage: next })}
+          pdfScrollRatio={session.pdfScrollRatio}
+          setPdfScrollRatio={(next) => setSession({ pdfScrollRatio: next })}
+          compareSourceScrollRatio={session.compareSourceScrollRatio}
+          setCompareSourceScrollRatio={(next) => setSession({ compareSourceScrollRatio: next })}
+          compareTranslatedScrollRatio={session.compareTranslatedScrollRatio}
+          setCompareTranslatedScrollRatio={(next) => setSession({ compareTranslatedScrollRatio: next })}
+          bibScrollRatio={session.bibScrollRatio}
+          setBibScrollRatio={(next) => setSession({ bibScrollRatio: next })}
+          metaScrollRatio={session.metaScrollRatio}
+          setMetaScrollRatio={(next) => setSession({ metaScrollRatio: next })}
           hasComparePair={hasComparePair}
           translatedPdfUrl={translatedPdfUrl}
           bibPreview={bibPreview}
@@ -615,7 +616,7 @@ export function LibraryDocumentViewer(props: {
           paperPreview={computedPaperPreview ?? paperPreview}
           paperPreviewLoading={paperPreviewLoading}
           paperPreviewError={paperPreviewError}
-          onAnalyzePaper={selectedPath ? (() => onAnalyzePaper(selectedPath)) : null}
+          onAnalyzePaper={() => onAnalyzePaper(selectedPath)}
           linkError={linkError}
           t={t}
         />

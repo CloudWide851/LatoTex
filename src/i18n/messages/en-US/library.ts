@@ -41,6 +41,8 @@ export const enUS_library = {
   "library.viewer.translateTimeout": "Translation timed out. Please retry.",
   "library.viewer.translateSaved": "Translation saved to library folder.",
   "library.viewer.translateFailed": "Paper translation failed.",
+  "library.viewer.retranslatePaper": "Retranslate Paper",
+  "library.viewer.translationInterrupted": "Translation was interrupted. Start it again.",
   "library.viewer.translateProgressPending": "Waiting...",
   "library.viewer.translationStage.queued": "Queued",
   "library.viewer.translationStage.starting": "Starting",

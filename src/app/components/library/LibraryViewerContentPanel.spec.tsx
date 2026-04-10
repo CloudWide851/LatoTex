@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryViewerContentPanel } from "./LibraryViewerContentPanel";
@@ -23,6 +23,82 @@ vi.mock("./LibraryCitationMetaPanel", () => ({
   LibraryCitationMetaPanel: () => null,
 }));
 
+function CompareHarness() {
+  const [sourceZoom, setSourceZoom] = useState(1);
+  const [translatedZoom, setTranslatedZoom] = useState(1);
+
+  return (
+    <LibraryViewerContentPanel
+      viewMode="compare"
+      loading={false}
+      loadError={null}
+      pdfPreviewLoading={false}
+      pdfObjectUrlLoading={false}
+      pdfPreviewError={null}
+      pdfDownloadedBytes={null}
+      pdfTotalBytes={null}
+      hasPdf
+      pdfUrl="blob:source-pdf"
+      annotationMode="select"
+      setAnnotationMode={() => undefined}
+      highlightColor="#fde047"
+      setHighlightColor={() => undefined}
+      highlightWidth={16}
+      setHighlightWidth={() => undefined}
+      highlightOpacity={0.65}
+      setHighlightOpacity={() => undefined}
+      textColor="#111827"
+      setTextColor={() => undefined}
+      textBoxStylePreset="minimal"
+      setTextBoxStylePreset={() => undefined}
+      pageStrokeCount={0}
+      pageTextBoxCount={0}
+      handleUndoCurrentPage={() => undefined}
+      handleClearCurrentPage={() => undefined}
+      pageInput="1"
+      setPageInput={() => undefined}
+      currentPage={1}
+      jumpToPage={() => undefined}
+      pdfZoom={1}
+      setPdfZoom={() => undefined}
+      compareSourceZoom={sourceZoom}
+      setCompareSourceZoom={setSourceZoom}
+      compareTranslatedZoom={translatedZoom}
+      setCompareTranslatedZoom={setTranslatedZoom}
+      toolConfigSignal={0}
+      setToolConfigSignal={() => undefined}
+      viewerRef={{ current: null }}
+      pageCount={4}
+      setPageCount={() => undefined}
+      annotationStrokes={[]}
+      annotationTextBoxes={[]}
+      setAnnotationStrokes={() => undefined}
+      setAnnotationTextBoxes={() => undefined}
+      setCurrentPage={() => undefined}
+      pdfScrollRatio={0}
+      setPdfScrollRatio={() => undefined}
+      compareSourceScrollRatio={0}
+      setCompareSourceScrollRatio={() => undefined}
+      compareTranslatedScrollRatio={0}
+      setCompareTranslatedScrollRatio={() => undefined}
+      bibScrollRatio={0}
+      setBibScrollRatio={() => undefined}
+      metaScrollRatio={0}
+      setMetaScrollRatio={() => undefined}
+      hasComparePair
+      translatedPdfUrl="blob:translated-pdf"
+      bibPreview=""
+      citation={null}
+      paperPreview={null}
+      paperPreviewLoading={false}
+      paperPreviewError={null}
+      onAnalyzePaper={null}
+      linkError={null}
+      t={(key) => String(key)}
+    />
+  );
+}
+
 describe("LibraryViewerContentPanel", () => {
   beforeEach(() => {
     (
@@ -41,67 +117,7 @@ describe("LibraryViewerContentPanel", () => {
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(
-        <LibraryViewerContentPanel
-          viewMode="compare"
-          loading={false}
-          loadError={null}
-          pdfPreviewLoading={false}
-          pdfObjectUrlLoading={false}
-          pdfPreviewError={null}
-          pdfDownloadedBytes={null}
-          pdfTotalBytes={null}
-          hasPdf
-          pdfUrl="blob:source-pdf"
-          annotationMode="select"
-          setAnnotationMode={() => undefined}
-          highlightColor="#fde047"
-          setHighlightColor={() => undefined}
-          highlightWidth={16}
-          setHighlightWidth={() => undefined}
-          highlightOpacity={0.65}
-          setHighlightOpacity={() => undefined}
-          textColor="#111827"
-          setTextColor={() => undefined}
-          textBoxStylePreset="minimal"
-          setTextBoxStylePreset={() => undefined}
-          pageStrokeCount={0}
-          pageTextBoxCount={0}
-          handleUndoCurrentPage={() => undefined}
-          handleClearCurrentPage={() => undefined}
-          pageInput="1"
-          setPageInput={() => undefined}
-          currentPage={1}
-          jumpToPage={() => undefined}
-          pdfZoom={1}
-          setPdfZoom={() => undefined}
-          toolConfigSignal={0}
-          setToolConfigSignal={() => undefined}
-          viewerRef={{ current: null }}
-          pageCount={4}
-          setPageCount={() => undefined}
-          annotationStrokes={[]}
-          annotationTextBoxes={[]}
-          setAnnotationStrokes={() => undefined}
-          setAnnotationTextBoxes={() => undefined}
-          setCurrentPage={() => undefined}
-          translationDetail={null}
-          translationBusy={false}
-          translationNotice={{ type: "info", message: "ready" }}
-          selectedPath="library/demo.bib"
-          runTranslation={() => undefined}
-          hasComparePair
-          translatedPdfUrl="blob:translated-pdf"
-          bibPreview=""
-          citation={null}
-          paperPreview={null}
-          paperPreviewLoading={false}
-          paperPreviewError={null}
-          onAnalyzePaper={null}
-          linkError={null}
-          t={(key) => String(key)}
-        />,
-      );
+      root.render(<CompareHarness />);
     });
 
     const sourceViewer = () => container.querySelector("[data-testid='viewer-source']");
