@@ -50,6 +50,7 @@ const FEATURE_MODEL_BINDING_KEYS = [
   "latexAgentModelId",
   "analysisAgentModelId",
   "gitSummaryModelId",
+  "chatAgentModelId",
   "translationModelId",
   "completionModelId",
 ] as const;
@@ -477,6 +478,10 @@ export function SettingsPanel(props: {
               {
                 key: "gitSummaryModelId",
                 label: t("settings.featureModel.gitSummary"),
+              },
+              {
+                key: "chatAgentModelId",
+                label: t("settings.featureModel.chatAgent"),
               },
               {
                 key: "translationModelId",

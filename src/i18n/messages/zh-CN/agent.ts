@@ -80,6 +80,13 @@ export const zhCN_agent = {
   "agent.resume.hint": "可用滚轮 / 上下键 / 回车选择会话。",
   "agent.resume.empty": "暂无已保存会话。",
   "agent.patch.noApplicableEdits": "未为目标文件生成可应用的 SEARCH/REPLACE 编辑块。",
+  "agent.task.fileEdit": "文件修改任务",
+  "agent.task.analysis": "分析任务",
+  "agent.task.generic": "Agent 任务",
+  "agent.task.inputs": "输入",
+  "agent.task.outputs": "输出",
+  "agent.task.steps": "过程",
+  "agent.task.approvalBadge": "待确认",
 } as const;
 
 

@@ -172,17 +172,27 @@ export function useGitHandlers(params: {
     });
   }, [activeProjectId, refreshLibraryTree, setSelectedLibraryPath, setToast, t]);
 
-  const handleLibraryImportLink = useCallback(async (link: string) => {
+  const handleLibraryImportLink = useCallback(async (input: {
+    link: string;
+    scope?: "users" | "groups";
+    ownerId?: string;
+    apiKey?: string;
+  }) => {
     if (!activeProjectId) {
       return;
     }
-    const normalized = link.trim();
+    const normalized = input.link.trim();
     if (!normalized) {
       return;
     }
     await runAppAction({
       action: async () => {
-        const result = await importLibraryLink(activeProjectId, normalized);
+        const result = await importLibraryLink(activeProjectId, {
+          link: normalized,
+          scope: input.scope,
+          ownerId: input.ownerId,
+          apiKey: input.apiKey,
+        });
         await refreshLibraryTree();
         setSelectedLibraryPath(result.relativePath);
       },

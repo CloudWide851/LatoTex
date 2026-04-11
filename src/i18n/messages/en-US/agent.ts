@@ -80,6 +80,13 @@ export const enUS_agent = {
   "agent.resume.hint": "Use wheel / Up / Down / Enter to choose a session.",
   "agent.resume.empty": "No saved sessions.",
   "agent.patch.noApplicableEdits": "No applicable SEARCH/REPLACE edits were generated for the target file.",
+  "agent.task.fileEdit": "File Edit Task",
+  "agent.task.analysis": "Analysis Task",
+  "agent.task.generic": "Agent Task",
+  "agent.task.inputs": "Inputs",
+  "agent.task.outputs": "Outputs",
+  "agent.task.steps": "Steps",
+  "agent.task.approvalBadge": "approval",
 } as const;
 
 

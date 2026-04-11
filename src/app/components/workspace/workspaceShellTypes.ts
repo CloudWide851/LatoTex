@@ -112,7 +112,12 @@ export type AppWorkspaceShellProps = {
   onOpenLogs: (tab: LogTab) => void;
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
-  onLibraryImportLink: (link: string) => void;
+  onLibraryImportLink: (input: {
+    link: string;
+    scope?: "users" | "groups";
+    ownerId?: string;
+    apiKey?: string;
+  }) => void;
   onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   onLibraryAnalyzePaper: (path: string) => void;
   analysisRunning: boolean;
@@ -124,6 +129,7 @@ export type AppWorkspaceShellProps = {
   onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
   previewDefaultZoom: number;
   completionModelId: string | null;
+  chatAgentModelId: string | null;
   translationModelId: string | null;
   paperBriefEngine: "auto" | "pdfjs" | "python";
   onFsAction: (

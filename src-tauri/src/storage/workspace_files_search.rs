@@ -331,11 +331,50 @@ fn is_ignored_search_dir(name: &str) -> bool {
     matches!(name, ".git" | "node_modules" | "target" | "dist" | ".pnpm-store")
 }
 
+fn push_path_hit(
+    root: &Path,
+    path: &Path,
+    query_lower: &str,
+    hits: &mut Vec<ProjectSearchHit>,
+    seen: &mut std::collections::HashSet<String>,
+    limit: usize,
+) -> Result<(), String> {
+    if hits.len() >= limit {
+        return Ok(());
+    }
+    let relative_path = path
+        .strip_prefix(root)
+        .map_err(|e| e.to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let relative_lower = relative_path.to_ascii_lowercase();
+    if !relative_lower.contains(query_lower) && !file_name.contains(query_lower) {
+        return Ok(());
+    }
+    let dedupe_key = format!("path:{relative_path}");
+    if !seen.insert(dedupe_key) {
+        return Ok(());
+    }
+    hits.push(ProjectSearchHit {
+        relative_path,
+        line_number: None,
+        match_kind: "path".to_string(),
+        snippet: "Path match".to_string(),
+    });
+    Ok(())
+}
+
 fn search_tree_for_content(
     root: &Path,
     current: &Path,
     query_lower: &str,
     hits: &mut Vec<ProjectSearchHit>,
+    seen: &mut std::collections::HashSet<String>,
     limit: usize,
 ) -> Result<(), String> {
     if hits.len() >= limit {
@@ -354,8 +393,13 @@ fn search_tree_for_content(
             if is_ignored_search_dir(&name) {
                 continue;
             }
-            search_tree_for_content(root, &path, query_lower, hits, limit)?;
+            search_tree_for_content(root, &path, query_lower, hits, seen, limit)?;
             continue;
+        }
+
+        push_path_hit(root, &path, query_lower, hits, seen, limit)?;
+        if hits.len() >= limit {
+            break;
         }
 
         let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
@@ -380,9 +424,14 @@ fn search_tree_for_content(
                 break;
             }
             if line.to_lowercase().contains(query_lower) {
+                let dedupe_key = format!("content:{relative_path}:{}", index + 1);
+                if !seen.insert(dedupe_key) {
+                    continue;
+                }
                 hits.push(ProjectSearchHit {
                     relative_path: relative_path.clone(),
-                    line_number: (index + 1) as u32,
+                    line_number: Some((index + 1) as u32),
+                    match_kind: "content".to_string(),
                     snippet: truncate_chars(line.trim(), 220),
                 });
             }
@@ -403,11 +452,14 @@ pub fn search_project_content(
     let limit = input.limit.unwrap_or(200).clamp(1, 500) as usize;
     let root = load_project_root(db_path, &input.project_id)?;
     let mut hits = Vec::new();
-    search_tree_for_content(&root, &root, &query.to_lowercase(), &mut hits, limit)?;
+    let mut seen = std::collections::HashSet::<String>::new();
+    search_tree_for_content(&root, &root, &query.to_lowercase(), &mut hits, &mut seen, limit)?;
     hits.sort_by(|a, b| {
-        a.relative_path
+        a.match_kind
+            .cmp(&b.match_kind)
+            .then(a.relative_path
             .cmp(&b.relative_path)
-            .then(a.line_number.cmp(&b.line_number))
+            .then(a.line_number.unwrap_or(0).cmp(&b.line_number.unwrap_or(0))))
     });
     if hits.len() > limit {
         hits.truncate(limit);
@@ -436,7 +488,9 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
 mod workspace_files_search_tests {
     use super::{
         is_python_venv_dir, list_workspace_tree, read_project_file_binary, save_draw_export_asset,
+        search_project_content,
     };
+    use crate::models::ProjectSearchInput;
     use crate::storage;
     use std::fs;
     use std::path::PathBuf;
@@ -618,6 +672,40 @@ mod workspace_files_search_tests {
             fs::read(project_root.join("drawings").join("exports").join("demo.svg")).unwrap(),
             b"<svg>demo</svg>"
         );
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
+    fn search_project_content_returns_path_and_content_hits() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("search-path-and-content");
+        fs::write(
+            project_root.join("AlphaNotes.txt"),
+            "first line\nalpha keyword appears here\nthird line",
+        )
+        .unwrap();
+
+        let hits = search_project_content(
+            &db_path,
+            ProjectSearchInput {
+                project_id,
+                query: "alpha".to_string(),
+                limit: Some(20),
+            },
+        )
+        .unwrap();
+
+        assert!(hits.iter().any(|hit| {
+            hit.match_kind == "path"
+                && hit.relative_path == "AlphaNotes.txt"
+                && hit.line_number.is_none()
+        }));
+        assert!(hits.iter().any(|hit| {
+            hit.match_kind == "content"
+                && hit.relative_path == "AlphaNotes.txt"
+                && hit.line_number == Some(2)
+                && hit.snippet.contains("alpha keyword")
+        }));
 
         let _ = fs::remove_dir_all(temp_root);
     }

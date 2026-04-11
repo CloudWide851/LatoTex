@@ -5,6 +5,7 @@ import { channelsTelegramPoll, channelsTelegramSend } from "../../../shared/api/
 import { readFile } from "../../../shared/api/workspace";
 import { cn } from "../../../lib/utils";
 import type { ChannelPrefs } from "../../../shared/types/app";
+import { AgentProposalMiniBar } from "../editor/AgentProposalMiniBar";
 import {
   loadChatStore,
   newChatSession,
@@ -14,6 +15,9 @@ import {
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
+import type { AgentChatMessage, AgentFileProposal } from "../../hooks/agentTypes";
+import type { AgentPendingAction } from "../../hooks/useAppContainerState";
+import type { AgentPhase } from "../AgentChatOverlay";
 import {
   getChatAutoScrollAppendKey,
   useAutoScrollOnAppend,
@@ -35,17 +39,50 @@ export function ChatWorkspace(props: {
   projectId: string | null;
   channelPrefs?: ChannelPrefs | null;
   suspended?: boolean;
+  chatAgentModelId?: string | null;
+  agentPhase?: AgentPhase;
+  agentRunId?: string | null;
+  agentMessages?: AgentChatMessage[];
+  agentProposal?: AgentFileProposal | null;
+  agentPendingAction?: AgentPendingAction;
+  events?: unknown[];
+  onRunWorkspaceAgent?: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void> | void;
+  onAcceptWorkspaceAgentProposal?: (withAnalysis: boolean) => void;
+  onRejectWorkspaceAgentProposal?: () => void;
+  onResolveWorkspaceAgentPendingAction?: (accept: boolean) => void;
   onRequestAgentReview?: (prompt: string) => void;
   t: TranslationFn;
 }) {
-  const { projectId, channelPrefs, suspended = false, onRequestAgentReview, t } = props;
+  const {
+    projectId,
+    channelPrefs,
+    suspended = false,
+    chatAgentModelId,
+    agentPhase = "idle",
+    agentRunId = null,
+    agentMessages = [],
+    agentProposal = null,
+    agentPendingAction = null,
+    onRunWorkspaceAgent,
+    onAcceptWorkspaceAgentProposal,
+    onRejectWorkspaceAgentProposal,
+    onResolveWorkspaceAgentPendingAction,
+    onRequestAgentReview,
+    t,
+  } = props;
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [running, setRunning] = useState(false);
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
   const [lastError, setLastError] = useState("");
+  const [workspaceAgentSync, setWorkspaceAgentSync] = useState<{
+    sessionId: string;
+    messageId: string;
+    startIndex: number;
+  } | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const latestWorkspaceAgentTextRef = useRef("");
   const sessionsRef = useRef<ChatSession[]>([]);
   const telegramOffsetRef = useRef(0);
   const telegramQueueRef = useRef<Array<{ chatId: string; username: string; text: string; messageId: number }>>([]);
@@ -92,6 +129,15 @@ export function ChatWorkspace(props: {
     () => sessions.find((item) => item.id === activeSessionId) ?? null,
     [activeSessionId, sessions],
   );
+  const latestWorkspaceAgentText = useMemo(() => {
+    if (!workspaceAgentSync) {
+      return "";
+    }
+    const nextMessages = agentMessages
+      .slice(workspaceAgentSync.startIndex)
+      .filter((item) => item.role === "agent" && item.text.trim().length > 0);
+    return nextMessages[nextMessages.length - 1]?.text ?? "";
+  }, [agentMessages, workspaceAgentSync]);
   const ensureSession = useCallback(() => {
     if (activeSessionId && sessions.some((item) => item.id === activeSessionId)) {
       return activeSessionId;
@@ -137,6 +183,15 @@ export function ChatWorkspace(props: {
     }
     return "";
   }, [projectId]);
+  useEffect(() => {
+    latestWorkspaceAgentTextRef.current = latestWorkspaceAgentText;
+  }, [latestWorkspaceAgentText]);
+  useEffect(() => {
+    if (!workspaceAgentSync || !latestWorkspaceAgentText) {
+      return;
+    }
+    updateMessageText(workspaceAgentSync.sessionId, workspaceAgentSync.messageId, latestWorkspaceAgentText);
+  }, [latestWorkspaceAgentText, workspaceAgentSync]);
   const runPrompt = useCallback(async (
     promptRaw: string,
     options?: {
@@ -212,6 +267,7 @@ export function ChatWorkspace(props: {
       parsed.kind === "command"
       && parsed.command === "review"
       && !options?.telegramChatId
+      && !onRunWorkspaceAgent
       && onRequestAgentReview
     ) {
       appendMessage(sessionId, {
@@ -240,9 +296,23 @@ export function ChatWorkspace(props: {
     });
     setRunning(true);
     try {
+      if (!options?.telegramChatId && onRunWorkspaceAgent) {
+        setWorkspaceAgentSync({
+          sessionId,
+          messageId: assistantMessageId,
+          startIndex: agentMessages.length,
+        });
+        await Promise.resolve(onRunWorkspaceAgent(prompt, { forceNewSession: true }));
+        await new Promise((resolve) => window.setTimeout(resolve, 80));
+        const finalText = latestWorkspaceAgentTextRef.current.trim() || t("chat.emptyResult");
+        updateMessageText(sessionId, assistantMessageId, finalText);
+        setWorkspaceAgentSync(null);
+        return;
+      }
       const accepted = await startChatWorkflow({
         projectId,
         prompt,
+        modelOverride: chatAgentModelId ?? undefined,
       });
       setPendingRunId(accepted.runId);
       let cursor = 0;
@@ -298,6 +368,7 @@ export function ChatWorkspace(props: {
       }
       throw new Error("agent.run.timeout.total");
     } catch (error) {
+      setWorkspaceAgentSync(null);
       if (String(error ?? "") === "agent.run.cancelled" && suspended) {
         updateMessageText(sessionId, assistantMessageId, "");
       } else {
@@ -316,7 +387,21 @@ export function ChatWorkspace(props: {
       setRunning(false);
       setPendingRunId(null);
     }
-  }, [appendMessage, ensureSession, loadProjectMemoryText, onRequestAgentReview, projectId, running, suspended, t, updateMessageText]);
+  }, [
+    agentMessages.length,
+    appendMessage,
+    chatAgentModelId,
+    ensureSession,
+    latestWorkspaceAgentText,
+    loadProjectMemoryText,
+    onRequestAgentReview,
+    onRunWorkspaceAgent,
+    projectId,
+    running,
+    suspended,
+    t,
+    updateMessageText,
+  ]);
   useEffect(() => {
     if (!suspended || !pendingRunId) {
       return;
@@ -480,7 +565,7 @@ export function ChatWorkspace(props: {
     };
   }, [projectId, runPrompt, running]);
   const stopRun = async () => {
-    const runId = pendingRunId;
+    const runId = pendingRunId || agentRunId;
     if (!runId) {
       return;
     }
@@ -548,6 +633,38 @@ export function ChatWorkspace(props: {
         )}
       </div>
       <div className="editor-chat-paper-surface flex h-full min-h-0 flex-col border-t px-2 pb-2 pt-1.5">
+        {agentProposal && onAcceptWorkspaceAgentProposal && onRejectWorkspaceAgentProposal ? (
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] font-semibold text-slate-500">{t("chat.workspaceProposalTitle")}</div>
+            <AgentProposalMiniBar
+              proposal={agentProposal}
+              busy={running || agentPhase === "running"}
+              onAccept={() => onAcceptWorkspaceAgentProposal(false)}
+              onReject={onRejectWorkspaceAgentProposal}
+              t={t}
+            />
+          </div>
+        ) : null}
+        {agentPendingAction?.kind === "autoCommit" && onResolveWorkspaceAgentPendingAction ? (
+          <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="font-semibold">{t("chat.workspacePendingTitle")}</div>
+            <div className="mt-1">{agentPendingAction.targetPath}</div>
+            <div className="mt-2 flex gap-2">
+              <button
+                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-white"
+                onClick={() => onResolveWorkspaceAgentPendingAction(true)}
+              >
+                {t("agent.autoCommit.yes")}
+              </button>
+              <button
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-700"
+                onClick={() => onResolveWorkspaceAgentPendingAction(false)}
+              >
+                {t("agent.autoCommit.no")}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="relative min-h-0 flex-1">
           <textarea
             value={draft}

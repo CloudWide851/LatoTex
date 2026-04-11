@@ -53,7 +53,12 @@ export function LibraryExplorerPanel(props: {
   ) => Promise<void>;
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
-  onLibraryImportLink: (link: string) => void;
+  onLibraryImportLink: (input: {
+    link: string;
+    scope?: "users" | "groups";
+    ownerId?: string;
+    apiKey?: string;
+  }) => void;
   onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   t: TranslationFn;
 }) {

@@ -169,6 +169,10 @@ export function AppContainerView(props: any) {
   const completionModelId =
     settings?.uiPrefs?.featureModelBindings?.completionModelId
     || null;
+  const chatAgentModelId =
+    settings?.uiPrefs?.featureModelBindings?.chatAgentModelId
+    || settings?.uiPrefs?.featureModelBindings?.translationModelId
+    || null;
   const translationModelId =
     settings?.uiPrefs?.featureModelBindings?.translationModelId
     || null;
@@ -258,6 +262,7 @@ export function AppContainerView(props: any) {
               libraryLayout={libraryLayout}
               previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
               completionModelId={completionModelId}
+              chatAgentModelId={chatAgentModelId}
               translationModelId={translationModelId}
               paperBriefEngine={paperBriefEngine}
               tree={tree}

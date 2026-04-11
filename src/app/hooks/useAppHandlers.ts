@@ -449,7 +449,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
   const handleProjectSearchSelect = useCallback((hit: ProjectSearchHit) => {
     setPage("latex");
     setSelectedFile(hit.relativePath);
-    setPendingRevealLine(hit.lineNumber);
+    setPendingRevealLine(hit.matchKind === "content" ? (hit.lineNumber ?? null) : null);
   }, [setPage, setPendingRevealLine, setSelectedFile]);
   const handleProtocolPing = useCallback(async (input: {
     protocolId: string;

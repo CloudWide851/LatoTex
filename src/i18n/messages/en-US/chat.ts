@@ -24,8 +24,10 @@ export const enUS_chat = {
   "chat.empty": "No messages yet. Start the conversation below.",
   "chat.input.placeholder": "Type a message and press Enter...",
   "chat.send": "Send",
-  "chat.running": "Agent is responding...",
+  "chat.running": "Agent is responding",
   "chat.emptyResult": "Run completed without visible output.",
   "chat.error.runFailed": "Conversation run failed.",
+  "chat.workspaceProposalTitle": "Workspace proposal is ready.",
+  "chat.workspacePendingTitle": "Workspace action is waiting for your choice.",
 } as const;
 

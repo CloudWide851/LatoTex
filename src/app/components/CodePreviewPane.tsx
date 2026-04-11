@@ -27,8 +27,18 @@ export function CodePreviewPane(props: {
   }
 
   return (
-    <div className="h-full overflow-auto rounded border border-slate-200 bg-slate-950/95 p-3 text-left">
-      <pre className="m-0 min-h-full overflow-visible text-[12px] leading-5 text-slate-100">
+    <div
+      className={`h-full overflow-auto rounded border p-3 text-left ${
+        language.highlight
+          ? "border-slate-200 bg-slate-950/95"
+          : "border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)]"
+      }`}
+    >
+      <pre
+        className={`m-0 min-h-full overflow-visible text-[12px] leading-5 ${
+          language.highlight ? "text-slate-100" : "text-[color:var(--editor-tab-text)]"
+        }`}
+      >
         <code
           data-language-tag={languageTag}
           className={`hljs${language.highlight ? ` language-${language.highlight}` : ""}`}

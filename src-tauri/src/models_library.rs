@@ -78,6 +78,9 @@ pub struct LibraryPdfResumeResponse {
 pub struct LibraryLinkImportInput {
     pub project_id: String,
     pub link: String,
+    pub scope: Option<String>,
+    pub owner_id: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,7 +200,8 @@ pub struct ProjectSearchInput {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSearchHit {
     pub relative_path: String,
-    pub line_number: u32,
+    pub line_number: Option<u32>,
+    pub match_kind: String,
     pub snippet: String,
 }
 

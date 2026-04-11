@@ -4,9 +4,12 @@ export const zhCN_topbar = {
   "topbar.selectProject": "选择项目",
   "topbar.projectFilterPlaceholder": "筛选项目",
   "topbar.noProjectMatches": "没有匹配的项目。",
-  "topbar.searchPlaceholder": "搜索项目内文件内容",
+  "topbar.searchPlaceholder": "搜索项目内文件与内容",
   "topbar.searching": "正在搜索...",
   "topbar.noSearchResults": "没有匹配结果。",
   "topbar.clearSearch": "清空搜索",
+  "topbar.searchGroupFiles": "文件",
+  "topbar.searchGroupContent": "内容",
+  "topbar.searchPathMatch": "路径匹配",
   "topbar.share": "共享",
 } as const;

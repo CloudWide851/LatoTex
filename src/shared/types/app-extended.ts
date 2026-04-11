@@ -289,7 +289,8 @@ export type FsOperationResult = {
 
 export type ProjectSearchHit = {
   relativePath: string;
-  lineNumber: number;
+  lineNumber?: number | null;
+  matchKind: "path" | "content";
   snippet: string;
 };
 

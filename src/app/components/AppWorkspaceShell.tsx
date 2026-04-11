@@ -132,6 +132,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onSavePanelLayout,
     previewDefaultZoom,
     completionModelId,
+    chatAgentModelId,
     translationModelId,
     paperBriefEngine,
     onFsAction,
@@ -501,6 +502,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onAgentSessionConfirm={onAgentSessionConfirm}
         onAgentRollback={onAgentRollback}
         onAgentPendingActionResolve={onAgentPendingActionResolve}
+        chatAgentModelId={chatAgentModelId}
         t={t}
       />
     );

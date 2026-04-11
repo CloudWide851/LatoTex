@@ -4,9 +4,12 @@ export const enUS_topbar = {
   "topbar.selectProject": "Select project",
   "topbar.projectFilterPlaceholder": "Filter projects",
   "topbar.noProjectMatches": "No matching projects.",
-  "topbar.searchPlaceholder": "Search in project files",
+  "topbar.searchPlaceholder": "Search files and content in this project",
   "topbar.searching": "Searching...",
   "topbar.noSearchResults": "No matches found.",
   "topbar.clearSearch": "Clear search",
+  "topbar.searchGroupFiles": "Files",
+  "topbar.searchGroupContent": "Content",
+  "topbar.searchPathMatch": "Path match",
   "topbar.share": "Share",
 } as const;

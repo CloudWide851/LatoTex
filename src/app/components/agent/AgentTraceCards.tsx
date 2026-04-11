@@ -1,5 +1,6 @@
 import { cn } from "../../../lib/utils";
 import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
+import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 
 function tone(status: string): string {
   if (status === "error" || status === "failed") {
@@ -48,47 +49,211 @@ function badge(label: string, kind: "phase" | "decision" | "risk" | "approval") 
   );
 }
 
+function normalizePathRef(value: string): string {
+  return value
+    .replace(/^file:/i, "")
+    .replace(/^paper:/i, "")
+    .trim();
+}
+
+function extractContentPaths(content: string): string[] {
+  return content
+    .split(/\r?\n/g)
+    .map((line) => line.match(/path:\s*(.+)$/i)?.[1]?.trim() ?? "")
+    .filter((value) => value.length > 0);
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.filter((item) => item.trim().length > 0)));
+}
+
+function isAnalysisCard(card: AgentEventCard): boolean {
+  const haystack = `${card.stage} ${card.title} ${card.content}`.toLowerCase();
+  return haystack.includes("analysis") || haystack.includes("paper analyze") || haystack.includes("synthesize");
+}
+
+function isFileCard(card: AgentEventCard): boolean {
+  const haystack = `${card.stage} ${card.title} ${card.content}`.toLowerCase();
+  return haystack.includes("edit")
+    || haystack.includes("write")
+    || haystack.includes("apply")
+    || haystack.includes("checkpoint")
+    || card.artifactRefs?.some((item) => item.startsWith("file:")) === true;
+}
+
+function taskKey(card: AgentEventCard): string {
+  return card.nodeId
+    || card.parentNodeId
+    || card.artifactRefs?.find((item) => item.startsWith("file:"))
+    || `${card.stage}:${card.cardKey}`;
+}
+
+function taskLabel(card: AgentEventCard, t: (key: any) => string): string {
+  if (isAnalysisCard(card)) {
+    return t("agent.task.analysis");
+  }
+  if (isFileCard(card)) {
+    return t("agent.task.fileEdit");
+  }
+  return card.title || card.stage || t("agent.task.generic");
+}
+
+type TaskGroup = {
+  key: string;
+  label: string;
+  status: string;
+  steps: AgentEventCard[];
+  inputRefs: string[];
+  outputRefs: string[];
+  requiresApproval: boolean;
+};
+
+function buildTaskGroups(cards: AgentEventCard[], t: (key: any) => string): TaskGroup[] {
+  const groups = new Map<string, TaskGroup>();
+  for (const card of cards) {
+    const key = taskKey(card);
+    const refs = unique([
+      ...(card.artifactRefs ?? []).map(normalizePathRef),
+      ...extractContentPaths(card.content),
+    ]);
+    const nextLabel = taskLabel(card, t);
+    const outputLike = isAnalysisCard(card)
+      || `${card.stage} ${card.title}`.toLowerCase().includes("checkpoint")
+      || `${card.stage} ${card.title}`.toLowerCase().includes("output")
+      || `${card.stage} ${card.title}`.toLowerCase().includes("apply");
+    const group = groups.get(key) ?? {
+      key,
+      label: nextLabel,
+      status: card.status,
+      steps: [],
+      inputRefs: [],
+      outputRefs: [],
+      requiresApproval: false,
+    };
+    group.label = group.label || nextLabel;
+    group.status = card.status || group.status;
+    group.steps.push(card);
+    group.requiresApproval = group.requiresApproval || card.requiresApproval === true;
+    if (outputLike) {
+      group.outputRefs = unique([...group.outputRefs, ...refs]);
+    } else {
+      group.inputRefs = unique([...group.inputRefs, ...refs]);
+    }
+    if (group.outputRefs.length === 0 && isFileCard(card) && refs.length > 0) {
+      group.outputRefs = unique([...group.outputRefs, ...refs]);
+    }
+    groups.set(key, group);
+  }
+  return Array.from(groups.values());
+}
+
 export function AgentTraceCards(props: {
   cards: AgentEventCard[];
   title: string;
-  maxCards?: number;
+  pendingAction?: AgentPendingAction;
+  pendingActionTitle?: string;
+  pendingActionDescription?: string;
+  pendingActionYesLabel?: string;
+  pendingActionNoLabel?: string;
+  onPendingActionResolve?: (accept: boolean) => void;
+  t: (key: any) => string;
 }) {
-  const { cards, title, maxCards } = props;
-  const displayCards = typeof maxCards === "number" ? cards.slice(-maxCards) : cards;
-  if (displayCards.length === 0) {
+  const {
+    cards,
+    title,
+    pendingAction,
+    pendingActionTitle,
+    pendingActionDescription,
+    pendingActionYesLabel,
+    pendingActionNoLabel,
+    onPendingActionResolve,
+    t,
+  } = props;
+  const groups = buildTaskGroups(cards, t);
+  if (groups.length === 0 && !pendingAction) {
     return null;
   }
 
   return (
     <section className="border-b border-slate-200 px-3 py-2">
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-      <div className="space-y-1.5">
-        {displayCards.map((card) => (
-          <article key={`${card.runId}:${card.cardKey}`} className={cn("rounded border px-2 py-1.5 text-[11px]", tone(card.status))}>
+      <div className="space-y-2">
+        {groups.map((group) => (
+          <article key={group.key} className={cn("rounded border px-2 py-2 text-[11px]", tone(group.status))}>
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate font-semibold">{card.title}</span>
-              <span className="max-w-[40%] truncate uppercase opacity-80">{card.stage}</span>
+              <span className="truncate font-semibold">{group.label}</span>
+              <span className="max-w-[40%] truncate uppercase opacity-80">{group.steps[group.steps.length - 1]?.status || group.status}</span>
             </div>
-            {(card.phase || card.decision || card.riskLevel || card.requiresApproval) ? (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {card.phase ? badge(card.phase, "phase") : null}
-                {card.decision ? badge(card.decision, "decision") : null}
-                {card.riskLevel ? badge(card.riskLevel, "risk") : null}
-                {card.requiresApproval ? badge("approval", "approval") : null}
+            <div className="mt-1 flex flex-wrap gap-1">
+              {group.steps[group.steps.length - 1]?.phase ? badge(group.steps[group.steps.length - 1]?.phase ?? "", "phase") : null}
+              {group.steps[group.steps.length - 1]?.decision ? badge(group.steps[group.steps.length - 1]?.decision ?? "", "decision") : null}
+              {group.steps[group.steps.length - 1]?.riskLevel ? badge(group.steps[group.steps.length - 1]?.riskLevel ?? "", "risk") : null}
+              {group.requiresApproval ? badge(t("agent.task.approvalBadge"), "approval") : null}
+            </div>
+            {group.inputRefs.length > 0 ? (
+              <div className="mt-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.inputs")}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {group.inputRefs.slice(0, 6).map((item) => (
+                    <span key={`${group.key}:in:${item}`} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                      {item}
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : null}
-            {card.content ? (
-              <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
-                {card.content}
-              </p>
+            {group.outputRefs.length > 0 ? (
+              <div className="mt-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.outputs")}</div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {group.outputRefs.slice(0, 6).map((item) => (
+                    <span key={`${group.key}:out:${item}`} className="rounded border border-emerald-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-emerald-700">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
             ) : null}
-            {Array.isArray(card.artifactRefs) && card.artifactRefs.length > 0 ? (
-              <p className="mt-1 truncate text-[10px] text-slate-500">
-                {card.artifactRefs.slice(0, 3).join(" · ")}
-              </p>
-            ) : null}
+            <div className="mt-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.steps")}</div>
+              <div className="mt-1 space-y-1">
+                {group.steps.slice(-5).map((card) => (
+                  <div key={`${card.runId}:${card.cardKey}`} className="rounded border border-slate-200 bg-white/70 px-2 py-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium text-slate-700">{card.title}</span>
+                      <span className="truncate text-[10px] uppercase text-slate-500">{card.stage}</span>
+                    </div>
+                    {card.content ? (
+                      <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
+                        {card.content}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
           </article>
         ))}
+        {pendingAction?.kind === "autoCommit" && onPendingActionResolve ? (
+          <article className="rounded border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800">
+            <div className="font-semibold">{pendingActionTitle}</div>
+            <div className="mt-1">{pendingActionDescription}</div>
+            <div className="mt-2 flex gap-2">
+              <button
+                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white"
+                onClick={() => onPendingActionResolve(true)}
+              >
+                {pendingActionYesLabel}
+              </button>
+              <button
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
+                onClick={() => onPendingActionResolve(false)}
+              >
+                {pendingActionNoLabel}
+              </button>
+            </div>
+          </article>
+        ) : null}
       </div>
     </section>
   );

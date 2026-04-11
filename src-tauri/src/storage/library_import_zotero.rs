@@ -11,7 +11,11 @@ enum ZoteroTarget {
     },
 }
 
-fn parse_zotero_target(link: &str) -> Option<ZoteroTarget> {
+fn parse_zotero_target(
+    link: &str,
+    fallback_scope: Option<&str>,
+    fallback_owner_id: Option<&str>,
+) -> Option<ZoteroTarget> {
     let normalized = link
         .trim()
         .replace('\\', "/")
@@ -24,6 +28,51 @@ fn parse_zotero_target(link: &str) -> Option<ZoteroTarget> {
         return None;
     }
     let lower = normalized.to_lowercase();
+    let fallback_scope = match fallback_scope.unwrap_or("users").trim().to_ascii_lowercase().as_str() {
+        "groups" => "groups",
+        _ => "users",
+    };
+    let fallback_owner_id = fallback_owner_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
+    if let Some(index) = lower.find("zotero://select/") {
+        let suffix = &normalized[index + "zotero://select/".len()..];
+        let parts: Vec<&str> = suffix.split('/').filter(|item| !item.trim().is_empty()).collect();
+        if parts.len() >= 4 && matches!(parts[0], "users" | "groups") {
+            let scope = parts[0].trim().to_ascii_lowercase();
+            let owner_id = parts[1].trim().to_string();
+            let kind = parts[2].trim().to_ascii_lowercase();
+            let key = parts[3].trim().to_string();
+            if owner_id.is_empty() || key.is_empty() {
+                return None;
+            }
+            return match kind.as_str() {
+                "items" => Some(ZoteroTarget::Item { scope, owner_id, key }),
+                "collections" => Some(ZoteroTarget::Collection { scope, owner_id, key }),
+                _ => None,
+            };
+        }
+        if parts.len() >= 2 {
+            let kind = parts[0].trim().to_ascii_lowercase();
+            let key = parts[1].trim().to_string();
+            let owner_id = fallback_owner_id?;
+            return match kind.as_str() {
+                "items" => Some(ZoteroTarget::Item {
+                    scope: fallback_scope.to_string(),
+                    owner_id,
+                    key,
+                }),
+                "collections" => Some(ZoteroTarget::Collection {
+                    scope: fallback_scope.to_string(),
+                    owner_id,
+                    key,
+                }),
+                _ => None,
+            };
+        }
+    }
     let marker = if let Some(index) = lower.find("/users/") {
         Some((index + "/users/".len(), "users".to_string()))
     } else if let Some(index) = lower.find("/groups/") {
@@ -59,7 +108,7 @@ fn parse_zotero_target(link: &str) -> Option<ZoteroTarget> {
     }
 }
 
-fn fetch_zotero_bibtex(target: &ZoteroTarget) -> Result<String, String> {
+fn fetch_zotero_bibtex(target: &ZoteroTarget, api_key_override: Option<&str>) -> Result<String, String> {
     let (scope, owner_id, endpoint_candidates) = match target {
         ZoteroTarget::Item {
             scope,
@@ -88,10 +137,16 @@ fn fetch_zotero_bibtex(target: &ZoteroTarget) -> Result<String, String> {
         .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
-    let api_key = std::env::var("ZOTERO_API_KEY")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
+    let api_key = api_key_override
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            std::env::var("ZOTERO_API_KEY")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        });
     let mut last_error = None;
     for endpoint in endpoint_candidates {
         let mut request = client
@@ -261,4 +316,45 @@ pub fn sync_zotero_library(
         entry_count,
         total_results,
     })
+}
+
+#[cfg(test)]
+mod library_import_zotero_tests {
+    use super::{parse_zotero_target, ZoteroTarget};
+
+    #[test]
+    fn parses_zotero_select_link_with_explicit_scope_and_owner() {
+        let parsed = parse_zotero_target(
+            "zotero://select/groups/2405685/items/ABCD1234",
+            None,
+            None,
+        );
+
+        assert!(matches!(
+            parsed,
+            Some(ZoteroTarget::Item { scope, owner_id, key })
+                if scope == "groups" && owner_id == "2405685" && key == "ABCD1234"
+        ));
+    }
+
+    #[test]
+    fn parses_local_zotero_select_link_with_ui_fallback_owner() {
+        let parsed = parse_zotero_target(
+            "zotero://select/items/ZXCV5678",
+            Some("users"),
+            Some("998877"),
+        );
+
+        assert!(matches!(
+            parsed,
+            Some(ZoteroTarget::Item { scope, owner_id, key })
+                if scope == "users" && owner_id == "998877" && key == "ZXCV5678"
+        ));
+    }
+
+    #[test]
+    fn local_zotero_select_link_requires_fallback_owner() {
+        let parsed = parse_zotero_target("zotero://select/items/ZXCV5678", Some("users"), None);
+        assert!(parsed.is_none());
+    }
 }

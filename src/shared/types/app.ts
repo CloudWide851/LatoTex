@@ -235,6 +235,7 @@ export type FeatureModelBindings = {
   latexAgentModelId?: string;
   analysisAgentModelId?: string;
   gitSummaryModelId?: string;
+  chatAgentModelId?: string;
   translationModelId?: string;
   completionModelId?: string;
 };

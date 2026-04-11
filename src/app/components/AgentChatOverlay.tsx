@@ -2,7 +2,6 @@ import {
   ChevronDown,
   ChevronUp,
   CornerDownLeft,
-  Loader2,
   MessageSquareMore,
   Send,
   Sparkles,
@@ -10,7 +9,6 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { getEvents } from "../../shared/api/agent";
 import type { SwarmEvent } from "../../shared/types/app";
 import { cn } from "../../lib/utils";
 import { useI18n } from "../../i18n";
@@ -23,12 +21,7 @@ import type {
   AgentSessionSummary,
 } from "../hooks/agentTypes";
 import type { AgentPendingAction } from "../hooks/useAppContainerState";
-import { deltaTextFromEvent, toActivityLines, toneClass } from "./agent/agentOverlayActivity";
 import { extractEventCards } from "../hooks/analysisWorkspaceHelpers";
-import {
-  getAgentActivityAutoScrollAppendKey,
-  useAutoScrollOnAppend,
-} from "../hooks/useAutoScrollOnAppend";
 
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
@@ -166,10 +159,6 @@ export function AgentChatOverlay(props: {
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandPlacement, setCommandPlacement] = useState<"above" | "below">("above");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
-  const activityContainerRef = useRef<HTMLDivElement | null>(null);
-  const streamCursorRef = useRef<number | undefined>(undefined);
-  const streamRunRef = useRef<string | null>(null);
-  const [streamedText, setStreamedText] = useState("");
   const suggestedTokens = useMemo(() => pickCommandSuggestions(prompt), [prompt]);
   const commandSuggestions = useMemo(
     () =>
@@ -189,98 +178,8 @@ export function AgentChatOverlay(props: {
     return Math.min(320, Math.max(170, maxLength * 2.2 + 64));
   }, [commandSuggestions]);
 
-  const activityLines = useMemo(() => toActivityLines(events, runId), [events, runId]);
-  const traceCards = useMemo(() => (runId ? extractEventCards(events, [runId]).slice(-5) : []), [events, runId]);
-  const pendingActionLabel = useMemo(() => {
-    if (!pendingAction) {
-      return "";
-    }
-    if (pendingAction.kind === "autoCommit") {
-      return pendingActionWaitLabel;
-    }
-    return pendingActionWaitLabel;
-  }, [pendingAction, pendingActionWaitLabel]);
-  const baseStatusLine = pendingActionLabel
-    || activityLines[activityLines.length - 1]?.text
-    || ((phase === "running" || phase === "starting" || Boolean(runId)) ? statusLine : "");
-  const currentStatusLine = baseStatusLine;
-  const pendingActionDescription = useMemo(() => {
-    if (!pendingAction) {
-      return "";
-    }
-    if (pendingAction.kind === "autoCommit") {
-      return pendingActionDesc.replace("{path}", pendingAction.targetPath);
-    }
-    return pendingActionDesc;
-  }, [pendingAction, pendingActionDesc]);
-  const canShowActivity = activityLines.length > 0 || streamedText.trim().length > 0;
-  const showActivityPanel = activityExpanded && canShowActivity;
-  const activityAppendKey = useMemo(
-    () => getAgentActivityAutoScrollAppendKey(runId, canShowActivity),
-    [canShowActivity, runId],
-  );
-
-  useAutoScrollOnAppend(activityContainerRef, activityAppendKey, showActivityPanel);
-
-  useEffect(() => {
-    if (runId) {
-      return;
-    }
-    streamRunRef.current = null;
-    streamCursorRef.current = undefined;
-    setStreamedText("");
-  }, [runId]);
-
-  useEffect(() => {
-    if (!runId || (phase !== "running" && phase !== "starting")) {
-      return;
-    }
-    if (streamRunRef.current !== runId) {
-      streamRunRef.current = runId;
-      streamCursorRef.current = undefined;
-      setStreamedText("");
-    }
-
-    let cancelled = false;
-    const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-    const pull = async () => {
-      while (!cancelled) {
-        try {
-          const batch = await getEvents(streamCursorRef.current, 200, runId, 2_200, ["agent.run.heartbeat"]);
-          if (cancelled) {
-            return;
-          }
-          streamCursorRef.current = batch.nextCursor;
-
-          const deltas = batch.events
-            .filter((event) => event.runId === runId)
-            .map((event) => deltaTextFromEvent(event))
-            .filter((value) => value.length > 0)
-            .join("");
-          if (deltas) {
-            setStreamedText((prev) => `${prev}${deltas}`.slice(-12_000));
-          }
-
-          const finished = batch.events.some(
-            (event) =>
-              event.runId === runId
-              && (event.kind === "agent.run.completed" || event.kind === "agent.run.failed" || event.kind === "agent.run.cancelled"),
-          );
-          if (finished) {
-            return;
-          }
-        } catch {
-          await wait(700);
-        }
-      }
-    };
-
-    void pull();
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, runId]);
+  const traceCards = useMemo(() => (runId ? extractEventCards(events, [runId]).slice(-24) : []), [events, runId]);
+  const canShowActivity = traceCards.length > 0 || Boolean(pendingAction);
 
   const updateCommandPlacement = () => {
     if (!promptRef.current || commandSuggestions.length === 0 || typeof window === "undefined") {
@@ -311,7 +210,8 @@ export function AgentChatOverlay(props: {
   }, [prompt, commandSuggestions.length]);
 
   if (collapsed) {
-    const collapsedText = currentStatusLine || title;
+    const collapsedText = traceCards[traceCards.length - 1]?.title
+      || ((phase === "running" || phase === "starting" || Boolean(runId)) ? statusLine : title);
     return (
       <button
         className={cn(
@@ -336,14 +236,6 @@ export function AgentChatOverlay(props: {
           <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />
             <span className="shrink-0">{title}</span>
-            {currentStatusLine ? (
-              <span className="motion-status-chip inline-flex min-w-0 flex-1 items-center rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                {(phase === "running" || phase === "starting") ? (
-                  <Loader2 className="mr-1.5 inline-block h-3 w-3 shrink-0 animate-spin align-[-0.1em] text-primary-600" />
-                ) : null}
-                <span className="min-w-0 flex-1 truncate">{currentStatusLine}</span>
-              </span>
-            ) : null}
           </div>
           <div className="ml-2 flex items-center gap-1">
             {canShowActivity ? (
@@ -371,52 +263,23 @@ export function AgentChatOverlay(props: {
         </div>
 
         {canShowActivity ? (
-          <div
-            ref={activityContainerRef}
-            className={cn(
-              "editor-chat-paper-surface editor-chat-scroll space-y-1 overflow-x-hidden overflow-y-auto border-b px-3 transition-[max-height,opacity,padding] duration-150",
-              showActivityPanel ? "max-h-[26vh] py-2 opacity-100" : "max-h-0 py-0 opacity-0",
-            )}
-          >
-            {streamedText.trim() ? (
-              <pre className="editor-chat-stream whitespace-pre-wrap break-words rounded px-2 py-1.5 font-mono text-[11px] leading-5">
-                {streamedText}
-              </pre>
-            ) : null}
-            {activityLines.map((line) => (
-              <p
-                key={line.id}
-                className={cn(
-                  "whitespace-pre-wrap break-words rounded px-1 py-0.5 text-[11px] leading-5",
-                  toneClass(line.tone),
-                )}
-              >
-                {line.text}
-              </p>
-            ))}
-          </div>
-        ) : null}
-
-        <AgentTraceCards cards={traceCards} title={t("agent.traceTitle")} maxCards={4} />
-
-        {pendingAction?.kind === "autoCommit" ? (
-          <div className="space-y-2 border-b border-slate-200 bg-amber-50/70 px-3 py-2">
-            <p className="text-xs font-semibold text-amber-700">{pendingActionTitle}</p>
-            <p className="text-xs text-amber-700">{pendingActionDescription}</p>
-            <div className="flex items-center gap-2">
-              <button
-                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white hover:bg-emerald-700 motion-hover-rise"
-                onClick={() => onPendingActionResolve(true)}
-              >
-                {pendingActionYesLabel}
-              </button>
-              <button
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 motion-hover-rise"
-                onClick={() => onPendingActionResolve(false)}
-              >
-                {pendingActionNoLabel}
-              </button>
-            </div>
+          <div className={cn(
+            "transition-[max-height,opacity] duration-150",
+            activityExpanded ? "max-h-[42vh] opacity-100" : "max-h-0 opacity-0",
+          )}>
+            <AgentTraceCards
+              cards={traceCards}
+              title={t("agent.traceTitle")}
+              pendingAction={pendingAction}
+              pendingActionTitle={pendingActionTitle}
+              pendingActionDescription={pendingAction?.kind === "autoCommit"
+                ? pendingActionDesc.replace("{path}", pendingAction.targetPath)
+                : pendingActionDesc}
+              pendingActionYesLabel={pendingActionYesLabel}
+              pendingActionNoLabel={pendingActionNoLabel}
+              onPendingActionResolve={onPendingActionResolve}
+              t={t}
+            />
           </div>
         ) : null}
 

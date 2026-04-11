@@ -188,6 +188,9 @@ pub fn import_library_link(
     db_path: &Path,
     project_id: &str,
     link: &str,
+    zotero_scope: Option<&str>,
+    zotero_owner_id: Option<&str>,
+    zotero_api_key: Option<&str>,
 ) -> Result<LibraryLinkImportResponse, String> {
     let trimmed = link.trim();
     if trimmed.is_empty() {
@@ -198,8 +201,10 @@ pub fn import_library_link(
     let papers_root = library_root(&project_root);
     fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
 
-    let (stem, citation_key, bib_entry) = if let Some(zotero_target) = parse_zotero_target(trimmed) {
-        let bibtex = fetch_zotero_bibtex(&zotero_target)?;
+    let (stem, citation_key, bib_entry) = if let Some(zotero_target) =
+        parse_zotero_target(trimmed, zotero_scope, zotero_owner_id)
+    {
+        let bibtex = fetch_zotero_bibtex(&zotero_target, zotero_api_key)?;
         let stem = match &zotero_target {
             ZoteroTarget::Item {
                 scope,

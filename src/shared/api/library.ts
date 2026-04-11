@@ -26,8 +26,31 @@ export function importLibraryPdf(projectId: string): Promise<LibraryPdfImportRes
   return invokeCommand<LibraryPdfImportResult | null>("library_import_pdf", { input: { projectId } });
 }
 
-export function importLibraryLink(projectId: string, link: string): Promise<LibraryLinkImportResult> {
-  return invokeCommand<LibraryLinkImportResult>("library_import_link", { input: { projectId, link } });
+export function importLibraryLink(
+  projectId: string,
+  input:
+    | string
+    | {
+        link: string;
+        scope?: "users" | "groups";
+        ownerId?: string;
+        apiKey?: string;
+      },
+): Promise<LibraryLinkImportResult> {
+  const payload = typeof input === "string"
+    ? { link: input }
+    : {
+        link: input.link,
+        scope: input.scope,
+        ownerId: input.ownerId,
+        apiKey: input.apiKey,
+      };
+  return invokeCommand<LibraryLinkImportResult>("library_import_link", {
+    input: {
+      projectId,
+      ...payload,
+    },
+  });
 }
 
 export function resumeLibraryPdfDownloads(projectId: string): Promise<LibraryPdfResumeResult> {

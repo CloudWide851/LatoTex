@@ -424,8 +424,20 @@ pub async fn library_import_link(
     let project_id = input.project_id;
     let queue_project_id = project_id.clone();
     let link = input.link.trim().to_string();
+    let scope = input.scope.clone();
+    let owner_id = input.owner_id.clone();
+    let api_key = input.api_key.clone();
     let mut result =
-        spawn_blocking(move || storage::import_library_link(&db_path, &project_id, &link))
+        spawn_blocking(move || {
+            storage::import_library_link(
+                &db_path,
+                &project_id,
+                &link,
+                scope.as_deref(),
+                owner_id.as_deref(),
+                api_key.as_deref(),
+            )
+        })
             .await
             .map_err(|e| e.to_string())??;
     result.pdf_preview =
@@ -553,7 +565,7 @@ pub async fn fs_operation(
 }
 
 #[tauri::command]
-pub fn project_search_content(
+pub async fn project_search_content(
     state: State<'_, AppState>,
     input: ProjectSearchInput,
 ) -> Result<Vec<ProjectSearchHit>, String> {
@@ -564,7 +576,10 @@ pub fn project_search_content(
             input.project_id, input.query
         ),
     );
-    storage::search_project_content(&state.db_path, input)
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || storage::search_project_content(&db_path, input))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

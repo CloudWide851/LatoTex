@@ -58,7 +58,12 @@ function buildFloatingPanelStyle(trigger: HTMLButtonElement, kind: FloatingPanel
 export function LibraryUploadMenu(props: {
   busy: boolean;
   onImportPdf: () => void;
-  onImportLink: (link: string) => void;
+  onImportLink: (input: {
+    link: string;
+    scope?: "users" | "groups";
+    ownerId?: string;
+    apiKey?: string;
+  }) => void;
   onSyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   t: TranslationFn;
 }) {
@@ -234,12 +239,40 @@ export function LibraryUploadMenu(props: {
               />
             </div>
           ) : (
-            <input
-              className={dropdownSearchInputClassName("control-surface h-8 px-2.5")}
-              value={linkDraft}
-              placeholder={linkKind === "zotero" ? t("library.zoteroPlaceholder") : t("library.linkPlaceholder")}
-              onChange={(event) => setLinkDraft(event.target.value)}
-            />
+            <div className="space-y-2">
+              <input
+                className={dropdownSearchInputClassName("control-surface h-8 px-2.5")}
+                value={linkDraft}
+                placeholder={linkKind === "zotero" ? t("library.zoteroPlaceholder") : t("library.linkPlaceholder")}
+                onChange={(event) => setLinkDraft(event.target.value)}
+              />
+              {linkKind === "zotero" ? (
+                <>
+                  <Select
+                    uiSize="sm"
+                    className="w-full"
+                    value={zoteroScope}
+                    onChange={(event) => setZoteroScope(event.target.value as "users" | "groups")}
+                  >
+                    <option value="users">{t("library.zoteroScopeUsers")}</option>
+                    <option value="groups">{t("library.zoteroScopeGroups")}</option>
+                  </Select>
+                  <Input
+                    className="h-8 text-xs"
+                    value={zoteroOwnerId}
+                    placeholder={t("library.zoteroOwnerIdPlaceholder")}
+                    onChange={(event) => setZoteroOwnerId(event.target.value)}
+                  />
+                  <Input
+                    className="h-8 text-xs"
+                    type="password"
+                    value={zoteroApiKey}
+                    placeholder={t("library.zoteroTokenPlaceholder")}
+                    onChange={(event) => setZoteroApiKey(event.target.value)}
+                  />
+                </>
+              ) : null}
+            </div>
           )}
           <div className="mt-3 flex justify-center gap-4">
             <Button
@@ -276,8 +309,15 @@ export function LibraryUploadMenu(props: {
                 if (!normalized) {
                   return;
                 }
-                onImportLink(normalized);
+                onImportLink({
+                  link: normalized,
+                  scope: linkKind === "zotero" ? zoteroScope : undefined,
+                  ownerId: linkKind === "zotero" ? zoteroOwnerId.trim() : undefined,
+                  apiKey: linkKind === "zotero" ? zoteroApiKey.trim() : undefined,
+                });
                 setLinkDraft("");
+                setZoteroOwnerId("");
+                setZoteroApiKey("");
                 setLinkOpen(false);
               }}
             >

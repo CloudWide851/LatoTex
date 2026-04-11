@@ -452,6 +452,7 @@ pub struct FeatureModelBindings {
     pub latex_agent_model_id: Option<String>,
     pub analysis_agent_model_id: Option<String>,
     pub git_summary_model_id: Option<String>,
+    pub chat_agent_model_id: Option<String>,
     pub translation_model_id: Option<String>,
     pub completion_model_id: Option<String>,
 }

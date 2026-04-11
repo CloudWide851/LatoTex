@@ -77,7 +77,10 @@ fn pick_feature_binding(settings: &AppSettings, callsite: &str) -> Option<String
     match callsite {
         "latex.overlay" => bindings.latex_agent_model_id.clone(),
         "analysis.workspace" => bindings.analysis_agent_model_id.clone(),
-        "chat.workspace" => bindings.translation_model_id.clone(),
+        "chat.workspace" => bindings
+            .chat_agent_model_id
+            .clone()
+            .or_else(|| bindings.translation_model_id.clone()),
         "completion.inline" => bindings.completion_model_id.clone(),
         "git.summary" => bindings
             .git_summary_model_id

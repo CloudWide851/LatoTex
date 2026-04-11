@@ -110,6 +110,7 @@ export function LatexWorkspaceEditorPanel(props: {
   onAgentSessionConfirm: () => void;
   onAgentRollback: () => void;
   onAgentPendingActionResolve: (accept: boolean) => void;
+  chatAgentModelId: string | null;
   t: TranslationFn;
 }) {
   const {
@@ -184,6 +185,7 @@ export function LatexWorkspaceEditorPanel(props: {
     onAgentSessionConfirm,
     onAgentRollback,
     onAgentPendingActionResolve,
+    chatAgentModelId,
     t,
   } = props;
   const [editorTheme, setEditorTheme] = useState(getEditorSurfaceThemeName);
@@ -225,8 +227,8 @@ export function LatexWorkspaceEditorPanel(props: {
   return (
     <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
-        <div className="panel-topbar flex w-full min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-visible">
+        <div className="panel-topbar flex w-full min-w-0 flex-wrap items-start gap-2">
+          <div className="editor-toolbar-surface-group flex min-w-0 flex-1 flex-wrap items-center gap-2 overflow-visible">
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}
@@ -249,7 +251,7 @@ export function LatexWorkspaceEditorPanel(props: {
               t={t}
             />
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="editor-toolbar-action-group ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
             <button
               className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
               onClick={onEditorUndo}
@@ -350,6 +352,17 @@ export function LatexWorkspaceEditorPanel(props: {
               projectId={activeProjectId}
               channelPrefs={channelPrefs}
               suspended={suspended}
+              chatAgentModelId={chatAgentModelId}
+              agentPhase={agentPhase}
+              agentRunId={agentRunId}
+              agentMessages={agentMessages}
+              agentProposal={agentProposal}
+              agentPendingAction={agentPendingAction}
+              events={events}
+              onRunWorkspaceAgent={onAgentRun}
+              onAcceptWorkspaceAgentProposal={onAgentAcceptProposal}
+              onRejectWorkspaceAgentProposal={onAgentRejectProposal}
+              onResolveWorkspaceAgentPendingAction={onAgentPendingActionResolve}
               onRequestAgentReview={(prompt) => {
                 onChatReviewRequest(prompt);
               }}

@@ -37,6 +37,7 @@ export function updateSettings(input: {
       latexAgentModelId?: string;
       analysisAgentModelId?: string;
       gitSummaryModelId?: string;
+      chatAgentModelId?: string;
       translationModelId?: string;
       completionModelId?: string;
     };
