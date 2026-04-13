@@ -4,6 +4,7 @@ import { LibraryExplorerPanel } from "./LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./WorkspaceExplorerPanel";
 import { WorkspacePanelFallback, LazyLibraryDocumentViewer } from "./workspaceShellLazy";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
+import { emitWorkspaceLayoutRefresh } from "../../hooks/workspaceLayoutRefresh";
 
 type WorkspacePageLayoutProps = Pick<
   AppWorkspaceShellProps,
@@ -76,6 +77,11 @@ export function WorkspacePageLayout({
   renderPdfPreviewPanel,
   onSelectWorkspaceFile,
 }: WorkspacePageLayoutProps) {
+  const handleLayout = (targetPage: "latex" | "analysis" | "library", layout: number[]) => {
+    onSavePanelLayout(targetPage, layout);
+    emitWorkspaceLayoutRefresh(targetPage, "panel-layout");
+  };
+
   const renderLatexPanel = () => {
     if (page !== "latex" || !activeProjectId) {
       return null;
@@ -85,7 +91,7 @@ export function WorkspacePageLayout({
         key={`panelgroup-latex-${activeProjectId}`}
         direction="horizontal"
         className="h-full gap-px"
-        onLayout={(layout) => onSavePanelLayout("latex", layout)}
+        onLayout={(layout) => handleLayout("latex", layout)}
       >
         <Panel className="min-w-0" id={`latex-explorer-${activeProjectId}`} order={1} defaultSize={latexLayout[0]} minSize={16}>
           <WorkspaceExplorerPanel
@@ -126,7 +132,7 @@ export function WorkspacePageLayout({
         key={`panelgroup-analysis-${activeProjectId ?? "none"}`}
         direction="horizontal"
         className="h-full gap-px"
-        onLayout={(layout) => onSavePanelLayout("analysis", layout)}
+        onLayout={(layout) => handleLayout("analysis", layout)}
       >
         <Panel className="min-w-0" id={`analysis-explorer-${activeProjectId ?? "none"}`} order={1} defaultSize={analysisLayout[0]} minSize={18}>
           <WorkspaceExplorerPanel
@@ -178,7 +184,7 @@ export function WorkspacePageLayout({
       key={`panelgroup-library-${activeProjectId}`}
       direction="horizontal"
       className="h-full gap-px"
-      onLayout={(layout) => onSavePanelLayout("library", layout)}
+      onLayout={(layout) => handleLayout("library", layout)}
     >
       <Panel className="min-w-0" id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
         <LibraryExplorerPanel

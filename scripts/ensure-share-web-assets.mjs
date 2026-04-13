@@ -1,10 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import {
+  rewriteShareVendorImports,
+  shouldSkipBrowserVendorFile,
+  validateBrowserVendorTree,
+} from "./share-web-assets-lib.mjs";
 
 const require = createRequire(import.meta.url);
 const vendorRoot = path.resolve("src-tauri/resources/core/share-vendor");
-const lib0SkipDirs = new Set([".github", ".vscode", "coverage", "dist", "node_modules", "types"]);
+const lib0SkipDirs = new Set([".github", ".vscode", "bin", "coverage", "dist", "node_modules", "types"]);
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -39,18 +44,16 @@ function copyLib0Files(sourceDir, targetDir) {
       copyLib0Files(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
       continue;
     }
-    if (path.extname(entry.name) !== ".js" || entry.name.endsWith(".test.js")) {
+    if (path.extname(entry.name) !== ".js" || shouldSkipBrowserVendorFile(entry.name)) {
       continue;
     }
-    copyFile(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    const targetRelativePath = path.relative(vendorRoot, targetPath).replace(/\\/g, "/");
+    const rewritten = rewriteShareVendorImports(fs.readFileSync(sourcePath, "utf8"), targetRelativePath);
+    ensureDir(path.dirname(targetPath));
+    fs.writeFileSync(targetPath, rewritten);
   }
-}
-
-function rewriteYjsImports(source) {
-  return source.replace(/from\s+["']lib0\/([^"']+)["']/g, (_match, specifier) => {
-    const normalized = String(specifier || "").replace(/\.js$/i, "");
-    return `from "./lib0/${normalized}.js"`;
-  });
 }
 
 function main() {
@@ -68,10 +71,17 @@ function main() {
   copyFile(pdfMinPath, path.join(vendorRoot, "pdf.min.mjs"));
   copyFile(pdfWorkerPath, path.join(vendorRoot, "pdf.worker.min.mjs"));
 
-  const yjsPatched = rewriteYjsImports(fs.readFileSync(yjsSourcePath, "utf8"));
+  const yjsPatched = rewriteShareVendorImports(fs.readFileSync(yjsSourcePath, "utf8"), "yjs.mjs");
   fs.writeFileSync(path.join(vendorRoot, "yjs.mjs"), yjsPatched);
 
   copyLib0Files(lib0Dir, path.join(vendorRoot, "lib0"));
+  const invalid = validateBrowserVendorTree(vendorRoot);
+  if (invalid.length > 0) {
+    const detail = invalid
+      .map((item) => `${path.relative(process.cwd(), item.file)} -> ${item.specifiers.join(", ")}`)
+      .join("\n");
+    throw new Error(`Share web vendor assets contain unsupported bare imports:\n${detail}`);
+  }
   console.log(`Share web vendor assets prepared in ${vendorRoot}`);
 }
 

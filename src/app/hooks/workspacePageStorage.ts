@@ -14,7 +14,7 @@ export function loadWorkspacePage(): WorkspacePage {
     return DEFAULT_WORKSPACE_PAGE;
   }
   try {
-    const raw = window.sessionStorage.getItem(WORKSPACE_PAGE_STORAGE_KEY);
+    const raw = window.localStorage.getItem(WORKSPACE_PAGE_STORAGE_KEY);
     return isWorkspacePage(raw) ? raw : DEFAULT_WORKSPACE_PAGE;
   } catch {
     return DEFAULT_WORKSPACE_PAGE;
@@ -26,8 +26,8 @@ export function persistWorkspacePage(page: WorkspacePage) {
     return;
   }
   try {
-    window.sessionStorage.setItem(WORKSPACE_PAGE_STORAGE_KEY, page);
+    window.localStorage.setItem(WORKSPACE_PAGE_STORAGE_KEY, page);
   } catch {
-    // Ignore sessionStorage failures and keep the in-memory page state.
+    // Ignore localStorage failures and keep the in-memory page state.
   }
 }

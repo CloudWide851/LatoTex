@@ -1,6 +1,25 @@
-export function detectLocale() {
-  const raw = (navigator.language || "").toLowerCase();
-  return raw.startsWith("zh") ? "zh-CN" : "en-US";
+function normalizeLocale(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (value.startsWith("zh")) {
+    return "zh-CN";
+  }
+  return "en-US";
+}
+
+export function detectLocale(preferred) {
+  if (preferred) {
+    return normalizeLocale(preferred);
+  }
+  return normalizeLocale(navigator.language || navigator.languages?.[0] || "");
+}
+
+export function detectDevice() {
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
+  const userAgent = typeof navigator !== "undefined" ? String(navigator.userAgent || "").toLowerCase() : "";
+  const touchPoints = typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints || 0) : 0;
+  const isMobileUa = /android|iphone|ipad|ipod|mobile/i.test(userAgent);
+  const compactViewport = viewportWidth <= 900;
+  return isMobileUa || (compactViewport && touchPoints > 0) ? "mobile" : "desktop";
 }
 
 const messages = {
@@ -14,7 +33,7 @@ const messages = {
     pdfPanelLabel: "PDF 预览",
     presenceKicker: "协作状态",
     discussionKicker: "讨论区",
-    sessionLabel: (sid) => `会话=${sid}`,
+    sessionLabel: (sid) => `会话 ${sid}`,
     missingSession: "缺少会话 ID",
     statusIdle: "空闲",
     statusConnecting: "连接中...",
@@ -22,7 +41,7 @@ const messages = {
     statusPdfPreparing: "PDF 正在准备中...",
     statusPdfReady: "PDF 已就绪",
     statusPdfLoadFailed: (reason) => `PDF 预览加载失败: ${reason}`,
-    statusNeedFields: "会话/口令/用户名不能为空",
+    statusNeedFields: "会话 / 口令 / 用户名不能为空",
     statusQuoteNeeded: "请先在 PDF 或 TeX 中选中要引用的文本。",
     statusCommentPosted: "评论已发布",
     statusPostCommentFailed: (reason) => `发布评论失败: ${reason}`,
@@ -73,38 +92,38 @@ const messages = {
     pdfPanelLabel: "PDF preview",
     presenceKicker: "Presence",
     discussionKicker: "Discussion",
-    sessionLabel: (sid) => `session=${sid}`,
-    missingSession: "missing session id",
-    statusIdle: "idle",
-    statusConnecting: "connecting...",
-    statusConnected: "connected",
+    sessionLabel: (sid) => `Session ${sid}`,
+    missingSession: "Missing session id",
+    statusIdle: "Idle",
+    statusConnecting: "Connecting...",
+    statusConnected: "Connected",
     statusPdfPreparing: "PDF is being prepared...",
     statusPdfReady: "PDF ready",
-    statusPdfLoadFailed: (reason) => `failed to load PDF preview: ${reason}`,
-    statusNeedFields: "session/password/username required",
+    statusPdfLoadFailed: (reason) => `Failed to load PDF preview: ${reason}`,
+    statusNeedFields: "Session, password, and username are required",
     statusQuoteNeeded: "Select text in PDF or TeX first.",
-    statusCommentPosted: "comment posted",
-    statusPostCommentFailed: (reason) => `failed to post comment: ${reason}`,
-    statusCompileRequested: "compile requested",
-    statusCompileFailed: (reason) => `compile request failed: ${reason}`,
-    statusSyncFailed: (reason) => `sync failed: ${reason}`,
-    statusConnectFailed: (reason) => `connect failed: ${reason}`,
+    statusCommentPosted: "Comment posted",
+    statusPostCommentFailed: (reason) => `Failed to post comment: ${reason}`,
+    statusCompileRequested: "Compile requested",
+    statusCompileFailed: (reason) => `Compile request failed: ${reason}`,
+    statusSyncFailed: (reason) => `Sync failed: ${reason}`,
+    statusConnectFailed: (reason) => `Connect failed: ${reason}`,
     connectedBadge: "Connected",
-    join: "Join",
+    join: "Join session",
     reloadPdf: "Reload PDF",
-    copyPassword: "Copy Password",
+    copyPassword: "Copy password",
     copyPasswordDone: "Copied",
     usernamePlaceholder: "Username",
     passwordPlaceholder: "Session password",
     tabTex: "TeX",
     tabPdf: "PDF",
     tabComments: "Comments",
-    compile: "Request Compile",
+    compile: "Request compile",
     addQuote: "Quote",
     quoteLabel: "Quote",
     commentPlaceholder: "Write a comment...",
     postComment: "Post",
-    clearQuote: "Clear Quote",
+    clearQuote: "Clear quote",
     collaborators: "Collaborators",
     comments: "Comments",
     noCollaborators: "No active collaborators.",
@@ -115,15 +134,15 @@ const messages = {
     quoteFromPdf: (page) => `From PDF page ${page}`,
     quoteFromTex: "From TeX editor",
     clickJump: "Click to jump",
-    shareHint: "Select text, click quote, then post. Click quote to jump back.",
-    actionReading: "reading",
-    actionEditing: "editing text",
-    actionCommenting: "posting comment",
-    actionCompile: "request compile",
+    shareHint: "Select text, click quote, then post. Click a quote to jump back.",
+    actionReading: "Reading",
+    actionEditing: "Editing text",
+    actionCommenting: "Posting comment",
+    actionCompile: "Requesting compile",
     promptNeedCommentOrQuote: "Comment text and quote cannot both be empty.",
   },
 };
 
 export function createI18n(locale) {
-  return messages[locale] || messages["en-US"];
+  return messages[normalizeLocale(locale)] || messages["en-US"];
 }

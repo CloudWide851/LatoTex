@@ -2,6 +2,7 @@ import { Edit3, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "../../../lib/utils";
 import type { AnalysisTask } from "../../hooks/analysisTypes";
+import { AnalysisTaskHistoryMenu } from "./AnalysisTaskHistoryMenu";
 
 type TranslationFn = (key: any) => string;
 
@@ -12,10 +13,11 @@ export function AnalysisTaskTabs(props: {
   onSelectTask: (taskId: string) => void;
   onCreateTask: () => void;
   onRenameTask: (taskId: string, name: string) => void;
+  onSelectRun: (taskId: string, runId: string) => void;
   onDeleteTask: (taskId: string) => void;
   t: TranslationFn;
 }) {
-  const { tasks, activeTaskId, running, onSelectTask, onCreateTask, onRenameTask, onDeleteTask, t } = props;
+  const { tasks, activeTaskId, running, onSelectTask, onCreateTask, onRenameTask, onSelectRun, onDeleteTask, t } = props;
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [isComposing, setIsComposing] = useState(false);
@@ -91,6 +93,12 @@ export function AnalysisTaskTabs(props: {
             >
               <Edit3 className="h-3 w-3" />
             </button>
+            <AnalysisTaskHistoryMenu
+              task={task}
+              disabled={running}
+              onSelectRun={(runId) => onSelectRun(task.id, runId)}
+              t={t}
+            />
             <button
               type="button"
               className="rounded p-0.5 text-slate-500 transition hover:bg-rose-100 hover:text-rose-700"

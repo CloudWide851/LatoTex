@@ -6,6 +6,7 @@ import { LibraryPdfScrollViewerPage } from "./LibraryPdfScrollViewerPage";
 import type { AnnotationStroke, AnnotationTextBox, AnnotationTextStylePreset } from "./annotationModel";
 import { resolveVisiblePdfPage } from "./libraryPdfScrollState";
 import { clampPdfScrollRatio, collectPdfPageMetrics, ensurePdfScrollSyncGroup, maxPdfScrollTop, type LibraryPdfScrollSyncGroup } from "./libraryPdfScrollViewerShared";
+import { WORKSPACE_LAYOUT_REFRESH_EVENT } from "../../hooks/workspaceLayoutRefresh";
 
 ensureReactPdfWorker();
 
@@ -308,6 +309,25 @@ export const LibraryPdfScrollViewer = forwardRef<
     observer.observe(scrollRef.current);
     return () => observer.disconnect();
   }, [pages.length, restoreScrollRatio]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleLayoutRefresh = () => {
+      if (!scrollRef.current) {
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        setViewportWidth(scrollRef.current?.clientWidth || 920);
+        restoreScrollRatio();
+      });
+    };
+    window.addEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
+    return () => {
+      window.removeEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
+    };
+  }, [restoreScrollRatio]);
   useEffect(() => {
     const group = ensurePdfScrollSyncGroup(syncGroupRef);
     if (!group) {

@@ -13,6 +13,7 @@ import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
+import { WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
 import {
   LazyAgentChatOverlay,
   LazyChatWorkspace,
@@ -223,6 +224,25 @@ export function LatexWorkspaceEditorPanel(props: {
     editor.updateOptions(editorOptions);
     editor.layout();
   }, [editorLanguage, editorOptions, editorTheme, selectedFile, selectedIsExcel, showChatWorkspace]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleLayoutRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceLayoutRefreshDetail>).detail;
+      if (!detail || detail.page !== "latex") {
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        editorInstanceRef.current?.layout();
+      });
+    };
+    window.addEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
+    return () => {
+      window.removeEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
+    };
+  }, []);
 
   return (
     <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">

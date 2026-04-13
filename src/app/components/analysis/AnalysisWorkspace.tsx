@@ -49,6 +49,7 @@ export function AnalysisWorkspace(props: {
   onSelectTask: (taskId: string) => void;
   onCreateTask: () => void;
   onRenameTask: (taskId: string, name: string) => void;
+  onSelectRun: (taskId: string, runId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onExportArtifact: (relativePath: string) => void;
   onRevealArtifact: (relativePath: string) => void;
@@ -75,6 +76,7 @@ export function AnalysisWorkspace(props: {
     onSelectTask,
     onCreateTask,
     onRenameTask,
+    onSelectRun,
     onDeleteTask,
     onExportArtifact,
     onRevealArtifact,
@@ -113,6 +115,7 @@ export function AnalysisWorkspace(props: {
         onSelectTask={onSelectTask}
         onCreateTask={onCreateTask}
         onRenameTask={onRenameTask}
+        onSelectRun={onSelectRun}
         onDeleteTask={onDeleteTask}
         t={t}
       />

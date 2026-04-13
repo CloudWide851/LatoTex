@@ -409,6 +409,7 @@ export function AppContainer() {
       status={s.status}
       sleeping={idleSleep.sleeping}
       onWakeFromSleep={idleSleep.wake}
+      startupReady={startup.startupReady}
       logoMark={logoMark}
       projects={s.projects}
       activeProjectId={s.activeProjectId}

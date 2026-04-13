@@ -95,6 +95,13 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     if (!activeTask) {
       return null;
     }
+    const activeRunId = typeof activeTask.activeRunId === "string" ? activeTask.activeRunId.trim() : "";
+    if (activeRunId) {
+      const matched = activeTask.runs.find((item) => item.id === activeRunId);
+      if (matched) {
+        return matched;
+      }
+    }
     return activeTask.runs[0] ?? null;
   }, [activeTask]);
   const prompt = activeTask?.draftPrompt ?? "";

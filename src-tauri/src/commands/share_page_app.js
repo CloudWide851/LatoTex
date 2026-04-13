@@ -1,5 +1,5 @@
 import * as Y from "/assets/vendor/yjs.mjs";
-import { createI18n, detectLocale } from "/assets/share_page_i18n.js";
+import { createI18n, detectDevice, detectLocale } from "/assets/share_page_i18n.js";
 import { createSharePdfController } from "/assets/share_page_pdf.js";
 import { renderComments, renderParticipants } from "/assets/share_page_render.js";
 import { fromBase64, postJson, toBase64, trimQuote } from "/assets/share_page_utils.js";
@@ -8,7 +8,8 @@ export async function bootstrapSharePage() {
   const params = new URLSearchParams(window.location.search);
   const sid = params.get("sid") || "";
   const pwdFromUrl = params.get("pwd") || "";
-  const i18n = createI18n(detectLocale());
+  const locale = detectLocale(params.get("lang") || params.get("locale"));
+  const i18n = createI18n(locale);
 
   const el = {
     brand: document.getElementById("share-brand"),
@@ -82,8 +83,20 @@ export async function bootstrapSharePage() {
     pdfReady: false,
     highlightQuote: "",
     comments: [],
+    device: "desktop",
   };
   const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
+
+  function refreshEnvironment() {
+    const device = detectDevice();
+    state.device = device;
+    document.documentElement.lang = locale;
+    document.documentElement.dataset.locale = locale;
+    document.documentElement.dataset.device = device;
+    document.body.dataset.locale = locale;
+    document.body.dataset.device = device;
+    return device;
+  }
 
   function setStatus(text, isError = false) {
     el.status.textContent = text;
@@ -106,7 +119,8 @@ export async function bootstrapSharePage() {
 
   function setView(nextView) {
     state.view = nextView;
-    const compact = window.matchMedia("(max-width: 980px)").matches;
+    const compact = refreshEnvironment() === "mobile";
+    document.body.dataset.view = nextView;
     el.viewTex.classList.toggle("active", nextView === "tex");
     el.viewPdf.classList.toggle("active", nextView === "pdf");
     el.viewComments.classList.toggle("active", nextView === "comments");
@@ -301,6 +315,7 @@ export async function bootstrapSharePage() {
   }
 
   function setupI18n() {
+    refreshEnvironment();
     document.title = i18n.title;
     el.brand.textContent = i18n.brand;
     el.title.textContent = i18n.title;
@@ -393,7 +408,10 @@ export async function bootstrapSharePage() {
 
   window.addEventListener("mouseup", () => window.setTimeout(updateQuoteFromSelection, 30));
   window.addEventListener("keyup", () => window.setTimeout(updateQuoteFromSelection, 30));
-  window.addEventListener("resize", () => setView(state.view));
+  window.addEventListener("resize", () => {
+    refreshEnvironment();
+    setView(state.view);
+  });
   window.addEventListener("scroll", () => {
     if (!el.quickQuote.hidden) updateQuoteFromSelection();
   }, true);

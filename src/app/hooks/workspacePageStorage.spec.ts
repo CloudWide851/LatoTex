@@ -12,7 +12,7 @@ type StorageLike = {
   clear: () => void;
 };
 
-function createSessionStorage(): StorageLike {
+function createStorage(): StorageLike {
   const store = new Map<string, string>();
   return {
     getItem: (key) => store.get(key) ?? null,
@@ -26,16 +26,16 @@ function createSessionStorage(): StorageLike {
 }
 
 describe("workspacePageStorage", () => {
-  let sessionStorage: StorageLike;
+  let localStorage: StorageLike;
 
   beforeEach(() => {
-    sessionStorage = createSessionStorage();
+    localStorage = createStorage();
     Object.defineProperty(globalThis, "window", {
-      value: { sessionStorage },
+      value: { localStorage },
       configurable: true,
       writable: true,
     });
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -53,7 +53,7 @@ describe("workspacePageStorage", () => {
   });
 
   it("falls back to latex when the persisted value is invalid", () => {
-    sessionStorage.setItem("latotex.workspace.page", "unknown-page");
+    localStorage.setItem("latotex.workspace.page", "unknown-page");
 
     expect(loadWorkspacePage()).toBe(DEFAULT_WORKSPACE_PAGE);
   });

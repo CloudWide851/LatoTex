@@ -9,6 +9,7 @@ import { Document, Page } from "react-pdf";
 import { CodePreviewPane } from "./CodePreviewPane";
 import { ensureReactPdfWorker } from "./pdf/reactPdfSetup";
 import { useWorkspacePdfSource } from "./pdf/useWorkspacePdfSource";
+import { WORKSPACE_LAYOUT_REFRESH_EVENT } from "../hooks/workspaceLayoutRefresh";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/github.css";
 
@@ -178,6 +179,25 @@ export function FilePreviewPane(props: {
     observer.observe(root);
     return () => observer.disconnect();
   }, [effectivePdfUrl, mode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleLayoutRefresh = () => {
+      const root = viewportRef.current;
+      if (!root) {
+        return;
+      }
+      window.requestAnimationFrame(() => {
+        setViewportWidth(root.clientWidth || 900);
+      });
+    };
+    window.addEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
+    return () => {
+      window.removeEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
+    };
+  }, []);
 
   const basePageWidth = useMemo(
     () => Math.max(320, Math.floor(Math.max(340, viewportWidth) - 24)),

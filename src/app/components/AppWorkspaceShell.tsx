@@ -30,6 +30,7 @@ import {
 import { buildNewChatTabState } from "./workspace/workspaceChatTab";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 import { createChatSessionInStore } from "../hooks/chatSessionStore";
+import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -186,6 +187,10 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     if (page !== "latex") {
       setChatTabActive(false);
     }
+  }, [page]);
+
+  useEffect(() => {
+    emitWorkspaceLayoutRefresh(page, "page-change");
   }, [page]);
 
   const previewSelectedPath = previewOverridePath || selectedFile;

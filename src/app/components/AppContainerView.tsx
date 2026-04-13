@@ -16,6 +16,7 @@ export function AppContainerView(props: any) {
     status,
     sleeping,
     onWakeFromSleep,
+    startupReady,
     suspended,
     logoMark,
     projects,
@@ -250,135 +251,141 @@ export function AppContainerView(props: any) {
           retryLabel={t("workspace.crashedRetry")}
           onRecover={recoverWorkspaceLayout}
         >
-          <Suspense
-            fallback={
-              <section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">
-                {t("common.loading")}
-              </section>
-            }
-          >
-            <AppWorkspaceShell
-              page={page}
-              pageRailItems={pageRailItems}
-              activeProjectId={activeProjectId}
-              busy={busy}
-              shellLayout={shellLayout}
-              latexLayout={latexLayout}
-              analysisLayout={analysisLayout}
-              libraryLayout={libraryLayout}
-              previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
-              completionModelId={completionModelId}
-              chatAgentModelId={chatAgentModelId}
-              translationModelId={translationModelId}
-              paperBriefEngine={paperBriefEngine}
-              tree={tree}
-              libraryTree={libraryTree}
-              selectedFile={selectedFile}
-              selectedLibraryPath={selectedLibraryPath}
-              fileList={fileList}
-              editorContent={editorContent}
-              editorTabs={editorTabs}
-              activeTabId={activeTabId}
-              dirtyByPath={dirtyByPath}
-              compiledPdfUrl={pdfUrl}
-              compiledPdfRelativePath={props.compiledPdfRelativePath}
-              preferCompiledPreview={preferCompiledPreview}
-              selectedFilePdfUrl={selectedFilePdfUrl}
-              selectedImagePreviewUrl={selectedImagePreviewUrl}
-              previewOverridePath={previewOverridePath}
-              compileErrorLine={compileErrorLine}
-              compileDiagnostics={compileDiagnostics}
-              compileInstallProgress={compileInstallProgress}
-              agentCollapsed={agentCollapsed}
-              agentPhase={agentPhase}
-              agentStatusKey={agentStatusKey}
-              agentPrompt={agentPrompt}
-              agentMessages={agentMessages}
-              agentProposal={agentProposal}
-              agentPendingAction={agentPendingAction}
-              agentRunId={agentRunId}
-              agentSessions={agentSessions}
-              agentSessionPickerOpen={agentSessionPickerOpen}
-              agentSessionPickerIndex={agentSessionPickerIndex}
-              agentRollbackVisible={agentRollbackVisible}
-              events={events}
-              explorerGitDecorations={explorerGitDecorations}
-              shellMin={SHELL_MIN}
-              settingsPanel={settingsPanel}
-              gitPanel={gitPanel}
-              analysisPanel={analysisPanel}
-              onPageChange={setPage}
-              shareSession={shareSession}
-              shareBusy={shareBusy}
-              shareSyncing={shareSyncing}
-              shareComments={shareComments}
-              channelPrefs={settings?.uiPrefs?.channels ?? null}
-              shareMode={shareMode}
-              shareSessionName={shareSessionName}
-              onShareModeChange={handleShareModeChange}
-              onShareSessionNameChange={handleShareSessionNameChange}
-              onShareStart={handleShareStart}
-              onShareStop={handleShareStop}
-              onShareRefresh={handleShareRefresh}
-              onSelectFile={handleSelectWorkspacePath}
-              onSelectLibraryPath={setSelectedLibraryPath}
-              onEditorChange={setEditorContent}
-              onTabSelect={handleTabSelect}
-              onTabClose={handleTabClose}
-              onTabCloseAction={handleTabCloseAction}
-              onTabPin={handleTabPin}
-              onEditorMount={(editor, _monaco) => {
-                editorRef.current = editor;
-              }}
-              onChatReviewRequest={(prompt) => {
-                setAgentCollapsed(false);
-                void handleRunAgent(prompt, { forceNewSession: true });
-              }}
-              onAgentPromptChange={setAgentPrompt}
-              onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
-              onAgentRun={handleRunAgent}
-              onAgentSessionPickerOpenChange={setAgentSessionPickerOpen}
-              onAgentSessionPickerIndexChange={setAgentSessionPickerIndex}
-              onAgentSessionConfirm={handleAgentSessionConfirm}
-              onAgentRollback={handleAgentRollback}
-              onAgentAcceptProposal={(withAnalysis) => {
-                void handleAcceptAgentProposal(withAnalysis);
-              }}
-              onAgentRejectProposal={handleRejectAgentProposal}
-              onAgentPendingActionResolve={handleResolveAgentPendingAction}
-              onOpenFolder={handleInitProjectFromFolderWithGuard}
-              onSaveFile={handleSaveActiveFile}
-              onWriteSelectedFileContent={handleWriteSelectedFileContent}
-              onCompile={handleCompile}
-              onExportPdf={handleExportCompiledPdf}
-              onEditorUndo={handleEditorUndo}
-              onEditorRedo={handleEditorRedo}
-              onOpenLogs={(tab) => {
-                setLogsTab(tab);
-                setOverlay("logs");
-              }}
-              onLibraryRescan={handleLibraryRescan}
-              onLibraryImportPdf={handleLibraryImportPdf}
-              onLibraryImportLink={handleLibraryImportLink}
-              onLibrarySyncZotero={handleLibrarySyncZotero}
-              onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
-              analysisRunning={analysisRunning}
-              libraryViewMode={libraryViewMode}
-              onLibraryViewModeChange={handleLibraryViewModeChange}
-              onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
-              onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
-              onWorkspaceRescan={handleWorkspaceRescan}
-              onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
-              onFsAction={(scope, action, path, targetPath, content) =>
-                requestFsAction(scope, action, path, targetPath, content)
+          {!startupReady ? (
+            <section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">
+              {t("common.loading")}
+            </section>
+          ) : (
+            <Suspense
+              fallback={
+                <section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">
+                  {t("common.loading")}
+                </section>
               }
-              onRunFsAction={(scope, action, path, targetPath, content) =>
-                runFsAction(scope, action, path, targetPath, content)
-              }
-              t={t}
-              suspended={suspended}
-            />
-          </Suspense>
+            >
+              <AppWorkspaceShell
+                page={page}
+                pageRailItems={pageRailItems}
+                activeProjectId={activeProjectId}
+                busy={busy}
+                shellLayout={shellLayout}
+                latexLayout={latexLayout}
+                analysisLayout={analysisLayout}
+                libraryLayout={libraryLayout}
+                previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
+                completionModelId={completionModelId}
+                chatAgentModelId={chatAgentModelId}
+                translationModelId={translationModelId}
+                paperBriefEngine={paperBriefEngine}
+                tree={tree}
+                libraryTree={libraryTree}
+                selectedFile={selectedFile}
+                selectedLibraryPath={selectedLibraryPath}
+                fileList={fileList}
+                editorContent={editorContent}
+                editorTabs={editorTabs}
+                activeTabId={activeTabId}
+                dirtyByPath={dirtyByPath}
+                compiledPdfUrl={pdfUrl}
+                compiledPdfRelativePath={props.compiledPdfRelativePath}
+                preferCompiledPreview={preferCompiledPreview}
+                selectedFilePdfUrl={selectedFilePdfUrl}
+                selectedImagePreviewUrl={selectedImagePreviewUrl}
+                previewOverridePath={previewOverridePath}
+                compileErrorLine={compileErrorLine}
+                compileDiagnostics={compileDiagnostics}
+                compileInstallProgress={compileInstallProgress}
+                agentCollapsed={agentCollapsed}
+                agentPhase={agentPhase}
+                agentStatusKey={agentStatusKey}
+                agentPrompt={agentPrompt}
+                agentMessages={agentMessages}
+                agentProposal={agentProposal}
+                agentPendingAction={agentPendingAction}
+                agentRunId={agentRunId}
+                agentSessions={agentSessions}
+                agentSessionPickerOpen={agentSessionPickerOpen}
+                agentSessionPickerIndex={agentSessionPickerIndex}
+                agentRollbackVisible={agentRollbackVisible}
+                events={events}
+                explorerGitDecorations={explorerGitDecorations}
+                shellMin={SHELL_MIN}
+                settingsPanel={settingsPanel}
+                gitPanel={gitPanel}
+                analysisPanel={analysisPanel}
+                onPageChange={setPage}
+                shareSession={shareSession}
+                shareBusy={shareBusy}
+                shareSyncing={shareSyncing}
+                shareComments={shareComments}
+                channelPrefs={settings?.uiPrefs?.channels ?? null}
+                shareMode={shareMode}
+                shareSessionName={shareSessionName}
+                onShareModeChange={handleShareModeChange}
+                onShareSessionNameChange={handleShareSessionNameChange}
+                onShareStart={handleShareStart}
+                onShareStop={handleShareStop}
+                onShareRefresh={handleShareRefresh}
+                onSelectFile={handleSelectWorkspacePath}
+                onSelectLibraryPath={setSelectedLibraryPath}
+                onEditorChange={setEditorContent}
+                onTabSelect={handleTabSelect}
+                onTabClose={handleTabClose}
+                onTabCloseAction={handleTabCloseAction}
+                onTabPin={handleTabPin}
+                onEditorMount={(editor, _monaco) => {
+                  editorRef.current = editor;
+                }}
+                onChatReviewRequest={(prompt) => {
+                  setAgentCollapsed(false);
+                  void handleRunAgent(prompt, { forceNewSession: true });
+                }}
+                onAgentPromptChange={setAgentPrompt}
+                onAgentToggle={() => setAgentCollapsed((prev: boolean) => !prev)}
+                onAgentRun={handleRunAgent}
+                onAgentSessionPickerOpenChange={setAgentSessionPickerOpen}
+                onAgentSessionPickerIndexChange={setAgentSessionPickerIndex}
+                onAgentSessionConfirm={handleAgentSessionConfirm}
+                onAgentRollback={handleAgentRollback}
+                onAgentAcceptProposal={(withAnalysis) => {
+                  void handleAcceptAgentProposal(withAnalysis);
+                }}
+                onAgentRejectProposal={handleRejectAgentProposal}
+                onAgentPendingActionResolve={handleResolveAgentPendingAction}
+                onOpenFolder={handleInitProjectFromFolderWithGuard}
+                onSaveFile={handleSaveActiveFile}
+                onWriteSelectedFileContent={handleWriteSelectedFileContent}
+                onCompile={handleCompile}
+                onExportPdf={handleExportCompiledPdf}
+                onEditorUndo={handleEditorUndo}
+                onEditorRedo={handleEditorRedo}
+                onOpenLogs={(tab) => {
+                  setLogsTab(tab);
+                  setOverlay("logs");
+                }}
+                onLibraryRescan={handleLibraryRescan}
+                onLibraryImportPdf={handleLibraryImportPdf}
+                onLibraryImportLink={handleLibraryImportLink}
+                onLibrarySyncZotero={handleLibrarySyncZotero}
+                onLibraryAnalyzePaper={handleLibraryAnalyzePaper}
+                analysisRunning={analysisRunning}
+                libraryViewMode={libraryViewMode}
+                onLibraryViewModeChange={handleLibraryViewModeChange}
+                onWorkspaceRevealInSystem={handleWorkspaceRevealInSystem}
+                onWorkspaceOpenTerminal={handleWorkspaceOpenTerminal}
+                onWorkspaceRescan={handleWorkspaceRescan}
+                onSavePanelLayout={(panel, layout) => savePanelLayout(panel, layout)}
+                onFsAction={(scope, action, path, targetPath, content) =>
+                  requestFsAction(scope, action, path, targetPath, content)
+                }
+                onRunFsAction={(scope, action, path, targetPath, content) =>
+                  runFsAction(scope, action, path, targetPath, content)
+                }
+                t={t}
+                suspended={suspended}
+              />
+            </Suspense>
+          )}
         </AppErrorBoundary>
       </div>
 

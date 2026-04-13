@@ -8,21 +8,21 @@
     <link rel="stylesheet" href="/assets/share_page_theme.css" />
   </head>
   <body>
-    <main class="share-shell">
-      <header class="hero-card card">
+    <main class="share-page">
+      <header class="hero-panel shell-panel">
         <div class="hero-copy">
-          <div class="hero-eyebrow" id="share-brand">LatoTex Share</div>
+          <p class="eyebrow" id="share-brand">LatoTex Share</p>
           <h1 id="title-text">LatoTex Collaborative Editing</h1>
-          <p id="meta" class="hero-meta">session=-</p>
+          <p id="meta" class="hero-meta">Session -</p>
         </div>
         <div class="hero-status">
-          <span class="status-pill" id="status">idle</span>
-          <span class="connected-badge" id="connected-badge">idle</span>
+          <span class="status-pill" id="status">Idle</span>
+          <span class="connected-badge" id="connected-badge">Idle</span>
         </div>
       </header>
 
-      <section class="control-card card">
-        <div class="control-grid">
+      <section class="session-strip shell-panel">
+        <div class="session-fields">
           <label class="field">
             <span class="field-label" id="identity-label">Identity</span>
             <input id="username" placeholder="Username" maxlength="32" />
@@ -31,47 +31,46 @@
             <span class="field-label" id="password-label">Session password</span>
             <input id="pwd" placeholder="Session password" />
           </label>
-          <div class="control-actions">
-            <button id="copy-password" class="secondary">Copy Password</button>
-            <button id="connect">Join</button>
-            <button id="reload-pdf" class="secondary">Reload PDF</button>
-          </div>
+        </div>
+        <div class="session-actions">
+          <button id="copy-password" class="secondary" type="button">Copy password</button>
+          <button id="connect" type="button">Join session</button>
+          <button id="reload-pdf" class="secondary" type="button">Reload PDF</button>
         </div>
       </section>
 
-      <section class="tab-card card">
-        <div class="tab-row">
-          <button id="view-tex" class="outline">TeX</button>
-          <button id="view-pdf" class="outline">PDF</button>
-          <button id="view-comments" class="outline">Comments</button>
+      <section class="toolbar-strip shell-panel">
+        <div class="toolbar-copy">
+          <p class="eyebrow" id="workspace-kicker">Live workspace</p>
+          <p id="share-hint" class="toolbar-hint"></p>
+        </div>
+        <div class="toolbar-actions">
+          <div class="tab-row">
+            <button id="view-tex" class="outline active" type="button">TeX</button>
+            <button id="view-pdf" class="outline" type="button">PDF</button>
+            <button id="view-comments" class="outline" type="button">Comments</button>
+          </div>
+          <button id="request-compile" class="secondary" type="button">Request compile</button>
         </div>
       </section>
 
-      <section class="layout">
-        <section class="card pane workspace-pane active" id="pane-main">
-          <div class="pane-header">
-            <div>
-              <p class="pane-kicker" id="workspace-kicker">Live workspace</p>
-              <p class="pane-hint" id="share-hint"></p>
-            </div>
-            <button id="request-compile" class="secondary">Request Compile</button>
-          </div>
-
-          <section id="editor-wrap" class="editor-wrap content-panel">
-            <div class="panel-label-row">
-              <span class="panel-label" id="editor-panel-label">TeX Editor</span>
+      <section class="workspace-grid">
+        <section class="shell-panel workspace-panel pane active" id="pane-main">
+          <section id="editor-wrap" class="content-panel editor-panel">
+            <div class="panel-header">
+              <span class="panel-label" id="editor-panel-label">TeX editor</span>
               <span class="cursor" id="cursor-info">0-0</span>
             </div>
-            <textarea id="editor" rows="16"></textarea>
+            <textarea id="editor" rows="18"></textarea>
           </section>
 
-          <section id="pdf-wrap" class="pdf-wrap hidden content-panel">
-            <div class="panel-label-row">
-              <span class="panel-label" id="pdf-panel-label">PDF Preview</span>
+          <section id="pdf-wrap" class="content-panel pdf-panel hidden">
+            <div class="panel-header">
+              <span class="panel-label" id="pdf-panel-label">PDF preview</span>
               <div class="pdf-nav">
-                <button id="pdf-prev" class="secondary" aria-label="Previous PDF page">&lt;</button>
+                <button id="pdf-prev" class="secondary" type="button" aria-label="Previous PDF page">&lt;</button>
                 <span id="pdf-page-label" class="meta">PDF page 1/1</span>
-                <button id="pdf-next" class="secondary" aria-label="Next PDF page">&gt;</button>
+                <button id="pdf-next" class="secondary" type="button" aria-label="Next PDF page">&gt;</button>
               </div>
             </div>
             <div id="pdf-canvas-wrap" class="pdf-stage">
@@ -82,37 +81,40 @@
           </section>
         </section>
 
-        <aside class="card pane side-pane active" id="pane-side">
-          <section class="side-section">
+        <aside class="side-stack pane active" id="pane-side">
+          <section class="shell-panel side-panel">
             <div class="side-heading-row">
-              <p class="side-kicker" id="presence-kicker">Presence</p>
-              <h2 id="participants-title">Collaborators</h2>
+              <div>
+                <p class="eyebrow" id="presence-kicker">Presence</p>
+                <h2 id="participants-title">Collaborators</h2>
+              </div>
             </div>
             <div id="participants" class="participants"></div>
           </section>
 
-          <section class="side-section comments-section">
+          <section class="shell-panel side-panel comments-panel">
             <div class="side-heading-row">
-              <p class="side-kicker" id="discussion-kicker">Discussion</p>
-              <h2 id="comments-title">Comments</h2>
+              <div>
+                <p class="eyebrow" id="discussion-kicker">Discussion</p>
+                <h2 id="comments-title">Comments</h2>
+              </div>
             </div>
             <div id="comments" class="comments"></div>
-          </section>
-
-          <section class="comment-composer">
-            <div id="quote-preview" class="quote-preview" hidden>
-              <div id="quote-source" class="quote-source"></div>
-              <div id="quote-content" class="quote-content"></div>
-              <button id="clear-quote" class="secondary">Clear Quote</button>
+            <div class="comment-composer">
+              <div id="quote-preview" class="quote-preview" hidden>
+                <div id="quote-source" class="quote-source"></div>
+                <div id="quote-content" class="quote-content"></div>
+                <button id="clear-quote" class="secondary" type="button">Clear quote</button>
+              </div>
+              <textarea id="comment-editor" rows="4" placeholder="Write a comment..."></textarea>
+              <button id="post-comment" type="button">Post</button>
             </div>
-            <textarea id="comment-editor" rows="4" placeholder="Write a comment..."></textarea>
-            <button id="post-comment">Post</button>
           </section>
         </aside>
       </section>
     </main>
 
-    <button id="quick-quote" class="quick-quote" hidden>Quote</button>
+    <button id="quick-quote" class="quick-quote" hidden type="button">Quote</button>
     <script type="module" src="/assets/share_page.js"></script>
   </body>
 </html>
