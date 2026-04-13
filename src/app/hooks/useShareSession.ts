@@ -63,6 +63,7 @@ export function useShareSession(params: {
   const pullCursorRef = useRef(0);
   const applyingRemoteRef = useRef(false);
   const statusTimerRef = useRef<number | null>(null);
+  const commentsTimerRef = useRef<number | null>(null);
   const syncTimerRef = useRef<number | null>(null);
   const compileTimerRef = useRef<number | null>(null);
   const statusFlightRef = useRef(false);
@@ -270,9 +271,49 @@ export function useShareSession(params: {
     return () => clearTimer(statusTimerRef);
   }, [refreshShareStatus, shareBusy, shareSession, suspended]);
   useEffect(() => {
+    clearTimer(commentsTimerRef);
+    if (!active || !localUrl || !sessionId || !sessionPwd) {
+      setShareComments([]);
+      return;
+    }
+    let disposed = false;
+    const pullComments = async () => {
+      const response = await fetch(
+        `${localUrl}/api/comments/list?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&t=${Date.now()}`,
+      );
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const payload = await response.json() as { comments?: any[]; sessionName?: string };
+      if (disposed) {
+        return;
+      }
+      setShareComments(toShareCommentItems(payload.comments ?? []));
+      if (typeof payload.sessionName === "string" && payload.sessionName.trim()) {
+        setShareSessionName(payload.sessionName.trim());
+      }
+    };
+    const loop = async () => {
+      try {
+        await pullComments();
+      } catch {
+        // noop
+      }
+      if (disposed) {
+        return;
+      }
+      const hidden = typeof document !== "undefined" && document.hidden;
+      commentsTimerRef.current = Number(window.setTimeout(loop, hidden ? 6000 : 2400));
+    };
+    void loop();
+    return () => {
+      disposed = true;
+      clearTimer(commentsTimerRef);
+    };
+  }, [active, localUrl, sessionId, sessionPwd]);
+  useEffect(() => {
     if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
       setSyncing(false);
-      setShareComments([]);
       yDocRef.current = null;
       yTextRef.current = null;
       participantTokenRef.current = "";
@@ -339,24 +380,6 @@ export function useShareSession(params: {
         }
       };
       yText.observe(onText);
-      let lastCommentsPullAt = 0;
-      const pullComments = async () => {
-        const tokenParam = participantTokenRef.current
-          ? `&participantToken=${encodeURIComponent(participantTokenRef.current)}`
-          : "";
-        const response = await fetch(
-          `${localUrl}/api/comments/list?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&participantId=${encodeURIComponent(participantIdRef.current)}${tokenParam}&t=${Date.now()}`,
-        );
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-        const payload = await response.json() as { comments?: any[]; sessionName?: string };
-        lastCommentsPullAt = Date.now();
-        setShareComments(toShareCommentItems(payload.comments ?? []));
-        if (typeof payload.sessionName === "string" && payload.sessionName.trim()) {
-          setShareSessionName(payload.sessionName.trim());
-        }
-      };
       const initialize = async () => {
         const response = await fetch(
           `${localUrl}/api/snapshot?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}`,
@@ -369,7 +392,6 @@ export function useShareSession(params: {
         doc.transact(() => {
           applyYTextDelta(yText as unknown as YTextLike, yText.toString(), initial);
         }, "remote");
-        await pullComments();
       };
       const pullUpdates = async () => {
         if (syncFlightRef.current) {
@@ -411,10 +433,6 @@ export function useShareSession(params: {
         }
         await pullUpdates().catch(() => undefined);
         const hidden = typeof document !== "undefined" && document.hidden;
-        const commentIntervalMs = hidden ? 6_000 : 2_400;
-        if (Date.now() - lastCommentsPullAt >= commentIntervalMs) {
-          await pullComments().catch(() => undefined);
-        }
         syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
       };
       void initialize().catch((error) => {
@@ -429,7 +447,6 @@ export function useShareSession(params: {
         yDocRef.current = null;
         yTextRef.current = null;
         participantTokenRef.current = "";
-        setShareComments([]);
         doc.destroy();
       };
     };
@@ -448,7 +465,6 @@ export function useShareSession(params: {
         yDocRef.current = null;
         yTextRef.current = null;
         participantTokenRef.current = "";
-        setShareComments([]);
       }
     };
   }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast, t]);

@@ -82,6 +82,8 @@ export async function bootstrapSharePage() {
     selectionQuote: null,
     pdfReady: false,
     highlightQuote: "",
+    highlightStart: undefined,
+    highlightEnd: undefined,
     comments: [],
     device: "desktop",
   };
@@ -177,14 +179,24 @@ export async function bootstrapSharePage() {
   function readPdfSelection() {
     const selection = window.getSelection?.();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
-    const text = trimQuote(selection.toString());
-    if (!text) return null;
-    if (!el.pdfText.contains(selection.anchorNode)) return null;
+    if (!el.pdfText.contains(selection.anchorNode) || !el.pdfText.contains(selection.focusNode)) return null;
     const range = selection.getRangeAt(0);
+    const rawText = selection.toString();
+    const text = trimQuote(rawText);
+    if (!text) return null;
+    const prefix = range.cloneRange();
+    prefix.selectNodeContents(el.pdfText);
+    prefix.setEnd(range.startContainer, range.startOffset);
+    const rawStart = prefix.toString().length;
+    const trimmedOffset = rawText.indexOf(text);
+    const start = Math.max(0, rawStart + Math.max(0, trimmedOffset));
+    const end = start + text.length;
     return {
       source: "pdf",
       text,
       page: state.pdfPage,
+      start,
+      end,
       rect: range.getBoundingClientRect(),
     };
   }
@@ -192,7 +204,13 @@ export async function bootstrapSharePage() {
   function updateQuoteFromSelection() {
     const pdfSelection = readPdfSelection();
     if (pdfSelection) {
-      showQuickQuote(pdfSelection.rect, { source: "pdf", text: pdfSelection.text, page: pdfSelection.page });
+      showQuickQuote(pdfSelection.rect, {
+        source: "pdf",
+        text: pdfSelection.text,
+        page: pdfSelection.page,
+        start: pdfSelection.start,
+        end: pdfSelection.end,
+      });
       return;
     }
     const texSelection = readEditorSelection();
@@ -203,14 +221,19 @@ export async function bootstrapSharePage() {
     hideQuickQuote();
   }
 
-  function jumpToComment(comment) {
+  async function jumpToComment(comment) {
     if (comment.source === "pdf" && comment.page) {
       state.highlightQuote = comment.quote || "";
+      state.highlightStart = Number.isFinite(comment.start) ? comment.start : undefined;
+      state.highlightEnd = Number.isFinite(comment.end) ? comment.end : undefined;
       state.pdfPage = comment.page;
       setView("pdf");
-      void pdf.renderPdfPage();
+      await pdf.renderPdfPage();
       return;
     }
+    state.highlightQuote = "";
+    state.highlightStart = undefined;
+    state.highlightEnd = undefined;
     if (comment.source === "tex") {
       setView("tex");
       const start = Number.isFinite(comment.start) ? comment.start : 0;

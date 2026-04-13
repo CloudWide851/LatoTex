@@ -32,6 +32,7 @@ export function WorkspaceEditorPreviewPanel(props: {
   onZoomOut: () => void;
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
+  shareSession: any;
   shareComments: any[];
   onJumpToShareComment: (page: number) => void;
   previewFocusRequest: PreviewFocusRequest;
@@ -66,6 +67,7 @@ export function WorkspaceEditorPreviewPanel(props: {
       onZoomOut={props.onZoomOut}
       onZoomReset={props.onZoomReset}
       onPreviewZoomChange={props.onPreviewZoomChange}
+      shareSession={props.shareSession}
       shareComments={props.shareComments}
       onJumpToShareComment={props.onJumpToShareComment}
       previewFocusRequest={props.previewFocusRequest}

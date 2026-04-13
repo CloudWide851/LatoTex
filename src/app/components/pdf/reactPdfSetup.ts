@@ -1,5 +1,6 @@
 import { pdfjs } from "react-pdf";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import "react-pdf/dist/Page/TextLayer.css";
 
 let configured = false;
 

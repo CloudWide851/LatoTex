@@ -106,6 +106,12 @@ pub(super) fn try_serve_static_route(
         let _ = request.respond(html_response(include_str!("share_page.html")));
         return None;
     }
+    if *method == Method::Get && path == "/favicon.ico" {
+        let _ = request.respond(share_http_response::with_share_cors(
+            Response::empty(StatusCode(204)).with_header(no_cache_header()),
+        ));
+        return None;
+    }
     if *method != Method::Get {
         return Some(request);
     }

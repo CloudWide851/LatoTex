@@ -20,6 +20,19 @@ function copyFile(source, target) {
   fs.copyFileSync(source, target);
 }
 
+function copyDirContents(sourceDir, targetDir) {
+  ensureDir(targetDir);
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirContents(sourcePath, targetPath);
+      continue;
+    }
+    copyFile(sourcePath, targetPath);
+  }
+}
+
 function removeDirContents(dir) {
   if (!fs.existsSync(dir)) {
     return;
@@ -61,8 +74,11 @@ function main() {
   const yjsRequire = createRequire(yjsPackagePath);
   const yjsDir = path.dirname(yjsPackagePath);
   const lib0Dir = path.dirname(yjsRequire.resolve("lib0/package.json"));
+  const pdfjsDir = path.dirname(require.resolve("pdfjs-dist/package.json"));
   const pdfMinPath = require.resolve("pdfjs-dist/build/pdf.min.mjs");
   const pdfWorkerPath = require.resolve("pdfjs-dist/build/pdf.worker.min.mjs");
+  const pdfCMapsDir = path.join(pdfjsDir, "cmaps");
+  const pdfStandardFontsDir = path.join(pdfjsDir, "standard_fonts");
   const yjsSourcePath = path.join(yjsDir, "dist", "yjs.mjs");
 
   ensureDir(vendorRoot);
@@ -70,6 +86,8 @@ function main() {
 
   copyFile(pdfMinPath, path.join(vendorRoot, "pdf.min.mjs"));
   copyFile(pdfWorkerPath, path.join(vendorRoot, "pdf.worker.min.mjs"));
+  copyDirContents(pdfCMapsDir, path.join(vendorRoot, "cmaps"));
+  copyDirContents(pdfStandardFontsDir, path.join(vendorRoot, "standard_fonts"));
 
   const yjsPatched = rewriteShareVendorImports(fs.readFileSync(yjsSourcePath, "utf8"), "yjs.mjs");
   fs.writeFileSync(path.join(vendorRoot, "yjs.mjs"), yjsPatched);

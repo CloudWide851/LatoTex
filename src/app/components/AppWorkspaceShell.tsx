@@ -390,6 +390,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       onZoomOut={() => setPreviewZoom((prev) => clampPreviewZoom(prev - 0.1))}
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
+      shareSession={shareSession}
       shareComments={shareComments}
       onJumpToShareComment={(page) =>
         setPreviewFocusRequest({

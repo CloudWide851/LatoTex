@@ -21,9 +21,15 @@ export function renderParticipants(container, items, i18n) {
   }
 }
 
-export function withHighlight(text, quote) {
-  if (!quote) return escapeHtml(text);
+export function withHighlight(text, quote, start, end) {
   const plain = String(text || "");
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start && start >= 0 && end <= plain.length) {
+    const before = escapeHtml(plain.slice(0, start));
+    const hit = escapeHtml(plain.slice(start, end));
+    const after = escapeHtml(plain.slice(end));
+    return `${before}<mark>${hit}</mark>${after}`;
+  }
+  if (!quote) return escapeHtml(plain);
   const target = trimQuote(quote, 160);
   if (!target) return escapeHtml(plain);
   const index = plain.toLowerCase().indexOf(target.toLowerCase());

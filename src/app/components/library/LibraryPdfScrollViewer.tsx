@@ -456,7 +456,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [documentPages, pages, viewportWidth]);
   const rootProps = {
     ref: scrollRef,
-    className: `${containerClassName}${lensEnabled ? (lensActive ? " cursor-zoom-out" : " cursor-zoom-in") : ""}`,
+    className: `${containerClassName}${lensEnabled && lensActive ? " cursor-zoom-out" : ""}`,
     tabIndex: 0,
     style: { touchAction: "pan-y" as const },
     onWheel: (event: ReactWheelEvent<HTMLDivElement>) => {

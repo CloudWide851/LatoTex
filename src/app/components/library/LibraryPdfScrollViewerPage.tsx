@@ -98,26 +98,23 @@ export function LibraryPdfScrollViewerPage(props: {
       data-page={page}
       className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
       style={{ width: `${frameWidth}px` }}
-    >
-      <Page
-        pageNumber={page}
-        width={frameWidth}
-        renderTextLayer={false}
-        renderAnnotationLayer={false}
-        loading={null}
-        onRenderSuccess={onRenderSuccess}
-      />
-      {lensEnabled ? (
-        <div
-          className="absolute inset-0 z-10"
-          onClick={(event) => {
+      onDoubleClick={
+        lensEnabled
+          ? (event) => {
+            if (!event.altKey) {
+              return;
+            }
             const point = resolveLensPoint(event, !lensActive);
             if (!point) {
               return;
             }
             onToggleLens(point);
-          }}
-          onMouseMove={(event) => {
+          }
+          : undefined
+      }
+      onMouseMove={
+        lensEnabled
+          ? (event) => {
             if (!lensActive) {
               return;
             }
@@ -126,15 +123,28 @@ export function LibraryPdfScrollViewerPage(props: {
               return;
             }
             onMoveLens(point);
-          }}
-          onMouseLeave={() => {
+          }
+          : undefined
+      }
+      onMouseLeave={
+        lensEnabled
+          ? () => {
             if (!lensActive) {
               return;
             }
             onHideLens();
-          }}
-        />
-      ) : null}
+          }
+          : undefined
+      }
+    >
+      <Page
+        pageNumber={page}
+        width={frameWidth}
+        renderTextLayer
+        renderAnnotationLayer={false}
+        loading={null}
+        onRenderSuccess={onRenderSuccess}
+      />
       {readOnly ? null : (
         <PdfAnnotationLayer
           page={page}

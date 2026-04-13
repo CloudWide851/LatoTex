@@ -2,6 +2,8 @@ import * as pdfjsLib from "/assets/vendor/pdf.min.mjs";
 import { withHighlight } from "/assets/share_page_render.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/assets/vendor/pdf.worker.min.mjs";
+const PDF_CMAP_URL = "/assets/vendor/cmaps/";
+const PDF_STANDARD_FONT_DATA_URL = "/assets/vendor/standard_fonts/";
 
 export function createSharePdfController({ sid, getPassword, i18n, state, el, setStatus }) {
   let activeRenderTask = null;
@@ -114,7 +116,18 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
     }
     updatePdfPageLabel();
     const text = await extractPdfPageText(state.pdfPage);
-    el.pdfText.innerHTML = withHighlight(text || i18n.noPdfText, state.highlightQuote);
+    el.pdfText.innerHTML = withHighlight(
+      text || i18n.noPdfText,
+      state.highlightQuote,
+      state.highlightStart,
+      state.highlightEnd,
+    );
+    const highlighted = el.pdfText.querySelector("mark");
+    if (highlighted instanceof HTMLElement) {
+      window.requestAnimationFrame(() => {
+        highlighted.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+    }
   }
 
   async function renderPdfPage() {
@@ -160,7 +173,12 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
         return;
       }
       const buffer = await response.arrayBuffer();
-      state.pdfDoc = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
+      state.pdfDoc = await pdfjsLib.getDocument({
+        data: new Uint8Array(buffer),
+        cMapUrl: PDF_CMAP_URL,
+        cMapPacked: true,
+        standardFontDataUrl: PDF_STANDARD_FONT_DATA_URL,
+      }).promise;
       state.pdfReady = true;
       state.pdfTextByPage.clear();
       if (state.pdfPage > state.pdfDoc.numPages) state.pdfPage = state.pdfDoc.numPages;
