@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { gitBranches, gitCheckInstalled, gitLog, gitStatus } from "../../shared/api/git";
 import { getLibraryTree } from "../../shared/api/library";
-import { openProject, projectIntegrityStatus } from "../../shared/api/projects";
+import { openProject, projectIntegrityStatus, projectPrepareSearchIndex } from "../../shared/api/projects";
 import type { AppSettings, ResourceNode, WorkspacePage } from "../../shared/types/app";
 
 export type ProjectIntegrityIssue = { projectId: string; missingRequired: string[] };
@@ -143,6 +143,7 @@ export function useProjectDataLoader(params: {
     const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
+    void projectPrepareSearchIndex(projectId).catch(() => undefined);
     loadedLibraryProjectIdRef.current = null;
     lastLoadedProjectIdRef.current = projectId;
     setLibraryTree([]);

@@ -583,6 +583,22 @@ pub async fn project_search_content(
 }
 
 #[tauri::command]
+pub async fn project_prepare_search_index(
+    state: State<'_, AppState>,
+    input: ProjectRefInput,
+) -> Result<Ack, String> {
+    state.log(
+        "INFO",
+        &format!("project_prepare_search_index: {}", input.project_id),
+    );
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::prepare_project_search_index(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub fn workspace_reveal_in_system(
     state: State<'_, AppState>,
     input: ProjectPathActionInput,

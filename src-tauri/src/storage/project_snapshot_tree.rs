@@ -307,7 +307,9 @@ fn refresh_workspace_index(project_root: &Path) -> Result<(), String> {
         index_path,
         serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?,
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    mark_search_index_dirty(project_root)?;
+    Ok(())
 }
 
 fn refresh_library_index(project_root: &Path) -> Result<(), String> {
@@ -328,7 +330,9 @@ fn refresh_library_index(project_root: &Path) -> Result<(), String> {
         index_path,
         serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?,
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    mark_search_index_dirty(project_root)?;
+    Ok(())
 }
 
 pub fn list_projects(db_path: &Path) -> Result<Vec<ProjectSummary>, String> {

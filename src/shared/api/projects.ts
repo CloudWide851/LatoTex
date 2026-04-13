@@ -43,3 +43,9 @@ export function projectSearchContent(
     input: { projectId, query, limit },
   });
 }
+
+export function projectPrepareSearchIndex(projectId: string): Promise<{ ok: boolean; message: string }> {
+  return invokeCommand<{ ok: boolean; message: string }>("project_prepare_search_index", {
+    input: { projectId },
+  });
+}

@@ -248,7 +248,6 @@ export function useAppPanelNodes(params: any) {
       onCreateTask={() => analysisWorkspace.createTask("data")}
       onRenameTask={analysisWorkspace.renameTask}
       onDeleteTask={analysisWorkspace.deleteTask}
-      onSetActiveRun={analysisWorkspace.setActiveRunForTask}
       onExportArtifact={(relativePath: string) => {
         void analysisWorkspace.exportArtifact(relativePath);
       }}

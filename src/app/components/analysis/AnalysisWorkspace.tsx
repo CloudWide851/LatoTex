@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, FolderOpen, Plus } from "lucide-react";
 import { useMemo, useState, type DragEvent } from "react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
 import { AnalysisLiveRail } from "./AnalysisLiveRail";
@@ -28,44 +28,6 @@ function parseDroppedPaths(event: DragEvent): string[] {
   return Array.from(new Set([...customPaths, ...plainPaths]));
 }
 
-function renderArtifacts(
-  paths: string[],
-  t: TranslationFn,
-  onExportArtifact: (relativePath: string) => void,
-  onRevealArtifact: (relativePath: string) => void,
-) {
-  if (paths.length === 0) {
-    return (
-      <div className="rounded border border-dashed border-slate-300 px-2 py-2 text-[11px] text-slate-500">
-        {t("analysis.noArtifacts")}
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-1">
-      {paths.map((path) => (
-        <div key={path} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1">
-          <span className="truncate text-[11px] text-slate-700">{path}</span>
-          <div className="flex items-center gap-1">
-            <button
-              className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-              onClick={() => onRevealArtifact(path)}
-            >
-              {t("analysis.openLocation")}
-            </button>
-            <button
-              className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-              onClick={() => onExportArtifact(path)}
-            >
-              {t("analysis.saveAs")}
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function AnalysisWorkspace(props: {
   busy: boolean;
   prompt: string;
@@ -88,7 +50,6 @@ export function AnalysisWorkspace(props: {
   onCreateTask: () => void;
   onRenameTask: (taskId: string, name: string) => void;
   onDeleteTask: (taskId: string) => void;
-  onSetActiveRun: (taskId: string, runId: string) => void;
   onExportArtifact: (relativePath: string) => void;
   onRevealArtifact: (relativePath: string) => void;
   t: TranslationFn;
@@ -115,12 +76,12 @@ export function AnalysisWorkspace(props: {
     onCreateTask,
     onRenameTask,
     onDeleteTask,
-    onSetActiveRun,
     onExportArtifact,
     onRevealArtifact,
     t,
   } = props;
   const [dragActive, setDragActive] = useState(false);
+  const [collapsedRunHeaders, setCollapsedRunHeaders] = useState<Record<string, boolean>>({});
   const hasLiveStream = running || Boolean(liveStageLabel.trim() || liveTimelineCards.length > 0);
   const displayTimelineCards = hasLiveStream ? liveTimelineCards : timelineCards;
   const persistedDraftOutput = activeRun?.draftOutputText?.trim() ?? "";
@@ -129,6 +90,19 @@ export function AnalysisWorkspace(props: {
     () => tasks.find((item) => item.id === activeTaskId)?.name?.trim() || t("analysis.defaultTaskName"),
     [activeTaskId, tasks, t],
   );
+  const headerCollapsed = activeRun?.status === "completed"
+    ? (collapsedRunHeaders[activeRun.id] ?? true)
+    : false;
+
+  const toggleHeaderCollapsed = () => {
+    if (!activeRun || activeRun.status !== "completed") {
+      return;
+    }
+    setCollapsedRunHeaders((prev) => ({
+      ...prev,
+      [activeRun.id]: !(prev[activeRun.id] ?? true),
+    }));
+  };
 
   return (
     <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow">
@@ -224,32 +198,51 @@ export function AnalysisWorkspace(props: {
             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
               <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
-                  <h3 className="text-sm font-semibold text-slate-800">{activeRun.title}</h3>
-                  <p className="mt-1 text-xs text-slate-600">{activeRun.summary}</p>
-                  {activeRun.failureMessage ? (
-                    <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
-                      {activeRun.failureMessage}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="truncate text-sm font-semibold text-slate-800">{activeRun.title}</h3>
+                        {activeRun.status === "completed" ? (
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                            onClick={toggleHeaderCollapsed}
+                            title={headerCollapsed ? t("analysis.expandHeader") : t("analysis.collapseHeader")}
+                            aria-label={headerCollapsed ? t("analysis.expandHeader") : t("analysis.collapseHeader")}
+                          >
+                            {headerCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                          </button>
+                        ) : null}
+                      </div>
+                      {!headerCollapsed ? (
+                        <p className="mt-1 text-xs text-slate-700">{activeRun.summary}</p>
+                      ) : null}
+                      {activeRun.failureMessage ? (
+                        <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+                          {activeRun.failureMessage}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                  <div className="mt-2 flex items-center gap-1">
-                    {activeRun.reportRelativePath && (
-                      <>
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
-                          onClick={() => onRevealArtifact(activeRun.reportRelativePath!)}
-                        >
-                          <FolderOpen className="mr-1 inline h-3 w-3" />
-                          {t("analysis.openLocation")}
-                        </button>
-                        <button
-                          className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-100"
-                          onClick={() => onExportArtifact(activeRun.reportRelativePath!)}
-                        >
-                          <Download className="mr-1 inline h-3 w-3" />
-                          {t("analysis.saveAs")}
-                        </button>
-                      </>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {activeRun.reportRelativePath ? (
+                        <>
+                          <button
+                            className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
+                            onClick={() => onRevealArtifact(activeRun.reportRelativePath!)}
+                          >
+                            <FolderOpen className="mr-1 inline h-3 w-3" />
+                            {t("analysis.openLocation")}
+                          </button>
+                          <button
+                            className="rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
+                            onClick={() => onExportArtifact(activeRun.reportRelativePath!)}
+                          >
+                            <Download className="mr-1 inline h-3 w-3" />
+                            {t("analysis.saveAs")}
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 {activeRun.status === "completed" ? (
@@ -274,44 +267,8 @@ export function AnalysisWorkspace(props: {
                 )}
               </div>
 
-              <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
-                <section className="rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.artifacts")}</h4>
-                </section>
-                <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
-                  {renderArtifacts(activeRun.assetRelativePaths, t, onExportArtifact, onRevealArtifact)}
-                </section>
+              <aside className="min-h-0 overflow-hidden">
                 <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
-                <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.history")}</h4>
-                  <div className="space-y-1">
-                    {(tasks.find((item) => item.id === activeTaskId)?.runs ?? []).map((item) => (
-                      <div key={item.id} className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 motion-hover-rise">
-                        <button className="w-full truncate text-left font-medium" onClick={() => onSetActiveRun(activeTaskId!, item.id)}>
-                          {item.title}
-                        </button>
-                        <div className="mt-1 flex items-center gap-1">
-                          {item.reportRelativePath ? (
-                            <>
-                              <button
-                                className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-                                onClick={() => onRevealArtifact(item.reportRelativePath!)}
-                              >
-                                {t("analysis.openLocation")}
-                              </button>
-                              <button
-                                className="rounded border border-slate-300 px-1.5 py-0.5 text-[10px] text-slate-600 hover:bg-slate-100"
-                                onClick={() => onExportArtifact(item.reportRelativePath!)}
-                              >
-                                {t("analysis.saveAs")}
-                              </button>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
               </aside>
             </div>
           )}

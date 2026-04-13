@@ -95,9 +95,6 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     if (!activeTask) {
       return null;
     }
-    if (activeTask.activeRunId) {
-      return activeTask.runs.find((item) => item.id === activeTask.activeRunId) ?? activeTask.runs[0] ?? null;
-    }
     return activeTask.runs[0] ?? null;
   }, [activeTask]);
   const prompt = activeTask?.draftPrompt ?? "";

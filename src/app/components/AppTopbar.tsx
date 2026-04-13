@@ -67,7 +67,7 @@ export function AppTopbar(props: {
           data-tauri-drag-region
         >
           <img src={logoMark} alt={t("app.brand")} className="h-5 w-5 shrink-0 object-contain" />
-          <span className="app-topbar-brand-word brand-wordmark truncate text-base leading-none text-[color:var(--topbar-fg)]">
+          <span className="app-topbar-brand-word brand-wordmark truncate text-base leading-none">
             {t("app.brand")}
           </span>
         </div>

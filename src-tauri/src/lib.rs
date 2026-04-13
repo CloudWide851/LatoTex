@@ -33,7 +33,8 @@ use commands::projects::{
     library_import_pdf, library_rescan, library_resolve_pdf_preview,
     library_resume_pdf_downloads, library_tree, library_zotero_sync, open_external_link,
     project_create, project_init_from_folder, project_integrity_repair,
-    project_integrity_status, project_list, project_open, project_search_content,
+    project_integrity_status, project_list, project_open, project_prepare_search_index,
+    project_search_content,
     workspace_export_asset, workspace_export_pdf, workspace_open_terminal,
     workspace_reveal_in_system, workspace_tree,
 };
@@ -144,6 +145,7 @@ pub fn run() {
             project_integrity_status,
             project_integrity_repair,
             project_search_content,
+            project_prepare_search_index,
             reference_check,
             analysis_save_report,
             analysis_list_reports,

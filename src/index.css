@@ -39,6 +39,9 @@
   --library-scrollbar-thumb: rgba(34, 197, 94, 0.42);
   --library-scrollbar-thumb-hover: rgba(22, 163, 74, 0.58);
   --library-scrollbar-track: rgba(226, 232, 240, 0.78);
+  --explorer-node-fg: #334155;
+  --explorer-node-muted: #64748b;
+  --brand-wordmark-fg: var(--topbar-fg);
   --topbar-bg: #111827;
   --topbar-border: #1f2937;
   --topbar-fg: #f8fafc;
@@ -85,6 +88,9 @@
   --library-scrollbar-thumb: rgba(74, 222, 128, 0.42);
   --library-scrollbar-thumb-hover: rgba(134, 239, 172, 0.62);
   --library-scrollbar-track: rgba(30, 41, 59, 0.82);
+  --explorer-node-fg: #dbe4f0;
+  --explorer-node-muted: #9fb0c8;
+  --brand-wordmark-fg: var(--topbar-fg);
   --topbar-bg: #162033;
   --topbar-border: #2a3a55;
   --topbar-fg: #e5e7eb;
@@ -168,6 +174,9 @@ body::before {
   --control-surface-hover-bottom: rgba(226, 232, 240, 0.72);
   --control-menu-top: rgba(255, 255, 255, 0.8);
   --control-menu-bottom: rgba(248, 250, 252, 0.72);
+  --explorer-node-fg: #0f172a;
+  --explorer-node-muted: #334155;
+  --brand-wordmark-fg: #0f172a;
 }
 
 .wallpaper-enabled::before {
@@ -190,6 +199,17 @@ body::before {
   --control-surface-hover-bottom: rgba(28, 40, 61, 0.76);
   --control-menu-top: rgba(22, 32, 51, 0.84);
   --control-menu-bottom: rgba(15, 23, 42, 0.8);
+  --explorer-node-fg: #e2e8f0;
+  --explorer-node-muted: #cbd5e1;
+  --brand-wordmark-fg: #0f172a;
+}
+
+.explorer-node-fg {
+  color: var(--explorer-node-fg);
+}
+
+.explorer-node-muted {
+  color: var(--explorer-node-muted);
 }
 
 .resizable-handle {

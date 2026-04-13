@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
 import { getLibraryTree } from "../../shared/api/library";
-import { initProjectFromFolder, projectSearchContent } from "../../shared/api/projects";
+import { initProjectFromFolder, projectPrepareSearchIndex, projectSearchContent } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
   fsOperation,
@@ -421,6 +421,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setBusy(true);
     try {
       setTree(await getWorkspaceTree(activeProjectId));
+      void projectPrepareSearchIndex(activeProjectId).catch(() => undefined);
       await refreshGitWorkspace(activeProjectId).catch(() => undefined);
     } catch (error) {
       setToast({ type: "error", message: String(error) });

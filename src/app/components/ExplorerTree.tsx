@@ -398,8 +398,8 @@ export function ExplorerTree(props: {
             isSelected
               ? "bg-primary-100 text-primary-900"
               : isIgnored
-                ? "text-slate-400 hover:bg-slate-100 hover:text-slate-500"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+                ? "explorer-node-muted hover:bg-slate-100 hover:text-slate-700"
+                : "explorer-node-fg hover:bg-slate-100 hover:text-slate-900",
           )}
           aria-selected={!isDirectory && isSelected}
           style={indentStyle}
@@ -446,9 +446,9 @@ export function ExplorerTree(props: {
         >
           {isDirectory ? (
             <>
-              <ChevronRight
-                className={cn(
-                  "h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform",
+                <ChevronRight
+                  className={cn(
+                  "explorer-node-muted h-3.5 w-3.5 shrink-0 transition-transform",
                   isExpanded && "rotate-90",
                 )}
               />
@@ -464,7 +464,7 @@ export function ExplorerTree(props: {
               <FileCode2
                 className={cn(
                   "h-3.5 w-3.5 shrink-0",
-                  decoration ? decorationTone.iconClass : "text-slate-500",
+                  decoration ? decorationTone.iconClass : "explorer-node-muted",
                 )}
               />
             </>
