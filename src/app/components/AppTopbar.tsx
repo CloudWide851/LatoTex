@@ -56,7 +56,7 @@ export function AppTopbar(props: {
 
   return (
     <header
-      className="app-topbar tauri-drag-region relative grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)_auto] items-center border-b"
+      className="app-topbar tauri-drag-region relative grid min-w-0 grid-cols-[minmax(0,max-content)_minmax(0,1fr)_max-content] items-center border-b"
       data-tauri-drag-region
     >
       <div className="absolute inset-x-0 top-0 h-2" data-tauri-drag-region />
@@ -67,7 +67,7 @@ export function AppTopbar(props: {
           data-tauri-drag-region
         >
           <img src={logoMark} alt={t("app.brand")} className="h-5 w-5 shrink-0 object-contain" />
-          <span className="app-topbar-brand-word brand-wordmark truncate text-base leading-none text-slate-900">
+          <span className="app-topbar-brand-word brand-wordmark truncate text-base leading-none text-[color:var(--topbar-fg)]">
             {t("app.brand")}
           </span>
         </div>
@@ -78,8 +78,8 @@ export function AppTopbar(props: {
         )}
       </div>
 
-      <div className="app-topbar-center mx-1 flex min-w-0 w-full items-center overflow-hidden justify-self-center gap-1">
-        <div className="tauri-no-drag min-w-[112px] max-w-[248px] flex-[1_1_220px]">
+      <div className="app-topbar-center mx-0.5 flex min-w-0 items-center overflow-hidden justify-self-stretch">
+        <div className="app-topbar-slot app-topbar-switcher-slot tauri-no-drag">
           <ProjectSwitcher
             projects={projects}
             activeProjectId={activeProjectId}
@@ -88,7 +88,7 @@ export function AppTopbar(props: {
             t={t}
           />
         </div>
-        <div className="tauri-no-drag min-w-[140px] flex-[2_1_360px]">
+        <div className="app-topbar-slot app-topbar-search-slot tauri-no-drag">
           <ProjectSearch
             query={projectSearchQuery}
             onQueryChange={onProjectSearchQueryChange}

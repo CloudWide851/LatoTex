@@ -97,6 +97,45 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 }
 
+.app-topbar-search-icon {
+  color: var(--topbar-muted);
+  transition: color 150ms var(--motion-ease-out-quart);
+}
+
+.app-topbar-search-input {
+  color: var(--topbar-fg);
+  caret-color: var(--topbar-fg);
+}
+
+.app-topbar-search-input::placeholder {
+  color: color-mix(in srgb, var(--topbar-muted) 88%, transparent);
+}
+
+.app-topbar-field:hover .app-topbar-search-icon,
+.app-topbar-field:focus-within .app-topbar-search-icon {
+  color: var(--topbar-fg);
+}
+
+.app-topbar-clear-btn {
+  color: var(--topbar-muted);
+  border: 1px solid transparent;
+  background: transparent;
+  transition:
+    border-color 150ms var(--motion-ease-out-quart),
+    background-color 150ms var(--motion-ease-out-quart),
+    color 150ms var(--motion-ease-out-quart),
+    box-shadow 150ms var(--motion-ease-out-quart);
+}
+
+.app-topbar-clear-btn:hover,
+.app-topbar-clear-btn:focus-visible {
+  color: var(--topbar-fg);
+  border-color: color-mix(in srgb, var(--topbar-field-border) 74%, white 26%);
+  background-color: color-mix(in srgb, var(--topbar-field-hover) 76%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--topbar-field-border) 18%, transparent);
+  outline: none;
+}
+
 .app-topbar-btn {
   color: var(--topbar-muted);
   border: 1px solid transparent;

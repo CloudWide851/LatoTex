@@ -84,6 +84,19 @@
   gap: var(--topbar-gap);
 }
 
+.app-topbar-slot {
+  min-width: 0;
+}
+
+.app-topbar-switcher-slot {
+  flex: 0 1 220px;
+  max-width: 240px;
+}
+
+.app-topbar-search-slot {
+  flex: 1 1 360px;
+}
+
 .app-topbar-action-btn {
   display: inline-flex;
   align-items: center;
@@ -138,7 +151,27 @@
   font-size: clamp(11px, calc(12px * var(--panel-topbar-scale)), 14px);
 }
 
+@media (max-width: 1280px) {
+  .app-topbar-switcher-slot {
+    flex-basis: 196px;
+    max-width: 208px;
+  }
+
+  .app-topbar-search-slot {
+    flex-basis: 300px;
+  }
+}
+
 @media (max-width: 1100px) {
+  .app-topbar-switcher-slot {
+    flex-basis: 168px;
+    max-width: 180px;
+  }
+
+  .app-topbar-search-slot {
+    flex-basis: 220px;
+  }
+
   .app-topbar-brand-word {
     display: none;
   }

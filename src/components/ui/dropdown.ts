@@ -1,4 +1,4 @@
-import { type RefObject, useEffect } from "react";
+import { type CSSProperties, type RefObject, useEffect } from "react";
 import { cn } from "../../lib/utils";
 
 export function useDropdownDismiss(params: {
@@ -83,4 +83,64 @@ export function dropdownIconButtonClassName(extraClassName?: string) {
     "focus-visible:outline-none",
     extraClassName,
   );
+}
+
+export function buildFloatingSurfaceStyle(
+  trigger: HTMLElement,
+  options?: {
+    align?: "start" | "end" | "center";
+    minWidth?: number;
+    preferredWidth?: number;
+    maxWidth?: number;
+    offset?: number;
+    desiredHeight?: number;
+  },
+): CSSProperties {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const rect = trigger.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const minWidth = Math.max(140, options?.minWidth ?? rect.width);
+  const viewportMaxWidth = Math.max(minWidth, viewportWidth - 24);
+  const maxWidth = Math.min(
+    Math.max(minWidth, options?.maxWidth ?? viewportMaxWidth),
+    viewportMaxWidth,
+  );
+  const preferredWidth = Math.min(
+    Math.max(minWidth, options?.preferredWidth ?? rect.width),
+    maxWidth,
+  );
+  const align = options?.align ?? "start";
+  const offset = options?.offset ?? 8;
+  const desiredHeight = Math.max(160, options?.desiredHeight ?? 240);
+
+  let alignedLeft = rect.left;
+  if (align === "end") {
+    alignedLeft = rect.right - preferredWidth;
+  } else if (align === "center") {
+    alignedLeft = rect.left + ((rect.width - preferredWidth) / 2);
+  }
+
+  const maxLeft = Math.max(12, viewportWidth - preferredWidth - 12);
+  const left = Math.min(Math.max(12, alignedLeft), maxLeft);
+  const spaceBelow = viewportHeight - rect.bottom - 12;
+  const spaceAbove = rect.top - 12;
+  const renderAbove = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+  const top = renderAbove
+    ? Math.max(12, rect.top - offset - Math.min(desiredHeight, Math.max(160, spaceAbove)))
+    : Math.min(rect.bottom + offset, viewportHeight - 72);
+  const maxHeight = renderAbove
+    ? Math.max(160, rect.top - 20)
+    : Math.max(160, viewportHeight - top - 16);
+
+  return {
+    position: "fixed",
+    left,
+    top,
+    width: preferredWidth,
+    maxHeight,
+  };
 }

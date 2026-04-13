@@ -225,7 +225,13 @@ export function AppContainerView(props: any) {
           projectSearchSearched={projectSearchSearched}
           projectSearchResults={projectSearchResults}
           onProjectChange={handleProjectChange}
-          onProjectSearchQueryChange={setProjectSearchQuery}
+          onProjectSearchQueryChange={(nextQuery) => {
+            setProjectSearchQuery(nextQuery);
+            setProjectSearchSearched(false);
+            if (!nextQuery.trim()) {
+              setProjectSearchResults([]);
+            }
+          }}
           onProjectSearch={handleProjectSearch}
           onProjectSearchSelect={handleProjectSearchSelect}
           onProjectSearchClear={() => {
