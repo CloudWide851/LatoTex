@@ -315,5 +315,41 @@ mod workspace_ops_compile_tests {
 
         let _ = fs::remove_dir_all(temp_root);
     }
+
+    #[test]
+    fn library_bib_delete_removes_companion_pdf_and_annotation() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("library-bundle-delete");
+        let papers_root = project_root.join(".latotex").join("papers");
+        fs::create_dir_all(&papers_root).unwrap();
+
+        let source_bib = papers_root.join("demo.bib");
+        let source_pdf = papers_root.join("demo.pdf");
+        fs::write(&source_bib, "@article{demo}").unwrap();
+        fs::write(&source_pdf, b"%PDF-demo").unwrap();
+
+        let annotation_relative = to_library_annotation_relative_path("demo.bib");
+        let annotation_path = papers_root.join(annotation_relative.replace('/', "\\"));
+        fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
+        fs::write(&annotation_path, "{\"version\":4}").unwrap();
+
+        fs_operation(
+            &db_path,
+            FsOperationInput {
+                project_id,
+                scope: "library".to_string(),
+                action: "delete".to_string(),
+                path: "demo.bib".to_string(),
+                target_path: None,
+                content: None,
+            },
+        )
+        .unwrap();
+
+        assert!(!source_bib.exists());
+        assert!(!source_pdf.exists());
+        assert!(!annotation_path.exists());
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
 }
 

@@ -535,10 +535,10 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setDeleteDontAskAgain(false);
   }, [runFsAction, setDeleteDontAskAgain, setDeleteIntent, settings?.uiPrefs?.skipDeleteConfirm]);
   const confirmDelete = useCallback(async () => {
-    if (!deleteIntent || !settings) {
+    if (!deleteIntent) {
       return;
     }
-    if (deleteDontAskAgain) {
+    if (deleteDontAskAgain && settings) {
       const nextSettings: AppSettings = {
         ...settings,
         uiPrefs: {

@@ -387,8 +387,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 readOnly
                 syncId="source"
                 syncGroupRef={compareSyncGroupRef}
-                containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100"
-                documentClassName="space-y-3 px-2 py-0 pr-4"
+                containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
+                documentClassName="space-y-3 px-2 py-0 pr-3 pb-3"
                 onZoomChange={setCompareSourceZoom}
                 initialScrollRatio={compareSourceScrollRatio}
                 onScrollRatioChange={setCompareSourceScrollRatio}
@@ -422,8 +422,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 readOnly
                 syncId="translated"
                 syncGroupRef={compareSyncGroupRef}
-                containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-auto rounded-none border-0 bg-slate-100"
-                documentClassName="space-y-3 px-2 py-0 pr-4"
+                containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
+                documentClassName="space-y-3 px-2 py-0 pr-3 pb-3"
                 onZoomChange={setCompareTranslatedZoom}
                 initialScrollRatio={compareTranslatedScrollRatio}
                 onScrollRatioChange={setCompareTranslatedScrollRatio}
@@ -446,7 +446,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         ref={(node) => {
           bibContainerRef.current = node;
         }}
-        className="library-scrollbar min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3 motion-card-pop"
+        className="library-scrollbar min-h-0 overflow-y-scroll overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 motion-card-pop"
       >
         {loading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
@@ -466,7 +466,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         ref={(node) => {
           metaContainerRef.current = node;
         }}
-        className="library-scrollbar min-h-0 overflow-auto"
+        className="library-scrollbar min-h-0 overflow-y-scroll overflow-x-auto"
       >
         <LibraryCitationMetaPanel
           citation={citation}

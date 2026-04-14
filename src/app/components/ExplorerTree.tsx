@@ -1,5 +1,5 @@
 import { ChevronRight, FileCode2, Files, Folder, FolderOpen } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { FsAction } from "../../shared/types/app";
@@ -63,10 +63,49 @@ export function ExplorerTree(props: {
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>(selectedPath ? [selectedPath] : []);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(selectedPath);
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
+
+  const resolveDroppedFilePath = (event: ReactDragEvent<HTMLElement>): string | null => {
+    const directPath = event.dataTransfer.getData("application/x-latotex-path").trim();
+    if (directPath) {
+      return directPath;
+    }
+    const fallbackPath = event.dataTransfer.getData("text/plain").trim();
+    return fallbackPath || null;
+  };
+
+  const resolveDroppedTargetPath = (sourcePath: string, targetDirectoryPath: string): string | null => {
+    const normalizedSource = sourcePath.trim().replace(/\\/g, "/");
+    if (!normalizedSource) {
+      return null;
+    }
+    const fileName = normalizedSource.split("/").pop()?.trim() ?? "";
+    if (!fileName) {
+      return null;
+    }
+    const normalizedTargetDirectory = targetDirectoryPath.trim().replace(/\\/g, "/");
+    const nextTargetPath = joinPath(normalizedTargetDirectory, fileName);
+    return nextTargetPath === normalizedSource ? null : nextTargetPath;
+  };
+
+  const allowDirectoryDrop = (
+    event: ReactDragEvent<HTMLElement>,
+    targetDirectoryPath: string,
+  ): string | null => {
+    if (mode !== "library" || !onAction) {
+      return null;
+    }
+    const sourcePath = resolveDroppedFilePath(event);
+    if (!sourcePath) {
+      return null;
+    }
+    const nextTargetPath = resolveDroppedTargetPath(sourcePath, targetDirectoryPath);
+    return nextTargetPath;
+  };
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
       if (event.button === 2) {
@@ -397,6 +436,8 @@ export function ExplorerTree(props: {
             "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
             isSelected
               ? "bg-primary-100 text-primary-900"
+              : isDirectory && dropTargetPath === node.relativePath
+                ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
               : isIgnored
                 ? "explorer-node-muted hover:bg-slate-100 hover:text-slate-700"
                 : "explorer-node-fg hover:bg-slate-100 hover:text-slate-900",
@@ -407,9 +448,52 @@ export function ExplorerTree(props: {
           title={node.relativePath}
           onDragStart={(event) => {
             if (isDirectory) return;
-            event.dataTransfer.effectAllowed = "copy";
+            event.dataTransfer.effectAllowed = "copyMove";
             event.dataTransfer.setData("application/x-latotex-path", node.relativePath);
             event.dataTransfer.setData("text/plain", node.relativePath);
+          }}
+          onDragEnd={() => {
+            setDropTargetPath(null);
+          }}
+          onDragOver={(event) => {
+            if (!isDirectory) {
+              return;
+            }
+            const nextTargetPath = allowDirectoryDrop(event, node.relativePath);
+            if (!nextTargetPath) {
+              return;
+            }
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            if (dropTargetPath !== node.relativePath) {
+              setDropTargetPath(node.relativePath);
+            }
+          }}
+          onDragLeave={(event) => {
+            if (!isDirectory) {
+              return;
+            }
+            const relatedTarget = event.relatedTarget as Node | null;
+            if (relatedTarget && (event.currentTarget as HTMLElement).contains(relatedTarget)) {
+              return;
+            }
+            setDropTargetPath((current) => (current === node.relativePath ? null : current));
+          }}
+          onDrop={async (event) => {
+            if (!isDirectory) {
+              return;
+            }
+            const sourcePath = resolveDroppedFilePath(event);
+            const nextTargetPath = sourcePath
+              ? resolveDroppedTargetPath(sourcePath, node.relativePath)
+              : null;
+            setDropTargetPath((current) => (current === node.relativePath ? null : current));
+            if (!sourcePath || !nextTargetPath) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            await onAction?.("move", sourcePath, nextTargetPath);
           }}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -540,6 +624,36 @@ export function ExplorerTree(props: {
     <div
       ref={rootRef}
       className="relative flex h-full min-h-0 flex-col"
+      onDragOver={(event) => {
+        const nextTargetPath = allowDirectoryDrop(event, "");
+        if (!nextTargetPath) {
+          return;
+        }
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        if (dropTargetPath !== "") {
+          setDropTargetPath("");
+        }
+      }}
+      onDragLeave={(event) => {
+        const relatedTarget = event.relatedTarget as Node | null;
+        if (relatedTarget && rootRef.current?.contains(relatedTarget)) {
+          return;
+        }
+        setDropTargetPath(null);
+      }}
+      onDrop={async (event) => {
+        const sourcePath = resolveDroppedFilePath(event);
+        const nextTargetPath = sourcePath
+          ? resolveDroppedTargetPath(sourcePath, "")
+          : null;
+        setDropTargetPath(null);
+        if (!sourcePath || !nextTargetPath) {
+          return;
+        }
+        event.preventDefault();
+        await onAction?.("move", sourcePath, nextTargetPath);
+      }}
       onContextMenu={(event) => {
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY, path: "", kind: "blank" });

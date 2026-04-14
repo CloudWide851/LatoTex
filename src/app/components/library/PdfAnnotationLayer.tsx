@@ -68,6 +68,7 @@ export function PdfAnnotationLayer(props: {
   const dragPointRef = useRef<AnnotationPoint | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const textBoxesRef = useRef(textBoxes);
+  const recentlyCreatedTextBoxIdRef = useRef<string | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const [layerSize, setLayerSize] = useState<{ width: number; height: number }>({
     width: 0,
@@ -224,18 +225,7 @@ export function PdfAnnotationLayer(props: {
     if (!editingTextBoxId || typeof window === "undefined") {
       return;
     }
-    const selector = `[data-editing-box='${editingTextBoxId}']`;
-    const target = layerRef.current?.querySelector<HTMLElement>(selector);
-    if (!target) {
-      return;
-    }
-    target.focus();
-    const range = document.createRange();
-    range.selectNodeContents(target);
-    range.collapse(false);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
+    focusEditingTextBox(editingTextBoxId);
   }, [editingTextBoxId, pageTextBoxes]);
 
   useEffect(() => {
@@ -262,6 +252,24 @@ export function PdfAnnotationLayer(props: {
     () => resolveMenuAnchor({ menuOpen, layerSize, menuBox, dragPreview }),
     [dragPreview, layerSize, menuBox, menuOpen],
   );
+
+  const focusEditingTextBox = (boxId: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const selector = `[data-editing-box='${boxId}']`;
+    const target = layerRef.current?.querySelector<HTMLElement>(selector);
+    if (!target) {
+      return;
+    }
+    target.focus();
+    const range = document.createRange();
+    range.selectNodeContents(target);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  };
 
   const finishDrawing = () => {
     if (!drawingRef.current) {
@@ -331,6 +339,9 @@ export function PdfAnnotationLayer(props: {
                   : "default",
         }}
         onMouseDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
           setMenuOpen(false);
           const rect = layerRef.current?.getBoundingClientRect();
           if (!rect) {
@@ -353,6 +364,7 @@ export function PdfAnnotationLayer(props: {
               style: createDefaultTextStyle(textColor, textBoxStylePreset),
             };
             onTextBoxesChange([...textBoxes, nextBox]);
+            recentlyCreatedTextBoxIdRef.current = id;
             setSelectedTextBoxId(id);
             setEditingTextBoxId(id);
             return;
@@ -491,6 +503,10 @@ export function PdfAnnotationLayer(props: {
                     fontWeight: box.style.fontWeight,
                     fontStyle: box.style.fontStyle,
                     textDecoration: box.style.textDecoration,
+                    boxShadow:
+                      box.style.backgroundColor === "transparent" && box.style.borderWidth === 0
+                        ? "inset 0 0 0 1px rgba(34, 197, 94, 0.45)"
+                        : undefined,
                   }}
                   dangerouslySetInnerHTML={{ __html: boxHtml }}
                   onClick={(event) => event.stopPropagation()}
@@ -498,12 +514,20 @@ export function PdfAnnotationLayer(props: {
                     const html = sanitizeRichTextHtml((event.currentTarget as HTMLDivElement).innerHTML);
                     const target = textBoxes.find((item) => item.id === box.id);
                     const targetContent = richHtmlToPlainText(html || target?.html || target?.content || "");
+                    if (recentlyCreatedTextBoxIdRef.current === box.id && targetContent.trim().length === 0) {
+                      recentlyCreatedTextBoxIdRef.current = null;
+                      window.requestAnimationFrame(() => {
+                        focusEditingTextBox(box.id);
+                      });
+                      return;
+                    }
                     if (!target || targetContent.trim().length === 0) {
                       onTextBoxesChange(textBoxes.filter((item) => item.id !== box.id));
                       setSelectedTextBoxId((current) => (current === box.id ? null : current));
                       setEditingTextBoxId(null);
                       return;
                     }
+                    recentlyCreatedTextBoxIdRef.current = null;
                     onTextBoxesChange(
                       textBoxes.map((item) =>
                         item.id === box.id ? { ...item, content: targetContent, html: html || plainTextToRichHtml(targetContent) } : item,
@@ -513,6 +537,7 @@ export function PdfAnnotationLayer(props: {
                   }}
                   onKeyDown={(event) => {
                     if (event.key === "Escape") {
+                      recentlyCreatedTextBoxIdRef.current = null;
                       event.preventDefault();
                       (event.currentTarget as HTMLDivElement).blur();
                       setEditingTextBoxId(null);

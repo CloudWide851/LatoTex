@@ -84,8 +84,8 @@ export const LibraryPdfScrollViewer = forwardRef<
     readOnly = false,
     syncId = "viewer",
     syncGroupRef,
-    containerClassName = "library-scrollbar relative min-h-0 min-w-0 h-full overflow-auto rounded border border-slate-200 bg-slate-100",
-    documentClassName = "space-y-3 p-3 pr-7",
+    containerClassName = "library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded border border-slate-200 bg-slate-100",
+    documentClassName = "space-y-3 p-3 pr-4 pb-4",
     onZoomChange,
     initialScrollRatio = 0,
     onScrollRatioChange,
@@ -96,6 +96,8 @@ export const LibraryPdfScrollViewer = forwardRef<
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const pendingScrollPageRef = useRef<number | null>(null);
+  const renderedPagesRef = useRef<Set<number>>(new Set());
+  const pendingRenderRestoreRef = useRef(true);
   const pendingRestoreRatioRef = useRef(clampPdfScrollRatio(initialScrollRatio));
   const lastReportedScrollRatioRef = useRef(clampPdfScrollRatio(initialScrollRatio));
   const scrollRafRef = useRef<number | null>(null);
@@ -247,6 +249,8 @@ export const LibraryPdfScrollViewer = forwardRef<
   }), [documentPages]);
   useEffect(() => {
     setDocumentLoadError(null);
+    renderedPagesRef.current = new Set();
+    pendingRenderRestoreRef.current = true;
   }, [pdfUrl]);
   useEffect(() => {
     return () => {
@@ -294,6 +298,8 @@ export const LibraryPdfScrollViewer = forwardRef<
     if (!scrollRef.current || pages.length === 0) {
       return;
     }
+    renderedPagesRef.current = new Set();
+    pendingRenderRestoreRef.current = true;
     if (typeof ResizeObserver === "undefined") {
       setViewportWidth(scrollRef.current.clientWidth || 920);
       restoreScrollRatio();
@@ -320,6 +326,8 @@ export const LibraryPdfScrollViewer = forwardRef<
       }
       window.requestAnimationFrame(() => {
         setViewportWidth(scrollRef.current?.clientWidth || 920);
+        renderedPagesRef.current = new Set();
+        pendingRenderRestoreRef.current = true;
         restoreScrollRatio();
       });
     };
@@ -415,6 +423,8 @@ export const LibraryPdfScrollViewer = forwardRef<
   useEffect(() => {
     pendingScrollPageRef.current = null;
     pageRefs.current = {};
+    renderedPagesRef.current = new Set();
+    pendingRenderRestoreRef.current = true;
     setDocumentPages(Math.max(1, pageCount || 1));
     lastVisiblePageRef.current = 1;
     onVisiblePageChange(1);
@@ -494,6 +504,8 @@ export const LibraryPdfScrollViewer = forwardRef<
         loading={<div className="py-6 text-center text-xs text-slate-500">{t("library.viewer.loading")}</div>}
         onLoadSuccess={({ numPages }) => {
           setDocumentLoadError(null);
+          renderedPagesRef.current = new Set();
+          pendingRenderRestoreRef.current = true;
           const next = Math.max(1, numPages || 1);
           setDocumentPages(next);
           onPageCountChange(next);
@@ -550,14 +562,27 @@ export const LibraryPdfScrollViewer = forwardRef<
               queueLensPoint({ ...pendingLensPointRef.current, visible: false });
             }}
             onRenderSuccess={() => {
+              renderedPagesRef.current.add(page);
+              const shouldRestoreAfterRender =
+                pendingRenderRestoreRef.current
+                && renderedPagesRef.current.size >= documentPages;
+              const pending = pendingScrollPageRef.current;
+              const root = scrollRef.current;
+              const target = pending === null ? null : pageRefs.current[pending];
+              if (!shouldRestoreAfterRender && !(pending !== null && root && target && target.offsetHeight > 0)) {
+                return;
+              }
               window.requestAnimationFrame(() => {
-                restoreScrollRatio();
-                updateVisiblePage();
-                const pending = pendingScrollPageRef.current;
-                const root = scrollRef.current;
-                const target = pending === null ? null : pageRefs.current[pending];
-                if (pending !== null && root && target && target.offsetHeight > 0) {
-                  root.scrollTo({ top: Math.max(0, target.offsetTop - 8), behavior: "smooth" });
+                if (shouldRestoreAfterRender) {
+                  pendingRenderRestoreRef.current = false;
+                  restoreScrollRatio();
+                  updateVisiblePage();
+                }
+                const nextPending = pendingScrollPageRef.current;
+                const nextRoot = scrollRef.current;
+                const nextTarget = nextPending === null ? null : pageRefs.current[nextPending];
+                if (nextPending !== null && nextRoot && nextTarget && nextTarget.offsetHeight > 0) {
+                  nextRoot.scrollTo({ top: Math.max(0, nextTarget.offsetTop - 8), behavior: "smooth" });
                   pendingScrollPageRef.current = null;
                 }
               });
