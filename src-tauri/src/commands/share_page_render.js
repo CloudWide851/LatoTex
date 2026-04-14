@@ -2,7 +2,7 @@ import { avatarColor, escapeHtml, normalizeComment, trimQuote } from "/assets/sh
 
 export function renderParticipants(container, items, i18n) {
   if (!Array.isArray(items) || items.length === 0) {
-    container.innerHTML = `<div class="muted">${i18n.noCollaborators}</div>`;
+    container.innerHTML = `<article class="participant empty-state"><div class="name">${i18n.noCollaborators}</div></article>`;
     return;
   }
   container.innerHTML = "";
@@ -12,7 +12,7 @@ export function renderParticipants(container, items, i18n) {
     node.className = "participant";
     node.innerHTML = `
       <span class="avatar" style="background:${avatarColor(name)}">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>
-      <div>
+      <div class="participant-copy">
         <div class="name">${escapeHtml(name)}</div>
         <div class="muted">${escapeHtml(String(item.lastAction || i18n.actionReading))}</div>
       </div>
@@ -43,7 +43,7 @@ export function withHighlight(text, quote, start, end) {
 export function renderComments(container, itemsRaw, i18n, onJump) {
   const items = Array.isArray(itemsRaw) ? itemsRaw : [];
   if (!items.length) {
-    container.innerHTML = `<div class="muted">${i18n.noComments}</div>`;
+    container.innerHTML = `<article class="comment-item empty-state"><p>${i18n.noComments}</p></article>`;
     return;
   }
   container.innerHTML = "";

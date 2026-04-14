@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { MutableRefObject, MouseEvent as ReactMouseEvent } from "react";
 import { Page } from "react-pdf";
 import type {
@@ -69,6 +70,7 @@ export function LibraryPdfScrollViewerPage(props: {
     onTextBoxesChange,
     t,
   } = props;
+  const pointerDownRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
 
   const resolveLensPoint = (event: ReactMouseEvent<HTMLDivElement>, visible: boolean): LensPendingPoint | null => {
     const viewportRect = scrollRef.current?.getBoundingClientRect();
@@ -90,6 +92,16 @@ export function LibraryPdfScrollViewerPage(props: {
     };
   };
 
+  const hasActiveSelectionInside = (target: HTMLDivElement): boolean => {
+    const selection = window.getSelection?.();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      return false;
+    }
+    const anchorNode = selection.anchorNode;
+    const focusNode = selection.focusNode;
+    return Boolean(anchorNode && focusNode && target.contains(anchorNode) && target.contains(focusNode));
+  };
+
   return (
     <div
       ref={(element) => {
@@ -98,23 +110,32 @@ export function LibraryPdfScrollViewerPage(props: {
       data-page={page}
       className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
       style={{ width: `${frameWidth}px` }}
-      onDoubleClick={
+      onMouseDown={
         lensEnabled
           ? (event) => {
-            if (!event.altKey) {
+            if (event.button !== 0) {
               return;
             }
-            const point = resolveLensPoint(event, !lensActive);
-            if (!point) {
-              return;
-            }
-            onToggleLens(point);
+            pointerDownRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+              moved: false,
+            };
           }
           : undefined
       }
       onMouseMove={
         lensEnabled
           ? (event) => {
+            const pointer = pointerDownRef.current;
+            if (pointer) {
+              const moved =
+                Math.abs(event.clientX - pointer.x) > 6
+                || Math.abs(event.clientY - pointer.y) > 6;
+              if (moved) {
+                pointer.moved = true;
+              }
+            }
             if (!lensActive) {
               return;
             }
@@ -126,9 +147,26 @@ export function LibraryPdfScrollViewerPage(props: {
           }
           : undefined
       }
+      onClick={
+        lensEnabled
+          ? (event) => {
+            const pointer = pointerDownRef.current;
+            pointerDownRef.current = null;
+            if (pointer?.moved || hasActiveSelectionInside(event.currentTarget)) {
+              return;
+            }
+            const point = resolveLensPoint(event, !lensActive);
+            if (!point) {
+              return;
+            }
+            onToggleLens(point);
+          }
+          : undefined
+      }
       onMouseLeave={
         lensEnabled
           ? () => {
+            pointerDownRef.current = null;
             if (!lensActive) {
               return;
             }
@@ -145,22 +183,21 @@ export function LibraryPdfScrollViewerPage(props: {
         loading={null}
         onRenderSuccess={onRenderSuccess}
       />
-      {readOnly ? null : (
-        <PdfAnnotationLayer
-          page={page}
-          mode={mode}
-          highlightColor={highlightColor}
-          highlightWidth={highlightWidth}
-          highlightOpacity={highlightOpacity}
-          textColor={textColor}
-          textBoxStylePreset={textBoxStylePreset}
-          strokes={strokes}
-          textBoxes={textBoxes}
-          onStrokesChange={onStrokesChange}
-          onTextBoxesChange={onTextBoxesChange}
-          t={t}
-        />
-      )}
+      <PdfAnnotationLayer
+        page={page}
+        mode={mode}
+        readOnly={readOnly}
+        highlightColor={highlightColor}
+        highlightWidth={highlightWidth}
+        highlightOpacity={highlightOpacity}
+        textColor={textColor}
+        textBoxStylePreset={textBoxStylePreset}
+        strokes={strokes}
+        textBoxes={textBoxes}
+        onStrokesChange={onStrokesChange}
+        onTextBoxesChange={onTextBoxesChange}
+        t={t}
+      />
     </div>
   );
 }

@@ -36,6 +36,7 @@ type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 export function PdfAnnotationLayer(props: {
   page: number;
   mode: ToolMode;
+  readOnly?: boolean;
   highlightColor: string;
   highlightWidth: number;
   highlightOpacity: number;
@@ -50,6 +51,7 @@ export function PdfAnnotationLayer(props: {
   const {
     page,
     mode,
+    readOnly = false,
     highlightColor,
     highlightWidth,
     highlightOpacity,
@@ -318,7 +320,7 @@ export function PdfAnnotationLayer(props: {
         ref={layerRef}
         className="absolute inset-0 z-20"
         style={{
-          pointerEvents: mode === "select" ? "none" : "auto",
+          pointerEvents: readOnly || mode === "select" ? "none" : "auto",
           cursor:
             mode === "highlight"
               ? HIGHLIGHT_CURSOR
@@ -410,13 +412,16 @@ export function PdfAnnotationLayer(props: {
                 width: `${((dragPreview?.boxId === box.id ? dragPreview.w : box.w) / 1000) * 100}%`,
                 height: `${((dragPreview?.boxId === box.id ? dragPreview.h : box.h) / 1000) * 100}%`,
                 zIndex: box.z,
-                pointerEvents: "auto",
+                pointerEvents: readOnly ? "none" : "auto",
                 borderColor: box.style.borderColor,
                 borderStyle: box.style.borderWidth > 0 ? "solid" : "none",
                 borderWidth: `${box.style.borderWidth}px`,
                 backgroundColor: box.style.backgroundColor,
               }}
               onMouseDown={(event) => {
+                if (readOnly) {
+                  return;
+                }
                 if (event.button !== 0) {
                   event.stopPropagation();
                   return;
@@ -450,16 +455,25 @@ export function PdfAnnotationLayer(props: {
                 }
               }}
               onContextMenu={(event) => {
+                if (readOnly) {
+                  return;
+                }
                 event.preventDefault();
                 event.stopPropagation();
                 setSelectedTextBoxId(box.id);
                 setMenuOpen(true);
               }}
               onDoubleClick={(event) => {
+                if (readOnly) {
+                  return;
+                }
                 event.stopPropagation();
                 setSelectedTextBoxId(box.id);
                 setEditingTextBoxId(box.id);
                 setMenuOpen(true);
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
               }}
             >
               {editing ? (

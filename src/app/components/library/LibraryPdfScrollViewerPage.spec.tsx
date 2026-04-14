@@ -25,7 +25,7 @@ describe("LibraryPdfScrollViewerPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("requires Alt + double click to toggle the lens so text selection is not hijacked", async () => {
+  it("toggles the lens on click but ignores drag-style motion so reading interactions are not hijacked", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -94,12 +94,15 @@ describe("LibraryPdfScrollViewerPage", () => {
     });
 
     await act(async () => {
-      pageNode?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 120, clientY: 160 }));
+      pageNode?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
+      pageNode?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, button: 0, clientX: 150, clientY: 190 }));
+      pageNode?.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 150, clientY: 190 }));
     });
     expect(onToggleLens).not.toHaveBeenCalled();
 
     await act(async () => {
-      pageNode?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, altKey: true, clientX: 120, clientY: 160 }));
+      pageNode?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
+      pageNode?.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 120, clientY: 160 }));
     });
     expect(onToggleLens).toHaveBeenCalledTimes(1);
 

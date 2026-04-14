@@ -277,14 +277,14 @@ body::before {
 }
 
 .library-scrollbar {
-  scrollbar-width: thin;
+  scrollbar-width: auto;
   scrollbar-color: var(--library-scrollbar-thumb) var(--library-scrollbar-track);
   scrollbar-gutter: stable both-edges;
 }
 
 .library-scrollbar::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .library-scrollbar::-webkit-scrollbar-track {
@@ -294,9 +294,10 @@ body::before {
 
 .library-scrollbar::-webkit-scrollbar-thumb {
   background: var(--library-scrollbar-thumb);
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   background-clip: padding-box;
+  min-height: 48px;
 }
 
 .library-scrollbar::-webkit-scrollbar-thumb:hover {

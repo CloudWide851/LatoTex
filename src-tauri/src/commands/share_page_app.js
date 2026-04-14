@@ -17,6 +17,11 @@ export async function bootstrapSharePage() {
     meta: document.getElementById("meta"),
     status: document.getElementById("status"),
     badge: document.getElementById("connected-badge"),
+    accessTitle: document.getElementById("access-title"),
+    modesKicker: document.getElementById("modes-kicker"),
+    modesTitle: document.getElementById("modes-title"),
+    manuscriptKicker: document.getElementById("manuscript-kicker"),
+    previewKicker: document.getElementById("preview-kicker"),
     identityLabel: document.getElementById("identity-label"),
     passwordLabel: document.getElementById("password-label"),
     username: document.getElementById("username"),
@@ -146,10 +151,11 @@ export async function bootstrapSharePage() {
       el.quoteContent.textContent = "";
       return;
     }
-    el.quotePreview.hidden = false;
-    el.quoteSource.textContent = quote.source === "pdf"
+    const sourceText = quote.source === "pdf"
       ? i18n.quoteFromPdf(quote.page || 1)
       : i18n.quoteFromTex;
+    el.quotePreview.hidden = false;
+    el.quoteSource.textContent = sourceText;
     el.quoteContent.textContent = quote.text;
   }
 
@@ -343,6 +349,11 @@ export async function bootstrapSharePage() {
     el.brand.textContent = i18n.brand;
     el.title.textContent = i18n.title;
     el.meta.textContent = sid ? i18n.sessionLabel(sid) : i18n.missingSession;
+    el.accessTitle.textContent = i18n.accessTitle;
+    el.modesKicker.textContent = i18n.modesKicker;
+    el.modesTitle.textContent = i18n.modesTitle;
+    el.manuscriptKicker.textContent = i18n.manuscriptKicker;
+    el.previewKicker.textContent = i18n.previewKicker;
     el.identityLabel.textContent = i18n.identityLabel;
     el.passwordLabel.textContent = i18n.passwordLabel;
     el.username.placeholder = i18n.usernamePlaceholder;

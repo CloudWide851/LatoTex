@@ -378,10 +378,10 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 highlightOpacity={highlightOpacity}
                 textColor={textColor}
                 textBoxStylePreset={textBoxStylePreset}
-                strokes={[]}
-                textBoxes={[]}
-                onStrokesChange={() => undefined}
-                onTextBoxesChange={() => undefined}
+                strokes={annotationStrokes}
+                textBoxes={annotationTextBoxes}
+                onStrokesChange={setAnnotationStrokes}
+                onTextBoxesChange={setAnnotationTextBoxes}
                 onVisiblePageChange={() => undefined}
                 onPageCountChange={setPageCount}
                 readOnly
