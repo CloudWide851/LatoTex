@@ -213,7 +213,7 @@ export function ExplorerTree(props: {
       return null;
     }
     const items: Array<{ key: string; onClick: () => void }> = [];
-    if (mode === "library") {
+    if (mode === "library" && menu.kind === "blank") {
       items.push(
         {
           key: "library.action.importPdf",

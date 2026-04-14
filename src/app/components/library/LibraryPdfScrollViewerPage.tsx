@@ -102,6 +102,18 @@ export function LibraryPdfScrollViewerPage(props: {
     return Boolean(anchorNode && focusNode && target.contains(anchorNode) && target.contains(focusNode));
   };
 
+  const isAnnotationInteractionTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+    return Boolean(
+      target.closest("[data-annotation-layer='true']")
+      || target.closest("[data-annotation-box='true']")
+      || target.closest("[data-textbox-resize-handle='true']")
+      || target.closest("[data-textbox-menu='true']"),
+    );
+  };
+
   return (
     <div
       ref={(element) => {
@@ -116,6 +128,10 @@ export function LibraryPdfScrollViewerPage(props: {
             if (event.button !== 0) {
               return;
             }
+            if (isAnnotationInteractionTarget(event.target)) {
+              pointerDownRef.current = null;
+              return;
+            }
             pointerDownRef.current = {
               x: event.clientX,
               y: event.clientY,
@@ -127,6 +143,9 @@ export function LibraryPdfScrollViewerPage(props: {
       onMouseMove={
         lensEnabled
           ? (event) => {
+            if (isAnnotationInteractionTarget(event.target)) {
+              return;
+            }
             const pointer = pointerDownRef.current;
             if (pointer) {
               const moved =
@@ -152,6 +171,9 @@ export function LibraryPdfScrollViewerPage(props: {
           ? (event) => {
             const pointer = pointerDownRef.current;
             pointerDownRef.current = null;
+            if (isAnnotationInteractionTarget(event.target)) {
+              return;
+            }
             if (pointer?.moved || hasActiveSelectionInside(event.currentTarget)) {
               return;
             }

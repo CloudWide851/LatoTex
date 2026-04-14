@@ -95,6 +95,7 @@ export function PdfAnnotationLayer(props: {
     () => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null),
     [selectedTextBoxId, textBoxes],
   );
+  const canTransformTextBoxes = !readOnly && (mode === "select" || mode === "textbox");
 
   useEffect(() => {
     textBoxesRef.current = textBoxes;
@@ -327,6 +328,7 @@ export function PdfAnnotationLayer(props: {
       <div
         ref={layerRef}
         className="absolute inset-0 z-20"
+        data-annotation-layer="true"
         style={{
           pointerEvents: readOnly || mode === "select" ? "none" : "auto",
           cursor:
@@ -416,7 +418,7 @@ export function PdfAnnotationLayer(props: {
           return (
             <div
               key={box.id}
-              className={`absolute rounded ${selected ? "ring-1 ring-primary-300" : ""}`}
+              className={`absolute overflow-visible rounded ${selected ? "ring-1 ring-primary-300" : ""}`}
               data-annotation-box="true"
               style={{
                 left: `${((dragPreview?.boxId === box.id ? dragPreview.x : box.x) / 1000) * 100}%`,
@@ -429,6 +431,7 @@ export function PdfAnnotationLayer(props: {
                 borderStyle: box.style.borderWidth > 0 ? "solid" : "none",
                 borderWidth: `${box.style.borderWidth}px`,
                 backgroundColor: box.style.backgroundColor,
+                cursor: editing ? "text" : canTransformTextBoxes ? "move" : "default",
               }}
               onMouseDown={(event) => {
                 if (readOnly) {
@@ -442,16 +445,17 @@ export function PdfAnnotationLayer(props: {
                 setMenuOpen(true);
                 setSelectedTextBoxId(box.id);
                 onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
-                if (!editing) {
+                const target = event.target as HTMLElement | null;
+                if (target?.closest("[data-textbox-resize-handle='true']")) {
+                  return;
+                }
+                if (!editing && canTransformTextBoxes) {
                   const rect = layerRef.current?.getBoundingClientRect();
-                  if (!rect || mode !== "select") {
+                  if (!rect) {
                     return;
                   }
-                  const boxRect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
-                  const nearResizeCorner =
-                    boxRect.right - event.clientX <= 14 && boxRect.bottom - event.clientY <= 14;
                   dragStateRef.current = {
-                    mode: nearResizeCorner ? "resize" : "move",
+                    mode: "move",
                     boxId: box.id,
                     start: toNormalizedPoint(event, rect),
                     initial: box,
@@ -559,6 +563,48 @@ export function PdfAnnotationLayer(props: {
                   dangerouslySetInnerHTML={{ __html: boxHtml }}
                 />
               )}
+              {selected && !editing && canTransformTextBoxes ? (
+                <button
+                  type="button"
+                  data-textbox-resize-handle="true"
+                  className="absolute -bottom-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-emerald-400 bg-white shadow-sm"
+                  style={{ cursor: "nwse-resize" }}
+                  aria-label={t("library.viewer.textboxResize")}
+                  title={t("library.viewer.textboxResize")}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                    if (!canTransformTextBoxes) {
+                      return;
+                    }
+                    const rect = layerRef.current?.getBoundingClientRect();
+                    if (!rect) {
+                      return;
+                    }
+                    setMenuOpen(true);
+                    setSelectedTextBoxId(box.id);
+                    onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
+                    dragStateRef.current = {
+                      mode: "resize",
+                      boxId: box.id,
+                      start: toNormalizedPoint(event, rect),
+                      initial: box,
+                    };
+                    dragPointRef.current = null;
+                    setDragPreview({
+                      boxId: box.id,
+                      x: box.x,
+                      y: box.y,
+                      w: box.w,
+                      h: box.h,
+                    });
+                  }}
+                >
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+                </button>
+              ) : null}
             </div>
           );
         })}

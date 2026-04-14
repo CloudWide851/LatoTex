@@ -190,4 +190,57 @@ describe("ExplorerTree", () => {
     });
     container.remove();
   });
+
+  it("shows move and delete actions for library files and folders in the context menu", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onAction = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          mode="library"
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const fileNode = nodes.find((node) => node.getAttribute("title") === "papers/demo.bib");
+    const directoryNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    expect(fileNode).toBeTruthy();
+    expect(directoryNode).toBeTruthy();
+
+    await act(async () => {
+      fileNode?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 40, clientY: 40 }));
+    });
+
+    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.move")).toBe(true);
+    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.delete")).toBe(true);
+
+    const deleteButton = Array.from(document.querySelectorAll("button")).find(
+      (node) => node.textContent === "explorer.action.delete",
+    );
+    await act(async () => {
+      deleteButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onAction).toHaveBeenCalledWith("delete", "papers/demo.bib");
+
+    await act(async () => {
+      directoryNode?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 48, clientY: 56 }));
+    });
+
+    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.move")).toBe(true);
+    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.delete")).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

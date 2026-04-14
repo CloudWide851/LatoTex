@@ -1,27 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { resolveVisiblePdfPage, type PdfPageMetrics } from "./libraryPdfScrollState";
+import { resolvePdfScrollAnchor, resolveScrollTopForPdfAnchor } from "./libraryPdfScrollState";
 
 describe("libraryPdfScrollState", () => {
-  it("uses real page metrics instead of estimated uniform heights", () => {
-    const metrics: PdfPageMetrics[] = [
-      { page: 1, top: 0, height: 600 },
-      { page: 2, top: 620, height: 900 },
-      { page: 3, top: 1540, height: 500 },
+  it("keeps the focused page anchor when syncing between viewers with different page heights", () => {
+    const sourceMetrics = [
+      { page: 1, top: 0, height: 800 },
+      { page: 2, top: 824, height: 1000 },
+      { page: 3, top: 1848, height: 920 },
+    ];
+    const translatedMetrics = [
+      { page: 1, top: 0, height: 920 },
+      { page: 2, top: 944, height: 760 },
+      { page: 3, top: 1728, height: 1100 },
     ];
 
-    expect(resolveVisiblePdfPage(metrics, 0, 800)).toBe(1);
-    expect(resolveVisiblePdfPage(metrics, 580, 800)).toBe(2);
-    expect(resolveVisiblePdfPage(metrics, 1500, 800)).toBe(3);
+    const anchor = resolvePdfScrollAnchor(sourceMetrics, 930, 600, 0.44);
+    expect(anchor.page).toBe(2);
+    expect(anchor.pageFocusRatio).toBeGreaterThan(0);
+    expect(anchor.pageFocusRatio).toBeLessThan(1);
+
+    const translatedTop = resolveScrollTopForPdfAnchor(translatedMetrics, anchor, 600, 2400);
+    const translatedAnchor = resolvePdfScrollAnchor(translatedMetrics, translatedTop, 600, anchor.absoluteRatio);
+
+    expect(translatedAnchor.page).toBe(2);
+    expect(Math.abs(translatedAnchor.pageFocusRatio - anchor.pageFocusRatio)).toBeLessThan(0.08);
   });
 
-  it("falls back to the nearest real page when the viewport focus is in a gap", () => {
-    const metrics: PdfPageMetrics[] = [
-      { page: 1, top: 0, height: 500 },
-      { page: 2, top: 650, height: 500 },
-      { page: 3, top: 1300, height: 500 },
-    ];
+  it("falls back to the absolute ratio when the target viewer has not measured the anchor page yet", () => {
+    const anchor = {
+      page: 4,
+      pageFocusRatio: 0.62,
+      absoluteRatio: 0.35,
+    };
 
-    expect(resolveVisiblePdfPage(metrics, 580, 200)).toBe(2);
-    expect(resolveVisiblePdfPage(metrics, 1230, 200)).toBe(3);
+    expect(resolveScrollTopForPdfAnchor([{ page: 1, top: 0, height: 800 }], anchor, 600, 2000)).toBe(700);
   });
 });
