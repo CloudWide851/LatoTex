@@ -8,12 +8,14 @@ import { getEditorSurfaceThemeName, registerEditorSurfaceThemes } from "./editor
 import { registerEditorCodeLanguages } from "./editorCodeLanguages";
 import { ensureLatexCompletionProvider } from "./latexCompletion";
 import { createWorkspaceEditorMonacoOptions } from "./editorMonacoOptions";
+import { useWorkspaceEditorShareComments } from "./useWorkspaceEditorShareComments";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
 import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
 import { WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
+import type { ShareCommentItem } from "../../../shared/types/app";
 import {
   LazyAgentChatOverlay,
   LazyChatWorkspace,
@@ -56,6 +58,7 @@ export function LatexWorkspaceEditorPanel(props: {
   shareSyncing: boolean;
   shareMode: any;
   shareSessionName: string;
+  shareComments: ShareCommentItem[];
   channelPrefs: any;
   agentCollapsed: boolean;
   agentPhase: AgentPhase;
@@ -131,6 +134,7 @@ export function LatexWorkspaceEditorPanel(props: {
     shareSyncing,
     shareMode,
     shareSessionName,
+    shareComments,
     channelPrefs,
     agentCollapsed,
     agentPhase,
@@ -215,6 +219,14 @@ export function LatexWorkspaceEditorPanel(props: {
   useEffect(() => {
     setMonacoOverflowWidgetRoot(ensureMonacoOverflowWidgetRoot());
   }, []);
+
+  useWorkspaceEditorShareComments({
+    editor: showChatWorkspace || selectedIsExcel ? null : editorInstanceRef.current,
+    selectedFile,
+    shareSession,
+    shareComments,
+    t,
+  });
 
   useEffect(() => {
     const editor = editorInstanceRef.current;

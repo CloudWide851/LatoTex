@@ -420,6 +420,7 @@ export function PdfAnnotationLayer(props: {
               key={box.id}
               className={`absolute overflow-visible rounded ${selected ? "ring-1 ring-primary-300" : ""}`}
               data-annotation-box="true"
+              data-annotation-ignore-lens="true"
               style={{
                 left: `${((dragPreview?.boxId === box.id ? dragPreview.x : box.x) / 1000) * 100}%`,
                 top: `${((dragPreview?.boxId === box.id ? dragPreview.y : box.y) / 1000) * 100}%`,
@@ -491,6 +492,9 @@ export function PdfAnnotationLayer(props: {
               onClick={(event) => {
                 event.stopPropagation();
               }}
+              onMouseUp={(event) => {
+                event.stopPropagation();
+              }}
             >
               {editing ? (
                 <div
@@ -498,6 +502,8 @@ export function PdfAnnotationLayer(props: {
                   contentEditable
                   suppressContentEditableWarning
                   data-editing-box={box.id}
+                  data-textbox-content="true"
+                  data-annotation-ignore-lens="true"
                   className="h-full w-full overflow-auto rounded border-none bg-transparent p-1.5 text-xs leading-5 outline-none"
                   style={{
                     color: box.style.textColor,
@@ -514,6 +520,8 @@ export function PdfAnnotationLayer(props: {
                   }}
                   dangerouslySetInnerHTML={{ __html: boxHtml }}
                   onClick={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onMouseUp={(event) => event.stopPropagation()}
                   onBlur={(event) => {
                     const html = sanitizeRichTextHtml((event.currentTarget as HTMLDivElement).innerHTML);
                     const target = textBoxes.find((item) => item.id === box.id);
@@ -551,6 +559,8 @@ export function PdfAnnotationLayer(props: {
               ) : (
                 <div
                   className="h-full overflow-auto whitespace-pre-wrap break-words p-1.5 text-xs leading-5"
+                  data-textbox-content="true"
+                  data-annotation-ignore-lens="true"
                   style={{
                     color: box.style.textColor,
                     fontSize: `${box.style.fontSize}px`,
@@ -567,11 +577,15 @@ export function PdfAnnotationLayer(props: {
                 <button
                   type="button"
                   data-textbox-resize-handle="true"
+                  data-annotation-ignore-lens="true"
                   className="absolute -bottom-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-emerald-400 bg-white shadow-sm"
                   style={{ cursor: "nwse-resize" }}
                   aria-label={t("library.viewer.textboxResize")}
                   title={t("library.viewer.textboxResize")}
                   onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onMouseUp={(event) => {
                     event.stopPropagation();
                   }}
                   onMouseDown={(event) => {

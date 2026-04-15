@@ -782,6 +782,133 @@ body::before {
   font-weight: 600;
 }
 
+.editor-share-comment-range {
+  background: rgba(34, 197, 94, 0.12);
+  border-radius: 6px;
+}
+
+.editor-share-comment-range-inline {
+  background: rgba(34, 197, 94, 0.18);
+  border-bottom: 1px solid rgba(22, 163, 74, 0.32);
+  border-radius: 4px;
+}
+
+.editor-share-comment-zone {
+  padding: 6px 18px 10px 56px;
+  pointer-events: auto;
+}
+
+.editor-share-comment-card,
+.editor-share-composer-card {
+  width: min(360px, calc(100% - 32px));
+  border: 1px solid rgba(22, 163, 74, 0.26);
+  border-radius: 16px;
+  background: rgba(248, 255, 249, 0.96);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.1);
+}
+
+.editor-share-comment-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  text-align: left;
+  color: #0f172a;
+}
+
+.editor-share-comment-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-share-comment-card__author {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-share-comment-card__badge {
+  border-radius: 999px;
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+}
+
+.editor-share-comment-card__quote,
+.editor-share-composer-card__quote {
+  border-left: 3px solid rgba(22, 163, 74, 0.42);
+  padding-left: 10px;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.editor-share-comment-card__text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #0f172a;
+  white-space: pre-wrap;
+}
+
+.editor-share-comment-trigger {
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  border-radius: 999px;
+  background: rgba(240, 253, 244, 0.96);
+  color: #166534;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+}
+
+.editor-share-composer-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.editor-share-composer-card__input {
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  line-height: 1.55;
+  padding: 10px 12px;
+}
+
+.editor-share-composer-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.editor-share-composer-card__submit,
+.editor-share-composer-card__cancel {
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+}
+
+.editor-share-composer-card__submit {
+  border: 1px solid rgba(22, 163, 74, 0.92);
+  background: #16a34a;
+  color: #f0fdf4;
+}
+
+.editor-share-composer-card__cancel {
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+}
+
 .editor-chat-scroll {
   overflow-anchor: none;
 }
@@ -861,6 +988,50 @@ body::before {
 
 [data-theme="dark"] .editor-content-stage .monaco-editor .line-numbers.active-line-number {
   color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .editor-share-comment-range {
+  background: rgba(74, 222, 128, 0.12);
+}
+
+[data-theme="dark"] .editor-share-comment-range-inline {
+  background: rgba(74, 222, 128, 0.16);
+  border-bottom-color: rgba(74, 222, 128, 0.3);
+}
+
+[data-theme="dark"] .editor-share-comment-card,
+[data-theme="dark"] .editor-share-composer-card {
+  border-color: rgba(74, 222, 128, 0.22);
+  background: rgba(15, 23, 32, 0.96);
+  box-shadow: 0 24px 44px rgba(2, 6, 23, 0.38);
+}
+
+[data-theme="dark"] .editor-share-comment-card,
+[data-theme="dark"] .editor-share-comment-card__text,
+[data-theme="dark"] .editor-share-composer-card__input {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .editor-share-comment-card__quote,
+[data-theme="dark"] .editor-share-composer-card__quote {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .editor-share-comment-trigger {
+  border-color: rgba(74, 222, 128, 0.28);
+  background: rgba(20, 83, 45, 0.94);
+  color: #dcfce7;
+}
+
+[data-theme="dark"] .editor-share-composer-card__input {
+  border-color: rgba(71, 85, 105, 0.82);
+  background: rgba(15, 23, 42, 0.92);
+}
+
+[data-theme="dark"] .editor-share-composer-card__cancel {
+  border-color: rgba(71, 85, 105, 0.82);
+  background: rgba(30, 41, 59, 0.92);
+  color: #cbd5e1;
 }
 
 [data-theme="dark"] .editor-content-stage .monaco-editor .margin,

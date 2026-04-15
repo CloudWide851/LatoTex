@@ -140,6 +140,10 @@ pub(super) fn try_serve_static_route(
             include_str!("share_page_render.js"),
             javascript_header(),
         )),
+        "/assets/share_page_editor.js" => Some(static_text_response(
+            include_str!("share_page_editor.js"),
+            javascript_header(),
+        )),
         "/assets/share_page_utils.js" => Some(static_text_response(
             include_str!("share_page_utils.js"),
             javascript_header(),

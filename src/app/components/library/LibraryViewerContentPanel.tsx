@@ -8,6 +8,7 @@ import {
 } from "./LibraryPdfScrollViewer";
 import { LibraryPdfToolSidebar } from "./LibraryPdfToolSidebar";
 import type { LibraryPdfScrollSyncGroup } from "./libraryPdfScrollViewerShared";
+import type { PdfScrollAnchor } from "./libraryPdfScrollState";
 import { useElementScrollRatio } from "./useElementScrollRatio";
 import type {
   AnnotationStroke,
@@ -119,10 +120,16 @@ type LibraryViewerContentPanelProps = {
   setAnnotationStrokes: (next: AnnotationStroke[] | ((prev: AnnotationStroke[]) => AnnotationStroke[])) => void;
   setAnnotationTextBoxes: (next: AnnotationTextBox[] | ((prev: AnnotationTextBox[]) => AnnotationTextBox[])) => void;
   setCurrentPage: (next: number) => void;
+  pdfScrollAnchor: PdfScrollAnchor;
+  setPdfScrollAnchor: (next: PdfScrollAnchor) => void;
   pdfScrollRatio: number;
   setPdfScrollRatio: (next: number) => void;
+  compareSourceScrollAnchor: PdfScrollAnchor;
+  setCompareSourceScrollAnchor: (next: PdfScrollAnchor) => void;
   compareSourceScrollRatio: number;
   setCompareSourceScrollRatio: (next: number) => void;
+  compareTranslatedScrollAnchor: PdfScrollAnchor;
+  setCompareTranslatedScrollAnchor: (next: PdfScrollAnchor) => void;
   compareTranslatedScrollRatio: number;
   setCompareTranslatedScrollRatio: (next: number) => void;
   bibScrollRatio: number;
@@ -195,10 +202,16 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     setAnnotationStrokes,
     setAnnotationTextBoxes,
     setCurrentPage,
+    pdfScrollAnchor,
+    setPdfScrollAnchor,
     pdfScrollRatio,
     setPdfScrollRatio,
+    compareSourceScrollAnchor,
+    setCompareSourceScrollAnchor,
     compareSourceScrollRatio,
     setCompareSourceScrollRatio,
+    compareTranslatedScrollAnchor,
+    setCompareTranslatedScrollAnchor,
     compareTranslatedScrollRatio,
     setCompareTranslatedScrollRatio,
     bibScrollRatio,
@@ -331,6 +344,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               }}
               onPageCountChange={setPageCount}
               onZoomChange={setPdfZoom}
+              initialScrollAnchor={pdfScrollAnchor}
+              onScrollAnchorChange={setPdfScrollAnchor}
               onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
               initialScrollRatio={pdfScrollRatio}
               onScrollRatioChange={setPdfScrollRatio}
@@ -390,6 +405,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
                 documentClassName="space-y-3 px-2 py-0 pr-3 pb-3"
                 onZoomChange={setCompareSourceZoom}
+                initialScrollAnchor={compareSourceScrollAnchor}
+                onScrollAnchorChange={setCompareSourceScrollAnchor}
                 initialScrollRatio={compareSourceScrollRatio}
                 onScrollRatioChange={setCompareSourceScrollRatio}
                 t={t}
@@ -425,6 +442,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
                 documentClassName="space-y-3 px-2 py-0 pr-3 pb-3"
                 onZoomChange={setCompareTranslatedZoom}
+                initialScrollAnchor={compareTranslatedScrollAnchor}
+                onScrollAnchorChange={setCompareTranslatedScrollAnchor}
                 initialScrollRatio={compareTranslatedScrollRatio}
                 onScrollRatioChange={setCompareTranslatedScrollRatio}
                 t={t}

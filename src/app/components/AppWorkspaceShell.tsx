@@ -142,7 +142,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   } = props;
 
   const [previewZoom, setPreviewZoom] = useState(1);
-  const [previewFocusRequest, setPreviewFocusRequest] = useState<{ page: number; token: number } | null>(null);
+  const previewFocusRequest = null;
   const [compileAssistDismissedFor, setCompileAssistDismissedFor] = useState("");
   const [compileAssistOverride, setCompileAssistOverride] = useState<
     | { kind: "cjk"; diagnostics: string[]; hint: string }
@@ -390,13 +390,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       onZoomOut={() => setPreviewZoom((prev) => clampPreviewZoom(prev - 0.1))}
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
-      shareSession={shareSession}
-      shareComments={shareComments}
-      onJumpToShareComment={(page) =>
-        setPreviewFocusRequest({
-          page,
-          token: Date.now(),
-        })}
       previewFocusRequest={previewFocusRequest}
       t={t}
     />
@@ -449,6 +442,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         shareSyncing={shareSyncing}
         shareMode={shareMode}
         shareSessionName={shareSessionName}
+        shareComments={shareComments}
         channelPrefs={channelPrefs}
         agentCollapsed={agentCollapsed}
         agentPhase={agentPhase}

@@ -74,7 +74,15 @@
           </section>
 
           <section id="editor-wrap" class="content-panel editor-panel">
-            <textarea id="editor" rows="18"></textarea>
+            <div id="editor-stage" class="editor-stage">
+              <div class="editor-stage__body">
+                <div class="editor-stage__surface">
+                  <div id="editor-highlight-layer" class="editor-highlight-layer" aria-hidden="true"></div>
+                  <textarea id="editor" rows="18"></textarea>
+                </div>
+                <aside id="editor-thread-layer" class="editor-thread-layer" aria-hidden="true"></aside>
+              </div>
+            </div>
           </section>
 
           <section id="pdf-wrap" class="content-panel pdf-panel hidden">

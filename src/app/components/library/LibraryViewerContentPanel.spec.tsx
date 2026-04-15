@@ -79,10 +79,16 @@ function CompareHarness() {
       setAnnotationStrokes={() => undefined}
       setAnnotationTextBoxes={() => undefined}
       setCurrentPage={() => undefined}
+      pdfScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+      setPdfScrollAnchor={() => undefined}
       pdfScrollRatio={0}
       setPdfScrollRatio={() => undefined}
+      compareSourceScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+      setCompareSourceScrollAnchor={() => undefined}
       compareSourceScrollRatio={0}
       setCompareSourceScrollRatio={() => undefined}
+      compareTranslatedScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+      setCompareTranslatedScrollAnchor={() => undefined}
       compareTranslatedScrollRatio={0}
       setCompareTranslatedScrollRatio={() => undefined}
       bibScrollRatio={0}
@@ -210,10 +216,16 @@ describe("LibraryViewerContentPanel", () => {
           setAnnotationStrokes={() => undefined}
           setAnnotationTextBoxes={() => undefined}
           setCurrentPage={() => undefined}
+          pdfScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+          setPdfScrollAnchor={() => undefined}
           pdfScrollRatio={0}
           setPdfScrollRatio={() => undefined}
+          compareSourceScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+          setCompareSourceScrollAnchor={() => undefined}
           compareSourceScrollRatio={0}
           setCompareSourceScrollRatio={() => undefined}
+          compareTranslatedScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+          setCompareTranslatedScrollAnchor={() => undefined}
           compareTranslatedScrollRatio={0}
           setCompareTranslatedScrollRatio={() => undefined}
           bibScrollRatio={0}

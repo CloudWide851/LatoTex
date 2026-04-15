@@ -45,6 +45,8 @@ type LibraryPdfScrollViewerProps = {
   containerClassName?: string;
   documentClassName?: string;
   onZoomChange?: (next: number) => void;
+  initialScrollAnchor?: PdfScrollAnchor | null;
+  onScrollAnchorChange?: (anchor: PdfScrollAnchor) => void;
   initialScrollRatio?: number;
   onScrollRatioChange?: (ratio: number) => void;
   enableLens?: boolean;
@@ -66,6 +68,23 @@ function createRatioFallbackAnchor(ratio: number): PdfScrollAnchor {
     pageFocusRatio: 0,
     absoluteRatio: clampPdfScrollRatio(ratio),
   };
+}
+
+function normalizeAnchor(anchor: PdfScrollAnchor | null | undefined, fallbackRatio = 0): PdfScrollAnchor {
+  if (!anchor) {
+    return createRatioFallbackAnchor(fallbackRatio);
+  }
+  return {
+    page: Math.max(1, Math.floor(anchor.page || 1)),
+    pageFocusRatio: clampPdfScrollRatio(anchor.pageFocusRatio),
+    absoluteRatio: clampPdfScrollRatio(anchor.absoluteRatio),
+  };
+}
+
+function anchorsEqual(left: PdfScrollAnchor, right: PdfScrollAnchor): boolean {
+  return left.page === right.page
+    && Math.abs(left.pageFocusRatio - right.pageFocusRatio) < 0.002
+    && Math.abs(left.absoluteRatio - right.absoluteRatio) < 0.002;
 }
 
 export const LibraryPdfScrollViewer = forwardRef<
@@ -95,6 +114,8 @@ export const LibraryPdfScrollViewer = forwardRef<
     containerClassName = "library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded border border-slate-200 bg-slate-100",
     documentClassName = "space-y-3 p-3 pr-4 pb-4",
     onZoomChange,
+    initialScrollAnchor = null,
+    onScrollAnchorChange,
     initialScrollRatio = 0,
     onScrollRatioChange,
     enableLens = true,
@@ -106,8 +127,11 @@ export const LibraryPdfScrollViewer = forwardRef<
   const pendingScrollPageRef = useRef<number | null>(null);
   const renderedPagesRef = useRef<Set<number>>(new Set());
   const pendingRenderRestoreRef = useRef(true);
-  const pendingRestoreRatioRef = useRef(clampPdfScrollRatio(initialScrollRatio));
-  const lastReportedScrollRatioRef = useRef(clampPdfScrollRatio(initialScrollRatio));
+  const pendingRestoreAnchorRef = useRef<PdfScrollAnchor>(
+    normalizeAnchor(initialScrollAnchor, initialScrollRatio),
+  );
+  const lastReportedScrollRatioRef = useRef(pendingRestoreAnchorRef.current.absoluteRatio);
+  const lastReportedScrollAnchorRef = useRef<PdfScrollAnchor>(pendingRestoreAnchorRef.current);
   const scrollRafRef = useRef<number | null>(null);
   const syncResetRafRef = useRef<number | null>(null);
   const restoreRafRef = useRef<number | null>(null);
@@ -153,33 +177,38 @@ export const LibraryPdfScrollViewer = forwardRef<
     }
   }, [documentPages, onVisiblePageChange]);
 
-  const emitScrollRatio = useCallback((ratio: number) => {
-    const normalized = clampPdfScrollRatio(ratio);
-    pendingRestoreRatioRef.current = normalized;
-    if (Math.abs(lastReportedScrollRatioRef.current - normalized) < 0.002) {
-      return;
+  const emitScrollAnchor = useCallback((anchor: PdfScrollAnchor) => {
+    const normalized = normalizeAnchor(anchor);
+    pendingRestoreAnchorRef.current = normalized;
+    if (!anchorsEqual(lastReportedScrollAnchorRef.current, normalized)) {
+      lastReportedScrollAnchorRef.current = normalized;
+      onScrollAnchorChange?.(normalized);
     }
-    lastReportedScrollRatioRef.current = normalized;
-    onScrollRatioChange?.(normalized);
-  }, [onScrollRatioChange]);
+    if (Math.abs(lastReportedScrollRatioRef.current - normalized.absoluteRatio) >= 0.002) {
+      lastReportedScrollRatioRef.current = normalized.absoluteRatio;
+      onScrollRatioChange?.(normalized.absoluteRatio);
+    }
+  }, [onScrollAnchorChange, onScrollRatioChange]);
 
-  const restoreScrollRatio = useCallback((ratio?: number) => {
+  const restoreScrollAnchor = useCallback((anchor?: PdfScrollAnchor | null) => {
     const root = scrollRef.current;
     if (!root) {
       return;
     }
-    const normalized = clampPdfScrollRatio(typeof ratio === "number" ? ratio : pendingRestoreRatioRef.current);
-    pendingRestoreRatioRef.current = normalized;
+    const normalized = normalizeAnchor(anchor ?? pendingRestoreAnchorRef.current);
+    pendingRestoreAnchorRef.current = normalized;
     if (restoreRafRef.current !== null) {
       window.cancelAnimationFrame(restoreRafRef.current);
     }
     restoreRafRef.current = window.requestAnimationFrame(() => {
       restoreRafRef.current = null;
       const limit = maxPdfScrollTop(root);
-      if (limit <= 0) {
-        return;
-      }
-      const nextTop = normalized * limit;
+      const nextTop = resolveScrollTopForPdfAnchor(
+        collectPdfPageMetrics(pageRefs.current, documentPages),
+        normalized,
+        root.clientHeight,
+        limit,
+      );
       if (Math.abs(root.scrollTop - nextTop) >= 2) {
         syncingScrollRef.current = true;
         root.scrollTop = nextTop;
@@ -194,9 +223,9 @@ export const LibraryPdfScrollViewer = forwardRef<
       } else {
         updateVisiblePage();
       }
-      emitScrollRatio(normalized);
+      emitScrollAnchor(normalized);
     });
-  }, [emitScrollRatio, updateVisiblePage]);
+  }, [documentPages, emitScrollAnchor, updateVisiblePage]);
   const applyLensPoint = useCallback(() => {
     const lensViewport = lensViewportRef.current;
     const lensContent = lensContentRef.current;
@@ -290,18 +319,19 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [lensEnabled, queueLensPoint]);
 
   useEffect(() => {
-    const normalized = clampPdfScrollRatio(initialScrollRatio);
-    const previous = pendingRestoreRatioRef.current;
-    pendingRestoreRatioRef.current = normalized;
+    const normalized = normalizeAnchor(initialScrollAnchor, initialScrollRatio);
+    const previous = pendingRestoreAnchorRef.current;
+    pendingRestoreAnchorRef.current = normalized;
     if (!scrollRef.current) {
-      lastReportedScrollRatioRef.current = normalized;
+      lastReportedScrollAnchorRef.current = normalized;
+      lastReportedScrollRatioRef.current = normalized.absoluteRatio;
       return;
     }
-    if (Math.abs(previous - normalized) < 0.002 && Math.abs(lastReportedScrollRatioRef.current - normalized) < 0.002) {
+    if (anchorsEqual(previous, normalized) && anchorsEqual(lastReportedScrollAnchorRef.current, normalized)) {
       return;
     }
-    restoreScrollRatio(normalized);
-  }, [initialScrollRatio, restoreScrollRatio]);
+    restoreScrollAnchor(normalized);
+  }, [initialScrollAnchor, initialScrollRatio, restoreScrollAnchor]);
   useEffect(() => {
     if (!scrollRef.current || pages.length === 0) {
       return;
@@ -310,7 +340,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     pendingRenderRestoreRef.current = true;
     if (typeof ResizeObserver === "undefined") {
       setViewportWidth(scrollRef.current.clientWidth || 920);
-      restoreScrollRatio();
+      restoreScrollAnchor();
       return;
     }
     const observer = new ResizeObserver(() => {
@@ -318,11 +348,11 @@ export const LibraryPdfScrollViewer = forwardRef<
         return;
       }
       setViewportWidth(scrollRef.current.clientWidth || 920);
-      restoreScrollRatio();
+      restoreScrollAnchor();
     });
     observer.observe(scrollRef.current);
     return () => observer.disconnect();
-  }, [pages.length, restoreScrollRatio]);
+  }, [pages.length, restoreScrollAnchor]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -336,14 +366,14 @@ export const LibraryPdfScrollViewer = forwardRef<
         setViewportWidth(scrollRef.current?.clientWidth || 920);
         renderedPagesRef.current = new Set();
         pendingRenderRestoreRef.current = true;
-        restoreScrollRatio();
+        restoreScrollAnchor();
       });
     };
     window.addEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
     return () => {
       window.removeEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
     };
-  }, [restoreScrollRatio]);
+  }, [restoreScrollAnchor]);
   useEffect(() => {
     const group = ensurePdfScrollSyncGroup(syncGroupRef);
     if (!group) {
@@ -354,12 +384,12 @@ export const LibraryPdfScrollViewer = forwardRef<
       if (!root) {
         return;
       }
-      const normalized = clampPdfScrollRatio(anchor.absoluteRatio);
+      const normalized = normalizeAnchor(anchor);
       const limit = maxPdfScrollTop(root);
       const metrics = collectPdfPageMetrics(pageRefs.current, documentPages);
-      const targetTop = resolveScrollTopForPdfAnchor(metrics, anchor, root.clientHeight, limit);
-      pendingRestoreRatioRef.current = normalized;
-      emitScrollRatio(normalized);
+      const targetTop = resolveScrollTopForPdfAnchor(metrics, normalized, root.clientHeight, limit);
+      pendingRestoreAnchorRef.current = normalized;
+      emitScrollAnchor(normalized);
       if (Math.abs(root.scrollTop - targetTop) < 2) {
         return;
       }
@@ -378,7 +408,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     const initialAnchor =
       group.lastAnchor.absoluteRatio > 0 || group.lastAnchor.page !== 1 || group.lastAnchor.pageFocusRatio > 0
         ? group.lastAnchor
-        : createRatioFallbackAnchor(pendingRestoreRatioRef.current);
+        : pendingRestoreAnchorRef.current;
     applyAnchor(initialAnchor);
     return () => {
       group.viewers.delete(syncId);
@@ -390,7 +420,7 @@ export const LibraryPdfScrollViewer = forwardRef<
         syncResetRafRef.current = null;
       }
     };
-  }, [documentPages, emitScrollRatio, syncGroupRef, syncId, updateVisiblePage]);
+  }, [documentPages, emitScrollAnchor, syncGroupRef, syncId, updateVisiblePage]);
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) {
@@ -409,17 +439,17 @@ export const LibraryPdfScrollViewer = forwardRef<
         if (syncingScrollRef.current) {
           return;
         }
-        emitScrollRatio(ratio);
-        const group = syncGroupRef?.current;
-        if (!group) {
-          return;
-        }
         const anchor = resolvePdfScrollAnchor(
           collectPdfPageMetrics(pageRefs.current, documentPages),
           root.scrollTop,
           root.clientHeight,
           ratio,
         );
+        emitScrollAnchor(anchor);
+        const group = syncGroupRef?.current;
+        if (!group) {
+          return;
+        }
         group.lastAnchor = anchor;
         for (const [viewerId, applyAnchor] of group.viewers.entries()) {
           if (viewerId === syncId) {
@@ -437,7 +467,7 @@ export const LibraryPdfScrollViewer = forwardRef<
         scrollRafRef.current = null;
       }
     };
-  }, [documentPages, emitScrollRatio, syncGroupRef, syncId, updateVisiblePage]);
+  }, [documentPages, emitScrollAnchor, syncGroupRef, syncId, updateVisiblePage]);
 
   useEffect(() => {
     pendingScrollPageRef.current = null;
@@ -448,28 +478,28 @@ export const LibraryPdfScrollViewer = forwardRef<
     lastVisiblePageRef.current = 1;
     onVisiblePageChange(1);
     onPageCountChange(Math.max(1, pageCount || 1));
-    restoreScrollRatio(initialScrollRatio);
-  }, [initialScrollRatio, onPageCountChange, onVisiblePageChange, pageCount, pdfUrl, restoreScrollRatio]);
+    restoreScrollAnchor(normalizeAnchor(initialScrollAnchor, initialScrollRatio));
+  }, [initialScrollAnchor, initialScrollRatio, onPageCountChange, onVisiblePageChange, pageCount, pdfUrl, restoreScrollAnchor]);
   useEffect(() => {
     const group = syncGroupRef?.current;
     if (!group) {
-      restoreScrollRatio();
+      restoreScrollAnchor();
       return;
     }
     const viewer = group.viewers.get(syncId);
     if (!viewer) {
-      restoreScrollRatio();
+      restoreScrollAnchor();
       return;
     }
     const timer = window.setTimeout(() => {
       viewer(
         group.lastAnchor.absoluteRatio > 0 || group.lastAnchor.page !== 1 || group.lastAnchor.pageFocusRatio > 0
           ? group.lastAnchor
-          : createRatioFallbackAnchor(pendingRestoreRatioRef.current),
+          : pendingRestoreAnchorRef.current,
       );
     }, 40);
     return () => window.clearTimeout(timer);
-  }, [documentPages, pdfUrl, restoreScrollRatio, syncGroupRef, syncId, viewportWidth]);
+  }, [documentPages, pdfUrl, restoreScrollAnchor, syncGroupRef, syncId, viewportWidth]);
   useEffect(() => {
     const pending = pendingScrollPageRef.current;
     if (pending === null) {
@@ -536,7 +566,7 @@ export const LibraryPdfScrollViewer = forwardRef<
             onVisiblePageChange(1);
           }
           window.requestAnimationFrame(() => {
-            restoreScrollRatio();
+            restoreScrollAnchor();
             updateVisiblePage();
             const pending = pendingScrollPageRef.current;
             const root = scrollRef.current;
@@ -597,7 +627,7 @@ export const LibraryPdfScrollViewer = forwardRef<
               window.requestAnimationFrame(() => {
                 if (shouldRestoreAfterRender) {
                   pendingRenderRestoreRef.current = false;
-                  restoreScrollRatio();
+                  restoreScrollAnchor();
                   updateVisiblePage();
                 }
                 const nextPending = pendingScrollPageRef.current;

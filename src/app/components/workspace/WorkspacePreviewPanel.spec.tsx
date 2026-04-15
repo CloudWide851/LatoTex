@@ -18,19 +18,14 @@ describe("WorkspacePreviewPanel", () => {
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ ok: true }),
-    }));
   });
 
   afterEach(() => {
     document.body.innerHTML = "";
-    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("posts desktop comments through the local share endpoint", async () => {
+  it("renders the file preview surface without inline share comments in the preview pane", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -63,46 +58,14 @@ describe("WorkspacePreviewPanel", () => {
           onZoomOut={() => undefined}
           onZoomReset={() => undefined}
           onPreviewZoomChange={() => undefined}
-          shareSession={{
-            active: true,
-            localUrl: "http://127.0.0.1:4021",
-            sessionId: "sid-1",
-            password: "pwd-1",
-          }}
-          shareComments={[]}
-          onJumpToShareComment={() => undefined}
           previewFocusRequest={null}
           t={(key) => String(key)}
         />,
       );
     });
 
-    const textarea = container.querySelector("textarea");
-    await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLTextAreaElement.prototype,
-        "value",
-      )?.set;
-      setter?.call(textarea, "Need to adjust theorem wording.");
-      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-
-    const button = Array.from(container.querySelectorAll("button")).find(
-      (item) => item.textContent === "share.postComment",
-    );
-    await act(async () => {
-      button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    expect(fetch).toHaveBeenCalledWith(
-      "http://127.0.0.1:4021/api/comments/post",
-      expect.objectContaining({
-        method: "POST",
-      }),
-    );
-    expect((fetch as any).mock.calls[0][1].body).toContain("\"sid\":\"sid-1\"");
-    expect((fetch as any).mock.calls[0][1].body).toContain("\"text\":\"Need to adjust theorem wording.\"");
+    expect(container.querySelector("[data-testid='file-preview-pane']")).not.toBeNull();
+    expect(container.textContent).not.toContain("share.commentsInPreview");
 
     await act(async () => {
       root.unmount();

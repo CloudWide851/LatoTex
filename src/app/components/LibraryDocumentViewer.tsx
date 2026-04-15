@@ -599,10 +599,16 @@ export function LibraryDocumentViewer(props: {
           setAnnotationStrokes={setAnnotationStrokes}
           setAnnotationTextBoxes={setAnnotationTextBoxes}
           setCurrentPage={(next) => setSession({ currentPage: next })}
+          pdfScrollAnchor={session.pdfScrollAnchor}
+          setPdfScrollAnchor={(next) => setSession({ pdfScrollAnchor: next })}
           pdfScrollRatio={session.pdfScrollRatio}
           setPdfScrollRatio={(next) => setSession({ pdfScrollRatio: next })}
+          compareSourceScrollAnchor={session.compareSourceScrollAnchor}
+          setCompareSourceScrollAnchor={(next) => setSession({ compareSourceScrollAnchor: next })}
           compareSourceScrollRatio={session.compareSourceScrollRatio}
           setCompareSourceScrollRatio={(next) => setSession({ compareSourceScrollRatio: next })}
+          compareTranslatedScrollAnchor={session.compareTranslatedScrollAnchor}
+          setCompareTranslatedScrollAnchor={(next) => setSession({ compareTranslatedScrollAnchor: next })}
           compareTranslatedScrollRatio={session.compareTranslatedScrollRatio}
           setCompareTranslatedScrollRatio={(next) => setSession({ compareTranslatedScrollRatio: next })}
           bibScrollRatio={session.bibScrollRatio}

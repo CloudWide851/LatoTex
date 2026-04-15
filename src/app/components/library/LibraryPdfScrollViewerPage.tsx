@@ -107,7 +107,9 @@ export function LibraryPdfScrollViewerPage(props: {
       return false;
     }
     return Boolean(
-      target.closest("[data-annotation-layer='true']")
+      target.closest("[data-annotation-ignore-lens='true']")
+      || target.closest("[data-textbox-content='true']")
+      || target.closest("[data-annotation-layer='true']")
       || target.closest("[data-annotation-box='true']")
       || target.closest("[data-textbox-resize-handle='true']")
       || target.closest("[data-textbox-menu='true']"),

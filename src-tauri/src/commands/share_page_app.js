@@ -1,4 +1,5 @@
 import * as Y from "/assets/vendor/yjs.mjs";
+import { createShareEditorReviewSurface } from "/assets/share_page_editor.js";
 import { createI18n, detectDevice, detectLocale } from "/assets/share_page_i18n.js";
 import { createSharePdfController } from "/assets/share_page_pdf.js";
 import { renderComments, renderParticipants } from "/assets/share_page_render.js";
@@ -35,6 +36,9 @@ export async function bootstrapSharePage() {
     paneMain: document.getElementById("pane-main"),
     paneSide: document.getElementById("pane-side"),
     editorWrap: document.getElementById("editor-wrap"),
+    editorStage: document.getElementById("editor-stage"),
+    editorHighlightLayer: document.getElementById("editor-highlight-layer"),
+    editorThreadLayer: document.getElementById("editor-thread-layer"),
     editor: document.getElementById("editor"),
     cursor: document.getElementById("cursor-info"),
     pdfWrap: document.getElementById("pdf-wrap"),
@@ -123,6 +127,13 @@ export async function bootstrapSharePage() {
     el,
     setStatus,
   });
+  const editorReview = createShareEditorReviewSurface({
+    textarea: el.editor,
+    highlightLayer: el.editorHighlightLayer,
+    threadLayer: el.editorThreadLayer,
+    onJump: jumpToComment,
+    i18n,
+  });
 
   function setView(nextView) {
     state.view = nextView;
@@ -141,6 +152,7 @@ export async function bootstrapSharePage() {
     const showPdf = nextView === "pdf";
     el.editorWrap.style.display = showPdf ? "none" : "";
     el.pdfWrap.style.display = showPdf ? "" : "none";
+    editorReview.refresh(state.comments);
   }
 
   function setDraftQuote(quote) {
@@ -247,6 +259,7 @@ export async function bootstrapSharePage() {
       el.editor.focus();
       el.editor.setSelectionRange(start, end);
       el.editor.scrollTop = Math.max(0, el.editor.scrollHeight * (start / Math.max(el.editor.value.length, 1)) - 120);
+      editorReview.refresh(state.comments);
     }
   }
 
@@ -274,6 +287,7 @@ export async function bootstrapSharePage() {
     const payload = await response.json();
     state.comments = Array.isArray(payload.comments) ? payload.comments : [];
     renderComments(el.comments, state.comments, i18n, jumpToComment);
+    editorReview.refresh(state.comments);
   }
 
   async function pullUpdates() {
@@ -395,6 +409,7 @@ export async function bootstrapSharePage() {
       el.editor.value = value;
       el.editor.setSelectionRange(Math.min(at, value.length), Math.min(at, value.length));
     }
+    editorReview.refresh(state.comments);
   });
 
   doc.on("update", (update, origin) => {
@@ -431,6 +446,7 @@ export async function bootstrapSharePage() {
       if (removeLen > 0) yText.delete(start, removeLen);
       if (insert.length > 0) yText.insert(start, insert);
     }, "editor");
+    editorReview.refresh(state.comments);
   });
 
   el.editor.addEventListener("select", () => {
@@ -445,12 +461,14 @@ export async function bootstrapSharePage() {
   window.addEventListener("resize", () => {
     refreshEnvironment();
     setView(state.view);
+    editorReview.refresh(state.comments);
   });
   window.addEventListener("scroll", () => {
     if (!el.quickQuote.hidden) updateQuoteFromSelection();
   }, true);
   window.addEventListener("beforeunload", () => {
     pdf.dispose();
+    editorReview.dispose();
   }, { once: true });
 
   el.quickQuote.addEventListener("click", () => {

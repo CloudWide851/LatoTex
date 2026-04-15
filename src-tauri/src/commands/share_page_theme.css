@@ -31,9 +31,9 @@ body {
   margin: 0;
   color: var(--page-ink);
   background:
-    radial-gradient(circle at top left, rgba(216, 244, 230, 0.72), transparent 22%),
-    radial-gradient(circle at bottom right, rgba(255, 240, 214, 0.8), transparent 24%),
-    linear-gradient(180deg, #fbfaf5 0%, #f1efe6 100%);
+    radial-gradient(circle at top left, rgba(216, 244, 230, 0.5), transparent 18%),
+    radial-gradient(circle at bottom right, rgba(255, 240, 214, 0.54), transparent 20%),
+    linear-gradient(180deg, #f7f6ef 0%, #eceae0 100%);
   font-family: "IBM Plex Sans", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -51,27 +51,27 @@ textarea::placeholder {
 }
 
 .share-page {
-  width: min(1500px, calc(100vw - 28px));
+  width: min(1680px, calc(100vw - 22px));
   margin: 0 auto;
-  padding: 18px 0 24px;
+  padding: 12px 0 18px;
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .shell-panel,
 .content-panel {
   border: 1px solid var(--page-border);
-  border-radius: 20px;
-  background: var(--page-surface);
-  box-shadow: var(--page-shadow);
-  backdrop-filter: blur(18px);
+  border-radius: 18px;
+  background: rgba(255, 252, 245, 0.94);
+  box-shadow: 0 18px 40px rgba(31, 42, 42, 0.08);
+  backdrop-filter: blur(8px);
 }
 
 .hero-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  padding: 22px 24px;
+  gap: 12px;
+  padding: 16px 18px;
   position: relative;
   overflow: hidden;
 }
@@ -128,9 +128,9 @@ textarea::placeholder {
 }
 
 .hero-shell h1 {
-  font-size: clamp(2rem, 1.55rem + 1.8vw, 3.4rem);
-  line-height: 1.05;
-  max-width: 10ch;
+  font-size: clamp(1.45rem, 1.15rem + 0.8vw, 2.2rem);
+  line-height: 1.02;
+  max-width: 13ch;
 }
 
 .hero-meta,
@@ -144,9 +144,9 @@ textarea::placeholder {
 
 .hero-meta,
 .hero-hint {
-  margin: 8px 0 0;
-  font-size: 0.96rem;
-  line-height: 1.5;
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .hero-actions {
@@ -163,12 +163,12 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 12px;
   border: 1px solid var(--page-border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
-  font-size: 0.84rem;
+  font-size: 0.76rem;
   font-weight: 700;
 }
 
@@ -186,9 +186,9 @@ textarea::placeholder {
 
 .control-ribbon {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: 16px;
-  padding: 18px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 12px;
+  padding: 14px;
 }
 
 .join-card,
@@ -269,9 +269,9 @@ button.secondary {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.58fr) minmax(360px, 0.92fr);
-  gap: 16px;
-  min-height: calc(100vh - 258px);
+  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.74fr);
+  gap: 12px;
+  min-height: calc(100vh - 182px);
 }
 
 .pane,
@@ -284,8 +284,8 @@ button.secondary {
 .workspace-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
 }
 
 .surface-header {
@@ -299,10 +299,10 @@ button.secondary {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 10px;
   background: var(--page-surface-strong);
-  border-radius: 18px;
+  border-radius: 16px;
 }
 
 .panel-header,
@@ -321,11 +321,12 @@ button.secondary {
 
 #editor {
   flex: 1 1 auto;
-  min-height: 52vh;
+  min-height: 40vh;
   resize: none;
-  padding: 16px 18px;
-  line-height: 1.6;
+  padding: 14px 16px;
+  line-height: 1.65;
   font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 0.86rem;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(251, 248, 240, 0.98)),
     repeating-linear-gradient(
@@ -335,6 +336,100 @@ button.secondary {
       rgba(31, 111, 80, 0.06) 28px,
       rgba(31, 111, 80, 0.06) 29px
     );
+}
+
+.editor-stage {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.editor-stage__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 306px;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+}
+
+.editor-stage__surface {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--page-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.editor-highlight-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.editor-inline-highlight {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  border-radius: 10px;
+  background: rgba(22, 163, 74, 0.09);
+  border-left: 3px solid rgba(22, 163, 74, 0.42);
+}
+
+.editor-thread-layer {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid rgba(143, 154, 145, 0.22);
+}
+
+.editor-inline-thread {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(22, 101, 52, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--page-ink);
+  text-align: left;
+  box-shadow: 0 18px 32px rgba(31, 42, 42, 0.1);
+}
+
+.editor-inline-thread__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-inline-thread__author {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.editor-inline-thread__badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(22, 101, 52, 0.1);
+  color: var(--page-accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.editor-inline-thread__quote {
+  padding-left: 10px;
+  border-left: 3px solid rgba(22, 101, 52, 0.32);
+  color: var(--page-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.editor-inline-thread__text {
+  font-size: 0.76rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 
 .pdf-stage {
@@ -412,8 +507,8 @@ button.secondary {
 .side-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px;
 }
 
 .side-panel h2 {
@@ -425,7 +520,7 @@ button.secondary {
 .comments {
   min-height: 0;
   overflow: auto;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid var(--page-border);
   border-radius: 16px;
   background: var(--page-surface-soft);
@@ -526,8 +621,8 @@ button.secondary {
 
 .comment-composer {
   display: grid;
-  gap: 10px;
-  padding: 12px;
+  gap: 8px;
+  padding: 10px;
   border: 1px solid var(--page-border);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.74);
@@ -569,6 +664,14 @@ html[data-device="mobile"] .control-ribbon,
 html[data-device="mobile"] .workspace-grid,
 html[data-device="mobile"] .session-fields {
   grid-template-columns: 1fr;
+}
+
+html[data-device="mobile"] .editor-stage__body {
+  grid-template-columns: 1fr;
+}
+
+html[data-device="mobile"] .editor-thread-layer {
+  display: none;
 }
 
 html[data-device="mobile"] .hero-shell {

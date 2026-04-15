@@ -1,4 +1,9 @@
 type ViewMode = "bib" | "pdf" | "compare";
+type PdfScrollAnchor = {
+  page: number;
+  pageFocusRatio: number;
+  absoluteRatio: number;
+};
 
 export type LibraryViewerSession = {
   viewMode: ViewMode;
@@ -6,6 +11,9 @@ export type LibraryViewerSession = {
   pdfZoom: number;
   compareSourceZoom: number;
   compareTranslatedZoom: number;
+  pdfScrollAnchor: PdfScrollAnchor;
+  compareSourceScrollAnchor: PdfScrollAnchor;
+  compareTranslatedScrollAnchor: PdfScrollAnchor;
   pdfScrollRatio: number;
   compareSourceScrollRatio: number;
   compareTranslatedScrollRatio: number;
@@ -45,6 +53,18 @@ function clampRatio(value: unknown): number {
   return Math.max(0, Math.min(1, next));
 }
 
+function normalizeAnchor(value: unknown, fallbackRatio = 0): PdfScrollAnchor {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : null;
+  const absoluteRatio = clampRatio(source?.absoluteRatio ?? fallbackRatio);
+  const pageFocusRatio = clampRatio(source?.pageFocusRatio ?? 0);
+  const page = Math.max(1, Math.floor(Number(source?.page ?? 1) || 1));
+  return {
+    page,
+    pageFocusRatio,
+    absoluteRatio,
+  };
+}
+
 function normalizePath(value: string | null | undefined): string {
   return String(value ?? "").trim().replace(/\\/g, "/");
 }
@@ -58,6 +78,9 @@ export function defaultLibraryViewerSession(
     pdfZoom: 1,
     compareSourceZoom: 1,
     compareTranslatedZoom: 1,
+    pdfScrollAnchor: normalizeAnchor(null, 0),
+    compareSourceScrollAnchor: normalizeAnchor(null, 0),
+    compareTranslatedScrollAnchor: normalizeAnchor(null, 0),
     pdfScrollRatio: 0,
     compareSourceScrollRatio: 0,
     compareTranslatedScrollRatio: 0,
@@ -80,15 +103,21 @@ function sanitizeSession(
     ? rawViewMode
     : fallbackViewMode;
   const currentPage = Math.max(1, Math.floor(Number(source.currentPage ?? 1) || 1));
+  const pdfScrollRatio = clampRatio(source.pdfScrollRatio);
+  const compareSourceScrollRatio = clampRatio(source.compareSourceScrollRatio);
+  const compareTranslatedScrollRatio = clampRatio(source.compareTranslatedScrollRatio);
   return {
     viewMode,
     currentPage,
     pdfZoom: clampZoom(source.pdfZoom, 1),
     compareSourceZoom: clampZoom(source.compareSourceZoom, 1),
     compareTranslatedZoom: clampZoom(source.compareTranslatedZoom, 1),
-    pdfScrollRatio: clampRatio(source.pdfScrollRatio),
-    compareSourceScrollRatio: clampRatio(source.compareSourceScrollRatio),
-    compareTranslatedScrollRatio: clampRatio(source.compareTranslatedScrollRatio),
+    pdfScrollAnchor: normalizeAnchor(source.pdfScrollAnchor, pdfScrollRatio),
+    compareSourceScrollAnchor: normalizeAnchor(source.compareSourceScrollAnchor, compareSourceScrollRatio),
+    compareTranslatedScrollAnchor: normalizeAnchor(source.compareTranslatedScrollAnchor, compareTranslatedScrollRatio),
+    pdfScrollRatio,
+    compareSourceScrollRatio,
+    compareTranslatedScrollRatio,
     bibScrollRatio: clampRatio(source.bibScrollRatio),
     metaScrollRatio: clampRatio(source.metaScrollRatio),
     updatedAt: typeof source.updatedAt === "string" && source.updatedAt.trim()
