@@ -403,7 +403,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 syncId="source"
                 syncGroupRef={compareSyncGroupRef}
                 containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
-                documentClassName="space-y-3 px-2 py-0 pr-3 pb-3"
+                documentClassName="mx-auto flex w-max min-w-full flex-col gap-3 px-2 py-0 pr-3 pb-3"
                 onZoomChange={setCompareSourceZoom}
                 initialScrollAnchor={compareSourceScrollAnchor}
                 onScrollAnchorChange={setCompareSourceScrollAnchor}
@@ -440,7 +440,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 syncId="translated"
                 syncGroupRef={compareSyncGroupRef}
                 containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
-                documentClassName="space-y-3 px-2 py-0 pr-3 pb-3"
+                documentClassName="mx-auto flex w-max min-w-full flex-col gap-3 px-2 py-0 pr-3 pb-3"
                 onZoomChange={setCompareTranslatedZoom}
                 initialScrollAnchor={compareTranslatedScrollAnchor}
                 onScrollAnchorChange={setCompareTranslatedScrollAnchor}

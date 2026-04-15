@@ -16,8 +16,9 @@ describe("isShareReady", () => {
     expect(isShareReady(buildSession({ status: "ready" }), "local")).toBe(false);
   });
 
-  it("requires both remote access and pdf readiness for remote mode", () => {
+  it("requires remote access but no longer blocks collaboration on pending pdf preparation", () => {
     expect(isShareReady(buildSession({ status: "ready", remoteJoinUrl: "https://share.example", pdfState: "ready" }), "remote")).toBe(true);
-    expect(isShareReady(buildSession({ status: "ready", remoteJoinUrl: "https://share.example", pdfState: "empty" }), "remote")).toBe(false);
+    expect(isShareReady(buildSession({ status: "ready", remoteJoinUrl: "https://share.example", pdfState: "empty" }), "remote")).toBe(true);
+    expect(isShareReady(buildSession({ status: "ready", pdfState: "ready" }), "remote")).toBe(false);
   });
 });

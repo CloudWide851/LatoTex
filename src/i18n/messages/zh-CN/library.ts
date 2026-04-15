@@ -71,6 +71,7 @@ export const zhCN_library = {
   "library.viewer.textboxSave": "保存文本框",
   "library.viewer.textboxEdit": "编辑文本框",
   "library.viewer.textboxDelete": "删除文本框",
+  "library.viewer.textboxMove": "移动文本框",
   "library.viewer.textboxResize": "缩放文本框",
   "library.viewer.shortcut.select": "V",
   "library.viewer.shortcut.highlight": "H",

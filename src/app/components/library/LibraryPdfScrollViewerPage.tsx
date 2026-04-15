@@ -111,6 +111,7 @@ export function LibraryPdfScrollViewerPage(props: {
       || target.closest("[data-textbox-content='true']")
       || target.closest("[data-annotation-layer='true']")
       || target.closest("[data-annotation-box='true']")
+      || target.closest("[data-textbox-move-handle='true']")
       || target.closest("[data-textbox-resize-handle='true']")
       || target.closest("[data-textbox-menu='true']"),
     );
@@ -168,7 +169,7 @@ export function LibraryPdfScrollViewerPage(props: {
           }
           : undefined
       }
-      onClick={
+      onDoubleClick={
         lensEnabled
           ? (event) => {
             const pointer = pointerDownRef.current;

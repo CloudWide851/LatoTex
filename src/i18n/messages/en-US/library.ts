@@ -71,6 +71,7 @@ export const enUS_library = {
   "library.viewer.textboxSave": "Save Text Box",
   "library.viewer.textboxEdit": "Edit Text Box",
   "library.viewer.textboxDelete": "Delete Text Box",
+  "library.viewer.textboxMove": "Move Text Box",
   "library.viewer.textboxResize": "Resize Text Box",
   "library.viewer.shortcut.select": "V",
   "library.viewer.shortcut.highlight": "H",

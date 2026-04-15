@@ -180,14 +180,6 @@ export function useShareSession(params: {
       setShareMode(nextMode);
       const nextSessionName = shareSessionName.trim();
 
-      let compileResult: CompileActionResult | null = null;
-      if (nextMode === "remote") {
-        compileResult = await onCompile();
-        if (compileResult?.status !== "success" || !compileResult.pdfUrl) {
-          throw new Error(t("share.startCompileFailed"));
-        }
-      }
-
       const created = await shareSessionCreate(
         activeProjectId,
         selectedFile,
@@ -199,8 +191,13 @@ export function useShareSession(params: {
       if (created.sessionName?.trim()) {
         setShareSessionName(created.sessionName.trim());
       }
-      if (nextMode === "remote" && compileResult?.pdfUrl) {
-        await uploadCompiledPdfFromUrl(created, compileResult.pdfUrl);
+      if (nextMode === "remote") {
+        void onCompile().then((compileResult: CompileActionResult | null) => {
+          if (compileResult?.status === "success" && compileResult.pdfUrl) {
+            return uploadCompiledPdfFromUrl(created, compileResult.pdfUrl);
+          }
+          return undefined;
+        }).catch(() => undefined);
       } else {
         void onCompile().catch(() => undefined);
       }

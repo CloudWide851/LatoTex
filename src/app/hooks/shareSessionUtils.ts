@@ -9,7 +9,7 @@ export function isShareReady(status: ShareSessionInfo, mode: ShareMode): boolean
   if (mode === "local") {
     return Boolean(status.localJoinUrl || status.activeJoinUrl);
   }
-  return Boolean(status.pdfState === "ready" && (status.remoteJoinUrl || status.tunnelUrl || status.activeJoinUrl));
+  return Boolean(status.remoteJoinUrl || status.tunnelUrl || status.activeJoinUrl);
 }
 
 export function toShareCommentItems(rawItems: any[]): ShareCommentItem[] {

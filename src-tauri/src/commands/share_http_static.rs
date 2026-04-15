@@ -128,6 +128,14 @@ pub(super) fn try_serve_static_route(
             include_str!("share_page_app.js"),
             javascript_header(),
         )),
+        "/assets/share_page_desktop.js" => Some(static_text_response(
+            include_str!("share_page_desktop.js"),
+            javascript_header(),
+        )),
+        "/assets/share_page_mobile.js" => Some(static_text_response(
+            include_str!("share_page_mobile.js"),
+            javascript_header(),
+        )),
         "/assets/share_page_pdf.js" => Some(static_text_response(
             include_str!("share_page_pdf.js"),
             javascript_header(),
@@ -150,6 +158,10 @@ pub(super) fn try_serve_static_route(
         )),
         "/assets/share_page_theme.css" => Some(static_text_response(
             include_str!("share_page_theme.css"),
+            css_header(),
+        )),
+        "/assets/share_page_layout.css" => Some(static_text_response(
+            include_str!("share_page_layout.css"),
             css_header(),
         )),
         "/assets/pico.min.css" => Some(static_text_response(

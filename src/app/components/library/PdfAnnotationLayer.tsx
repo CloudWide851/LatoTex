@@ -1,35 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  clampNormalized,
-  createDefaultStrokeStyle,
-  createDefaultTextStyle,
-  type AnnotationTextStylePreset,
-  type AnnotationPoint,
-  type AnnotationStroke,
-  type AnnotationTextBox,
-} from "./annotationModel";
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { clampNormalized, createDefaultTextStyle, type AnnotationTextStylePreset, type AnnotationPoint, type AnnotationStroke, type AnnotationTextBox } from "./annotationModel";
 import { hexToRgba } from "./annotationPalette";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
-import {
-  bringBoxToFront,
-  clampPoint,
-  distanceToStroke,
-  ERASER_CURSOR,
-  HIGHLIGHT_CURSOR,
-  nextTextBoxZ,
-  resolveDraggedBox,
-  resolveMenuAnchor,
-  toNormalizedPoint,
-  type DragPreview,
-  type DragState,
-} from "./pdfAnnotationLayerUtils";
-import {
-  isRichTextEmpty,
-  normalizeStoredRichHtml,
-  plainTextToRichHtml,
-  richHtmlToPlainText,
-  sanitizeRichTextHtml,
-} from "./textboxRichText";
+import { PdfTextBoxTransformHandles } from "./PdfTextBoxTransformHandles";
+import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveDraggedBox, resolveMenuAnchor, toNormalizedPoint, type DragPreview, type DragState } from "./pdfAnnotationLayerUtils";
+import { buildAnnotationStroke, focusAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
+import { isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
@@ -226,7 +202,7 @@ export function PdfAnnotationLayer(props: {
     if (!editingTextBoxId || typeof window === "undefined") {
       return;
     }
-    focusEditingTextBox(editingTextBoxId);
+    focusAnnotationEditingBox(layerRef.current, editingTextBoxId);
   }, [editingTextBoxId, pageTextBoxes]);
 
   useEffect(() => {
@@ -254,24 +230,6 @@ export function PdfAnnotationLayer(props: {
     [dragPreview, layerSize, menuBox, menuOpen],
   );
 
-  const focusEditingTextBox = (boxId: string) => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const selector = `[data-editing-box='${boxId}']`;
-    const target = layerRef.current?.querySelector<HTMLElement>(selector);
-    if (!target) {
-      return;
-    }
-    target.focus();
-    const range = document.createRange();
-    range.selectNodeContents(target);
-    range.collapse(false);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  };
-
   const finishDrawing = () => {
     if (!drawingRef.current) {
       return;
@@ -281,17 +239,46 @@ export function PdfAnnotationLayer(props: {
       if (!previous || previous.length < 2) {
         return null;
       }
-      const stroke: AnnotationStroke = {
-        id: `stroke-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      const stroke: AnnotationStroke = buildAnnotationStroke({
+        points: previous,
         page,
-        points: previous.map(clampPoint),
-        style: createDefaultStrokeStyle(highlightColor, {
-          width: highlightWidth,
-          opacity: highlightOpacity,
-        }),
-      };
+        highlightColor,
+        highlightWidth,
+        highlightOpacity,
+      });
       onStrokesChange([...strokes, stroke]);
       return null;
+    });
+  };
+
+  const startTextBoxTransform = (
+    mode: "move" | "resize",
+    event: ReactMouseEvent<HTMLButtonElement>,
+    box: AnnotationTextBox,
+  ) => {
+    if (!canTransformTextBoxes) {
+      return;
+    }
+    const rect = layerRef.current?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    setMenuOpen(true);
+    setSelectedTextBoxId(box.id);
+    onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
+    dragStateRef.current = {
+      mode,
+      boxId: box.id,
+      start: toNormalizedPoint(event, rect),
+      initial: box,
+    };
+    dragPointRef.current = null;
+    setDragPreview({
+      boxId: box.id,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
     });
   };
 
@@ -432,7 +419,7 @@ export function PdfAnnotationLayer(props: {
                 borderStyle: box.style.borderWidth > 0 ? "solid" : "none",
                 borderWidth: `${box.style.borderWidth}px`,
                 backgroundColor: box.style.backgroundColor,
-                cursor: editing ? "text" : canTransformTextBoxes ? "move" : "default",
+                cursor: editing ? "text" : "default",
               }}
               onMouseDown={(event) => {
                 if (readOnly) {
@@ -447,28 +434,11 @@ export function PdfAnnotationLayer(props: {
                 setSelectedTextBoxId(box.id);
                 onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
                 const target = event.target as HTMLElement | null;
-                if (target?.closest("[data-textbox-resize-handle='true']")) {
+                if (
+                  target?.closest("[data-textbox-resize-handle='true']")
+                  || target?.closest("[data-textbox-move-handle='true']")
+                ) {
                   return;
-                }
-                if (!editing && canTransformTextBoxes) {
-                  const rect = layerRef.current?.getBoundingClientRect();
-                  if (!rect) {
-                    return;
-                  }
-                  dragStateRef.current = {
-                    mode: "move",
-                    boxId: box.id,
-                    start: toNormalizedPoint(event, rect),
-                    initial: box,
-                  };
-                  dragPointRef.current = null;
-                  setDragPreview({
-                    boxId: box.id,
-                    x: box.x,
-                    y: box.y,
-                    w: box.w,
-                    h: box.h,
-                  });
                 }
               }}
               onContextMenu={(event) => {
@@ -529,7 +499,7 @@ export function PdfAnnotationLayer(props: {
                     if (recentlyCreatedTextBoxIdRef.current === box.id && targetContent.trim().length === 0) {
                       recentlyCreatedTextBoxIdRef.current = null;
                       window.requestAnimationFrame(() => {
-                        focusEditingTextBox(box.id);
+                        focusAnnotationEditingBox(layerRef.current, box.id);
                       });
                       return;
                     }
@@ -574,50 +544,11 @@ export function PdfAnnotationLayer(props: {
                 />
               )}
               {selected && !editing && canTransformTextBoxes ? (
-                <button
-                  type="button"
-                  data-textbox-resize-handle="true"
-                  data-annotation-ignore-lens="true"
-                  className="absolute -bottom-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-emerald-400 bg-white shadow-sm"
-                  style={{ cursor: "nwse-resize" }}
-                  aria-label={t("library.viewer.textboxResize")}
-                  title={t("library.viewer.textboxResize")}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                  }}
-                  onMouseUp={(event) => {
-                    event.stopPropagation();
-                  }}
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    if (!canTransformTextBoxes) {
-                      return;
-                    }
-                    const rect = layerRef.current?.getBoundingClientRect();
-                    if (!rect) {
-                      return;
-                    }
-                    setMenuOpen(true);
-                    setSelectedTextBoxId(box.id);
-                    onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
-                    dragStateRef.current = {
-                      mode: "resize",
-                      boxId: box.id,
-                      start: toNormalizedPoint(event, rect),
-                      initial: box,
-                    };
-                    dragPointRef.current = null;
-                    setDragPreview({
-                      boxId: box.id,
-                      x: box.x,
-                      y: box.y,
-                      w: box.w,
-                      h: box.h,
-                    });
-                  }}
-                >
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-                </button>
+                <PdfTextBoxTransformHandles
+                  box={box}
+                  t={t}
+                  onStartTransform={startTextBoxTransform}
+                />
               ) : null}
             </div>
           );

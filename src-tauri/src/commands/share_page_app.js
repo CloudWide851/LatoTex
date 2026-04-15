@@ -1,17 +1,15 @@
 import * as Y from "/assets/vendor/yjs.mjs";
 import { createShareEditorReviewSurface } from "/assets/share_page_editor.js";
-import { createI18n, detectDevice, detectLocale } from "/assets/share_page_i18n.js";
+import { createI18n, detectLocale } from "/assets/share_page_i18n.js";
 import { createSharePdfController } from "/assets/share_page_pdf.js";
 import { renderComments, renderParticipants } from "/assets/share_page_render.js";
 import { fromBase64, postJson, toBase64, trimQuote } from "/assets/share_page_utils.js";
-
-export async function bootstrapSharePage() {
+export async function bootstrapSharePage(options = {}) {
   const params = new URLSearchParams(window.location.search);
   const sid = params.get("sid") || "";
   const pwdFromUrl = params.get("pwd") || "";
-  const locale = detectLocale(params.get("lang") || params.get("locale"));
-  const i18n = createI18n(locale);
-
+  const locale = options.locale || detectLocale(params.get("lang") || params.get("locale"));
+  const i18n = options.i18n || createI18n(locale);
   const el = {
     brand: document.getElementById("share-brand"),
     title: document.getElementById("title-text"),
@@ -68,7 +66,6 @@ export async function bootstrapSharePage() {
     postComment: document.getElementById("post-comment"),
     quickQuote: document.getElementById("quick-quote"),
   };
-
   const doc = new Y.Doc();
   const yText = doc.getText("tex");
   const state = {
@@ -94,26 +91,22 @@ export async function bootstrapSharePage() {
     highlightStart: undefined,
     highlightEnd: undefined,
     comments: [],
-    device: "desktop",
+    device: options.device || "desktop",
   };
   const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
-
   function refreshEnvironment() {
-    const device = detectDevice();
-    state.device = device;
     document.documentElement.lang = locale;
     document.documentElement.dataset.locale = locale;
-    document.documentElement.dataset.device = device;
+    document.documentElement.dataset.device = state.device;
+    document.documentElement.dataset.shareLayout = state.device;
     document.body.dataset.locale = locale;
-    document.body.dataset.device = device;
-    return device;
+    document.body.dataset.device = state.device;
+    document.body.dataset.shareLayout = state.device;
   }
-
   function setStatus(text, isError = false) {
     el.status.textContent = text;
     el.status.classList.toggle("is-error", isError);
   }
-
   function setConnectedBadge(connected) {
     el.badge.textContent = connected ? i18n.connectedBadge : i18n.statusIdle;
     el.badge.classList.toggle("connected", connected);
@@ -137,7 +130,7 @@ export async function bootstrapSharePage() {
 
   function setView(nextView) {
     state.view = nextView;
-    const compact = refreshEnvironment() === "mobile";
+    const compact = state.device === "mobile";
     document.body.dataset.view = nextView;
     el.viewTex.classList.toggle("active", nextView === "tex");
     el.viewPdf.classList.toggle("active", nextView === "pdf");
@@ -163,9 +156,7 @@ export async function bootstrapSharePage() {
       el.quoteContent.textContent = "";
       return;
     }
-    const sourceText = quote.source === "pdf"
-      ? i18n.quoteFromPdf(quote.page || 1)
-      : i18n.quoteFromTex;
+    const sourceText = quote.source === "pdf" ? i18n.quoteFromPdf(quote.page || 1) : i18n.quoteFromTex;
     el.quotePreview.hidden = false;
     el.quoteSource.textContent = sourceText;
     el.quoteContent.textContent = quote.text;
@@ -459,7 +450,6 @@ export async function bootstrapSharePage() {
   window.addEventListener("mouseup", () => window.setTimeout(updateQuoteFromSelection, 30));
   window.addEventListener("keyup", () => window.setTimeout(updateQuoteFromSelection, 30));
   window.addEventListener("resize", () => {
-    refreshEnvironment();
     setView(state.view);
     editorReview.refresh(state.comments);
   });
@@ -598,7 +588,7 @@ export async function bootstrapSharePage() {
       await pingPresence(i18n.actionReading);
       await pdf.reloadPdfContent().catch(() => undefined);
       await loadComments().catch(() => undefined);
-      setStatus(i18n.statusConnected);
+      setStatus(state.pdfReady ? i18n.statusConnected : i18n.statusPdfPreparing);
     } catch (error) {
       state.connected = false;
       setConnectedBadge(false);

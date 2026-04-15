@@ -82,6 +82,54 @@ function ResizeHarness() {
   );
 }
 
+function MoveHarness() {
+  const [strokes, setStrokes] = useState<any[]>([]);
+  const [textBoxes, setTextBoxes] = useState<any[]>([
+    {
+      id: "textbox-1",
+      page: 1,
+      x: 180,
+      y: 220,
+      w: 220,
+      h: 112,
+      z: 1,
+      content: "Move me",
+      html: "<p>Move me</p>",
+      style: {
+        fontSize: 14,
+        fontFamily: "Segoe UI",
+        textColor: "#111827",
+        textAlign: "left",
+        fontWeight: "normal",
+        fontStyle: "normal",
+        textDecoration: "none",
+        backgroundColor: "transparent",
+        borderColor: "transparent",
+        borderWidth: 0,
+      },
+    },
+  ]);
+  return (
+    <div className="relative h-[480px] w-[360px]">
+      <PdfAnnotationLayer
+        page={1}
+        mode="textbox"
+        highlightColor="#fde047"
+        highlightWidth={16}
+        highlightOpacity={0.65}
+        textColor="#111827"
+        textBoxStylePreset="minimal"
+        strokes={strokes}
+        textBoxes={textBoxes}
+        onStrokesChange={setStrokes}
+        onTextBoxesChange={setTextBoxes}
+        t={(key) => String(key)}
+      />
+      <pre data-testid="textbox-state">{JSON.stringify(textBoxes)}</pre>
+    </div>
+  );
+}
+
 describe("PdfAnnotationLayer", () => {
   const originalRequestAnimationFrame = window.requestAnimationFrame;
   const originalCancelAnimationFrame = window.cancelAnimationFrame;
@@ -241,6 +289,95 @@ describe("PdfAnnotationLayer", () => {
     const after = readState()[0];
     expect(after?.w).toBeGreaterThan(before.w);
     expect(after?.h).toBeGreaterThan(before.h);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps single-click selection static and only moves a textbox from the dedicated move handle", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<MoveHarness />);
+    });
+
+    const layer = container.querySelector(".absolute.inset-0.z-20") as HTMLDivElement | null;
+    expect(layer).not.toBeNull();
+    layer!.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 360,
+      bottom: 480,
+      width: 360,
+      height: 480,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const box = container.querySelector("[data-annotation-box='true']") as HTMLDivElement | null;
+    expect(box).not.toBeNull();
+
+    const readState = () => JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
+
+    await act(async () => {
+      box?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      window.dispatchEvent(new MouseEvent("mousemove", {
+        bubbles: true,
+        button: 0,
+        clientX: 240,
+        clientY: 260,
+      }));
+      window.dispatchEvent(new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        clientX: 240,
+        clientY: 260,
+      }));
+      await Promise.resolve();
+    });
+
+    const afterSelection = readState()[0];
+    expect(afterSelection?.x).toBe(180);
+    expect(afterSelection?.y).toBe(220);
+
+    const moveHandle = container.querySelector("[data-textbox-move-handle='true']") as HTMLButtonElement | null;
+    expect(moveHandle).not.toBeNull();
+
+    await act(async () => {
+      moveHandle?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      window.dispatchEvent(new MouseEvent("mousemove", {
+        bubbles: true,
+        button: 0,
+        clientX: 220,
+        clientY: 240,
+      }));
+      window.dispatchEvent(new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        clientX: 220,
+        clientY: 240,
+      }));
+      await Promise.resolve();
+    });
+
+    const afterMove = readState()[0];
+    expect(afterMove?.x).toBeGreaterThan(afterSelection.x);
+    expect(afterMove?.y).toBeGreaterThan(afterSelection.y);
 
     await act(async () => {
       root.unmount();

@@ -1,91 +1,15 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type MouseEvent, type MutableRefObject, type WheelEvent as ReactWheelEvent } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type MouseEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { Document } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
 import { LibraryPdfLensOverlay } from "./LibraryPdfLensOverlay";
 import { LibraryPdfScrollViewerPage } from "./LibraryPdfScrollViewerPage";
-import type { AnnotationStroke, AnnotationTextBox, AnnotationTextStylePreset } from "./annotationModel";
 import { resolvePdfScrollAnchor, resolveScrollTopForPdfAnchor, resolveVisiblePdfPage, type PdfScrollAnchor } from "./libraryPdfScrollState";
-import { clampPdfScrollRatio, collectPdfPageMetrics, ensurePdfScrollSyncGroup, maxPdfScrollTop, type LibraryPdfScrollSyncGroup } from "./libraryPdfScrollViewerShared";
+import { collectPdfPageMetrics, ensurePdfScrollSyncGroup, maxPdfScrollTop } from "./libraryPdfScrollViewerShared";
+import { arePdfScrollAnchorsEqual, type LensPendingPoint, type LibraryPdfScrollViewerHandle, type LibraryPdfScrollViewerProps, LENS_SCALE, LENS_SIZE, MAX_LIBRARY_PDF_ZOOM, MIN_LIBRARY_PDF_ZOOM, normalizePdfScrollAnchor } from "./libraryPdfScrollViewerConfig";
 import { WORKSPACE_LAYOUT_REFRESH_EVENT } from "../../hooks/workspaceLayoutRefresh";
 
 ensureReactPdfWorker();
-
-type ToolMode = "select" | "highlight" | "eraser" | "textbox";
-type TranslationFn = (key: any) => string;
-
-type LensPendingPoint = {
-  visible: boolean;
-  viewportX: number;
-  viewportY: number;
-  pageX: number;
-  pageY: number;
-  pageNumber: number;
-};
-
-type LibraryPdfScrollViewerProps = {
-  pdfUrl: string;
-  pageCount: number;
-  zoom: number;
-  mode: ToolMode;
-  highlightColor: string;
-  highlightWidth: number;
-  highlightOpacity: number;
-  textColor: string;
-  textBoxStylePreset: AnnotationTextStylePreset;
-  strokes: AnnotationStroke[];
-  textBoxes: AnnotationTextBox[];
-  onStrokesChange: (next: AnnotationStroke[]) => void;
-  onTextBoxesChange: (next: AnnotationTextBox[]) => void;
-  onVisiblePageChange: (page: number) => void;
-  onPageCountChange: (count: number) => void;
-  onRequestToolConfig?: () => void;
-  readOnly?: boolean;
-  syncId?: string;
-  syncGroupRef?: MutableRefObject<LibraryPdfScrollSyncGroup | null>;
-  containerClassName?: string;
-  documentClassName?: string;
-  onZoomChange?: (next: number) => void;
-  initialScrollAnchor?: PdfScrollAnchor | null;
-  onScrollAnchorChange?: (anchor: PdfScrollAnchor) => void;
-  initialScrollRatio?: number;
-  onScrollRatioChange?: (ratio: number) => void;
-  enableLens?: boolean;
-  t: TranslationFn;
-};
-
-export type LibraryPdfScrollViewerHandle = {
-  scrollToPage: (page: number) => void;
-};
-
-const MIN_LIBRARY_PDF_ZOOM = 0.7;
-const MAX_LIBRARY_PDF_ZOOM = 2.4;
-const LENS_SCALE = 1.6;
-const LENS_SIZE = 220;
-
-function createRatioFallbackAnchor(ratio: number): PdfScrollAnchor {
-  return {
-    page: 1,
-    pageFocusRatio: 0,
-    absoluteRatio: clampPdfScrollRatio(ratio),
-  };
-}
-
-function normalizeAnchor(anchor: PdfScrollAnchor | null | undefined, fallbackRatio = 0): PdfScrollAnchor {
-  if (!anchor) {
-    return createRatioFallbackAnchor(fallbackRatio);
-  }
-  return {
-    page: Math.max(1, Math.floor(anchor.page || 1)),
-    pageFocusRatio: clampPdfScrollRatio(anchor.pageFocusRatio),
-    absoluteRatio: clampPdfScrollRatio(anchor.absoluteRatio),
-  };
-}
-
-function anchorsEqual(left: PdfScrollAnchor, right: PdfScrollAnchor): boolean {
-  return left.page === right.page
-    && Math.abs(left.pageFocusRatio - right.pageFocusRatio) < 0.002
-    && Math.abs(left.absoluteRatio - right.absoluteRatio) < 0.002;
-}
+export type { LibraryPdfScrollViewerHandle } from "./libraryPdfScrollViewerConfig";
 
 export const LibraryPdfScrollViewer = forwardRef<
   LibraryPdfScrollViewerHandle,
@@ -112,7 +36,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     syncId = "viewer",
     syncGroupRef,
     containerClassName = "library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded border border-slate-200 bg-slate-100",
-    documentClassName = "space-y-3 p-3 pr-4 pb-4",
+    documentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 p-3 pr-4 pb-4",
     onZoomChange,
     initialScrollAnchor = null,
     onScrollAnchorChange,
@@ -128,7 +52,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   const renderedPagesRef = useRef<Set<number>>(new Set());
   const pendingRenderRestoreRef = useRef(true);
   const pendingRestoreAnchorRef = useRef<PdfScrollAnchor>(
-    normalizeAnchor(initialScrollAnchor, initialScrollRatio),
+    normalizePdfScrollAnchor(initialScrollAnchor, initialScrollRatio),
   );
   const lastReportedScrollRatioRef = useRef(pendingRestoreAnchorRef.current.absoluteRatio);
   const lastReportedScrollAnchorRef = useRef<PdfScrollAnchor>(pendingRestoreAnchorRef.current);
@@ -178,9 +102,9 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [documentPages, onVisiblePageChange]);
 
   const emitScrollAnchor = useCallback((anchor: PdfScrollAnchor) => {
-    const normalized = normalizeAnchor(anchor);
+    const normalized = normalizePdfScrollAnchor(anchor);
     pendingRestoreAnchorRef.current = normalized;
-    if (!anchorsEqual(lastReportedScrollAnchorRef.current, normalized)) {
+    if (!arePdfScrollAnchorsEqual(lastReportedScrollAnchorRef.current, normalized)) {
       lastReportedScrollAnchorRef.current = normalized;
       onScrollAnchorChange?.(normalized);
     }
@@ -195,7 +119,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     if (!root) {
       return;
     }
-    const normalized = normalizeAnchor(anchor ?? pendingRestoreAnchorRef.current);
+    const normalized = normalizePdfScrollAnchor(anchor ?? pendingRestoreAnchorRef.current);
     pendingRestoreAnchorRef.current = normalized;
     if (restoreRafRef.current !== null) {
       window.cancelAnimationFrame(restoreRafRef.current);
@@ -319,7 +243,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   }, [lensEnabled, queueLensPoint]);
 
   useEffect(() => {
-    const normalized = normalizeAnchor(initialScrollAnchor, initialScrollRatio);
+    const normalized = normalizePdfScrollAnchor(initialScrollAnchor, initialScrollRatio);
     const previous = pendingRestoreAnchorRef.current;
     pendingRestoreAnchorRef.current = normalized;
     if (!scrollRef.current) {
@@ -327,7 +251,10 @@ export const LibraryPdfScrollViewer = forwardRef<
       lastReportedScrollRatioRef.current = normalized.absoluteRatio;
       return;
     }
-    if (anchorsEqual(previous, normalized) && anchorsEqual(lastReportedScrollAnchorRef.current, normalized)) {
+    if (
+      arePdfScrollAnchorsEqual(previous, normalized)
+      && arePdfScrollAnchorsEqual(lastReportedScrollAnchorRef.current, normalized)
+    ) {
       return;
     }
     restoreScrollAnchor(normalized);
@@ -384,7 +311,7 @@ export const LibraryPdfScrollViewer = forwardRef<
       if (!root) {
         return;
       }
-      const normalized = normalizeAnchor(anchor);
+      const normalized = normalizePdfScrollAnchor(anchor);
       const limit = maxPdfScrollTop(root);
       const metrics = collectPdfPageMetrics(pageRefs.current, documentPages);
       const targetTop = resolveScrollTopForPdfAnchor(metrics, normalized, root.clientHeight, limit);
@@ -478,7 +405,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     lastVisiblePageRef.current = 1;
     onVisiblePageChange(1);
     onPageCountChange(Math.max(1, pageCount || 1));
-    restoreScrollAnchor(normalizeAnchor(initialScrollAnchor, initialScrollRatio));
+    restoreScrollAnchor(normalizePdfScrollAnchor(initialScrollAnchor, initialScrollRatio));
   }, [initialScrollAnchor, initialScrollRatio, onPageCountChange, onVisiblePageChange, pageCount, pdfUrl, restoreScrollAnchor]);
   useEffect(() => {
     const group = syncGroupRef?.current;
@@ -520,7 +447,11 @@ export const LibraryPdfScrollViewer = forwardRef<
     ref: scrollRef,
     className: `${containerClassName}${lensEnabled && lensActive ? " cursor-zoom-out" : ""}`,
     tabIndex: 0,
-    style: { touchAction: "pan-y" as const },
+    "data-library-pdf-scroll": "true",
+    style: {
+      touchAction: "pan-x pan-y" as const,
+      overscrollBehavior: "contain" as const,
+    },
     onWheel: (event: ReactWheelEvent<HTMLDivElement>) => {
       if (!event.ctrlKey || !onZoomChange) {
         return;
