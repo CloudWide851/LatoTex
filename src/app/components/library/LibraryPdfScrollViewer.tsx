@@ -11,6 +11,12 @@ import { WORKSPACE_LAYOUT_REFRESH_EVENT } from "../../hooks/workspaceLayoutRefre
 ensureReactPdfWorker();
 export type { LibraryPdfScrollViewerHandle } from "./libraryPdfScrollViewerConfig";
 
+function isPdfViewerWheelTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && !target.closest(
+    "[data-annotation-ignore-lens='true'],[data-textbox-content='true'],[data-annotation-layer='true'],[data-annotation-box='true'],[data-textbox-move-handle='true'],[data-textbox-resize-handle='true'],[data-textbox-menu='true']",
+  );
+}
+
 export const LibraryPdfScrollViewer = forwardRef<
   LibraryPdfScrollViewerHandle,
   LibraryPdfScrollViewerProps
@@ -452,6 +458,14 @@ export const LibraryPdfScrollViewer = forwardRef<
     style: {
       touchAction: "pan-x pan-y" as const,
       overscrollBehavior: "contain" as const,
+    },
+    onWheelCapture: (event: ReactWheelEvent<HTMLDivElement>) => {
+      const root = scrollRef.current;
+      if (!root || event.ctrlKey || Math.abs(event.deltaY) < Math.abs(event.deltaX) || !isPdfViewerWheelTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      root.scrollTop += event.deltaY;
     },
     onWheel: (event: ReactWheelEvent<HTMLDivElement>) => {
       if (!event.ctrlKey || !onZoomChange) {

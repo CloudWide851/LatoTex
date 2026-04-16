@@ -20,7 +20,7 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
         type="button"
         data-textbox-move-handle="true"
         data-annotation-ignore-lens="true"
-        className="absolute -left-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-emerald-500/80 bg-white text-[10px] font-semibold text-emerald-700 shadow-sm"
+        className="absolute inset-x-3 -top-2 h-4 rounded-md bg-transparent opacity-0"
         style={{ cursor: "move" }}
         aria-label={t("library.viewer.textboxMove")}
         title={t("library.viewer.textboxMove")}
@@ -30,14 +30,12 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
           stopTextboxHandleEvent(event);
           onStartTransform("move", event, box);
         }}
-      >
-        <span aria-hidden="true">::</span>
-      </button>
+      />
       <button
         type="button"
         data-textbox-resize-handle="true"
         data-annotation-ignore-lens="true"
-        className="absolute -bottom-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-emerald-400 bg-white shadow-sm"
+        className="absolute -bottom-2 -right-2 h-5 w-5 rounded-md bg-transparent opacity-0"
         style={{ cursor: "nwse-resize" }}
         aria-label={t("library.viewer.textboxResize")}
         title={t("library.viewer.textboxResize")}
@@ -47,9 +45,7 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
           stopTextboxHandleEvent(event);
           onStartTransform("resize", event, box);
         }}
-      >
-        <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-      </button>
+      />
     </>
   );
 }

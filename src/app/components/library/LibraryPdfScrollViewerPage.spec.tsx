@@ -195,12 +195,10 @@ describe("LibraryPdfScrollViewerPage", () => {
     container.remove();
   });
 
-  it("forwards mouse-wheel scrolling to the shared pdf viewport", async () => {
+  it("drops the old page-card shell so scrolling is owned by the viewer root instead of a nested page frame", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    const onToggleLens = vi.fn();
-    let scrollTop = 0;
     const pageRefs = { current: {} as Record<number, HTMLDivElement | null> };
     const scrollRef = {
       current: {
@@ -215,12 +213,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           y: 0,
           toJSON: () => ({}),
         }),
-        get scrollTop() {
-          return scrollTop;
-        },
-        set scrollTop(value: number) {
-          scrollTop = value;
-        },
+        scrollTop: 0,
         scrollLeft: 0,
       },
     };
@@ -244,7 +237,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           pageRefs={pageRefs}
           scrollRef={scrollRef as any}
           pendingLensPointRef={{ current: { visible: false, viewportX: 0, viewportY: 0, pageX: 0, pageY: 0, pageNumber: 1 } }}
-          onToggleLens={onToggleLens}
+          onToggleLens={() => undefined}
           onMoveLens={() => undefined}
           onHideLens={() => undefined}
           onRenderSuccess={() => undefined}
@@ -257,12 +250,9 @@ describe("LibraryPdfScrollViewerPage", () => {
 
     const pageNode = container.querySelector("[data-page='1']") as HTMLDivElement | null;
     expect(pageNode).not.toBeNull();
-
-    await act(async () => {
-      pageNode?.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 180 }));
-    });
-
-    expect(scrollTop).toBe(180);
+    expect(pageNode?.className).not.toContain("overflow-hidden");
+    expect(pageNode?.className).not.toContain("shadow-sm");
+    expect(pageNode?.className).not.toContain("border");
 
     await act(async () => {
       root.unmount();

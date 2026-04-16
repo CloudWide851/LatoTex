@@ -24,7 +24,7 @@ vi.mock("./LibraryPdfScrollViewer", () => ({
 }));
 
 vi.mock("./LibraryCitationMetaPanel", () => ({
-  LibraryCitationMetaPanel: () => null,
+  LibraryCitationMetaPanel: () => <div data-testid="meta-content">meta</div>,
 }));
 
 function CompareHarness() {
@@ -250,6 +250,101 @@ describe("LibraryViewerContentPanel", () => {
     expect(container.querySelector("[data-testid='viewer-source']")?.getAttribute("data-text-boxes")).toBe("1");
     expect(container.querySelector("[data-testid='viewer-translated']")?.getAttribute("data-strokes")).toBe("0");
     expect(container.querySelector("[data-testid='viewer-translated']")?.getAttribute("data-text-boxes")).toBe("0");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("uses the same outer pane shell for bib and metadata sections", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <LibraryViewerContentPanel
+          viewMode="bib"
+          loading={false}
+          loadError={null}
+          pdfPreviewLoading={false}
+          pdfObjectUrlLoading={false}
+          pdfPreviewError={null}
+          pdfDownloadedBytes={null}
+          pdfTotalBytes={null}
+          hasPdf={false}
+          pdfUrl={null}
+          annotationMode="select"
+          setAnnotationMode={() => undefined}
+          highlightColor="#fde047"
+          setHighlightColor={() => undefined}
+          highlightWidth={16}
+          setHighlightWidth={() => undefined}
+          highlightOpacity={0.65}
+          setHighlightOpacity={() => undefined}
+          textColor="#111827"
+          setTextColor={() => undefined}
+          textBoxStylePreset="minimal"
+          setTextBoxStylePreset={() => undefined}
+          pageStrokeCount={0}
+          pageTextBoxCount={0}
+          handleUndoCurrentPage={() => undefined}
+          handleClearCurrentPage={() => undefined}
+          pageInput="1"
+          setPageInput={() => undefined}
+          currentPage={1}
+          jumpToPage={() => undefined}
+          pdfZoom={1}
+          setPdfZoom={() => undefined}
+          compareSourceZoom={1}
+          setCompareSourceZoom={() => undefined}
+          compareTranslatedZoom={1}
+          setCompareTranslatedZoom={() => undefined}
+          toolConfigSignal={0}
+          setToolConfigSignal={() => undefined}
+          viewerRef={{ current: null }}
+          pageCount={1}
+          setPageCount={() => undefined}
+          annotationStrokes={[]}
+          annotationTextBoxes={[]}
+          setAnnotationStrokes={() => undefined}
+          setAnnotationTextBoxes={() => undefined}
+          setCurrentPage={() => undefined}
+          pdfScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+          setPdfScrollAnchor={() => undefined}
+          pdfScrollRatio={0}
+          setPdfScrollRatio={() => undefined}
+          compareSourceScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+          setCompareSourceScrollAnchor={() => undefined}
+          compareSourceScrollRatio={0}
+          setCompareSourceScrollRatio={() => undefined}
+          compareTranslatedScrollAnchor={{ page: 1, pageFocusRatio: 0, absoluteRatio: 0 }}
+          setCompareTranslatedScrollAnchor={() => undefined}
+          compareTranslatedScrollRatio={0}
+          setCompareTranslatedScrollRatio={() => undefined}
+          bibScrollRatio={0}
+          setBibScrollRatio={() => undefined}
+          metaScrollRatio={0}
+          setMetaScrollRatio={() => undefined}
+          hasComparePair={false}
+          translatedPdfUrl={null}
+          bibPreview="@misc{demo}"
+          citation={null}
+          paperPreview={null}
+          paperPreviewLoading={false}
+          paperPreviewError={null}
+          onAnalyzePaper={null}
+          linkError={null}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const paneShells = Array.from(container.querySelectorAll(".library-scrollbar"));
+    expect(paneShells).toHaveLength(2);
+    expect(paneShells[0]?.className).toBe(paneShells[1]?.className);
+    expect(container.querySelector("[data-testid='meta-content']")).not.toBeNull();
 
     await act(async () => {
       root.unmount();

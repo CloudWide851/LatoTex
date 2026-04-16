@@ -122,4 +122,67 @@ describe("LibraryPdfScrollViewer", () => {
     });
     container.remove();
   });
+
+  it("routes plain wheel scrolling through the viewer root while reserving ctrl+wheel for zoom", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onZoomChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <div className="h-[600px]">
+          <LibraryPdfScrollViewer
+            pdfUrl="blob:paper"
+            pageCount={2}
+            zoom={1}
+            mode="select"
+            highlightColor="#fde047"
+            highlightWidth={16}
+            highlightOpacity={0.65}
+            textColor="#111827"
+            textBoxStylePreset="minimal"
+            strokes={[]}
+            textBoxes={[]}
+            onStrokesChange={() => undefined}
+            onTextBoxesChange={() => undefined}
+            onVisiblePageChange={() => undefined}
+            onPageCountChange={() => undefined}
+            onZoomChange={onZoomChange}
+            t={(key) => String(key)}
+          />
+        </div>,
+      );
+    });
+
+    const scrollNode = container.querySelector(".library-scrollbar") as HTMLDivElement | null;
+    expect(scrollNode).not.toBeNull();
+
+    let scrollTopValue = 0;
+    Object.defineProperty(scrollNode!, "scrollTop", {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value;
+      },
+    });
+
+    await act(async () => {
+      scrollNode?.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
+    });
+
+    expect(scrollTopValue).toBe(120);
+    expect(onZoomChange).not.toHaveBeenCalled();
+
+    await act(async () => {
+      scrollNode?.dispatchEvent(new WheelEvent("wheel", { bubbles: true, ctrlKey: true, deltaY: -120 }));
+    });
+
+    expect(onZoomChange).toHaveBeenCalledWith(1.1);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

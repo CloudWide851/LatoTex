@@ -123,7 +123,7 @@ export function LibraryPdfScrollViewerPage(props: {
         pageRefs.current[page] = element;
       }}
       data-page={page}
-      className="relative mx-auto overflow-hidden rounded border border-slate-200 bg-white shadow-sm"
+      className="relative mx-auto bg-white"
       style={{ width: `${frameWidth}px` }}
       onMouseDown={
         lensEnabled
@@ -199,20 +199,6 @@ export function LibraryPdfScrollViewerPage(props: {
           }
           : undefined
       }
-      onWheelCapture={(event) => {
-        if (event.ctrlKey) {
-          return;
-        }
-        const scrollRoot = scrollRef.current;
-        if (!scrollRoot || isAnnotationInteractionTarget(event.target)) {
-          return;
-        }
-        if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
-          return;
-        }
-        event.preventDefault();
-        scrollRoot.scrollTop += event.deltaY;
-      }}
     >
       <Page
         pageNumber={page}

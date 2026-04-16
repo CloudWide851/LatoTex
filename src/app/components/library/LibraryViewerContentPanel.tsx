@@ -37,6 +37,11 @@ function clampCompareZoom(next: number): number {
   return Math.max(MIN_LIBRARY_COMPARE_ZOOM, Math.min(MAX_LIBRARY_COMPARE_ZOOM, Number(next.toFixed(2))));
 }
 
+const LIBRARY_INFO_PANE_CLASSNAME = [
+  "library-scrollbar min-h-0 overflow-x-auto overflow-y-scroll rounded-xl",
+  "border border-slate-200 bg-white p-3 motion-card-pop",
+].join(" ");
+
 function ComparePaneHeader(props: {
   label: string;
   zoom: number;
@@ -238,6 +243,10 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   const pdfProgressPercent = pdfTotalBytes && pdfTotalBytes > 0
     ? Math.max(0, Math.min(100, (Math.max(pdfDownloadedBytes ?? 0, 0) / pdfTotalBytes) * 100))
     : null;
+  const pdfViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
+  const pdfViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 p-0 pr-3 pb-3";
+  const compareViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
+  const compareViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 px-2 py-0 pr-3 pb-3";
 
   useElementScrollRatio({
     node: viewMode === "bib" ? bibContainerRef.current : null,
@@ -349,6 +358,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
               initialScrollRatio={pdfScrollRatio}
               onScrollRatioChange={setPdfScrollRatio}
+              containerClassName={pdfViewerContainerClassName}
+              documentClassName={pdfViewerDocumentClassName}
               t={t}
             />
           </div>
@@ -374,8 +385,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             {t("library.viewer.error")} {pdfPaneError}
           </div>
         ) : hasComparePair && pdfUrl && translatedPdfUrl ? (
-          <div className="grid h-full min-h-0 grid-cols-2 gap-2">
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
+          <div className="grid h-full min-h-0 grid-cols-2 gap-3">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70">
               <ComparePaneHeader
                 label={t("library.viewer.compareOriginal")}
                 zoom={compareSourceZoom}
@@ -402,8 +413,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 readOnly
                 syncId="source"
                 syncGroupRef={compareSyncGroupRef}
-                containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
-                documentClassName="mx-auto flex w-max min-w-full flex-col gap-3 px-2 py-0 pr-3 pb-3"
+                containerClassName={compareViewerContainerClassName}
+                documentClassName={compareViewerDocumentClassName}
                 onZoomChange={setCompareSourceZoom}
                 initialScrollAnchor={compareSourceScrollAnchor}
                 onScrollAnchorChange={setCompareSourceScrollAnchor}
@@ -412,7 +423,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 t={t}
               />
             </div>
-            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded border border-slate-200 bg-slate-50 motion-card-pop">
+            <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70">
               <ComparePaneHeader
                 label={t("library.viewer.compareTranslated")}
                 zoom={compareTranslatedZoom}
@@ -439,8 +450,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 readOnly
                 syncId="translated"
                 syncGroupRef={compareSyncGroupRef}
-                containerClassName="library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded-none border-0 bg-slate-100"
-                documentClassName="mx-auto flex w-max min-w-full flex-col gap-3 px-2 py-0 pr-3 pb-3"
+                containerClassName={compareViewerContainerClassName}
+                documentClassName={compareViewerDocumentClassName}
                 onZoomChange={setCompareTranslatedZoom}
                 initialScrollAnchor={compareTranslatedScrollAnchor}
                 onScrollAnchorChange={setCompareTranslatedScrollAnchor}
@@ -465,7 +476,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         ref={(node) => {
           bibContainerRef.current = node;
         }}
-        className="library-scrollbar min-h-0 overflow-y-scroll overflow-x-auto rounded-xl border border-slate-200 bg-white p-3 motion-card-pop"
+        className={LIBRARY_INFO_PANE_CLASSNAME}
       >
         {loading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
@@ -485,7 +496,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         ref={(node) => {
           metaContainerRef.current = node;
         }}
-        className="library-scrollbar min-h-0 overflow-y-scroll overflow-x-auto"
+        className={LIBRARY_INFO_PANE_CLASSNAME}
       >
         <LibraryCitationMetaPanel
           citation={citation}
