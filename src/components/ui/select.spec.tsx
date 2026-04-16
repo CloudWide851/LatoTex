@@ -25,7 +25,11 @@ describe("Select", () => {
 
     await act(async () => {
       root.render(
-        <Select value="anthropic" onChange={handleChange}>
+        <Select
+          value="anthropic"
+          onChange={handleChange}
+          portalAttributes={{ "data-textbox-menu": "true" }}
+        >
           <option value="anthropic">Anthropic</option>
           <option value="openai">OpenAI</option>
         </Select>,
@@ -40,6 +44,7 @@ describe("Select", () => {
     });
 
     const option = document.body.querySelector("button[role='option'][aria-selected='false']");
+    expect(document.body.querySelector("[data-textbox-menu='true']")).not.toBeNull();
     expect(option?.textContent).toContain("OpenAI");
 
     await act(async () => {

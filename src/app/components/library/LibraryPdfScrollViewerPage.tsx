@@ -199,6 +199,20 @@ export function LibraryPdfScrollViewerPage(props: {
           }
           : undefined
       }
+      onWheelCapture={(event) => {
+        if (event.ctrlKey) {
+          return;
+        }
+        const scrollRoot = scrollRef.current;
+        if (!scrollRoot || isAnnotationInteractionTarget(event.target)) {
+          return;
+        }
+        if (Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
+          return;
+        }
+        event.preventDefault();
+        scrollRoot.scrollTop += event.deltaY;
+      }}
     >
       <Page
         pageNumber={page}

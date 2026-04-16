@@ -4,8 +4,8 @@ import { hexToRgba } from "./annotationPalette";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
 import { PdfTextBoxTransformHandles } from "./PdfTextBoxTransformHandles";
 import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveDraggedBox, resolveMenuAnchor, toNormalizedPoint, type DragPreview, type DragState } from "./pdfAnnotationLayerUtils";
-import { buildAnnotationStroke, focusAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
-import { isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
+import { buildAnnotationStroke, focusAnnotationEditingBox, getAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
+import { applyStyleToRichTextSelection, captureRichTextSelection, isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 const TEXTBOX_TRANSFORM_DRAG_THRESHOLD = 10;
@@ -47,11 +47,9 @@ export function PdfAnnotationLayer(props: {
   const dragFrameRef = useRef<number | null>(null);
   const textBoxesRef = useRef(textBoxes);
   const recentlyCreatedTextBoxIdRef = useRef<string | null>(null);
+  const selectionRangeRef = useRef<Range | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
-  const [layerSize, setLayerSize] = useState<{ width: number; height: number }>({
-    width: 0,
-    height: 0,
-  });
+  const [layerSize, setLayerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [draftStroke, setDraftStroke] = useState<AnnotationPoint[] | null>(null);
   const [editingTextBoxId, setEditingTextBoxId] = useState<string | null>(null);
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
@@ -62,22 +60,15 @@ export function PdfAnnotationLayer(props: {
     () => strokes.filter((item) => item.page === page),
     [page, strokes],
   );
-  const pageTextBoxes = useMemo(
-    () =>
-      textBoxes
-        .filter((item) => item.page === page)
-        .sort((a, b) => a.z - b.z),
-    [page, textBoxes],
-  );
-  const menuBox = useMemo(
-    () => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null),
-    [selectedTextBoxId, textBoxes],
-  );
+  const pageTextBoxes = useMemo(() => textBoxes.filter((item) => item.page === page).sort((a, b) => a.z - b.z), [page, textBoxes]);
+  const menuBox = useMemo(() => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null), [selectedTextBoxId, textBoxes]);
   const canTransformTextBoxes = !readOnly && (mode === "select" || mode === "textbox");
 
   useEffect(() => {
     textBoxesRef.current = textBoxes;
   }, [textBoxes]);
+
+  useEffect(() => { selectionRangeRef.current = null; }, [editingTextBoxId]);
 
   useEffect(() => {
     if (selectedTextBoxId && !textBoxes.some((item) => item.id === selectedTextBoxId)) {
@@ -220,6 +211,20 @@ export function PdfAnnotationLayer(props: {
   }, [editingTextBoxId, pageTextBoxes]);
 
   useEffect(() => {
+    if (!editingTextBoxId || typeof document === "undefined") {
+      return;
+    }
+    const handleSelectionChange = () => {
+      const editor = getAnnotationEditingBox(layerRef.current, editingTextBoxId);
+      if (editor) {
+        selectionRangeRef.current = captureRichTextSelection(editor);
+      }
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, [editingTextBoxId]);
+
+  useEffect(() => {
     const node = layerRef.current;
     if (!node) {
       return;
@@ -291,6 +296,24 @@ export function PdfAnnotationLayer(props: {
     dragActivatedRef.current = false;
     dragPointRef.current = null;
     setDragPreview(null);
+  };
+
+  const applyInlineTextStyle = (nextStyle: Partial<AnnotationTextBox["style"]>) => {
+    if (!editingTextBoxId) {
+      return false;
+    }
+    const editor = getAnnotationEditingBox(layerRef.current, editingTextBoxId);
+    if (!editor) {
+      return false;
+    }
+    restoreRichTextSelection(editor, selectionRangeRef.current);
+    const nextRange = applyStyleToRichTextSelection(editor, nextStyle);
+    if (!nextRange) {
+      selectionRangeRef.current = captureRichTextSelection(editor);
+      return false;
+    }
+    selectionRangeRef.current = nextRange;
+    return true;
   };
 
   return (
@@ -570,6 +593,7 @@ export function PdfAnnotationLayer(props: {
             y={menuAnchor.y}
             positioning="absolute"
             style={menuBox.style}
+            onApplyInlineStyle={applyInlineTextStyle}
             onChangeStyle={(nextStyle) => {
               onTextBoxesChange(
                 textBoxes.map((item) =>

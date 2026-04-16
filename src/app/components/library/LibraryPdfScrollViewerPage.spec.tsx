@@ -194,4 +194,79 @@ describe("LibraryPdfScrollViewerPage", () => {
     });
     container.remove();
   });
+
+  it("forwards mouse-wheel scrolling to the shared pdf viewport", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onToggleLens = vi.fn();
+    let scrollTop = 0;
+    const pageRefs = { current: {} as Record<number, HTMLDivElement | null> };
+    const scrollRef = {
+      current: {
+        getBoundingClientRect: () => ({
+          left: 0,
+          top: 0,
+          right: 420,
+          bottom: 620,
+          width: 420,
+          height: 620,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        }),
+        get scrollTop() {
+          return scrollTop;
+        },
+        set scrollTop(value: number) {
+          scrollTop = value;
+        },
+        scrollLeft: 0,
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        <LibraryPdfScrollViewerPage
+          page={1}
+          frameWidth={400}
+          lensEnabled={false}
+          lensActive={false}
+          readOnly
+          mode="select"
+          highlightColor="#fde047"
+          highlightWidth={16}
+          highlightOpacity={0.65}
+          textColor="#111827"
+          textBoxStylePreset="minimal"
+          strokes={[]}
+          textBoxes={[]}
+          pageRefs={pageRefs}
+          scrollRef={scrollRef as any}
+          pendingLensPointRef={{ current: { visible: false, viewportX: 0, viewportY: 0, pageX: 0, pageY: 0, pageNumber: 1 } }}
+          onToggleLens={onToggleLens}
+          onMoveLens={() => undefined}
+          onHideLens={() => undefined}
+          onRenderSuccess={() => undefined}
+          onStrokesChange={() => undefined}
+          onTextBoxesChange={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const pageNode = container.querySelector("[data-page='1']") as HTMLDivElement | null;
+    expect(pageNode).not.toBeNull();
+
+    await act(async () => {
+      pageNode?.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 180 }));
+    });
+
+    expect(scrollTop).toBe(180);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

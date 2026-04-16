@@ -12,11 +12,16 @@ type OptionShape = {
   disabled: boolean;
 };
 
+type SelectPortalAttributes = Omit<React.HTMLAttributes<HTMLDivElement>, "style" | "className">
+  & Partial<Record<`data-${string}`, string>>;
+
 export type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "size"> & {
   tone?: SelectTone;
   uiSize?: SelectSize;
   wrapperClassName?: string;
   placeholder?: string;
+  portalAttributes?: SelectPortalAttributes;
+  portalClassName?: string;
 };
 
 type SelectChangeEvent = React.ChangeEvent<HTMLSelectElement>;
@@ -79,6 +84,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     disabled,
     name,
     placeholder,
+    portalAttributes,
+    portalClassName,
     ...props
   }, ref) => {
     const options = React.useMemo(() => collectOptions(children), [children]);
@@ -199,7 +206,12 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 
     const menu = open && typeof document !== "undefined"
       ? createPortal(
-          <div ref={menuRef} className="control-select-portal z-[520]" style={menuStyle}>
+          <div
+            {...portalAttributes}
+            ref={menuRef}
+            className={cn("control-select-portal z-[520]", portalClassName)}
+            style={menuStyle}
+          >
             <div className="control-menu-surface overflow-hidden p-1.5">
               <div className="max-h-[inherit] overflow-auto pr-0.5">
                 {options.map((option) => {

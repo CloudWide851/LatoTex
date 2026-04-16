@@ -460,19 +460,19 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(210px,0.95fr)] gap-2">
+    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(230px,1fr)] gap-2">
       <section
         ref={(node) => {
           bibContainerRef.current = node;
         }}
-        className="library-scrollbar min-h-0 overflow-y-scroll overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 motion-card-pop"
+        className="library-scrollbar min-h-0 overflow-y-scroll overflow-x-auto rounded-xl border border-slate-200 bg-white p-3 motion-card-pop"
       >
         {loading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
         ) : loadError ? (
           <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
         ) : bibPreview.trim().length > 0 ? (
-          <pre className="min-h-full whitespace-pre-wrap break-words rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700">
+          <pre className="min-h-full whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50/70 p-3 font-mono text-xs leading-5 text-slate-700">
             {bibPreview}
           </pre>
         ) : (

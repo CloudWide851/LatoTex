@@ -24,6 +24,15 @@ const ALLOWED_STYLE_PROPS = new Set([
   "text-align",
 ]);
 
+type RichTextInlineStylePatch = {
+  fontSize?: number;
+  fontFamily?: string;
+  textColor?: string;
+  fontWeight?: "normal" | "bold";
+  fontStyle?: "normal" | "italic";
+  textDecoration?: "none" | "underline";
+};
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -130,4 +139,94 @@ export function normalizeStoredRichHtml(html: string | undefined, fallbackText =
     return "";
   }
   return plainTextToRichHtml(fallbackText);
+}
+
+function selectionBelongsToRoot(root: HTMLElement, range: Range): boolean {
+  const container = range.commonAncestorContainer;
+  const element = container.nodeType === Node.ELEMENT_NODE
+    ? container as HTMLElement
+    : container.parentElement;
+  return Boolean(element && root.contains(element));
+}
+
+function applyInlineStyle(element: HTMLElement, patch: RichTextInlineStylePatch) {
+  if (patch.fontSize) {
+    element.style.fontSize = `${patch.fontSize}px`;
+  }
+  if (patch.fontFamily) {
+    element.style.fontFamily = patch.fontFamily;
+  }
+  if (patch.textColor) {
+    element.style.color = patch.textColor;
+  }
+  if (patch.fontWeight) {
+    element.style.fontWeight = patch.fontWeight;
+  }
+  if (patch.fontStyle) {
+    element.style.fontStyle = patch.fontStyle;
+  }
+  if (patch.textDecoration) {
+    element.style.textDecoration = patch.textDecoration;
+  }
+}
+
+export function captureRichTextSelection(root: HTMLElement): Range | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const selection = window.getSelection?.();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+  const range = selection.getRangeAt(0);
+  return selectionBelongsToRoot(root, range) ? range.cloneRange() : null;
+}
+
+export function restoreRichTextSelection(root: HTMLElement, snapshot: Range | null): Range | null {
+  if (typeof window === "undefined" || !snapshot) {
+    return null;
+  }
+  const range = snapshot.cloneRange();
+  if (!selectionBelongsToRoot(root, range)) {
+    return null;
+  }
+  const selection = window.getSelection?.();
+  if (!selection) {
+    return null;
+  }
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return range;
+}
+
+export function applyStyleToRichTextSelection(
+  root: HTMLElement,
+  patch: RichTextInlineStylePatch,
+): Range | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const selection = window.getSelection?.();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+  const range = selection.getRangeAt(0);
+  if (!selectionBelongsToRoot(root, range)) {
+    return null;
+  }
+  const fragment = range.extractContents();
+  if (!fragment.textContent?.trim()) {
+    range.insertNode(fragment);
+    return null;
+  }
+  const wrapper = document.createElement("span");
+  applyInlineStyle(wrapper, patch);
+  wrapper.appendChild(fragment);
+  range.insertNode(wrapper);
+  root.normalize();
+  const nextRange = document.createRange();
+  nextRange.selectNodeContents(wrapper);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+  return nextRange.cloneRange();
 }
