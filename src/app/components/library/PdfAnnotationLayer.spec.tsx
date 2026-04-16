@@ -363,6 +363,32 @@ describe("PdfAnnotationLayer", () => {
       window.dispatchEvent(new MouseEvent("mousemove", {
         bubbles: true,
         button: 0,
+        clientX: 164,
+        clientY: 184,
+      }));
+      window.dispatchEvent(new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        clientX: 164,
+        clientY: 184,
+      }));
+      await Promise.resolve();
+    });
+
+    const afterThresholdMiss = readState()[0];
+    expect(afterThresholdMiss?.x).toBe(afterSelection.x);
+    expect(afterThresholdMiss?.y).toBe(afterSelection.y);
+
+    await act(async () => {
+      moveHandle?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      window.dispatchEvent(new MouseEvent("mousemove", {
+        bubbles: true,
+        button: 0,
         clientX: 220,
         clientY: 240,
       }));
@@ -376,8 +402,8 @@ describe("PdfAnnotationLayer", () => {
     });
 
     const afterMove = readState()[0];
-    expect(afterMove?.x).toBeGreaterThan(afterSelection.x);
-    expect(afterMove?.y).toBeGreaterThan(afterSelection.y);
+    expect(afterMove?.x).toBeGreaterThan(afterThresholdMiss.x);
+    expect(afterMove?.y).toBeGreaterThan(afterThresholdMiss.y);
 
     await act(async () => {
       root.unmount();

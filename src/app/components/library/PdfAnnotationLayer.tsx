@@ -8,6 +8,7 @@ import { buildAnnotationStroke, focusAnnotationEditingBox } from "./pdfAnnotatio
 import { isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
+const TEXTBOX_TRANSFORM_DRAG_THRESHOLD = 10;
 
 export function PdfAnnotationLayer(props: {
   page: number;
@@ -42,6 +43,7 @@ export function PdfAnnotationLayer(props: {
   const drawingRef = useRef(false);
   const dragStateRef = useRef<DragState | null>(null);
   const dragPointRef = useRef<AnnotationPoint | null>(null);
+  const dragActivatedRef = useRef(false);
   const dragFrameRef = useRef<number | null>(null);
   const textBoxesRef = useRef(textBoxes);
   const recentlyCreatedTextBoxIdRef = useRef<string | null>(null);
@@ -110,7 +112,18 @@ export function PdfAnnotationLayer(props: {
       if (!drag || !rect) {
         return;
       }
-      dragPointRef.current = toNormalizedPoint(event, rect);
+      const nextPoint = toNormalizedPoint(event, rect);
+      if (!dragActivatedRef.current) {
+        const dx = event.clientX - drag.startClientX;
+        const dy = event.clientY - drag.startClientY;
+        const distance = Math.hypot(dx, dy);
+        if (distance < TEXTBOX_TRANSFORM_DRAG_THRESHOLD) {
+          dragPointRef.current = null;
+          return;
+        }
+        dragActivatedRef.current = true;
+      }
+      dragPointRef.current = nextPoint;
       if (dragFrameRef.current !== null) {
         return;
       }
@@ -127,7 +140,7 @@ export function PdfAnnotationLayer(props: {
     const onUp = () => {
       const drag = dragStateRef.current;
       const point = dragPointRef.current;
-      if (drag && point) {
+      if (drag && dragActivatedRef.current && point) {
         const preview = resolveDraggedBox(drag, point);
         onTextBoxesChange(
           textBoxesRef.current.map((item) =>
@@ -139,6 +152,7 @@ export function PdfAnnotationLayer(props: {
       }
       dragStateRef.current = null;
       dragPointRef.current = null;
+      dragActivatedRef.current = false;
       if (dragFrameRef.current !== null) {
         window.cancelAnimationFrame(dragFrameRef.current);
         dragFrameRef.current = null;
@@ -270,16 +284,13 @@ export function PdfAnnotationLayer(props: {
       mode,
       boxId: box.id,
       start: toNormalizedPoint(event, rect),
+      startClientX: event.clientX,
+      startClientY: event.clientY,
       initial: box,
     };
+    dragActivatedRef.current = false;
     dragPointRef.current = null;
-    setDragPreview({
-      boxId: box.id,
-      x: box.x,
-      y: box.y,
-      w: box.w,
-      h: box.h,
-    });
+    setDragPreview(null);
   };
 
   return (

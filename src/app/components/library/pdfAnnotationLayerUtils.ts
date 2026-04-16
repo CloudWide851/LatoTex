@@ -12,6 +12,8 @@ export type DragState = {
   mode: DragMode;
   boxId: string;
   start: AnnotationPoint;
+  startClientX: number;
+  startClientY: number;
   initial: AnnotationTextBox;
 };
 

@@ -43,6 +43,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     initialScrollRatio = 0,
     onScrollRatioChange,
     enableLens = true,
+    onDocumentLoadError,
     t,
   } = props;
 
@@ -509,11 +510,13 @@ export const LibraryPdfScrollViewer = forwardRef<
           });
         }}
         onLoadError={(error) => {
-          setDocumentLoadError(String(error || "pdf_load_failed"));
+          const message = String(error || "pdf_load_failed");
+          setDocumentLoadError(message);
           setDocumentPages(1);
           onPageCountChange(1);
           lastVisiblePageRef.current = 1;
           onVisiblePageChange(1);
+          onDocumentLoadError?.(message);
         }}
         className={documentClassName}
       >

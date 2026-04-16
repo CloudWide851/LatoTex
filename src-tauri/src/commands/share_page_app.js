@@ -27,7 +27,6 @@ export async function bootstrapSharePage(options = {}) {
     pwd: document.getElementById("pwd"),
     copyPwd: document.getElementById("copy-password"),
     connect: document.getElementById("connect"),
-    reloadPdf: document.getElementById("reload-pdf"),
     viewTex: document.getElementById("view-tex"),
     viewPdf: document.getElementById("view-pdf"),
     viewComments: document.getElementById("view-comments"),
@@ -46,7 +45,6 @@ export async function bootstrapSharePage(options = {}) {
     pdfPrev: document.getElementById("pdf-prev"),
     pdfNext: document.getElementById("pdf-next"),
     pdfPage: document.getElementById("pdf-page-label"),
-    pdfText: document.getElementById("pdf-text"),
     participantsTitle: document.getElementById("participants-title"),
     participants: document.getElementById("participants"),
     commentsTitle: document.getElementById("comments-title"),
@@ -57,7 +55,6 @@ export async function bootstrapSharePage(options = {}) {
     presenceKicker: document.getElementById("presence-kicker"),
     discussionKicker: document.getElementById("discussion-kicker"),
     hint: document.getElementById("share-hint"),
-    requestCompile: document.getElementById("request-compile"),
     quotePreview: document.getElementById("quote-preview"),
     quoteSource: document.getElementById("quote-source"),
     quoteContent: document.getElementById("quote-content"),
@@ -83,13 +80,9 @@ export async function bootstrapSharePage(options = {}) {
     view: "tex",
     pdfDoc: null,
     pdfPage: 1,
-    pdfTextByPage: new Map(),
     draftQuote: null,
     selectionQuote: null,
     pdfReady: false,
-    highlightQuote: "",
-    highlightStart: undefined,
-    highlightEnd: undefined,
     comments: [],
     device: options.device || "desktop",
   };
@@ -185,43 +178,7 @@ export async function bootstrapSharePage(options = {}) {
     return { source: "tex", text: selected, start, end };
   }
 
-  function readPdfSelection() {
-    const selection = window.getSelection?.();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
-    if (!el.pdfText.contains(selection.anchorNode) || !el.pdfText.contains(selection.focusNode)) return null;
-    const range = selection.getRangeAt(0);
-    const rawText = selection.toString();
-    const text = trimQuote(rawText);
-    if (!text) return null;
-    const prefix = range.cloneRange();
-    prefix.selectNodeContents(el.pdfText);
-    prefix.setEnd(range.startContainer, range.startOffset);
-    const rawStart = prefix.toString().length;
-    const trimmedOffset = rawText.indexOf(text);
-    const start = Math.max(0, rawStart + Math.max(0, trimmedOffset));
-    const end = start + text.length;
-    return {
-      source: "pdf",
-      text,
-      page: state.pdfPage,
-      start,
-      end,
-      rect: range.getBoundingClientRect(),
-    };
-  }
-
   function updateQuoteFromSelection() {
-    const pdfSelection = readPdfSelection();
-    if (pdfSelection) {
-      showQuickQuote(pdfSelection.rect, {
-        source: "pdf",
-        text: pdfSelection.text,
-        page: pdfSelection.page,
-        start: pdfSelection.start,
-        end: pdfSelection.end,
-      });
-      return;
-    }
     const texSelection = readEditorSelection();
     if (texSelection) {
       showQuickQuote(el.editor.getBoundingClientRect(), texSelection);
@@ -232,17 +189,15 @@ export async function bootstrapSharePage(options = {}) {
 
   async function jumpToComment(comment) {
     if (comment.source === "pdf" && comment.page) {
-      state.highlightQuote = comment.quote || "";
-      state.highlightStart = Number.isFinite(comment.start) ? comment.start : undefined;
-      state.highlightEnd = Number.isFinite(comment.end) ? comment.end : undefined;
       state.pdfPage = comment.page;
       setView("pdf");
-      await pdf.renderPdfPage();
+      if (state.pdfDoc) {
+        await pdf.renderPdfPage();
+      } else {
+        await pdf.reloadPdfContent();
+      }
       return;
     }
-    state.highlightQuote = "";
-    state.highlightStart = undefined;
-    state.highlightEnd = undefined;
     if (comment.source === "tex") {
       setView("tex");
       const start = Number.isFinite(comment.start) ? comment.start : 0;
@@ -364,7 +319,6 @@ export async function bootstrapSharePage(options = {}) {
     el.username.placeholder = i18n.usernamePlaceholder;
     el.pwd.placeholder = i18n.passwordPlaceholder;
     el.connect.textContent = i18n.join;
-    el.reloadPdf.textContent = i18n.reloadPdf;
     el.copyPwd.textContent = i18n.copyPassword;
     el.viewTex.textContent = i18n.tabTex;
     el.viewPdf.textContent = i18n.tabPdf;
@@ -377,7 +331,6 @@ export async function bootstrapSharePage(options = {}) {
     el.participantsTitle.textContent = i18n.collaborators;
     el.commentsTitle.textContent = i18n.comments;
     el.hint.textContent = i18n.shareHint;
-    el.requestCompile.textContent = i18n.compile;
     el.quickQuote.textContent = i18n.addQuote;
     el.commentEditor.placeholder = i18n.commentPlaceholder;
     el.postComment.textContent = i18n.postComment;
@@ -506,21 +459,6 @@ export async function bootstrapSharePage(options = {}) {
     }
   });
 
-  el.requestCompile.addEventListener("click", async () => {
-    if (!state.connected) return;
-    try {
-      await postJson("/api/compile/request", { sid, pwd: el.pwd.value.trim() });
-      state.action = i18n.actionCompile;
-      setStatus(i18n.statusCompileRequested);
-      await pingPresence(state.action);
-    } catch (error) {
-      setStatus(i18n.statusCompileFailed(String(error)), true);
-    }
-  });
-
-  el.reloadPdf.addEventListener("click", () => {
-    void pdf.reloadPdfContent();
-  });
   el.copyPwd.addEventListener("click", () => {
     const value = el.pwd.value.trim();
     if (!value) return;

@@ -1,5 +1,4 @@
 import * as pdfjsLib from "/assets/vendor/pdf.min.mjs";
-import { withHighlight } from "/assets/share_page_render.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/assets/vendor/pdf.worker.min.mjs";
 const PDF_CMAP_URL = "/assets/vendor/cmaps/";
@@ -50,20 +49,6 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
     el.pdfCanvas.hidden = false;
   }
 
-  async function extractPdfPageText(pageNumber) {
-    if (!state.pdfDoc || pageNumber < 1 || pageNumber > state.pdfDoc.numPages) return "";
-    if (state.pdfTextByPage.has(pageNumber)) return state.pdfTextByPage.get(pageNumber);
-    const page = await state.pdfDoc.getPage(pageNumber);
-    const textContent = await page.getTextContent();
-    const text = textContent.items
-      .map((item) => ("str" in item ? String(item.str || "") : ""))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-    state.pdfTextByPage.set(pageNumber, text);
-    return text;
-  }
-
   async function renderPdfCanvasPage() {
     if (!state.pdfDoc) {
       setPdfPlaceholder(i18n.noPdfPreview);
@@ -108,31 +93,8 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
     }
   }
 
-  async function renderPdfTextPane() {
-    if (!state.pdfDoc) {
-      el.pdfText.textContent = i18n.noPdfText;
-      updatePdfPageLabel();
-      return;
-    }
-    updatePdfPageLabel();
-    const text = await extractPdfPageText(state.pdfPage);
-    el.pdfText.innerHTML = withHighlight(
-      text || i18n.noPdfText,
-      state.highlightQuote,
-      state.highlightStart,
-      state.highlightEnd,
-    );
-    const highlighted = el.pdfText.querySelector("mark");
-    if (highlighted instanceof HTMLElement) {
-      window.requestAnimationFrame(() => {
-        highlighted.scrollIntoView({ block: "center", behavior: "smooth" });
-      });
-    }
-  }
-
   async function renderPdfPage() {
     await renderPdfCanvasPage();
-    await renderPdfTextPane();
   }
 
   async function fetchPdfStatus() {
@@ -150,8 +112,6 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
   function clearPdfState(message) {
     state.pdfReady = false;
     state.pdfDoc = null;
-    state.pdfTextByPage.clear();
-    el.pdfText.textContent = i18n.noPdfText;
     setPdfPlaceholder(message);
     updatePdfPageLabel();
   }
@@ -180,7 +140,6 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
         standardFontDataUrl: PDF_STANDARD_FONT_DATA_URL,
       }).promise;
       state.pdfReady = true;
-      state.pdfTextByPage.clear();
       if (state.pdfPage > state.pdfDoc.numPages) state.pdfPage = state.pdfDoc.numPages;
       if (state.pdfPage < 1) state.pdfPage = 1;
       await renderPdfPage();
@@ -204,7 +163,6 @@ export function createSharePdfController({ sid, getPassword, i18n, state, el, se
     dispose,
     reloadPdfContent,
     renderPdfPage,
-    renderPdfTextPane,
     updatePdfPageLabel,
   };
 }

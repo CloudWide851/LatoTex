@@ -32,10 +32,6 @@ export function mountDesktopSharePage(root) {
             <button id="connect" type="button"></button>
             <button id="copy-password" class="secondary" type="button"></button>
           </div>
-          <div class="access-panel__actions access-panel__actions--secondary">
-            <button id="reload-pdf" class="secondary" type="button"></button>
-            <button id="request-compile" class="secondary" type="button"></button>
-          </div>
           <p id="share-hint" class="access-panel__hint"></p>
         </aside>
 
@@ -82,7 +78,6 @@ export function mountDesktopSharePage(root) {
                 <canvas id="pdf-canvas" hidden></canvas>
                 <div id="pdf-empty" class="pdf-empty">No PDF preview is available right now.</div>
               </div>
-              <div id="pdf-text" class="pdf-text">No PDF text available.</div>
             </div>
           </section>
         </section>

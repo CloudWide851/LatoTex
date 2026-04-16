@@ -42,6 +42,7 @@ body {
     linear-gradient(180deg, #f5f9f4 0%, var(--share-bg) 100%);
   color: var(--share-ink);
   font-family: "Aptos", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  overflow: hidden;
 }
 
 button,
@@ -87,6 +88,7 @@ input::placeholder {
   display: grid;
   gap: 14px;
   min-height: calc(100dvh - clamp(24px, 4vw, 48px));
+  height: 100%;
 }
 
 .shell-panel,
@@ -239,7 +241,7 @@ input::placeholder {
 .mobile-tabs,
 .stage-panel,
 .side-panel {
-  padding: 16px;
+  padding: 14px;
 }
 
 .access-panel__actions,
@@ -293,7 +295,6 @@ button.secondary {
 .participant,
 .comment-item,
 .pdf-stage,
-.pdf-text,
 .participants,
 .comments,
 .comment-composer,
@@ -308,7 +309,6 @@ button.secondary {
 .participant,
 .comment-item,
 .pdf-stage,
-.pdf-text,
 .participants,
 .comments,
 .comment-composer,
@@ -412,5 +412,11 @@ button.secondary {
   .tab-row .outline,
   .quick-quote {
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  }
+}
+
+@media (max-width: 1220px) {
+  body {
+    overflow: auto;
   }
 }

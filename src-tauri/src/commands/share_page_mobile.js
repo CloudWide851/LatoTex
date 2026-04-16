@@ -31,8 +31,6 @@ export function mountMobileSharePage(root) {
         <div class="mobile-access__actions">
           <button id="connect" type="button"></button>
           <button id="copy-password" class="secondary" type="button"></button>
-          <button id="reload-pdf" class="secondary" type="button"></button>
-          <button id="request-compile" class="secondary" type="button"></button>
         </div>
         <p id="share-hint" class="access-panel__hint"></p>
       </section>
@@ -86,7 +84,6 @@ export function mountMobileSharePage(root) {
               <canvas id="pdf-canvas" hidden></canvas>
               <div id="pdf-empty" class="pdf-empty">No PDF preview is available right now.</div>
             </div>
-            <div id="pdf-text" class="pdf-text">No PDF text available.</div>
           </div>
         </section>
       </section>

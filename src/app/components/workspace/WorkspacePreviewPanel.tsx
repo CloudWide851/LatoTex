@@ -188,6 +188,7 @@ export function WorkspacePreviewPanel(props: {
             pdfFallbackProjectId={activeProjectId}
             pdfFallbackRelativePath={previewPdfFallbackRelativePath}
             focusRequest={previewFocusRequest}
+            t={t}
           />
         )}
       </div>
