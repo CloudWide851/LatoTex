@@ -274,7 +274,7 @@ describe("LibraryDocumentViewer", () => {
     container.remove();
   });
 
-  it("keeps pdf view active on the first click until the blob url becomes available", async () => {
+  it("keeps bib view active until the requested pdf blob url becomes available", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -361,7 +361,7 @@ describe("LibraryDocumentViewer", () => {
     expect(ensurePdfPreviewLoadedMock).toHaveBeenCalledTimes(1);
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
-    ).toBe("pdf");
+    ).toBe("bib");
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-pdf-url"),
     ).toBeNull();
@@ -407,11 +407,12 @@ describe("LibraryDocumentViewer", () => {
     const ensurePdfPreviewLoadedMock = vi.fn().mockResolvedValue(undefined);
     let translatedPdfRelativePath: string | null = null;
     let translatedSessionPath: string | null = null;
-    const runTranslationMock = vi.fn(() => {
-      translatedSessionPath = ".latotex/papers/demo.translated.pdf";
-    });
+    let translationCompleted = false;
+    const runTranslationMock = vi.fn();
     refreshMock.mockImplementation(async () => {
-      translatedPdfRelativePath = translatedSessionPath;
+      if (translationCompleted) {
+        translatedPdfRelativePath = translatedSessionPath;
+      }
     });
 
     mocks.useLibraryDocumentData.mockImplementation(() => ({
@@ -493,6 +494,9 @@ describe("LibraryDocumentViewer", () => {
     ).toBe("pdf");
     expect(runTranslationMock).toHaveBeenCalledTimes(1);
     expect(ensurePdfPreviewLoadedMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+    translatedSessionPath = ".latotex/papers/demo.translated.pdf";
+    translationCompleted = true;
 
     await act(async () => {
       root.render(

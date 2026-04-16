@@ -41,6 +41,15 @@ function HookProbe(props: ProbeProps) {
       >
         ensure
       </button>
+      <button
+        type="button"
+        data-testid="retry-pdf"
+        onClick={() => {
+          void state.retryPdfPreview();
+        }}
+      >
+        retry
+      </button>
       <pre data-testid="hook-state">{JSON.stringify(state)}</pre>
     </>
   );
@@ -360,6 +369,75 @@ describe("useLibraryDocumentData", () => {
       "empty-preview.bib",
       { bustCache: false },
     );
+
+    await unmountProbe(view.root, view.container);
+  });
+
+  it("retries a failed pdf preview with bust-cache enabled", async () => {
+    libraryCitationSummaryMock.mockResolvedValue({
+      sourcePath: "retry-demo.bib",
+      bibPath: "retry-demo.bib",
+      authors: ["Retry Author"],
+      urls: ["https://example.com/retry"],
+      title: "Retry Demo",
+    });
+    readFileMock.mockResolvedValue({
+      relativePath: ".latotex/papers/retry-demo.bib",
+      content: "@article{retry,title={Retry Demo}}",
+    });
+    libraryResolvePdfPreviewMock
+      .mockResolvedValueOnce({
+        relativePath: null,
+        translatedRelativePath: null,
+        sourceUrl: "https://example.com/retry.pdf",
+        cached: false,
+        cacheState: "error",
+        cacheError: "HTTP 403",
+        downloadedBytes: 0,
+        totalBytes: null,
+      })
+      .mockResolvedValueOnce({
+        relativePath: ".latotex/papers/.cache/remote-pdf/retry.pdf",
+        translatedRelativePath: null,
+        sourceUrl: "https://example.com/retry.pdf",
+        cached: true,
+        cacheState: "ready",
+        cacheError: null,
+        downloadedBytes: 64,
+        totalBytes: 64,
+      });
+
+    const view = await renderProbe({
+      projectId: "project-1",
+      selectedPath: "retry-demo.bib",
+      active: true,
+    });
+
+    await flushAsyncWork(5);
+
+    expect(readProbeState(view.container)).toMatchObject({
+      pdfCacheState: "error",
+      pdfPreviewError: "HTTP 403",
+    });
+
+    await act(async () => {
+      view.container
+        .querySelector("[data-testid='retry-pdf']")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await flushAsyncWork(5);
+
+    expect(libraryResolvePdfPreviewMock).toHaveBeenLastCalledWith(
+      "project-1",
+      "retry-demo.bib",
+      { bustCache: true },
+    );
+    expect(readProbeState(view.container)).toMatchObject({
+      pdfCacheState: "ready",
+      sourcePdfRelativePath: ".latotex/papers/.cache/remote-pdf/retry.pdf",
+      pdfPreviewError: null,
+    });
 
     await unmountProbe(view.root, view.container);
   });

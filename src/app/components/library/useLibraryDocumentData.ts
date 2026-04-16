@@ -446,6 +446,10 @@ export function useLibraryDocumentData(params: {
     });
   }, [projectId, resolveRemotePdfPreview, selectedPath]);
 
+  const retryPdfPreview = useCallback(async () => {
+    return await ensurePdfPreviewLoaded({ bustCache: true });
+  }, [ensurePdfPreviewLoaded]);
+
   const refresh = useCallback(async (options?: RefreshOptions) => {
     if (!projectId || !selectedPath) {
       reset();
@@ -530,6 +534,7 @@ export function useLibraryDocumentData(params: {
     paperPreviewError,
     previewRevision,
     ensurePdfPreviewLoaded,
+    retryPdfPreview,
     refresh,
     reset,
   };

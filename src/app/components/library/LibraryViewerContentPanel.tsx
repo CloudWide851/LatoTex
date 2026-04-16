@@ -37,6 +37,65 @@ function clampCompareZoom(next: number): number {
   return Math.max(MIN_LIBRARY_COMPARE_ZOOM, Math.min(MAX_LIBRARY_COMPARE_ZOOM, Number(next.toFixed(2))));
 }
 
+function PdfRequestStatus(props: {
+  loading: boolean;
+  error: string | null;
+  downloadedBytes: number | null;
+  totalBytes: number | null;
+  retryAvailable: boolean;
+  onRetry: () => void;
+  t: TranslationFn;
+}) {
+  const { loading, error, downloadedBytes, totalBytes, retryAvailable, onRetry, t } = props;
+  const progressPercent = totalBytes && totalBytes > 0
+    ? Math.max(0, Math.min(100, (Math.max(downloadedBytes ?? 0, 0) / totalBytes) * 100))
+    : null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-slate-700">
+            {loading ? t("library.viewer.downloadingPdf") : t("library.viewer.pdfBlocked")}
+          </div>
+          {error ? (
+            <div className="mt-1 break-words text-rose-700">
+              {t("library.viewer.error")} {error}
+            </div>
+          ) : null}
+        </div>
+        {retryAvailable ? (
+          <button
+            type="button"
+            className="inline-flex shrink-0 items-center rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100"
+            onClick={onRetry}
+          >
+            {t("library.viewer.retryPdf")}
+          </button>
+        ) : null}
+      </div>
+      {loading ? (
+        <div className="mt-2">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-primary-500 transition-[width] duration-300"
+              style={{ width: `${progressPercent ?? 20}%` }}
+            />
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+            <span>{t("library.viewer.downloadProgress")}</span>
+            <span>
+              {totalBytes && totalBytes > 0
+                ? `${formatByteCount(downloadedBytes ?? 0)} / ${formatByteCount(totalBytes)}`
+                : formatByteCount(downloadedBytes ?? 0)}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const LIBRARY_INFO_PANE_CLASSNAME = [
   "library-scrollbar min-h-0 overflow-x-auto overflow-y-scroll rounded-xl",
   "border border-slate-200 bg-white p-3 motion-card-pop",
@@ -87,6 +146,9 @@ type LibraryViewerContentPanelProps = {
   pdfPreviewError: string | null;
   pdfDownloadedBytes: number | null;
   pdfTotalBytes: number | null;
+  pdfRequestStatusVisible: boolean;
+  pdfRetryAvailable: boolean;
+  onRetryPdf: () => void;
   hasPdf: boolean;
   pdfUrl: string | null;
   annotationMode: ToolMode;
@@ -169,6 +231,9 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     pdfPreviewError,
     pdfDownloadedBytes,
     pdfTotalBytes,
+    pdfRequestStatusVisible,
+    pdfRetryAvailable,
+    onRetryPdf,
     hasPdf,
     pdfUrl,
     annotationMode,
@@ -240,9 +305,6 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   const metaContainerRef = useRef<HTMLElement | null>(null);
   const pdfPaneLoading = loading || pdfPreviewLoading || pdfObjectUrlLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
-  const pdfProgressPercent = pdfTotalBytes && pdfTotalBytes > 0
-    ? Math.max(0, Math.min(100, (Math.max(pdfDownloadedBytes ?? 0, 0) / pdfTotalBytes) * 100))
-    : null;
   const pdfViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
   const pdfViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 p-0 pr-3 pb-3";
   const compareViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
@@ -275,7 +337,11 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                   <div className="h-2 overflow-hidden rounded-full bg-slate-200">
                     <div
                       className="h-full rounded-full bg-primary-500 transition-[width] duration-300"
-                      style={{ width: `${pdfProgressPercent ?? 20}%` }}
+                      style={{
+                        width: `${pdfTotalBytes && pdfTotalBytes > 0
+                          ? Math.max(0, Math.min(100, (Math.max(pdfDownloadedBytes ?? 0, 0) / pdfTotalBytes) * 100))
+                          : 20}%`,
+                      }}
                     />
                   </div>
                   <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
@@ -471,7 +537,24 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_minmax(230px,1fr)] gap-2">
+    <div
+      className={`grid h-full min-h-0 ${
+        pdfRequestStatusVisible
+          ? "grid-rows-[auto_minmax(0,1fr)_minmax(230px,1fr)]"
+          : "grid-rows-[minmax(0,1fr)_minmax(230px,1fr)]"
+      } gap-2`}
+    >
+      {pdfRequestStatusVisible ? (
+        <PdfRequestStatus
+          loading={pdfPreviewLoading || pdfObjectUrlLoading}
+          error={pdfPaneError}
+          downloadedBytes={pdfDownloadedBytes}
+          totalBytes={pdfTotalBytes}
+          retryAvailable={pdfRetryAvailable}
+          onRetry={onRetryPdf}
+          t={t}
+        />
+      ) : null}
       <section
         ref={(node) => {
           bibContainerRef.current = node;

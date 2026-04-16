@@ -17,6 +17,7 @@ import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
 import { useLibraryPaperBrief } from "./library/useLibraryPaperBrief";
 import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
+import { useLibraryPdfViewController } from "./library/useLibraryPdfViewController";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
 import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
@@ -63,8 +64,6 @@ export function LibraryDocumentViewer(props: {
   const [pageCount, setPageCount] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [toolConfigSignal, setToolConfigSignal] = useState(0);
-  const [pendingPdfOpen, setPendingPdfOpen] = useState(false);
-  const [pendingCompareOpen, setPendingCompareOpen] = useState(false);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
   const lastAnnotationPayloadRef = useRef<string>("");
   const {
@@ -109,7 +108,7 @@ export function LibraryDocumentViewer(props: {
     error: pdfObjectUrlError,
   } = useLibraryPdfObjectUrls({
     projectId,
-    enabled: pdfPreviewRequested || viewMode === "pdf" || pendingCompareOpen || viewMode === "compare",
+    enabled: pdfPreviewRequested || viewMode === "pdf" || viewMode === "compare",
     previewRevision,
     cacheState: pdfCacheState,
     sourcePdfRelativePath,
@@ -121,7 +120,6 @@ export function LibraryDocumentViewer(props: {
     pdfPreviewRequested
     || viewMode === "pdf"
     || viewMode === "compare"
-    || pendingCompareOpen
   ) && (pdfPreviewLoading || pdfObjectUrlLoading);
   const documentBusy = loading || pdfInteractionBusy;
   const {
@@ -172,6 +170,7 @@ export function LibraryDocumentViewer(props: {
   );
   const hasComparePair = Boolean(hasPdf && translatedPdfUrl);
   const hasTranslatedArtifact = Boolean(translatedSessionPath || translatedPdfRelativePath);
+  const pdfOpenError = pdfPreviewError ?? pdfObjectUrlError;
 
   const applyViewMode = useCallback((nextMode: ViewMode) => {
     setSession({ viewMode: nextMode });
@@ -196,8 +195,6 @@ export function LibraryDocumentViewer(props: {
       setHighlightWidth(16);
       setHighlightOpacity(0.65);
       setTextBoxStylePreset("minimal");
-      setPendingPdfOpen(false);
-      setPendingCompareOpen(false);
       setTranslationNotice(null);
       resetTranslationState();
       resetDocumentData();
@@ -212,8 +209,6 @@ export function LibraryDocumentViewer(props: {
     setHighlightWidth(16);
     setHighlightOpacity(0.65);
     setTextBoxStylePreset("minimal");
-    setPendingPdfOpen(false);
-    setPendingCompareOpen(false);
     setTranslationNotice(null);
     resetTranslationState();
   }, [
@@ -293,7 +288,7 @@ export function LibraryDocumentViewer(props: {
   useEffect(() => {
     if (translatedSessionPath && translatedSessionPath !== translatedPdfRelativePath) {
       void refreshDocumentData({ bustCache: true }).then(() => {
-        if (pdfPreviewRequested || viewMode === "pdf" || viewMode === "compare" || pendingCompareOpen) {
+        if (pdfPreviewRequested || viewMode === "pdf" || viewMode === "compare") {
           return ensurePdfPreviewLoaded({ bustCache: true });
         }
         return undefined;
@@ -302,7 +297,6 @@ export function LibraryDocumentViewer(props: {
   }, [
     ensurePdfPreviewLoaded,
     pdfPreviewRequested,
-    pendingCompareOpen,
     refreshDocumentData,
     translatedPdfRelativePath,
     translatedSessionPath,
@@ -319,76 +313,36 @@ export function LibraryDocumentViewer(props: {
     }
   }, [refreshDocumentData, sourcePdfRelativePath, translatedSessionSourcePath]);
 
-  useEffect(() => {
-    if (pendingPdfOpen && hasPdf) {
-      setPendingPdfOpen(false);
-    }
-  }, [hasPdf, pendingPdfOpen]);
-
-  useEffect(() => {
-    if (!pendingPdfOpen) {
-      return;
-    }
-    const objectUrlPendingFromReadyPreview = (
-      pdfPreviewRequested
-      && pdfCacheState === "ready"
-      && Boolean(sourcePdfRelativePath)
-      && !pdfObjectUrlError
-      && !pdfPreviewError
-    );
-    if (
-      hasPdf
-      || pdfPreviewLoading
-      || pdfObjectUrlLoading
-      || pdfCacheState === "pending"
-      || objectUrlPendingFromReadyPreview
-    ) {
-      return;
-    }
-    setPendingPdfOpen(false);
-    applyViewMode("bib");
-  }, [
-    applyViewMode,
-    hasPdf,
-    pdfCacheState,
-    pdfObjectUrlError,
-    pdfObjectUrlLoading,
-    pdfPreviewError,
-    pdfPreviewLoading,
-    pdfPreviewRequested,
+  const {
     pendingPdfOpen,
+    pendingCompareOpen,
+    requestPdfOpen,
+    requestCompareOpen,
+    retryPdfOpen,
+    setPendingCompareOpen,
+  } = useLibraryPdfViewController({
+    projectId,
+    selectedPath,
+    viewMode,
+    hasPdf,
+    hasComparePair,
+    hasTranslated,
+    hasTranslatedArtifact,
+    translatedPdfUrl,
+    translationBusy,
+    translationNotice,
+    documentBusy,
+    pdfPreviewRequested,
+    pdfPreviewLoading,
+    pdfPreviewError,
+    pdfObjectUrlLoading,
+    pdfObjectUrlError,
+    pdfCacheState,
     sourcePdfRelativePath,
-  ]);
-
-  useEffect(() => {
-    if (documentBusy || pendingPdfOpen) {
-      return;
-    }
-    if (viewMode === "compare" && !hasComparePair && !pendingCompareOpen) {
-      applyViewMode(hasPdf ? "pdf" : "bib");
-      return;
-    }
-    if (viewMode === "pdf" && !hasPdf) {
-      applyViewMode("bib");
-    }
-  }, [applyViewMode, documentBusy, hasComparePair, hasPdf, pendingCompareOpen, pendingPdfOpen, viewMode]);
-
-  useEffect(() => {
-    if (!pendingCompareOpen || documentBusy || !hasComparePair) {
-      return;
-    }
-    setPendingCompareOpen(false);
-    applyViewMode("compare");
-  }, [applyViewMode, documentBusy, hasComparePair, pendingCompareOpen]);
-
-  useEffect(() => {
-    if (!pendingCompareOpen || translationBusy) {
-      return;
-    }
-    if (translationNotice?.type === "error") {
-      setPendingCompareOpen(false);
-    }
-  }, [pendingCompareOpen, translationBusy, translationNotice]);
+    ensurePdfPreviewLoaded,
+    applyViewMode,
+    runTranslation,
+  });
 
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
@@ -428,30 +382,6 @@ export function LibraryDocumentViewer(props: {
     setAnnotationTextBoxes((items) => items.filter((item) => item.page !== currentPage));
   }, [currentPage]);
 
-  const handleCompareAction = useCallback(() => {
-    if (hasTranslated && translatedPdfUrl) {
-      setPendingPdfOpen(false);
-      setPendingCompareOpen(false);
-      applyViewMode("compare");
-      return;
-    }
-    setPendingPdfOpen(true);
-    applyViewMode("pdf");
-    setPendingCompareOpen(true);
-    void ensurePdfPreviewLoaded();
-    if (!hasTranslatedArtifact && !translationBusy) {
-      runTranslation();
-    }
-  }, [
-    applyViewMode,
-    ensurePdfPreviewLoaded,
-    hasTranslated,
-    hasTranslatedArtifact,
-    runTranslation,
-    translatedPdfUrl,
-    translationBusy,
-  ]);
-
   const handleRetranslate = useCallback(() => {
     if (!selectedPath) {
       return;
@@ -460,12 +390,6 @@ export function LibraryDocumentViewer(props: {
     setPendingCompareOpen(viewMode === "compare");
     runTranslation();
   }, [ensurePdfPreviewLoaded, runTranslation, selectedPath, viewMode]);
-
-  const handleOpenPdf = useCallback(() => {
-    setPendingPdfOpen(true);
-    applyViewMode("pdf");
-    void ensurePdfPreviewLoaded();
-  }, [applyViewMode, ensurePdfPreviewLoaded]);
 
   useLibraryPdfShortcuts({
     enabled: viewMode === "pdf" && hasPdf,
@@ -527,9 +451,9 @@ export function LibraryDocumentViewer(props: {
         activeLink={activeLink}
         copyState={copyState}
         onViewModeChange={applyViewMode}
-        onOpenPdf={handleOpenPdf}
+        onOpenPdf={requestPdfOpen}
         onAnalyzePaper={() => onAnalyzePaper(selectedPath)}
-        onCompareAction={handleCompareAction}
+        onCompareAction={requestCompareOpen}
         onRetranslate={handleRetranslate}
         onOpenLink={() => void handleOpenLink()}
         onCopyLink={() => void handleCopyLink()}
@@ -543,9 +467,24 @@ export function LibraryDocumentViewer(props: {
           loadError={loadError}
           pdfPreviewLoading={pdfPreviewLoading}
           pdfObjectUrlLoading={pdfObjectUrlLoading}
-          pdfPreviewError={pdfPreviewError ?? pdfObjectUrlError}
+          pdfPreviewError={pdfOpenError}
           pdfDownloadedBytes={pdfDownloadedBytes}
           pdfTotalBytes={pdfTotalBytes}
+          pdfRequestStatusVisible={
+            viewMode === "bib"
+            && pdfPreviewRequested
+            && !hasPdf
+            && (
+              pendingPdfOpen
+              || pendingCompareOpen
+              || pdfPreviewLoading
+              || pdfObjectUrlLoading
+              || Boolean(pdfOpenError)
+              || pdfCacheState === "error"
+            )
+          }
+          pdfRetryAvailable={!pdfPreviewLoading && !pdfObjectUrlLoading && Boolean(pdfOpenError || pdfCacheState === "error")}
+          onRetryPdf={retryPdfOpen}
           hasPdf={hasPdf}
           pdfUrl={pdfUrl}
           annotationMode={annotationMode}

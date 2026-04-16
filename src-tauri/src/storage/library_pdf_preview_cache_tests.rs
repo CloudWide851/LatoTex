@@ -127,3 +127,32 @@ fn cached_pdf_file_ready_accepts_valid_pdf_header() {
 
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn clear_pdf_cache_entry_removes_temp_download_and_task() {
+    let dir = temp_test_dir("clear-cache-entry");
+    let cache_path = dir.join("paper.pdf");
+    let temp_path = temp_cache_path(&cache_path);
+    fs::write(&temp_path, b"partial-download").unwrap();
+
+    let task_key = "project-1::paper.bib".to_string();
+    let mut tasks = HashMap::new();
+    tasks.insert(
+        task_key.clone(),
+        crate::state::LibraryPdfCacheTask {
+            status: Arc::new(Mutex::new("error".to_string())),
+            error: Arc::new(Mutex::new(Some("HTTP 403".to_string()))),
+            downloaded_bytes: Arc::new(std::sync::atomic::AtomicU64::new(12)),
+            total_bytes: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            updated_at_unix_ms: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        },
+    );
+
+    let tasks = Arc::new(Mutex::new(tasks));
+    clear_pdf_cache_entry(&tasks, &task_key, &cache_path);
+
+    assert!(!temp_path.exists());
+    assert!(tasks.lock().unwrap().is_empty());
+
+    let _ = fs::remove_dir_all(dir);
+}

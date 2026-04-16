@@ -221,6 +221,7 @@ fn clear_pdf_cache_entry(
     cache_path: &Path,
 ) {
     let _ = fs::remove_file(cache_path);
+    let _ = fs::remove_file(temp_cache_path(cache_path));
     if let Ok(mut tasks_guard) = tasks.lock() {
         tasks_guard.remove(task_key);
     }

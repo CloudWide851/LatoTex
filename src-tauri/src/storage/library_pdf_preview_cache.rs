@@ -177,6 +177,7 @@ fn start_library_pdf_cache_task(
             }
             Err(error) => {
                 let _ = fs::remove_file(&cache_path_value);
+                let _ = fs::remove_file(temp_cache_path(&cache_path_value));
                 update_task(LIBRARY_PDF_CACHE_STATE_ERROR, Some(error.clone()));
                 let _ = crate::logging::append_log_line(
                     &session_log_path,
