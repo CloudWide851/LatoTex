@@ -13,7 +13,7 @@ export type { LibraryPdfScrollViewerHandle } from "./libraryPdfScrollViewerConfi
 
 function isPdfViewerWheelTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && !target.closest(
-    "[data-annotation-ignore-lens='true'],[data-textbox-content='true'],[data-annotation-layer='true'],[data-annotation-box='true'],[data-textbox-move-handle='true'],[data-textbox-resize-handle='true'],[data-textbox-menu='true']",
+    "[contenteditable='true'],[data-textbox-editing='true'],[data-textbox-menu='true']",
   );
 }
 

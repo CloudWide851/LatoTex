@@ -180,6 +180,27 @@ describe("LibraryPdfScrollViewer", () => {
 
     expect(onZoomChange).toHaveBeenCalledWith(1.1);
 
+    const annotationSurface = document.createElement("div");
+    annotationSurface.setAttribute("data-annotation-layer", "true");
+    scrollNode?.appendChild(annotationSurface);
+
+    await act(async () => {
+      annotationSurface.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 80 }));
+    });
+
+    expect(scrollTopValue).toBe(200);
+
+    const editingSurface = document.createElement("div");
+    editingSurface.setAttribute("data-textbox-editing", "true");
+    editingSurface.contentEditable = "true";
+    scrollNode?.appendChild(editingSurface);
+
+    await act(async () => {
+      editingSurface.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 60 }));
+    });
+
+    expect(scrollTopValue).toBe(200);
+
     await act(async () => {
       root.unmount();
     });

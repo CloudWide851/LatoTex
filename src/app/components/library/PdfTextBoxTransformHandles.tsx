@@ -8,6 +8,7 @@ type PdfTextBoxTransformHandlesProps = {
 };
 
 function stopTextboxHandleEvent(event: ReactMouseEvent<HTMLButtonElement>) {
+  event.preventDefault();
   event.stopPropagation();
 }
 
@@ -25,7 +26,6 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
         aria-label={t("library.viewer.textboxMove")}
         title={t("library.viewer.textboxMove")}
         onClick={stopTextboxHandleEvent}
-        onMouseUp={stopTextboxHandleEvent}
         onMouseDown={(event) => {
           stopTextboxHandleEvent(event);
           onStartTransform("move", event, box);
@@ -40,7 +40,6 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
         aria-label={t("library.viewer.textboxResize")}
         title={t("library.viewer.textboxResize")}
         onClick={stopTextboxHandleEvent}
-        onMouseUp={stopTextboxHandleEvent}
         onMouseDown={(event) => {
           stopTextboxHandleEvent(event);
           onStartTransform("resize", event, box);

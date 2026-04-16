@@ -56,10 +56,7 @@ export function PdfAnnotationLayer(props: {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
 
-  const pageStrokes = useMemo(
-    () => strokes.filter((item) => item.page === page),
-    [page, strokes],
-  );
+  const pageStrokes = useMemo(() => strokes.filter((item) => item.page === page), [page, strokes]);
   const pageTextBoxes = useMemo(() => textBoxes.filter((item) => item.page === page).sort((a, b) => a.z - b.z), [page, textBoxes]);
   const menuBox = useMemo(() => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null), [selectedTextBoxId, textBoxes]);
   const canTransformTextBoxes = !readOnly && (mode === "select" || mode === "textbox");
@@ -152,9 +149,11 @@ export function PdfAnnotationLayer(props: {
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+    window.addEventListener("blur", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("blur", onUp);
       if (dragFrameRef.current !== null) {
         window.cancelAnimationFrame(dragFrameRef.current);
         dragFrameRef.current = null;
@@ -208,7 +207,7 @@ export function PdfAnnotationLayer(props: {
       return;
     }
     focusAnnotationEditingBox(layerRef.current, editingTextBoxId);
-  }, [editingTextBoxId, pageTextBoxes]);
+  }, [editingTextBoxId]);
 
   useEffect(() => {
     if (!editingTextBoxId || typeof document === "undefined") {
@@ -229,12 +228,7 @@ export function PdfAnnotationLayer(props: {
     if (!node) {
       return;
     }
-    const applySize = () => {
-      setLayerSize({
-        width: node.clientWidth,
-        height: node.clientHeight,
-      });
-    };
+    const applySize = () => setLayerSize({ width: node.clientWidth, height: node.clientHeight });
     applySize();
     if (typeof ResizeObserver === "undefined") {
       return;
@@ -244,10 +238,7 @@ export function PdfAnnotationLayer(props: {
     return () => observer.disconnect();
   }, []);
 
-  const menuAnchor = useMemo(
-    () => resolveMenuAnchor({ menuOpen, layerSize, menuBox, dragPreview }),
-    [dragPreview, layerSize, menuBox, menuOpen],
-  );
+  const menuAnchor = useMemo(() => resolveMenuAnchor({ menuOpen, layerSize, menuBox, dragPreview }), [dragPreview, layerSize, menuBox, menuOpen]);
 
   const finishDrawing = () => {
     if (!drawingRef.current) {
@@ -313,6 +304,11 @@ export function PdfAnnotationLayer(props: {
       return false;
     }
     selectionRangeRef.current = nextRange;
+    const html = sanitizeRichTextHtml(editor.innerHTML);
+    const content = richHtmlToPlainText(html);
+    onTextBoxesChange(textBoxesRef.current.map((item) => (
+      item.id === editingTextBoxId ? { ...item, content, html: html || plainTextToRichHtml(content) } : item
+    )));
     return true;
   };
 
@@ -507,6 +503,7 @@ export function PdfAnnotationLayer(props: {
                   suppressContentEditableWarning
                   data-editing-box={box.id}
                   data-textbox-content="true"
+                  data-textbox-editing="true"
                   data-annotation-ignore-lens="true"
                   className="h-full w-full overflow-auto rounded border-none bg-transparent p-1.5 text-xs leading-5 outline-none"
                   style={{
@@ -528,7 +525,8 @@ export function PdfAnnotationLayer(props: {
                   onMouseUp={(event) => event.stopPropagation()}
                   onBlur={(event) => {
                     const html = sanitizeRichTextHtml((event.currentTarget as HTMLDivElement).innerHTML);
-                    const target = textBoxes.find((item) => item.id === box.id);
+                    const currentTextBoxes = textBoxesRef.current;
+                    const target = currentTextBoxes.find((item) => item.id === box.id);
                     const targetContent = richHtmlToPlainText(html || target?.html || target?.content || "");
                     if (recentlyCreatedTextBoxIdRef.current === box.id && targetContent.trim().length === 0) {
                       recentlyCreatedTextBoxIdRef.current = null;
@@ -538,14 +536,14 @@ export function PdfAnnotationLayer(props: {
                       return;
                     }
                     if (!target || targetContent.trim().length === 0) {
-                      onTextBoxesChange(textBoxes.filter((item) => item.id !== box.id));
+                      onTextBoxesChange(currentTextBoxes.filter((item) => item.id !== box.id));
                       setSelectedTextBoxId((current) => (current === box.id ? null : current));
                       setEditingTextBoxId(null);
                       return;
                     }
                     recentlyCreatedTextBoxIdRef.current = null;
                     onTextBoxesChange(
-                      textBoxes.map((item) =>
+                      currentTextBoxes.map((item) =>
                         item.id === box.id ? { ...item, content: targetContent, html: html || plainTextToRichHtml(targetContent) } : item,
                       ),
                     );
@@ -564,6 +562,7 @@ export function PdfAnnotationLayer(props: {
                 <div
                   className="h-full overflow-auto whitespace-pre-wrap break-words p-1.5 text-xs leading-5"
                   data-textbox-content="true"
+                  data-textbox-static="true"
                   data-annotation-ignore-lens="true"
                   style={{
                     color: box.style.textColor,
