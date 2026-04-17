@@ -19,6 +19,12 @@ const LIBRARY_TREE: ResourceNode[] = [
     kind: "directory",
     children: [
       { name: "demo.bib", relativePath: "papers/demo.bib", kind: "file", children: [] },
+      {
+        name: "nested",
+        relativePath: "papers/nested",
+        kind: "directory",
+        children: [],
+      },
     ],
   },
   {
@@ -191,7 +197,119 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("shows move and delete actions for library files and folders in the context menu", async () => {
+  it("moves a library directory into another directory when dropped", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onAction = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          mode="library"
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const papersNode = nodes.find((node) => node.getAttribute("title") === "papers");
+    const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    expect(papersNode).toBeTruthy();
+    expect(archiveNode).toBeTruthy();
+
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      getData: (key: string) => {
+        if (key === "application/x-latotex-path" || key === "text/plain") {
+          return "papers";
+        }
+        return "";
+      },
+      setData: () => undefined,
+    };
+
+    await act(async () => {
+      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      archiveNode?.dispatchEvent(event);
+    });
+
+    await act(async () => {
+      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      archiveNode?.dispatchEvent(event);
+    });
+
+    expect(onAction).toHaveBeenCalledWith("move", "papers", "archive/papers");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("blocks invalid library directory drops into the same tree branch", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onAction = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          mode="library"
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const nestedNode = nodes.find((node) => node.getAttribute("title") === "papers/nested");
+    expect(nestedNode).toBeTruthy();
+
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      getData: (key: string) => {
+        if (key === "application/x-latotex-path" || key === "text/plain") {
+          return "papers";
+        }
+        return "";
+      },
+      setData: () => undefined,
+    };
+
+    await act(async () => {
+      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      nestedNode?.dispatchEvent(event);
+    });
+
+    await act(async () => {
+      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      nestedNode?.dispatchEvent(event);
+    });
+
+    expect(onAction).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("hides move and keeps delete actions for library files and folders in the context menu", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -220,7 +338,7 @@ describe("ExplorerTree", () => {
       fileNode?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 40, clientY: 40 }));
     });
 
-    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.move")).toBe(true);
+    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.move")).toBe(false);
     expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.delete")).toBe(true);
 
     const deleteButton = Array.from(document.querySelectorAll("button")).find(
@@ -235,7 +353,7 @@ describe("ExplorerTree", () => {
       directoryNode?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 48, clientY: 56 }));
     });
 
-    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.move")).toBe(true);
+    expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.move")).toBe(false);
     expect(Array.from(document.querySelectorAll("button")).some((node) => node.textContent === "explorer.action.delete")).toBe(true);
 
     await act(async () => {

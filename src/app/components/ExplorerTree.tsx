@@ -68,18 +68,22 @@ export function ExplorerTree(props: {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
+  const normalizeExplorerPath = (path: string): string =>
+    path.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
 
   const resolveDroppedFilePath = (event: ReactDragEvent<HTMLElement>): string | null => {
-    const directPath = event.dataTransfer.getData("application/x-latotex-path").trim();
+    const directPath = normalizeExplorerPath(
+      event.dataTransfer.getData("application/x-latotex-path"),
+    );
     if (directPath) {
       return directPath;
     }
-    const fallbackPath = event.dataTransfer.getData("text/plain").trim();
+    const fallbackPath = normalizeExplorerPath(event.dataTransfer.getData("text/plain"));
     return fallbackPath || null;
   };
 
   const resolveDroppedTargetPath = (sourcePath: string, targetDirectoryPath: string): string | null => {
-    const normalizedSource = sourcePath.trim().replace(/\\/g, "/");
+    const normalizedSource = normalizeExplorerPath(sourcePath);
     if (!normalizedSource) {
       return null;
     }
@@ -87,7 +91,13 @@ export function ExplorerTree(props: {
     if (!fileName) {
       return null;
     }
-    const normalizedTargetDirectory = targetDirectoryPath.trim().replace(/\\/g, "/");
+    const normalizedTargetDirectory = normalizeExplorerPath(targetDirectoryPath);
+    if (
+      normalizedTargetDirectory === normalizedSource
+      || normalizedTargetDirectory.startsWith(`${normalizedSource}/`)
+    ) {
+      return null;
+    }
     const nextTargetPath = joinPath(normalizedTargetDirectory, fileName);
     return nextTargetPath === normalizedSource ? null : nextTargetPath;
   };
@@ -287,15 +297,17 @@ export function ExplorerTree(props: {
             setTransferPanel({ action: "copy", sourcePath: menu.path, targetPath: menu.path }),
         },
         {
-          key: "explorer.action.move",
-          onClick: () =>
-            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
-        },
-        {
           key: "explorer.action.delete",
           onClick: () => onAction?.("delete", menu.path),
         },
       );
+      if (mode === "workspace") {
+        items.push({
+          key: "explorer.action.move",
+          onClick: () =>
+            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
+        });
+      }
       if (mode === "workspace") {
         items.push(
           {
@@ -324,15 +336,17 @@ export function ExplorerTree(props: {
             setTransferPanel({ action: "copy", sourcePath: menu.path, targetPath: menu.path }),
         },
         {
-          key: "explorer.action.move",
-          onClick: () =>
-            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
-        },
-        {
           key: "explorer.action.delete",
           onClick: () => onAction?.("delete", menu.path),
         },
       );
+      if (mode === "workspace") {
+        items.push({
+          key: "explorer.action.move",
+          onClick: () =>
+            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
+        });
+      }
       if (mode === "workspace") {
         items.push(
           {
@@ -444,10 +458,10 @@ export function ExplorerTree(props: {
           )}
           aria-selected={!isDirectory && isSelected}
           style={indentStyle}
-          draggable={!isDirectory}
+          draggable={mode === "library" || !isDirectory}
           title={node.relativePath}
           onDragStart={(event) => {
-            if (isDirectory) return;
+            if (isDirectory && mode !== "library") return;
             event.dataTransfer.effectAllowed = "copyMove";
             event.dataTransfer.setData("application/x-latotex-path", node.relativePath);
             event.dataTransfer.setData("text/plain", node.relativePath);

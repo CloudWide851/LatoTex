@@ -82,6 +82,54 @@ export function WorkspacePageLayout({
     emitWorkspaceLayoutRefresh(targetPage, "panel-layout");
   };
 
+  const renderLibraryPanel = () => {
+    if (page !== "library" || !activeProjectId) {
+      return null;
+    }
+    return (
+      <PanelGroup
+        key={`panelgroup-library-${activeProjectId}`}
+        direction="horizontal"
+        className="h-full gap-px"
+        onLayout={(layout) => handleLayout("library", layout)}
+      >
+        <Panel className="min-w-0" id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
+          <LibraryExplorerPanel
+            libraryTree={libraryTree}
+            selectedLibraryPath={selectedLibraryPath}
+            busy={busy}
+            onSelectLibraryPath={onSelectLibraryPath}
+            onFsAction={onFsAction}
+            onLibraryRescan={onLibraryRescan}
+            onLibraryImportPdf={onLibraryImportPdf}
+            onLibraryImportLink={onLibraryImportLink}
+            onLibrarySyncZotero={onLibrarySyncZotero}
+            t={t}
+          />
+        </Panel>
+        <PanelResizeHandle className="resizable-handle" />
+        <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
+          <section className="h-full min-h-0 min-w-0 motion-page-in">
+            <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+              <LazyLibraryDocumentViewer
+                projectId={activeProjectId}
+                selectedPath={selectedLibraryPath}
+                active
+                onAnalyzePaper={onLibraryAnalyzePaper}
+                analysisRunning={analysisRunning}
+                persistedViewMode={libraryViewMode}
+                onPersistViewMode={onLibraryViewModeChange}
+                translationModelId={translationModelId}
+                paperBriefEngine={paperBriefEngine}
+                t={t}
+              />
+            </Suspense>
+          </section>
+        </Panel>
+      </PanelGroup>
+    );
+  };
+
   const renderLatexPanel = () => {
     if (page !== "latex" || !activeProjectId) {
       return null;
@@ -169,81 +217,18 @@ export function WorkspacePageLayout({
       );
     }
     return (
-      renderLatexPanel()
-      ?? renderAnalysisPanel()
+      renderLibraryPanel()
       ?? (
-        <section className="h-full min-h-0 min-w-0 motion-page-in">
-          {renderMainPanel()}
-        </section>
+        renderLatexPanel()
+        ?? renderAnalysisPanel()
+        ?? (
+          <section className="h-full min-h-0 min-w-0 motion-page-in">
+            {renderMainPanel()}
+          </section>
+        )
       )
     );
   };
 
-  const libraryPanel = activeProjectId ? (
-    <PanelGroup
-      key={`panelgroup-library-${activeProjectId}`}
-      direction="horizontal"
-      className="h-full gap-px"
-      onLayout={(layout) => handleLayout("library", layout)}
-    >
-      <Panel className="min-w-0" id={`library-explorer-${activeProjectId}`} order={1} defaultSize={libraryLayout[0]} minSize={20}>
-        <LibraryExplorerPanel
-          libraryTree={libraryTree}
-          selectedLibraryPath={selectedLibraryPath}
-          busy={busy}
-          onSelectLibraryPath={onSelectLibraryPath}
-          onFsAction={onFsAction}
-          onLibraryRescan={onLibraryRescan}
-          onLibraryImportPdf={onLibraryImportPdf}
-          onLibraryImportLink={onLibraryImportLink}
-          onLibrarySyncZotero={onLibrarySyncZotero}
-          t={t}
-        />
-      </Panel>
-      <PanelResizeHandle className="resizable-handle" />
-      <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
-        <section className="h-full min-h-0 min-w-0 motion-page-in">
-          <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-            <LazyLibraryDocumentViewer
-              projectId={activeProjectId}
-              selectedPath={selectedLibraryPath}
-              active={page === "library"}
-              onAnalyzePaper={onLibraryAnalyzePaper}
-              analysisRunning={analysisRunning}
-              persistedViewMode={libraryViewMode}
-              onPersistViewMode={onLibraryViewModeChange}
-              translationModelId={translationModelId}
-              paperBriefEngine={paperBriefEngine}
-              t={t}
-            />
-          </Suspense>
-        </section>
-      </Panel>
-    </PanelGroup>
-  ) : null;
-
-  if (!libraryPanel) {
-    return renderCurrentPage();
-  }
-
-  return (
-    <div className="relative h-full min-h-0 min-w-0">
-      <section
-        className={page === "library"
-          ? "absolute inset-0 z-10 min-h-0 min-w-0"
-          : "pointer-events-none invisible absolute inset-0 -z-10 min-h-0 min-w-0"}
-        aria-hidden={page !== "library"}
-      >
-        {libraryPanel}
-      </section>
-      <section
-        className={page === "library"
-          ? "pointer-events-none invisible absolute inset-0 -z-10 min-h-0 min-w-0"
-          : "absolute inset-0 z-10 min-h-0 min-w-0"}
-        aria-hidden={page === "library"}
-      >
-        {renderCurrentPage()}
-      </section>
-    </div>
-  );
+  return renderCurrentPage();
 }

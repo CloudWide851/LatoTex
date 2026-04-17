@@ -32,6 +32,10 @@ const LIBRARY_INFO_PANE_CLASSNAME = [
   "library-scrollbar min-h-0 overflow-x-auto overflow-y-scroll rounded-xl",
   "border border-slate-200 bg-white p-3 motion-card-pop",
 ].join(" ");
+const LIBRARY_VIEWER_FRAME_CLASSNAME = "h-full min-h-0 min-w-0 overflow-hidden";
+const LIBRARY_PDF_MODE_SHELL_CLASSNAME = "grid h-full min-h-0 min-w-0 grid-cols-[56px_minmax(0,1fr)] gap-3 overflow-hidden";
+const LIBRARY_COMPARE_SHELL_CLASSNAME = "grid h-full min-h-0 min-w-0 grid-cols-2 gap-3 overflow-hidden";
+const LIBRARY_PDF_VIEWPORT_FRAME_CLASSNAME = "min-h-0 min-w-0 overflow-hidden rounded-lg";
 
 function ComparePaneHeader(props: {
   label: string;
@@ -255,86 +259,90 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
 
   if (viewMode === "pdf") {
     return (
-      <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <section className={LIBRARY_VIEWER_FRAME_CLASSNAME}>
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center px-4 text-xs text-slate-500">
+          <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-xs text-slate-500">
             {pdfPreviewLoading ? t("library.viewer.downloadingPdf") : t("library.viewer.preparingPdf")}
           </div>
         ) : pdfPaneError ? (
-          <div className="m-3 rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
             {t("library.viewer.error")} {pdfPaneError}
           </div>
         ) : hasPdf && pdfUrl ? (
-          <div className="grid h-full min-h-0 min-w-0 grid-cols-[56px_minmax(0,1fr)] gap-3 p-3">
-            <LibraryPdfToolSidebar
-              t={t}
-              hasPdf={hasPdf}
-              mode={annotationMode}
-              onModeChange={setAnnotationMode}
-              highlightColor={highlightColor}
-              onHighlightColorChange={setHighlightColor}
-              highlightWidth={highlightWidth}
-              onHighlightWidthChange={setHighlightWidth}
-              highlightOpacity={highlightOpacity}
-              onHighlightOpacityChange={setHighlightOpacity}
-              textColor={textColor}
-              onTextColorChange={setTextColor}
-              textBoxStylePreset={textBoxStylePreset}
-              onTextBoxStylePresetChange={setTextBoxStylePreset}
-              canUndo={pageStrokeCount > 0}
-              canClear={pageStrokeCount > 0 || pageTextBoxCount > 0}
-              onUndo={handleUndoCurrentPage}
-              onClear={handleClearCurrentPage}
-              pageInput={pageInput}
-              onPageInputChange={setPageInput}
-              onPageCommit={() => {
-                const parsed = Number(pageInput);
-                if (Number.isFinite(parsed)) {
-                  jumpToPage(parsed);
-                } else {
-                  setPageInput(String(currentPage));
-                }
-              }}
-              onPrevPage={() => jumpToPage(currentPage - 1)}
-              onNextPage={() => jumpToPage(currentPage + 1)}
-              pdfZoom={pdfZoom}
-              onZoomOut={() => setPdfZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}
-              onZoomIn={() => setPdfZoom((prev) => Math.min(2.4, Number((prev + 0.1).toFixed(2))))}
-              openConfigSignal={toolConfigSignal}
-            />
-            <LibraryPdfScrollViewer
-              ref={viewerRef}
-              pdfUrl={pdfUrl}
-              pageCount={pageCount}
-              zoom={pdfZoom}
-              mode={annotationMode}
-              highlightColor={highlightColor}
-              highlightWidth={highlightWidth}
-              highlightOpacity={highlightOpacity}
-              textColor={textColor}
-              textBoxStylePreset={textBoxStylePreset}
-              strokes={annotationStrokes}
-              textBoxes={annotationTextBoxes}
-              onStrokesChange={setAnnotationStrokes}
-              onTextBoxesChange={setAnnotationTextBoxes}
-              onVisiblePageChange={(page) => {
-                setCurrentPage(page);
-                setPageInput(String(page));
-              }}
-              onPageCountChange={setPageCount}
-              onZoomChange={setPdfZoom}
-              initialScrollAnchor={pdfScrollAnchor}
-              onScrollAnchorChange={setPdfScrollAnchor}
-              onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
-              initialScrollRatio={pdfScrollRatio}
-              onScrollRatioChange={setPdfScrollRatio}
-              containerClassName={pdfViewerContainerClassName}
-              documentClassName={pdfViewerDocumentClassName}
-              t={t}
-            />
+          <div className={LIBRARY_PDF_MODE_SHELL_CLASSNAME}>
+            <div className="min-h-0">
+              <LibraryPdfToolSidebar
+                t={t}
+                hasPdf={hasPdf}
+                mode={annotationMode}
+                onModeChange={setAnnotationMode}
+                highlightColor={highlightColor}
+                onHighlightColorChange={setHighlightColor}
+                highlightWidth={highlightWidth}
+                onHighlightWidthChange={setHighlightWidth}
+                highlightOpacity={highlightOpacity}
+                onHighlightOpacityChange={setHighlightOpacity}
+                textColor={textColor}
+                onTextColorChange={setTextColor}
+                textBoxStylePreset={textBoxStylePreset}
+                onTextBoxStylePresetChange={setTextBoxStylePreset}
+                canUndo={pageStrokeCount > 0}
+                canClear={pageStrokeCount > 0 || pageTextBoxCount > 0}
+                onUndo={handleUndoCurrentPage}
+                onClear={handleClearCurrentPage}
+                pageInput={pageInput}
+                onPageInputChange={setPageInput}
+                onPageCommit={() => {
+                  const parsed = Number(pageInput);
+                  if (Number.isFinite(parsed)) {
+                    jumpToPage(parsed);
+                  } else {
+                    setPageInput(String(currentPage));
+                  }
+                }}
+                onPrevPage={() => jumpToPage(currentPage - 1)}
+                onNextPage={() => jumpToPage(currentPage + 1)}
+                pdfZoom={pdfZoom}
+                onZoomOut={() => setPdfZoom((prev) => Math.max(0.7, Number((prev - 0.1).toFixed(2))))}
+                onZoomIn={() => setPdfZoom((prev) => Math.min(2.4, Number((prev + 0.1).toFixed(2))))}
+                openConfigSignal={toolConfigSignal}
+              />
+            </div>
+            <div className={LIBRARY_PDF_VIEWPORT_FRAME_CLASSNAME}>
+              <LibraryPdfScrollViewer
+                ref={viewerRef}
+                pdfUrl={pdfUrl}
+                pageCount={pageCount}
+                zoom={pdfZoom}
+                mode={annotationMode}
+                highlightColor={highlightColor}
+                highlightWidth={highlightWidth}
+                highlightOpacity={highlightOpacity}
+                textColor={textColor}
+                textBoxStylePreset={textBoxStylePreset}
+                strokes={annotationStrokes}
+                textBoxes={annotationTextBoxes}
+                onStrokesChange={setAnnotationStrokes}
+                onTextBoxesChange={setAnnotationTextBoxes}
+                onVisiblePageChange={(page) => {
+                  setCurrentPage(page);
+                  setPageInput(String(page));
+                }}
+                onPageCountChange={setPageCount}
+                onZoomChange={setPdfZoom}
+                initialScrollAnchor={pdfScrollAnchor}
+                onScrollAnchorChange={setPdfScrollAnchor}
+                onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
+                initialScrollRatio={pdfScrollRatio}
+                onScrollRatioChange={setPdfScrollRatio}
+                containerClassName={pdfViewerContainerClassName}
+                documentClassName={pdfViewerDocumentClassName}
+                t={t}
+              />
+            </div>
           </div>
         ) : (
-          <div className="m-3 flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
             <FileUp className="mr-2 h-3.5 w-3.5" />
             {t("library.viewer.noPdf")}
           </div>
@@ -345,18 +353,18 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
 
   if (viewMode === "compare") {
     return (
-      <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)] rounded-lg border border-slate-200 bg-white p-3 motion-card-pop motion-layered-backdrop">
+      <section className={LIBRARY_VIEWER_FRAME_CLASSNAME}>
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
             {pdfPreviewLoading ? t("library.viewer.downloadingPdf") : t("library.viewer.preparingPdf")}
           </div>
         ) : pdfPaneError ? (
-          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
             {t("library.viewer.error")} {pdfPaneError}
           </div>
         ) : hasComparePair && pdfUrl && translatedPdfUrl ? (
-          <div className="grid h-full min-h-0 min-w-0 grid-cols-2 gap-3">
-            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70">
+          <div className={LIBRARY_COMPARE_SHELL_CLASSNAME}>
+            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
               <ComparePaneHeader
                 label={t("library.viewer.compareOriginal")}
                 zoom={compareSourceZoom}
@@ -393,7 +401,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 t={t}
               />
             </div>
-            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50/70">
+            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
               <ComparePaneHeader
                 label={t("library.viewer.compareTranslated")}
                 zoom={compareTranslatedZoom}

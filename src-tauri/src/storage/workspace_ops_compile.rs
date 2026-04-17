@@ -16,7 +16,6 @@ fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
     fs::copy(source, target).map_err(|e| e.to_string())?;
     Ok(())
 }
-
 fn move_recursively(source: &Path, target: &Path) -> Result<(), String> {
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -99,22 +98,169 @@ fn to_library_annotation_relative_path(relative_path: &str) -> String {
     )
 }
 
+#[derive(Debug, Clone)]
+struct LibraryBibMetadataTransfer {
+    source_relative: String,
+    target_relative: Option<String>,
+}
+
+fn normalize_relative_path(relative_path: &str) -> String {
+    relative_path.trim().replace('\\', "/").trim_matches('/').to_string()
+}
+
+fn join_relative_path(base: &str, suffix: &str) -> String {
+    let normalized_base = normalize_relative_path(base);
+    let normalized_suffix = normalize_relative_path(suffix);
+    if normalized_base.is_empty() {
+        normalized_suffix
+    } else if normalized_suffix.is_empty() {
+        normalized_base
+    } else {
+        format!("{normalized_base}/{normalized_suffix}")
+    }
+}
+
+fn collect_library_bib_relative_paths(
+    source_path: &Path,
+    source_relative: &str,
+) -> Result<Vec<String>, String> {
+    let normalized_source = normalize_relative_path(source_relative);
+    if normalized_source.is_empty() || !source_path.exists() {
+        return Ok(Vec::new());
+    }
+    if source_path.is_file() {
+        return Ok(if is_library_bib_relative_path(&normalized_source) {
+            vec![normalized_source]
+        } else {
+            Vec::new()
+        });
+    }
+
+    let mut pending = vec![(source_path.to_path_buf(), normalized_source.clone())];
+    let mut collected = Vec::new();
+    while let Some((current_path, current_relative)) = pending.pop() {
+        for entry in fs::read_dir(&current_path).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let entry_path = entry.path();
+            let entry_name = entry.file_name().to_string_lossy().to_string();
+            let entry_relative = join_relative_path(&current_relative, &entry_name);
+            if entry_path.is_dir() {
+                pending.push((entry_path, entry_relative));
+                continue;
+            }
+            if is_library_bib_relative_path(&entry_relative) {
+                collected.push(entry_relative);
+            }
+        }
+    }
+    collected.sort();
+    Ok(collected)
+}
+
+fn collect_library_bib_metadata_transfers(
+    source_path: &Path,
+    source_relative: &str,
+    target_relative: Option<&str>,
+) -> Result<Vec<LibraryBibMetadataTransfer>, String> {
+    let normalized_source = normalize_relative_path(source_relative);
+    let normalized_target = target_relative.map(normalize_relative_path);
+    let bib_paths = collect_library_bib_relative_paths(source_path, &normalized_source)?;
+
+    let mut transfers = Vec::with_capacity(bib_paths.len());
+    for bib_relative in bib_paths {
+        let target_bib_relative = normalized_target.as_ref().and_then(|target_root| {
+            if normalized_source == bib_relative {
+                return Some(target_root.clone());
+            }
+            let suffix = Path::new(&bib_relative)
+                .strip_prefix(Path::new(&normalized_source))
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            Some(join_relative_path(target_root, &suffix))
+        });
+        transfers.push(LibraryBibMetadataTransfer {
+            source_relative: bib_relative,
+            target_relative: target_bib_relative,
+        });
+    }
+    Ok(transfers)
+}
+
+fn apply_library_bib_metadata_transfer(
+    papers_root: &Path,
+    transfer: &LibraryBibMetadataTransfer,
+    action: &str,
+) -> Result<(), String> {
+    let annotation_source = safe_join(
+        papers_root,
+        &to_library_annotation_relative_path(&transfer.source_relative),
+    )?;
+    let binding_source =
+        remote_pdf_cache_binding_path_for_relative_path(papers_root, &transfer.source_relative)?;
+    let annotation_target = transfer.target_relative.as_ref().map(|target_relative| {
+        safe_join(
+            papers_root,
+            &to_library_annotation_relative_path(target_relative),
+        )
+    }).transpose()?;
+    let binding_target = transfer.target_relative.as_ref().map(|target_relative| {
+        remote_pdf_cache_binding_path_for_relative_path(papers_root, target_relative)
+    }).transpose()?;
+
+    match action {
+        "rename" | "move" => {
+            if let Some(annotation_target) = annotation_target.as_ref() {
+                if annotation_source.exists() && annotation_source.is_file() {
+                    move_recursively(&annotation_source, annotation_target)?;
+                }
+            }
+            if let Some(binding_target) = binding_target.as_ref() {
+                if binding_source.exists() && binding_source.is_file() {
+                    move_recursively(&binding_source, binding_target)?;
+                }
+            }
+        }
+        "copy" => {
+            if let Some(annotation_target) = annotation_target.as_ref() {
+                if annotation_source.exists() && annotation_source.is_file() {
+                    copy_recursively(&annotation_source, annotation_target)?;
+                }
+            }
+            if let Some(binding_target) = binding_target.as_ref() {
+                if binding_source.exists() && binding_source.is_file() {
+                    copy_recursively(&binding_source, binding_target)?;
+                }
+            }
+        }
+        "delete" => {
+            if annotation_source.exists() {
+                trash::delete(&annotation_source).map_err(|e| e.to_string())?;
+            }
+            if binding_source.exists() {
+                trash::delete(&binding_source).map_err(|e| e.to_string())?;
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
 pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperationResult, String> {
     let project_root = load_project_root(db_path, &input.project_id)?;
     let scope = input.scope.trim().to_string();
     let root = scope_root(&project_root, &scope)?;
     let path = safe_join(&root, &input.path)?;
+    let target_relative = input.target_path.clone();
     let is_library_bib = scope == "library" && is_library_bib_relative_path(&input.path);
+    let library_bib_metadata_transfers = if scope == "library" {
+        collect_library_bib_metadata_transfers(&path, &input.path, target_relative.as_deref())?
+    } else {
+        Vec::new()
+    };
     let companion_pdf_path = if is_library_bib {
         Some(sibling_library_pdf_path(&path))
-    } else {
-        None
-    };
-    let annotation_path = if is_library_bib {
-        Some(safe_join(
-            &root,
-            &to_library_annotation_relative_path(&input.path),
-        )?)
     } else {
         None
     };
@@ -130,8 +276,7 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
             fs::create_dir_all(&path).map_err(|e| e.to_string())?;
         }
         "rename" | "move" => {
-            let target_relative = input
-                .target_path
+            let target_relative = target_relative
                 .ok_or_else(|| "targetPath is required".to_string())?;
             let target = safe_join(&root, &target_relative)?;
             move_recursively(&path, &target)?;
@@ -140,19 +285,12 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
                     move_recursively(companion, &sibling_library_pdf_path(&target))?;
                 }
             }
-            if let Some(annotation_source) = annotation_path.as_ref() {
-                if annotation_source.exists() && annotation_source.is_file() {
-                    let annotation_target = safe_join(
-                        &root,
-                        &to_library_annotation_relative_path(&target_relative),
-                    )?;
-                    move_recursively(annotation_source, &annotation_target)?;
-                }
+            for transfer in &library_bib_metadata_transfers {
+                apply_library_bib_metadata_transfer(&root, transfer, input.action.as_str())?;
             }
         }
         "copy" => {
-            let target_relative = input
-                .target_path
+            let target_relative = target_relative
                 .ok_or_else(|| "targetPath is required".to_string())?;
             let target = safe_join(&root, &target_relative)?;
             copy_recursively(&path, &target)?;
@@ -161,14 +299,8 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
                     copy_recursively(companion, &sibling_library_pdf_path(&target))?;
                 }
             }
-            if let Some(annotation_source) = annotation_path.as_ref() {
-                if annotation_source.exists() && annotation_source.is_file() {
-                    let annotation_target = safe_join(
-                        &root,
-                        &to_library_annotation_relative_path(&target_relative),
-                    )?;
-                    copy_recursively(annotation_source, &annotation_target)?;
-                }
+            for transfer in &library_bib_metadata_transfers {
+                apply_library_bib_metadata_transfer(&root, transfer, input.action.as_str())?;
             }
         }
         "delete" => {
@@ -180,10 +312,8 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
                     trash::delete(companion).map_err(|e| e.to_string())?;
                 }
             }
-            if let Some(annotation_source) = annotation_path.as_ref() {
-                if annotation_source.exists() {
-                    trash::delete(annotation_source).map_err(|e| e.to_string())?;
-                }
+            for transfer in &library_bib_metadata_transfers {
+                apply_library_bib_metadata_transfer(&root, transfer, input.action.as_str())?;
             }
         }
         _ => return Err("Unsupported file action".to_string()),
@@ -207,7 +337,6 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
         message: "Operation completed".to_string(),
     })
 }
-
 pub fn record_compile(db_path: &Path, input: CompileRecordInput) -> Result<CompileRecord, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let record_id = Uuid::new_v4().to_string();
@@ -239,117 +368,3 @@ pub fn record_compile(db_path: &Path, input: CompileRecordInput) -> Result<Compi
         created_at: now,
     })
 }
-
-#[cfg(test)]
-mod workspace_ops_compile_tests {
-    use super::{fs_operation, to_library_annotation_relative_path};
-    use crate::models::FsOperationInput;
-    use crate::storage;
-    use std::fs;
-    use std::path::PathBuf;
-
-    fn unique_temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "latotex-workspace-op-{name}-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn create_project_fixture(name: &str) -> (PathBuf, String, PathBuf, PathBuf) {
-        let temp_root = unique_temp_dir(name);
-        let runtime_root = temp_root.join("runtime");
-        let projects_dir = runtime_root.join("projects");
-        let db_path = runtime_root.join("latotex.db");
-
-        fs::create_dir_all(&projects_dir).unwrap();
-        storage::initialize_database(&db_path).unwrap();
-        let snapshot = storage::create_project(&db_path, &projects_dir, "Workspace Op Test").unwrap();
-        let project_id = snapshot.summary.id;
-        let project_root = PathBuf::from(snapshot.summary.root_path);
-        (temp_root, project_id, project_root, db_path)
-    }
-
-    #[test]
-    fn library_bib_rename_moves_companion_pdf_and_annotation() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("library-bundle");
-        let papers_root = project_root.join(".latotex").join("papers");
-        fs::create_dir_all(&papers_root).unwrap();
-
-        let source_bib = papers_root.join("demo.bib");
-        let source_pdf = papers_root.join("demo.pdf");
-        fs::write(&source_bib, "@article{demo}").unwrap();
-        fs::write(&source_pdf, b"%PDF-demo").unwrap();
-
-        let annotation_relative = to_library_annotation_relative_path("demo.bib");
-        let annotation_path = papers_root.join(annotation_relative.replace('/', "\\"));
-        fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
-        fs::write(&annotation_path, "{\"version\":4}").unwrap();
-
-        fs_operation(
-            &db_path,
-            FsOperationInput {
-                project_id: project_id.clone(),
-                scope: "library".to_string(),
-                action: "rename".to_string(),
-                path: "demo.bib".to_string(),
-                target_path: Some("grouped/demo-renamed.bib".to_string()),
-                content: None,
-            },
-        )
-        .unwrap();
-
-        assert!(papers_root.join("grouped").join("demo-renamed.bib").exists());
-        assert!(papers_root.join("grouped").join("demo-renamed.pdf").exists());
-        let next_annotation = papers_root.join(
-            to_library_annotation_relative_path("grouped/demo-renamed.bib").replace('/', "\\"),
-        );
-        assert!(next_annotation.exists());
-        assert!(!source_bib.exists());
-        assert!(!source_pdf.exists());
-        assert!(!annotation_path.exists());
-
-        let _ = fs::remove_dir_all(temp_root);
-    }
-
-    #[test]
-    fn library_bib_delete_removes_companion_pdf_and_annotation() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("library-bundle-delete");
-        let papers_root = project_root.join(".latotex").join("papers");
-        fs::create_dir_all(&papers_root).unwrap();
-
-        let source_bib = papers_root.join("demo.bib");
-        let source_pdf = papers_root.join("demo.pdf");
-        fs::write(&source_bib, "@article{demo}").unwrap();
-        fs::write(&source_pdf, b"%PDF-demo").unwrap();
-
-        let annotation_relative = to_library_annotation_relative_path("demo.bib");
-        let annotation_path = papers_root.join(annotation_relative.replace('/', "\\"));
-        fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
-        fs::write(&annotation_path, "{\"version\":4}").unwrap();
-
-        fs_operation(
-            &db_path,
-            FsOperationInput {
-                project_id,
-                scope: "library".to_string(),
-                action: "delete".to_string(),
-                path: "demo.bib".to_string(),
-                target_path: None,
-                content: None,
-            },
-        )
-        .unwrap();
-
-        assert!(!source_bib.exists());
-        assert!(!source_pdf.exists());
-        assert!(!annotation_path.exists());
-
-        let _ = fs::remove_dir_all(temp_root);
-    }
-}
-

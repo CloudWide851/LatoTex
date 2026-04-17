@@ -468,7 +468,7 @@ export function LibraryDocumentViewer(props: {
         onCopyLink={() => void handleCopyLink()}
         t={t}
       />
-      <div className="relative min-h-0">
+      <div className="relative min-h-0 overflow-hidden">
         <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
         <LibraryPdfDownloadToast
           visible={pdfDownloadToastVisible}

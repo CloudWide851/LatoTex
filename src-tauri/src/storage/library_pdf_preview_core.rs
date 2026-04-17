@@ -233,11 +233,29 @@ fn remote_pdf_cache_dir(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, Strin
     Ok(cache_dir)
 }
 
-fn remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, String> {
-    Ok(remote_pdf_cache_dir(ctx)?.join(format!(
+fn normalize_library_relative_path(relative_path: &str) -> Result<String, String> {
+    let normalized = relative_path.trim().replace('\\', "/");
+    if normalized.is_empty() {
+        return Err("Library path cannot be empty".to_string());
+    }
+    Ok(normalized)
+}
+
+fn remote_pdf_cache_binding_path_for_relative_path(
+    papers_root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    let normalized_relative = normalize_library_relative_path(relative_path)?;
+    let cache_dir = papers_root.join(".cache").join("remote-pdf");
+    fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+    Ok(cache_dir.join(format!(
         "{}.json",
-        hash_cache_key(&ctx.normalized_relative)
+        hash_cache_key(&normalized_relative)
     )))
+}
+
+fn remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, String> {
+    remote_pdf_cache_binding_path_for_relative_path(&ctx.papers_root, &ctx.normalized_relative)
 }
 
 fn clear_remote_cache_binding(ctx: &LibraryPdfPreviewContext) {

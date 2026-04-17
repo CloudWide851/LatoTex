@@ -31,3 +31,5 @@ include!("storage/library_pdf_download_queue.rs");
 include!("storage/library_translation_engine.rs");
 include!("storage/workspace_ops_compile.rs");
 include!("storage/remote_metadata_fetch.rs");
+#[cfg(test)]
+include!("storage/workspace_ops_compile_tests.rs");
