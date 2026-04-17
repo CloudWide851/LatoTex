@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { MutableRefObject, MouseEvent as ReactMouseEvent } from "react";
 import { Page } from "react-pdf";
 import type {
@@ -40,6 +40,7 @@ export function LibraryPdfScrollViewerPage(props: {
   onToggleLens: (point: LensPendingPoint) => void;
   onMoveLens: (point: LensPendingPoint) => void;
   onHideLens: () => void;
+  onLayoutChange: () => void;
   onRenderSuccess: () => void;
   onStrokesChange: (next: AnnotationStroke[]) => void;
   onTextBoxesChange: (next: AnnotationTextBox[]) => void;
@@ -65,12 +66,29 @@ export function LibraryPdfScrollViewerPage(props: {
     onToggleLens,
     onMoveLens,
     onHideLens,
+    onLayoutChange,
     onRenderSuccess,
     onStrokesChange,
     onTextBoxesChange,
     t,
   } = props;
   const pointerDownRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const pageContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pageContainerRef.current) {
+      return;
+    }
+    if (typeof ResizeObserver === "undefined") {
+      onLayoutChange();
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      onLayoutChange();
+    });
+    observer.observe(pageContainerRef.current);
+    return () => observer.disconnect();
+  }, [onLayoutChange]);
 
   const resolveLensPoint = (event: ReactMouseEvent<HTMLDivElement>, visible: boolean): LensPendingPoint | null => {
     const viewportRect = scrollRef.current?.getBoundingClientRect();
@@ -120,6 +138,7 @@ export function LibraryPdfScrollViewerPage(props: {
   return (
     <div
       ref={(element) => {
+        pageContainerRef.current = element;
         pageRefs.current[page] = element;
       }}
       data-page={page}

@@ -19,14 +19,27 @@ vi.mock("./LibraryPdfLensOverlay", () => ({
 }));
 
 vi.mock("./LibraryPdfScrollViewerPage", () => ({
-  LibraryPdfScrollViewerPage: (props: { page: number; onRenderSuccess: () => void }) => (
-    <button
-      type="button"
-      data-testid={`page-${props.page}`}
-      onClick={props.onRenderSuccess}
-    >
-      page-{props.page}
-    </button>
+  LibraryPdfScrollViewerPage: (props: {
+    page: number;
+    onRenderSuccess: () => void;
+    onLayoutChange: () => void;
+  }) => (
+    <div>
+      <button
+        type="button"
+        data-testid={`page-${props.page}`}
+        onClick={props.onRenderSuccess}
+      >
+        page-{props.page}
+      </button>
+      <button
+        type="button"
+        data-testid={`page-layout-${props.page}`}
+        onClick={props.onLayoutChange}
+      >
+        layout-{props.page}
+      </button>
+    </div>
   ),
 }));
 
@@ -200,6 +213,73 @@ describe("LibraryPdfScrollViewer", () => {
     });
 
     expect(scrollTopValue).toBe(200);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("recomputes the saved anchor when a rendered page changes size", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <div className="h-[600px]">
+          <LibraryPdfScrollViewer
+            pdfUrl="blob:paper"
+            pageCount={2}
+            zoom={1}
+            mode="select"
+            highlightColor="#fde047"
+            highlightWidth={16}
+            highlightOpacity={0.65}
+            textColor="#111827"
+            textBoxStylePreset="minimal"
+            strokes={[]}
+            textBoxes={[]}
+            onStrokesChange={() => undefined}
+            onTextBoxesChange={() => undefined}
+            onVisiblePageChange={() => undefined}
+            onPageCountChange={() => undefined}
+            initialScrollAnchor={{ page: 2, pageFocusRatio: 0.5, absoluteRatio: 0.75 }}
+            t={(key) => String(key)}
+          />
+        </div>,
+      );
+    });
+
+    const scrollNode = container.querySelector(".library-scrollbar") as HTMLDivElement | null;
+    expect(scrollNode).not.toBeNull();
+
+    let scrollTopValue = 0;
+    let scrollTopWrites = 0;
+    Object.defineProperty(scrollNode!, "clientHeight", { configurable: true, value: 400 });
+    Object.defineProperty(scrollNode!, "scrollHeight", { configurable: true, value: 1600 });
+    Object.defineProperty(scrollNode!, "scrollTop", {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value;
+        scrollTopWrites += 1;
+      },
+    });
+
+    const page2 = container.querySelector("[data-testid='page-2']");
+    await act(async () => {
+      page2?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    scrollTopWrites = 0;
+
+    const page2Layout = container.querySelector("[data-testid='page-layout-2']");
+    await act(async () => {
+      page2Layout?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(scrollTopWrites).toBe(1);
+    expect(scrollTopValue).toBeGreaterThanOrEqual(0);
 
     await act(async () => {
       root.unmount();

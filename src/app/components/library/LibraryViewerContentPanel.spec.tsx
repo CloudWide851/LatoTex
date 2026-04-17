@@ -39,8 +39,6 @@ function CompareHarness() {
       pdfPreviewLoading={false}
       pdfObjectUrlLoading={false}
       pdfPreviewError={null}
-      pdfDownloadedBytes={null}
-      pdfTotalBytes={null}
       pdfRequestStatusVisible={false}
       pdfRetryAvailable={false}
       onRetryPdf={() => undefined}
@@ -179,8 +177,6 @@ describe("LibraryViewerContentPanel", () => {
           pdfPreviewLoading={false}
           pdfObjectUrlLoading={false}
           pdfPreviewError={null}
-          pdfDownloadedBytes={null}
-          pdfTotalBytes={null}
           pdfRequestStatusVisible={false}
           pdfRetryAvailable={false}
           onRetryPdf={() => undefined}
@@ -277,8 +273,6 @@ describe("LibraryViewerContentPanel", () => {
           pdfPreviewLoading={false}
           pdfObjectUrlLoading={false}
           pdfPreviewError={null}
-          pdfDownloadedBytes={null}
-          pdfTotalBytes={null}
           pdfRequestStatusVisible={false}
           pdfRetryAvailable={false}
           onRetryPdf={() => undefined}
@@ -376,8 +370,6 @@ describe("LibraryViewerContentPanel", () => {
           pdfPreviewLoading={false}
           pdfObjectUrlLoading={false}
           pdfPreviewError="HTTP 403"
-          pdfDownloadedBytes={0}
-          pdfTotalBytes={null}
           pdfRequestStatusVisible
           pdfRetryAvailable
           onRetryPdf={retryMock}

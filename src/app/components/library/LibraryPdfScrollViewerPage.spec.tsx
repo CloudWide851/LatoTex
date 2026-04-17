@@ -71,6 +71,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           onToggleLens={onToggleLens}
           onMoveLens={() => undefined}
           onHideLens={() => undefined}
+          onLayoutChange={() => undefined}
           onRenderSuccess={() => undefined}
           onStrokesChange={() => undefined}
           onTextBoxesChange={() => undefined}
@@ -158,6 +159,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           onToggleLens={onToggleLens}
           onMoveLens={() => undefined}
           onHideLens={() => undefined}
+          onLayoutChange={() => undefined}
           onRenderSuccess={() => undefined}
           onStrokesChange={() => undefined}
           onTextBoxesChange={() => undefined}
@@ -240,6 +242,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           onToggleLens={() => undefined}
           onMoveLens={() => undefined}
           onHideLens={() => undefined}
+          onLayoutChange={() => undefined}
           onRenderSuccess={() => undefined}
           onStrokesChange={() => undefined}
           onTextBoxesChange={() => undefined}

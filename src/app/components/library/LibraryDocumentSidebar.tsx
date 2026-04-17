@@ -1,5 +1,6 @@
 import { Check, Copy, ExternalLink, Languages, LoaderCircle } from "lucide-react";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
+import { formatLibraryPdfDownloadAmount } from "./LibraryPdfDownloadStatus";
 
 type TranslationFn = (key: any) => string;
 
@@ -16,16 +17,6 @@ function statusLabel(
   t: TranslationFn,
 ): string {
   return t(`library.viewer.state.${value}`);
-}
-
-function formatByteCount(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return "0 B";
-  }
-  const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / (1024 ** index);
-  return `${value >= 100 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
 }
 
 function StatusPill(props: {
@@ -98,10 +89,6 @@ export function LibraryDocumentSidebar(props: {
     t,
   } = props;
 
-  const progressPercent = pdfTotalBytes && pdfTotalBytes > 0
-    ? Math.max(0, Math.min(100, ((pdfDownloadedBytes ?? 0) / pdfTotalBytes) * 100))
-    : null;
-
   return (
     <aside className="grid min-h-0 gap-3 lg:grid-rows-[auto_auto_minmax(0,1fr)]">
       <section className="rounded-xl border border-slate-200 bg-white p-3">
@@ -131,16 +118,8 @@ export function LibraryDocumentSidebar(props: {
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                 <span>{t("library.viewer.downloadingPdf")}</span>
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary-100">
-                <div
-                  className="h-full rounded-full bg-primary-500 transition-[width] duration-300"
-                  style={{ width: `${progressPercent ?? 20}%` }}
-                />
-              </div>
               <div className="mt-2 text-[11px] text-primary-700">
-                {pdfTotalBytes && pdfTotalBytes > 0
-                  ? `${formatByteCount(pdfDownloadedBytes ?? 0)} / ${formatByteCount(pdfTotalBytes)}`
-                  : formatByteCount(pdfDownloadedBytes ?? 0)}
+                {t("library.viewer.downloadedBytes")} {formatLibraryPdfDownloadAmount(pdfDownloadedBytes, pdfTotalBytes)}
               </div>
             </div>
           ) : null}

@@ -13,6 +13,7 @@ import {
   type AnnotationTextBox,
 } from "./library/annotationModel";
 import { LibraryTranslationStatusToast } from "./library/LibraryTranslationStatusToast";
+import { LibraryPdfDownloadToast } from "./library/LibraryPdfDownloadStatus";
 import { useLibraryDocumentData } from "./library/useLibraryDocumentData";
 import { useLibraryPaperBrief } from "./library/useLibraryPaperBrief";
 import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
@@ -343,6 +344,14 @@ export function LibraryDocumentViewer(props: {
     applyViewMode,
     runTranslation,
   });
+  const pdfDownloadToastVisible = (
+    pdfPreviewRequested
+    || pendingPdfOpen
+    || pendingCompareOpen
+    || viewMode === "pdf"
+    || viewMode === "compare"
+  ) && (pdfPreviewLoading || pdfObjectUrlLoading);
+  const pdfDownloadToastPhase = pdfPreviewLoading ? "downloading" : "preparing";
 
   useEffect(() => {
     if (viewMode !== "pdf" || !hasPdf) {
@@ -461,6 +470,14 @@ export function LibraryDocumentViewer(props: {
       />
       <div className="relative min-h-0">
         <LibraryTranslationStatusToast progress={translationProgress} busy={translationBusy} t={t} />
+        <LibraryPdfDownloadToast
+          visible={pdfDownloadToastVisible}
+          phase={pdfDownloadToastPhase}
+          downloadedBytes={pdfDownloadedBytes}
+          totalBytes={pdfTotalBytes}
+          offsetTopClassName={translationBusy && translationProgress ? "top-[5.75rem]" : "top-3"}
+          t={t}
+        />
         <LibraryViewerContentPanel
           viewMode={viewMode}
           loading={loading}
@@ -468,20 +485,13 @@ export function LibraryDocumentViewer(props: {
           pdfPreviewLoading={pdfPreviewLoading}
           pdfObjectUrlLoading={pdfObjectUrlLoading}
           pdfPreviewError={pdfOpenError}
-          pdfDownloadedBytes={pdfDownloadedBytes}
-          pdfTotalBytes={pdfTotalBytes}
           pdfRequestStatusVisible={
             viewMode === "bib"
             && pdfPreviewRequested
             && !hasPdf
-            && (
-              pendingPdfOpen
-              || pendingCompareOpen
-              || pdfPreviewLoading
-              || pdfObjectUrlLoading
-              || Boolean(pdfOpenError)
-              || pdfCacheState === "error"
-            )
+            && !pdfPreviewLoading
+            && !pdfObjectUrlLoading
+            && (Boolean(pdfOpenError) || pdfCacheState === "error")
           }
           pdfRetryAvailable={!pdfPreviewLoading && !pdfObjectUrlLoading && Boolean(pdfOpenError || pdfCacheState === "error")}
           onRetryPdf={retryPdfOpen}

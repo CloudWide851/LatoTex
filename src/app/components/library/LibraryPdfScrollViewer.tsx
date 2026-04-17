@@ -6,7 +6,7 @@ import { LibraryPdfScrollViewerPage } from "./LibraryPdfScrollViewerPage";
 import { resolvePdfScrollAnchor, resolveScrollTopForPdfAnchor, resolveVisiblePdfPage, type PdfScrollAnchor } from "./libraryPdfScrollState";
 import { collectPdfPageMetrics, ensurePdfScrollSyncGroup, maxPdfScrollTop } from "./libraryPdfScrollViewerShared";
 import { arePdfScrollAnchorsEqual, type LensPendingPoint, type LibraryPdfScrollViewerHandle, type LibraryPdfScrollViewerProps, LENS_SCALE, LENS_SIZE, MAX_LIBRARY_PDF_ZOOM, MIN_LIBRARY_PDF_ZOOM, normalizePdfScrollAnchor } from "./libraryPdfScrollViewerConfig";
-import { WORKSPACE_LAYOUT_REFRESH_EVENT } from "../../hooks/workspaceLayoutRefresh";
+import { useLibraryPdfLayoutRefresh } from "./useLibraryPdfLayoutRefresh";
 
 ensureReactPdfWorker();
 export type { LibraryPdfScrollViewerHandle } from "./libraryPdfScrollViewerConfig";
@@ -66,6 +66,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   const scrollRafRef = useRef<number | null>(null);
   const syncResetRafRef = useRef<number | null>(null);
   const restoreRafRef = useRef<number | null>(null);
+  const pageLayoutRefreshRafRef = useRef<number | null>(null);
   const syncingScrollRef = useRef(false);
   const lensViewportRef = useRef<HTMLDivElement | null>(null);
   const lensContentRef = useRef<HTMLDivElement | null>(null);
@@ -157,6 +158,27 @@ export const LibraryPdfScrollViewer = forwardRef<
       emitScrollAnchor(normalized);
     });
   }, [documentPages, emitScrollAnchor, updateVisiblePage]);
+  const markViewerLayoutDirty = useCallback(() => {
+    renderedPagesRef.current = new Set();
+    pendingRenderRestoreRef.current = true;
+  }, []);
+  useLibraryPdfLayoutRefresh({
+    scrollRef,
+    pagesLength: pages.length,
+    setViewportWidth,
+    markViewerLayoutDirty,
+    restoreScrollAnchor,
+  });
+  const handlePageLayoutChange = useCallback(() => {
+    if (typeof window === "undefined" || pageLayoutRefreshRafRef.current !== null) {
+      return;
+    }
+    pageLayoutRefreshRafRef.current = window.requestAnimationFrame(() => {
+      pageLayoutRefreshRafRef.current = null;
+      restoreScrollAnchor(lastReportedScrollAnchorRef.current);
+      updateVisiblePage();
+    });
+  }, [restoreScrollAnchor, updateVisiblePage]);
   const applyLensPoint = useCallback(() => {
     const lensViewport = lensViewportRef.current;
     const lensContent = lensContentRef.current;
@@ -228,6 +250,9 @@ export const LibraryPdfScrollViewer = forwardRef<
       if (restoreRafRef.current !== null) {
         window.cancelAnimationFrame(restoreRafRef.current);
       }
+      if (pageLayoutRefreshRafRef.current !== null) {
+        window.cancelAnimationFrame(pageLayoutRefreshRafRef.current);
+      }
     };
   }, []);
   useEffect(() => {
@@ -266,48 +291,6 @@ export const LibraryPdfScrollViewer = forwardRef<
     }
     restoreScrollAnchor(normalized);
   }, [initialScrollAnchor, initialScrollRatio, restoreScrollAnchor]);
-  useEffect(() => {
-    if (!scrollRef.current || pages.length === 0) {
-      return;
-    }
-    renderedPagesRef.current = new Set();
-    pendingRenderRestoreRef.current = true;
-    if (typeof ResizeObserver === "undefined") {
-      setViewportWidth(scrollRef.current.clientWidth || 920);
-      restoreScrollAnchor();
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      if (!scrollRef.current) {
-        return;
-      }
-      setViewportWidth(scrollRef.current.clientWidth || 920);
-      restoreScrollAnchor();
-    });
-    observer.observe(scrollRef.current);
-    return () => observer.disconnect();
-  }, [pages.length, restoreScrollAnchor]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    const handleLayoutRefresh = () => {
-      if (!scrollRef.current) {
-        return;
-      }
-      window.requestAnimationFrame(() => {
-        setViewportWidth(scrollRef.current?.clientWidth || 920);
-        renderedPagesRef.current = new Set();
-        pendingRenderRestoreRef.current = true;
-        restoreScrollAnchor();
-      });
-    };
-    window.addEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
-    return () => {
-      window.removeEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);
-    };
-  }, [restoreScrollAnchor]);
   useEffect(() => {
     const group = ensurePdfScrollSyncGroup(syncGroupRef);
     if (!group) {
@@ -561,6 +544,7 @@ export const LibraryPdfScrollViewer = forwardRef<
             onHideLens={() => {
               queueLensPoint({ ...pendingLensPointRef.current, visible: false });
             }}
+            onLayoutChange={handlePageLayoutChange}
             onRenderSuccess={() => {
               renderedPagesRef.current.add(page);
               const shouldRestoreAfterRender =
