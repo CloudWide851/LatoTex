@@ -47,15 +47,29 @@ fn current_unix_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn hash_cache_key(value: &str) -> String {
+fn stable_hash_cache_key(value: &str) -> String {
+    let digest = ring::digest::digest(&ring::digest::SHA256, value.as_bytes());
+    let mut output = String::with_capacity(digest.as_ref().len() * 2);
+    for byte in digest.as_ref() {
+        use std::fmt::Write as _;
+        let _ = write!(&mut output, "{byte:02x}");
+    }
+    output
+}
+
+fn legacy_hash_cache_key(value: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
 
-fn hash_remote_url(url: &str) -> String {
-    hash_cache_key(url)
+fn stable_hash_remote_url(url: &str) -> String {
+    stable_hash_cache_key(url)
+}
+
+fn legacy_hash_remote_url(url: &str) -> String {
+    legacy_hash_cache_key(url)
 }
 
 fn to_workspace_relative(project_root: &Path, path: &Path) -> Result<String, String> {
@@ -241,28 +255,170 @@ fn normalize_library_relative_path(relative_path: &str) -> Result<String, String
     Ok(normalized)
 }
 
-fn remote_pdf_cache_binding_path_for_relative_path(
+fn remote_pdf_cache_binding_path_with_hash(
     papers_root: &Path,
     relative_path: &str,
+    use_legacy_hash: bool,
 ) -> Result<PathBuf, String> {
     let normalized_relative = normalize_library_relative_path(relative_path)?;
     let cache_dir = papers_root.join(".cache").join("remote-pdf");
     fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
-    Ok(cache_dir.join(format!(
-        "{}.json",
-        hash_cache_key(&normalized_relative)
-    )))
+    let hash = if use_legacy_hash {
+        legacy_hash_cache_key(&normalized_relative)
+    } else {
+        stable_hash_cache_key(&normalized_relative)
+    };
+    Ok(cache_dir.join(format!("{hash}.json")))
+}
+
+fn remote_pdf_cache_binding_path_for_relative_path(
+    papers_root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    remote_pdf_cache_binding_path_with_hash(papers_root, relative_path, false)
+}
+
+fn legacy_remote_pdf_cache_binding_path_for_relative_path(
+    papers_root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, String> {
+    remote_pdf_cache_binding_path_with_hash(papers_root, relative_path, true)
 }
 
 fn remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, String> {
     remote_pdf_cache_binding_path_for_relative_path(&ctx.papers_root, &ctx.normalized_relative)
 }
 
-fn clear_remote_cache_binding(ctx: &LibraryPdfPreviewContext) {
-    let Ok(binding_path) = remote_pdf_cache_binding_path(ctx) else {
-        return;
+fn legacy_remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, String> {
+    legacy_remote_pdf_cache_binding_path_for_relative_path(&ctx.papers_root, &ctx.normalized_relative)
+}
+
+fn clear_cache_file_artifacts(cache_path: &Path) {
+    let _ = fs::remove_file(cache_path);
+    let _ = fs::remove_file(temp_cache_path(cache_path));
+}
+
+fn move_cache_file_to_stable_path(from: &Path, to: &Path) -> Result<PathBuf, String> {
+    if from == to {
+        return Ok(to.to_path_buf());
+    }
+    if cached_pdf_file_ready(to) {
+        clear_cache_file_artifacts(from);
+        return Ok(to.to_path_buf());
+    }
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    match fs::rename(from, to) {
+        Ok(_) => {
+            let _ = fs::remove_file(temp_cache_path(from));
+            Ok(to.to_path_buf())
+        }
+        Err(rename_error) => {
+            fs::copy(from, to).map_err(|copy_error| {
+                format!(
+                    "failed to migrate remote cache (rename: {}; copy: {})",
+                    rename_error, copy_error
+                )
+            })?;
+            clear_cache_file_artifacts(from);
+            Ok(to.to_path_buf())
+        }
+    }
+}
+
+fn build_remote_cache_path_with_hash(
+    ctx: &LibraryPdfPreviewContext,
+    source_url: &str,
+    use_legacy_hash: bool,
+) -> Result<PathBuf, String> {
+    let cache_dir = remote_pdf_cache_dir(ctx)?;
+    let hash = if use_legacy_hash {
+        legacy_hash_remote_url(source_url)
+    } else {
+        stable_hash_remote_url(source_url)
     };
-    let _ = fs::remove_file(binding_path);
+    Ok(cache_dir.join(format!("{hash}.pdf")))
+}
+
+fn build_legacy_remote_cache_path(
+    ctx: &LibraryPdfPreviewContext,
+    source_url: &str,
+) -> Result<PathBuf, String> {
+    build_remote_cache_path_with_hash(ctx, source_url, true)
+}
+
+fn resolve_cached_remote_pdf_path(
+    ctx: &LibraryPdfPreviewContext,
+    source_url: &str,
+    binding_cache_file_name: Option<&str>,
+) -> Result<Option<PathBuf>, String> {
+    let cache_dir = remote_pdf_cache_dir(ctx)?;
+    let stable_cache_path = build_remote_cache_path(ctx, source_url)?;
+    if cached_pdf_file_ready(&stable_cache_path) {
+        return Ok(Some(stable_cache_path));
+    }
+    if stable_cache_path.exists() {
+        clear_cache_file_artifacts(&stable_cache_path);
+    }
+
+    let legacy_cache_path = build_legacy_remote_cache_path(ctx, source_url)?;
+    if let Some(cache_file_name) = binding_cache_file_name.map(str::trim).filter(|value| !value.is_empty()) {
+        let referenced_cache_path = cache_dir.join(cache_file_name);
+        if referenced_cache_path != stable_cache_path {
+            if cached_pdf_file_ready(&referenced_cache_path) {
+                if referenced_cache_path == legacy_cache_path {
+                    return move_cache_file_to_stable_path(&referenced_cache_path, &stable_cache_path)
+                        .map(Some);
+                }
+                return Ok(Some(referenced_cache_path));
+            }
+            if referenced_cache_path.exists() {
+                clear_cache_file_artifacts(&referenced_cache_path);
+            }
+        }
+    }
+
+    if legacy_cache_path != stable_cache_path {
+        if cached_pdf_file_ready(&legacy_cache_path) {
+            return move_cache_file_to_stable_path(&legacy_cache_path, &stable_cache_path).map(Some);
+        }
+        if legacy_cache_path.exists() {
+            clear_cache_file_artifacts(&legacy_cache_path);
+        }
+    }
+
+    Ok(None)
+}
+
+fn clear_remote_cache_binding_paths(ctx: &LibraryPdfPreviewContext) {
+    if let Ok(binding_path) = remote_pdf_cache_binding_path(ctx) {
+        let _ = fs::remove_file(binding_path);
+    }
+    if let Ok(legacy_binding_path) = legacy_remote_pdf_cache_binding_path(ctx) {
+        let _ = fs::remove_file(legacy_binding_path);
+    }
+}
+
+fn clear_remote_cache_variants(ctx: &LibraryPdfPreviewContext, source_url: &str) {
+    let stable_cache_path = build_remote_cache_path(ctx, source_url).ok();
+    if let Some(cache_path) = stable_cache_path.as_ref() {
+        clear_cache_file_artifacts(cache_path);
+    }
+    if let Ok(legacy_cache_path) = build_legacy_remote_cache_path(ctx, source_url) {
+        if stable_cache_path.as_ref() != Some(&legacy_cache_path) {
+            clear_cache_file_artifacts(&legacy_cache_path);
+        }
+    }
+}
+
+fn read_remote_cache_binding_payload(binding_path: &Path) -> Option<RemotePdfCacheBinding> {
+    let raw = fs::read_to_string(binding_path).ok()?;
+    serde_json::from_str::<RemotePdfCacheBinding>(&raw).ok()
+}
+
+fn clear_remote_cache_binding(ctx: &LibraryPdfPreviewContext) {
+    clear_remote_cache_binding_paths(ctx);
 }
 
 fn write_remote_cache_binding(
@@ -286,22 +442,43 @@ fn write_remote_cache_binding(
 fn read_remote_cache_binding(
     ctx: &LibraryPdfPreviewContext,
 ) -> Option<(String, PathBuf)> {
-    let binding_path = remote_pdf_cache_binding_path(ctx).ok()?;
-    let raw = fs::read_to_string(&binding_path).ok()?;
-    let binding = serde_json::from_str::<RemotePdfCacheBinding>(&raw).ok()?;
-    let source_url = binding.source_url.trim().to_string();
-    let cache_file_name = binding.cache_file_name.trim().to_string();
-    if source_url.is_empty() || cache_file_name.is_empty() {
-        let _ = fs::remove_file(binding_path);
-        return None;
+    let stable_binding_path = remote_pdf_cache_binding_path(ctx).ok()?;
+    let legacy_binding_path = legacy_remote_pdf_cache_binding_path(ctx).ok()?;
+    for (binding_path, is_legacy_binding) in [
+        (stable_binding_path.as_path(), false),
+        (legacy_binding_path.as_path(), true),
+    ] {
+        if !binding_path.exists() {
+            continue;
+        }
+        let Some(binding) = read_remote_cache_binding_payload(binding_path) else {
+            let _ = fs::remove_file(binding_path);
+            continue;
+        };
+        let source_url = binding.source_url.trim().to_string();
+        let cache_file_name = binding.cache_file_name.trim().to_string();
+        if source_url.is_empty() || cache_file_name.is_empty() {
+            let _ = fs::remove_file(binding_path);
+            continue;
+        }
+        let Some(cache_path) =
+            resolve_cached_remote_pdf_path(ctx, &source_url, Some(&cache_file_name)).ok()?
+        else {
+            let referenced_cache_path = remote_pdf_cache_dir(ctx).ok()?.join(cache_file_name);
+            clear_cache_file_artifacts(&referenced_cache_path);
+            let _ = fs::remove_file(binding_path);
+            continue;
+        };
+        let _ = write_remote_cache_binding(ctx, &source_url, &cache_path);
+        if is_legacy_binding && legacy_binding_path != stable_binding_path {
+            let _ = fs::remove_file(binding_path);
+        }
+        if legacy_binding_path != stable_binding_path {
+            let _ = fs::remove_file(&legacy_binding_path);
+        }
+        return Some((source_url, cache_path));
     }
-    let cache_path = remote_pdf_cache_dir(ctx).ok()?.join(cache_file_name);
-    if !cached_pdf_file_ready(&cache_path) {
-        let _ = fs::remove_file(&cache_path);
-        let _ = fs::remove_file(binding_path);
-        return None;
-    }
-    Some((source_url, cache_path))
+    None
 }
 
 fn resolve_local_pdf_candidate(source: &Path) -> Option<PathBuf> {
@@ -384,8 +561,7 @@ fn build_remote_cache_path(
     ctx: &LibraryPdfPreviewContext,
     source_url: &str,
 ) -> Result<PathBuf, String> {
-    let cache_dir = remote_pdf_cache_dir(ctx)?;
-    Ok(cache_dir.join(format!("{}.pdf", hash_remote_url(source_url))))
+    build_remote_cache_path_with_hash(ctx, source_url, false)
 }
 
 fn build_cached_remote_preview_response(

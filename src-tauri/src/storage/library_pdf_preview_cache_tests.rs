@@ -1,6 +1,7 @@
 use super::*;
 use std::fs;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -83,6 +84,29 @@ fn create_runtime_fixture(name: &str) -> (crate::state::AppState, String, PathBu
     (state, project_id, project_root, temp_root)
 }
 
+fn write_library_source(papers_root: &Path, relative_path: &str) {
+    fs::write(
+        papers_root.join(relative_path),
+        "@article{cachedpaper,\n  title={Cached Paper}\n}\n",
+    )
+    .unwrap();
+}
+
+fn build_test_summary(source_path: &str, source_url: &str) -> LibraryCitationSummaryResponse {
+    LibraryCitationSummaryResponse {
+        source_path: source_path.to_string(),
+        bib_path: Some(source_path.to_string()),
+        citation_key: Some("cachedpaper".to_string()),
+        title: Some("Cached Paper".to_string()),
+        authors: vec!["Test Author".to_string()],
+        published_at: None,
+        doi: None,
+        arxiv_id: None,
+        source: None,
+        urls: vec![source_url.to_string()],
+    }
+}
+
 #[test]
 fn runtime_preview_returns_cached_remote_binding_without_remote_lookup() {
     let (state, project_id, project_root, temp_root) = create_runtime_fixture("cached-binding");
@@ -90,12 +114,7 @@ fn runtime_preview_returns_cached_remote_binding_without_remote_lookup() {
     fs::create_dir_all(&papers_root).unwrap();
 
     let source_relative = "cached-paper.bib";
-    let source_path = papers_root.join(source_relative);
-    fs::write(
-        &source_path,
-        "@article{cachedpaper,\n  title={Cached Paper}\n}\n",
-    )
-    .unwrap();
+    write_library_source(&papers_root, source_relative);
 
     let cache_dir = papers_root.join(".cache").join("remote-pdf");
     fs::create_dir_all(&cache_dir).unwrap();
@@ -113,6 +132,83 @@ fn runtime_preview_returns_cached_remote_binding_without_remote_lookup() {
         preview.relative_path.as_deref(),
         Some(".latotex/papers/.cache/remote-pdf/cached-paper.pdf")
     );
+
+    let _ = fs::remove_dir_all(temp_root);
+}
+
+#[test]
+fn runtime_preview_migrates_legacy_binding_and_cache_to_stable_names() {
+    let (state, project_id, project_root, temp_root) = create_runtime_fixture("legacy-binding");
+    let papers_root = crate::storage::library_root(&project_root);
+    fs::create_dir_all(&papers_root).unwrap();
+
+    let source_relative = "legacy-paper.bib";
+    let source_url = "https://example.com/legacy-paper.pdf";
+    write_library_source(&papers_root, source_relative);
+
+    let ctx = prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
+    let legacy_cache_path = build_legacy_remote_cache_path(&ctx, source_url).unwrap();
+    if let Some(parent) = legacy_cache_path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(&legacy_cache_path, b"%PDF-1.7\nlegacy\n").unwrap();
+
+    let legacy_binding_path =
+        legacy_remote_pdf_cache_binding_path_for_relative_path(&papers_root, source_relative).unwrap();
+    let legacy_binding = RemotePdfCacheBinding {
+        source_url: source_url.to_string(),
+        cache_file_name: legacy_cache_path.file_name().unwrap().to_string_lossy().to_string(),
+        updated_at_unix_ms: current_unix_ms(),
+    };
+    fs::write(&legacy_binding_path, serde_json::to_string(&legacy_binding).unwrap()).unwrap();
+
+    let preview = library_resolve_pdf_preview_runtime(&state, &project_id, source_relative, false).unwrap();
+    let stable_cache_path = build_remote_cache_path(&ctx, source_url).unwrap();
+    let stable_binding_path = remote_pdf_cache_binding_path(&ctx).unwrap();
+    let expected_relative_path = format!(
+        ".latotex/papers/.cache/remote-pdf/{}",
+        stable_cache_path.file_name().unwrap().to_string_lossy()
+    );
+
+    assert_eq!(preview.cache_state, LIBRARY_PDF_CACHE_STATE_READY);
+    assert_eq!(preview.source_url.as_deref(), Some(source_url));
+    assert_eq!(preview.relative_path.as_deref(), Some(expected_relative_path.as_str()));
+    assert!(stable_cache_path.exists());
+    assert!(!legacy_cache_path.exists());
+    assert!(stable_binding_path.exists());
+    assert!(!legacy_binding_path.exists());
+
+    let _ = fs::remove_dir_all(temp_root);
+}
+
+#[test]
+fn runtime_preview_reuses_legacy_cache_without_binding_and_writes_stable_binding() {
+    let (state, project_id, project_root, temp_root) = create_runtime_fixture("legacy-cache-only");
+    let papers_root = crate::storage::library_root(&project_root);
+    fs::create_dir_all(&papers_root).unwrap();
+
+    let source_relative = "legacy-cache-only.bib";
+    let source_url = "https://example.com/legacy-cache-only.pdf";
+    write_library_source(&papers_root, source_relative);
+
+    let ctx = prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
+    let legacy_cache_path = build_legacy_remote_cache_path(&ctx, source_url).unwrap();
+    if let Some(parent) = legacy_cache_path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(&legacy_cache_path, b"%PDF-1.7\nlegacy-only\n").unwrap();
+
+    let summary = build_test_summary(source_relative, source_url);
+    let preview = resolve_runtime_remote_preview(&state, &ctx, &project_id, &summary, false).unwrap();
+    let stable_cache_path = build_remote_cache_path(&ctx, source_url).unwrap();
+    let stable_binding_path = remote_pdf_cache_binding_path(&ctx).unwrap();
+
+    assert_eq!(preview.cache_state, LIBRARY_PDF_CACHE_STATE_READY);
+    assert_eq!(preview.source_url.as_deref(), Some(source_url));
+    assert!(preview.cached);
+    assert!(stable_cache_path.exists());
+    assert!(!legacy_cache_path.exists());
+    assert!(stable_binding_path.exists());
 
     let _ = fs::remove_dir_all(temp_root);
 }

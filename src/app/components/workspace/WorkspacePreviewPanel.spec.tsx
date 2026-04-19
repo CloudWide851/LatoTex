@@ -65,6 +65,8 @@ describe("WorkspacePreviewPanel", () => {
     });
 
     expect(container.querySelector("[data-testid='file-preview-pane']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='workspace-preview-content']")?.className).toContain("min-h-0");
+    expect(container.querySelector("[data-testid='workspace-preview-content']")?.className).toContain("flex-1");
     expect(container.textContent).not.toContain("share.commentsInPreview");
 
     await act(async () => {

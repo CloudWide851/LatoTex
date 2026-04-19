@@ -210,11 +210,11 @@ fn resolve_sync_remote_preview(
         ));
     };
 
-    let cache_path = build_remote_cache_path(ctx, &source_url)?;
-    if !cached_pdf_file_ready(&cache_path) {
-        let _ = fs::remove_file(&cache_path);
-        cache_remote_pdf_file(&cache_path, &source_url, |_, _| {})?;
+    if let Some(cache_path) = resolve_cached_remote_pdf_path(ctx, &source_url, None)? {
+        return build_cached_remote_preview_response(ctx, &source_url, &cache_path);
     }
+    let cache_path = build_remote_cache_path(ctx, &source_url)?;
+    cache_remote_pdf_file(&cache_path, &source_url, |_, _| {})?;
 
     build_cached_remote_preview_response(ctx, &source_url, &cache_path)
 }
@@ -245,16 +245,11 @@ fn resolve_runtime_remote_preview(
 
     if bust_cache {
         clear_remote_cache_binding(ctx);
+        clear_remote_cache_variants(ctx, &source_url);
         clear_pdf_cache_entry(&state.library_pdf_cache_tasks, &task_key, &cache_path);
-    } else if cache_path.exists() && !cached_pdf_file_ready(&cache_path) {
-        clear_remote_cache_binding(ctx);
+    } else if let Some(existing_cache_path) = resolve_cached_remote_pdf_path(ctx, &source_url, None)? {
         clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
-        clear_pdf_cache_entry(&state.library_pdf_cache_tasks, &task_key, &cache_path);
-    }
-
-    if cached_pdf_file_ready(&cache_path) {
-        clear_pdf_cache_task_if_terminal(&state.library_pdf_cache_tasks, &task_key);
-        return build_cached_remote_preview_response(ctx, &source_url, &cache_path);
+        return build_cached_remote_preview_response(ctx, &source_url, &existing_cache_path);
     }
 
     let (task_status, task_error, task_updated_at, downloaded_bytes, total_bytes) =

@@ -78,7 +78,7 @@ export function WorkspacePreviewPanel(props: {
   const installProgressPercent = Math.max(0, Math.min(100, Math.round(visibleCompileInstallProgress?.percent ?? 0)));
 
   return (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
       <div className="panel-topbar mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
         <div className="flex items-center gap-1">
@@ -161,7 +161,10 @@ export function WorkspacePreviewPanel(props: {
           </div>
         </div>
       ) : null}
-      <div className="h-[calc(100%-52px)]">
+      <div
+        data-testid="workspace-preview-content"
+        className="min-h-0 flex-1"
+      >
         {selectedIsTabular ? (
           <TablePreviewPane
             projectId={activeProjectId}
