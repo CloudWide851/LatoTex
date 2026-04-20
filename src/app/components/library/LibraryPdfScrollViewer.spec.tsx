@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,18 @@ vi.mock("../pdf/reactPdfSetup", () => ({
 }));
 
 vi.mock("react-pdf", () => ({
-  Document: (props: { children: ReactNode }) => <div data-testid="pdf-document">{props.children}</div>,
+  Document: (props: { children: ReactNode; onLoadSuccess?: (payload: { numPages: number }) => void }) => (
+    <div data-testid="pdf-document">
+      <button
+        type="button"
+        data-testid="document-load-success"
+        onClick={() => props.onLoadSuccess?.({ numPages: 3 })}
+      >
+        load-document
+      </button>
+      {props.children}
+    </div>
+  ),
 }));
 
 vi.mock("./LibraryPdfLensOverlay", () => ({
@@ -64,6 +75,40 @@ describe("LibraryPdfScrollViewer", () => {
     document.body.innerHTML = "";
     vi.restoreAllMocks();
   });
+
+  function ControlledViewer(props: {
+    pageCount?: number;
+    onPageCountChange?: (count: number) => void;
+    onVisiblePageChange?: (page: number) => void;
+  }) {
+    const [scrollAnchor, setScrollAnchor] = useState<{ page: number; pageFocusRatio: number; absoluteRatio: number } | null>(null);
+    const [scrollRatio, setScrollRatio] = useState(0);
+
+    return (
+      <LibraryPdfScrollViewer
+        pdfUrl="blob:paper"
+        pageCount={props.pageCount ?? 1}
+        zoom={1}
+        mode="select"
+        highlightColor="#fde047"
+        highlightWidth={16}
+        highlightOpacity={0.65}
+        textColor="#111827"
+        textBoxStylePreset="minimal"
+        strokes={[]}
+        textBoxes={[]}
+        onStrokesChange={() => undefined}
+        onTextBoxesChange={() => undefined}
+        onVisiblePageChange={props.onVisiblePageChange ?? (() => undefined)}
+        onPageCountChange={props.onPageCountChange ?? (() => undefined)}
+        initialScrollAnchor={scrollAnchor}
+        onScrollAnchorChange={setScrollAnchor}
+        initialScrollRatio={scrollRatio}
+        onScrollRatioChange={setScrollRatio}
+        t={(key) => String(key)}
+      />
+    );
+  }
 
   it("restores the saved scroll position only after the current document render completes", async () => {
     const container = document.createElement("div");
@@ -280,6 +325,113 @@ describe("LibraryPdfScrollViewer", () => {
 
     expect(scrollTopWrites).toBe(1);
     expect(scrollTopValue).toBeGreaterThanOrEqual(0);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("does not treat prop-echoed scroll state as a document reset", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onPageCountChange = vi.fn();
+    const onVisiblePageChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <div className="h-[600px]">
+          <ControlledViewer
+            pageCount={1}
+            onPageCountChange={onPageCountChange}
+            onVisiblePageChange={onVisiblePageChange}
+          />
+        </div>,
+      );
+    });
+
+    const scrollNode = container.querySelector(".library-scrollbar") as HTMLDivElement | null;
+    const loadButton = container.querySelector("[data-testid='document-load-success']");
+    expect(scrollNode).not.toBeNull();
+    expect(loadButton).not.toBeNull();
+
+    let scrollTopValue = 0;
+    Object.defineProperty(scrollNode!, "clientHeight", { configurable: true, value: 200 });
+    Object.defineProperty(scrollNode!, "scrollHeight", { configurable: true, value: 1200 });
+    Object.defineProperty(scrollNode!, "scrollTop", {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value;
+      },
+    });
+
+    await act(async () => {
+      loadButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    onPageCountChange.mockClear();
+    onVisiblePageChange.mockClear();
+
+    await act(async () => {
+      scrollNode!.scrollTop = 400;
+      scrollNode?.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+
+    expect(onPageCountChange).not.toHaveBeenCalled();
+    expect(onVisiblePageChange).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps continuously rendered pages after scroll state is echoed back from the parent", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <div className="h-[600px]">
+          <ControlledViewer pageCount={1} />
+        </div>,
+      );
+    });
+
+    const scrollNode = container.querySelector(".library-scrollbar") as HTMLDivElement | null;
+    const loadButton = container.querySelector("[data-testid='document-load-success']");
+    expect(scrollNode).not.toBeNull();
+    expect(loadButton).not.toBeNull();
+
+    let scrollTopValue = 0;
+    Object.defineProperty(scrollNode!, "clientHeight", { configurable: true, value: 200 });
+    Object.defineProperty(scrollNode!, "scrollHeight", { configurable: true, value: 1200 });
+    Object.defineProperty(scrollNode!, "scrollTop", {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (value: number) => {
+        scrollTopValue = value;
+      },
+    });
+
+    await act(async () => {
+      loadButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.querySelector("[data-testid='page-2']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='page-3']")).not.toBeNull();
+
+    await act(async () => {
+      scrollNode!.scrollTop = 500;
+      scrollNode?.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+
+    expect(container.querySelector("[data-testid='page-1']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='page-2']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='page-3']")).not.toBeNull();
 
     await act(async () => {
       root.unmount();
