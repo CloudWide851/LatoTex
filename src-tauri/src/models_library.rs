@@ -194,15 +194,18 @@ pub struct ProjectSearchInput {
     pub project_id: String,
     pub query: String,
     pub limit: Option<u32>,
+    pub scopes: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSearchHit {
-    pub relative_path: String,
+    pub relative_path: Option<String>,
     pub line_number: Option<u32>,
     pub match_kind: String,
     pub snippet: String,
+    pub session_id: Option<String>,
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

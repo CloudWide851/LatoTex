@@ -1,14 +1,16 @@
 import { ChevronRight, FileCode2, Files, Folder, FolderOpen } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { FsAction } from "../../shared/types/app";
+import { ExplorerContextMenu } from "./explorer/ExplorerContextMenu";
 import { ExplorerLinkDraftPanel, ExplorerTransferPanel } from "./explorer/ExplorerInlinePanels";
 import {
   collectVisibleFilePaths,
   resolveExplorerSelection,
   shouldAutoExpandNode,
 } from "./explorer/explorerSelection";
+import { useExplorerPointerDrag } from "./explorer/useExplorerPointerDrag";
 import {
   dirnameOf,
   type EditingState,
@@ -19,6 +21,7 @@ import {
 } from "./explorer/treeUtils";
 import type { ResourceNode } from "../../shared/types/app";
 type TranslationFn = (key: any) => string;
+
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
@@ -63,81 +66,15 @@ export function ExplorerTree(props: {
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>(selectedPath ? [selectedPath] : []);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(selectedPath);
-  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
-  const normalizeExplorerPath = (path: string): string =>
-    path.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-
-  const resolveDroppedFilePath = (event: ReactDragEvent<HTMLElement>): string | null => {
-    const directPath = normalizeExplorerPath(
-      event.dataTransfer.getData("application/x-latotex-path"),
-    );
-    if (directPath) {
-      return directPath;
-    }
-    const fallbackPath = normalizeExplorerPath(event.dataTransfer.getData("text/plain"));
-    return fallbackPath || null;
-  };
-
-  const resolveDroppedTargetPath = (sourcePath: string, targetDirectoryPath: string): string | null => {
-    const normalizedSource = normalizeExplorerPath(sourcePath);
-    if (!normalizedSource) {
-      return null;
-    }
-    const fileName = normalizedSource.split("/").pop()?.trim() ?? "";
-    if (!fileName) {
-      return null;
-    }
-    const normalizedTargetDirectory = normalizeExplorerPath(targetDirectoryPath);
-    if (
-      normalizedTargetDirectory === normalizedSource
-      || normalizedTargetDirectory.startsWith(`${normalizedSource}/`)
-    ) {
-      return null;
-    }
-    const nextTargetPath = joinPath(normalizedTargetDirectory, fileName);
-    return nextTargetPath === normalizedSource ? null : nextTargetPath;
-  };
-
-  const allowDirectoryDrop = (
-    event: ReactDragEvent<HTMLElement>,
-    targetDirectoryPath: string,
-  ): string | null => {
-    if (!onAction) {
-      return null;
-    }
-    const sourcePath = resolveDroppedFilePath(event);
-    if (!sourcePath) {
-      return null;
-    }
-    const nextTargetPath = resolveDroppedTargetPath(sourcePath, targetDirectoryPath);
-    return nextTargetPath;
-  };
-  useEffect(() => {
-    const closeMenuOnOutside = (event: MouseEvent) => {
-      if (event.button === 2) {
-        return;
-      }
-      const target = event.target as Node | null;
-      if (menuRef.current && target && menuRef.current.contains(target)) {
-        return;
-      }
-      if (rootRef.current && target && rootRef.current.contains(target)) {
-        return;
-      }
-      setMenu(null);
-    };
-    const closeMenuOnBlur = () => setMenu(null);
-    window.addEventListener("mousedown", closeMenuOnOutside);
-    window.addEventListener("blur", closeMenuOnBlur);
-    return () => {
-      window.removeEventListener("mousedown", closeMenuOnOutside);
-      window.removeEventListener("blur", closeMenuOnBlur);
-    };
+  const handleDirectoryExpand = useCallback((path: string) => {
+    setExpanded((prev) => ({ ...prev, [path]: true }));
   }, []);
+  const handleMove = useCallback(async (sourcePath: string, targetPath: string) => {
+    await onAction?.("move", sourcePath, targetPath);
+  }, [onAction]);
   const expandedMap = useMemo(() => {
     if (Object.keys(expanded).length > 0) {
       return expanded;
@@ -154,6 +91,34 @@ export function ExplorerTree(props: {
     walk(tree);
     return defaults;
   }, [expanded, tree]);
+  const { dragSourcePath, dragPreview, dropTargetPath, suppressClickRef, handlePointerDragStart } = useExplorerPointerDrag({
+    rootRef,
+    onMove: onAction ? handleMove : undefined,
+    expandedMap,
+    onExpandDirectory: handleDirectoryExpand,
+  });
+  useEffect(() => {
+    const closeMenuOnOutside = (event: MouseEvent) => {
+      if (event.button === 2) {
+        return;
+      }
+      const target = event.target as Node | null;
+      if (target instanceof HTMLElement && target.closest("[data-explorer-context-menu='true']")) {
+        return;
+      }
+      if (rootRef.current && target && rootRef.current.contains(target)) {
+        return;
+      }
+      setMenu(null);
+    };
+    const closeMenuOnBlur = () => setMenu(null);
+    window.addEventListener("mousedown", closeMenuOnOutside);
+    window.addEventListener("blur", closeMenuOnBlur);
+    return () => {
+      window.removeEventListener("mousedown", closeMenuOnOutside);
+      window.removeEventListener("blur", closeMenuOnBlur);
+    };
+  }, []);
   const visibleFilePaths = useMemo(
     () => collectVisibleFilePaths(tree, expandedMap),
     [expandedMap, tree],
@@ -217,174 +182,6 @@ export function ExplorerTree(props: {
     } finally {
       submitLockRef.current = false;
     }
-  };
-  const renderMenu = () => {
-    if (!menu) {
-      return null;
-    }
-    const items: Array<{ key: string; onClick: () => void }> = [];
-    if (mode === "library" && menu.kind === "blank") {
-      items.push(
-        {
-          key: "library.action.importPdf",
-          onClick: () => onImportPdf?.(),
-        },
-        {
-          key: "library.action.importLink",
-          onClick: () => {
-            setLinkDraft("");
-          },
-        },
-        {
-          key: "explorer.action.newFolder",
-          onClick: () => triggerCreate("", "create_folder"),
-        },
-      );
-      if (allowRescan && onRescan) {
-        items.push({
-          key: "explorer.action.rescan",
-          onClick: () => onRescan(),
-        });
-      }
-    } else if (menu.kind === "blank") {
-      items.push(
-        {
-          key: "explorer.action.newFile",
-          onClick: () => triggerCreate("", "create_file"),
-        },
-        {
-          key: "explorer.action.newFolder",
-          onClick: () => triggerCreate("", "create_folder"),
-        },
-        {
-          key: "explorer.action.revealInSystem",
-          onClick: () => onRevealInSystem?.(""),
-        },
-        {
-          key: "explorer.action.openTerminal",
-          onClick: () => onOpenTerminal?.(""),
-        },
-      );
-      if (allowRescan && onRescan) {
-        items.push({
-          key: "explorer.action.rescan",
-          onClick: () => onRescan(),
-        });
-      }
-    } else if (menu.kind === "directory") {
-      if (mode === "workspace") {
-        items.push({
-          key: "explorer.action.newFile",
-          onClick: () => triggerCreate(menu.path, "create_file"),
-        });
-      }
-      items.push(
-        {
-          key: "explorer.action.newFolder",
-          onClick: () => triggerCreate(menu.path, "create_folder"),
-        },
-        {
-          key: "explorer.action.rename",
-          onClick: () => {
-            const parts = menu.path.split("/");
-            const name = parts[parts.length - 1] ?? menu.path;
-            triggerRename(menu.path, name);
-          },
-        },
-        {
-          key: "explorer.action.copy",
-          onClick: () =>
-            setTransferPanel({ action: "copy", sourcePath: menu.path, targetPath: menu.path }),
-        },
-        {
-          key: "explorer.action.delete",
-          onClick: () => onAction?.("delete", menu.path),
-        },
-      );
-      if (mode === "workspace") {
-        items.push({
-          key: "explorer.action.move",
-          onClick: () =>
-            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
-        });
-      }
-      if (mode === "workspace") {
-        items.push(
-          {
-            key: "explorer.action.revealInSystem",
-            onClick: () => onRevealInSystem?.(menu.path),
-          },
-          {
-            key: "explorer.action.openTerminal",
-            onClick: () => onOpenTerminal?.(menu.path),
-          },
-        );
-      }
-    } else {
-      items.push(
-        {
-          key: "explorer.action.rename",
-          onClick: () => {
-            const parts = menu.path.split("/");
-            const name = parts[parts.length - 1] ?? menu.path;
-            triggerRename(menu.path, name);
-          },
-        },
-        {
-          key: "explorer.action.copy",
-          onClick: () =>
-            setTransferPanel({ action: "copy", sourcePath: menu.path, targetPath: menu.path }),
-        },
-        {
-          key: "explorer.action.delete",
-          onClick: () => onAction?.("delete", menu.path),
-        },
-      );
-      if (mode === "workspace") {
-        items.push({
-          key: "explorer.action.move",
-          onClick: () =>
-            setTransferPanel({ action: "move", sourcePath: menu.path, targetPath: menu.path }),
-        });
-      }
-      if (mode === "workspace") {
-        items.push(
-          {
-            key: "explorer.action.revealInSystem",
-            onClick: () => onRevealInSystem?.(menu.path),
-          },
-          {
-            key: "explorer.action.openTerminal",
-            onClick: () => onOpenTerminal?.(menu.path),
-          },
-        );
-      }
-    }
-    const menuContent = (
-      <div
-        ref={menuRef}
-        className="fixed z-[260] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
-        style={{ left: Math.max(8, Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : menu.x) - 180)), top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 220)) }}
-      >
-        {items.map((item) => (
-          <button
-            key={item.key}
-            className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
-            onClick={async (event) => {
-              event.stopPropagation();
-              setMenu(null);
-              await item.onClick();
-            }}
-          >
-            {t(item.key)}
-          </button>
-        ))}
-      </div>
-    );
-    if (typeof document === "undefined") {
-      return menuContent;
-    }
-    return createPortal(menuContent, document.body);
   };
   const renderCreateEditor = (parentPath: string) => {
     if (
@@ -450,6 +247,8 @@ export function ExplorerTree(props: {
             "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
             isSelected
               ? "bg-primary-100 text-primary-900"
+              : dragPreview?.active && node.relativePath === dragSourcePath
+                ? "bg-slate-100 text-slate-500 opacity-60"
               : isDirectory && dropTargetPath === node.relativePath
                 ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
               : isIgnored
@@ -458,59 +257,11 @@ export function ExplorerTree(props: {
           )}
           aria-selected={!isDirectory && isSelected}
           style={indentStyle}
-          draggable={Boolean(onAction)}
           title={node.relativePath}
-          onDragStart={(event) => {
-            if (!onAction) {
-              return;
-            }
-            event.dataTransfer.effectAllowed = "copyMove";
-            event.dataTransfer.setData("application/x-latotex-path", node.relativePath);
-            event.dataTransfer.setData("text/plain", node.relativePath);
-          }}
-          onDragEnd={() => {
-            setDropTargetPath(null);
-          }}
-          onDragOver={(event) => {
-            if (!isDirectory) {
-              return;
-            }
-            const nextTargetPath = allowDirectoryDrop(event, node.relativePath);
-            if (!nextTargetPath) {
-              return;
-            }
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            if (dropTargetPath !== node.relativePath) {
-              setDropTargetPath(node.relativePath);
-            }
-          }}
-          onDragLeave={(event) => {
-            if (!isDirectory) {
-              return;
-            }
-            const relatedTarget = event.relatedTarget as Node | null;
-            if (relatedTarget && (event.currentTarget as HTMLElement).contains(relatedTarget)) {
-              return;
-            }
-            setDropTargetPath((current) => (current === node.relativePath ? null : current));
-          }}
-          onDrop={async (event) => {
-            if (!isDirectory) {
-              return;
-            }
-            const sourcePath = resolveDroppedFilePath(event);
-            const nextTargetPath = sourcePath
-              ? resolveDroppedTargetPath(sourcePath, node.relativePath)
-              : null;
-            setDropTargetPath((current) => (current === node.relativePath ? null : current));
-            if (!sourcePath || !nextTargetPath) {
-              return;
-            }
-            event.preventDefault();
-            event.stopPropagation();
-            await onAction?.("move", sourcePath, nextTargetPath);
-          }}
+          data-explorer-drop-directory={isDirectory ? "true" : undefined}
+          data-path={node.relativePath}
+          onPointerDown={(event) => handlePointerDragStart(event, node.relativePath, node.name)}
+          onMouseDown={(event) => handlePointerDragStart(event, node.relativePath, node.name)}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -522,6 +273,10 @@ export function ExplorerTree(props: {
             });
           }}
           onClick={(event) => {
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              return;
+            }
             if (isDirectory) {
               setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
               return;
@@ -639,37 +394,10 @@ export function ExplorerTree(props: {
   return (
     <div
       ref={rootRef}
-      className="relative flex h-full min-h-0 flex-col"
-      onDragOver={(event) => {
-        const nextTargetPath = allowDirectoryDrop(event, "");
-        if (!nextTargetPath) {
-          return;
-        }
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-        if (dropTargetPath !== "") {
-          setDropTargetPath("");
-        }
-      }}
-      onDragLeave={(event) => {
-        const relatedTarget = event.relatedTarget as Node | null;
-        if (relatedTarget && rootRef.current?.contains(relatedTarget)) {
-          return;
-        }
-        setDropTargetPath(null);
-      }}
-      onDrop={async (event) => {
-        const sourcePath = resolveDroppedFilePath(event);
-        const nextTargetPath = sourcePath
-          ? resolveDroppedTargetPath(sourcePath, "")
-          : null;
-        setDropTargetPath(null);
-        if (!sourcePath || !nextTargetPath) {
-          return;
-        }
-        event.preventDefault();
-        await onAction?.("move", sourcePath, nextTargetPath);
-      }}
+      className={cn(
+        "relative flex h-full min-h-0 flex-col",
+        dragPreview?.active && dropTargetPath === "" && "rounded-lg ring-1 ring-emerald-200",
+      )}
       onContextMenu={(event) => {
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY, path: "", kind: "blank" });
@@ -735,7 +463,41 @@ export function ExplorerTree(props: {
           t={t}
         />
       )}
-      {renderMenu()}
+      <ExplorerContextMenu
+        menu={menu}
+        mode={mode}
+        allowRescan={allowRescan}
+        onClose={() => setMenu(null)}
+        onNewFile={() => triggerCreate(menu?.kind === "directory" ? menu.path : "", "create_file")}
+        onNewFolder={() => triggerCreate(menu?.kind === "directory" ? menu.path : "", "create_folder")}
+        onRename={(path) => {
+          const parts = path.split("/");
+          const name = parts[parts.length - 1] ?? path;
+          triggerRename(path, name);
+        }}
+        onTransfer={(action, path) => setTransferPanel({ action, sourcePath: path, targetPath: path })}
+        onDelete={(path) => onAction?.("delete", path)}
+        onRescan={onRescan}
+        onImportPdf={onImportPdf}
+        onImportLink={() => setLinkDraft("")}
+        onRevealInSystem={onRevealInSystem}
+        onOpenTerminal={onOpenTerminal}
+        t={t}
+      />
+      {dragPreview?.active && typeof document !== "undefined"
+        ? createPortal(
+          <div
+            className="pointer-events-none fixed z-[320] rounded-md border border-emerald-300 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-lg backdrop-blur"
+            style={{
+              left: dragPreview.x + 14,
+              top: dragPreview.y + 14,
+            }}
+          >
+            {dragPreview.name}
+          </div>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

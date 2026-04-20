@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
 const SEARCH_MAX_FILE_SIZE_BYTES: u64 = 8 * 1024 * 1024;
-const SEARCH_INDEX_SCHEMA_VERSION: i64 = 1;
+const SEARCH_INDEX_SCHEMA_VERSION: i64 = 2;
 
 #[derive(Clone)]
 struct SearchScanEntry {
@@ -66,6 +66,7 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
         CREATE TABLE IF NOT EXISTS search_documents (
           relative_path TEXT PRIMARY KEY,
           file_name TEXT NOT NULL,
+          file_name_lower TEXT NOT NULL,
           lower_path TEXT NOT NULL,
           size_bytes INTEGER NOT NULL,
           modified_epoch_sec INTEGER NOT NULL,
@@ -73,6 +74,8 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
           content_text TEXT,
           content_lower TEXT
         );
+        CREATE INDEX IF NOT EXISTS idx_search_documents_file_name_lower
+          ON search_documents(file_name_lower);
         CREATE INDEX IF NOT EXISTS idx_search_documents_lower_path
           ON search_documents(lower_path);
         CREATE INDEX IF NOT EXISTS idx_search_documents_modified_size
@@ -98,6 +101,7 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
             CREATE TABLE search_documents (
               relative_path TEXT PRIMARY KEY,
               file_name TEXT NOT NULL,
+              file_name_lower TEXT NOT NULL,
               lower_path TEXT NOT NULL,
               size_bytes INTEGER NOT NULL,
               modified_epoch_sec INTEGER NOT NULL,
@@ -106,6 +110,11 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
               content_lower TEXT
             )
             ",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_search_documents_file_name_lower ON search_documents(file_name_lower)",
             [],
         )
         .map_err(|e| e.to_string())?;
@@ -259,6 +268,21 @@ fn search_index_needs_refresh(conn: &Connection) -> Result<bool, String> {
     Ok(dirty != 0)
 }
 
+fn normalize_search_scopes(raw: Option<Vec<String>>) -> HashSet<String> {
+    let mut scopes = HashSet::new();
+    for value in raw.unwrap_or_default() {
+        let normalized = value.trim().to_lowercase();
+        if matches!(normalized.as_str(), "file_name" | "file_content") {
+            scopes.insert(normalized);
+        }
+    }
+    if scopes.is_empty() {
+        scopes.insert("file_name".to_string());
+        scopes.insert("file_content".to_string());
+    }
+    scopes
+}
+
 fn sync_search_index(project_root: &Path, force: bool) -> Result<(), String> {
     let project_lock = search_index_project_lock(project_root)?;
     let _guard = project_lock.lock().map_err(|e| e.to_string())?;
@@ -289,15 +313,17 @@ fn sync_search_index(project_root: &Path, force: bool) -> Result<(), String> {
             INSERT INTO search_documents (
               relative_path,
               file_name,
+              file_name_lower,
               lower_path,
               size_bytes,
               modified_epoch_sec,
               searchable,
               content_text,
               content_lower
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             ON CONFLICT(relative_path) DO UPDATE SET
               file_name = excluded.file_name,
+              file_name_lower = excluded.file_name_lower,
               lower_path = excluded.lower_path,
               size_bytes = excluded.size_bytes,
               modified_epoch_sec = excluded.modified_epoch_sec,
@@ -308,6 +334,7 @@ fn sync_search_index(project_root: &Path, force: bool) -> Result<(), String> {
             params![
                 item.relative_path,
                 item.file_name,
+                item.file_name.to_lowercase(),
                 item.relative_path.to_lowercase(),
                 item.size_bytes as i64,
                 item.modified_epoch_sec,
@@ -393,18 +420,18 @@ pub fn search_project_content(
     }
     let limit = input.limit.unwrap_or(200).clamp(1, 500) as usize;
     let root = load_project_root(db_path, &input.project_id)?;
-    sync_search_index(&root, false)?;
     let conn = open_search_index(&root)?;
     let query_lower = query.to_lowercase();
+    let scopes = normalize_search_scopes(input.scopes);
     let mut hits = Vec::new();
 
-    {
+    if scopes.contains("file_name") {
         let mut stmt = conn
             .prepare(
                 "
                 SELECT relative_path
                 FROM search_documents
-                WHERE instr(lower_path, ?1) > 0
+                WHERE instr(file_name_lower, ?1) > 0
                 ORDER BY relative_path COLLATE NOCASE
                 LIMIT ?2
                 ",
@@ -417,15 +444,17 @@ pub fn search_project_content(
             .map_err(|e| e.to_string())?;
         for row in rows {
             hits.push(ProjectSearchHit {
-                relative_path: row.map_err(|e| e.to_string())?,
+                relative_path: Some(row.map_err(|e| e.to_string())?),
                 line_number: None,
-                match_kind: "path".to_string(),
-                snippet: "Path match".to_string(),
+                match_kind: "file_name".to_string(),
+                snippet: "File name match".to_string(),
+                session_id: None,
+                title: None,
             });
         }
     }
 
-    if hits.len() < limit {
+    if scopes.contains("file_content") && hits.len() < limit {
         let remaining = limit - hits.len();
         let mut stmt = conn
             .prepare(
@@ -457,12 +486,14 @@ pub fn search_project_content(
                     continue;
                 }
                 hits.push(ProjectSearchHit {
-                    relative_path: relative_path.clone(),
+                    relative_path: Some(relative_path.clone()),
                     line_number: Some((index + 1) as u32),
-                    match_kind: "content".to_string(),
+                    match_kind: "file_content".to_string(),
                     snippet: truncate_chars(line.trim(), 220),
+                    session_id: None,
+                    title: None,
                 });
-                if hits.len() >= limit || hits.iter().filter(|hit| hit.match_kind == "content").count() >= remaining {
+                if hits.len() >= limit || hits.iter().filter(|hit| hit.match_kind == "file_content").count() >= remaining {
                     break;
                 }
             }
@@ -473,8 +504,8 @@ pub fn search_project_content(
     }
 
     hits.sort_by(|a, b| {
-        let a_rank = if a.match_kind == "path" { 0_u8 } else { 1_u8 };
-        let b_rank = if b.match_kind == "path" { 0_u8 } else { 1_u8 };
+        let a_rank = if a.match_kind == "file_name" { 0_u8 } else { 1_u8 };
+        let b_rank = if b.match_kind == "file_name" { 0_u8 } else { 1_u8 };
         a_rank
             .cmp(&b_rank)
             .then_with(|| a.relative_path.cmp(&b.relative_path))

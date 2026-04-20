@@ -536,6 +536,7 @@ mod workspace_files_search_tests {
             "first line\nalpha keyword appears here\nthird line",
         )
         .unwrap();
+        prepare_project_search_index(&db_path, &project_id).unwrap();
 
         let hits = search_project_content(
             &db_path,
@@ -543,18 +544,19 @@ mod workspace_files_search_tests {
                 project_id,
                 query: "alpha".to_string(),
                 limit: Some(20),
+                scopes: None,
             },
         )
         .unwrap();
 
         assert!(hits.iter().any(|hit| {
-            hit.match_kind == "path"
-                && hit.relative_path == "AlphaNotes.txt"
+            hit.match_kind == "file_name"
+                && hit.relative_path.as_deref() == Some("AlphaNotes.txt")
                 && hit.line_number.is_none()
         }));
         assert!(hits.iter().any(|hit| {
-            hit.match_kind == "content"
-                && hit.relative_path == "AlphaNotes.txt"
+            hit.match_kind == "file_content"
+                && hit.relative_path.as_deref() == Some("AlphaNotes.txt")
                 && hit.line_number == Some(2)
                 && hit.snippet.contains("alpha keyword")
         }));
@@ -563,7 +565,7 @@ mod workspace_files_search_tests {
     }
 
     #[test]
-    fn search_project_content_rebuilds_after_file_save_marks_index_dirty() {
+    fn search_project_content_uses_refreshed_index_after_file_save() {
         let (temp_root, project_id, project_root, db_path) =
             create_project_fixture("search-dirty-refresh");
         fs::write(project_root.join("notes.txt"), "first version").unwrap();
@@ -578,6 +580,7 @@ mod workspace_files_search_tests {
             },
         )
         .unwrap();
+        prepare_project_search_index(&db_path, &project_id).unwrap();
 
         let hits = search_project_content(
             &db_path,
@@ -585,13 +588,14 @@ mod workspace_files_search_tests {
                 project_id,
                 query: "keyword".to_string(),
                 limit: Some(20),
+                scopes: Some(vec!["file_content".to_string()]),
             },
         )
         .unwrap();
 
         assert!(hits.iter().any(|hit| {
-            hit.match_kind == "content"
-                && hit.relative_path == "notes.txt"
+            hit.match_kind == "file_content"
+                && hit.relative_path.as_deref() == Some("notes.txt")
                 && hit.snippet.contains("updated keyword line")
         }));
 

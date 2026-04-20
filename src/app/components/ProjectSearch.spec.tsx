@@ -13,7 +13,12 @@ const translations: Record<string, string> = {
   "topbar.clearSearch": "Clear search",
   "topbar.searchGroupFiles": "Files",
   "topbar.searchGroupContent": "Content",
-  "topbar.searchPathMatch": "Path match",
+  "topbar.searchGroupSessions": "Sessions",
+  "topbar.searchScopeFileName": "File name",
+  "topbar.searchScopeContent": "File content",
+  "topbar.searchScopeSessions": "Session name",
+  "topbar.searchFileNameMatch": "File name match",
+  "topbar.searchSessionMatch": "Session title match",
 };
 
 describe("ProjectSearch", () => {
@@ -42,7 +47,7 @@ describe("ProjectSearch", () => {
       relativePath: "src/main.tex",
       lineNumber: 12,
       snippet: "content preview",
-      matchKind: "content",
+      matchKind: "file_content",
     };
 
     await act(async () => {
@@ -67,6 +72,7 @@ describe("ProjectSearch", () => {
       vi.advanceTimersByTime(220);
     });
     expect(onSearch).toHaveBeenCalledTimes(1);
+    expect(onSearch).toHaveBeenCalledWith(["file_name", "file_content", "chat_session"]);
 
     await act(async () => {
       root.render(

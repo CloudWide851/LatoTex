@@ -29,7 +29,7 @@ import {
 } from "./workspace/workspaceShellLazy";
 import { buildNewChatTabState } from "./workspace/workspaceChatTab";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
-import { createChatSessionInStore } from "../hooks/chatSessionStore";
+import { createChatSessionInStore, loadChatStore, type ChatSessionOpenDetail } from "../hooks/chatSessionStore";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
@@ -188,6 +188,27 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       setChatTabActive(false);
     }
   }, [page]);
+  useEffect(() => {
+    if (!activeProjectId || typeof window === "undefined") {
+      return;
+    }
+    const handleOpenChatSession = (event: Event) => {
+      const custom = event as CustomEvent<ChatSessionOpenDetail>;
+      if (!custom.detail || custom.detail.projectId !== activeProjectId) {
+        return;
+      }
+      const store = loadChatStore(activeProjectId);
+      const title = store.sessions.find((item) => item.id === custom.detail.sessionId)?.title ?? null;
+      setChatTabOpen(true);
+      setChatTabActive(true);
+      setChatTabTitle(title);
+      onPageChange("latex");
+    };
+    window.addEventListener("latotex.chat.session.open", handleOpenChatSession as EventListener);
+    return () => {
+      window.removeEventListener("latotex.chat.session.open", handleOpenChatSession as EventListener);
+    };
+  }, [activeProjectId, onPageChange]);
 
   useEffect(() => {
     emitWorkspaceLayoutRefresh(page, "page-change");

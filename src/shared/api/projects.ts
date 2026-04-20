@@ -1,6 +1,7 @@
 import type {
   ProjectIntegrityStatus,
   ProjectSearchHit,
+  ProjectSearchScope,
   ProjectSnapshot,
   ProjectSummary,
 } from "../types/app";
@@ -38,9 +39,10 @@ export function projectSearchContent(
   projectId: string,
   query: string,
   limit = 200,
+  scopes?: ProjectSearchScope[],
 ): Promise<ProjectSearchHit[]> {
   return invokeCommand<ProjectSearchHit[]>("project_search_content", {
-    input: { projectId, query, limit },
+    input: { projectId, query, limit, scopes },
   });
 }
 

@@ -10,6 +10,11 @@ export const enUS_topbar = {
   "topbar.clearSearch": "Clear search",
   "topbar.searchGroupFiles": "Files",
   "topbar.searchGroupContent": "Content",
-  "topbar.searchPathMatch": "Path match",
+  "topbar.searchGroupSessions": "Sessions",
+  "topbar.searchScopeFileName": "File name",
+  "topbar.searchScopeContent": "File content",
+  "topbar.searchScopeSessions": "Session name",
+  "topbar.searchFileNameMatch": "File name match",
+  "topbar.searchSessionMatch": "Session title match",
   "topbar.share": "Share",
 } as const;

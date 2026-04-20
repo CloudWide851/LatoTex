@@ -5,7 +5,7 @@ import {
   Minus,
   X,
 } from "lucide-react";
-import type { ProjectSearchHit, ProjectSummary } from "../../shared/types/app";
+import type { ProjectSearchHit, ProjectSearchScope, ProjectSummary } from "../../shared/types/app";
 import { ProjectSearch } from "./ProjectSearch";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
@@ -25,7 +25,7 @@ export function AppTopbar(props: {
   projectSearchResults: ProjectSearchHit[];
   onProjectChange: (id: string | null) => void;
   onProjectSearchQueryChange: (query: string) => void;
-  onProjectSearch: () => void;
+  onProjectSearch: (scopes: ProjectSearchScope[]) => void;
   onProjectSearchSelect: (hit: ProjectSearchHit) => void;
   onProjectSearchClear: () => void;
   onOpenFolder: () => void;

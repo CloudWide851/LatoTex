@@ -1,9 +1,16 @@
 import type { MutableRefObject } from "react";
 import type { PdfPageMetrics, PdfScrollAnchor } from "./libraryPdfScrollState";
 
+export type LibraryPdfScrollSyncMessage = {
+  revision: number;
+  sourceId: string;
+  anchor: PdfScrollAnchor;
+};
+
 export type LibraryPdfScrollSyncGroup = {
-  viewers: Map<string, (anchor: PdfScrollAnchor) => void>;
-  lastAnchor: PdfScrollAnchor;
+  viewers: Map<string, (message: LibraryPdfScrollSyncMessage) => void>;
+  lastMessage: LibraryPdfScrollSyncMessage | null;
+  nextRevision: number;
 };
 
 export function clampPdfScrollRatio(value: number): number {
@@ -26,11 +33,8 @@ export function ensurePdfScrollSyncGroup(
   if (!syncGroupRef.current) {
     syncGroupRef.current = {
       viewers: new Map(),
-      lastAnchor: {
-        page: 1,
-        pageFocusRatio: 0,
-        absoluteRatio: 0,
-      },
+      lastMessage: null,
+      nextRevision: 1,
     };
   }
   return syncGroupRef.current;

@@ -1,10 +1,11 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type MouseEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type WheelEvent as ReactWheelEvent } from "react";
 import { Document } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
 import { LibraryPdfLensOverlay } from "./LibraryPdfLensOverlay";
 import { LibraryPdfScrollViewerPage } from "./LibraryPdfScrollViewerPage";
 import { resolvePdfScrollAnchor, resolveScrollTopForPdfAnchor, resolveVisiblePdfPage, type PdfScrollAnchor } from "./libraryPdfScrollState";
-import { collectPdfPageMetrics, ensurePdfScrollSyncGroup, maxPdfScrollTop } from "./libraryPdfScrollViewerShared";
+import { collectPdfPageMetrics, ensurePdfScrollSyncGroup, maxPdfScrollTop, type LibraryPdfScrollSyncMessage } from "./libraryPdfScrollViewerShared";
+import { buildLibraryPdfViewerRootProps, LibraryPdfViewerErrorState } from "./libraryPdfScrollViewerShell";
 import { arePdfScrollAnchorsEqual, type LensPendingPoint, type LibraryPdfScrollViewerHandle, type LibraryPdfScrollViewerProps, LENS_SCALE, LENS_SIZE, MAX_LIBRARY_PDF_ZOOM, MIN_LIBRARY_PDF_ZOOM, normalizePdfScrollAnchor } from "./libraryPdfScrollViewerConfig";
 import { useLibraryPdfLayoutRefresh } from "./useLibraryPdfLayoutRefresh";
 
@@ -83,6 +84,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   const lensPageRef = useRef(1);
   const lastVisiblePageRef = useRef(1);
   const lastInitializedPdfUrlRef = useRef<string | null>(null);
+  const lastSyncRevisionRef = useRef(0);
   const onVisiblePageChangeRef = useRef(onVisiblePageChange);
   const onPageCountChangeRef = useRef(onPageCountChange);
   const onScrollAnchorChangeRef = useRef(onScrollAnchorChange);
@@ -91,21 +93,15 @@ export const LibraryPdfScrollViewer = forwardRef<
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
-  const [lensActive, setLensActive] = useState(false);
-  const [lensVisible, setLensVisible] = useState(false);
-  const [lensPage, setLensPage] = useState(1);
+  const [lensActive, setLensActive] = useState(false), [lensVisible, setLensVisible] = useState(false), [lensPage, setLensPage] = useState(1);
   const lensEnabled = enableLens && (readOnly || mode === "select");
   onVisiblePageChangeRef.current = onVisiblePageChange;
   onPageCountChangeRef.current = onPageCountChange;
   onScrollAnchorChangeRef.current = onScrollAnchorChange;
-  onScrollRatioChangeRef.current = onScrollRatioChange;
-  onDocumentLoadErrorRef.current = onDocumentLoadError;
+  onScrollRatioChangeRef.current = onScrollRatioChange; onDocumentLoadErrorRef.current = onDocumentLoadError;
 
   const pages = useMemo(() => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1), [documentPages]);
-  const frameWidth = useMemo(() => {
-    const base = Math.max(360, Math.floor((viewportWidth - 42) * 0.92));
-    return Math.floor(base * zoom);
-  }, [viewportWidth, zoom]);
+  const frameWidth = useMemo(() => Math.floor(Math.max(360, Math.floor((viewportWidth - 42) * 0.92)) * zoom), [viewportWidth, zoom]);
   const lensPageWidth = useMemo(() => Math.max(280, Math.floor(frameWidth * LENS_SCALE)), [frameWidth]);
 
   const updateVisiblePage = useCallback(() => {
@@ -169,6 +165,53 @@ export const LibraryPdfScrollViewer = forwardRef<
       emitScrollAnchor(normalized);
     });
   }, [documentPages, emitScrollAnchor, updateVisiblePage]);
+  const applySyncMessage = useCallback((message: LibraryPdfScrollSyncMessage) => {
+    const root = scrollRef.current;
+    if (!root || message.revision <= lastSyncRevisionRef.current) {
+      return;
+    }
+    lastSyncRevisionRef.current = message.revision;
+    const normalized = normalizePdfScrollAnchor(message.anchor);
+    const limit = maxPdfScrollTop(root);
+    const metrics = collectPdfPageMetrics(pageRefs.current, documentPages);
+    const targetTop = resolveScrollTopForPdfAnchor(metrics, normalized, root.clientHeight, limit);
+    pendingRestoreAnchorRef.current = normalized;
+    emitScrollAnchor(normalized);
+    if (Math.abs(root.scrollTop - targetTop) < 2) {
+      updateVisiblePage();
+      return;
+    }
+    syncingScrollRef.current = true;
+    root.scrollTop = targetTop;
+    if (syncResetRafRef.current !== null) {
+      window.cancelAnimationFrame(syncResetRafRef.current);
+    }
+    syncResetRafRef.current = window.requestAnimationFrame(() => {
+      syncingScrollRef.current = false;
+      syncResetRafRef.current = null;
+      updateVisiblePage();
+    });
+  }, [documentPages, emitScrollAnchor, updateVisiblePage]);
+  const broadcastSyncAnchor = useCallback((anchor: PdfScrollAnchor) => {
+    const group = syncGroupRef?.current;
+    if (!group) {
+      return;
+    }
+    const message: LibraryPdfScrollSyncMessage = {
+      revision: group.nextRevision,
+      sourceId: syncId,
+      anchor,
+    };
+    group.nextRevision += 1;
+    group.lastMessage = message;
+    lastSyncRevisionRef.current = message.revision;
+    for (const [viewerId, applyMessage] of group.viewers.entries()) {
+      if (viewerId === syncId) {
+        continue;
+      }
+      applyMessage(message);
+    }
+  }, [syncGroupRef, syncId]);
   const markViewerLayoutDirty = useCallback(() => {
     renderedPagesRef.current = new Set();
     pendingRenderRestoreRef.current = true;
@@ -255,6 +298,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     lastInitializedPdfUrlRef.current = pdfUrl;
     const normalized = normalizePdfScrollAnchor(initialScrollAnchor, initialScrollRatio);
     setDocumentLoadError(null);
+    lastSyncRevisionRef.current = 0;
     pendingScrollPageRef.current = null;
     pageRefs.current = {};
     renderedPagesRef.current = new Set();
@@ -316,37 +360,10 @@ export const LibraryPdfScrollViewer = forwardRef<
     if (!group) {
       return;
     }
-    const applyAnchor = (anchor: PdfScrollAnchor) => {
-      const root = scrollRef.current;
-      if (!root) {
-        return;
-      }
-      const normalized = normalizePdfScrollAnchor(anchor);
-      const limit = maxPdfScrollTop(root);
-      const metrics = collectPdfPageMetrics(pageRefs.current, documentPages);
-      const targetTop = resolveScrollTopForPdfAnchor(metrics, normalized, root.clientHeight, limit);
-      pendingRestoreAnchorRef.current = normalized;
-      emitScrollAnchor(normalized);
-      if (Math.abs(root.scrollTop - targetTop) < 2) {
-        return;
-      }
-      syncingScrollRef.current = true;
-      root.scrollTop = targetTop;
-      if (syncResetRafRef.current !== null) {
-        window.cancelAnimationFrame(syncResetRafRef.current);
-      }
-      syncResetRafRef.current = window.requestAnimationFrame(() => {
-        syncingScrollRef.current = false;
-        syncResetRafRef.current = null;
-        updateVisiblePage();
-      });
-    };
-    group.viewers.set(syncId, applyAnchor);
-    const initialAnchor =
-      group.lastAnchor.absoluteRatio > 0 || group.lastAnchor.page !== 1 || group.lastAnchor.pageFocusRatio > 0
-        ? group.lastAnchor
-        : pendingRestoreAnchorRef.current;
-    applyAnchor(initialAnchor);
+    group.viewers.set(syncId, applySyncMessage);
+    if (group.lastMessage && group.lastMessage.revision > lastSyncRevisionRef.current) {
+      applySyncMessage(group.lastMessage);
+    }
     return () => {
       group.viewers.delete(syncId);
       if (syncGroupRef?.current === group && group.viewers.size === 0) {
@@ -357,7 +374,7 @@ export const LibraryPdfScrollViewer = forwardRef<
         syncResetRafRef.current = null;
       }
     };
-  }, [documentPages, emitScrollAnchor, syncGroupRef, syncId, updateVisiblePage]);
+  }, [applySyncMessage, syncGroupRef, syncId]);
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) {
@@ -383,17 +400,7 @@ export const LibraryPdfScrollViewer = forwardRef<
           ratio,
         );
         emitScrollAnchor(anchor);
-        const group = syncGroupRef?.current;
-        if (!group) {
-          return;
-        }
-        group.lastAnchor = anchor;
-        for (const [viewerId, applyAnchor] of group.viewers.entries()) {
-          if (viewerId === syncId) {
-            continue;
-          }
-          applyAnchor(anchor);
-        }
+        broadcastSyncAnchor(anchor);
       });
     };
     root.addEventListener("scroll", onScroll, { passive: true });
@@ -404,28 +411,26 @@ export const LibraryPdfScrollViewer = forwardRef<
         scrollRafRef.current = null;
       }
     };
-  }, [documentPages, emitScrollAnchor, syncGroupRef, syncId, updateVisiblePage]);
+  }, [broadcastSyncAnchor, documentPages, emitScrollAnchor, updateVisiblePage]);
 
   useEffect(() => {
-    const group = syncGroupRef?.current;
-    if (!group) {
+    const group = ensurePdfScrollSyncGroup(syncGroupRef);
+    if (!group || !group.lastMessage) {
       restoreScrollAnchor();
       return;
     }
-    const viewer = group.viewers.get(syncId);
-    if (!viewer) {
-      restoreScrollAnchor();
+    if (group.lastMessage.revision <= lastSyncRevisionRef.current) {
       return;
     }
     const timer = window.setTimeout(() => {
-      viewer(
-        group.lastAnchor.absoluteRatio > 0 || group.lastAnchor.page !== 1 || group.lastAnchor.pageFocusRatio > 0
-          ? group.lastAnchor
-          : pendingRestoreAnchorRef.current,
-      );
+      applySyncMessage(group.lastMessage ?? {
+        revision: 0,
+        sourceId: syncId,
+        anchor: pendingRestoreAnchorRef.current,
+      });
     }, 40);
     return () => window.clearTimeout(timer);
-  }, [documentPages, pdfUrl, restoreScrollAnchor, syncGroupRef, syncId, viewportWidth]);
+  }, [applySyncMessage, documentPages, pdfUrl, restoreScrollAnchor, syncGroupRef, syncId, viewportWidth]);
   useEffect(() => {
     const pending = pendingScrollPageRef.current;
     if (pending === null) {
@@ -442,15 +447,12 @@ export const LibraryPdfScrollViewer = forwardRef<
     });
     pendingScrollPageRef.current = null;
   }, [documentPages, pages, viewportWidth]);
-  const rootProps = {
-    ref: scrollRef,
-    className: `${containerClassName}${lensEnabled && lensActive ? " cursor-zoom-out" : ""}`,
-    tabIndex: 0,
-    "data-library-pdf-scroll": "true",
-    style: {
-      touchAction: "pan-x pan-y" as const,
-      overscrollBehavior: "contain" as const,
-    },
+  const rootProps = buildLibraryPdfViewerRootProps({
+    lensEnabled,
+    lensActive,
+    containerClassName,
+    readOnly,
+    onRequestToolConfig,
     onWheelCapture: (event: ReactWheelEvent<HTMLDivElement>) => {
       const root = scrollRef.current;
       if (!root || event.ctrlKey || Math.abs(event.deltaY) < Math.abs(event.deltaX) || !isPdfViewerWheelTarget(event.target)) {
@@ -470,24 +472,18 @@ export const LibraryPdfScrollViewer = forwardRef<
         onZoomChange(nextZoom);
       }
     },
-    onContextMenu: readOnly || !onRequestToolConfig ? undefined : (event: MouseEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      onRequestToolConfig();
-    },
-  };
+  });
 
   if (documentLoadError) {
     return (
-      <div {...rootProps}>
-        <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          {t("library.viewer.error")} {documentLoadError}
-        </div>
-      </div>
+      <LibraryPdfViewerErrorState rootProps={rootProps}>
+        <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {documentLoadError}</div>
+      </LibraryPdfViewerErrorState>
     );
   }
 
   return (
-    <div {...rootProps}>
+    <div ref={scrollRef} {...rootProps}>
       <Document
         key={pdfUrl}
         file={pdfUrl}

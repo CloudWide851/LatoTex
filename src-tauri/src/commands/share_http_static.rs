@@ -54,6 +54,18 @@ fn resolve_share_vendor_root() -> Option<PathBuf> {
     candidates.into_iter().find(|candidate| candidate.exists())
 }
 
+fn resolve_share_page_root() -> Option<PathBuf> {
+    let mut candidates = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/share-page")];
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("resources/core/share-page"));
+            candidates.push(exe_dir.join("core/share-page"));
+            candidates.push(exe_dir.join("../resources/core/share-page"));
+        }
+    }
+    candidates.into_iter().find(|candidate| candidate.exists())
+}
+
 fn normalize_vendor_relative_path(request_path: &str) -> Result<PathBuf, String> {
     let relative = request_path
         .trim()
@@ -89,6 +101,15 @@ fn vendor_header_for_path(path: &Path) -> Header {
     }
 }
 
+fn share_page_header_for_path(path: &Path) -> Header {
+    match path.extension().and_then(|value| value.to_str()).unwrap_or_default() {
+        "html" => content_type_header("text/html; charset=utf-8"),
+        "js" | "mjs" => javascript_header(),
+        "css" => css_header(),
+        _ => content_type_header("application/octet-stream"),
+    }
+}
+
 fn try_vendor_response(path: &str) -> Option<Response<std::io::Cursor<Vec<u8>>>> {
     let root = resolve_share_vendor_root()?;
     let relative = normalize_vendor_relative_path(path).ok()?;
@@ -97,15 +118,23 @@ fn try_vendor_response(path: &str) -> Option<Response<std::io::Cursor<Vec<u8>>>>
     Some(static_bytes_response(bytes, vendor_header_for_path(&absolute)))
 }
 
+fn try_share_page_asset_response(path: &str) -> Option<Response<std::io::Cursor<Vec<u8>>>> {
+    let root = resolve_share_page_root()?;
+    let absolute = match path {
+        "/" => root.join("index.html"),
+        "/assets/share_page.js" => root.join("share_page.js"),
+        "/assets/share_page.css" => root.join("share_page.css"),
+        _ => return None,
+    };
+    let bytes = fs::read(&absolute).ok()?;
+    Some(static_bytes_response(bytes, share_page_header_for_path(&absolute)))
+}
+
 pub(super) fn try_serve_static_route(
     method: &Method,
     path: &str,
     request: Request,
 ) -> Option<Request> {
-    if *method == Method::Get && path == "/" {
-        let _ = request.respond(html_response(include_str!("share_page.html")));
-        return None;
-    }
     if *method == Method::Get && path == "/favicon.ico" {
         let _ = request.respond(share_http_response::with_share_cors(
             Response::empty(StatusCode(204)).with_header(no_cache_header()),
@@ -114,6 +143,14 @@ pub(super) fn try_serve_static_route(
     }
     if *method != Method::Get {
         return Some(request);
+    }
+    if let Some(response) = try_share_page_asset_response(path) {
+        let _ = request.respond(response);
+        return None;
+    }
+    if path == "/" {
+        let _ = request.respond(html_response(include_str!("share_page.html")));
+        return None;
     }
     if let Some(response) = try_vendor_response(path) {
         let _ = request.respond(response);
@@ -155,14 +192,6 @@ pub(super) fn try_serve_static_route(
         "/assets/share_page_utils.js" => Some(static_text_response(
             include_str!("share_page_utils.js"),
             javascript_header(),
-        )),
-        "/assets/share_page_theme.css" => Some(static_text_response(
-            include_str!("share_page_theme.css"),
-            css_header(),
-        )),
-        "/assets/share_page_layout.css" => Some(static_text_response(
-            include_str!("share_page_layout.css"),
-            css_header(),
         )),
         "/assets/pico.min.css" => Some(static_text_response(
             include_str!("share_page_pico.min.css"),

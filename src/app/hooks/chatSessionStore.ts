@@ -24,6 +24,11 @@ export type ChatStoreChangeDetail = {
   activeSessionId: string | null;
 };
 
+export type ChatSessionOpenDetail = {
+  projectId: string;
+  sessionId: string;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -41,8 +46,25 @@ export function createChatStoreChangedEvent(
   return new CustomEvent<ChatStoreChangeDetail>("latotex.chat.store.changed", { detail });
 }
 
+export function createChatSessionOpenEvent(
+  detail: ChatSessionOpenDetail,
+): CustomEvent<ChatSessionOpenDetail> | null {
+  if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
+    return null;
+  }
+  return new CustomEvent<ChatSessionOpenDetail>("latotex.chat.session.open", { detail });
+}
+
 function emitChatStoreChanged(detail: ChatStoreChangeDetail) {
   const event = createChatStoreChangedEvent(detail);
+  if (!event || typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(event);
+}
+
+export function requestOpenChatSession(detail: ChatSessionOpenDetail) {
+  const event = createChatSessionOpenEvent(detail);
   if (!event || typeof window === "undefined") {
     return;
   }

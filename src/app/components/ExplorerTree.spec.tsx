@@ -40,12 +40,43 @@ describe("ExplorerTree", () => {
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
+    if (!("PointerEvent" in window)) {
+      Object.defineProperty(window, "PointerEvent", {
+        configurable: true,
+        value: MouseEvent,
+      });
+    }
   });
 
   afterEach(() => {
     document.body.innerHTML = "";
     vi.restoreAllMocks();
   });
+
+  async function dragNode(source: Element | null | undefined, target: Element | null | undefined) {
+    expect(source).toBeTruthy();
+    expect(target).toBeTruthy();
+    if (!("elementFromPoint" in document)) {
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        value: () => target as Element,
+      });
+    }
+    const elementFromPoint = vi.spyOn(document, "elementFromPoint");
+    elementFromPoint.mockImplementation(() => target as Element);
+
+    await act(async () => {
+      source?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, clientX: 12, clientY: 14 }));
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+    });
+  }
 
   it("supports ctrl and shift file multi-selection without turning directories into active files", async () => {
     const container = document.createElement("div");
@@ -142,7 +173,7 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("moves a library file into a directory when dropped on that folder", async () => {
+  it("moves a library file into a directory through pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -165,29 +196,8 @@ describe("ExplorerTree", () => {
     const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
     expect(archiveNode).toBeTruthy();
 
-    const dataTransfer = {
-      effectAllowed: "",
-      dropEffect: "",
-      getData: (key: string) => {
-        if (key === "application/x-latotex-path" || key === "text/plain") {
-          return "papers/demo.bib";
-        }
-        return "";
-      },
-      setData: () => undefined,
-    };
-
-    await act(async () => {
-      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
-
-    await act(async () => {
-      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
+    const fileNode = nodes.find((node) => node.getAttribute("title") === "papers/demo.bib");
+    await dragNode(fileNode, archiveNode);
 
     expect(onAction).toHaveBeenCalledWith("move", "papers/demo.bib", "archive/demo.bib");
 
@@ -197,7 +207,7 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("moves a library directory into another directory when dropped", async () => {
+  it("moves a library directory into another directory through pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -222,29 +232,7 @@ describe("ExplorerTree", () => {
     expect(papersNode).toBeTruthy();
     expect(archiveNode).toBeTruthy();
 
-    const dataTransfer = {
-      effectAllowed: "",
-      dropEffect: "",
-      getData: (key: string) => {
-        if (key === "application/x-latotex-path" || key === "text/plain") {
-          return "papers";
-        }
-        return "";
-      },
-      setData: () => undefined,
-    };
-
-    await act(async () => {
-      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
-
-    await act(async () => {
-      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
+    await dragNode(papersNode, archiveNode);
 
     expect(onAction).toHaveBeenCalledWith("move", "papers", "archive/papers");
 
@@ -254,7 +242,7 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("moves a workspace file into a directory when dropped on that folder", async () => {
+  it("moves a workspace file into a directory through pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -276,29 +264,8 @@ describe("ExplorerTree", () => {
     const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
     expect(archiveNode).toBeTruthy();
 
-    const dataTransfer = {
-      effectAllowed: "",
-      dropEffect: "",
-      getData: (key: string) => {
-        if (key === "application/x-latotex-path" || key === "text/plain") {
-          return "papers/demo.bib";
-        }
-        return "";
-      },
-      setData: () => undefined,
-    };
-
-    await act(async () => {
-      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
-
-    await act(async () => {
-      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
+    const fileNode = nodes.find((node) => node.getAttribute("title") === "papers/demo.bib");
+    await dragNode(fileNode, archiveNode);
 
     expect(onAction).toHaveBeenCalledWith("move", "papers/demo.bib", "archive/demo.bib");
 
@@ -308,7 +275,7 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("moves a workspace directory into another directory when dropped", async () => {
+  it("moves a workspace directory into another directory through pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -330,29 +297,8 @@ describe("ExplorerTree", () => {
     const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
     expect(archiveNode).toBeTruthy();
 
-    const dataTransfer = {
-      effectAllowed: "",
-      dropEffect: "",
-      getData: (key: string) => {
-        if (key === "application/x-latotex-path" || key === "text/plain") {
-          return "papers";
-        }
-        return "";
-      },
-      setData: () => undefined,
-    };
-
-    await act(async () => {
-      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
-
-    await act(async () => {
-      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      archiveNode?.dispatchEvent(event);
-    });
+    const papersNode = nodes.find((node) => node.getAttribute("title") === "papers");
+    await dragNode(papersNode, archiveNode);
 
     expect(onAction).toHaveBeenCalledWith("move", "papers", "archive/papers");
 
@@ -362,7 +308,7 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("blocks invalid library directory drops into the same tree branch", async () => {
+  it("blocks invalid library directory drops into the same tree branch during pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -385,29 +331,8 @@ describe("ExplorerTree", () => {
     const nestedNode = nodes.find((node) => node.getAttribute("title") === "papers/nested");
     expect(nestedNode).toBeTruthy();
 
-    const dataTransfer = {
-      effectAllowed: "",
-      dropEffect: "",
-      getData: (key: string) => {
-        if (key === "application/x-latotex-path" || key === "text/plain") {
-          return "papers";
-        }
-        return "";
-      },
-      setData: () => undefined,
-    };
-
-    await act(async () => {
-      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      nestedNode?.dispatchEvent(event);
-    });
-
-    await act(async () => {
-      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
-      event.dataTransfer = dataTransfer;
-      nestedNode?.dispatchEvent(event);
-    });
+    const papersNode = nodes.find((node) => node.getAttribute("title") === "papers");
+    await dragNode(papersNode, nestedNode);
 
     expect(onAction).not.toHaveBeenCalled();
 

@@ -2,7 +2,7 @@ import { Search, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
-import type { ProjectSearchHit } from "../../shared/types/app";
+import type { ProjectSearchHit, ProjectSearchScope } from "../../shared/types/app";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
 import {
   buildFloatingSurfaceStyle,
@@ -19,7 +19,7 @@ export function ProjectSearch(props: {
   searching: boolean;
   searched: boolean;
   results: ProjectSearchHit[];
-  onSearch: () => void;
+  onSearch: (scopes: ProjectSearchScope[]) => void;
   onSelect: (hit: ProjectSearchHit) => void;
   onClear: () => void;
   disabled?: boolean;
@@ -40,18 +40,31 @@ export function ProjectSearch(props: {
   const [open, setOpen] = useState(false);
   const [queuedSearch, setQueuedSearch] = useState(false);
   const [panelStyle, setPanelStyle] = useState({});
+  const [scopes, setScopes] = useState<ProjectSearchScope[]>(["file_name", "file_content", "chat_session"]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const normalizedQuery = query.trim();
-  const pathHits = useMemo(
-    () => results.filter((item) => item.matchKind === "path"),
+  const fileNameHits = useMemo(
+    () => results.filter((item) => item.matchKind === "file_name"),
     [results],
   );
   const contentHits = useMemo(
-    () => results.filter((item) => item.matchKind !== "path"),
+    () => results.filter((item) => item.matchKind === "file_content"),
+    [results],
+  );
+  const chatHits = useMemo(
+    () => results.filter((item) => item.matchKind === "chat_session"),
     [results],
   );
   const showSearching = normalizedQuery.length > 0 && (queuedSearch || searching);
+  const toggleScope = (scope: ProjectSearchScope) => {
+    setScopes((prev) => {
+      if (prev.includes(scope)) {
+        return prev.length === 1 ? prev : prev.filter((item) => item !== scope);
+      }
+      return [...prev, scope];
+    });
+  };
 
   useDropdownDismiss({
     open,
@@ -102,10 +115,10 @@ export function ProjectSearch(props: {
     }
     setQueuedSearch(true);
     const timer = window.setTimeout(() => {
-      onSearch();
+      onSearch(scopes);
     }, 220);
     return () => window.clearTimeout(timer);
-  }, [disabled, normalizedQuery, onClear, onSearch]);
+  }, [disabled, normalizedQuery, onClear, onSearch, scopes]);
 
   useEffect(() => {
     if (!open) {
@@ -130,17 +143,67 @@ export function ProjectSearch(props: {
       {showSearching ? (
         <div className="px-2 py-1.5 text-xs text-[color:var(--control-muted)]">{t("topbar.searching")}</div>
       ) : results.length === 0 ? (
-        <div className="px-2 py-1.5 text-xs text-[color:var(--control-muted)]">{t("topbar.noSearchResults")}</div>
+        <div className="space-y-2 p-2">
+          <div className="flex flex-wrap gap-1">
+            {([
+              ["file_name", "topbar.searchScopeFileName"],
+              ["file_content", "topbar.searchScopeContent"],
+              ["chat_session", "topbar.searchScopeSessions"],
+            ] as Array<[ProjectSearchScope, string]>).map(([scope, labelKey]) => {
+              const active = scopes.includes(scope);
+              return (
+                <button
+                  key={scope}
+                  type="button"
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                    active
+                      ? "border-primary-500 bg-primary-50 text-primary-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                  )}
+                  onClick={() => toggleScope(scope)}
+                >
+                  {t(labelKey)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="px-1 text-xs text-[color:var(--control-muted)]">{t("topbar.noSearchResults")}</div>
+        </div>
       ) : (
         <div className="space-y-1 p-1">
-          {pathHits.length > 0 ? (
+          <div className="mb-1 flex flex-wrap gap-1 px-1">
+            {([
+              ["file_name", "topbar.searchScopeFileName"],
+              ["file_content", "topbar.searchScopeContent"],
+              ["chat_session", "topbar.searchScopeSessions"],
+            ] as Array<[ProjectSearchScope, string]>).map(([scope, labelKey]) => {
+              const active = scopes.includes(scope);
+              return (
+                <button
+                  key={scope}
+                  type="button"
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                    active
+                      ? "border-primary-500 bg-primary-50 text-primary-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+                  )}
+                  onClick={() => toggleScope(scope)}
+                >
+                  {t(labelKey)}
+                </button>
+              );
+            })}
+          </div>
+          {fileNameHits.length > 0 ? (
             <>
               <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--control-muted)]">
                 {t("topbar.searchGroupFiles")}
               </div>
-              {pathHits.map((hit, index) => (
+              {fileNameHits.map((hit, index) => (
                 <button
-                  key={`path:${hit.relativePath}:${index}`}
+                  key={`file:${hit.relativePath ?? ""}:${index}`}
                   className={dropdownItemClassName(cn(
                     "mb-1 flex-col items-start px-2.5 py-2 last:mb-0",
                     "text-xs",
@@ -152,9 +215,9 @@ export function ProjectSearch(props: {
                   }}
                 >
                   <div className="truncate font-mono text-[11px] text-[color:var(--control-muted)]">
-                    {hit.relativePath}
+                    {hit.relativePath ?? ""}
                   </div>
-                  <div className="truncate text-[color:var(--control-muted)]">{t("topbar.searchPathMatch")}</div>
+                  <div className="truncate text-[color:var(--control-muted)]">{t("topbar.searchFileNameMatch")}</div>
                 </button>
               ))}
             </>
@@ -178,9 +241,35 @@ export function ProjectSearch(props: {
                   }}
                 >
                   <div className="truncate font-mono text-[11px] text-[color:var(--control-muted)]">
-                    {hit.relativePath}{hit.lineNumber ? `:${hit.lineNumber}` : ""}
+                    {hit.relativePath ?? ""}{hit.lineNumber ? `:${hit.lineNumber}` : ""}
                   </div>
                   <div className="truncate text-[color:var(--control-muted)]">{hit.snippet}</div>
+                </button>
+              ))}
+            </>
+          ) : null}
+          {chatHits.length > 0 ? (
+            <>
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--control-muted)]">
+                {t("topbar.searchGroupSessions")}
+              </div>
+              {chatHits.map((hit, index) => (
+                <button
+                  key={`chat:${hit.sessionId ?? hit.title ?? index}`}
+                  className={dropdownItemClassName(cn(
+                    "mb-1 flex-col items-start px-2.5 py-2 last:mb-0",
+                    "text-xs",
+                  ))}
+                  onClick={() => {
+                    setOpen(false);
+                    setQueuedSearch(false);
+                    onSelect(hit);
+                  }}
+                >
+                  <div className="truncate text-sm font-medium text-slate-700">
+                    {hit.title ?? hit.snippet}
+                  </div>
+                  <div className="truncate text-[color:var(--control-muted)]">{t("topbar.searchSessionMatch")}</div>
                 </button>
               ))}
             </>
@@ -209,7 +298,7 @@ export function ProjectSearch(props: {
             if (event.key === "Enter") {
               setQueuedSearch(true);
               setOpen(true);
-              onSearch();
+              onSearch(scopes);
             }
           }}
         />

@@ -10,6 +10,11 @@ export const zhCN_topbar = {
   "topbar.clearSearch": "清空搜索",
   "topbar.searchGroupFiles": "文件",
   "topbar.searchGroupContent": "内容",
-  "topbar.searchPathMatch": "路径匹配",
+  "topbar.searchGroupSessions": "会话",
+  "topbar.searchScopeFileName": "文件名",
+  "topbar.searchScopeContent": "文件内容",
+  "topbar.searchScopeSessions": "会话名",
+  "topbar.searchFileNameMatch": "文件名匹配",
+  "topbar.searchSessionMatch": "会话标题匹配",
   "topbar.share": "共享",
 } as const;

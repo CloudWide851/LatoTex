@@ -287,11 +287,15 @@ export type FsOperationResult = {
   message: string;
 };
 
+export type ProjectSearchScope = "file_name" | "file_content" | "chat_session";
+
 export type ProjectSearchHit = {
-  relativePath: string;
+  relativePath?: string | null;
   lineNumber?: number | null;
-  matchKind: "path" | "content";
+  matchKind: ProjectSearchScope;
   snippet: string;
+  sessionId?: string | null;
+  title?: string | null;
 };
 
 export type ProjectIntegrityStatus = {
