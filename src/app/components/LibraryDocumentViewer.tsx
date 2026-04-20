@@ -288,9 +288,9 @@ export function LibraryDocumentViewer(props: {
 
   useEffect(() => {
     if (translatedSessionPath && translatedSessionPath !== translatedPdfRelativePath) {
-      void refreshDocumentData({ bustCache: true }).then(() => {
+      void refreshDocumentData().then(() => {
         if (pdfPreviewRequested || viewMode === "pdf" || viewMode === "compare") {
-          return ensurePdfPreviewLoaded({ bustCache: true });
+          return ensurePdfPreviewLoaded();
         }
         return undefined;
       });
@@ -310,7 +310,7 @@ export function LibraryDocumentViewer(props: {
       && sourcePdfRelativePath
       && translatedSessionSourcePath !== sourcePdfRelativePath
     ) {
-      void refreshDocumentData({ bustCache: true });
+      void refreshDocumentData();
     }
   }, [refreshDocumentData, sourcePdfRelativePath, translatedSessionSourcePath]);
 

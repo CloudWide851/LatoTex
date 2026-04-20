@@ -83,6 +83,11 @@ export const LibraryPdfScrollViewer = forwardRef<
   const lensPageRef = useRef(1);
   const lastVisiblePageRef = useRef(1);
   const lastInitializedPdfUrlRef = useRef<string | null>(null);
+  const onVisiblePageChangeRef = useRef(onVisiblePageChange);
+  const onPageCountChangeRef = useRef(onPageCountChange);
+  const onScrollAnchorChangeRef = useRef(onScrollAnchorChange);
+  const onScrollRatioChangeRef = useRef(onScrollRatioChange);
+  const onDocumentLoadErrorRef = useRef(onDocumentLoadError);
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
@@ -90,6 +95,11 @@ export const LibraryPdfScrollViewer = forwardRef<
   const [lensVisible, setLensVisible] = useState(false);
   const [lensPage, setLensPage] = useState(1);
   const lensEnabled = enableLens && (readOnly || mode === "select");
+  onVisiblePageChangeRef.current = onVisiblePageChange;
+  onPageCountChangeRef.current = onPageCountChange;
+  onScrollAnchorChangeRef.current = onScrollAnchorChange;
+  onScrollRatioChangeRef.current = onScrollRatioChange;
+  onDocumentLoadErrorRef.current = onDocumentLoadError;
 
   const pages = useMemo(() => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1), [documentPages]);
   const frameWidth = useMemo(() => {
@@ -106,22 +116,22 @@ export const LibraryPdfScrollViewer = forwardRef<
     const next = resolveVisiblePdfPage(collectPdfPageMetrics(pageRefs.current, documentPages), root.scrollTop, root.clientHeight);
     if (next !== lastVisiblePageRef.current) {
       lastVisiblePageRef.current = next;
-      onVisiblePageChange(next);
+      onVisiblePageChangeRef.current(next);
     }
-  }, [documentPages, onVisiblePageChange]);
+  }, [documentPages]);
 
   const emitScrollAnchor = useCallback((anchor: PdfScrollAnchor) => {
     const normalized = normalizePdfScrollAnchor(anchor);
     pendingRestoreAnchorRef.current = normalized;
     if (!arePdfScrollAnchorsEqual(lastReportedScrollAnchorRef.current, normalized)) {
       lastReportedScrollAnchorRef.current = normalized;
-      onScrollAnchorChange?.(normalized);
+      onScrollAnchorChangeRef.current?.(normalized);
     }
     if (Math.abs(lastReportedScrollRatioRef.current - normalized.absoluteRatio) >= 0.002) {
       lastReportedScrollRatioRef.current = normalized.absoluteRatio;
-      onScrollRatioChange?.(normalized.absoluteRatio);
+      onScrollRatioChangeRef.current?.(normalized.absoluteRatio);
     }
-  }, [onScrollAnchorChange, onScrollRatioChange]);
+  }, []);
 
   const restoreScrollAnchor = useCallback((anchor?: PdfScrollAnchor | null) => {
     const root = scrollRef.current;
@@ -255,9 +265,9 @@ export const LibraryPdfScrollViewer = forwardRef<
     const seededPages = Math.max(1, pageCount || 1);
     setDocumentPages(seededPages);
     lastVisiblePageRef.current = 1;
-    onVisiblePageChange(1);
-    onPageCountChange(seededPages);
-  }, [initialScrollAnchor, initialScrollRatio, onPageCountChange, onVisiblePageChange, pageCount, pdfUrl]);
+    onVisiblePageChangeRef.current(1);
+    onPageCountChangeRef.current(seededPages);
+  }, [initialScrollAnchor, initialScrollRatio, pageCount, pdfUrl]);
   useEffect(() => {
     return () => {
       if (lensRafRef.current !== null) {
@@ -488,10 +498,10 @@ export const LibraryPdfScrollViewer = forwardRef<
           pendingRenderRestoreRef.current = true;
           const next = Math.max(1, numPages || 1);
           setDocumentPages(next);
-          onPageCountChange(next);
+          onPageCountChangeRef.current(next);
           if (lastVisiblePageRef.current > next) {
             lastVisiblePageRef.current = 1;
-            onVisiblePageChange(1);
+            onVisiblePageChangeRef.current(1);
           }
           window.requestAnimationFrame(() => {
             restoreScrollAnchor();
@@ -509,10 +519,10 @@ export const LibraryPdfScrollViewer = forwardRef<
           const message = String(error || "pdf_load_failed");
           setDocumentLoadError(message);
           setDocumentPages(1);
-          onPageCountChange(1);
+          onPageCountChangeRef.current(1);
           lastVisiblePageRef.current = 1;
-          onVisiblePageChange(1);
-          onDocumentLoadError?.(message);
+          onVisiblePageChangeRef.current(1);
+          onDocumentLoadErrorRef.current?.(message);
         }}
         className={documentClassName}
       >

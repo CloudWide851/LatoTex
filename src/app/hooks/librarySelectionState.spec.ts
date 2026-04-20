@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { rewriteLibrarySelectionAfterFsAction } from "./librarySelectionState";
+import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 
-describe("rewriteLibrarySelectionAfterFsAction", () => {
+describe("rewriteSelectionAfterFsAction", () => {
   it("rewrites the selected bib path after a file rename", () => {
-    expect(rewriteLibrarySelectionAfterFsAction({
+    expect(rewriteSelectionAfterFsAction({
       selectedPath: "papers/demo.bib",
       action: "rename",
       path: "papers/demo.bib",
@@ -12,7 +12,7 @@ describe("rewriteLibrarySelectionAfterFsAction", () => {
   });
 
   it("rewrites descendants when a containing folder moves", () => {
-    expect(rewriteLibrarySelectionAfterFsAction({
+    expect(rewriteSelectionAfterFsAction({
       selectedPath: "group-a/sub/demo.bib",
       action: "move",
       path: "group-a",
@@ -21,7 +21,7 @@ describe("rewriteLibrarySelectionAfterFsAction", () => {
   });
 
   it("clears the selection when the selected entry is deleted", () => {
-    expect(rewriteLibrarySelectionAfterFsAction({
+    expect(rewriteSelectionAfterFsAction({
       selectedPath: "papers/demo.bib",
       action: "delete",
       path: "papers/demo.bib",
@@ -29,7 +29,7 @@ describe("rewriteLibrarySelectionAfterFsAction", () => {
   });
 
   it("clears the selection when a containing folder is deleted", () => {
-    expect(rewriteLibrarySelectionAfterFsAction({
+    expect(rewriteSelectionAfterFsAction({
       selectedPath: "papers/sub/demo.bib",
       action: "delete",
       path: "papers",
@@ -37,11 +37,20 @@ describe("rewriteLibrarySelectionAfterFsAction", () => {
   });
 
   it("keeps unrelated selections unchanged", () => {
-    expect(rewriteLibrarySelectionAfterFsAction({
+    expect(rewriteSelectionAfterFsAction({
       selectedPath: "papers/demo.bib",
       action: "copy",
       path: "papers/demo.bib",
       targetPath: "archive/demo.bib",
     })).toBe("papers/demo.bib");
+  });
+
+  it("rewrites the selected workspace file after a move", () => {
+    expect(rewriteSelectionAfterFsAction({
+      selectedPath: "src/main.tex",
+      action: "move",
+      path: "src/main.tex",
+      targetPath: "archive/main.tex",
+    })).toBe("archive/main.tex");
   });
 });

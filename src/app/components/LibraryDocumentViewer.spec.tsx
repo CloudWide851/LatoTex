@@ -543,9 +543,9 @@ describe("LibraryDocumentViewer", () => {
     });
 
     expect(refreshMock).toHaveBeenCalledTimes(1);
-    expect(refreshMock).toHaveBeenCalledWith({ bustCache: true });
+    expect(refreshMock).toHaveBeenCalledWith();
     expect(ensurePdfPreviewLoadedMock.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(ensurePdfPreviewLoadedMock.mock.calls.some(([arg]) => arg?.bustCache === true)).toBe(true);
+    expect(ensurePdfPreviewLoadedMock.mock.calls.some(([arg]) => arg?.bustCache === true)).toBe(false);
     expect(
       container.querySelector("[data-testid='library-viewer-content-panel']")?.getAttribute("data-view-mode"),
     ).toBe("compare");

@@ -106,7 +106,7 @@ export function ExplorerTree(props: {
     event: ReactDragEvent<HTMLElement>,
     targetDirectoryPath: string,
   ): string | null => {
-    if (mode !== "library" || !onAction) {
+    if (!onAction) {
       return null;
     }
     const sourcePath = resolveDroppedFilePath(event);
@@ -458,10 +458,12 @@ export function ExplorerTree(props: {
           )}
           aria-selected={!isDirectory && isSelected}
           style={indentStyle}
-          draggable={mode === "library" || !isDirectory}
+          draggable={Boolean(onAction)}
           title={node.relativePath}
           onDragStart={(event) => {
-            if (isDirectory && mode !== "library") return;
+            if (!onAction) {
+              return;
+            }
             event.dataTransfer.effectAllowed = "copyMove";
             event.dataTransfer.setData("application/x-latotex-path", node.relativePath);
             event.dataTransfer.setData("text/plain", node.relativePath);

@@ -23,7 +23,7 @@ import {
 import { useCompileActions } from "./useCompileActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
-import { rewriteLibrarySelectionAfterFsAction } from "./librarySelectionState";
+import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 import { signalWindowTransition } from "./windowTransitionSignal";
 export function useAppHandlers(params: UseAppHandlersParams) {
@@ -488,6 +488,12 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       });
       if (scope === "workspace") {
         setTree(await getWorkspaceTree(activeProjectId));
+        setSelectedFile(rewriteSelectionAfterFsAction({
+          selectedPath: selectedFile,
+          action,
+          path,
+          targetPath,
+        }));
         await refreshGitWorkspace(activeProjectId).catch(() => undefined);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
@@ -497,7 +503,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       } else {
         const nextTree = await getLibraryTree(activeProjectId);
         setLibraryTree(nextTree);
-        setSelectedLibraryPath((current) => rewriteLibrarySelectionAfterFsAction({
+        setSelectedLibraryPath((current) => rewriteSelectionAfterFsAction({
           selectedPath: current,
           action,
           path,
@@ -510,7 +516,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: String(error) });
       return false;
     }
-  }, [activeProjectId, refreshGitWorkspace, setLibraryTree, setToast, setTree, t]);
+  }, [activeProjectId, refreshGitWorkspace, selectedFile, setLibraryTree, setSelectedFile, setToast, setTree, t]);
   const requestFsAction = useCallback(async (
     scope: FsScope,
     action: FsAction,

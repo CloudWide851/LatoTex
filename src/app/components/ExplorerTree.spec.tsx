@@ -254,6 +254,114 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
+  it("moves a workspace file into a directory when dropped on that folder", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onAction = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    expect(archiveNode).toBeTruthy();
+
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      getData: (key: string) => {
+        if (key === "application/x-latotex-path" || key === "text/plain") {
+          return "papers/demo.bib";
+        }
+        return "";
+      },
+      setData: () => undefined,
+    };
+
+    await act(async () => {
+      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      archiveNode?.dispatchEvent(event);
+    });
+
+    await act(async () => {
+      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      archiveNode?.dispatchEvent(event);
+    });
+
+    expect(onAction).toHaveBeenCalledWith("move", "papers/demo.bib", "archive/demo.bib");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("moves a workspace directory into another directory when dropped", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onAction = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    expect(archiveNode).toBeTruthy();
+
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      getData: (key: string) => {
+        if (key === "application/x-latotex-path" || key === "text/plain") {
+          return "papers";
+        }
+        return "";
+      },
+      setData: () => undefined,
+    };
+
+    await act(async () => {
+      const event = new Event("dragover", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      archiveNode?.dispatchEvent(event);
+    });
+
+    await act(async () => {
+      const event = new Event("drop", { bubbles: true, cancelable: true }) as Event & { dataTransfer: typeof dataTransfer };
+      event.dataTransfer = dataTransfer;
+      archiveNode?.dispatchEvent(event);
+    });
+
+    expect(onAction).toHaveBeenCalledWith("move", "papers", "archive/papers");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("blocks invalid library directory drops into the same tree branch", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

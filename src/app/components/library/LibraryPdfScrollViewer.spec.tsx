@@ -110,6 +110,37 @@ describe("LibraryPdfScrollViewer", () => {
     );
   }
 
+  function UnstableCallbackViewer() {
+    const [renderTick, setRenderTick] = useState(0);
+
+    return (
+      <div
+        data-testid="rerender-host"
+        data-render-tick={renderTick}
+        onClick={() => setRenderTick((current) => current + 1)}
+      >
+        <LibraryPdfScrollViewer
+          pdfUrl="blob:paper"
+          pageCount={1}
+          zoom={1}
+          mode="select"
+          highlightColor="#fde047"
+          highlightWidth={16}
+          highlightOpacity={0.65}
+          textColor="#111827"
+          textBoxStylePreset="minimal"
+          strokes={[]}
+          textBoxes={[]}
+          onStrokesChange={() => undefined}
+          onTextBoxesChange={() => undefined}
+          onVisiblePageChange={() => undefined}
+          onPageCountChange={() => undefined}
+          t={(key) => String(key)}
+        />
+      </div>
+    );
+  }
+
   it("restores the saved scroll position only after the current document render completes", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -430,6 +461,44 @@ describe("LibraryPdfScrollViewer", () => {
     });
 
     expect(container.querySelector("[data-testid='page-1']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='page-2']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='page-3']")).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps loaded pages after a parent rerender with fresh callback identities", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <div className="h-[600px]">
+          <UnstableCallbackViewer />
+        </div>,
+      );
+    });
+
+    const loadButton = container.querySelector("[data-testid='document-load-success']");
+    const rerenderHost = container.querySelector("[data-testid='rerender-host']");
+    expect(loadButton).not.toBeNull();
+    expect(rerenderHost).not.toBeNull();
+
+    await act(async () => {
+      loadButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.querySelector("[data-testid='page-2']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='page-3']")).not.toBeNull();
+
+    await act(async () => {
+      rerenderHost?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
     expect(container.querySelector("[data-testid='page-2']")).not.toBeNull();
     expect(container.querySelector("[data-testid='page-3']")).not.toBeNull();
 

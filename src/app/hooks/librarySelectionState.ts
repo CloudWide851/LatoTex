@@ -8,7 +8,7 @@ function matchesPathOrDescendant(candidate: string, target: string): boolean {
   return candidate === target || candidate.startsWith(`${target}/`);
 }
 
-export function rewriteLibrarySelectionAfterFsAction(input: {
+export function rewriteSelectionAfterFsAction(input: {
   selectedPath: string | null;
   action: FsAction;
   path: string;
@@ -40,3 +40,5 @@ export function rewriteLibrarySelectionAfterFsAction(input: {
 
   return input.selectedPath;
 }
+
+export const rewriteLibrarySelectionAfterFsAction = rewriteSelectionAfterFsAction;
