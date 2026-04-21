@@ -308,6 +308,64 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
+  it("keeps an active drag session alive across rerenders", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onAction = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          busy={false}
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    const fileNode = nodes.find((node) => node.getAttribute("title") === "papers/demo.bib");
+    expect(fileNode).toBeTruthy();
+    expect(archiveNode).toBeTruthy();
+
+    const elementFromPoint = vi.spyOn(document, "elementFromPoint");
+    elementFromPoint.mockImplementation(() => archiveNode as Element);
+
+    await act(async () => {
+      fileNode?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, clientX: 12, clientY: 14 }));
+    });
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          busy
+          onSelect={() => undefined}
+          onAction={onAction}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+    });
+
+    expect(onAction).toHaveBeenCalledWith("move", "papers/demo.bib", "archive/demo.bib");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("blocks invalid library directory drops into the same tree branch during pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

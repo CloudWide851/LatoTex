@@ -20,6 +20,7 @@ export type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "s
   uiSize?: SelectSize;
   wrapperClassName?: string;
   placeholder?: string;
+  restoreFocusOnCommit?: boolean;
   portalAttributes?: SelectPortalAttributes;
   portalClassName?: string;
 };
@@ -84,6 +85,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     disabled,
     name,
     placeholder,
+    restoreFocusOnCommit = true,
     portalAttributes,
     portalClassName,
     ...props
@@ -178,8 +180,10 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       }
       onChange?.(synthesizeChangeEvent(nextValue, name));
       setOpen(false);
-      requestAnimationFrame(() => buttonRef.current?.focus());
-    }, [isControlled, name, onChange]);
+      if (restoreFocusOnCommit) {
+        requestAnimationFrame(() => buttonRef.current?.focus());
+      }
+    }, [isControlled, name, onChange, restoreFocusOnCommit]);
 
     const cycleOption = React.useCallback((direction: 1 | -1) => {
       if (options.length === 0) {

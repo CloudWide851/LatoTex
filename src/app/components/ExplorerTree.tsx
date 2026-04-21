@@ -244,7 +244,7 @@ export function ExplorerTree(props: {
         <div
           data-explorer-node="true"
           className={cn(
-            "group flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
+            "group flex select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
             isSelected
               ? "bg-primary-100 text-primary-900"
               : dragPreview?.active && node.relativePath === dragSourcePath
@@ -258,6 +258,7 @@ export function ExplorerTree(props: {
           aria-selected={!isDirectory && isSelected}
           style={indentStyle}
           title={node.relativePath}
+          draggable={false}
           data-explorer-drop-directory={isDirectory ? "true" : undefined}
           data-path={node.relativePath}
           onDragStart={(event) => event.preventDefault()}

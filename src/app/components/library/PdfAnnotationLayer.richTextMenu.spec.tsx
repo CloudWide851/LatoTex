@@ -193,4 +193,130 @@ describe("PdfAnnotationLayer rich text menu", () => {
     });
     container.remove();
   });
+
+  it("applies whole-box formatting to the existing rich html when no selection is active", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RichTextHarness mode="textbox" />);
+    });
+
+    const box = container.querySelector("[data-annotation-box='true']") as HTMLDivElement | null;
+    expect(box).not.toBeNull();
+
+    await act(async () => {
+      box?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      box?.dispatchEvent(new MouseEvent("dblclick", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      await Promise.resolve();
+    });
+
+    const editor = container.querySelector("[data-editing-box='textbox-1']") as HTMLDivElement | null;
+    expect(editor).not.toBeNull();
+    editor?.focus();
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    document.dispatchEvent(new Event("selectionchange"));
+
+    const boldButton = container.querySelector(
+      "button[title='library.viewer.textbox.menu.bold']",
+    ) as HTMLButtonElement | null;
+    expect(boldButton).not.toBeNull();
+
+    await act(async () => {
+      boldButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+      await Promise.resolve();
+    });
+
+    const state = JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
+    expect(state[0]?.style?.fontWeight).toBe("bold");
+    expect(state[0]?.html).toContain("font-weight: bold");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps the editor alive and applies dropdown formatting to the selected text", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<RichTextHarness mode="textbox" />);
+    });
+
+    const box = container.querySelector("[data-annotation-box='true']") as HTMLDivElement | null;
+    expect(box).not.toBeNull();
+
+    await act(async () => {
+      box?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      box?.dispatchEvent(new MouseEvent("dblclick", {
+        bubbles: true,
+        button: 0,
+        clientX: 160,
+        clientY: 180,
+      }));
+      await Promise.resolve();
+    });
+
+    const editor = container.querySelector("[data-editing-box='textbox-1']") as HTMLDivElement | null;
+    expect(editor).not.toBeNull();
+
+    const textNode = editor?.querySelector("p")?.firstChild as Text | null;
+    expect(textNode).not.toBeNull();
+    const range = document.createRange();
+    range.setStart(textNode!, 0);
+    range.setEnd(textNode!, 5);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+
+    const fontFamilyTrigger = Array.from(container.querySelectorAll("button")).find(
+      (node) => node.getAttribute("role") === "combobox" && node.textContent?.includes("Segoe UI"),
+    ) as HTMLButtonElement | undefined;
+    expect(fontFamilyTrigger).toBeTruthy();
+
+    await act(async () => {
+      fontFamilyTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      await Promise.resolve();
+    });
+
+    const arialOption = Array.from(document.querySelectorAll("button")).find(
+      (node) => node.textContent?.includes("Arial"),
+    ) as HTMLButtonElement | undefined;
+    expect(arialOption).toBeTruthy();
+
+    await act(async () => {
+      arialOption?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("[data-editing-box='textbox-1']")).not.toBeNull();
+    const state = JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
+    expect(state[0]?.html).toContain("font-family: Arial");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

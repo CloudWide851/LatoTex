@@ -62,6 +62,7 @@ export function PdfTextBoxContextMenu(props: {
         <Select
           uiSize="sm"
           value={style.fontFamily}
+          restoreFocusOnCommit={false}
           onChange={(event) => onApplyStyle({ fontFamily: event.target.value })}
           portalAttributes={{
             "data-textbox-menu": "true",
@@ -75,6 +76,7 @@ export function PdfTextBoxContextMenu(props: {
         <Select
           uiSize="sm"
           value={String(style.fontSize)}
+          restoreFocusOnCommit={false}
           onChange={(event) => onApplyStyle({ fontSize: Number(event.target.value) })}
           portalAttributes={{
             "data-textbox-menu": "true",

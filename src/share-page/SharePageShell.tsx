@@ -65,7 +65,7 @@ function ShareEditorPanel(props: { showTabs: boolean }) {
         <div className="min-w-0">
           <div className="share-kicker flex items-center gap-2">
             <FileCode2 className="h-3.5 w-3.5" />
-            <span id="modes-kicker" />
+            <span id="manuscript-kicker" />
           </div>
           <div className="mt-1 flex items-center gap-2">
             <span id="editor-panel-label" className="share-title" />
@@ -214,6 +214,10 @@ function DesktopShareShell() {
           <div id="connected-badge" className="share-badge share-badge-muted" />
         </div>
       </header>
+      <div className="sr-only" aria-hidden="true">
+        <span id="modes-kicker" />
+        <span id="modes-title" />
+      </div>
       <section className="grid min-h-0 gap-3 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
         <ShareAccessCard showStatus={false} />
         <ShareEditorPanel showTabs />

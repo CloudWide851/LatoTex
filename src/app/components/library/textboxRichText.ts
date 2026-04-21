@@ -170,6 +170,22 @@ function applyInlineStyle(element: HTMLElement, patch: RichTextInlineStylePatch)
   }
 }
 
+function wrapLooseTextNodes(root: HTMLElement, patch: RichTextInlineStylePatch) {
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType !== Node.TEXT_NODE) {
+      continue;
+    }
+    const text = node.textContent ?? "";
+    if (!text.trim()) {
+      continue;
+    }
+    const wrapper = document.createElement("span");
+    wrapper.textContent = text;
+    applyInlineStyle(wrapper, patch);
+    node.replaceWith(wrapper);
+  }
+}
+
 export function captureRichTextSelection(root: HTMLElement): Range | null {
   if (typeof window === "undefined") {
     return null;
@@ -229,4 +245,23 @@ export function applyStyleToRichTextSelection(
   selection.removeAllRanges();
   selection.addRange(nextRange);
   return nextRange.cloneRange();
+}
+
+export function applyStyleToEntireRichTextHtml(
+  html: string,
+  patch: RichTextInlineStylePatch,
+  fallbackText = "",
+): string {
+  if (typeof document === "undefined") {
+    const fallbackHtml = normalizeStoredRichHtml(html, fallbackText);
+    return fallbackHtml || plainTextToRichHtml(fallbackText);
+  }
+  const root = document.createElement("div");
+  root.innerHTML = normalizeStoredRichHtml(html, fallbackText);
+  wrapLooseTextNodes(root, patch);
+  const descendants = Array.from(root.querySelectorAll<HTMLElement>("*"));
+  for (const element of descendants) {
+    applyInlineStyle(element, patch);
+  }
+  return sanitizeRichTextHtml(root.innerHTML);
 }

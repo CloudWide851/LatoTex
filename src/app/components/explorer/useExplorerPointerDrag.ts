@@ -65,9 +65,16 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
     active: boolean;
   } | null>(null);
   const dragSessionRef = useRef<ExplorerPointerDragSession | null>(null);
+  const onMoveRef = useRef(onMove);
+  const expandedMapRef = useRef(expandedMap);
+  const onExpandDirectoryRef = useRef(onExpandDirectory);
   const hoverExpandTimerRef = useRef<number | null>(null);
   const hoverExpandPathRef = useRef<string | null>(null);
   const suppressClickRef = useRef(false);
+
+  onMoveRef.current = onMove;
+  expandedMapRef.current = expandedMap;
+  onExpandDirectoryRef.current = onExpandDirectory;
 
   const clearHoverExpandTimer = useCallback(() => {
     if (hoverExpandTimerRef.current !== null && typeof window !== "undefined") {
@@ -90,20 +97,24 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
   }, [clearHoverExpandTimer]);
 
   const scheduleDirectoryAutoExpand = useCallback((path: string) => {
-    if (!path || expandedMap[path] !== false || hoverExpandPathRef.current === path) {
+    if (
+      !path
+      || expandedMapRef.current[path] !== false
+      || hoverExpandPathRef.current === path
+    ) {
       return;
     }
     clearHoverExpandTimer();
     hoverExpandPathRef.current = path;
     hoverExpandTimerRef.current = window.setTimeout(() => {
-      onExpandDirectory(path);
+      onExpandDirectoryRef.current(path);
       hoverExpandTimerRef.current = null;
       hoverExpandPathRef.current = null;
     }, 420);
-  }, [clearHoverExpandTimer, expandedMap, onExpandDirectory]);
+  }, [clearHoverExpandTimer]);
 
   const resolveDropDirectoryFromPoint = useCallback((clientX: number, clientY: number, sourcePath: string): string | null => {
-    if (!onMove || typeof document === "undefined") {
+    if (!onMoveRef.current || typeof document === "undefined") {
       return null;
     }
     const target = document.elementFromPoint(clientX, clientY);
@@ -135,7 +146,7 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
       return "";
     }
     return null;
-  }, [clearHoverExpandTimer, onMove, rootRef, scheduleDirectoryAutoExpand]);
+  }, [clearHoverExpandTimer, rootRef, scheduleDirectoryAutoExpand]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent | MouseEvent) => {
@@ -199,7 +210,7 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
       if (!nextTargetPath) {
         return;
       }
-      void onMove?.(session.sourcePath, nextTargetPath);
+      void onMoveRef.current?.(session.sourcePath, nextTargetPath);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -215,10 +226,10 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
       window.removeEventListener("mouseup", handlePointerEnd);
       clearPointerDrag();
     };
-  }, [clearPointerDrag, onMove, resolveDropDirectoryFromPoint]);
+  }, [clearPointerDrag, resolveDropDirectoryFromPoint]);
 
   const handlePointerDragStart = useCallback((event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>, sourcePath: string, sourceName: string) => {
-    if (!onMove || event.button !== 0) {
+    if (!onMoveRef.current || event.button !== 0) {
       return;
     }
     const target = event.target as HTMLElement | null;
@@ -262,7 +273,7 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
       y: event.clientY,
       active: false,
     });
-  }, [onMove]);
+  }, []);
 
   return {
     dragSourcePath,

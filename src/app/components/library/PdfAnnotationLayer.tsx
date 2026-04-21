@@ -5,7 +5,7 @@ import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
 import { PdfTextBoxTransformHandles } from "./PdfTextBoxTransformHandles";
 import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveMenuAnchor, toNormalizedPoint } from "./pdfAnnotationLayerUtils";
 import { buildAnnotationStroke, focusAnnotationEditingBox, getAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
-import { applyStyleToRichTextSelection, captureRichTextSelection, isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
+import { applyStyleToEntireRichTextHtml, applyStyleToRichTextSelection, isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
 import { usePdfTextBoxTransform } from "./usePdfTextBoxTransform";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
@@ -154,8 +154,29 @@ export function PdfAnnotationLayer(props: {
     }
     const handleSelectionChange = () => {
       const editor = getAnnotationEditingBox(layerRef.current, editingTextBoxId);
-      if (editor) {
-        selectionRangeRef.current = captureRichTextSelection(editor);
+      const selection = window.getSelection?.();
+      if (!editor || !selection) {
+        return;
+      }
+      if (selection.rangeCount === 0) {
+        const activeElement = document.activeElement as HTMLElement | null;
+        if (activeElement === editor || (activeElement && editor.contains(activeElement))) {
+          selectionRangeRef.current = null;
+        }
+        return;
+      }
+      const range = selection.getRangeAt(0);
+      const container = range.commonAncestorContainer;
+      const element = container.nodeType === Node.ELEMENT_NODE
+        ? container as HTMLElement
+        : container.parentElement;
+      if (element && editor.contains(element)) {
+        selectionRangeRef.current = selection.isCollapsed ? null : range.cloneRange();
+        return;
+      }
+      const activeElement = document.activeElement as HTMLElement | null;
+      if (activeElement === editor || (activeElement && editor.contains(activeElement))) {
+        selectionRangeRef.current = null;
       }
     };
     document.addEventListener("selectionchange", handleSelectionChange);
@@ -185,17 +206,25 @@ export function PdfAnnotationLayer(props: {
       ? getAnnotationEditingBox(layerRef.current, editingTextBoxId)
       : null;
     let inlineApplied = false;
+    let nextEditorHtml: string | null = null;
     if (preferInline && editor) {
       restoreRichTextSelection(editor, selectionRangeRef.current);
       const nextRange = applyStyleToRichTextSelection(editor, nextStyle);
       if (nextRange) {
         selectionRangeRef.current = nextRange;
         inlineApplied = true;
-      } else {
-        selectionRangeRef.current = captureRichTextSelection(editor);
       }
     }
     if (editor && !inlineApplied) {
+      const fallbackHtml = normalizeStoredRichHtml(editor.innerHTML, editor.textContent ?? "");
+      nextEditorHtml = applyStyleToEntireRichTextHtml(
+        fallbackHtml,
+        nextStyle,
+        richHtmlToPlainText(fallbackHtml),
+      );
+      if (nextEditorHtml) {
+        editor.innerHTML = nextEditorHtml;
+      }
       if (nextStyle.fontFamily) {
         editor.style.fontFamily = nextStyle.fontFamily;
       }
@@ -218,20 +247,29 @@ export function PdfAnnotationLayer(props: {
         editor.style.textDecoration = nextStyle.textDecoration;
       }
     }
-    if (inlineApplied && editor) {
-      const html = sanitizeRichTextHtml(editor.innerHTML);
-      const content = richHtmlToPlainText(html);
-      onTextBoxesChange(textBoxesRef.current.map((item) => (
-        item.id === boxId ? { ...item, content, html: html || plainTextToRichHtml(content) } : item
-      )));
-      return true;
-    }
     onTextBoxesChange(
-      textBoxesRef.current.map((item) =>
-        item.id === boxId ? { ...item, style: { ...item.style, ...nextStyle } } : item,
-      ),
+      textBoxesRef.current.map((item) => {
+        if (item.id !== boxId) {
+          return item;
+        }
+        const baseHtml = nextEditorHtml
+          ?? (inlineApplied && editor
+            ? sanitizeRichTextHtml(editor.innerHTML)
+            : applyStyleToEntireRichTextHtml(
+              normalizeStoredRichHtml(item.html, item.content),
+              nextStyle,
+              item.content,
+            ));
+        const content = richHtmlToPlainText(baseHtml);
+        return {
+          ...item,
+          content,
+          html: baseHtml || plainTextToRichHtml(content),
+          style: { ...item.style, ...nextStyle },
+        };
+      }),
     );
-    return false;
+    return inlineApplied;
   }, [editingTextBoxId, onTextBoxesChange]);
 
   const finishDrawing = () => {
