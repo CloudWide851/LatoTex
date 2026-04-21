@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { clampNormalized, createDefaultTextStyle, type AnnotationTextStylePreset, type AnnotationPoint, type AnnotationStroke, type AnnotationTextBox } from "./annotationModel";
 import { hexToRgba } from "./annotationPalette";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
 import { PdfTextBoxTransformHandles } from "./PdfTextBoxTransformHandles";
-import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveDraggedBox, resolveMenuAnchor, toNormalizedPoint, type DragPreview, type DragState } from "./pdfAnnotationLayerUtils";
+import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveMenuAnchor, toNormalizedPoint } from "./pdfAnnotationLayerUtils";
 import { buildAnnotationStroke, focusAnnotationEditingBox, getAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
 import { applyStyleToRichTextSelection, captureRichTextSelection, isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
+import { usePdfTextBoxTransform } from "./usePdfTextBoxTransform";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
-const TEXTBOX_TRANSFORM_DRAG_THRESHOLD = 10;
 
 export function PdfAnnotationLayer(props: {
   page: number;
@@ -41,10 +41,6 @@ export function PdfAnnotationLayer(props: {
     t,
   } = props;
   const drawingRef = useRef(false);
-  const dragStateRef = useRef<DragState | null>(null);
-  const dragPointRef = useRef<AnnotationPoint | null>(null);
-  const dragActivatedRef = useRef(false);
-  const dragFrameRef = useRef<number | null>(null);
   const textBoxesRef = useRef(textBoxes);
   const recentlyCreatedTextBoxIdRef = useRef<string | null>(null);
   const selectionRangeRef = useRef<Range | null>(null);
@@ -54,7 +50,18 @@ export function PdfAnnotationLayer(props: {
   const [editingTextBoxId, setEditingTextBoxId] = useState<string | null>(null);
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
+  const { dragPreview, beginTextBoxTransform } = usePdfTextBoxTransform({
+    layerRef,
+    onCommit: (preview) => {
+      onTextBoxesChange(
+        textBoxesRef.current.map((item) =>
+          item.id === preview.boxId
+            ? { ...item, x: preview.x, y: preview.y, w: preview.w, h: preview.h }
+            : item,
+        ),
+      );
+    },
+  });
 
   const pageStrokes = useMemo(() => strokes.filter((item) => item.page === page), [page, strokes]);
   const pageTextBoxes = useMemo(() => textBoxes.filter((item) => item.page === page).sort((a, b) => a.z - b.z), [page, textBoxes]);
@@ -92,74 +99,6 @@ export function PdfAnnotationLayer(props: {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textColor]);
-
-  useEffect(() => {
-    const onMove = (event: MouseEvent) => {
-      const drag = dragStateRef.current;
-      const rect = layerRef.current?.getBoundingClientRect();
-      if (!drag || !rect) {
-        return;
-      }
-      const nextPoint = toNormalizedPoint(event, rect);
-      if (!dragActivatedRef.current) {
-        const dx = event.clientX - drag.startClientX;
-        const dy = event.clientY - drag.startClientY;
-        const distance = Math.hypot(dx, dy);
-        if (distance < TEXTBOX_TRANSFORM_DRAG_THRESHOLD) {
-          dragPointRef.current = null;
-          return;
-        }
-        dragActivatedRef.current = true;
-      }
-      dragPointRef.current = nextPoint;
-      if (dragFrameRef.current !== null) {
-        return;
-      }
-      dragFrameRef.current = window.requestAnimationFrame(() => {
-        dragFrameRef.current = null;
-        const activeDrag = dragStateRef.current;
-        const point = dragPointRef.current;
-        if (!activeDrag || !point) {
-          return;
-        }
-        setDragPreview(resolveDraggedBox(activeDrag, point));
-      });
-    };
-    const onUp = () => {
-      const drag = dragStateRef.current;
-      const point = dragPointRef.current;
-      if (drag && dragActivatedRef.current && point) {
-        const preview = resolveDraggedBox(drag, point);
-        onTextBoxesChange(
-          textBoxesRef.current.map((item) =>
-            item.id === preview.boxId
-              ? { ...item, x: preview.x, y: preview.y, w: preview.w, h: preview.h }
-              : item,
-          ),
-        );
-      }
-      dragStateRef.current = null;
-      dragPointRef.current = null;
-      dragActivatedRef.current = false;
-      if (dragFrameRef.current !== null) {
-        window.cancelAnimationFrame(dragFrameRef.current);
-        dragFrameRef.current = null;
-      }
-      setDragPreview(null);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    window.addEventListener("blur", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("blur", onUp);
-      if (dragFrameRef.current !== null) {
-        window.cancelAnimationFrame(dragFrameRef.current);
-        dragFrameRef.current = null;
-      }
-    };
-  }, [onTextBoxesChange]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -240,6 +179,61 @@ export function PdfAnnotationLayer(props: {
 
   const menuAnchor = useMemo(() => resolveMenuAnchor({ menuOpen, layerSize, menuBox, dragPreview }), [dragPreview, layerSize, menuBox, menuOpen]);
 
+  const applyTextBoxStyle = useCallback((boxId: string, nextStyle: Partial<AnnotationTextBox["style"]>, options?: { preferInline?: boolean }) => {
+    const preferInline = options?.preferInline !== false;
+    const editor = editingTextBoxId === boxId
+      ? getAnnotationEditingBox(layerRef.current, editingTextBoxId)
+      : null;
+    let inlineApplied = false;
+    if (preferInline && editor) {
+      restoreRichTextSelection(editor, selectionRangeRef.current);
+      const nextRange = applyStyleToRichTextSelection(editor, nextStyle);
+      if (nextRange) {
+        selectionRangeRef.current = nextRange;
+        inlineApplied = true;
+      } else {
+        selectionRangeRef.current = captureRichTextSelection(editor);
+      }
+    }
+    if (editor && !inlineApplied) {
+      if (nextStyle.fontFamily) {
+        editor.style.fontFamily = nextStyle.fontFamily;
+      }
+      if (typeof nextStyle.fontSize === "number") {
+        editor.style.fontSize = `${nextStyle.fontSize}px`;
+      }
+      if (nextStyle.textAlign) {
+        editor.style.textAlign = nextStyle.textAlign;
+      }
+      if (nextStyle.textColor) {
+        editor.style.color = nextStyle.textColor;
+      }
+      if (nextStyle.fontWeight) {
+        editor.style.fontWeight = nextStyle.fontWeight;
+      }
+      if (nextStyle.fontStyle) {
+        editor.style.fontStyle = nextStyle.fontStyle;
+      }
+      if (nextStyle.textDecoration) {
+        editor.style.textDecoration = nextStyle.textDecoration;
+      }
+    }
+    if (inlineApplied && editor) {
+      const html = sanitizeRichTextHtml(editor.innerHTML);
+      const content = richHtmlToPlainText(html);
+      onTextBoxesChange(textBoxesRef.current.map((item) => (
+        item.id === boxId ? { ...item, content, html: html || plainTextToRichHtml(content) } : item
+      )));
+      return true;
+    }
+    onTextBoxesChange(
+      textBoxesRef.current.map((item) =>
+        item.id === boxId ? { ...item, style: { ...item.style, ...nextStyle } } : item,
+      ),
+    );
+    return false;
+  }, [editingTextBoxId, onTextBoxesChange]);
+
   const finishDrawing = () => {
     if (!drawingRef.current) {
       return;
@@ -269,47 +263,12 @@ export function PdfAnnotationLayer(props: {
     if (!canTransformTextBoxes) {
       return;
     }
-    const rect = layerRef.current?.getBoundingClientRect();
-    if (!rect) {
+    if (!beginTextBoxTransform(mode, event, box)) {
       return;
     }
     setMenuOpen(true);
     setSelectedTextBoxId(box.id);
     onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
-    dragStateRef.current = {
-      mode,
-      boxId: box.id,
-      start: toNormalizedPoint(event, rect),
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      initial: box,
-    };
-    dragActivatedRef.current = false;
-    dragPointRef.current = null;
-    setDragPreview(null);
-  };
-
-  const applyInlineTextStyle = (nextStyle: Partial<AnnotationTextBox["style"]>) => {
-    if (!editingTextBoxId) {
-      return false;
-    }
-    const editor = getAnnotationEditingBox(layerRef.current, editingTextBoxId);
-    if (!editor) {
-      return false;
-    }
-    restoreRichTextSelection(editor, selectionRangeRef.current);
-    const nextRange = applyStyleToRichTextSelection(editor, nextStyle);
-    if (!nextRange) {
-      selectionRangeRef.current = captureRichTextSelection(editor);
-      return false;
-    }
-    selectionRangeRef.current = nextRange;
-    const html = sanitizeRichTextHtml(editor.innerHTML);
-    const content = richHtmlToPlainText(html);
-    onTextBoxesChange(textBoxesRef.current.map((item) => (
-      item.id === editingTextBoxId ? { ...item, content, html: html || plainTextToRichHtml(content) } : item
-    )));
-    return true;
   };
 
   return (
@@ -592,13 +551,8 @@ export function PdfAnnotationLayer(props: {
             y={menuAnchor.y}
             positioning="absolute"
             style={menuBox.style}
-            onApplyInlineStyle={applyInlineTextStyle}
-            onChangeStyle={(nextStyle) => {
-              onTextBoxesChange(
-                textBoxes.map((item) =>
-                  item.id === menuBox.id ? { ...item, style: { ...item.style, ...nextStyle } } : item,
-                ),
-              );
+            onApplyStyle={(nextStyle, options) => {
+              applyTextBoxStyle(menuBox.id, nextStyle, options);
             }}
             onDelete={() => {
               onTextBoxesChange(textBoxes.filter((item) => item.id !== menuBox.id));

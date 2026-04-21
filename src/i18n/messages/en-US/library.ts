@@ -71,6 +71,7 @@ export const enUS_library = {
   "library.viewer.highlightColor": "Highlight Color",
   "library.viewer.textColor": "Text Color",
   "library.viewer.textboxMode": "Text Box Mode",
+  "library.viewer.magnifier": "Magnifier",
   "library.viewer.textboxPlaceholder": "Double-click to edit",
   "library.viewer.textboxSave": "Save Text Box",
   "library.viewer.textboxEdit": "Edit Text Box",

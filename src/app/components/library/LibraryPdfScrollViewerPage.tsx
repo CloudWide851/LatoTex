@@ -37,7 +37,6 @@ export function LibraryPdfScrollViewerPage(props: {
   pageRefs: MutableRefObject<Record<number, HTMLDivElement | null>>;
   scrollRef: MutableRefObject<HTMLDivElement | null>;
   pendingLensPointRef: MutableRefObject<LensPendingPoint>;
-  onToggleLens: (point: LensPendingPoint) => void;
   onMoveLens: (point: LensPendingPoint) => void;
   onHideLens: () => void;
   onLayoutChange: () => void;
@@ -63,7 +62,6 @@ export function LibraryPdfScrollViewerPage(props: {
     pageRefs,
     scrollRef,
     pendingLensPointRef,
-    onToggleLens,
     onMoveLens,
     onHideLens,
     onLayoutChange,
@@ -72,7 +70,6 @@ export function LibraryPdfScrollViewerPage(props: {
     onTextBoxesChange,
     t,
   } = props;
-  const pointerDownRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -110,16 +107,6 @@ export function LibraryPdfScrollViewerPage(props: {
     };
   };
 
-  const hasActiveSelectionInside = (target: HTMLDivElement): boolean => {
-    const selection = window.getSelection?.();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-      return false;
-    }
-    const anchorNode = selection.anchorNode;
-    const focusNode = selection.focusNode;
-    return Boolean(anchorNode && focusNode && target.contains(anchorNode) && target.contains(focusNode));
-  };
-
   const isAnnotationInteractionTarget = (target: EventTarget | null): boolean => {
     if (!(target instanceof HTMLElement)) {
       return false;
@@ -144,38 +131,11 @@ export function LibraryPdfScrollViewerPage(props: {
       data-page={page}
       className="relative mx-auto bg-white"
       style={{ width: `${frameWidth}px` }}
-      onMouseDown={
-        lensEnabled
-          ? (event) => {
-            if (event.button !== 0) {
-              return;
-            }
-            if (isAnnotationInteractionTarget(event.target)) {
-              pointerDownRef.current = null;
-              return;
-            }
-            pointerDownRef.current = {
-              x: event.clientX,
-              y: event.clientY,
-              moved: false,
-            };
-          }
-          : undefined
-      }
       onMouseMove={
         lensEnabled
           ? (event) => {
             if (isAnnotationInteractionTarget(event.target)) {
               return;
-            }
-            const pointer = pointerDownRef.current;
-            if (pointer) {
-              const moved =
-                Math.abs(event.clientX - pointer.x) > 6
-                || Math.abs(event.clientY - pointer.y) > 6;
-              if (moved) {
-                pointer.moved = true;
-              }
             }
             if (!lensActive) {
               return;
@@ -188,29 +148,9 @@ export function LibraryPdfScrollViewerPage(props: {
           }
           : undefined
       }
-      onDoubleClick={
-        lensEnabled
-          ? (event) => {
-            const pointer = pointerDownRef.current;
-            pointerDownRef.current = null;
-            if (isAnnotationInteractionTarget(event.target)) {
-              return;
-            }
-            if (pointer?.moved || hasActiveSelectionInside(event.currentTarget)) {
-              return;
-            }
-            const point = resolveLensPoint(event, !lensActive);
-            if (!point) {
-              return;
-            }
-            onToggleLens(point);
-          }
-          : undefined
-      }
       onMouseLeave={
         lensEnabled
           ? () => {
-            pointerDownRef.current = null;
             if (!lensActive) {
               return;
             }

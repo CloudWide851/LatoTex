@@ -46,6 +46,8 @@ function CompareHarness() {
       pdfUrl="blob:source-pdf"
       annotationMode="select"
       setAnnotationMode={() => undefined}
+      magnifierActive={false}
+      setMagnifierActive={() => undefined}
       highlightColor="#fde047"
       setHighlightColor={() => undefined}
       highlightWidth={16}
@@ -184,6 +186,8 @@ describe("LibraryViewerContentPanel", () => {
           pdfUrl="blob:source-pdf"
           annotationMode="select"
           setAnnotationMode={() => undefined}
+          magnifierActive={false}
+          setMagnifierActive={() => undefined}
           highlightColor="#fde047"
           setHighlightColor={() => undefined}
           highlightWidth={16}
@@ -280,6 +284,8 @@ describe("LibraryViewerContentPanel", () => {
           pdfUrl={null}
           annotationMode="select"
           setAnnotationMode={() => undefined}
+          magnifierActive={false}
+          setMagnifierActive={() => undefined}
           highlightColor="#fde047"
           setHighlightColor={() => undefined}
           highlightWidth={16}
@@ -377,6 +383,8 @@ describe("LibraryViewerContentPanel", () => {
           pdfUrl={null}
           annotationMode="select"
           setAnnotationMode={() => undefined}
+          magnifierActive={false}
+          setMagnifierActive={() => undefined}
           highlightColor="#fde047"
           setHighlightColor={() => undefined}
           highlightWidth={16}

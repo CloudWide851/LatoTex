@@ -8,6 +8,7 @@ import {
   Minus,
   MousePointer2,
   Plus,
+  Search,
   Type,
   Undo2,
 } from "lucide-react";
@@ -63,6 +64,8 @@ export function LibraryPdfToolSidebar(props: {
   hasPdf: boolean;
   mode: ToolMode;
   onModeChange: (mode: ToolMode) => void;
+  magnifierActive: boolean;
+  onMagnifierActiveChange: (active: boolean) => void;
   highlightColor: string;
   onHighlightColorChange: (value: string) => void;
   highlightWidth: number;
@@ -92,6 +95,8 @@ export function LibraryPdfToolSidebar(props: {
     hasPdf,
     mode,
     onModeChange,
+    magnifierActive,
+    onMagnifierActiveChange,
     highlightColor,
     onHighlightColorChange,
     highlightWidth,
@@ -168,8 +173,15 @@ export function LibraryPdfToolSidebar(props: {
 
   const openPanelFor = (kind: PanelKind) => {
     setPanelKind(kind);
+    onMagnifierActiveChange(false);
     onModeChange(kind === "textbox" ? "textbox" : "highlight");
     setPanelOpen(true);
+  };
+
+  const closeMagnifier = () => {
+    if (magnifierActive) {
+      onMagnifierActiveChange(false);
+    }
   };
 
   return (
@@ -179,7 +191,10 @@ export function LibraryPdfToolSidebar(props: {
           className={toolButtonClass(mode === "select")}
           title={titleWithShortcut(t("library.viewer.toolSelect"), t("library.viewer.shortcut.select"))}
           aria-label={titleWithShortcut(t("library.viewer.toolSelect"), t("library.viewer.shortcut.select"))}
-          onClick={() => onModeChange("select")}
+          onClick={() => {
+            closeMagnifier();
+            onModeChange("select");
+          }}
           disabled={!hasPdf}
         >
           <MousePointer2 className="h-4 w-4" />
@@ -189,7 +204,10 @@ export function LibraryPdfToolSidebar(props: {
           className={toolButtonClass(mode === "highlight")}
           title={titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))}
           aria-label={titleWithShortcut(t("preview.annotationEnable"), t("library.viewer.shortcut.highlight"))}
-          onClick={() => onModeChange("highlight")}
+          onClick={() => {
+            closeMagnifier();
+            onModeChange("highlight");
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -208,7 +226,10 @@ export function LibraryPdfToolSidebar(props: {
           className={toolButtonClass(mode === "textbox")}
           title={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
           aria-label={titleWithShortcut(t("library.viewer.textboxMode"), t("library.viewer.shortcut.textbox"))}
-          onClick={() => onModeChange("textbox")}
+          onClick={() => {
+            closeMagnifier();
+            onModeChange("textbox");
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -224,10 +245,27 @@ export function LibraryPdfToolSidebar(props: {
         </button>
 
         <button
+          className={toolButtonClass(magnifierActive)}
+          title={t("library.viewer.magnifier")}
+          aria-label={t("library.viewer.magnifier")}
+          onClick={() => {
+            setPanelOpen(false);
+            onModeChange("select");
+            onMagnifierActiveChange(!magnifierActive);
+          }}
+          disabled={!hasPdf}
+        >
+          <Search className="h-4 w-4" />
+        </button>
+
+        <button
           className={toolButtonClass(mode === "eraser")}
           title={titleWithShortcut(t("library.viewer.eraser"), t("library.viewer.shortcut.eraser"))}
           aria-label={titleWithShortcut(t("library.viewer.eraser"), t("library.viewer.shortcut.eraser"))}
-          onClick={() => onModeChange("eraser")}
+          onClick={() => {
+            closeMagnifier();
+            onModeChange("eraser");
+          }}
           disabled={!hasPdf}
         >
           <Eraser className="h-4 w-4" />
@@ -237,7 +275,10 @@ export function LibraryPdfToolSidebar(props: {
 
         <button
           className={toolButtonClass(false)}
-          onClick={onUndo}
+          onClick={() => {
+            closeMagnifier();
+            onUndo();
+          }}
           title={titleWithShortcut(t("preview.annotationUndo"), t("shortcut.undo"))}
           aria-label={titleWithShortcut(t("preview.annotationUndo"), t("shortcut.undo"))}
           disabled={!hasPdf || !canUndo}
@@ -247,7 +288,10 @@ export function LibraryPdfToolSidebar(props: {
 
         <button
           className={toolButtonClass(false)}
-          onClick={onClear}
+          onClick={() => {
+            closeMagnifier();
+            onClear();
+          }}
           title={t("preview.annotationClear")}
           aria-label={t("preview.annotationClear")}
           disabled={!hasPdf || !canClear}
@@ -259,7 +303,10 @@ export function LibraryPdfToolSidebar(props: {
 
         <button
           className={toolButtonClass(false)}
-          onClick={onPrevPage}
+          onClick={() => {
+            closeMagnifier();
+            onPrevPage();
+          }}
           title={titleWithShortcut(t("library.viewer.prevPage"), t("library.viewer.shortcut.prevPage"))}
           disabled={!hasPdf}
         >
@@ -269,15 +316,24 @@ export function LibraryPdfToolSidebar(props: {
         <input
           className="h-7 w-8 rounded-lg border border-slate-300 bg-white px-1 text-center text-[10px] text-slate-700"
           value={pageInput}
-          onChange={(event) => onPageInputChange(event.target.value)}
-          onBlur={onPageCommit}
+          onChange={(event) => {
+            closeMagnifier();
+            onPageInputChange(event.target.value);
+          }}
+          onBlur={() => {
+            closeMagnifier();
+            onPageCommit();
+          }}
           title={t("library.viewer.pageInput")}
           disabled={!hasPdf}
         />
 
         <button
           className={toolButtonClass(false)}
-          onClick={onNextPage}
+          onClick={() => {
+            closeMagnifier();
+            onNextPage();
+          }}
           title={titleWithShortcut(t("library.viewer.nextPage"), t("library.viewer.shortcut.nextPage"))}
           disabled={!hasPdf}
         >
@@ -288,7 +344,10 @@ export function LibraryPdfToolSidebar(props: {
 
         <button
           className={toolButtonClass(false)}
-          onClick={onZoomOut}
+          onClick={() => {
+            closeMagnifier();
+            onZoomOut();
+          }}
           title={titleWithShortcut(t("preview.zoomOut"), t("library.viewer.shortcut.zoomOut"))}
           disabled={!hasPdf}
         >
@@ -299,7 +358,10 @@ export function LibraryPdfToolSidebar(props: {
 
         <button
           className={toolButtonClass(false)}
-          onClick={onZoomIn}
+          onClick={() => {
+            closeMagnifier();
+            onZoomIn();
+          }}
           title={titleWithShortcut(t("preview.zoomIn"), t("library.viewer.shortcut.zoomIn"))}
           disabled={!hasPdf}
         >

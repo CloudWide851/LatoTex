@@ -260,6 +260,7 @@ export function ExplorerTree(props: {
           title={node.relativePath}
           data-explorer-drop-directory={isDirectory ? "true" : undefined}
           data-path={node.relativePath}
+          onDragStart={(event) => event.preventDefault()}
           onPointerDown={(event) => handlePointerDragStart(event, node.relativePath, node.name)}
           onMouseDown={(event) => handlePointerDragStart(event, node.relativePath, node.name)}
           onContextMenu={(event) => {

@@ -9,6 +9,8 @@ import {
 export type DragMode = "move" | "resize";
 
 export type DragState = {
+  inputKind: "mouse" | "pointer";
+  pointerId: number;
   mode: DragMode;
   boxId: string;
   start: AnnotationPoint;

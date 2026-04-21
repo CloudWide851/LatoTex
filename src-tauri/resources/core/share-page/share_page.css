@@ -907,6 +907,17 @@ video {
 [data-share-layout='mobile'] .share-pane.\!active {
     display: grid !important;
   }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
 .pointer-events-none {
   pointer-events: none;
 }
@@ -964,8 +975,8 @@ video {
 .-top-1 {
   top: -0.25rem;
 }
-.-top-2 {
-  top: -0.5rem;
+.-top-6 {
+  top: -1.5rem;
 }
 .-top-\[7px\] {
   top: -7px;

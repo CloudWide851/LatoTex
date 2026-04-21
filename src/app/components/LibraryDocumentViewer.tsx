@@ -19,6 +19,7 @@ import { useLibraryPaperBrief } from "./library/useLibraryPaperBrief";
 import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { useLibraryPdfViewController } from "./library/useLibraryPdfViewController";
+import { useLibraryCompareScrollDraft } from "./library/useLibraryCompareScrollDraft";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
 import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
@@ -65,6 +66,7 @@ export function LibraryDocumentViewer(props: {
   const [pageCount, setPageCount] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [toolConfigSignal, setToolConfigSignal] = useState(0);
+  const [magnifierActive, setMagnifierActive] = useState(false);
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
   const lastAnnotationPayloadRef = useRef<string>("");
   const {
@@ -78,6 +80,12 @@ export function LibraryDocumentViewer(props: {
   const currentPage = session.currentPage;
   const pdfZoom = session.pdfZoom;
   const viewMode = session.viewMode;
+  const { setCompareSourceScrollAnchor, setCompareSourceScrollRatio, setCompareTranslatedScrollAnchor, setCompareTranslatedScrollRatio } = useLibraryCompareScrollDraft({
+    projectId,
+    selectedPath,
+    session,
+    setSession,
+  });
   const {
     loading,
     loadError,
@@ -153,22 +161,10 @@ export function LibraryDocumentViewer(props: {
     t,
   });
 
-  const activeLink = useMemo(
-    () => resolvedLink ?? citation?.urls?.[0] ?? null,
-    [citation?.urls, resolvedLink],
-  );
-  const annotationPath = useMemo(
-    () => (selectedPath ? toLibraryAnnotationPath(selectedPath) : null),
-    [selectedPath],
-  );
-  const pageStrokeCount = useMemo(
-    () => annotationStrokes.filter((item) => item.page === currentPage).length,
-    [annotationStrokes, currentPage],
-  );
-  const pageTextBoxCount = useMemo(
-    () => annotationTextBoxes.filter((item) => item.page === currentPage).length,
-    [annotationTextBoxes, currentPage],
-  );
+  const activeLink = useMemo(() => resolvedLink ?? citation?.urls?.[0] ?? null, [citation?.urls, resolvedLink]);
+  const annotationPath = useMemo(() => (selectedPath ? toLibraryAnnotationPath(selectedPath) : null), [selectedPath]);
+  const pageStrokeCount = useMemo(() => annotationStrokes.filter((item) => item.page === currentPage).length, [annotationStrokes, currentPage]);
+  const pageTextBoxCount = useMemo(() => annotationTextBoxes.filter((item) => item.page === currentPage).length, [annotationTextBoxes, currentPage]);
   const hasComparePair = Boolean(hasPdf && translatedPdfUrl);
   const hasTranslatedArtifact = Boolean(translatedSessionPath || translatedPdfRelativePath);
   const pdfOpenError = pdfPreviewError ?? pdfObjectUrlError;
@@ -193,6 +189,7 @@ export function LibraryDocumentViewer(props: {
       setAnnotationLoaded(false);
       setPageCount(1);
       setPageInput("1");
+      setMagnifierActive(false);
       setHighlightWidth(16);
       setHighlightOpacity(0.65);
       setTextBoxStylePreset("minimal");
@@ -207,6 +204,7 @@ export function LibraryDocumentViewer(props: {
     setAnnotationMode("select");
     setPageCount(1);
     setPageInput(String(session.currentPage));
+    setMagnifierActive(false);
     setHighlightWidth(16);
     setHighlightOpacity(0.65);
     setTextBoxStylePreset("minimal");
@@ -360,6 +358,12 @@ export function LibraryDocumentViewer(props: {
   }, [hasPdf, viewMode]);
 
   useEffect(() => {
+    if (viewMode !== "pdf" || annotationMode !== "select" || !hasPdf) {
+      setMagnifierActive(false);
+    }
+  }, [annotationMode, hasPdf, viewMode]);
+
+  useEffect(() => {
     if (currentPage <= pageCount) {
       return;
     }
@@ -499,6 +503,8 @@ export function LibraryDocumentViewer(props: {
           pdfUrl={pdfUrl}
           annotationMode={annotationMode}
           setAnnotationMode={setAnnotationMode}
+          magnifierActive={magnifierActive}
+          setMagnifierActive={setMagnifierActive}
           highlightColor={highlightColor}
           setHighlightColor={setHighlightColor}
           highlightWidth={highlightWidth}
@@ -553,13 +559,13 @@ export function LibraryDocumentViewer(props: {
           pdfScrollRatio={session.pdfScrollRatio}
           setPdfScrollRatio={(next) => setSession({ pdfScrollRatio: next })}
           compareSourceScrollAnchor={session.compareSourceScrollAnchor}
-          setCompareSourceScrollAnchor={(next) => setSession({ compareSourceScrollAnchor: next })}
+          setCompareSourceScrollAnchor={setCompareSourceScrollAnchor}
           compareSourceScrollRatio={session.compareSourceScrollRatio}
-          setCompareSourceScrollRatio={(next) => setSession({ compareSourceScrollRatio: next })}
+          setCompareSourceScrollRatio={setCompareSourceScrollRatio}
           compareTranslatedScrollAnchor={session.compareTranslatedScrollAnchor}
-          setCompareTranslatedScrollAnchor={(next) => setSession({ compareTranslatedScrollAnchor: next })}
+          setCompareTranslatedScrollAnchor={setCompareTranslatedScrollAnchor}
           compareTranslatedScrollRatio={session.compareTranslatedScrollRatio}
-          setCompareTranslatedScrollRatio={(next) => setSession({ compareTranslatedScrollRatio: next })}
+          setCompareTranslatedScrollRatio={setCompareTranslatedScrollRatio}
           bibScrollRatio={session.bibScrollRatio}
           setBibScrollRatio={(next) => setSession({ bibScrollRatio: next })}
           metaScrollRatio={session.metaScrollRatio}

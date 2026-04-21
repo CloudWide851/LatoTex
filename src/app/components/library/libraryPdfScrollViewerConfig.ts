@@ -43,6 +43,8 @@ export type LibraryPdfScrollViewerProps = {
   initialScrollRatio?: number;
   onScrollRatioChange?: (ratio: number) => void;
   enableLens?: boolean;
+  lensActive?: boolean;
+  onLensActiveChange?: (active: boolean) => void;
   onDocumentLoadError?: (error: string) => void;
   t: TranslationFn;
 };

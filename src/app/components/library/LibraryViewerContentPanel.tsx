@@ -87,6 +87,8 @@ type LibraryViewerContentPanelProps = {
   pdfUrl: string | null;
   annotationMode: ToolMode;
   setAnnotationMode: (mode: ToolMode) => void;
+  magnifierActive: boolean;
+  setMagnifierActive: (active: boolean) => void;
   highlightColor: string;
   setHighlightColor: (color: string) => void;
   highlightWidth: number;
@@ -170,6 +172,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     pdfUrl,
     annotationMode,
     setAnnotationMode,
+    magnifierActive,
+    setMagnifierActive,
     highlightColor,
     setHighlightColor,
     highlightWidth,
@@ -276,6 +280,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 hasPdf={hasPdf}
                 mode={annotationMode}
                 onModeChange={setAnnotationMode}
+                magnifierActive={magnifierActive}
+                onMagnifierActiveChange={setMagnifierActive}
                 highlightColor={highlightColor}
                 onHighlightColorChange={setHighlightColor}
                 highlightWidth={highlightWidth}
@@ -335,6 +341,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 onRequestToolConfig={() => setToolConfigSignal((prev) => prev + 1)}
                 initialScrollRatio={pdfScrollRatio}
                 onScrollRatioChange={setPdfScrollRatio}
+                lensActive={magnifierActive}
+                onLensActiveChange={setMagnifierActive}
                 containerClassName={pdfViewerContainerClassName}
                 documentClassName={pdfViewerDocumentClassName}
                 t={t}
@@ -398,6 +406,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 onScrollAnchorChange={setCompareSourceScrollAnchor}
                 initialScrollRatio={compareSourceScrollRatio}
                 onScrollRatioChange={setCompareSourceScrollRatio}
+                enableLens={false}
                 t={t}
               />
             </div>
@@ -435,6 +444,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 onScrollAnchorChange={setCompareTranslatedScrollAnchor}
                 initialScrollRatio={compareTranslatedScrollRatio}
                 onScrollRatioChange={setCompareTranslatedScrollRatio}
+                enableLens={false}
                 t={t}
               />
             </div>

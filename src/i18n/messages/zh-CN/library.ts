@@ -71,6 +71,7 @@ export const zhCN_library = {
   "library.viewer.highlightColor": "荧光笔颜色",
   "library.viewer.textColor": "文本颜色",
   "library.viewer.textboxMode": "文本框模式",
+  "library.viewer.magnifier": "放大镜",
   "library.viewer.textboxPlaceholder": "双击编辑文本",
   "library.viewer.textboxSave": "保存文本框",
   "library.viewer.textboxEdit": "编辑文本框",

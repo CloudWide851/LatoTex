@@ -29,24 +29,25 @@ export function PdfTextBoxContextMenu(props: {
   y: number;
   positioning?: "fixed" | "absolute";
   style: TextBoxStyle;
-  onApplyInlineStyle?: (next: Partial<TextBoxStyle>) => boolean;
-  onChangeStyle: (next: Partial<TextBoxStyle>) => void;
+  onApplyStyle: (next: Partial<TextBoxStyle>, options?: { preferInline?: boolean }) => void;
   onDelete: () => void;
   onClose: () => void;
   t: (key: any) => string;
 }) {
-  const { x, y, positioning = "fixed", style, onApplyInlineStyle, onChangeStyle, onDelete, onClose, t } = props;
+  const { x, y, positioning = "fixed", style, onApplyStyle, onDelete, onClose, t } = props;
 
   const preserveEditorSelection = (event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
   };
 
-  const applyTextStyle = (next: Partial<TextBoxStyle>) => {
-    if (onApplyInlineStyle?.(next)) {
-      return;
-    }
-    onChangeStyle(next);
+  const applyTextStyle = (
+    event: ReactMouseEvent<HTMLElement>,
+    next: Partial<TextBoxStyle>,
+    options?: { preferInline?: boolean },
+  ) => {
+    preserveEditorSelection(event);
+    onApplyStyle(next, options);
   };
 
   return (
@@ -61,7 +62,7 @@ export function PdfTextBoxContextMenu(props: {
         <Select
           uiSize="sm"
           value={style.fontFamily}
-          onChange={(event) => applyTextStyle({ fontFamily: event.target.value })}
+          onChange={(event) => onApplyStyle({ fontFamily: event.target.value })}
           portalAttributes={{
             "data-textbox-menu": "true",
             onMouseDown: preserveEditorSelection,
@@ -74,7 +75,7 @@ export function PdfTextBoxContextMenu(props: {
         <Select
           uiSize="sm"
           value={String(style.fontSize)}
-          onChange={(event) => applyTextStyle({ fontSize: Number(event.target.value) })}
+          onChange={(event) => onApplyStyle({ fontSize: Number(event.target.value) })}
           portalAttributes={{
             "data-textbox-menu": "true",
             onMouseDown: preserveEditorSelection,
@@ -92,8 +93,7 @@ export function PdfTextBoxContextMenu(props: {
             style.fontWeight === "bold" ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 text-slate-700"
           }`}
           title={t("library.viewer.textbox.menu.bold")}
-          onMouseDown={preserveEditorSelection}
-          onClick={() => applyTextStyle({ fontWeight: style.fontWeight === "bold" ? "normal" : "bold" })}
+          onMouseDown={(event) => applyTextStyle(event, { fontWeight: style.fontWeight === "bold" ? "normal" : "bold" })}
         >
           <Bold className="h-3.5 w-3.5" />
         </button>
@@ -102,8 +102,7 @@ export function PdfTextBoxContextMenu(props: {
             style.fontStyle === "italic" ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 text-slate-700"
           }`}
           title={t("library.viewer.textbox.menu.italic")}
-          onMouseDown={preserveEditorSelection}
-          onClick={() => applyTextStyle({ fontStyle: style.fontStyle === "italic" ? "normal" : "italic" })}
+          onMouseDown={(event) => applyTextStyle(event, { fontStyle: style.fontStyle === "italic" ? "normal" : "italic" })}
         >
           <Italic className="h-3.5 w-3.5" />
         </button>
@@ -112,10 +111,10 @@ export function PdfTextBoxContextMenu(props: {
             style.textDecoration === "underline" ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 text-slate-700"
           }`}
           title={t("library.viewer.textbox.menu.underline")}
-          onMouseDown={preserveEditorSelection}
-          onClick={() =>
-            applyTextStyle({ textDecoration: style.textDecoration === "underline" ? "none" : "underline" })
-          }
+          onMouseDown={(event) => applyTextStyle(
+            event,
+            { textDecoration: style.textDecoration === "underline" ? "none" : "underline" },
+          )}
         >
           <Underline className="h-3.5 w-3.5" />
         </button>
@@ -124,8 +123,7 @@ export function PdfTextBoxContextMenu(props: {
             style.textAlign === "left" ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 text-slate-700"
           }`}
           title={t("library.viewer.textbox.menu.alignLeft")}
-          onMouseDown={preserveEditorSelection}
-          onClick={() => onChangeStyle({ textAlign: "left" })}
+          onMouseDown={(event) => applyTextStyle(event, { textAlign: "left" }, { preferInline: false })}
         >
           <AlignLeft className="h-3.5 w-3.5" />
         </button>
@@ -134,8 +132,7 @@ export function PdfTextBoxContextMenu(props: {
             style.textAlign === "center" ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 text-slate-700"
           }`}
           title={t("library.viewer.textbox.menu.alignCenter")}
-          onMouseDown={preserveEditorSelection}
-          onClick={() => onChangeStyle({ textAlign: "center" })}
+          onMouseDown={(event) => applyTextStyle(event, { textAlign: "center" }, { preferInline: false })}
         >
           <AlignCenter className="h-3.5 w-3.5" />
         </button>
@@ -144,8 +141,7 @@ export function PdfTextBoxContextMenu(props: {
             style.textAlign === "right" ? "border-primary-500 bg-primary-50 text-primary-700" : "border-slate-300 text-slate-700"
           }`}
           title={t("library.viewer.textbox.menu.alignRight")}
-          onMouseDown={preserveEditorSelection}
-          onClick={() => onChangeStyle({ textAlign: "right" })}
+          onMouseDown={(event) => applyTextStyle(event, { textAlign: "right" }, { preferInline: false })}
         >
           <AlignRight className="h-3.5 w-3.5" />
         </button>
@@ -158,8 +154,7 @@ export function PdfTextBoxContextMenu(props: {
             className="h-6 w-6 rounded-full border border-slate-300"
             style={{ backgroundColor: color }}
             title={t("library.viewer.textbox.menu.textColor")}
-            onMouseDown={preserveEditorSelection}
-            onClick={() => applyTextStyle({ textColor: color })}
+            onMouseDown={(event) => applyTextStyle(event, { textColor: color })}
           />
         ))}
       </div>

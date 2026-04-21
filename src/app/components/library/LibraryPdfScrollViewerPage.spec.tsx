@@ -25,11 +25,11 @@ describe("LibraryPdfScrollViewerPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("toggles the lens on double-click but ignores drag-style motion so reading interactions are not hijacked", async () => {
+  it("moves the lens only when the magnifier is already active", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    const onToggleLens = vi.fn();
+    const onMoveLens = vi.fn();
     const pageRefs = { current: {} as Record<number, HTMLDivElement | null> };
     const scrollRef = {
       current: {
@@ -55,7 +55,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           page={1}
           frameWidth={400}
           lensEnabled
-          lensActive={false}
+          lensActive
           readOnly
           mode="select"
           highlightColor="#fde047"
@@ -68,8 +68,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           pageRefs={pageRefs}
           scrollRef={scrollRef as any}
           pendingLensPointRef={{ current: { visible: false, viewportX: 0, viewportY: 0, pageX: 0, pageY: 0, pageNumber: 1 } }}
-          onToggleLens={onToggleLens}
-          onMoveLens={() => undefined}
+          onMoveLens={onMoveLens}
           onHideLens={() => undefined}
           onLayoutChange={() => undefined}
           onRenderSuccess={() => undefined}
@@ -95,17 +94,13 @@ describe("LibraryPdfScrollViewerPage", () => {
     });
 
     await act(async () => {
-      pageNode?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
       pageNode?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, button: 0, clientX: 150, clientY: 190 }));
-      pageNode?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 150, clientY: 190 }));
     });
-    expect(onToggleLens).not.toHaveBeenCalled();
-
-    await act(async () => {
-      pageNode?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
-      pageNode?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 120, clientY: 160 }));
-    });
-    expect(onToggleLens).toHaveBeenCalledTimes(1);
+    expect(onMoveLens).toHaveBeenCalledTimes(1);
+    expect(onMoveLens).toHaveBeenCalledWith(expect.objectContaining({
+      visible: true,
+      pageNumber: 1,
+    }));
 
     await act(async () => {
       root.unmount();
@@ -113,11 +108,11 @@ describe("LibraryPdfScrollViewerPage", () => {
     container.remove();
   });
 
-  it("does not toggle the lens when the double-click comes from the annotation layer", async () => {
+  it("ignores annotation-layer hover targets while the magnifier is active", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
-    const onToggleLens = vi.fn();
+    const onMoveLens = vi.fn();
     const pageRefs = { current: {} as Record<number, HTMLDivElement | null> };
     const scrollRef = {
       current: {
@@ -143,7 +138,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           page={1}
           frameWidth={400}
           lensEnabled
-          lensActive={false}
+          lensActive
           readOnly={false}
           mode="select"
           highlightColor="#fde047"
@@ -156,8 +151,7 @@ describe("LibraryPdfScrollViewerPage", () => {
           pageRefs={pageRefs}
           scrollRef={scrollRef as any}
           pendingLensPointRef={{ current: { visible: false, viewportX: 0, viewportY: 0, pageX: 0, pageY: 0, pageNumber: 1 } }}
-          onToggleLens={onToggleLens}
-          onMoveLens={() => undefined}
+          onMoveLens={onMoveLens}
           onHideLens={() => undefined}
           onLayoutChange={() => undefined}
           onRenderSuccess={() => undefined}
@@ -185,11 +179,10 @@ describe("LibraryPdfScrollViewerPage", () => {
     });
 
     await act(async () => {
-      annotationLayer?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
-      annotationLayer?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, clientX: 120, clientY: 160 }));
+      annotationLayer?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
     });
 
-    expect(onToggleLens).not.toHaveBeenCalled();
+    expect(onMoveLens).not.toHaveBeenCalled();
 
     await act(async () => {
       root.unmount();
@@ -239,7 +232,6 @@ describe("LibraryPdfScrollViewerPage", () => {
           pageRefs={pageRefs}
           scrollRef={scrollRef as any}
           pendingLensPointRef={{ current: { visible: false, viewportX: 0, viewportY: 0, pageX: 0, pageY: 0, pageNumber: 1 } }}
-          onToggleLens={() => undefined}
           onMoveLens={() => undefined}
           onHideLens={() => undefined}
           onLayoutChange={() => undefined}

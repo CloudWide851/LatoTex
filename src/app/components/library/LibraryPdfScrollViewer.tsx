@@ -50,6 +50,8 @@ export const LibraryPdfScrollViewer = forwardRef<
     initialScrollRatio = 0,
     onScrollRatioChange,
     enableLens = true,
+    lensActive: controlledLensActive,
+    onLensActiveChange,
     onDocumentLoadError,
     t,
   } = props;
@@ -93,7 +95,11 @@ export const LibraryPdfScrollViewer = forwardRef<
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
-  const [lensActive, setLensActive] = useState(false), [lensVisible, setLensVisible] = useState(false), [lensPage, setLensPage] = useState(1);
+  const [uncontrolledLensActive, setUncontrolledLensActive] = useState(false);
+  const [lensVisible, setLensVisible] = useState(false);
+  const [lensPage, setLensPage] = useState(1);
+  const lensActive = controlledLensActive ?? uncontrolledLensActive;
+  const setLensActive = onLensActiveChange ?? setUncontrolledLensActive;
   const lensEnabled = enableLens && (readOnly || mode === "select");
   onVisiblePageChangeRef.current = onVisiblePageChange;
   onPageCountChangeRef.current = onPageCountChange;
@@ -541,10 +547,6 @@ export const LibraryPdfScrollViewer = forwardRef<
             pageRefs={pageRefs}
             scrollRef={scrollRef}
             pendingLensPointRef={pendingLensPointRef}
-            onToggleLens={(point) => {
-              setLensActive(point.visible);
-              queueLensPoint(point);
-            }}
             onMoveLens={queueLensPoint}
             onHideLens={() => {
               queueLensPoint({ ...pendingLensPointRef.current, visible: false });

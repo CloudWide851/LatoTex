@@ -237,6 +237,11 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
         return;
       }
     }
+    event.preventDefault();
+    if (typeof document !== "undefined") {
+      document.body.style.setProperty("user-select", "none");
+      document.body.style.setProperty("cursor", "grab");
+    }
     dragSessionRef.current = {
       inputKind,
       pointerId: inputKind === "pointer" && "pointerId" in event.nativeEvent

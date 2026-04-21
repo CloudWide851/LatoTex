@@ -121,7 +121,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
     expect(alignCenter).not.toBeNull();
 
     await act(async () => {
-      alignCenter?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      alignCenter?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
       await Promise.resolve();
     });
 
@@ -181,7 +181,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
     expect(boldButton).not.toBeNull();
 
     await act(async () => {
-      boldButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      boldButton?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
       await Promise.resolve();
     });
 
