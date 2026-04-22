@@ -211,6 +211,64 @@ describe("PdfAnnotationLayer", () => {
     container.remove();
   });
 
+  it("commits a non-empty textbox before creating another one in textbox mode", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<Harness />);
+    });
+
+    const layer = container.querySelector(".absolute.inset-0.z-20") as HTMLDivElement | null;
+    expect(layer).not.toBeNull();
+    layer!.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 360,
+      bottom: 480,
+      width: 360,
+      height: 480,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    await act(async () => {
+      layer?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 120,
+        clientY: 160,
+      }));
+    });
+
+    const firstEditor = () => container.querySelector("[contenteditable='true']") as HTMLDivElement | null;
+    expect(firstEditor()).not.toBeNull();
+
+    await act(async () => {
+      if (firstEditor()) {
+        firstEditor()!.innerHTML = "<p>First textbox</p>";
+      }
+      layer?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 220,
+        clientY: 260,
+      }));
+      await Promise.resolve();
+    });
+
+    const state = JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
+    expect(state).toHaveLength(2);
+    expect(state[0]?.content).toContain("First textbox");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("shows an explicit resize handle and resizes the selected textbox in textbox mode", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -392,7 +450,7 @@ describe("PdfAnnotationLayer", () => {
         clientX: 220,
         clientY: 240,
       }));
-      window.dispatchEvent(new MouseEvent("mouseup", {
+      moveHandle?.dispatchEvent(new MouseEvent("mouseup", {
         bubbles: true,
         button: 0,
         clientX: 220,

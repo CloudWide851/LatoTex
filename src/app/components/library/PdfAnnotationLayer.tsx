@@ -6,6 +6,7 @@ import { PdfTextBoxTransformHandles } from "./PdfTextBoxTransformHandles";
 import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveMenuAnchor, toNormalizedPoint } from "./pdfAnnotationLayerUtils";
 import { buildAnnotationStroke, focusAnnotationEditingBox, getAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
 import { applyStyleToEntireRichTextHtml, applyStyleToRichTextSelection, isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
+import { usePdfTextBoxEditing } from "./usePdfTextBoxEditing";
 import { usePdfTextBoxTransform } from "./usePdfTextBoxTransform";
 
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
@@ -50,17 +51,11 @@ export function PdfAnnotationLayer(props: {
   const [editingTextBoxId, setEditingTextBoxId] = useState<string | null>(null);
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPositionTick, setMenuPositionTick] = useState(0);
+  const { updateTextBoxes, deleteTextBox, commitTextBoxEditing } = usePdfTextBoxEditing({ layerRef, textBoxesRef, recentlyCreatedTextBoxIdRef, onTextBoxesChange, setEditingTextBoxId, setSelectedTextBoxId, setMenuOpen });
   const { dragPreview, beginTextBoxTransform } = usePdfTextBoxTransform({
     layerRef,
-    onCommit: (preview) => {
-      onTextBoxesChange(
-        textBoxesRef.current.map((item) =>
-          item.id === preview.boxId
-            ? { ...item, x: preview.x, y: preview.y, w: preview.w, h: preview.h }
-            : item,
-        ),
-      );
-    },
+    onCommit: (preview) => updateTextBoxes((current) => current.map((item) => item.id === preview.boxId ? { ...item, x: preview.x, y: preview.y, w: preview.w, h: preview.h } : item)),
   });
 
   const pageStrokes = useMemo(() => strokes.filter((item) => item.page === page), [page, strokes]);
@@ -68,9 +63,7 @@ export function PdfAnnotationLayer(props: {
   const menuBox = useMemo(() => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null), [selectedTextBoxId, textBoxes]);
   const canTransformTextBoxes = !readOnly && (mode === "select" || mode === "textbox");
 
-  useEffect(() => {
-    textBoxesRef.current = textBoxes;
-  }, [textBoxes]);
+  useEffect(() => { textBoxesRef.current = textBoxes; }, [textBoxes]);
 
   useEffect(() => { selectionRangeRef.current = null; }, [editingTextBoxId]);
 
@@ -90,8 +83,8 @@ export function PdfAnnotationLayer(props: {
     if (!selectedTextBoxId) {
       return;
     }
-    onTextBoxesChange(
-      textBoxes.map((item) =>
+    updateTextBoxes((current) =>
+      current.map((item) =>
         item.id === selectedTextBoxId
           ? { ...item, style: { ...item.style, textColor } }
           : item,
@@ -116,12 +109,11 @@ export function PdfAnnotationLayer(props: {
         return;
       }
       event.preventDefault();
-      onTextBoxesChange(textBoxes.filter((item) => item.id !== selectedTextBoxId));
-      setSelectedTextBoxId(null);
+      deleteTextBox(selectedTextBoxId);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editingTextBoxId, menuOpen, onTextBoxesChange, selectedTextBoxId, textBoxes]);
+  }, [deleteTextBox, editingTextBoxId, menuOpen, selectedTextBoxId]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -147,6 +139,16 @@ export function PdfAnnotationLayer(props: {
     }
     focusAnnotationEditingBox(layerRef.current, editingTextBoxId);
   }, [editingTextBoxId]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    const updateMenuPosition = () => setMenuPositionTick((current) => current + 1);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => { window.removeEventListener("resize", updateMenuPosition); window.removeEventListener("scroll", updateMenuPosition, true); };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!editingTextBoxId || typeof document === "undefined") {
@@ -198,7 +200,7 @@ export function PdfAnnotationLayer(props: {
     return () => observer.disconnect();
   }, []);
 
-  const menuAnchor = useMemo(() => resolveMenuAnchor({ menuOpen, layerSize, menuBox, dragPreview }), [dragPreview, layerSize, menuBox, menuOpen]);
+  const menuAnchor = useMemo(() => resolveMenuAnchor({ menuOpen, layerRect: layerRef.current?.getBoundingClientRect() ?? null, layerSize, menuBox, dragPreview }), [dragPreview, layerSize, menuBox, menuOpen, menuPositionTick]);
 
   const applyTextBoxStyle = useCallback((boxId: string, nextStyle: Partial<AnnotationTextBox["style"]>, options?: { preferInline?: boolean }) => {
     const preferInline = options?.preferInline !== false;
@@ -247,8 +249,8 @@ export function PdfAnnotationLayer(props: {
         editor.style.textDecoration = nextStyle.textDecoration;
       }
     }
-    onTextBoxesChange(
-      textBoxesRef.current.map((item) => {
+    updateTextBoxes((current) =>
+      current.map((item) => {
         if (item.id !== boxId) {
           return item;
         }
@@ -270,7 +272,7 @@ export function PdfAnnotationLayer(props: {
       }),
     );
     return inlineApplied;
-  }, [editingTextBoxId, onTextBoxesChange]);
+  }, [editingTextBoxId, updateTextBoxes]);
 
   const finishDrawing = () => {
     if (!drawingRef.current) {
@@ -293,7 +295,7 @@ export function PdfAnnotationLayer(props: {
     });
   };
 
-  const startTextBoxTransform = (
+  const startTextBoxTransform = useCallback((
     mode: "move" | "resize",
     event: ReactMouseEvent<HTMLButtonElement>,
     box: AnnotationTextBox,
@@ -306,8 +308,8 @@ export function PdfAnnotationLayer(props: {
     }
     setMenuOpen(true);
     setSelectedTextBoxId(box.id);
-    onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
-  };
+    updateTextBoxes((current) => bringBoxToFront(current, box.id));
+  }, [beginTextBoxTransform, canTransformTextBoxes, updateTextBoxes]);
 
   return (
     <>
@@ -366,6 +368,11 @@ export function PdfAnnotationLayer(props: {
           const point = toNormalizedPoint(event, rect);
 
           if (mode === "textbox") {
+            if (editingTextBoxId) {
+              recentlyCreatedTextBoxIdRef.current = null;
+              commitTextBoxEditing(editingTextBoxId, { deleteIfEmpty: true });
+              setEditingTextBoxId(null);
+            }
             const id = `textbox-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
             const nextBox: AnnotationTextBox = {
               id,
@@ -374,12 +381,12 @@ export function PdfAnnotationLayer(props: {
               y: clampNormalized(point.y),
               w: 220,
               h: 112,
-              z: nextTextBoxZ(textBoxes),
+              z: nextTextBoxZ(textBoxesRef.current),
               content: "",
               html: "",
               style: createDefaultTextStyle(textColor, textBoxStylePreset),
             };
-            onTextBoxesChange([...textBoxes, nextBox]);
+            updateTextBoxes((current) => [...current, nextBox]);
             recentlyCreatedTextBoxIdRef.current = id;
             setSelectedTextBoxId(id);
             setEditingTextBoxId(id);
@@ -459,7 +466,7 @@ export function PdfAnnotationLayer(props: {
                 event.stopPropagation();
                 setMenuOpen(true);
                 setSelectedTextBoxId(box.id);
-                onTextBoxesChange(bringBoxToFront(textBoxes, box.id));
+                updateTextBoxes((current) => bringBoxToFront(current, box.id));
                 const target = event.target as HTMLElement | null;
                 if (
                   target?.closest("[data-textbox-resize-handle='true']")
@@ -487,9 +494,6 @@ export function PdfAnnotationLayer(props: {
                 setMenuOpen(true);
               }}
               onClick={(event) => {
-                event.stopPropagation();
-              }}
-              onMouseUp={(event) => {
                 event.stopPropagation();
               }}
             >
@@ -522,9 +526,7 @@ export function PdfAnnotationLayer(props: {
                   onMouseUp={(event) => event.stopPropagation()}
                   onBlur={(event) => {
                     const html = sanitizeRichTextHtml((event.currentTarget as HTMLDivElement).innerHTML);
-                    const currentTextBoxes = textBoxesRef.current;
-                    const target = currentTextBoxes.find((item) => item.id === box.id);
-                    const targetContent = richHtmlToPlainText(html || target?.html || target?.content || "");
+                    const targetContent = richHtmlToPlainText(html || box.html || box.content || "");
                     if (recentlyCreatedTextBoxIdRef.current === box.id && targetContent.trim().length === 0) {
                       recentlyCreatedTextBoxIdRef.current = null;
                       window.requestAnimationFrame(() => {
@@ -532,18 +534,7 @@ export function PdfAnnotationLayer(props: {
                       });
                       return;
                     }
-                    if (!target || targetContent.trim().length === 0) {
-                      onTextBoxesChange(currentTextBoxes.filter((item) => item.id !== box.id));
-                      setSelectedTextBoxId((current) => (current === box.id ? null : current));
-                      setEditingTextBoxId(null);
-                      return;
-                    }
-                    recentlyCreatedTextBoxIdRef.current = null;
-                    onTextBoxesChange(
-                      currentTextBoxes.map((item) =>
-                        item.id === box.id ? { ...item, content: targetContent, html: html || plainTextToRichHtml(targetContent) } : item,
-                      ),
-                    );
+                    commitTextBoxEditing(box.id, { deleteIfEmpty: true });
                     setEditingTextBoxId(null);
                   }}
                   onKeyDown={(event) => {
@@ -587,17 +578,12 @@ export function PdfAnnotationLayer(props: {
           <PdfTextBoxContextMenu
             x={menuAnchor.x}
             y={menuAnchor.y}
-            positioning="absolute"
+            positioning="fixed"
             style={menuBox.style}
             onApplyStyle={(nextStyle, options) => {
               applyTextBoxStyle(menuBox.id, nextStyle, options);
             }}
-            onDelete={() => {
-              onTextBoxesChange(textBoxes.filter((item) => item.id !== menuBox.id));
-              setEditingTextBoxId((current) => (current === menuBox.id ? null : current));
-              setSelectedTextBoxId((current) => (current === menuBox.id ? null : current));
-              setMenuOpen(false);
-            }}
+            onDelete={() => deleteTextBox(menuBox.id)}
             onClose={() => setMenuOpen(false)}
             t={t}
           />

@@ -13,7 +13,7 @@ type ExplorerContextMenuProps = {
   onNewFolder: () => void;
   onRename: (path: string) => void;
   onTransfer: (action: "copy" | "move", path: string) => void;
-  onDelete: (path: string) => Promise<void> | void;
+  onDelete: (path: string) => Promise<boolean | void> | void;
   onRescan?: () => void;
   onImportPdf?: () => void;
   onImportLink?: () => void;
@@ -45,7 +45,7 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
     return null;
   }
 
-  const items: Array<{ key: string; onClick: () => Promise<void> | void }> = [];
+  const items: Array<{ key: string; onClick: () => Promise<boolean | void> | void }> = [];
   if (mode === "library" && menu.kind === "blank") {
     items.push(
       { key: "library.action.importPdf", onClick: () => onImportPdf?.() },

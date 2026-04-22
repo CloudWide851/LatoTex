@@ -2,6 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExplorerTree } from "./ExplorerTree";
 import type { ResourceNode } from "../../shared/types/app";
@@ -34,6 +35,53 @@ const LIBRARY_TREE: ResourceNode[] = [
     children: [],
   },
 ];
+
+const LIBRARY_TREE_AFTER_MOVE: ResourceNode[] = [
+  {
+    name: "papers",
+    relativePath: "papers",
+    kind: "directory",
+    children: [
+      {
+        name: "nested",
+        relativePath: "papers/nested",
+        kind: "directory",
+        children: [],
+      },
+    ],
+  },
+  {
+    name: "archive",
+    relativePath: "archive",
+    kind: "directory",
+    children: [
+      { name: "demo.bib", relativePath: "archive/demo.bib", kind: "file", children: [] },
+    ],
+  },
+];
+
+function MoveVisibilityHarness() {
+  const [tree, setTree] = useState<ResourceNode[]>(LIBRARY_TREE);
+  const [selectedPath, setSelectedPath] = useState<string | null>("papers/demo.bib");
+
+  return (
+    <ExplorerTree
+      mode="library"
+      tree={tree}
+      selectedPath={selectedPath}
+      onSelect={setSelectedPath}
+      onAction={async (action, path, targetPath) => {
+        if (action !== "move" || path !== "papers/demo.bib" || targetPath !== "archive/demo.bib") {
+          return false;
+        }
+        setTree(LIBRARY_TREE_AFTER_MOVE);
+        setSelectedPath("archive/demo.bib");
+        return true;
+      }}
+      t={(key) => String(key)}
+    />
+  );
+}
 
 describe("ExplorerTree", () => {
   beforeEach(() => {
@@ -359,6 +407,35 @@ describe("ExplorerTree", () => {
     });
 
     expect(onAction).toHaveBeenCalledWith("move", "papers/demo.bib", "archive/demo.bib");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("keeps the drop target expanded so the moved entry stays visible after rerender", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<MoveVisibilityHarness />);
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    const fileNode = nodes.find((node) => node.getAttribute("title") === "papers/demo.bib");
+    expect(fileNode).toBeTruthy();
+    expect(archiveNode).toBeTruthy();
+
+    await dragNode(fileNode, archiveNode);
+
+    const movedNode = Array.from(container.querySelectorAll("[data-explorer-node='true']")).find(
+      (node) => node.getAttribute("title") === "archive/demo.bib",
+    );
+    expect(movedNode).toBeTruthy();
+    expect(movedNode?.getAttribute("aria-selected")).toBe("true");
 
     await act(async () => {
       root.unmount();

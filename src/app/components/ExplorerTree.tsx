@@ -22,6 +22,48 @@ import {
 import type { ResourceNode } from "../../shared/types/app";
 type TranslationFn = (key: any) => string;
 
+function normalizeExplorerPath(path: string | null | undefined): string {
+  return String(path ?? "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+}
+
+function rewritePathAfterMove(path: string | null, sourcePath: string, targetPath: string): string | null {
+  const normalizedPath = normalizeExplorerPath(path);
+  const normalizedSource = normalizeExplorerPath(sourcePath);
+  const normalizedTarget = normalizeExplorerPath(targetPath);
+  if (!normalizedPath || !normalizedSource || !normalizedTarget) {
+    return path;
+  }
+  if (normalizedPath === normalizedSource) {
+    return normalizedTarget;
+  }
+  if (normalizedPath.startsWith(`${normalizedSource}/`)) {
+    return `${normalizedTarget}${normalizedPath.slice(normalizedSource.length)}`;
+  }
+  return path;
+}
+
+function rewriteExpandedAfterMove(
+  previous: Record<string, boolean>,
+  sourcePath: string,
+  targetPath: string,
+): Record<string, boolean> {
+  const normalizedSource = normalizeExplorerPath(sourcePath);
+  const normalizedTarget = normalizeExplorerPath(targetPath);
+  const nextExpanded: Record<string, boolean> = {};
+  for (const [path, expanded] of Object.entries(previous)) {
+    const rewrittenPath = rewritePathAfterMove(path, normalizedSource, normalizedTarget);
+    if (!rewrittenPath) {
+      continue;
+    }
+    nextExpanded[rewrittenPath] = expanded;
+  }
+  const targetDirectory = dirnameOf(normalizedTarget);
+  if (targetDirectory) {
+    nextExpanded[targetDirectory] = true;
+  }
+  return nextExpanded;
+}
+
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
   tree: ResourceNode[];
@@ -34,7 +76,7 @@ export function ExplorerTree(props: {
   allowRescan?: boolean;
   busy?: boolean;
   onSelect: (path: string) => void;
-  onAction?: (action: FsAction, path: string, targetPath?: string, content?: string) => Promise<void>;
+  onAction?: (action: FsAction, path: string, targetPath?: string, content?: string) => Promise<boolean | void>;
   onRescan?: () => void;
   onImportPdf?: () => void;
   onImportLink?: (link: string) => void;
@@ -73,7 +115,18 @@ export function ExplorerTree(props: {
     setExpanded((prev) => ({ ...prev, [path]: true }));
   }, []);
   const handleMove = useCallback(async (sourcePath: string, targetPath: string) => {
-    await onAction?.("move", sourcePath, targetPath);
+    const moveResult = await onAction?.("move", sourcePath, targetPath);
+    if (moveResult === false) {
+      return;
+    }
+    setExpanded((prev) => rewriteExpandedAfterMove(prev, sourcePath, targetPath));
+    setSelectedPaths((prev) => {
+      const rewritten = prev
+        .map((path) => rewritePathAfterMove(path, sourcePath, targetPath))
+        .filter((path): path is string => Boolean(path));
+      return Array.from(new Set(rewritten));
+    });
+    setSelectionAnchorPath((prev) => rewritePathAfterMove(prev, sourcePath, targetPath));
   }, [onAction]);
   const expandedMap = useMemo(() => {
     if (Object.keys(expanded).length > 0) {

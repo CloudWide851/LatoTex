@@ -98,12 +98,13 @@ export function resolveDraggedBox(drag: DragState, point: AnnotationPoint): Drag
 
 export function resolveMenuAnchor(input: {
   menuOpen: boolean;
+  layerRect: DOMRect | null;
   layerSize: { width: number; height: number };
   menuBox: AnnotationTextBox | null;
   dragPreview: DragPreview | null;
 }): { x: number; y: number } | null {
-  const { menuOpen, layerSize, menuBox, dragPreview } = input;
-  if (!menuOpen || !menuBox || layerSize.width <= 0 || layerSize.height <= 0) {
+  const { menuOpen, layerRect, layerSize, menuBox, dragPreview } = input;
+  if (!menuOpen || !menuBox || !layerRect || layerSize.width <= 0 || layerSize.height <= 0) {
     return null;
   }
   const menuWidth = 288;
@@ -132,5 +133,8 @@ export function resolveMenuAnchor(input: {
     y = padding;
   }
   y = Math.min(y, Math.max(padding, layerSize.height - menuHeight - padding));
-  return { x, y };
+  return {
+    x: Math.round(layerRect.left + x),
+    y: Math.round(layerRect.top + y),
+  };
 }

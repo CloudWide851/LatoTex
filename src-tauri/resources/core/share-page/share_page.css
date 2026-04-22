@@ -1110,6 +1110,9 @@ video {
 .z-\[520\] {
   z-index: 520;
 }
+.z-\[620\] {
+  z-index: 620;
+}
 .z-\[65\] {
   z-index: 65;
 }
@@ -1121,9 +1124,6 @@ video {
 }
 .z-\[75\] {
   z-index: 75;
-}
-.z-\[90\] {
-  z-index: 90;
 }
 .col-span-2 {
   grid-column: span 2 / span 2;

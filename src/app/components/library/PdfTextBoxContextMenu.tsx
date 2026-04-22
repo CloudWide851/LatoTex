@@ -1,5 +1,6 @@
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Trash2, Underline } from "lucide-react";
 import type { MouseEvent as ReactMouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { Select } from "../../../components/ui/select";
 
 const FONT_FAMILIES = [
@@ -50,10 +51,10 @@ export function PdfTextBoxContextMenu(props: {
     onApplyStyle(next, options);
   };
 
-  return (
+  const menu = (
     <div
       data-textbox-menu="true"
-      className={`${positioning === "fixed" ? "fixed" : "absolute"} z-[90] w-72 rounded-lg border border-slate-300 bg-white p-2 shadow-xl`}
+      className={`${positioning === "fixed" ? "fixed" : "absolute"} z-[620] w-72 rounded-lg border border-slate-300 bg-white p-2 shadow-xl`}
       style={{ left: x, top: y }}
       onMouseDown={preserveEditorSelection}
     >
@@ -180,4 +181,10 @@ export function PdfTextBoxContextMenu(props: {
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") {
+    return menu;
+  }
+
+  return createPortal(menu, document.body);
 }

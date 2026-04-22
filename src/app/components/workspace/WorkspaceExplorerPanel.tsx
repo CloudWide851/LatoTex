@@ -21,7 +21,7 @@ export function WorkspaceExplorerPanel(props: {
     path: string,
     targetPath?: string,
     content?: string,
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onWorkspaceRescan: () => void | Promise<void>;

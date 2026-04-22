@@ -50,7 +50,7 @@ export function LibraryExplorerPanel(props: {
     path: string,
     targetPath?: string,
     content?: string,
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   onLibraryRescan: () => void;
   onLibraryImportPdf: () => void;
   onLibraryImportLink: (input: {

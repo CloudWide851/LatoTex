@@ -3,6 +3,17 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 const SEARCH_MAX_FILE_SIZE_BYTES: u64 = 8 * 1024 * 1024;
 const SEARCH_INDEX_SCHEMA_VERSION: i64 = 2;
+const SEARCH_DOCUMENT_REQUIRED_COLUMNS: &[&str] = &[
+    "relative_path",
+    "file_name",
+    "file_name_lower",
+    "lower_path",
+    "size_bytes",
+    "modified_epoch_sec",
+    "searchable",
+    "content_text",
+    "content_lower",
+];
 
 #[derive(Clone)]
 struct SearchScanEntry {
@@ -63,23 +74,6 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
           dirty INTEGER NOT NULL,
           last_indexed_at TEXT
         );
-        CREATE TABLE IF NOT EXISTS search_documents (
-          relative_path TEXT PRIMARY KEY,
-          file_name TEXT NOT NULL,
-          file_name_lower TEXT NOT NULL,
-          lower_path TEXT NOT NULL,
-          size_bytes INTEGER NOT NULL,
-          modified_epoch_sec INTEGER NOT NULL,
-          searchable INTEGER NOT NULL,
-          content_text TEXT,
-          content_lower TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_search_documents_file_name_lower
-          ON search_documents(file_name_lower);
-        CREATE INDEX IF NOT EXISTS idx_search_documents_lower_path
-          ON search_documents(lower_path);
-        CREATE INDEX IF NOT EXISTS idx_search_documents_modified_size
-          ON search_documents(modified_epoch_sec, size_bytes);
         ",
     )
     .map_err(|e| e.to_string())?;
@@ -93,41 +87,10 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
         .optional()
         .map_err(|e| e.to_string())?;
 
-    if current_version != Some(SEARCH_INDEX_SCHEMA_VERSION) {
+    if search_documents_schema_needs_rebuild(conn, current_version)? {
         conn.execute("DROP TABLE IF EXISTS search_documents", [])
             .map_err(|e| e.to_string())?;
-        conn.execute(
-            "
-            CREATE TABLE search_documents (
-              relative_path TEXT PRIMARY KEY,
-              file_name TEXT NOT NULL,
-              file_name_lower TEXT NOT NULL,
-              lower_path TEXT NOT NULL,
-              size_bytes INTEGER NOT NULL,
-              modified_epoch_sec INTEGER NOT NULL,
-              searchable INTEGER NOT NULL,
-              content_text TEXT,
-              content_lower TEXT
-            )
-            ",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_search_documents_file_name_lower ON search_documents(file_name_lower)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_search_documents_lower_path ON search_documents(lower_path)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_search_documents_modified_size ON search_documents(modified_epoch_sec, size_bytes)",
-            [],
-        )
-        .map_err(|e| e.to_string())?;
+        create_search_documents_table(conn)?;
         conn.execute(
             "
             INSERT INTO search_meta (id, schema_version, dirty, last_indexed_at)
@@ -151,6 +114,77 @@ fn initialize_search_index_schema(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
     }
+    create_search_documents_indices(conn)?;
+    Ok(())
+}
+
+fn search_documents_columns(conn: &Connection) -> Result<HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(search_documents)")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|e| e.to_string())?;
+    let mut columns = HashSet::new();
+    for row in rows {
+        columns.insert(row.map_err(|e| e.to_string())?);
+    }
+    Ok(columns)
+}
+
+fn search_documents_schema_needs_rebuild(
+    conn: &Connection,
+    current_version: Option<i64>,
+) -> Result<bool, String> {
+    if current_version != Some(SEARCH_INDEX_SCHEMA_VERSION) {
+        return Ok(true);
+    }
+    let columns = search_documents_columns(conn)?;
+    if columns.is_empty() {
+        return Ok(true);
+    }
+    Ok(SEARCH_DOCUMENT_REQUIRED_COLUMNS
+        .iter()
+        .any(|column| !columns.contains(*column)))
+}
+
+fn create_search_documents_table(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "
+        CREATE TABLE search_documents (
+          relative_path TEXT PRIMARY KEY,
+          file_name TEXT NOT NULL,
+          file_name_lower TEXT NOT NULL,
+          lower_path TEXT NOT NULL,
+          size_bytes INTEGER NOT NULL,
+          modified_epoch_sec INTEGER NOT NULL,
+          searchable INTEGER NOT NULL,
+          content_text TEXT,
+          content_lower TEXT
+        )
+        ",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn create_search_documents_indices(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_search_documents_file_name_lower ON search_documents(file_name_lower)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_search_documents_lower_path ON search_documents(lower_path)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_search_documents_modified_size ON search_documents(modified_epoch_sec, size_bytes)",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 

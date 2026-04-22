@@ -115,7 +115,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
       await Promise.resolve();
     });
 
-    const alignCenter = container.querySelector(
+    const alignCenter = document.querySelector(
       "button[title='library.viewer.textbox.menu.alignCenter']",
     ) as HTMLButtonElement | null;
     expect(alignCenter).not.toBeNull();
@@ -175,7 +175,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
     selection?.addRange(range);
     document.dispatchEvent(new Event("selectionchange"));
 
-    const boldButton = container.querySelector(
+    const boldButton = document.querySelector(
       "button[title='library.viewer.textbox.menu.bold']",
     ) as HTMLButtonElement | null;
     expect(boldButton).not.toBeNull();
@@ -229,7 +229,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
     selection?.removeAllRanges();
     document.dispatchEvent(new Event("selectionchange"));
 
-    const boldButton = container.querySelector(
+    const boldButton = document.querySelector(
       "button[title='library.viewer.textbox.menu.bold']",
     ) as HTMLButtonElement | null;
     expect(boldButton).not.toBeNull();
@@ -290,7 +290,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
     selection?.addRange(range);
     document.dispatchEvent(new Event("selectionchange"));
 
-    const fontFamilyTrigger = Array.from(container.querySelectorAll("button")).find(
+    const fontFamilyTrigger = Array.from(document.querySelectorAll("button")).find(
       (node) => node.getAttribute("role") === "combobox" && node.textContent?.includes("Segoe UI"),
     ) as HTMLButtonElement | undefined;
     expect(fontFamilyTrigger).toBeTruthy();

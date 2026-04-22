@@ -138,7 +138,7 @@ export type AppWorkspaceShellProps = {
     path: string,
     targetPath?: string,
     content?: string,
-  ) => Promise<void>;
+  ) => Promise<boolean | void>;
   onRunFsAction: (
     scope: FsScope,
     action: FsAction,
