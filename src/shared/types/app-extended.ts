@@ -305,6 +305,7 @@ export type ProjectIntegrityStatus = {
 
 export type GitStatusEntry = {
   path: string;
+  previousPath?: string | null;
   indexStatus: string;
   worktreeStatus: string;
   addedLines: number;
@@ -336,6 +337,7 @@ export type GitCommitInfo = {
 
 export type GitCommitFileEntry = {
   path: string;
+  previousPath?: string | null;
   status: string;
   addedLines: number;
   removedLines: number;

@@ -81,6 +81,7 @@ export function mountMobileSharePage(root) {
           </div>
           <div class="pdf-stage-grid">
             <div id="pdf-canvas-wrap" class="pdf-stage">
+              <div id="pdf-pages" class="pdf-pages"></div>
               <canvas id="pdf-canvas" hidden></canvas>
               <div id="pdf-empty" class="pdf-empty">No PDF preview is available right now.</div>
             </div>

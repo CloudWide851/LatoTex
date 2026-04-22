@@ -7,6 +7,7 @@ mod workspace_ops_compile_tests {
     use crate::storage;
     use std::fs;
     use std::path::PathBuf;
+    use std::process::Command;
 
     fn unique_temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -32,6 +33,54 @@ mod workspace_ops_compile_tests {
         let project_id = snapshot.summary.id;
         let project_root = PathBuf::from(snapshot.summary.root_path);
         (temp_root, project_id, project_root, db_path)
+    }
+
+    fn run_git(project_root: &PathBuf, args: &[&str]) -> Option<String> {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(project_root)
+            .args(args)
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    #[test]
+    fn workspace_move_prefers_git_mv_for_tracked_files() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("workspace-git-move");
+        let Some(_) = run_git(&project_root, &["init"]) else {
+            let _ = fs::remove_dir_all(temp_root);
+            return;
+        };
+        let _ = run_git(&project_root, &["config", "user.email", "test@example.com"]);
+        let _ = run_git(&project_root, &["config", "user.name", "LatoTex Test"]);
+
+        let source_dir = project_root.join("src");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("main.tex"), "\\documentclass{article}").unwrap();
+        run_git(&project_root, &["add", "."]).unwrap();
+        run_git(&project_root, &["commit", "-m", "initial"]).unwrap();
+
+        fs_operation(
+            &db_path,
+            FsOperationInput {
+                project_id,
+                scope: "workspace".to_string(),
+                action: "move".to_string(),
+                path: "src/main.tex".to_string(),
+                target_path: Some("archive/main.tex".to_string()),
+                content: None,
+            },
+        )
+        .unwrap();
+
+        let status = run_git(&project_root, &["status", "--porcelain=v1"]).unwrap_or_default();
+        assert!(status.contains("R  src/main.tex -> archive/main.tex"));
+
+        let _ = fs::remove_dir_all(temp_root);
     }
 
     #[test]

@@ -2,6 +2,7 @@
 #[serde(rename_all = "camelCase")]
 pub struct GitStatusEntry {
     pub path: String,
+    pub previous_path: Option<String>,
     pub index_status: String,
     pub worktree_status: String,
     pub added_lines: u32,
@@ -41,6 +42,7 @@ pub struct GitCommitInfo {
 #[serde(rename_all = "camelCase")]
 pub struct GitCommitFileEntry {
     pub path: String,
+    pub previous_path: Option<String>,
     pub status: String,
     pub added_lines: u32,
     pub removed_lines: u32,

@@ -13,7 +13,10 @@ export function renderParticipants(container, items, i18n) {
     node.innerHTML = `
       <span class="avatar" style="background:${avatarColor(name)}">${escapeHtml(name.slice(0, 1).toUpperCase())}</span>
       <div class="participant-copy">
-        <div class="name">${escapeHtml(name)}</div>
+        <div class="name-row">
+          <div class="name">${escapeHtml(name)}</div>
+          <span class="participant-status-dot" aria-hidden="true"></span>
+        </div>
         <div class="muted">${escapeHtml(String(item.lastAction || i18n.actionReading))}</div>
       </div>
     `;

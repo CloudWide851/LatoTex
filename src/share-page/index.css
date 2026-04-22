@@ -119,6 +119,7 @@
 
   .participant,
   .comment-item,
+  .pdf-page-card,
   .quote-block,
   .quote-preview,
   .editor-inline-thread {
@@ -126,7 +127,7 @@
   }
 
   .participant {
-    @apply mb-2 flex items-center gap-3 px-3 py-2.5;
+    @apply mb-2 flex items-start gap-3 px-3 py-2.5 shadow-[0_10px_28px_rgba(15,23,42,0.06)];
   }
 
   .participant.empty-state,
@@ -135,12 +136,20 @@
   }
 
   .participant-copy {
-    @apply min-w-0;
+    @apply grid min-w-0 gap-1;
+  }
+
+  .participant .name-row {
+    @apply flex items-center gap-2;
   }
 
   .participant .name,
   .editor-inline-thread__author {
     @apply text-sm font-semibold text-slate-900;
+  }
+
+  .participant-status-dot {
+    @apply h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(34,197,94,0.14)];
   }
 
   .participant .muted,
@@ -197,6 +206,18 @@
 
   .quick-quote {
     @apply inline-flex items-center justify-center rounded-full border border-blue-700 bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(37,99,235,0.18)];
+  }
+
+  .pdf-page-card {
+    @apply w-full max-w-[920px] p-3.5;
+  }
+
+  .pdf-page-card canvas {
+    @apply mx-auto block h-auto w-full rounded-xl shadow-[0_18px_36px_rgba(15,23,42,0.12)];
+  }
+
+  #pdf-canvas {
+    display: none !important;
   }
 
   [data-share-layout='mobile'] .share-pane {

@@ -83,6 +83,27 @@ function MoveVisibilityHarness() {
   );
 }
 
+function PendingMoveOverlayHarness() {
+  const [selectedPath, setSelectedPath] = useState<string | null>("papers/demo.bib");
+
+  return (
+    <ExplorerTree
+      mode="library"
+      tree={LIBRARY_TREE}
+      selectedPath={selectedPath}
+      onSelect={setSelectedPath}
+      onAction={async (action, path, targetPath) => {
+        if (action !== "move" || path !== "papers/demo.bib" || targetPath !== "archive/demo.bib") {
+          return false;
+        }
+        setSelectedPath("archive/demo.bib");
+        return true;
+      }}
+      t={(key) => String(key)}
+    />
+  );
+}
+
 describe("ExplorerTree", () => {
   beforeEach(() => {
     (
@@ -436,6 +457,39 @@ describe("ExplorerTree", () => {
     );
     expect(movedNode).toBeTruthy();
     expect(movedNode?.getAttribute("aria-selected")).toBe("true");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("hides the original node immediately after a successful move before the backend tree refresh arrives", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<PendingMoveOverlayHarness />);
+    });
+
+    const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
+    const archiveNode = nodes.find((node) => node.getAttribute("title") === "archive");
+    const fileNode = nodes.find((node) => node.getAttribute("title") === "papers/demo.bib");
+    expect(fileNode).toBeTruthy();
+    expect(archiveNode).toBeTruthy();
+
+    await dragNode(fileNode, archiveNode);
+
+    const movedNode = Array.from(container.querySelectorAll("[data-explorer-node='true']")).find(
+      (node) => node.getAttribute("title") === "archive/demo.bib",
+    );
+    const originalNode = Array.from(container.querySelectorAll("[data-explorer-node='true']")).find(
+      (node) => node.getAttribute("title") === "papers/demo.bib",
+    );
+    expect(movedNode).toBeTruthy();
+    expect(movedNode?.getAttribute("aria-selected")).toBe("true");
+    expect(originalNode).toBeUndefined();
 
     await act(async () => {
       root.unmount();

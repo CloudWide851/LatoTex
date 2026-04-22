@@ -12,6 +12,14 @@ import {
 } from "./explorer/explorerSelection";
 import { useExplorerPointerDrag } from "./explorer/useExplorerPointerDrag";
 import {
+  applyPendingMoves,
+  hasTreePath,
+  type PendingMove,
+  normalizeExplorerPath,
+  rewriteExpandedAfterMove,
+  rewritePathAfterMove,
+} from "./explorer/explorerPendingMoves";
+import {
   dirnameOf,
   type EditingState,
   type ExplorerMenuTarget,
@@ -21,48 +29,6 @@ import {
 } from "./explorer/treeUtils";
 import type { ResourceNode } from "../../shared/types/app";
 type TranslationFn = (key: any) => string;
-
-function normalizeExplorerPath(path: string | null | undefined): string {
-  return String(path ?? "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-}
-
-function rewritePathAfterMove(path: string | null, sourcePath: string, targetPath: string): string | null {
-  const normalizedPath = normalizeExplorerPath(path);
-  const normalizedSource = normalizeExplorerPath(sourcePath);
-  const normalizedTarget = normalizeExplorerPath(targetPath);
-  if (!normalizedPath || !normalizedSource || !normalizedTarget) {
-    return path;
-  }
-  if (normalizedPath === normalizedSource) {
-    return normalizedTarget;
-  }
-  if (normalizedPath.startsWith(`${normalizedSource}/`)) {
-    return `${normalizedTarget}${normalizedPath.slice(normalizedSource.length)}`;
-  }
-  return path;
-}
-
-function rewriteExpandedAfterMove(
-  previous: Record<string, boolean>,
-  sourcePath: string,
-  targetPath: string,
-): Record<string, boolean> {
-  const normalizedSource = normalizeExplorerPath(sourcePath);
-  const normalizedTarget = normalizeExplorerPath(targetPath);
-  const nextExpanded: Record<string, boolean> = {};
-  for (const [path, expanded] of Object.entries(previous)) {
-    const rewrittenPath = rewritePathAfterMove(path, normalizedSource, normalizedTarget);
-    if (!rewrittenPath) {
-      continue;
-    }
-    nextExpanded[rewrittenPath] = expanded;
-  }
-  const targetDirectory = dirnameOf(normalizedTarget);
-  if (targetDirectory) {
-    nextExpanded[targetDirectory] = true;
-  }
-  return nextExpanded;
-}
 
 export function ExplorerTree(props: {
   mode?: "workspace" | "library";
@@ -106,11 +72,13 @@ export function ExplorerTree(props: {
   const [editing, setEditing] = useState<EditingState>(null);
   const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
+  const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<string[]>(selectedPath ? [selectedPath] : []);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(selectedPath);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
+  const displayedTree = useMemo(() => applyPendingMoves(tree, pendingMoves), [pendingMoves, tree]);
   const handleDirectoryExpand = useCallback((path: string) => {
     setExpanded((prev) => ({ ...prev, [path]: true }));
   }, []);
@@ -119,6 +87,13 @@ export function ExplorerTree(props: {
     if (moveResult === false) {
       return;
     }
+    setPendingMoves((prev) => {
+      const normalizedSource = normalizeExplorerPath(sourcePath);
+      return [
+        ...prev.filter((move) => normalizeExplorerPath(move.sourcePath) !== normalizedSource),
+        { sourcePath, targetPath },
+      ];
+    });
     setExpanded((prev) => rewriteExpandedAfterMove(prev, sourcePath, targetPath));
     setSelectedPaths((prev) => {
       const rewritten = prev
@@ -141,15 +116,20 @@ export function ExplorerTree(props: {
         }
       }
     };
-    walk(tree);
+    walk(displayedTree);
     return defaults;
-  }, [expanded, tree]);
+  }, [displayedTree, expanded]);
   const { dragSourcePath, dragPreview, dropTargetPath, suppressClickRef, handlePointerDragStart } = useExplorerPointerDrag({
     rootRef,
     onMove: onAction ? handleMove : undefined,
     expandedMap,
     onExpandDirectory: handleDirectoryExpand,
   });
+  useEffect(() => {
+    setPendingMoves((prev) =>
+      prev.filter((move) => hasTreePath(tree, move.sourcePath) || !hasTreePath(tree, move.targetPath)),
+    );
+  }, [tree]);
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
       if (event.button === 2) {
@@ -173,8 +153,8 @@ export function ExplorerTree(props: {
     };
   }, []);
   const visibleFilePaths = useMemo(
-    () => collectVisibleFilePaths(tree, expandedMap),
-    [expandedMap, tree],
+    () => collectVisibleFilePaths(displayedTree, expandedMap),
+    [displayedTree, expandedMap],
   );
   useEffect(() => {
     if (!selectedPath) {
@@ -459,7 +439,7 @@ export function ExplorerTree(props: {
       }}
     >
       <div
-        className="min-h-0 flex-1 space-y-1 overflow-auto px-2"
+        className="hide-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-2"
         onDoubleClick={(event) => {
           if (mode !== "workspace" || editing) {
             return;
@@ -480,7 +460,7 @@ export function ExplorerTree(props: {
           </div>
         ) : (
           <>
-            {tree.map((node) => renderNode(node, 0))}
+            {displayedTree.map((node) => renderNode(node, 0))}
             {renderCreateEditor("")}
           </>
         )}

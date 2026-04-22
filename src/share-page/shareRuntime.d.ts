@@ -1,6 +1,6 @@
 declare module "/assets/share_page_i18n.js" {
   export function createI18n(locale: string): Record<string, unknown>;
-  export function detectDevice(): "desktop" | "mobile";
+  export function detectDevice(preferred?: string | null): "desktop" | "mobile";
   export function detectLocale(preferred?: string | null): string;
 }
 

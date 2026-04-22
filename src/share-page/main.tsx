@@ -12,11 +12,12 @@ async function bootstrap() {
   const appModuleUrl = "/assets/share_page_app.js";
   const { createI18n, detectDevice, detectLocale } = await import(/* @vite-ignore */ i18nModuleUrl) as {
     createI18n: (locale: string) => Record<string, unknown>;
-    detectDevice: () => "desktop" | "mobile";
+    detectDevice: (preferred?: string | null) => "desktop" | "mobile";
     detectLocale: (preferred?: string | null) => string;
   };
-  const locale = detectLocale(new URLSearchParams(window.location.search).get("lang") || new URLSearchParams(window.location.search).get("locale"));
-  const device = detectDevice();
+  const params = new URLSearchParams(window.location.search);
+  const locale = detectLocale(params.get("lang") || params.get("locale"));
+  const device = detectDevice(params.get("device") || params.get("layout"));
   const root = createRoot(rootNode);
   flushSync(() => {
     root.render(

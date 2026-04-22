@@ -133,10 +133,23 @@ fn collect_stageable_paths(raw_status: &str) -> std::collections::HashSet<String
     paths
 }
 
+fn parse_status_paths(raw: &str) -> (String, Option<String>) {
+    let unquoted = raw.trim().trim_matches('"').replace('\\', "/");
+    if let Some((left, right)) = unquoted.split_once(" -> ") {
+        let previous_path = left.trim().trim_matches('"').replace('\\', "/");
+        let path = right.trim().trim_matches('"').replace('\\', "/");
+        let previous_path = if previous_path.is_empty() {
+            None
+        } else {
+            Some(previous_path)
+        };
+        return (path, previous_path);
+    }
+    (unquoted, None)
+}
+
 fn normalize_status_path(raw: &str) -> String {
-    let candidate = raw.rsplit(" -> ").next().unwrap_or(raw).trim();
-    let unquoted = candidate.trim_matches('"');
-    unquoted.replace('\\', "/")
+    parse_status_paths(raw).0
 }
 
 fn normalize_numstat_path(raw: &str) -> String {

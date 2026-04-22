@@ -295,6 +295,7 @@ button.secondary {
 .participant,
 .comment-item,
 .pdf-stage,
+.pdf-page-card,
 .participants,
 .comments,
 .comment-composer,
@@ -309,6 +310,7 @@ button.secondary {
 .participant,
 .comment-item,
 .pdf-stage,
+.pdf-page-card,
 .participants,
 .comments,
 .comment-composer,
@@ -327,6 +329,7 @@ button.secondary {
 
 .participant {
   padding: 10px 12px;
+  box-shadow: var(--share-shadow-soft);
 }
 
 .participant .name,

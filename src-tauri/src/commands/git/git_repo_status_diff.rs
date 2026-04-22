@@ -101,7 +101,7 @@ pub async fn git_status(
             let untracked = index_status_char == '?' || worktree_status_char == '?';
             let status_implies_change = matches!(index_status_char, 'R' | 'C' | 'T' | 'U' | 'D')
                 || matches!(worktree_status_char, 'R' | 'C' | 'T' | 'U' | 'D');
-            let path = normalize_status_path(&line[3..]);
+            let (path, previous_path) = parse_status_paths(&line[3..]);
             if storage::is_workspace_path_within_python_venv(&root, &path) {
                 continue;
             }
@@ -130,6 +130,7 @@ pub async fn git_status(
             }
             changes.push(GitStatusEntry {
                 path,
+                previous_path,
                 index_status,
                 worktree_status,
                 added_lines,
@@ -247,8 +248,17 @@ pub fn git_commit_files(
         }
         let status_raw = parts[0].trim();
         let status = status_raw.chars().next().unwrap_or('M').to_string();
-        let path_raw = parts.last().copied().unwrap_or_default();
-        let path = normalize_status_path(path_raw);
+        let mut previous_path = None;
+        let path = if status == "R" || status == "C" {
+            if parts.len() < 3 {
+                continue;
+            }
+            previous_path = Some(normalize_status_path(parts[1]));
+            normalize_status_path(parts[2])
+        } else {
+            let path_raw = parts.last().copied().unwrap_or_default();
+            normalize_status_path(path_raw)
+        };
         if path.is_empty() {
             continue;
         }
@@ -259,6 +269,7 @@ pub fn git_commit_files(
         let (added_lines, removed_lines) = numstat.get(&path).copied().unwrap_or((0, 0));
         files.push(GitCommitFileEntry {
             path,
+            previous_path,
             status,
             added_lines,
             removed_lines,

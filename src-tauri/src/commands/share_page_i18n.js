@@ -13,13 +13,14 @@ export function detectLocale(preferred) {
   return normalizeLocale(navigator.language || navigator.languages?.[0] || "");
 }
 
-export function detectDevice() {
-  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
+export function detectDevice(preferred) {
+  const normalizedPreferred = String(preferred || "").trim().toLowerCase();
+  if (normalizedPreferred === "mobile" || normalizedPreferred === "desktop") {
+    return normalizedPreferred;
+  }
   const userAgent = typeof navigator !== "undefined" ? String(navigator.userAgent || "").toLowerCase() : "";
-  const touchPoints = typeof navigator !== "undefined" ? Number(navigator.maxTouchPoints || 0) : 0;
-  const isMobileUa = /android|iphone|ipad|ipod|mobile/i.test(userAgent);
-  const compactViewport = viewportWidth <= 900;
-  return isMobileUa || (compactViewport && touchPoints > 0) ? "mobile" : "desktop";
+  const isMobileUa = /android|iphone|ipad|ipod|mobile|windows phone/i.test(userAgent);
+  return isMobileUa ? "mobile" : "desktop";
 }
 
 const messages = {

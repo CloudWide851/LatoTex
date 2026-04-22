@@ -38,6 +38,48 @@ fn move_recursively(source: &Path, target: &Path) -> Result<(), String> {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn hide_process_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    use std::os::windows::process::CommandExt;
+    command.creation_flags(0x0800_0000)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_process_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    command
+}
+
+fn run_git_command(project_root: &Path, args: &[&str]) -> Result<std::process::Output, String> {
+    let mut command = std::process::Command::new("git");
+    hide_process_window(&mut command);
+    command.arg("-C").arg(project_root).args(args);
+    command.output().map_err(|e| e.to_string())
+}
+
+fn is_git_workspace(project_root: &Path) -> bool {
+    run_git_command(project_root, &["rev-parse", "--is-inside-work-tree"])
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn is_tracked_git_path(project_root: &Path, relative_path: &str) -> bool {
+    run_git_command(project_root, &["ls-files", "--error-unmatch", "--", relative_path])
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+fn try_git_move(project_root: &Path, source_relative: &str, target_relative: &str) -> Result<bool, String> {
+    if !is_git_workspace(project_root) || !is_tracked_git_path(project_root, source_relative) {
+        return Ok(false);
+    }
+    let target_path = project_root.join(target_relative);
+    if let Some(parent) = target_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let output = run_git_command(project_root, &["mv", "--", source_relative, target_relative])?;
+    Ok(output.status.success())
+}
+
 fn scope_root(project_root: &Path, scope: &str) -> Result<PathBuf, String> {
     match scope {
         "workspace" => Ok(project_root.to_path_buf()),
@@ -279,7 +321,11 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
             let target_relative = target_relative
                 .ok_or_else(|| "targetPath is required".to_string())?;
             let target = safe_join(&root, &target_relative)?;
-            move_recursively(&path, &target)?;
+            let used_git_move = scope == "workspace"
+                && try_git_move(&project_root, &input.path, &target_relative)?;
+            if !used_git_move {
+                move_recursively(&path, &target)?;
+            }
             if let Some(companion) = companion_pdf_path.as_ref() {
                 if companion.exists() && companion.is_file() {
                     move_recursively(companion, &sibling_library_pdf_path(&target))?;

@@ -515,8 +515,8 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       });
       if (scope === "workspace") {
         setTree(await getWorkspaceTree(activeProjectId));
-        setSelectedFile(rewriteSelectionAfterFsAction({
-          selectedPath: selectedFile,
+        setSelectedFile((current) => rewriteSelectionAfterFsAction({
+          selectedPath: current,
           action,
           path,
           targetPath,

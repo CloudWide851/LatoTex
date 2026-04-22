@@ -823,6 +823,7 @@ video {
   }
 .participant,
   .comment-item,
+  .pdf-page-card,
   .quote-block,
   .quote-preview,
   .editor-inline-thread {
@@ -898,6 +899,9 @@ video {
   --tw-shadow-colored: 0 16px 32px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
+#pdf-canvas {
+    display: none !important;
+  }
 [data-share-layout='mobile'] .share-pane {
     display: none;
   }
@@ -1833,6 +1837,9 @@ video {
 }
 .justify-between {
   justify-content: space-between;
+}
+.justify-items-center {
+  justify-items: center;
 }
 .gap-0 {
   gap: 0px;

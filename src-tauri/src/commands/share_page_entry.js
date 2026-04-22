@@ -6,7 +6,7 @@ import { mountMobileSharePage } from "/assets/share_page_mobile.js";
 const params = new URLSearchParams(window.location.search);
 const locale = detectLocale(params.get("lang") || params.get("locale"));
 const i18n = createI18n(locale);
-const device = detectDevice();
+const device = detectDevice(params.get("device") || params.get("layout"));
 const root = document.getElementById("share-root");
 
 if (root) {

@@ -77,6 +77,7 @@ export function GitChangeList(props: {
       {entries.map((entry) => {
         const diffKey = buildDiffKey(entry.path, staged, selectedHistoryHash || undefined);
         const isActive = activeDiffKey === diffKey;
+        const pathLabel = entry.previousPath ? `${entry.previousPath} -> ${entry.path}` : entry.path;
         const tone = resolveGitTone(
           staged ? entry.indexStatus : (entry.worktreeStatus === " " ? entry.indexStatus : entry.worktreeStatus),
         );
@@ -104,12 +105,12 @@ export function GitChangeList(props: {
                     "min-w-0 flex-1 truncate text-left",
                     isActive ? "text-primary-700" : tone.textClass,
                   )}
-                  title={entry.path}
+                  title={pathLabel}
                   onClick={() => {
                     void onOpenDiff(entry.path, staged);
                   }}
                 >
-                  {entry.path}
+                  {pathLabel}
                 </button>
               </div>
               <div className="flex items-center gap-1">

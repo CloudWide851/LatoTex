@@ -118,7 +118,8 @@ function ShareEditorPanel(props: { showTabs: boolean }) {
             </button>
           </div>
         </div>
-        <div id="pdf-canvas-wrap" className="share-scrollbar flex h-full min-h-[280px] items-start justify-center overflow-auto rounded-2xl border border-slate-200 bg-[#fffdf8] p-4">
+        <div id="pdf-canvas-wrap" className="share-scrollbar h-full min-h-[280px] overflow-auto rounded-2xl border border-slate-200 bg-[#fffdf8] p-4">
+          <div id="pdf-pages" className="grid gap-4 justify-items-center pb-3" />
           <canvas id="pdf-canvas" hidden />
           <div id="pdf-empty" className="m-auto text-center text-sm leading-6 text-slate-500" />
         </div>

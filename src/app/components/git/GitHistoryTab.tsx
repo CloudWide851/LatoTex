@@ -98,6 +98,7 @@ export function GitHistoryTab(props: {
                 {commitFiles.map((file) => {
                   const key = buildDiffKey(file.path, false, selectedHash);
                   const active = activeDiffKey === key;
+                  const pathLabel = file.previousPath ? `${file.previousPath} -> ${file.path}` : file.path;
                   return (
                     <button
                       key={`${file.path}-${file.status}`}
@@ -107,11 +108,11 @@ export function GitHistoryTab(props: {
                           : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                       }`}
                       onClick={() => void onSelectFile(file.path)}
-                      title={file.path}
+                      title={pathLabel}
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="font-mono text-[10px]">{file.status}</span>
-                        <span className="truncate">{file.path}</span>
+                        <span className="truncate">{pathLabel}</span>
                       </div>
                       <div className="ml-2 flex shrink-0 items-center gap-1 font-mono text-[10px]">
                         <span className="text-emerald-600">+{file.addedLines}</span>

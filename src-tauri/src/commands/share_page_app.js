@@ -40,6 +40,7 @@ export async function bootstrapSharePage(options = {}) {
     cursor: document.getElementById("cursor-info"),
     pdfWrap: document.getElementById("pdf-wrap"),
     pdfCanvasWrap: document.getElementById("pdf-canvas-wrap"),
+    pdfPages: document.getElementById("pdf-pages"),
     pdfCanvas: document.getElementById("pdf-canvas"),
     pdfEmpty: document.getElementById("pdf-empty"),
     pdfPrev: document.getElementById("pdf-prev"),
@@ -80,6 +81,7 @@ export async function bootstrapSharePage(options = {}) {
     view: "tex",
     pdfDoc: null,
     pdfPage: 1,
+    pdfUpdatedAt: null,
     draftQuote: null,
     selectionQuote: null,
     pdfReady: false,
@@ -191,11 +193,8 @@ export async function bootstrapSharePage(options = {}) {
     if (comment.source === "pdf" && comment.page) {
       state.pdfPage = comment.page;
       setView("pdf");
-      if (state.pdfDoc) {
-        await pdf.renderPdfPage();
-      } else {
-        await pdf.reloadPdfContent();
-      }
+      await pdf.reloadPdfContent();
+      pdf.scrollToPdfPage(comment.page, "auto");
       return;
     }
     if (comment.source === "tex") {
@@ -473,6 +472,10 @@ export async function bootstrapSharePage(options = {}) {
   el.viewTex.addEventListener("click", () => setView("tex"));
   el.viewPdf.addEventListener("click", () => {
     setView("pdf");
+    if (state.pdfDoc && state.pdfReady) {
+      void pdf.renderPdfPage();
+      return;
+    }
     void pdf.reloadPdfContent();
   });
   el.viewComments.addEventListener("click", () => setView("comments"));
