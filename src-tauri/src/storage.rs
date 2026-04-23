@@ -4,8 +4,9 @@ use crate::models::{
     FsOperationInput, FsOperationResult,
     LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
     LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
-    ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchHit, ProjectSearchInput,
-    ProjectSnapshot, ProjectSummary, ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
+    ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchBatch, ProjectSearchHit,
+    ProjectSearchIncrementalInput, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
+    ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
@@ -19,6 +20,7 @@ use uuid::Uuid;
 include!("storage/storage_bootstrap.rs");
 include!("storage/project_snapshot_tree.rs");
 include!("storage/search_index.rs");
+include!("storage/search_index_queries.rs");
 include!("storage/workspace_files_search.rs");
 include!("storage/events_settings_models.rs");
 include!("storage/agent_cache_time.rs");

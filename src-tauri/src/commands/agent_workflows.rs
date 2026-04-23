@@ -10,8 +10,14 @@ use latotex_agent::{
     build_completion_prompt, build_git_summary_prompt, build_reference_check_prompt,
     build_task_execution_prompt, sanitize_git_files,
 };
+use std::fs;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use tauri::State;
+
+const MAX_CONTEXT_FILE_CHARS: usize = 4_000;
+const MAX_CONTEXT_TOTAL_CHARS: usize = 14_000;
+const MAX_CONTEXT_FOLDER_FILES: usize = 8;
 
 fn truncate_chars(value: &str, limit: usize) -> String {
     value.chars().take(limit).collect()
@@ -22,6 +28,215 @@ fn dedupe_push(values: &mut Vec<String>, next: impl Into<String>) {
     if !values.iter().any(|item| item == &candidate) {
         values.push(candidate);
     }
+}
+
+fn normalize_context_path(value: &str) -> Option<String> {
+    let normalized = value.trim().replace('\\', "/").trim_matches('/').to_string();
+    if normalized.is_empty() {
+        return None;
+    }
+    Some(normalized)
+}
+
+fn supported_context_extension(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_ascii_lowercase()),
+        Some(ext)
+            if matches!(
+                ext.as_str(),
+                "tex" | "bib" | "cls" | "sty" | "md" | "txt" | "json" | "yaml" | "yml" | "csv"
+            )
+    )
+}
+
+fn to_relative_display(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .ok()
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"))
+}
+
+fn resolve_context_refs(
+    db_path: &Path,
+    project_id: &str,
+    context_paths: &[String],
+) -> Vec<String> {
+    let mut resolved = Vec::new();
+    for raw in context_paths {
+        let Some(relative_path) = normalize_context_path(raw) else {
+            continue;
+        };
+        let Ok(target) = storage::resolve_project_relative_path(db_path, project_id, &relative_path) else {
+            continue;
+        };
+        let Ok(metadata) = fs::metadata(&target) else {
+            continue;
+        };
+        if metadata.is_dir() {
+            dedupe_push(&mut resolved, format!("folder:{relative_path}"));
+        } else if target
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.eq_ignore_ascii_case("pdf"))
+            .unwrap_or(false)
+        {
+            dedupe_push(&mut resolved, format!("paper:{relative_path}"));
+        } else {
+            dedupe_push(&mut resolved, format!("file:{relative_path}"));
+        }
+    }
+    resolved
+}
+
+fn collect_folder_context_files(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), String> {
+    let mut entries = fs::read_dir(current)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
+        if files.len() >= MAX_CONTEXT_FOLDER_FILES {
+            break;
+        }
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if name.starts_with(".git") || name == "node_modules" || name == "target" {
+            continue;
+        }
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        if metadata.is_dir() {
+            collect_folder_context_files(root, &path, files)?;
+            continue;
+        }
+        if path.starts_with(root) && supported_context_extension(&path) {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn read_context_file_block(root: &Path, file_path: &Path) -> Option<String> {
+    if !supported_context_extension(file_path) {
+        return None;
+    }
+    let content = fs::read_to_string(file_path).ok()?;
+    let relative_path = to_relative_display(root, file_path);
+    Some(
+        [
+            format!("File: {relative_path}"),
+            truncate_chars(content.trim(), MAX_CONTEXT_FILE_CHARS),
+        ]
+        .join("\n"),
+    )
+}
+
+fn build_folder_context_block(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<Option<String>, String> {
+    let project_root = storage::load_project_root(db_path, project_id)?;
+    let folder = storage::resolve_project_relative_path(db_path, project_id, relative_path)?;
+    let metadata = fs::metadata(&folder).map_err(|e| e.to_string())?;
+    if !metadata.is_dir() {
+        return Ok(None);
+    }
+    let mut files = Vec::new();
+    collect_folder_context_files(&project_root, &folder, &mut files)?;
+    if files.is_empty() {
+        return Ok(Some(format!(
+            "Folder: {relative_path}\nNo supported text files were found under this folder."
+        )));
+    }
+    let listed = files
+        .iter()
+        .map(|path| format!("- {}", to_relative_display(&project_root, path)))
+        .collect::<Vec<_>>();
+    let mut blocks = vec![
+        format!("Folder: {relative_path}"),
+        "Recursive text files:".to_string(),
+        listed.join("\n"),
+    ];
+    for file_path in files {
+        if let Some(block) = read_context_file_block(&project_root, &file_path) {
+            blocks.push(block);
+        }
+    }
+    Ok(Some(blocks.join("\n\n")))
+}
+
+fn build_file_context_block(
+    db_path: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<Option<String>, String> {
+    let project_root = storage::load_project_root(db_path, project_id)?;
+    let path = storage::resolve_project_relative_path(db_path, project_id, relative_path)?;
+    let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !metadata.is_file() {
+        return Ok(None);
+    }
+    Ok(read_context_file_block(&project_root, &path))
+}
+
+fn materialize_context_blocks(
+    state: &AppState,
+    project_id: &str,
+    context_refs: &[String],
+) -> Result<Vec<String>, String> {
+    let mut blocks = Vec::new();
+    let mut total_chars = 0_usize;
+    for reference in context_refs {
+        let block = if let Some(relative_path) = reference.strip_prefix("file:") {
+            build_file_context_block(&state.db_path, project_id, relative_path)?
+        } else if let Some(relative_path) = reference.strip_prefix("folder:") {
+            build_folder_context_block(&state.db_path, project_id, relative_path)?
+        } else if let Some(relative_path) = reference.strip_prefix("paper:") {
+            let (context, _) = build_paper_context_block(
+                &state.db_path,
+                &state.runtime_root,
+                &state.app_data_dir,
+                project_id,
+                relative_path,
+            )?;
+            Some(context)
+        } else {
+            None
+        };
+        let Some(block) = block else {
+            continue;
+        };
+        let remaining = MAX_CONTEXT_TOTAL_CHARS.saturating_sub(total_chars);
+        if remaining == 0 {
+            break;
+        }
+        let truncated = truncate_chars(block.trim(), remaining);
+        total_chars += truncated.chars().count();
+        if !truncated.trim().is_empty() {
+            blocks.push(truncated);
+        }
+    }
+    Ok(blocks)
+}
+
+fn append_materialized_context(prompt: String, context_blocks: &[String]) -> String {
+    if context_blocks.is_empty() {
+        return prompt;
+    }
+    [
+        prompt,
+        "[Attached Context]".to_string(),
+        context_blocks.join("\n\n---\n\n"),
+    ]
+    .join("\n\n")
 }
 
 fn start_workflow(
@@ -139,6 +354,10 @@ pub fn latex_edit_start(
     } else {
         (None, None)
     };
+    let explicit_context_refs = resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
+    for reference in &explicit_context_refs {
+        dedupe_push(&mut context_refs, reference.clone());
+    }
     let prompt = build_task_execution_prompt(
         &input.user_prompt,
         &input.target_path,
@@ -146,12 +365,13 @@ pub fn latex_edit_start(
         paper_context.as_deref(),
         paper_title.as_deref(),
     );
+    let extra_context_blocks = materialize_context_blocks(&state, &input.project_id, &explicit_context_refs)?;
     start_workflow(
         &state,
         input.project_id,
         "latex.edit",
         "latex.overlay",
-        prompt,
+        append_materialized_context(prompt, &extra_context_blocks),
         context_refs,
         input.model_override,
         false,
@@ -206,6 +426,7 @@ pub fn latex_reference_check_start(
     state: State<'_, AppState>,
     input: LatexReferenceCheckStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
+    let explicit_context_refs = resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
     let prompt = build_reference_check_prompt(
         &input.editor_content,
         input.user_hint.as_deref().unwrap_or_default(),
@@ -220,12 +441,16 @@ pub fn latex_reference_check_start(
     {
         context_refs.push(format!("file:{selected_file}"));
     }
+    for reference in &explicit_context_refs {
+        dedupe_push(&mut context_refs, reference.clone());
+    }
+    let extra_context_blocks = materialize_context_blocks(&state, &input.project_id, &explicit_context_refs)?;
     start_workflow(
         &state,
         input.project_id,
         "latex.reference_check",
         "latex.overlay",
-        prompt,
+        append_materialized_context(prompt, &extra_context_blocks),
         context_refs,
         input.model_override,
         false,
@@ -283,13 +508,18 @@ pub fn chat_workflow_start(
     state: State<'_, AppState>,
     input: ChatWorkflowStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
+    let context_refs = resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
+    let prompt = append_materialized_context(
+        input.prompt,
+        &materialize_context_blocks(&state, &input.project_id, &context_refs)?,
+    );
     start_workflow(
         &state,
         input.project_id,
         "chat.general",
         "chat.workspace",
-        input.prompt,
-        Vec::new(),
+        prompt,
+        context_refs,
         input.model_override,
         false,
     )

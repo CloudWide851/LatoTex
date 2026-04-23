@@ -30,6 +30,7 @@ export function startLatexEdit(input: {
   fileContent: string;
   selectedFile?: string | null;
   paperContextSourcePath?: string | null;
+  contextPaths?: string[];
   modelOverride?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("latex_edit_start", {
@@ -40,6 +41,7 @@ export function startLatexEdit(input: {
       fileContent: input.fileContent,
       selectedFile: input.selectedFile ?? null,
       paperContextSourcePath: input.paperContextSourcePath ?? null,
+      contextPaths: input.contextPaths ?? [],
       modelOverride: input.modelOverride,
     },
   });
@@ -70,6 +72,7 @@ export function startLatexReferenceCheck(input: {
   selectedFile?: string | null;
   editorContent: string;
   userHint?: string;
+  contextPaths?: string[];
   modelOverride?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("latex_reference_check_start", {
@@ -78,6 +81,7 @@ export function startLatexReferenceCheck(input: {
       selectedFile: input.selectedFile ?? null,
       editorContent: input.editorContent,
       userHint: input.userHint,
+      contextPaths: input.contextPaths ?? [],
       modelOverride: input.modelOverride,
     },
   });
@@ -102,12 +106,14 @@ export function startLatexPaperAnalyze(input: {
 export function startChatWorkflow(input: {
   projectId: string;
   prompt: string;
+  contextPaths?: string[];
   modelOverride?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("chat_workflow_start", {
     input: {
       projectId: input.projectId,
       prompt: input.prompt,
+      contextPaths: input.contextPaths ?? [],
       modelOverride: input.modelOverride,
     },
   });

@@ -264,7 +264,7 @@ export function AgentChatOverlay(props: {
 
         {canShowActivity ? (
           <div className={cn(
-            "transition-[max-height,opacity] duration-150",
+            "overflow-hidden transition-[max-height,opacity] duration-150",
             activityExpanded ? "max-h-[42vh] opacity-100" : "max-h-0 opacity-0",
           )}>
             <AgentTraceCards
@@ -279,6 +279,7 @@ export function AgentChatOverlay(props: {
               pendingActionNoLabel={pendingActionNoLabel}
               onPendingActionResolve={onPendingActionResolve}
               t={t}
+              bodyClassName="max-h-[calc(42vh-2.75rem)] pr-1"
             />
           </div>
         ) : null}

@@ -290,23 +290,19 @@ describe("PdfAnnotationLayer rich text menu", () => {
     selection?.addRange(range);
     document.dispatchEvent(new Event("selectionchange"));
 
-    const fontFamilyTrigger = Array.from(document.querySelectorAll("button")).find(
-      (node) => node.getAttribute("role") === "combobox" && node.textContent?.includes("Segoe UI"),
-    ) as HTMLButtonElement | undefined;
-    expect(fontFamilyTrigger).toBeTruthy();
+    const fontFamilyInput = document.querySelector(
+      "input[list='pdf-textbox-font-families']",
+    ) as HTMLInputElement | null;
+    expect(fontFamilyInput).toBeTruthy();
 
     await act(async () => {
-      fontFamilyTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
-      await Promise.resolve();
-    });
-
-    const arialOption = Array.from(document.querySelectorAll("button")).find(
-      (node) => node.textContent?.includes("Arial"),
-    ) as HTMLButtonElement | undefined;
-    expect(arialOption).toBeTruthy();
-
-    await act(async () => {
-      arialOption?.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      valueSetter?.call(fontFamilyInput, "Arial");
+      fontFamilyInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      fontFamilyInput?.dispatchEvent(new Event("change", { bubbles: true }));
       await Promise.resolve();
     });
 

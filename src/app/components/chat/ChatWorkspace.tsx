@@ -1,20 +1,10 @@
-import { Send, Square } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { executeWorkflowCancel, getEvents, startChatWorkflow } from "../../../shared/api/agent";
 import { channelsTelegramPoll, channelsTelegramSend } from "../../../shared/api/share";
-import { readFile } from "../../../shared/api/workspace";
-import { cn } from "../../../lib/utils";
-import type { ChannelPrefs } from "../../../shared/types/app";
-import { AgentProposalMiniBar } from "../editor/AgentProposalMiniBar";
-import {
-  loadChatStore,
-  newChatSession,
-  saveChatStore,
-  type ChatStoreChangeDetail,
-  type ChatMessage,
-  type ChatSession,
-} from "../../hooks/chatSessionStore";
+import type { ChannelPrefs, SwarmEvent } from "../../../shared/types/app";
+import { newChatSession, type ChatMessage } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
+import { extractPromptRefValues } from "../../hooks/analysisPromptRefs";
 import type { AgentChatMessage, AgentFileProposal } from "../../hooks/agentTypes";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 import type { AgentPhase } from "../AgentChatOverlay";
@@ -22,7 +12,8 @@ import {
   getChatAutoScrollAppendKey,
   useAutoScrollOnAppend,
 } from "../../hooks/useAutoScrollOnAppend";
-import { ChatRunningIndicator } from "./ChatRunningIndicator";
+import { ChatMessageList } from "./ChatMessageList";
+import { ChatWorkspaceComposer } from "./ChatWorkspaceComposer";
 import {
   ensureTelegramSession,
   renderRunFailureMessage,
@@ -31,6 +22,7 @@ import {
   type ChatAutoFixRequest,
   updateSession,
 } from "./chatWorkspaceUtils";
+import { useChatWorkspaceState } from "./useChatWorkspaceState";
 
 type TranslationFn = (key: any) => string;
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
@@ -45,7 +37,7 @@ export function ChatWorkspace(props: {
   agentMessages?: AgentChatMessage[];
   agentProposal?: AgentFileProposal | null;
   agentPendingAction?: AgentPendingAction;
-  events?: unknown[];
+  events?: SwarmEvent[];
   onRunWorkspaceAgent?: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void> | void;
   onAcceptWorkspaceAgentProposal?: (withAnalysis: boolean) => void;
   onRejectWorkspaceAgentProposal?: () => void;
@@ -63,6 +55,7 @@ export function ChatWorkspace(props: {
     agentMessages = [],
     agentProposal = null,
     agentPendingAction = null,
+    events = [],
     onRunWorkspaceAgent,
     onAcceptWorkspaceAgentProposal,
     onRejectWorkspaceAgentProposal,
@@ -70,128 +63,40 @@ export function ChatWorkspace(props: {
     onRequestAgentReview,
     t,
   } = props;
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [running, setRunning] = useState(false);
-  const [pendingRunId, setPendingRunId] = useState<string | null>(null);
-  const [lastError, setLastError] = useState("");
-  const [workspaceAgentSync, setWorkspaceAgentSync] = useState<{
-    sessionId: string;
-    messageId: string;
-    startIndex: number;
-  } | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const latestWorkspaceAgentTextRef = useRef("");
-  const sessionsRef = useRef<ChatSession[]>([]);
   const telegramOffsetRef = useRef(0);
   const telegramQueueRef = useRef<Array<{ chatId: string; username: string; text: string; messageId: number }>>([]);
   const telegramProcessingRef = useRef(false);
   const pendingAutoFixRef = useRef<ChatAutoFixRequest | null>(null);
   const lastHandledAutoFixKeyRef = useRef<string>("");
-  useEffect(() => {
-    if (!projectId) {
-      setSessions([]);
-      setActiveSessionId(null);
-      return;
-    }
-    const loaded = loadChatStore(projectId);
-    setSessions(loaded.sessions);
-    setActiveSessionId(loaded.activeSessionId);
-  }, [projectId]);
-  useEffect(() => {
-    if (!projectId) {
-      return;
-    }
-    saveChatStore(projectId, sessions, activeSessionId);
-  }, [activeSessionId, projectId, sessions]);
-  useEffect(() => {
-    if (!projectId || typeof window === "undefined") {
-      return;
-    }
-    const handleStoreChanged = (event: Event) => {
-      const custom = event as CustomEvent<ChatStoreChangeDetail>;
-      if (!custom.detail || custom.detail.projectId !== projectId) {
-        return;
-      }
-      setSessions(custom.detail.sessions);
-      setActiveSessionId(custom.detail.activeSessionId);
-    };
-    window.addEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
-    return () => {
-      window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
-    };
-  }, [projectId]);
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
-  const activeSession = useMemo(
-    () => sessions.find((item) => item.id === activeSessionId) ?? null,
-    [activeSessionId, sessions],
-  );
-  const latestWorkspaceAgentText = useMemo(() => {
-    if (!workspaceAgentSync) {
-      return "";
-    }
-    const nextMessages = agentMessages
-      .slice(workspaceAgentSync.startIndex)
-      .filter((item) => item.role === "agent" && item.text.trim().length > 0);
-    return nextMessages[nextMessages.length - 1]?.text ?? "";
-  }, [agentMessages, workspaceAgentSync]);
-  const ensureSession = useCallback(() => {
-    if (activeSessionId && sessions.some((item) => item.id === activeSessionId)) {
-      return activeSessionId;
-    }
-    const session = newChatSession(t("chat.sessionNew"));
-    setSessions((prev) => [session, ...prev].slice(0, 80));
-    setActiveSessionId(session.id);
-    return session.id;
-  }, [activeSessionId, sessions, t]);
-  const appendMessage = (sessionId: string, message: ChatMessage) => {
-    setSessions((prev) =>
-      updateSession(prev, sessionId, (session) => ({
-        ...session,
-        updatedAt: new Date().toISOString(),
-        messages: [...session.messages, message].slice(-600),
-      })),
-    );
-  };
-  const updateMessageText = (sessionId: string, messageId: string, text: string) => {
-    setSessions((prev) =>
-      updateSession(prev, sessionId, (session) => ({
-        ...session,
-        updatedAt: new Date().toISOString(),
-        messages: session.messages.map((item) => (item.id === messageId ? { ...item, text } : item)),
-      })),
-    );
-  };
-  const loadProjectMemoryText = useCallback(async () => {
-    if (!projectId) {
-      return "";
-    }
-    const candidates = [".latotex/MEMORY.md", "MEMORY.md", "memory.md"];
-    for (const path of candidates) {
-      try {
-        const loaded = await readFile(projectId, path);
-        const text = String(loaded.content || "").trim();
-        if (text) {
-          return text;
-        }
-      } catch {
-        // Try next candidate.
-      }
-    }
-    return "";
-  }, [projectId]);
-  useEffect(() => {
-    latestWorkspaceAgentTextRef.current = latestWorkspaceAgentText;
-  }, [latestWorkspaceAgentText]);
-  useEffect(() => {
-    if (!workspaceAgentSync || !latestWorkspaceAgentText) {
-      return;
-    }
-    updateMessageText(workspaceAgentSync.sessionId, workspaceAgentSync.messageId, latestWorkspaceAgentText);
-  }, [latestWorkspaceAgentText, workspaceAgentSync]);
+  const {
+    activeSession,
+    activeSessionId,
+    appendMessage,
+    draft,
+    ensureSession,
+    lastError,
+    latestWorkspaceAgentTextRef,
+    loadProjectMemoryText,
+    pendingRunId,
+    running,
+    sessionsRef,
+    setActiveSessionId,
+    setDraft,
+    setLastError,
+    setPendingRunId,
+    setRunning,
+    setSessions,
+    setWorkspaceAgentSync,
+    updateMessageRunId,
+    updateMessageText,
+    workspaceAgentSync,
+  } = useChatWorkspaceState({
+    projectId,
+    agentMessages,
+    agentRunId,
+    t,
+  });
   const runPrompt = useCallback(async (
     promptRaw: string,
     options?: {
@@ -293,6 +198,7 @@ export function ChatWorkspace(props: {
       role: "assistant",
       text: "",
       createdAt: new Date().toISOString(),
+      runId: null,
     });
     setRunning(true);
     try {
@@ -312,8 +218,10 @@ export function ChatWorkspace(props: {
       const accepted = await startChatWorkflow({
         projectId,
         prompt,
+        contextPaths: extractPromptRefValues(prompt),
         modelOverride: chatAgentModelId ?? undefined,
       });
+      updateMessageRunId(sessionId, assistantMessageId, accepted.runId);
       setPendingRunId(accepted.runId);
       let cursor = 0;
       let output = "";
@@ -392,7 +300,6 @@ export function ChatWorkspace(props: {
     appendMessage,
     chatAgentModelId,
     ensureSession,
-    latestWorkspaceAgentText,
     loadProjectMemoryText,
     onRequestAgentReview,
     onRunWorkspaceAgent,
@@ -400,6 +307,7 @@ export function ChatWorkspace(props: {
     running,
     suspended,
     t,
+    updateMessageRunId,
     updateMessageText,
   ]);
   useEffect(() => {
@@ -599,101 +507,32 @@ export function ChatWorkspace(props: {
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
         ) : (
-          <div className="space-y-2">
-            {activeSession.messages.map((item) => {
-              const isRunningAssistant = running
-                && item.role === "assistant"
-                && item.id === latestRunningAssistantMessageId;
-              return (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "max-w-[85%] rounded border px-3 py-2 text-sm",
-                    item.role === "user"
-                      ? "ml-auto border-primary-200 bg-primary-50 text-primary-900"
-                      : "border-slate-200 bg-slate-50 text-slate-800",
-                  )}
-                >
-                  <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">
-                    {item.role === "user" ? t("chat.roleUser") : t("chat.roleAssistant")}
-                  </div>
-                  <div className="whitespace-pre-wrap break-words">
-                    {item.text.trim() ? item.text : null}
-                    {isRunningAssistant ? (
-                      <ChatRunningIndicator
-                        label={t("chat.running")}
-                        inline={!item.text.trim()}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <ChatMessageList
+            messages={activeSession.messages}
+            events={events}
+            running={running}
+            latestRunningAssistantMessageId={latestRunningAssistantMessageId}
+            agentPendingAction={agentPendingAction}
+            onResolveWorkspaceAgentPendingAction={onResolveWorkspaceAgentPendingAction}
+            t={t}
+          />
         )}
       </div>
-      <div className="editor-chat-paper-surface flex h-full min-h-0 flex-col border-t px-2 pb-2 pt-1.5">
-        {agentProposal && onAcceptWorkspaceAgentProposal && onRejectWorkspaceAgentProposal ? (
-          <div className="mb-2">
-            <div className="mb-1 text-[11px] font-semibold text-slate-500">{t("chat.workspaceProposalTitle")}</div>
-            <AgentProposalMiniBar
-              proposal={agentProposal}
-              busy={running || agentPhase === "running"}
-              onAccept={() => onAcceptWorkspaceAgentProposal(false)}
-              onReject={onRejectWorkspaceAgentProposal}
-              t={t}
-            />
-          </div>
-        ) : null}
-        {agentPendingAction?.kind === "autoCommit" && onResolveWorkspaceAgentPendingAction ? (
-          <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            <div className="font-semibold">{t("chat.workspacePendingTitle")}</div>
-            <div className="mt-1">{agentPendingAction.targetPath}</div>
-            <div className="mt-2 flex gap-2">
-              <button
-                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-white"
-                onClick={() => onResolveWorkspaceAgentPendingAction(true)}
-              >
-                {t("agent.autoCommit.yes")}
-              </button>
-              <button
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-700"
-                onClick={() => onResolveWorkspaceAgentPendingAction(false)}
-              >
-                {t("agent.autoCommit.no")}
-              </button>
-            </div>
-          </div>
-        ) : null}
-        <div className="relative min-h-0 flex-1">
-          <textarea
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={t("chat.inputPlaceholder")}
-            className="editor-chat-input h-full w-full resize-none rounded-md border px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
-          />
-          <button
-            className={`absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
-              running
-                ? "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                : "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-            }`}
-            onClick={() => {
-              if (running) {
-                void stopRun();
-                return;
-              }
-              void sendMessage();
-            }}
-            disabled={!running && !draft.trim()}
-            title={running ? t("agent.run.cancel") : t("chat.send")}
-            aria-label={running ? t("agent.run.cancel") : t("chat.send")}
-          >
-            {running ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-        {lastError ? <div className="mt-1 truncate text-[11px] text-rose-600">{lastError}</div> : null}
-      </div>
+      <ChatWorkspaceComposer
+        draft={draft}
+        running={running}
+        lastError={lastError}
+        agentPhase={agentPhase}
+        agentProposal={agentProposal}
+        agentPendingAction={agentPendingAction}
+        onDraftChange={setDraft}
+        onSend={() => void sendMessage()}
+        onStop={() => void stopRun()}
+        onAcceptWorkspaceAgentProposal={onAcceptWorkspaceAgentProposal}
+        onRejectWorkspaceAgentProposal={onRejectWorkspaceAgentProposal}
+        onResolveWorkspaceAgentPendingAction={onResolveWorkspaceAgentPendingAction}
+        t={t}
+      />
     </section>
   );
 }

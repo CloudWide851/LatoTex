@@ -197,6 +197,16 @@ pub struct ProjectSearchInput {
     pub scopes: Option<Vec<String>>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchIncrementalInput {
+    pub project_id: String,
+    pub query: String,
+    pub limit: Option<u32>,
+    pub scopes: Option<Vec<String>>,
+    pub cursor: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSearchHit {
@@ -206,6 +216,15 @@ pub struct ProjectSearchHit {
     pub snippet: String,
     pub session_id: Option<String>,
     pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchBatch {
+    pub hits: Vec<ProjectSearchHit>,
+    pub next_cursor: Option<String>,
+    pub done: bool,
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

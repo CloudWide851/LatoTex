@@ -298,6 +298,13 @@ export type ProjectSearchHit = {
   title?: string | null;
 };
 
+export type ProjectSearchBatch = {
+  hits: ProjectSearchHit[];
+  nextCursor?: string | null;
+  done: boolean;
+  scope?: ProjectSearchScope | null;
+};
+
 export type ProjectIntegrityStatus = {
   projectId: string;
   missingRequired: string[];

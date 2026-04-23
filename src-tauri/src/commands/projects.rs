@@ -5,9 +5,10 @@ use crate::models::{
     LibraryCitationSummaryResponse, LibraryLinkImportInput, LibraryLinkImportResponse,
     LibraryPdfPreviewInput, LibraryPdfPreviewResponse, LibraryPdfResumeResponse, LibraryRefInput,
     LibraryZoteroSyncInput, LibraryZoteroSyncResponse, OpenExternalLinkInput,
-    ProjectIntegrityStatus, ProjectPathActionInput, ProjectRefInput, ProjectSearchHit,
-    ProjectSearchInput, ProjectSnapshot, ProjectSummary, ResourceNode, WorkspaceExportPdfInput,
-    WorkspaceExportAssetInput, WorkspaceExportAssetResponse, WorkspaceExportPdfResponse,
+    ProjectIntegrityStatus, ProjectPathActionInput, ProjectRefInput, ProjectSearchBatch,
+    ProjectSearchHit, ProjectSearchIncrementalInput, ProjectSearchInput, ProjectSnapshot,
+    ProjectSummary, ResourceNode, WorkspaceExportPdfInput, WorkspaceExportAssetInput,
+    WorkspaceExportAssetResponse, WorkspaceExportPdfResponse,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -578,6 +579,26 @@ pub async fn project_search_content(
     );
     let db_path = state.db_path.clone();
     spawn_blocking(move || storage::search_project_content(&db_path, input))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn project_search_content_incremental(
+    state: State<'_, AppState>,
+    input: ProjectSearchIncrementalInput,
+) -> Result<ProjectSearchBatch, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "project_search_content_incremental: project={}, query={}, cursor={}",
+            input.project_id,
+            input.query,
+            input.cursor.as_deref().unwrap_or("")
+        ),
+    );
+    let db_path = state.db_path.clone();
+    spawn_blocking(move || storage::search_project_content_incremental(&db_path, input))
         .await
         .map_err(|e| e.to_string())?
 }

@@ -23,6 +23,7 @@ import {
   inferPaperPromptAction,
   resolveAgentPaperContextForPrompt,
 } from "./agentPaperContext";
+import { extractPromptRefValues } from "./analysisPromptRefs";
 import {
   executePaperLinkFlow,
   resolvePaperCommandLink,
@@ -242,6 +243,7 @@ export async function runAgentWorkflow(params: {
   } = params;
 
   const prompt = agentPrompt.trim();
+  const promptContextPaths = extractPromptRefValues(prompt);
   const parsed = parseAgentPrompt(prompt);
   const commitIntent = resolveAgentCommitIntent(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
@@ -374,6 +376,7 @@ export async function runAgentWorkflow(params: {
           selectedFile,
           editorContent,
           userHint: parsed.args,
+          contextPaths: promptContextPaths,
           modelOverride: taskModelOverride ?? undefined,
         }),
         setAgentRunId,
@@ -456,6 +459,7 @@ export async function runAgentWorkflow(params: {
         fileContent: originalContent,
         selectedFile,
         paperContextSourcePath: paperContextRef,
+        contextPaths: promptContextPaths,
         modelOverride: taskModelOverride ?? undefined,
       }),
       setAgentRunId,

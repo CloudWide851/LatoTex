@@ -112,7 +112,11 @@ fn provider(
             approval_required: None,
         }],
         constraints: WorkflowConstraints {
-            allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
+            allowed_context_prefixes: vec![
+                "file:".to_string(),
+                "paper:".to_string(),
+                "folder:".to_string(),
+            ],
             allowed_tools: vec!["provider_generate".to_string()],
             writable_scopes: writable_scopes.iter().map(|value| value.to_string()).collect(),
             max_steps: Some(4),
@@ -156,7 +160,11 @@ fn default_workflow_registry() -> WorkflowRegistry {
                     approval_required: Some(false),
                 }],
                 constraints: WorkflowConstraints {
-                    allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
+                    allowed_context_prefixes: vec![
+                        "file:".to_string(),
+                        "paper:".to_string(),
+                        "folder:".to_string(),
+                    ],
                     allowed_tools: vec!["tool_search".to_string()],
                     writable_scopes: vec!["readonly".to_string()],
                     max_steps: Some(2),

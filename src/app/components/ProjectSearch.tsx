@@ -140,10 +140,11 @@ export function ProjectSearch(props: {
       className={dropdownSurfaceClassName("fixed z-[520] max-h-[min(24rem,calc(100vh-3.5rem))] overflow-y-auto overflow-x-hidden")}
       style={panelStyle}
     >
-      {showSearching ? (
-        <div className="px-2 py-1.5 text-xs text-[color:var(--control-muted)]">{t("topbar.searching")}</div>
-      ) : results.length === 0 ? (
+      {results.length === 0 ? (
         <div className="space-y-2 p-2">
+          {showSearching ? (
+            <div className="px-1 text-xs text-[color:var(--control-muted)]">{t("topbar.searching")}</div>
+          ) : null}
           <div className="flex flex-wrap gap-1">
             {([
               ["file_name", "topbar.searchScopeFileName"],
@@ -168,10 +169,15 @@ export function ProjectSearch(props: {
               );
             })}
           </div>
-          <div className="px-1 text-xs text-[color:var(--control-muted)]">{t("topbar.noSearchResults")}</div>
+          {!showSearching ? (
+            <div className="px-1 text-xs text-[color:var(--control-muted)]">{t("topbar.noSearchResults")}</div>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-1 p-1">
+          {showSearching ? (
+            <div className="px-2 py-1 text-[11px] text-[color:var(--control-muted)]">{t("topbar.searching")}</div>
+          ) : null}
           <div className="mb-1 flex flex-wrap gap-1 px-1">
             {([
               ["file_name", "topbar.searchScopeFileName"],

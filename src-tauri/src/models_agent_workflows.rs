@@ -7,6 +7,8 @@ pub struct LatexEditStartInput {
     pub file_content: String,
     pub selected_file: Option<String>,
     pub paper_context_source_path: Option<String>,
+    #[serde(default)]
+    pub context_paths: Vec<String>,
     pub model_override: Option<String>,
 }
 
@@ -28,6 +30,8 @@ pub struct LatexReferenceCheckStartInput {
     pub selected_file: Option<String>,
     pub editor_content: String,
     pub user_hint: Option<String>,
+    #[serde(default)]
+    pub context_paths: Vec<String>,
     pub model_override: Option<String>,
 }
 
@@ -45,6 +49,8 @@ pub struct LatexPaperAnalyzeStartInput {
 pub struct ChatWorkflowStartInput {
     pub project_id: String,
     pub prompt: String,
+    #[serde(default)]
+    pub context_paths: Vec<String>,
     pub model_override: Option<String>,
 }
 

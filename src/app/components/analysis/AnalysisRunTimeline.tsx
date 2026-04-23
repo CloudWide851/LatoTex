@@ -80,7 +80,7 @@ export function AnalysisRunTimeline(props: {
 
   return (
     <section className={cn(
-      "min-h-0 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2",
+      "flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2",
       compact ? "motion-card-pop" : "",
     )}>
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.timeline")}</h4>
@@ -89,7 +89,7 @@ export function AnalysisRunTimeline(props: {
           {t("analysis.timelineEmpty")}
         </div>
       ) : (
-        <div className="space-y-1.5">
+        <div className="min-h-0 overflow-auto space-y-1.5 pr-1">
           {displayCards.map((card) => (
             <article
               key={`${card.runId}:${card.id}`}

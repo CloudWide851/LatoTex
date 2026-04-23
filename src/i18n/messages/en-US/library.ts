@@ -103,6 +103,8 @@ export const enUS_library = {
   "library.viewer.textbox.menu.alignCenter": "Align Center",
   "library.viewer.textbox.menu.alignRight": "Align Right",
   "library.viewer.textbox.menu.textColor": "Text Color",
+  "library.viewer.textbox.menu.fontFamily": "Font",
+  "library.viewer.textbox.menu.fontSize": "Size",
   "library.viewer.noBib": "No BibTeX preview available.",
   "library.viewer.noPdf": "No PDF preview available.",
   "library.viewer.linkFallback": "Unable to open automatically. Use the link below:",

@@ -26,7 +26,7 @@ import { useGitHandlers } from "./useGitHandlers";
 import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 import { signalWindowTransition } from "./windowTransitionSignal";
-import { loadChatStore, requestOpenChatSession, setActiveChatSessionInStore } from "./chatSessionStore";
+import { useProjectSearchHandlers } from "./useProjectSearchHandlers";
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -344,6 +344,20 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     runAnalysisFromAgent,
     taskModelOverride: settings?.uiPrefs?.featureModelBindings?.latexAgentModelId ?? null,
   });
+  const {
+    handleProjectSearch,
+    handleProjectSearchSelect,
+  } = useProjectSearchHandlers({
+    activeProjectId,
+    projectSearchQuery,
+    setProjectSearchResults,
+    setProjectSearchSearched,
+    setProjectSearchBusy,
+    setToast,
+    setPage,
+    setSelectedFile,
+    setPendingRevealLine,
+  });
   const handleSaveSettings = useCallback(async () => {
     if (!settings) {
       return;
@@ -430,55 +444,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setBusy(false);
     }
   }, [activeProjectId, refreshGitWorkspace, setBusy, setToast, setTree]);
-  const handleProjectSearch = useCallback(async (scopes: Array<"file_name" | "file_content" | "chat_session"> = ["file_name", "file_content", "chat_session"]) => {
-    if (!activeProjectId || !projectSearchQuery.trim()) {
-      setProjectSearchResults([]);
-      setProjectSearchSearched(true);
-      return;
-    }
-    setProjectSearchBusy(true);
-    setProjectSearchSearched(true);
-    try {
-      const normalizedQuery = projectSearchQuery.trim().toLowerCase();
-      const fileScopes = scopes.filter((scope) => scope !== "chat_session");
-      const fileHits = fileScopes.length > 0
-        ? await projectSearchContent(activeProjectId, projectSearchQuery.trim(), 180, fileScopes)
-        : [];
-      const chatHits = scopes.includes("chat_session")
-        ? loadChatStore(activeProjectId).sessions
-          .filter((session) => session.title.trim().toLowerCase().includes(normalizedQuery))
-          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-          .slice(0, 40)
-          .map((session) => ({
-            relativePath: null,
-            lineNumber: null,
-            matchKind: "chat_session" as const,
-            snippet: session.title,
-            sessionId: session.id,
-            title: session.title,
-          }))
-        : [];
-      setProjectSearchResults([...fileHits, ...chatHits].slice(0, 180));
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-      setProjectSearchResults([]);
-    } finally {
-      setProjectSearchBusy(false);
-    }
-  }, [activeProjectId, projectSearchQuery, setProjectSearchBusy, setProjectSearchResults, setProjectSearchSearched, setToast]);
-  const handleProjectSearchSelect = useCallback((hit: ProjectSearchHit) => {
-    if (hit.matchKind === "chat_session" && activeProjectId && hit.sessionId) {
-      setActiveChatSessionInStore(activeProjectId, hit.sessionId);
-      requestOpenChatSession({ projectId: activeProjectId, sessionId: hit.sessionId });
-      return;
-    }
-    if (!hit.relativePath) {
-      return;
-    }
-    setPage("latex");
-    setSelectedFile(hit.relativePath);
-    setPendingRevealLine(hit.matchKind === "file_content" ? (hit.lineNumber ?? null) : null);
-  }, [activeProjectId, setPage, setPendingRevealLine, setSelectedFile]);
   const handleProtocolPing = useCallback(async (input: {
     protocolId: string;
     baseUrl: string;

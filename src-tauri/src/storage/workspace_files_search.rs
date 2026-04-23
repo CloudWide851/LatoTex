@@ -341,6 +341,7 @@ mod workspace_files_search_tests {
     use super::{
         is_python_venv_dir, list_workspace_tree, prepare_project_search_index,
         read_project_file_binary, save_draw_export_asset, search_project_content,
+        search_project_content_incremental,
     };
     use crate::models::ProjectSearchInput;
     use crate::storage;
@@ -597,6 +598,51 @@ mod workspace_files_search_tests {
             hit.match_kind == "file_content"
                 && hit.relative_path.as_deref() == Some("notes.txt")
                 && hit.snippet.contains("updated keyword line")
+        }));
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
+    fn search_project_content_incremental_returns_progressive_content_batches() {
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("search-incremental-content");
+        fs::write(
+            project_root.join("notes-a.txt"),
+            "alpha first\nalpha second\nalpha third",
+        )
+        .unwrap();
+        fs::write(project_root.join("notes-b.txt"), "beta\nalpha fourth").unwrap();
+        prepare_project_search_index(&db_path, &project_id).unwrap();
+
+        let first = search_project_content_incremental(
+            &db_path,
+            crate::models::ProjectSearchIncrementalInput {
+                project_id: project_id.clone(),
+                query: "alpha".to_string(),
+                limit: Some(2),
+                scopes: Some(vec!["file_content".to_string()]),
+                cursor: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(first.hits.len(), 2);
+        assert!(!first.done);
+        assert!(first.next_cursor.is_some());
+
+        let second = search_project_content_incremental(
+            &db_path,
+            crate::models::ProjectSearchIncrementalInput {
+                project_id,
+                query: "alpha".to_string(),
+                limit: Some(2),
+                scopes: Some(vec!["file_content".to_string()]),
+                cursor: first.next_cursor,
+            },
+        )
+        .unwrap();
+        assert!(second.hits.iter().any(|hit| {
+            hit.relative_path.as_deref() == Some("notes-b.txt") && hit.line_number == Some(2)
         }));
 
         let _ = fs::remove_dir_all(temp_root);

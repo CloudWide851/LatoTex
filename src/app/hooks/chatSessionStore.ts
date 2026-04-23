@@ -3,6 +3,7 @@ export type ChatMessage = {
   role: "user" | "assistant" | "system";
   text: string;
   createdAt: string;
+  runId?: string | null;
 };
 
 export type ChatSession = {
@@ -97,6 +98,7 @@ function sanitizeMessage(raw: unknown): ChatMessage | null {
     role,
     text,
     createdAt: typeof source.createdAt === "string" ? source.createdAt : nowIso(),
+    runId: typeof source.runId === "string" && source.runId.trim() ? source.runId : null,
   };
 }
 

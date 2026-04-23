@@ -1,4 +1,5 @@
 import type {
+  ProjectSearchBatch,
   ProjectIntegrityStatus,
   ProjectSearchHit,
   ProjectSearchScope,
@@ -43,6 +44,24 @@ export function projectSearchContent(
 ): Promise<ProjectSearchHit[]> {
   return invokeCommand<ProjectSearchHit[]>("project_search_content", {
     input: { projectId, query, limit, scopes },
+  });
+}
+
+export function projectSearchContentIncremental(input: {
+  projectId: string;
+  query: string;
+  limit?: number;
+  scope: Extract<ProjectSearchScope, "file_name" | "file_content">;
+  cursor?: string | null;
+}): Promise<ProjectSearchBatch> {
+  return invokeCommand<ProjectSearchBatch>("project_search_content_incremental", {
+    input: {
+      projectId: input.projectId,
+      query: input.query,
+      limit: input.limit ?? 40,
+      scopes: [input.scope],
+      cursor: input.cursor ?? null,
+    },
   });
 }
 

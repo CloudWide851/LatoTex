@@ -157,6 +157,8 @@ export function AgentTraceCards(props: {
   pendingActionNoLabel?: string;
   onPendingActionResolve?: (accept: boolean) => void;
   t: (key: any) => string;
+  className?: string;
+  bodyClassName?: string;
 }) {
   const {
     cards,
@@ -168,6 +170,8 @@ export function AgentTraceCards(props: {
     pendingActionNoLabel,
     onPendingActionResolve,
     t,
+    className,
+    bodyClassName,
   } = props;
   const groups = buildTaskGroups(cards, t);
   if (groups.length === 0 && !pendingAction) {
@@ -175,9 +179,9 @@ export function AgentTraceCards(props: {
   }
 
   return (
-    <section className="border-b border-slate-200 px-3 py-2">
+    <section className={cn("flex min-h-0 flex-col border-b border-slate-200 px-3 py-2", className)}>
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-      <div className="space-y-2">
+      <div className={cn("min-h-0 overflow-auto space-y-2", bodyClassName)}>
         {groups.map((group) => (
           <article key={group.key} className={cn("rounded border px-2 py-2 text-[11px]", tone(group.status))}>
             <div className="flex items-center justify-between gap-2">

@@ -103,6 +103,8 @@ export const zhCN_library = {
   "library.viewer.textbox.menu.alignCenter": "居中对齐",
   "library.viewer.textbox.menu.alignRight": "右对齐",
   "library.viewer.textbox.menu.textColor": "文字颜色",
+  "library.viewer.textbox.menu.fontFamily": "字体",
+  "library.viewer.textbox.menu.fontSize": "字号",
   "library.viewer.noBib": "暂无 BibTeX 预览内容。",
   "library.viewer.noPdf": "暂无可用的 PDF 预览。",
   "library.viewer.linkFallback": "自动打开失败，请使用下方链接：",

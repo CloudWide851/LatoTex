@@ -1,19 +1,12 @@
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Trash2, Underline } from "lucide-react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Select } from "../../../components/ui/select";
-
-const FONT_FAMILIES = [
-  "Segoe UI",
-  "Times New Roman",
-  "Arial",
-  "Consolas",
-  "Noto Sans SC",
-  "Microsoft YaHei",
-];
-
-const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
-const TEXT_COLORS = ["#0f172a", "#1d4ed8", "#16a34a", "#c2410c", "#be185d", "#475569"];
+import {
+  DEFAULT_TEXTBOX_FONT_FAMILIES,
+  TEXTBOX_COLOR_PALETTE,
+  TEXTBOX_FONT_SIZES,
+  resolveTextBoxFontFamilies,
+} from "./textboxStyleCatalog";
 
 type TextBoxStyle = {
   fontSize: number;
@@ -36,9 +29,36 @@ export function PdfTextBoxContextMenu(props: {
   t: (key: any) => string;
 }) {
   const { x, y, positioning = "fixed", style, onApplyStyle, onDelete, onClose, t } = props;
+  const [fontFamilies, setFontFamilies] = useState<string[]>(DEFAULT_TEXTBOX_FONT_FAMILIES);
+  const [fontSizeInput, setFontSizeInput] = useState(String(style.fontSize));
+  const [hexColorInput, setHexColorInput] = useState(style.textColor);
+
+  useEffect(() => {
+    setFontSizeInput(String(style.fontSize));
+  }, [style.fontSize]);
+
+  useEffect(() => {
+    setHexColorInput(style.textColor);
+  }, [style.textColor]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveTextBoxFontFamilies().then((resolved) => {
+      if (!cancelled && resolved.length > 0) {
+        setFontFamilies(resolved);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const preserveEditorSelection = (event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const keepMenuOpen = (event: ReactMouseEvent<HTMLElement>) => {
     event.stopPropagation();
   };
 
@@ -51,45 +71,87 @@ export function PdfTextBoxContextMenu(props: {
     onApplyStyle(next, options);
   };
 
+  const availableFonts = useMemo(() => {
+    const merged = Array.from(new Set([...fontFamilies, style.fontFamily]));
+    return merged.sort((left, right) => left.localeCompare(right));
+  }, [fontFamilies, style.fontFamily]);
+
+  const handleFontFamilyChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFont = event.target.value.trim();
+    if (!nextFont) {
+      return;
+    }
+    onApplyStyle({ fontFamily: nextFont });
+  };
+
+  const commitFontSize = (raw: string) => {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) {
+      setFontSizeInput(String(style.fontSize));
+      return;
+    }
+    const normalized = Math.max(8, Math.min(160, Math.round(parsed)));
+    setFontSizeInput(String(normalized));
+    onApplyStyle({ fontSize: normalized });
+  };
+
+  const commitHexColor = (raw: string) => {
+    const normalized = raw.trim();
+    if (!/^#[0-9a-f]{6}$/i.test(normalized)) {
+      setHexColorInput(style.textColor);
+      return;
+    }
+    setHexColorInput(normalized);
+    onApplyStyle({ textColor: normalized });
+  };
+
   const menu = (
     <div
       data-textbox-menu="true"
-      className={`${positioning === "fixed" ? "fixed" : "absolute"} z-[620] w-72 rounded-lg border border-slate-300 bg-white p-2 shadow-xl`}
+      className={`${positioning === "fixed" ? "fixed" : "absolute"} z-[620] w-80 rounded-lg border border-slate-300 bg-white p-3 shadow-xl`}
       style={{ left: x, top: y }}
-      onMouseDown={preserveEditorSelection}
+      onMouseDown={keepMenuOpen}
     >
       <div className="mb-2 text-xs font-semibold text-slate-700">{t("library.viewer.textbox.menu.title")}</div>
-      <div className="mb-2 grid grid-cols-[1fr_92px] gap-2">
-        <Select
-          uiSize="sm"
-          value={style.fontFamily}
-          restoreFocusOnCommit={false}
-          onChange={(event) => onApplyStyle({ fontFamily: event.target.value })}
-          portalClassName="z-[780]"
-          portalAttributes={{
-            "data-textbox-menu": "true",
-            onMouseDown: preserveEditorSelection,
-          }}
-        >
-          {FONT_FAMILIES.map((family) => (
-            <option key={family} value={family}>{family}</option>
-          ))}
-        </Select>
-        <Select
-          uiSize="sm"
-          value={String(style.fontSize)}
-          restoreFocusOnCommit={false}
-          onChange={(event) => onApplyStyle({ fontSize: Number(event.target.value) })}
-          portalClassName="z-[780]"
-          portalAttributes={{
-            "data-textbox-menu": "true",
-            onMouseDown: preserveEditorSelection,
-          }}
-        >
-          {FONT_SIZES.map((size) => (
-            <option key={size} value={size}>{size}</option>
-          ))}
-        </Select>
+      <div className="mb-3 grid grid-cols-[minmax(0,1fr)_104px] gap-2">
+        <label className="flex min-w-0 flex-col gap-1">
+          <span className="text-[11px] font-medium text-slate-500">{t("library.viewer.textbox.menu.fontFamily")}</span>
+          <input
+            list="pdf-textbox-font-families"
+            value={style.fontFamily}
+            className="rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-primary-500"
+            onMouseDown={(event) => event.stopPropagation()}
+            onChange={handleFontFamilyChange}
+          />
+          <datalist id="pdf-textbox-font-families">
+            {availableFonts.map((family) => (
+              <option key={family} value={family} />
+            ))}
+          </datalist>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-slate-500">{t("library.viewer.textbox.menu.fontSize")}</span>
+          <input
+            list="pdf-textbox-font-sizes"
+            inputMode="numeric"
+            value={fontSizeInput}
+            className="rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-primary-500"
+            onMouseDown={(event) => event.stopPropagation()}
+            onChange={(event) => setFontSizeInput(event.target.value)}
+            onBlur={(event) => commitFontSize(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitFontSize(fontSizeInput);
+              }
+            }}
+          />
+          <datalist id="pdf-textbox-font-sizes">
+            {TEXTBOX_FONT_SIZES.map((size) => (
+              <option key={size} value={size} />
+            ))}
+          </datalist>
+        </label>
       </div>
 
       <div className="mb-2 flex items-center gap-1">
@@ -152,16 +214,41 @@ export function PdfTextBoxContextMenu(props: {
         </button>
       </div>
 
-      <div className="mb-2 flex items-center gap-1">
-        {TEXT_COLORS.map((color) => (
-          <button
-            key={color}
-            className="h-6 w-6 rounded-full border border-slate-300"
-            style={{ backgroundColor: color }}
-            title={t("library.viewer.textbox.menu.textColor")}
-            onMouseDown={(event) => applyTextStyle(event, { textColor: color })}
+      <div className="mb-3">
+        <div className="mb-1 text-[11px] font-medium text-slate-500">{t("library.viewer.textbox.menu.textColor")}</div>
+        <div className="mb-2 grid grid-cols-5 gap-1.5">
+          {TEXTBOX_COLOR_PALETTE.map((color) => (
+            <button
+              key={color}
+              className={`h-7 w-full rounded border ${style.textColor.toLowerCase() === color.toLowerCase() ? "border-slate-700 ring-1 ring-slate-400" : "border-slate-300"}`}
+              style={{ backgroundColor: color }}
+              title={color}
+              onMouseDown={(event) => applyTextStyle(event, { textColor: color })}
+            />
+          ))}
+        </div>
+        <div className="grid grid-cols-[1fr_44px] gap-2">
+          <input
+            value={hexColorInput}
+            className="rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-primary-500"
+            onMouseDown={(event) => event.stopPropagation()}
+            onChange={(event) => setHexColorInput(event.target.value)}
+            onBlur={(event) => commitHexColor(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitHexColor(hexColorInput);
+              }
+            }}
           />
-        ))}
+          <input
+            type="color"
+            value={/^#[0-9a-f]{6}$/i.test(hexColorInput) ? hexColorInput : style.textColor}
+            className="h-9 w-full cursor-pointer rounded border border-slate-300 bg-white p-1"
+            onMouseDown={(event) => event.stopPropagation()}
+            onChange={(event) => commitHexColor(event.target.value)}
+          />
+        </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-200 pt-2">

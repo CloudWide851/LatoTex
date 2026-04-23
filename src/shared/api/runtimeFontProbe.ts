@@ -4,6 +4,7 @@ export type RuntimeSystemFontProbeResult = {
   requestedFonts: string[];
   matchedFonts: string[];
   missingFonts: string[];
+  installedFonts: string[];
   installedCount: number;
   source: string;
   diagnosticCode?: string | null;
