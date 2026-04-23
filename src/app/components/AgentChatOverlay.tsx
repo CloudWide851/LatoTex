@@ -215,7 +215,7 @@ export function AgentChatOverlay(props: {
     return (
       <button
         className={cn(
-          "agent-overlay-trigger absolute bottom-4 left-1/2 z-30 flex max-w-[min(620px,calc(100%-24px))] -translate-x-1/2 items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition-[background-color,border-color,color,box-shadow]",
+          "agent-overlay-trigger absolute inset-x-0 bottom-4 z-30 mx-auto flex w-fit max-w-[min(620px,calc(100%-24px))] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs shadow-soft transition-[background-color,border-color,color,box-shadow]",
           phase === "error"
             ? "border-rose-300 bg-rose-50 text-rose-700"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",

@@ -65,6 +65,7 @@ export function PdfTextBoxContextMenu(props: {
           value={style.fontFamily}
           restoreFocusOnCommit={false}
           onChange={(event) => onApplyStyle({ fontFamily: event.target.value })}
+          portalClassName="z-[780]"
           portalAttributes={{
             "data-textbox-menu": "true",
             onMouseDown: preserveEditorSelection,
@@ -79,6 +80,7 @@ export function PdfTextBoxContextMenu(props: {
           value={String(style.fontSize)}
           restoreFocusOnCommit={false}
           onChange={(event) => onApplyStyle({ fontSize: Number(event.target.value) })}
+          portalClassName="z-[780]"
           portalAttributes={{
             "data-textbox-menu": "true",
             onMouseDown: preserveEditorSelection,

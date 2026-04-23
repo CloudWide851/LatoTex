@@ -21,6 +21,7 @@ export function usePdfTextBoxTransform(params: {
   const dragPointRef = useRef<AnnotationPoint | null>(null);
   const dragActivatedRef = useRef(false);
   const dragFrameRef = useRef<number | null>(null);
+  const pointerCaptureTargetRef = useRef<HTMLElement | null>(null);
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
 
   const clearBodyDragStyles = useCallback(() => {
@@ -29,6 +30,19 @@ export function usePdfTextBoxTransform(params: {
     }
     document.body.style.removeProperty("user-select");
     document.body.style.removeProperty("cursor");
+  }, []);
+
+  const clearPointerCapture = useCallback(() => {
+    const target = pointerCaptureTargetRef.current;
+    const drag = dragStateRef.current;
+    if (target && drag?.inputKind === "pointer") {
+      try {
+        target.releasePointerCapture(drag.pointerId);
+      } catch {
+        // ignore stale capture cleanup
+      }
+    }
+    pointerCaptureTargetRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -94,6 +108,7 @@ export function usePdfTextBoxTransform(params: {
         dragFrameRef.current = null;
       }
       setDragPreview(null);
+      clearPointerCapture();
       clearBodyDragStyles();
     };
 
@@ -113,6 +128,7 @@ export function usePdfTextBoxTransform(params: {
         dragFrameRef.current = null;
       }
       setDragPreview(null);
+      clearPointerCapture();
       clearBodyDragStyles();
     };
 
@@ -137,9 +153,10 @@ export function usePdfTextBoxTransform(params: {
       dragPointRef.current = null;
       dragActivatedRef.current = false;
       setDragPreview(null);
+      clearPointerCapture();
       clearBodyDragStyles();
     };
-  }, [clearBodyDragStyles, layerRef, onCommit]);
+  }, [clearBodyDragStyles, clearPointerCapture, layerRef, onCommit]);
 
   const beginTextBoxTransform = useCallback((mode: "move" | "resize", event: TransformStartEvent, box: AnnotationTextBox) => {
     const rect = layerRef.current?.getBoundingClientRect();
@@ -159,6 +176,14 @@ export function usePdfTextBoxTransform(params: {
     dragActivatedRef.current = false;
     dragPointRef.current = null;
     setDragPreview(null);
+    pointerCaptureTargetRef.current = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+    if (event.type === "pointerdown" && event.currentTarget instanceof HTMLElement && "pointerId" in event.nativeEvent) {
+      try {
+        event.currentTarget.setPointerCapture(event.nativeEvent.pointerId);
+      } catch {
+        pointerCaptureTargetRef.current = null;
+      }
+    }
     if (typeof document !== "undefined") {
       document.body.style.setProperty("user-select", "none");
       document.body.style.setProperty("cursor", mode === "move" ? "move" : "nwse-resize");

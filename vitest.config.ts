@@ -7,5 +7,6 @@ export default defineConfig({
     include: ["src/**/*.spec.ts", "src/**/*.spec.tsx"],
     clearMocks: true,
     restoreMocks: true,
+    fileParallelism: false,
   },
 });
