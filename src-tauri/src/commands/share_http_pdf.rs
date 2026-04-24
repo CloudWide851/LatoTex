@@ -28,6 +28,13 @@ pub(super) fn handle_pdf_upload(mut request: Request, runtime: &Arc<Mutex<ShareR
         let _ = request.respond(response);
         return;
     }
+    if body.pdf_base64.len() > MAX_SHARE_PDF_UPLOAD_BASE64_BYTES {
+        let _ = request.respond(json_response(
+            StatusCode(413),
+            json!({ "ok": false, "message": "pdf upload too large" }),
+        ));
+        return;
+    }
     let decoded = match BASE64_STANDARD.decode(body.pdf_base64.as_bytes()) {
         Ok(bytes) => bytes,
         Err(error) => {
@@ -127,7 +134,7 @@ pub(super) fn handle_pdf_fetch(
         }
     };
     let _ = request.respond(
-        share_http_response::with_share_cors(
+        share_http_response::with_share_headers(
             Response::from_file(file)
                 .with_status_code(StatusCode(200))
                 .with_header(pdf_header())

@@ -1,5 +1,5 @@
 import { Search, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
 import type { ProjectSearchHit, ProjectSearchScope } from "../../shared/types/app";
@@ -39,10 +39,11 @@ export function ProjectSearch(props: {
   } = props;
   const [open, setOpen] = useState(false);
   const [queuedSearch, setQueuedSearch] = useState(false);
-  const [panelStyle, setPanelStyle] = useState({});
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
   const [scopes, setScopes] = useState<ProjectSearchScope[]>(["file_name", "file_content", "chat_session"]);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const panelStyleRef = useRef<CSSProperties>({});
   const normalizedQuery = query.trim();
   const fileNameHits = useMemo(
     () => results.filter((item) => item.matchKind === "file_name"),
@@ -79,13 +80,24 @@ export function ProjectSearch(props: {
       return;
     }
     const rect = trigger.getBoundingClientRect();
-    setPanelStyle(buildFloatingSurfaceStyle(trigger, {
+    const nextStyle = buildFloatingSurfaceStyle(trigger, {
       minWidth: Math.max(rect.width, 320),
       preferredWidth: Math.max(rect.width, 420),
       maxWidth: 620,
       align: "start",
       desiredHeight: 320,
-    }));
+    });
+    const previousStyle = panelStyleRef.current;
+    if (
+      previousStyle.left === nextStyle.left
+      && previousStyle.top === nextStyle.top
+      && previousStyle.width === nextStyle.width
+      && previousStyle.maxHeight === nextStyle.maxHeight
+    ) {
+      return;
+    }
+    panelStyleRef.current = nextStyle;
+    setPanelStyle(nextStyle);
   }, []);
 
   useEffect(() => {
@@ -127,10 +139,8 @@ export function ProjectSearch(props: {
     updatePanelPosition();
     const handleReposition = () => updatePanelPosition();
     window.addEventListener("resize", handleReposition);
-    window.addEventListener("scroll", handleReposition, true);
     return () => {
       window.removeEventListener("resize", handleReposition);
-      window.removeEventListener("scroll", handleReposition, true);
     };
   }, [open, updatePanelPosition]);
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { clampNormalized, createDefaultTextStyle, type AnnotationTextStylePreset, type AnnotationPoint, type AnnotationStroke, type AnnotationTextBox } from "./annotationModel";
 import { hexToRgba } from "./annotationPalette";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
@@ -297,7 +297,7 @@ export function PdfAnnotationLayer(props: {
 
   const startTextBoxTransform = useCallback((
     mode: "move" | "resize",
-    event: ReactMouseEvent<HTMLButtonElement>,
+    event: ReactPointerEvent<HTMLButtonElement>,
     box: AnnotationTextBox,
   ) => {
     if (!canTransformTextBoxes) {

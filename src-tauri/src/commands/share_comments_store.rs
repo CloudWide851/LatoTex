@@ -5,6 +5,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+const MAX_STORED_USERNAME_CHARS: usize = 64;
+const MAX_STORED_COMMENT_TEXT_CHARS: usize = 4_000;
+const MAX_STORED_COMMENT_QUOTE_CHARS: usize = 1_000;
+const MAX_STORED_SESSION_NAME_CHARS: usize = 120;
+
+fn truncate_text(value: &str, max_chars: usize) -> String {
+    value.trim().chars().take(max_chars).collect::<String>()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShareCommentRecord {
@@ -112,12 +121,12 @@ pub fn normalize_comment_value(
     let text = source_obj
         .get("text")
         .and_then(|item| item.as_str())
-        .map(|item| item.trim().to_string())
+        .map(|item| truncate_text(item, MAX_STORED_COMMENT_TEXT_CHARS))
         .unwrap_or_default();
     let quote = source_obj
         .get("quote")
         .and_then(|item| item.as_str())
-        .map(|item| item.trim().to_string())
+        .map(|item| truncate_text(item, MAX_STORED_COMMENT_QUOTE_CHARS))
         .unwrap_or_default();
     if text.is_empty() && quote.is_empty() {
         return None;
@@ -131,18 +140,17 @@ pub fn normalize_comment_value(
         }
     });
     let source = if source == "pdf" { "pdf" } else { "tex" }.to_string();
-    let session_name = parse_nonempty_text(source_obj.get("sessionName"));
+    let session_name = parse_nonempty_text(source_obj.get("sessionName"))
+        .map(|value| truncate_text(&value, MAX_STORED_SESSION_NAME_CHARS));
     let session_created_at = parse_nonempty_text(source_obj.get("sessionCreatedAt"));
     Some(ShareCommentRecord {
         id: parse_nonempty_text(source_obj.get("id"))
             .unwrap_or_else(|| format!("c-{}", Uuid::new_v4().simple())),
-        username: parse_nonempty_text(source_obj.get("username"))
-            .unwrap_or_else(|| fallback_username.trim().to_string())
-            .chars()
-            .take(64)
-            .collect::<String>()
-            .trim()
-            .to_string(),
+        username: truncate_text(
+            &parse_nonempty_text(source_obj.get("username"))
+                .unwrap_or_else(|| fallback_username.trim().to_string()),
+            MAX_STORED_USERNAME_CHARS,
+        ),
         text,
         quote,
         source,
@@ -154,4 +162,30 @@ pub fn normalize_comment_value(
         created_at: parse_nonempty_text(source_obj.get("createdAt"))
             .unwrap_or_else(|| Utc::now().to_rfc3339()),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn normalizes_stored_share_comment_lengths() {
+        let comment = normalize_comment_value(
+            &json!({
+                "username": "u".repeat(120),
+                "text": "t".repeat(4_500),
+                "quote": "q".repeat(1_500),
+                "source": "pdf",
+                "page": 2,
+            }),
+            "Guest",
+        ).expect("comment should normalize");
+
+        assert_eq!(comment.username.chars().count(), MAX_STORED_USERNAME_CHARS);
+        assert_eq!(comment.text.chars().count(), MAX_STORED_COMMENT_TEXT_CHARS);
+        assert_eq!(comment.quote.chars().count(), MAX_STORED_COMMENT_QUOTE_CHARS);
+        assert_eq!(comment.source, "pdf");
+        assert_eq!(comment.page, Some(2));
+    }
 }

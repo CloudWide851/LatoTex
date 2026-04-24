@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import type { AnnotationTextBox } from "./annotationModel";
 
 type PdfTextBoxTransformHandlesProps = {
@@ -6,12 +6,12 @@ type PdfTextBoxTransformHandlesProps = {
   t: (key: any) => string;
   onStartTransform: (
     mode: "move" | "resize",
-    event: ReactMouseEvent<HTMLButtonElement> | ReactPointerEvent<HTMLButtonElement>,
+    event: ReactPointerEvent<HTMLButtonElement>,
     box: AnnotationTextBox,
   ) => void;
 };
 
-function stopTextboxHandleEvent(event: ReactMouseEvent<HTMLButtonElement> | ReactPointerEvent<HTMLButtonElement>) {
+function stopTextboxHandleEvent(event: ReactPointerEvent<HTMLButtonElement>) {
   event.preventDefault();
   event.stopPropagation();
 }
@@ -29,14 +29,13 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
         style={{ cursor: "move", touchAction: "none" }}
         aria-label={t("library.viewer.textboxMove")}
         title={t("library.viewer.textboxMove")}
-        onClick={stopTextboxHandleEvent}
         onPointerDown={(event) => {
           stopTextboxHandleEvent(event);
           onStartTransform("move", event, box);
         }}
-        onMouseDown={(event) => {
-          stopTextboxHandleEvent(event);
-          onStartTransform("move", event, box);
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
         }}
       >
         {t("library.viewer.textboxMove")}
@@ -49,14 +48,13 @@ export function PdfTextBoxTransformHandles(props: PdfTextBoxTransformHandlesProp
         style={{ cursor: "nwse-resize", touchAction: "none" }}
         aria-label={t("library.viewer.textboxResize")}
         title={t("library.viewer.textboxResize")}
-        onClick={stopTextboxHandleEvent}
         onPointerDown={(event) => {
           stopTextboxHandleEvent(event);
           onStartTransform("resize", event, box);
         }}
-        onMouseDown={(event) => {
-          stopTextboxHandleEvent(event);
-          onStartTransform("resize", event, box);
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
         }}
       >
         <>

@@ -290,19 +290,18 @@ describe("PdfAnnotationLayer rich text menu", () => {
     selection?.addRange(range);
     document.dispatchEvent(new Event("selectionchange"));
 
-    const fontFamilyInput = document.querySelector(
-      "input[list='pdf-textbox-font-families']",
-    ) as HTMLInputElement | null;
-    expect(fontFamilyInput).toBeTruthy();
+    await act(async () => {
+      const fontFamilyTrigger = document.querySelector("[role='combobox']") as HTMLButtonElement | null;
+      expect(fontFamilyTrigger).toBeTruthy();
+      fontFamilyTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
 
     await act(async () => {
-      const valueSetter = Object.getOwnPropertyDescriptor(
-        HTMLInputElement.prototype,
-        "value",
-      )?.set;
-      valueSetter?.call(fontFamilyInput, "Arial");
-      fontFamilyInput?.dispatchEvent(new Event("input", { bubbles: true }));
-      fontFamilyInput?.dispatchEvent(new Event("change", { bubbles: true }));
+      const arialOption = Array.from(document.querySelectorAll<HTMLButtonElement>("[role='option']"))
+        .find((item) => item.textContent?.includes("Arial"));
+      expect(arialOption).toBeTruthy();
+      arialOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });
 

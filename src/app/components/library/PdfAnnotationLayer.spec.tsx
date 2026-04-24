@@ -323,21 +323,24 @@ describe("PdfAnnotationLayer", () => {
     expect(before?.h).toBe(112);
 
     await act(async () => {
-      resizeHandle?.dispatchEvent(new MouseEvent("mousedown", {
+      resizeHandle?.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         button: 0,
+        pointerId: 1,
         clientX: 200,
         clientY: 220,
       }));
-      window.dispatchEvent(new MouseEvent("mousemove", {
+      window.dispatchEvent(new PointerEvent("pointermove", {
         bubbles: true,
         button: 0,
+        pointerId: 1,
         clientX: 248,
         clientY: 280,
       }));
-      window.dispatchEvent(new MouseEvent("mouseup", {
+      window.dispatchEvent(new PointerEvent("pointerup", {
         bubbles: true,
         button: 0,
+        pointerId: 1,
         clientX: 248,
         clientY: 280,
       }));
@@ -412,21 +415,24 @@ describe("PdfAnnotationLayer", () => {
     expect(moveHandle).not.toBeNull();
 
     await act(async () => {
-      moveHandle?.dispatchEvent(new MouseEvent("mousedown", {
+      moveHandle?.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         button: 0,
+        pointerId: 2,
         clientX: 160,
         clientY: 180,
       }));
-      window.dispatchEvent(new MouseEvent("mousemove", {
+      window.dispatchEvent(new PointerEvent("pointermove", {
         bubbles: true,
         button: 0,
+        pointerId: 2,
         clientX: 164,
         clientY: 184,
       }));
-      window.dispatchEvent(new MouseEvent("mouseup", {
+      window.dispatchEvent(new PointerEvent("pointerup", {
         bubbles: true,
         button: 0,
+        pointerId: 2,
         clientX: 164,
         clientY: 184,
       }));
@@ -438,21 +444,24 @@ describe("PdfAnnotationLayer", () => {
     expect(afterThresholdMiss?.y).toBe(afterSelection.y);
 
     await act(async () => {
-      moveHandle?.dispatchEvent(new MouseEvent("mousedown", {
+      moveHandle?.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         button: 0,
+        pointerId: 3,
         clientX: 160,
         clientY: 180,
       }));
-      window.dispatchEvent(new MouseEvent("mousemove", {
+      window.dispatchEvent(new PointerEvent("pointermove", {
         bubbles: true,
         button: 0,
+        pointerId: 3,
         clientX: 220,
         clientY: 240,
       }));
-      moveHandle?.dispatchEvent(new MouseEvent("mouseup", {
+      moveHandle?.dispatchEvent(new PointerEvent("pointerup", {
         bubbles: true,
         button: 0,
+        pointerId: 3,
         clientX: 220,
         clientY: 240,
       }));

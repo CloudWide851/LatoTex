@@ -92,7 +92,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             let _ = request.respond(response);
             return;
         }
-        let username = body.username.trim();
+        let username = normalize_share_username(&body.username);
         if username.is_empty() {
             let _ = request.respond(json_response(
                 StatusCode(400),
@@ -113,7 +113,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         upsert_participant(
             &mut guard,
             &participant_id,
-            username,
+            &username,
             Some("joined collaboration"),
         );
         if let Some(item) = guard.participants.get_mut(&participant_id) {
@@ -264,9 +264,8 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             let username = body
                 .username
                 .as_deref()
-                .map(str::trim)
+                .map(normalize_share_username)
                 .filter(|value| !value.is_empty())
-                .map(|value| value.to_string())
                 .or_else(|| {
                     guard
                         .participants
@@ -396,7 +395,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         guard.sync_events.push(ShareSyncEvent {
             seq,
             from: body.client_id,
-            update: body.update,
+            update: normalize_share_sync_update(&body.update),
             created_at: now_iso(),
         });
         let participant_id = body
@@ -408,13 +407,13 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         let participant_name = body
             .username
             .as_deref()
-            .map(|value| value.trim())
+            .map(normalize_share_username)
             .filter(|value| !value.is_empty())
-            .unwrap_or("Desktop");
+            .unwrap_or_else(|| "Desktop".to_string());
         upsert_participant(
             &mut guard,
             participant_id,
-            participant_name,
+            &participant_name,
             body.action.as_deref().or(Some("editing")),
         );
         if guard.sync_events.len() > 4_000 {

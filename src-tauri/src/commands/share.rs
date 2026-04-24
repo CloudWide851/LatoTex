@@ -3,11 +3,12 @@ use crate::state::AppState;
 use crate::storage;
 use chrono::{Duration as ChronoDuration, Utc};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use share_comments_store::{ShareCommentRecord, ShareCommentsStore};
 use std::collections::HashMap;
 use std::fs;
+use std::io::Read;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Child;
@@ -30,13 +31,19 @@ mod share_http_response;
 mod share_http_server;
 #[path = "share_http_static.rs"]
 mod share_http_static;
+#[path = "share_limits.rs"]
+mod share_limits;
+#[path = "share_payloads.rs"]
+mod share_payloads;
 #[path = "share_pdf.rs"]
 mod share_pdf;
 #[path = "share_runtime_auth.rs"]
 mod share_runtime_auth;
 #[path = "share_tunnel.rs"]
 mod share_tunnel;
-use share_http_response::with_share_cors;
+use share_http_response::with_share_headers;
+use share_limits::*;
+use share_payloads::*;
 use share_pdf::share_pdf_ready;
 use share_runtime_auth::{verify_body_auth, verify_query_auth};
 const SHARE_TTL_HOURS: i64 = 24;
@@ -88,71 +95,6 @@ struct ShareRuntime {
     stop_flag: Arc<AtomicBool>,
     cloudflared_child: Option<Child>,
 }
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PushSyncBody {
-    sid: String,
-    pwd: String,
-    client_id: String,
-    update: String,
-    participant_id: Option<String>,
-    participant_token: Option<String>,
-    username: Option<String>,
-    action: Option<String>,
-}
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionBody {
-    sid: String,
-    pwd: String,
-}
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct UploadPdfBody {
-    sid: String,
-    pwd: String,
-    pdf_base64: String,
-}
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct JoinBody {
-    sid: String,
-    pwd: String,
-    client_id: Option<String>,
-    username: String,
-}
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PresencePingBody {
-    sid: String,
-    pwd: String,
-    participant_id: String,
-    participant_token: Option<String>,
-    action: Option<String>,
-}
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CommentPostBody {
-    sid: String,
-    pwd: String,
-    participant_id: Option<String>,
-    participant_token: Option<String>,
-    username: Option<String>,
-    id: Option<String>,
-    text: Option<String>,
-    quote: Option<String>,
-    source: Option<String>,
-    page: Option<u32>,
-    start: Option<u32>,
-    end: Option<u32>,
-    created_at: Option<String>,
-}
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PullSyncResponse {
-    next_cursor: u64,
-    events: Vec<ShareSyncEvent>,
-}
 fn share_runtime_slot() -> &'static Mutex<Option<Arc<Mutex<ShareRuntime>>>> {
     static SLOT: OnceLock<Mutex<Option<Arc<Mutex<ShareRuntime>>>>> = OnceLock::new();
     SLOT.get_or_init(|| Mutex::new(None))
@@ -177,7 +119,7 @@ fn json_response(
     status: StatusCode,
     payload: serde_json::Value,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    with_share_cors(
+    with_share_headers(
         Response::from_string(payload.to_string())
             .with_status_code(status)
             .with_header(json_header())
@@ -185,7 +127,7 @@ fn json_response(
     )
 }
 fn html_response(content: &'static str) -> Response<std::io::Cursor<Vec<u8>>> {
-    with_share_cors(
+    with_share_headers(
         Response::from_string(content)
             .with_status_code(StatusCode(200))
             .with_header(html_header())
@@ -213,11 +155,17 @@ fn split_url_path_query(url: &str) -> (String, HashMap<String, String>) {
     (path, query)
 }
 fn parse_json_body<T: DeserializeOwned>(request: &mut Request) -> Result<T, String> {
+    if request.body_length().unwrap_or(0) as u64 > MAX_SHARE_JSON_BODY_BYTES {
+        return Err("request body too large".to_string());
+    }
     let mut raw = String::new();
-    request
-        .as_reader()
+    let mut reader = request.as_reader().take(MAX_SHARE_JSON_BODY_BYTES + 1);
+    reader
         .read_to_string(&mut raw)
         .map_err(|e| e.to_string())?;
+    if raw.len() as u64 > MAX_SHARE_JSON_BODY_BYTES {
+        return Err("request body too large".to_string());
+    }
     if raw.trim().is_empty() {
         return Err("empty request body".to_string());
     }
@@ -277,11 +225,11 @@ fn upsert_participant(
     let now_unix = Utc::now().timestamp();
     let now = now_iso();
     let next_action = action
-        .map(|value| value.trim().to_string())
+        .map(normalize_share_action)
         .filter(|value| !value.is_empty());
     if let Some(existing) = runtime.participants.get_mut(participant_id) {
         if !username.trim().is_empty() {
-            existing.username = username.trim().to_string();
+            existing.username = normalize_share_username(username);
         }
         existing.last_seen_unix = now_unix;
         existing.last_seen_at = now;
@@ -293,7 +241,7 @@ fn upsert_participant(
             participant_id.to_string(),
             ShareParticipantState {
                 participant_id: participant_id.to_string(),
-                username: username.trim().to_string(),
+                username: normalize_share_username(username),
                 auth_token: new_participant_token(),
                 last_seen_unix: now_unix,
                 last_seen_at: now,
@@ -407,9 +355,9 @@ fn to_comment_json(
 ) -> serde_json::Value {
     json!({
         "id": body.id.as_deref().unwrap_or_default(),
-        "username": body.username.as_deref().unwrap_or(fallback_username),
-        "text": body.text.as_deref().unwrap_or_default(),
-        "quote": body.quote.as_deref().unwrap_or_default(),
+        "username": normalize_share_username(body.username.as_deref().unwrap_or(fallback_username)),
+        "text": normalize_share_comment_text(body.text.as_deref().unwrap_or_default()),
+        "quote": normalize_share_comment_quote(body.quote.as_deref().unwrap_or_default()),
         "source": body.source.as_deref().unwrap_or("tex"),
         "sessionName": session_name.unwrap_or(""),
         "sessionCreatedAt": session_created_at,

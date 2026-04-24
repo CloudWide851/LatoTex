@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent } from "react";
 import type { AnnotationPoint, AnnotationTextBox } from "./annotationModel";
 import { resolveDraggedBox, toNormalizedPoint, type DragPreview, type DragState } from "./pdfAnnotationLayerUtils";
 
 const TEXTBOX_TRANSFORM_DRAG_THRESHOLD = 10;
 
-type TransformStartEvent =
-  | ReactMouseEvent<HTMLButtonElement>
-  | ReactPointerEvent<HTMLButtonElement>;
+type TransformStartEvent = ReactPointerEvent<HTMLButtonElement>;
 
 function isPointerLikeEvent(event: Event | MouseEvent | PointerEvent): event is PointerEvent {
   return event.type.startsWith("pointer") && typeof (event as PointerEvent).pointerId === "number";
@@ -164,8 +162,8 @@ export function usePdfTextBoxTransform(params: {
       return false;
     }
     dragStateRef.current = {
-      inputKind: event.type === "pointerdown" ? "pointer" : "mouse",
-      pointerId: "pointerId" in event.nativeEvent ? event.nativeEvent.pointerId : 1,
+      inputKind: "pointer",
+      pointerId: event.nativeEvent.pointerId,
       mode,
       boxId: box.id,
       start: toNormalizedPoint(event, rect),
@@ -177,7 +175,7 @@ export function usePdfTextBoxTransform(params: {
     dragPointRef.current = null;
     setDragPreview(null);
     pointerCaptureTargetRef.current = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-    if (event.type === "pointerdown" && event.currentTarget instanceof HTMLElement && "pointerId" in event.nativeEvent) {
+    if (event.currentTarget instanceof HTMLElement) {
       try {
         event.currentTarget.setPointerCapture(event.nativeEvent.pointerId);
       } catch {

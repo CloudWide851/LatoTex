@@ -22,7 +22,7 @@ fn static_text_response(
     content: &'static str,
     header: Header,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    share_http_response::with_share_cors(
+    share_http_response::with_share_headers(
         Response::from_string(content)
             .with_status_code(StatusCode(200))
             .with_header(header)
@@ -34,7 +34,7 @@ fn static_bytes_response(
     content: Vec<u8>,
     header: Header,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
-    share_http_response::with_share_cors(
+    share_http_response::with_share_headers(
         Response::from_data(content)
             .with_status_code(StatusCode(200))
             .with_header(header)
@@ -136,7 +136,7 @@ pub(super) fn try_serve_static_route(
     request: Request,
 ) -> Option<Request> {
     if *method == Method::Get && path == "/favicon.ico" {
-        let _ = request.respond(share_http_response::with_share_cors(
+        let _ = request.respond(share_http_response::with_share_headers(
             Response::empty(StatusCode(204)).with_header(no_cache_header()),
         ));
         return None;
