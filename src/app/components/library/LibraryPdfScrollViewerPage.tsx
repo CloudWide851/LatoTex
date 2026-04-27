@@ -23,6 +23,7 @@ type LensPendingPoint = {
 export function LibraryPdfScrollViewerPage(props: {
   page: number;
   frameWidth: number;
+  annotationScale: number;
   lensEnabled: boolean;
   lensActive: boolean;
   readOnly: boolean;
@@ -48,6 +49,7 @@ export function LibraryPdfScrollViewerPage(props: {
   const {
     page,
     frameWidth,
+    annotationScale,
     lensEnabled,
     lensActive,
     readOnly,
@@ -116,7 +118,6 @@ export function LibraryPdfScrollViewerPage(props: {
       || target.closest("[data-textbox-content='true']")
       || target.closest("[data-annotation-layer='true']")
       || target.closest("[data-annotation-box='true']")
-      || target.closest("[data-textbox-move-handle='true']")
       || target.closest("[data-textbox-resize-handle='true']")
       || target.closest("[data-textbox-menu='true']"),
     );
@@ -169,6 +170,7 @@ export function LibraryPdfScrollViewerPage(props: {
       />
       <PdfAnnotationLayer
         page={page}
+        annotationScale={annotationScale}
         mode={mode}
         readOnly={readOnly}
         highlightColor={highlightColor}

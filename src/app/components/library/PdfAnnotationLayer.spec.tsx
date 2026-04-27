@@ -357,7 +357,7 @@ describe("PdfAnnotationLayer", () => {
     container.remove();
   });
 
-  it("keeps single-click selection static and only moves a textbox from the dedicated move handle", async () => {
+  it("moves a textbox by dragging the textbox body while preserving click threshold", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -386,36 +386,7 @@ describe("PdfAnnotationLayer", () => {
     const readState = () => JSON.parse(container.querySelector("[data-testid='textbox-state']")?.textContent ?? "[]");
 
     await act(async () => {
-      box?.dispatchEvent(new MouseEvent("mousedown", {
-        bubbles: true,
-        button: 0,
-        clientX: 160,
-        clientY: 180,
-      }));
-      window.dispatchEvent(new MouseEvent("mousemove", {
-        bubbles: true,
-        button: 0,
-        clientX: 240,
-        clientY: 260,
-      }));
-      window.dispatchEvent(new MouseEvent("mouseup", {
-        bubbles: true,
-        button: 0,
-        clientX: 240,
-        clientY: 260,
-      }));
-      await Promise.resolve();
-    });
-
-    const afterSelection = readState()[0];
-    expect(afterSelection?.x).toBe(180);
-    expect(afterSelection?.y).toBe(220);
-
-    const moveHandle = container.querySelector("[data-textbox-move-handle='true']") as HTMLButtonElement | null;
-    expect(moveHandle).not.toBeNull();
-
-    await act(async () => {
-      moveHandle?.dispatchEvent(new PointerEvent("pointerdown", {
+      box?.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         button: 0,
         pointerId: 2,
@@ -440,11 +411,11 @@ describe("PdfAnnotationLayer", () => {
     });
 
     const afterThresholdMiss = readState()[0];
-    expect(afterThresholdMiss?.x).toBe(afterSelection.x);
-    expect(afterThresholdMiss?.y).toBe(afterSelection.y);
+    expect(afterThresholdMiss?.x).toBe(180);
+    expect(afterThresholdMiss?.y).toBe(220);
 
     await act(async () => {
-      moveHandle?.dispatchEvent(new PointerEvent("pointerdown", {
+      box?.dispatchEvent(new PointerEvent("pointerdown", {
         bubbles: true,
         button: 0,
         pointerId: 3,
@@ -458,7 +429,7 @@ describe("PdfAnnotationLayer", () => {
         clientX: 220,
         clientY: 240,
       }));
-      moveHandle?.dispatchEvent(new PointerEvent("pointerup", {
+      window.dispatchEvent(new PointerEvent("pointerup", {
         bubbles: true,
         button: 0,
         pointerId: 3,

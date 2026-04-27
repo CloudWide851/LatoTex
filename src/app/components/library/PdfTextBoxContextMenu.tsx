@@ -1,5 +1,5 @@
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Trash2, Underline } from "lucide-react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { Select } from "../../../components/ui/select";
 
@@ -19,6 +19,8 @@ const TEXTBOX_COLOR_PALETTE = [
   "#16a34a", "#65a30d", "#ca8a04", "#ea580c", "#dc2626",
   "#be123c", "#c026d3", "#7c3aed", "#4f46e5", "#0891b2",
 ];
+const RECENT_TEXTBOX_COLORS_KEY = "latotex.textbox.recentColors";
+const MAX_RECENT_TEXTBOX_COLORS = 8;
 
 type TextBoxStyle = {
   fontSize: number;
@@ -41,6 +43,22 @@ export function PdfTextBoxContextMenu(props: {
   t: (key: any) => string;
 }) {
   const { x, y, positioning = "fixed", style, onApplyStyle, onDelete, onClose, t } = props;
+  const [recentColors, setRecentColors] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(RECENT_TEXTBOX_COLORS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) {
+        setRecentColors(parsed.filter((item): item is string => /^#[0-9a-f]{6}$/i.test(String(item))));
+      }
+    } catch {
+      setRecentColors([]);
+    }
+  }, []);
 
   const preserveEditorSelection = (event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault();
@@ -51,12 +69,34 @@ export function PdfTextBoxContextMenu(props: {
     event.stopPropagation();
   };
 
+  const rememberColor = (color: string) => {
+    const normalized = color.trim().toLowerCase();
+    if (!/^#[0-9a-f]{6}$/i.test(normalized)) {
+      return;
+    }
+    setRecentColors((current) => {
+      const next = [normalized, ...current.filter((item) => item.toLowerCase() !== normalized)]
+        .slice(0, MAX_RECENT_TEXTBOX_COLORS);
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(RECENT_TEXTBOX_COLORS_KEY, JSON.stringify(next));
+        } catch {
+          // ignore local preference persistence failures
+        }
+      }
+      return next;
+    });
+  };
+
   const applyTextStyle = (
     event: ReactMouseEvent<HTMLElement>,
     next: Partial<TextBoxStyle>,
     options?: { preferInline?: boolean },
   ) => {
     preserveEditorSelection(event);
+    if (next.textColor) {
+      rememberColor(next.textColor);
+    }
     onApplyStyle(next, options);
   };
 
@@ -65,6 +105,7 @@ export function PdfTextBoxContextMenu(props: {
     if (!/^#[0-9a-f]{6}$/i.test(normalized)) {
       return;
     }
+    rememberColor(normalized);
     onApplyStyle({ textColor: normalized });
   };
 
@@ -171,6 +212,22 @@ export function PdfTextBoxContextMenu(props: {
 
       <div className="mb-3">
         <div className="mb-1 text-[11px] font-medium text-slate-500">{t("library.viewer.textbox.menu.textColor")}</div>
+        {recentColors.length > 0 ? (
+          <>
+            <div className="mb-1 text-[11px] font-medium text-slate-500">{t("library.viewer.textbox.menu.recentColors")}</div>
+            <div className="mb-2 grid grid-cols-8 gap-1.5">
+              {recentColors.map((color) => (
+                <button
+                  key={color}
+                  className={`h-6 w-full rounded border ${style.textColor.toLowerCase() === color.toLowerCase() ? "border-slate-700 ring-1 ring-slate-400" : "border-slate-300"}`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                  onMouseDown={(event) => applyTextStyle(event, { textColor: color })}
+                />
+              ))}
+            </div>
+          </>
+        ) : null}
         <div className="mb-2 grid grid-cols-5 gap-1.5">
           {TEXTBOX_COLOR_PALETTE.map((color) => (
             <button

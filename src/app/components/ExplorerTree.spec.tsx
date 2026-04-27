@@ -83,27 +83,6 @@ function MoveVisibilityHarness() {
   );
 }
 
-function PendingMoveOverlayHarness() {
-  const [selectedPath, setSelectedPath] = useState<string | null>("papers/demo.bib");
-
-  return (
-    <ExplorerTree
-      mode="library"
-      tree={LIBRARY_TREE}
-      selectedPath={selectedPath}
-      onSelect={setSelectedPath}
-      onAction={async (action, path, targetPath) => {
-        if (action !== "move" || path !== "papers/demo.bib" || targetPath !== "archive/demo.bib") {
-          return false;
-        }
-        setSelectedPath("archive/demo.bib");
-        return true;
-      }}
-      t={(key) => String(key)}
-    />
-  );
-}
-
 describe("ExplorerTree", () => {
   beforeEach(() => {
     (
@@ -464,13 +443,13 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
-  it("hides the original node immediately after a successful move before the backend tree refresh arrives", async () => {
+  it("does not duplicate a moved node after the parent tree updates optimistically", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
 
     await act(async () => {
-      root.render(<PendingMoveOverlayHarness />);
+      root.render(<MoveVisibilityHarness />);
     });
 
     const nodes = Array.from(container.querySelectorAll("[data-explorer-node='true']"));
@@ -487,8 +466,10 @@ describe("ExplorerTree", () => {
     const originalNode = Array.from(container.querySelectorAll("[data-explorer-node='true']")).find(
       (node) => node.getAttribute("title") === "papers/demo.bib",
     );
-    expect(movedNode).toBeTruthy();
-    expect(movedNode?.getAttribute("aria-selected")).toBe("true");
+    const movedNodes = Array.from(container.querySelectorAll("[data-explorer-node='true']")).filter(
+      (node) => node.getAttribute("title") === "archive/demo.bib",
+    );
+    expect(movedNodes).toHaveLength(1);
     expect(originalNode).toBeUndefined();
 
     await act(async () => {

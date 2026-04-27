@@ -246,7 +246,7 @@ export function SharePageApp(props: SharePageAppProps) {
       setConnected(true);
       pullCursorRef.current = 0;
       await pingPresence(i18n.actionReading);
-      await pdf.reload().catch(() => undefined);
+      await pdf.reload({ forceConnected: true }).catch(() => undefined);
       await loadComments().catch(() => undefined);
       setStatusLine(pdf.ready ? i18n.statusConnected : i18n.statusPdfPreparing);
     } catch (error) {

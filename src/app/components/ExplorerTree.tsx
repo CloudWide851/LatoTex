@@ -12,10 +12,6 @@ import {
 } from "./explorer/explorerSelection";
 import { useExplorerPointerDrag } from "./explorer/useExplorerPointerDrag";
 import {
-  applyPendingMoves,
-  hasTreePath,
-  type PendingMove,
-  normalizeExplorerPath,
   rewriteExpandedAfterMove,
   rewritePathAfterMove,
 } from "./explorer/explorerPendingMoves";
@@ -72,13 +68,12 @@ export function ExplorerTree(props: {
   const [editing, setEditing] = useState<EditingState>(null);
   const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
-  const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<string[]>(selectedPath ? [selectedPath] : []);
   const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(selectedPath);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
-  const displayedTree = useMemo(() => applyPendingMoves(tree, pendingMoves), [pendingMoves, tree]);
+  const displayedTree = tree;
   const handleDirectoryExpand = useCallback((path: string) => {
     setExpanded((prev) => ({ ...prev, [path]: true }));
   }, []);
@@ -87,13 +82,6 @@ export function ExplorerTree(props: {
     if (moveResult === false) {
       return;
     }
-    setPendingMoves((prev) => {
-      const normalizedSource = normalizeExplorerPath(sourcePath);
-      return [
-        ...prev.filter((move) => normalizeExplorerPath(move.sourcePath) !== normalizedSource),
-        { sourcePath, targetPath },
-      ];
-    });
     setExpanded((prev) => rewriteExpandedAfterMove(prev, sourcePath, targetPath));
     setSelectedPaths((prev) => {
       const rewritten = prev
@@ -125,11 +113,6 @@ export function ExplorerTree(props: {
     expandedMap,
     onExpandDirectory: handleDirectoryExpand,
   });
-  useEffect(() => {
-    setPendingMoves((prev) =>
-      prev.filter((move) => hasTreePath(tree, move.sourcePath) || !hasTreePath(tree, move.targetPath)),
-    );
-  }, [tree]);
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
       if (event.button === 2) {

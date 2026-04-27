@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { clampNormalized, createDefaultTextStyle, type AnnotationTextStylePreset, type AnnotationPoint, type AnnotationStroke, type AnnotationTextBox } from "./annotationModel";
-import { hexToRgba } from "./annotationPalette";
+import { PdfAnnotationStrokeLayer } from "./PdfAnnotationStrokeLayer";
 import { PdfTextBoxContextMenu } from "./PdfTextBoxContextMenu";
-import { PdfTextBoxTransformHandles } from "./PdfTextBoxTransformHandles";
 import { bringBoxToFront, distanceToStroke, ERASER_CURSOR, HIGHLIGHT_CURSOR, nextTextBoxZ, resolveMenuAnchor, toNormalizedPoint } from "./pdfAnnotationLayerUtils";
 import { buildAnnotationStroke, focusAnnotationEditingBox, getAnnotationEditingBox } from "./pdfAnnotationLayerInteraction";
+import { resolveAnnotationDisplayScale, resolveScaledRichTextHtml, resolveTextBoxDisplayMetrics } from "./pdfAnnotationDisplayScale";
 import { applyStyleToEntireRichTextHtml, applyStyleToRichTextSelection, isRichTextEmpty, normalizeStoredRichHtml, plainTextToRichHtml, restoreRichTextSelection, richHtmlToPlainText, sanitizeRichTextHtml } from "./textboxRichText";
 import { usePdfTextBoxEditing } from "./usePdfTextBoxEditing";
 import { usePdfTextBoxTransform } from "./usePdfTextBoxTransform";
@@ -13,6 +13,7 @@ type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 
 export function PdfAnnotationLayer(props: {
   page: number;
+  annotationScale?: number;
   mode: ToolMode;
   readOnly?: boolean;
   highlightColor: string;
@@ -28,6 +29,7 @@ export function PdfAnnotationLayer(props: {
 }) {
   const {
     page,
+    annotationScale,
     mode,
     readOnly = false,
     highlightColor,
@@ -52,21 +54,19 @@ export function PdfAnnotationLayer(props: {
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPositionTick, setMenuPositionTick] = useState(0);
+  const displayScale = resolveAnnotationDisplayScale({ layerWidth: layerSize.width, fallbackScale: annotationScale });
+  const textBoxDisplayMetrics = resolveTextBoxDisplayMetrics(displayScale);
   const { updateTextBoxes, deleteTextBox, commitTextBoxEditing } = usePdfTextBoxEditing({ layerRef, textBoxesRef, recentlyCreatedTextBoxIdRef, onTextBoxesChange, setEditingTextBoxId, setSelectedTextBoxId, setMenuOpen });
   const { dragPreview, beginTextBoxTransform } = usePdfTextBoxTransform({
     layerRef,
     onCommit: (preview) => updateTextBoxes((current) => current.map((item) => item.id === preview.boxId ? { ...item, x: preview.x, y: preview.y, w: preview.w, h: preview.h } : item)),
   });
-
   const pageStrokes = useMemo(() => strokes.filter((item) => item.page === page), [page, strokes]);
   const pageTextBoxes = useMemo(() => textBoxes.filter((item) => item.page === page).sort((a, b) => a.z - b.z), [page, textBoxes]);
   const menuBox = useMemo(() => (selectedTextBoxId ? textBoxes.find((item) => item.id === selectedTextBoxId) ?? null : null), [selectedTextBoxId, textBoxes]);
   const canTransformTextBoxes = !readOnly && (mode === "select" || mode === "textbox");
-
   useEffect(() => { textBoxesRef.current = textBoxes; }, [textBoxes]);
-
   useEffect(() => { selectionRangeRef.current = null; }, [editingTextBoxId]);
-
   useEffect(() => {
     if (selectedTextBoxId && !textBoxes.some((item) => item.id === selectedTextBoxId)) {
       setSelectedTextBoxId(null);
@@ -78,7 +78,6 @@ export function PdfAnnotationLayer(props: {
       setMenuOpen(false);
     }
   }, [editingTextBoxId, menuBox, selectedTextBoxId, textBoxes]);
-
   useEffect(() => {
     if (!selectedTextBoxId) {
       return;
@@ -92,7 +91,6 @@ export function PdfAnnotationLayer(props: {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textColor]);
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && menuOpen) {
@@ -114,7 +112,6 @@ export function PdfAnnotationLayer(props: {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [deleteTextBox, editingTextBoxId, menuOpen, selectedTextBoxId]);
-
   useEffect(() => {
     if (!menuOpen) {
       return;
@@ -231,7 +228,7 @@ export function PdfAnnotationLayer(props: {
         editor.style.fontFamily = nextStyle.fontFamily;
       }
       if (typeof nextStyle.fontSize === "number") {
-        editor.style.fontSize = `${nextStyle.fontSize}px`;
+        editor.style.fontSize = `${nextStyle.fontSize * displayScale}px`;
       }
       if (nextStyle.textAlign) {
         editor.style.textAlign = nextStyle.textAlign;
@@ -272,7 +269,7 @@ export function PdfAnnotationLayer(props: {
       }),
     );
     return inlineApplied;
-  }, [editingTextBoxId, updateTextBoxes]);
+  }, [displayScale, editingTextBoxId, updateTextBoxes]);
 
   const finishDrawing = () => {
     if (!drawingRef.current) {
@@ -297,7 +294,7 @@ export function PdfAnnotationLayer(props: {
 
   const startTextBoxTransform = useCallback((
     mode: "move" | "resize",
-    event: ReactPointerEvent<HTMLButtonElement>,
+    event: ReactPointerEvent<HTMLElement>,
     box: AnnotationTextBox,
   ) => {
     if (!canTransformTextBoxes) {
@@ -313,40 +310,20 @@ export function PdfAnnotationLayer(props: {
 
   return (
     <>
-      <svg
-        className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-        viewBox="0 0 1000 1000"
-        preserveAspectRatio="none"
-      >
-        {pageStrokes.map((stroke) => (
-          <polyline
-            key={stroke.id}
-            points={stroke.points.map((point) => `${point.x},${point.y}`).join(" ")}
-            fill="none"
-            stroke={hexToRgba(stroke.style?.color ?? "#facc15", stroke.style?.opacity ?? 0.65)}
-            strokeWidth={stroke.style?.width ?? 16}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ))}
-        {draftStroke && draftStroke.length > 1 ? (
-          <polyline
-            points={draftStroke.map((point) => `${point.x},${point.y}`).join(" ")}
-            fill="none"
-            stroke={hexToRgba(highlightColor, Math.min(1, highlightOpacity + 0.07))}
-            strokeWidth={highlightWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ) : null}
-      </svg>
+      <PdfAnnotationStrokeLayer
+        pageStrokes={pageStrokes}
+        draftStroke={draftStroke}
+        highlightColor={highlightColor}
+        highlightWidth={highlightWidth}
+        highlightOpacity={highlightOpacity}
+      />
 
       <div
         ref={layerRef}
         className="absolute inset-0 z-20"
         data-annotation-layer="true"
         style={{
-          pointerEvents: readOnly || mode === "select" ? "none" : "auto",
+          pointerEvents: readOnly ? "none" : "auto",
           cursor:
             mode === "highlight"
               ? HIGHLIGHT_CURSOR
@@ -432,6 +409,7 @@ export function PdfAnnotationLayer(props: {
           const selected = box.id === selectedTextBoxId;
           const editing = box.id === editingTextBoxId;
           const boxHtml = normalizeStoredRichHtml(box.html, box.content);
+          const displayHtml = editing ? boxHtml : resolveScaledRichTextHtml(boxHtml, displayScale);
           const hasContent = !isRichTextEmpty(boxHtml);
           if (!editing && !hasContent) {
             return null;
@@ -451,7 +429,7 @@ export function PdfAnnotationLayer(props: {
                 pointerEvents: readOnly ? "none" : "auto",
                 borderColor: box.style.borderColor,
                 borderStyle: box.style.borderWidth > 0 ? "solid" : "none",
-                borderWidth: `${box.style.borderWidth}px`,
+                borderWidth: `${box.style.borderWidth * displayScale}px`,
                 backgroundColor: box.style.backgroundColor,
                 cursor: editing ? "text" : "default",
               }}
@@ -467,13 +445,23 @@ export function PdfAnnotationLayer(props: {
                 setMenuOpen(true);
                 setSelectedTextBoxId(box.id);
                 updateTextBoxes((current) => bringBoxToFront(current, box.id));
+              }}
+              onPointerDown={(event) => {
+                if (readOnly || editing || event.button !== 0) {
+                  return;
+                }
                 const target = event.target as HTMLElement | null;
                 if (
-                  target?.closest("[data-textbox-resize-handle='true']")
-                  || target?.closest("[data-textbox-move-handle='true']")
+                  target?.closest("[data-textbox-menu='true']")
+                  || target?.closest("[data-textbox-resize-handle='true']")
                 ) {
                   return;
                 }
+                event.stopPropagation();
+                setMenuOpen(true);
+                setSelectedTextBoxId(box.id);
+                updateTextBoxes((current) => bringBoxToFront(current, box.id));
+                startTextBoxTransform("move", event, box);
               }}
               onContextMenu={(event) => {
                 if (readOnly) {
@@ -506,11 +494,13 @@ export function PdfAnnotationLayer(props: {
                   data-textbox-content="true"
                   data-textbox-editing="true"
                   data-annotation-ignore-lens="true"
-                  className="h-full w-full overflow-auto rounded border-none bg-transparent p-1.5 text-xs leading-5 outline-none"
+                  className="h-full w-full overflow-auto rounded border-none bg-transparent outline-none"
                   style={{
                     color: box.style.textColor,
-                    fontSize: `${box.style.fontSize}px`,
+                    fontSize: `${box.style.fontSize * displayScale}px`,
                     fontFamily: box.style.fontFamily,
+                    lineHeight: `${textBoxDisplayMetrics.lineHeight}px`,
+                    padding: `${textBoxDisplayMetrics.padding}px`,
                     textAlign: box.style.textAlign,
                     fontWeight: box.style.fontWeight,
                     fontStyle: box.style.fontStyle,
@@ -520,7 +510,7 @@ export function PdfAnnotationLayer(props: {
                         ? "inset 0 0 0 1px rgba(34, 197, 94, 0.45)"
                         : undefined,
                   }}
-                  dangerouslySetInnerHTML={{ __html: boxHtml }}
+                  dangerouslySetInnerHTML={{ __html: displayHtml }}
                   onClick={(event) => event.stopPropagation()}
                   onMouseDown={(event) => event.stopPropagation()}
                   onMouseUp={(event) => event.stopPropagation()}
@@ -548,27 +538,42 @@ export function PdfAnnotationLayer(props: {
                 />
               ) : (
                 <div
-                  className="h-full overflow-auto whitespace-pre-wrap break-words p-1.5 text-xs leading-5"
+                  className="h-full overflow-auto whitespace-pre-wrap break-words"
                   data-textbox-content="true"
                   data-textbox-static="true"
                   data-annotation-ignore-lens="true"
                   style={{
                     color: box.style.textColor,
-                    fontSize: `${box.style.fontSize}px`,
+                    fontSize: `${box.style.fontSize * displayScale}px`,
                     fontFamily: box.style.fontFamily,
+                    lineHeight: `${textBoxDisplayMetrics.lineHeight}px`,
+                    padding: `${textBoxDisplayMetrics.padding}px`,
                     textAlign: box.style.textAlign,
                     fontWeight: box.style.fontWeight,
                     fontStyle: box.style.fontStyle,
                     textDecoration: box.style.textDecoration,
                   }}
-                  dangerouslySetInnerHTML={{ __html: boxHtml }}
+                  dangerouslySetInnerHTML={{ __html: displayHtml }}
                 />
               )}
               {selected && !editing && canTransformTextBoxes ? (
-                <PdfTextBoxTransformHandles
-                  box={box}
-                  t={t}
-                  onStartTransform={startTextBoxTransform}
+                <button
+                  type="button"
+                  data-textbox-resize-handle="true"
+                  data-annotation-ignore-lens="true"
+                  className="absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize bg-transparent"
+                  style={{ touchAction: "none" }}
+                  aria-label={t("library.viewer.textboxResize")}
+                  title={t("library.viewer.textboxResize")}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    startTextBoxTransform("resize", event, box);
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
                 />
               ) : null}
             </div>

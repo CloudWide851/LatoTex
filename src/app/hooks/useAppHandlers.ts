@@ -27,6 +27,7 @@ import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 import { signalWindowTransition } from "./windowTransitionSignal";
 import { useProjectSearchHandlers } from "./useProjectSearchHandlers";
+import { applyOptimisticFsAction } from "./fsTreeOptimistic";
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -479,28 +480,33 @@ export function useAppHandlers(params: UseAppHandlersParams) {
         content,
       });
       if (scope === "workspace") {
-        setTree(await getWorkspaceTree(activeProjectId));
+        setTree((current) => applyOptimisticFsAction({ tree: current, action, path, targetPath }));
         setSelectedFile((current) => rewriteSelectionAfterFsAction({
           selectedPath: current,
           action,
           path,
           targetPath,
         }));
-        await refreshGitWorkspace(activeProjectId).catch(() => undefined);
+        void getWorkspaceTree(activeProjectId)
+          .then(setTree)
+          .catch((error) => void runtimeLogWrite("WARN", `workspace tree refresh after fs action failed: ${String(error)}`).catch(() => undefined));
+        void refreshGitWorkspace(activeProjectId).catch(() => undefined);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
             detail: { scope, action, path, targetPath },
           }));
         }
       } else {
-        const nextTree = await getLibraryTree(activeProjectId);
-        setLibraryTree(nextTree);
+        setLibraryTree((current) => applyOptimisticFsAction({ tree: current, action, path, targetPath }));
         setSelectedLibraryPath((current) => rewriteSelectionAfterFsAction({
           selectedPath: current,
           action,
           path,
           targetPath,
         }));
+        void getLibraryTree(activeProjectId)
+          .then(setLibraryTree)
+          .catch((error) => void runtimeLogWrite("WARN", `library tree refresh after fs action failed: ${String(error)}`).catch(() => undefined));
       }
       setToast({ type: "info", message: t("toast.fsUpdated") });
       return true;
@@ -508,7 +514,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "error", message: String(error) });
       return false;
     }
-  }, [activeProjectId, refreshGitWorkspace, selectedFile, setLibraryTree, setSelectedFile, setToast, setTree, t]);
+  }, [activeProjectId, refreshGitWorkspace, setLibraryTree, setSelectedFile, setSelectedLibraryPath, setToast, setTree, t]);
   const requestFsAction = useCallback(async (
     scope: FsScope,
     action: FsAction,

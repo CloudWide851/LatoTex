@@ -108,16 +108,28 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
 function CompactShareStatusBubble(props: {
   statusText: string;
   participants: ShareParticipantInfo[];
+  onOpen: () => void;
   t: TranslationFn;
 }) {
-  const { statusText, participants, t } = props;
+  const { statusText, participants, onOpen, t } = props;
   const solidSurfaceStyle = {
     backgroundColor: "var(--app-surface)",
     backdropFilter: "none",
     WebkitBackdropFilter: "none",
   } as const;
   return (
-    <div className="absolute left-0 top-[calc(100%+10px)] z-[220] w-[min(264px,72vw)]">
+    <div
+      className="absolute left-0 top-[calc(100%+10px)] z-[220] w-[min(264px,72vw)] cursor-pointer"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+    >
       <div className="relative ml-2 rounded-md border border-slate-300 px-2.5 py-2 shadow-sm" style={solidSurfaceStyle}>
         <div
           aria-hidden="true"
@@ -274,7 +286,6 @@ export function WorkspaceShareControl(props: {
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
         }`}
         onClick={() => setPanelOpen((prev) => !prev)}
-        disabled={shareBusy}
         title={t("share.openPanel")}
         aria-label={t("share.openPanel")}
       >
@@ -285,7 +296,12 @@ export function WorkspaceShareControl(props: {
       </button>
 
       {!panelOpen && sessionExists ? (
-        <CompactShareStatusBubble statusText={statusText} participants={participants} t={t} />
+        <CompactShareStatusBubble
+          statusText={statusText}
+          participants={participants}
+          onOpen={() => setPanelOpen(true)}
+          t={t}
+        />
       ) : null}
 
       {panelOpen ? (

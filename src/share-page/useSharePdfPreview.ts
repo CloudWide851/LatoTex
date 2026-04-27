@@ -148,8 +148,8 @@ export function useSharePdfPreview(params: {
     updatePageFromScroll();
   }, [cancelRenderTasks, containerRef, updatePageFromScroll]);
 
-  const reload = useCallback(async () => {
-    if (!connected || !sid || !pwd) {
+  const reload = useCallback(async (options?: { forceConnected?: boolean }) => {
+    if (!(connected || options?.forceConnected) || !sid || !pwd) {
       return;
     }
     try {

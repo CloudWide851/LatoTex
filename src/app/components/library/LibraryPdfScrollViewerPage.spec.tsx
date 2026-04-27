@@ -54,6 +54,7 @@ describe("LibraryPdfScrollViewerPage", () => {
         <LibraryPdfScrollViewerPage
           page={1}
           frameWidth={400}
+          annotationScale={0.5}
           lensEnabled
           lensActive
           readOnly
@@ -137,6 +138,7 @@ describe("LibraryPdfScrollViewerPage", () => {
         <LibraryPdfScrollViewerPage
           page={1}
           frameWidth={400}
+          annotationScale={0.5}
           lensEnabled
           lensActive
           readOnly={false}
@@ -218,6 +220,7 @@ describe("LibraryPdfScrollViewerPage", () => {
         <LibraryPdfScrollViewerPage
           page={1}
           frameWidth={400}
+          annotationScale={0.5}
           lensEnabled={false}
           lensActive={false}
           readOnly

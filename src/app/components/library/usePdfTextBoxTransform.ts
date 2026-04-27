@@ -4,7 +4,7 @@ import { resolveDraggedBox, toNormalizedPoint, type DragPreview, type DragState 
 
 const TEXTBOX_TRANSFORM_DRAG_THRESHOLD = 10;
 
-type TransformStartEvent = ReactPointerEvent<HTMLButtonElement>;
+type TransformStartEvent = ReactPointerEvent<HTMLElement>;
 
 function isPointerLikeEvent(event: Event | MouseEvent | PointerEvent): event is PointerEvent {
   return event.type.startsWith("pointer") && typeof (event as PointerEvent).pointerId === "number";

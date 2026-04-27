@@ -189,7 +189,9 @@ export function AnalysisWorkspace(props: {
                   )}
                 </div>
               </section>
-              <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact maxCards={3} />
+              <aside className="min-h-0 overflow-hidden">
+                <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact />
+              </aside>
             </div>
           ) : !activeRun ? (
             <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/70 p-4 motion-page-in">

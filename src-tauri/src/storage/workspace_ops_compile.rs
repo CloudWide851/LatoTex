@@ -372,11 +372,7 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
     )
     .map_err(|e| e.to_string())?;
 
-    match scope.as_str() {
-        "workspace" => refresh_workspace_index(&project_root)?,
-        "library" => refresh_library_index(&project_root)?,
-        _ => {}
-    }
+    mark_search_index_dirty(&project_root)?;
 
     Ok(FsOperationResult {
         ok: true,

@@ -35,8 +35,8 @@ export type UseAppHandlersParams = {
   requestNativeWindowClose: (bypassInterception?: boolean) => Promise<boolean>;
   setCloseDecisionBusy: (value: boolean) => void;
   setBusy: (value: boolean) => void;
-  setTree: (value: ResourceNode[]) => void;
-  setLibraryTree: (value: ResourceNode[]) => void;
+  setTree: React.Dispatch<React.SetStateAction<ResourceNode[]>>;
+  setLibraryTree: React.Dispatch<React.SetStateAction<ResourceNode[]>>;
   setSelectedFile: React.Dispatch<React.SetStateAction<string | null>>;
   setSelectedLibraryPath: React.Dispatch<React.SetStateAction<string | null>>;
   setEditorContent: (value: string) => void;
