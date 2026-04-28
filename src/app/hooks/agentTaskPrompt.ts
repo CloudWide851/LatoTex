@@ -74,6 +74,28 @@ function buildTranslationStrategyBlock(userPrompt: string, fileContent: string):
   ].join("\n");
 }
 
+function detectCitationCommand(userPrompt: string, fileContent: string): string {
+  const lowerPrompt = userPrompt.toLowerCase();
+  if (lowerPrompt.includes("textcite") || fileContent.includes("\\textcite{")) return "\\textcite";
+  if (lowerPrompt.includes("parencite") || fileContent.includes("\\parencite{")) return "\\parencite";
+  if (lowerPrompt.includes("autocite") || fileContent.includes("\\autocite{")) return "\\autocite";
+  if (lowerPrompt.includes("citep") || fileContent.includes("\\citep{")) return "\\citep";
+  if (lowerPrompt.includes("citet") || fileContent.includes("\\citet{")) return "\\citet";
+  if (fileContent.includes("\\usepackage{biblatex}") || fileContent.includes("\\addbibresource")) return "\\autocite";
+  if (fileContent.includes("\\usepackage{natbib}")) return "\\citep";
+  return "\\cite";
+}
+
+function isCitationInsertionRequest(userPrompt: string): boolean {
+  const lower = userPrompt.toLowerCase();
+  return lower.includes("citation")
+    || lower.includes("insert cite")
+    || lower.includes("cite ")
+    || userPrompt.includes("引用")
+    || userPrompt.includes("引文")
+    || userPrompt.includes("插入参考文献");
+}
+
 function deriveTaskSearchQueries(userPrompt: string, paperContext?: string, fileContent?: string): string[] {
   const candidates = userPrompt
     .split(/[\r\n,，;；。!?！？]+/g)
@@ -144,6 +166,15 @@ export function buildTaskExecutionPrompt(params: {
     "",
     ...(translationStrategy
       ? [translationStrategy, ""]
+      : []),
+    ...(isCitationInsertionRequest(userPrompt)
+      ? [
+          "[citation.insertion.v1]",
+          `- Preferred citation command for this target: ${detectCitationCommand(userPrompt, normalized)}{key}.`,
+          "- Use BibTeX keys from attached .bib context when available.",
+          "- Insert citations into the target .tex content, not into the .bib file, unless the user explicitly asks to edit bibliography entries.",
+          "",
+        ]
       : []),
     queryBlock,
     "",

@@ -106,6 +106,24 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
             projectId.length > 0 && (viewMode === "bib" || viewMode === "pdf" || viewMode === "compare"),
           ),
       );
+      const normalizeExpandedMap = (value: Record<string, string[]> | undefined) => Object.fromEntries(
+        Object.entries(value ?? {})
+          .map(([projectId, paths]) => [
+            String(projectId).trim(),
+            Array.from(new Set(
+              (Array.isArray(paths) ? paths : [])
+                .map((path) => String(path ?? "").trim().replace(/\\/g, "/"))
+                .filter((path) => path.length > 0),
+            )),
+          ])
+          .filter(([projectId]) => String(projectId).length > 0),
+      );
+      const normalizedWorkspaceExplorerExpandedPathsByProject = normalizeExpandedMap(
+        nextSettings.uiPrefs?.workspaceExplorerExpandedPathsByProject,
+      );
+      const normalizedLibraryExplorerExpandedPathsByProject = normalizeExpandedMap(
+        nextSettings.uiPrefs?.libraryExplorerExpandedPathsByProject,
+      );
       const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
@@ -139,6 +157,33 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           analysisEnvRootsByProject: normalizedAnalysisEnvRootsByProject,
           librarySelectedPathByProject: normalizedLibrarySelectedPathByProject,
           libraryViewModeByProject: normalizedLibraryViewModeByProject,
+          workspaceExplorerDefaultExpanded: nextSettings.uiPrefs?.workspaceExplorerDefaultExpanded ?? true,
+          libraryExplorerDefaultExpanded: nextSettings.uiPrefs?.libraryExplorerDefaultExpanded ?? true,
+          workspaceExplorerExpandedPathsByProject: normalizedWorkspaceExplorerExpandedPathsByProject,
+          libraryExplorerExpandedPathsByProject: normalizedLibraryExplorerExpandedPathsByProject,
+          agentToolPrefs: {
+            webSearchEnabled: nextSettings.uiPrefs?.agentToolPrefs?.webSearchEnabled ?? true,
+            workspaceReadEnabled: nextSettings.uiPrefs?.agentToolPrefs?.workspaceReadEnabled ?? true,
+            pythonEnabled: nextSettings.uiPrefs?.agentToolPrefs?.pythonEnabled ?? true,
+            mcpEnabled: nextSettings.uiPrefs?.agentToolPrefs?.mcpEnabled ?? true,
+            writeRequiresConfirmation: nextSettings.uiPrefs?.agentToolPrefs?.writeRequiresConfirmation ?? true,
+          },
+          mcpServers: (nextSettings.uiPrefs?.mcpServers ?? [])
+            .map((server) => ({
+              id: String(server.id ?? "").trim(),
+              command: String(server.command ?? "").trim(),
+              args: Array.isArray(server.args) ? server.args.map((item) => String(item)) : [],
+              env: Object.fromEntries(
+                Object.entries(server.env ?? {}).map(([key, value]) => [String(key), String(value)]),
+              ),
+              enabled: server.enabled ?? true,
+            }))
+            .filter((server) => server.id.length > 0 && server.command.length > 0),
+          enabledSkills: Array.from(new Set(
+            (nextSettings.uiPrefs?.enabledSkills ?? [])
+              .map((skill) => String(skill ?? "").trim())
+              .filter((skill) => skill.length > 0),
+          )),
         },
       });
 

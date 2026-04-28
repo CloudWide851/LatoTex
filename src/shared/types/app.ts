@@ -228,7 +228,30 @@ export type AppSettings = {
     analysisEnvRootsByProject?: Record<string, string>;
     librarySelectedPathByProject?: Record<string, string>;
     libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
+    workspaceExplorerDefaultExpanded?: boolean;
+    libraryExplorerDefaultExpanded?: boolean;
+    workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
+    libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
+    agentToolPrefs?: AgentToolPrefs;
+    mcpServers?: McpServerConfig[];
+    enabledSkills?: string[];
   };
+};
+
+export type AgentToolPrefs = {
+  webSearchEnabled?: boolean;
+  workspaceReadEnabled?: boolean;
+  pythonEnabled?: boolean;
+  mcpEnabled?: boolean;
+  writeRequiresConfirmation?: boolean;
+};
+
+export type McpServerConfig = {
+  id: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled?: boolean;
 };
 
 export type FeatureModelBindings = {

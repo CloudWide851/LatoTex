@@ -22,6 +22,8 @@ import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSectio
 import { BackgroundImageCard } from "./settings/BackgroundImageCard";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
+import { AgentToolsSettingsSection } from "./settings/AgentToolsSettingsSection";
+import { ExplorerDefaultsSection } from "./settings/ExplorerDefaultsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { SettingsSelectRow } from "./settings/SettingsSelectRow";
 
@@ -251,6 +253,7 @@ export function SettingsPanel(props: {
                 updateGeneralUiPrefs({ closeToTrayNoticeEnabled: nextValue })
               }
             />
+            <ExplorerDefaultsSection settings={localSettings} setSettings={setSettings} t={t} />
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
           </div>
         )}
@@ -420,6 +423,7 @@ export function SettingsPanel(props: {
         {settingsSection === "agents" && (
           <div className="space-y-2">
             <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
+            <AgentToolsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
             <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
               <span className="text-xs font-semibold text-slate-700">
                 {t("settings.agentBulkApplyLabel")}

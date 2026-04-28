@@ -11,6 +11,7 @@ use super::swarm_supervisor::{
     execution_mode_label, parse_supervisor_evaluation, requires_write_checkpoint,
 };
 use super::swarm_tool_search;
+use super::{swarm_tool_mcp, swarm_tool_python, swarm_tool_workspace};
 use super::swarm_workflows::{
     execution_mode_for_workflow, max_iterations_for_workflow, max_steps_for_workflow,
     timeout_for_workflow, WorkflowDefinition, WorkflowStep,
@@ -33,6 +34,7 @@ fn step_metadata<'a>(
 
 fn run_workflow_step(
     db_path: &std::path::Path,
+    runtime_root: &std::path::Path,
     run_id: &str,
     input: &AgentExecuteRequest,
     workflow: &WorkflowDefinition,
@@ -58,6 +60,7 @@ fn run_workflow_step(
         ),
         "tool.search" => swarm_tool_search::run_stage_tool_search(
             db_path,
+            runtime_root,
             run_id,
             &input.project_id,
             &workflow.id,
@@ -80,6 +83,44 @@ fn run_workflow_step(
             &connection.api_key,
             &connection.model_name,
             input.bypass_cache,
+            metadata,
+        ),
+        "tool.workspace" => swarm_tool_workspace::run_stage_workspace_search(
+            db_path,
+            runtime_root,
+            run_id,
+            &input.project_id,
+            &workflow.id,
+            &step.id,
+            if step.source.trim().is_empty() { "workflow" } else { step.source.as_str() },
+            if step.title.trim().is_empty() { "Workspace Search" } else { step.title.as_str() },
+            prompt,
+            cancel_flag,
+            metadata,
+        ),
+        "tool.python" => swarm_tool_python::run_stage_python_probe(
+            db_path,
+            runtime_root,
+            run_id,
+            &input.project_id,
+            &workflow.id,
+            &step.id,
+            if step.source.trim().is_empty() { "workflow" } else { step.source.as_str() },
+            if step.title.trim().is_empty() { "Python Analysis" } else { step.title.as_str() },
+            prompt,
+            cancel_flag,
+            metadata,
+        ),
+        "mcp.call" => swarm_tool_mcp::run_stage_mcp_call(
+            db_path,
+            runtime_root,
+            run_id,
+            &input.project_id,
+            &workflow.id,
+            &step.id,
+            if step.source.trim().is_empty() { "stitch:tools/list" } else { step.source.as_str() },
+            if step.title.trim().is_empty() { "MCP Call" } else { step.title.as_str() },
+            cancel_flag,
             metadata,
         ),
         other => Err(format!("workflow.step.unsupported:{}", other)),
@@ -130,6 +171,8 @@ fn run_execute_pipeline_single(
     let timeout_ms = timeout_for_workflow(workflow);
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     let mut output = String::new();
+    let mut step_prompt = input.prompt.clone();
+    let mut tool_context = Vec::<String>::new();
 
     for step in workflow.steps.iter().take(max_steps) {
         ensure_not_cancelled(cancel_flag)?;
@@ -147,15 +190,20 @@ fn run_execute_pipeline_single(
         };
         output = run_workflow_step(
             db_path,
+            runtime_root,
             run_id,
             input,
             workflow,
             step,
-            &input.prompt,
+            &step_prompt,
             cancel_flag,
             &connection,
             metadata,
         )?;
+        if step.kind != "provider.generate" && !output.trim().is_empty() {
+            tool_context.push(output.clone());
+            step_prompt = format!("{}\n\n[Previous Tool Output]\n{}", input.prompt, tool_context.join("\n\n"));
+        }
     }
 
     Ok(output)
@@ -235,6 +283,8 @@ fn run_execute_pipeline_supervisor(
     }
 
     let mut output = String::new();
+    let mut step_prompt = input.prompt.clone();
+    let mut tool_context = Vec::<String>::new();
     let parent_node = if input.context_refs.is_empty() {
         plan_node_id.as_str()
     } else {
@@ -250,7 +300,7 @@ fn run_execute_pipeline_supervisor(
         let base_node_id = format!("step:{base_step_id}");
 
         if step.kind == "provider.generate" {
-            let mut attempt_prompt = input.prompt.clone();
+            let mut attempt_prompt = step_prompt.clone();
             let mut latest_output = String::new();
             for iteration in 0..max_iterations {
                 ensure_not_cancelled(cancel_flag)?;
@@ -283,6 +333,7 @@ fn run_execute_pipeline_supervisor(
                 };
                 latest_output = run_workflow_step(
                     db_path,
+                    runtime_root,
                     run_id,
                     input,
                     workflow,
@@ -311,6 +362,7 @@ fn run_execute_pipeline_supervisor(
                 };
                 let evaluator_raw = run_workflow_step(
                     db_path,
+                    runtime_root,
                     run_id,
                     input,
                     workflow,
@@ -372,15 +424,20 @@ fn run_execute_pipeline_supervisor(
         };
         output = run_workflow_step(
             db_path,
+            runtime_root,
             run_id,
             input,
             workflow,
             step,
-            &input.prompt,
+            &step_prompt,
             cancel_flag,
             &connection,
             metadata,
         )?;
+        if !output.trim().is_empty() {
+            tool_context.push(output.clone());
+            step_prompt = format!("{}\n\n[Previous Tool Output]\n{}", input.prompt, tool_context.join("\n\n"));
+        }
     }
 
     if requires_write_checkpoint(workflow) && !output.trim().is_empty() {

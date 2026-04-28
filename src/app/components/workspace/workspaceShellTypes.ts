@@ -132,6 +132,12 @@ export type AppWorkspaceShellProps = {
   chatAgentModelId: string | null;
   translationModelId: string | null;
   paperBriefEngine: "auto" | "pdfjs" | "python";
+  workspaceExplorerDefaultExpanded: boolean;
+  libraryExplorerDefaultExpanded: boolean;
+  workspaceExplorerExpandedPaths?: string[];
+  libraryExplorerExpandedPaths?: string[];
+  onWorkspaceExplorerExpandedPathsChange: (paths: string[]) => void;
+  onLibraryExplorerExpandedPathsChange: (paths: string[]) => void;
   onFsAction: (
     scope: FsScope,
     action: FsAction,

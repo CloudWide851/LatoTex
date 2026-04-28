@@ -4,7 +4,9 @@ import type {
   AppBackgroundImage,
   AppBackgroundImagePayload,
   AppSettings,
+  AgentToolPrefs,
   CredentialSaveResult,
+  McpServerConfig,
   ModelApiKeyValue,
   ModelCatalogItemInput,
   ModelDraftTestInput,
@@ -54,6 +56,13 @@ export function updateSettings(input: {
     analysisEnvRootsByProject?: Record<string, string>;
     librarySelectedPathByProject?: Record<string, string>;
     libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
+    workspaceExplorerDefaultExpanded?: boolean;
+    libraryExplorerDefaultExpanded?: boolean;
+    workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
+    libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
+    agentToolPrefs?: AgentToolPrefs;
+    mcpServers?: McpServerConfig[];
+    enabledSkills?: string[];
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });

@@ -178,6 +178,39 @@ export function AppContainerView(props: any) {
     settings?.uiPrefs?.featureModelBindings?.translationModelId
     || null;
   const paperBriefEngine = settings?.uiPrefs?.paperBriefEngine ?? "auto";
+  const workspaceExplorerDefaultExpanded = settings?.uiPrefs?.workspaceExplorerDefaultExpanded ?? true;
+  const libraryExplorerDefaultExpanded = settings?.uiPrefs?.libraryExplorerDefaultExpanded ?? true;
+  const workspaceExplorerExpandedPaths =
+    activeProjectId
+      ? settings?.uiPrefs?.workspaceExplorerExpandedPathsByProject?.[activeProjectId]
+      : undefined;
+  const libraryExplorerExpandedPaths =
+    activeProjectId
+      ? settings?.uiPrefs?.libraryExplorerExpandedPathsByProject?.[activeProjectId]
+      : undefined;
+  const updateExplorerExpandedPaths = (
+    key: "workspaceExplorerExpandedPathsByProject" | "libraryExplorerExpandedPathsByProject",
+    paths: string[],
+  ) => {
+    if (!activeProjectId) {
+      return;
+    }
+    props.setSettings?.((prev: any) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        uiPrefs: {
+          ...(prev.uiPrefs ?? {}),
+          [key]: {
+            ...(prev.uiPrefs?.[key] ?? {}),
+            [activeProjectId]: paths,
+          },
+        },
+      };
+    });
+  };
   const rawBackgroundPaths: string[] = Array.isArray(settings?.uiPrefs?.backgroundImagePaths)
     ? (settings.uiPrefs.backgroundImagePaths as string[])
     : [];
@@ -275,6 +308,16 @@ export function AppContainerView(props: any) {
                 chatAgentModelId={chatAgentModelId}
                 translationModelId={translationModelId}
                 paperBriefEngine={paperBriefEngine}
+                workspaceExplorerDefaultExpanded={workspaceExplorerDefaultExpanded}
+                libraryExplorerDefaultExpanded={libraryExplorerDefaultExpanded}
+                workspaceExplorerExpandedPaths={workspaceExplorerExpandedPaths}
+                libraryExplorerExpandedPaths={libraryExplorerExpandedPaths}
+                onWorkspaceExplorerExpandedPathsChange={(paths) =>
+                  updateExplorerExpandedPaths("workspaceExplorerExpandedPathsByProject", paths)
+                }
+                onLibraryExplorerExpandedPathsChange={(paths) =>
+                  updateExplorerExpandedPaths("libraryExplorerExpandedPathsByProject", paths)
+                }
                 tree={tree}
                 libraryTree={libraryTree}
                 selectedFile={selectedFile}

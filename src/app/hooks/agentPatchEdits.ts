@@ -1,6 +1,7 @@
 import type { AgentDiffBlock } from "./agentTypes";
 
 const LATEX_EXTENSIONS = [".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx", ".tikz", ".pgf"];
+const BIB_EXTENSION = ".bib";
 
 export type SearchReplaceEdit = {
   path?: string;
@@ -23,7 +24,26 @@ export function isLatexPath(path: string): boolean {
   return LATEX_EXTENSIONS.some((ext) => normalized.endsWith(ext));
 }
 
-function extractMentionedPaths(prompt: string): string[] {
+function isBibPath(path: string): boolean {
+  return normalizePath(path).toLowerCase().endsWith(BIB_EXTENSION);
+}
+
+function isTexPath(path: string): boolean {
+  return normalizePath(path).toLowerCase().endsWith(".tex");
+}
+
+function isCitationInsertionPrompt(prompt: string): boolean {
+  const lower = prompt.toLowerCase();
+  return /\\(?:cite|autocite|parencite|textcite|citep|citet)\b/.test(prompt)
+    || lower.includes("citation")
+    || lower.includes("cite ")
+    || lower.includes("insert cite")
+    || prompt.includes("引用")
+    || prompt.includes("引文")
+    || prompt.includes("插入参考文献");
+}
+
+export function extractMentionedPaths(prompt: string): string[] {
   const matches = prompt.match(/[A-Za-z0-9_.\-\/\\]+\.[A-Za-z0-9]{1,8}/g);
   if (!matches || matches.length === 0) {
     return [];
@@ -48,7 +68,14 @@ export function pickTargetPath(prompt: string, selectedFile: string | null): {
   explicitPath: boolean;
 } {
   const mentionedPaths = extractMentionedPaths(prompt);
+  if (selectedFile && isTexPath(selectedFile) && isCitationInsertionPrompt(prompt)) {
+    const explicitTexMention = mentionedPaths.find((item) => isTexPath(item));
+    return { targetPath: explicitTexMention ?? selectedFile, explicitPath: Boolean(explicitTexMention) };
+  }
   const latexMention = mentionedPaths.find((item) => isLatexPath(item));
+  if (latexMention && isBibPath(latexMention) && selectedFile && isTexPath(selectedFile)) {
+    return { targetPath: selectedFile, explicitPath: false };
+  }
   if (latexMention) {
     return { targetPath: latexMention, explicitPath: true };
   }

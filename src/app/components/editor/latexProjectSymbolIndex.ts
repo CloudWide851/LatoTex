@@ -46,10 +46,11 @@ function extractSymbolsFromText(text: string): string[] {
     .flatMap((item) => item.split(","))
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+  const bibKeys = collectUniqueMatches(text, /@\w+\s*\{\s*([^,\s{}]+)\s*,/g);
   const commands = collectUniqueMatches(text, /\\([A-Za-z@]{2,})/g, (value) => `\\${value}`);
   const words = collectUniqueMatches(text, /\b([A-Za-z_][A-Za-z0-9_:-]{2,})\b/g);
 
-  for (const item of [...commandDefs, ...defDefs, ...labels, ...cites, ...commands, ...words]) {
+  for (const item of [...commandDefs, ...defDefs, ...labels, ...cites, ...bibKeys, ...commands, ...words]) {
     if (!item) {
       continue;
     }

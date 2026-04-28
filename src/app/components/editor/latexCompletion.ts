@@ -143,11 +143,12 @@ function collectUniqueMatches(text: string, pattern: RegExp): string[] {
 
 function collectCiteKeys(text: string): string[] {
   const fromBibItem = collectUniqueMatches(text, /\\bibitem\{([^}]+)\}/g);
+  const fromBibEntries = collectUniqueMatches(text, /@\w+\s*\{\s*([^,\s{}]+)\s*,/g);
   const fromCite = collectUniqueMatches(text, /\\cite[a-zA-Z*]*\{([^}]+)\}/g)
     .flatMap((item) => item.split(","))
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
-  const merged = new Set<string>([...fromBibItem, ...fromCite]);
+  const merged = new Set<string>([...fromBibItem, ...fromBibEntries, ...fromCite]);
   return Array.from(merged).slice(0, 300);
 }
 
@@ -452,7 +453,19 @@ export function ensureLatexCompletionProvider(monaco: any) {
       }
 
       if (inCite) {
-        for (const key of collectCiteKeys(text)) {
+        const projectCiteKeys = await getIndexedProjectSymbols({
+          projectId: context.projectId,
+          fileList: context.fileList,
+          selectedFile: context.selectedFile,
+          selectedFileContent: text,
+          prefix: "",
+          limit: 160,
+        });
+        const citeKeys = Array.from(new Set([
+          ...collectCiteKeys(text),
+          ...projectCiteKeys.filter((item) => !item.startsWith("\\") && !/\s/.test(item)),
+        ])).slice(0, 300);
+        for (const key of citeKeys) {
           suggestions.push({
             label: key,
             kind: monaco.languages.CompletionItemKind.Reference,

@@ -12,6 +12,7 @@ import { prioritizeCompileDiagnostics } from "../components/editor/compileAssist
 
 import {
   computeDiffStats,
+  extractMentionedPaths,
   isLatexPath,
   normalizePath,
   pickReviewTargetPath,
@@ -244,6 +245,7 @@ export async function runAgentWorkflow(params: {
 
   const prompt = agentPrompt.trim();
   const promptContextPaths = extractPromptRefValues(prompt);
+  const promptMentionedPaths = extractMentionedPaths(prompt);
   const parsed = parseAgentPrompt(prompt);
   const commitIntent = resolveAgentCommitIntent(prompt);
   const { targetPath, explicitPath } = pickTargetPath(prompt, selectedFile);
@@ -459,7 +461,7 @@ export async function runAgentWorkflow(params: {
         fileContent: originalContent,
         selectedFile,
         paperContextSourcePath: paperContextRef,
-        contextPaths: promptContextPaths,
+        contextPaths: Array.from(new Set([...promptContextPaths, ...promptMentionedPaths])),
         modelOverride: taskModelOverride ?? undefined,
       }),
       setAgentRunId,

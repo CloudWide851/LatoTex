@@ -44,6 +44,9 @@ export function ExplorerTree(props: {
   onImportLink?: (link: string) => void;
   onRevealInSystem?: (path?: string) => Promise<void> | void;
   onOpenTerminal?: (path?: string) => Promise<void> | void;
+  defaultExpanded?: boolean;
+  expandedPaths?: string[];
+  onExpandedPathsChange?: (paths: string[]) => void;
   t: TranslationFn;
 }) {
   const {
@@ -61,9 +64,12 @@ export function ExplorerTree(props: {
     onImportLink,
     onRevealInSystem,
     onOpenTerminal,
+    defaultExpanded = true,
+    expandedPaths,
+    onExpandedPathsChange,
     t,
   } = props;
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean> | null>(null);
   const [menu, setMenu] = useState<ExplorerMenuTarget | null>(null);
   const [editing, setEditing] = useState<EditingState>(null);
   const [transferPanel, setTransferPanel] = useState<MoveCopyPanel>(null);
@@ -74,15 +80,44 @@ export function ExplorerTree(props: {
   const submitLockRef = useRef(false);
   const skipCreateBlurSubmitRef = useRef(false);
   const displayedTree = tree;
+  const directoryPaths = useMemo(() => {
+    const paths: string[] = [];
+    const walk = (nodes: ResourceNode[]) => {
+      for (const node of nodes) {
+        if (node.kind !== "directory") {
+          continue;
+        }
+        paths.push(node.relativePath);
+        walk(node.children);
+      }
+    };
+    walk(displayedTree);
+    return paths;
+  }, [displayedTree]);
+  const emitExpandedPaths = useCallback((nextExpanded: Record<string, boolean>) => {
+    onExpandedPathsChange?.(
+      directoryPaths.filter((path) => nextExpanded[path] === true),
+    );
+  }, [directoryPaths, onExpandedPathsChange]);
   const handleDirectoryExpand = useCallback((path: string) => {
-    setExpanded((prev) => ({ ...prev, [path]: true }));
-  }, []);
+    setExpanded((prev) => {
+      const base = prev ?? Object.fromEntries(directoryPaths.map((item) => [item, defaultExpanded]));
+      const next = { ...base, [path]: true };
+      emitExpandedPaths(next);
+      return next;
+    });
+  }, [defaultExpanded, directoryPaths, emitExpandedPaths]);
   const handleMove = useCallback(async (sourcePath: string, targetPath: string) => {
     const moveResult = await onAction?.("move", sourcePath, targetPath);
     if (moveResult === false) {
       return;
     }
-    setExpanded((prev) => rewriteExpandedAfterMove(prev, sourcePath, targetPath));
+    setExpanded((prev) => {
+      const base = prev ?? Object.fromEntries(directoryPaths.map((item) => [item, defaultExpanded]));
+      const next = rewriteExpandedAfterMove(base, sourcePath, targetPath);
+      emitExpandedPaths(next);
+      return next;
+    });
     setSelectedPaths((prev) => {
       const rewritten = prev
         .map((path) => rewritePathAfterMove(path, sourcePath, targetPath))
@@ -90,29 +125,36 @@ export function ExplorerTree(props: {
       return Array.from(new Set(rewritten));
     });
     setSelectionAnchorPath((prev) => rewritePathAfterMove(prev, sourcePath, targetPath));
-  }, [onAction]);
+  }, [defaultExpanded, directoryPaths, emitExpandedPaths, onAction]);
   const expandedMap = useMemo(() => {
-    if (Object.keys(expanded).length > 0) {
+    if (expanded) {
       return expanded;
     }
     const defaults: Record<string, boolean> = {};
     const walk = (nodes: ResourceNode[]) => {
       for (const node of nodes) {
         if (shouldAutoExpandNode(node)) {
-          defaults[node.relativePath] = true;
+          defaults[node.relativePath] = defaultExpanded;
           walk(node.children);
         }
       }
     };
     walk(displayedTree);
     return defaults;
-  }, [displayedTree, expanded]);
+  }, [defaultExpanded, displayedTree, expanded]);
   const { dragSourcePath, dragPreview, dropTargetPath, suppressClickRef, handlePointerDragStart } = useExplorerPointerDrag({
     rootRef,
     onMove: onAction ? handleMove : undefined,
     expandedMap,
     onExpandDirectory: handleDirectoryExpand,
   });
+  useEffect(() => {
+    if (expandedPaths !== undefined) {
+      setExpanded(Object.fromEntries(expandedPaths.map((path) => [path, true])));
+      return;
+    }
+    setExpanded(null);
+  }, [expandedPaths]);
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
       if (event.button === 2) {
@@ -296,7 +338,12 @@ export function ExplorerTree(props: {
               return;
             }
             if (isDirectory) {
-              setExpanded((prev) => ({ ...prev, [node.relativePath]: !isExpanded }));
+              setExpanded((prev) => {
+                const base = prev ?? Object.fromEntries(directoryPaths.map((item) => [item, defaultExpanded]));
+                const next = { ...base, [node.relativePath]: !isExpanded };
+                emitExpandedPaths(next);
+                return next;
+              });
               return;
             }
             const nextSelection = resolveExplorerSelection({
@@ -319,8 +366,8 @@ export function ExplorerTree(props: {
         >
           {isDirectory ? (
             <>
-                <ChevronRight
-                  className={cn(
+              <ChevronRight
+                className={cn(
                   "explorer-node-muted h-3.5 w-3.5 shrink-0 transition-transform",
                   isExpanded && "rotate-90",
                 )}

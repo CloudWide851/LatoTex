@@ -444,59 +444,16 @@ pub struct UiPrefs {
     pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
     pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
     pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
+    pub workspace_explorer_default_expanded: Option<bool>,
+    pub library_explorer_default_expanded: Option<bool>,
+    pub workspace_explorer_expanded_paths_by_project: Option<std::collections::HashMap<String, Vec<String>>>,
+    pub library_explorer_expanded_paths_by_project: Option<std::collections::HashMap<String, Vec<String>>>,
+    pub agent_tool_prefs: Option<AgentToolPrefs>,
+    pub mcp_servers: Option<Vec<McpServerConfig>>,
+    pub enabled_skills: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct FeatureModelBindings {
-    pub latex_agent_model_id: Option<String>,
-    pub analysis_agent_model_id: Option<String>,
-    pub git_summary_model_id: Option<String>,
-    pub chat_agent_model_id: Option<String>,
-    pub translation_model_id: Option<String>,
-    pub completion_model_id: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ChannelPrefs {
-    pub telegram_enabled: Option<bool>,
-    pub telegram_bot_token: Option<String>,
-    pub telegram_chat_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramPollInput {
-    pub offset: Option<i64>,
-    pub limit: Option<u32>,
-    pub timeout_secs: Option<u64>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramUpdateItem {
-    pub update_id: i64,
-    pub message_id: i64,
-    pub chat_id: String,
-    pub username: String,
-    pub text: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramPollResult {
-    pub next_offset: i64,
-    pub updates: Vec<TelegramUpdateItem>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramSendInput {
-    pub chat_id: Option<String>,
-    pub text: String,
-    pub reply_to_message_id: Option<i64>,
-}
+include!("models_settings.rs");
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

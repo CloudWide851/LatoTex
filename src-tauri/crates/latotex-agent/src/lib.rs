@@ -191,6 +191,42 @@ fn build_translation_strategy_block(user_prompt: &str, file_content: &str) -> Op
     Some(lines.join("\n"))
 }
 
+fn detect_citation_command(user_prompt: &str, file_content: &str) -> &'static str {
+    let lower_prompt = user_prompt.to_lowercase();
+    if lower_prompt.contains("textcite") || file_content.contains("\\textcite{") {
+        return "\\textcite";
+    }
+    if lower_prompt.contains("parencite") || file_content.contains("\\parencite{") {
+        return "\\parencite";
+    }
+    if lower_prompt.contains("autocite") || file_content.contains("\\autocite{") {
+        return "\\autocite";
+    }
+    if lower_prompt.contains("citep") || file_content.contains("\\citep{") {
+        return "\\citep";
+    }
+    if lower_prompt.contains("citet") || file_content.contains("\\citet{") {
+        return "\\citet";
+    }
+    if file_content.contains("\\usepackage{biblatex}") || file_content.contains("\\addbibresource") {
+        return "\\autocite";
+    }
+    if file_content.contains("\\usepackage{natbib}") {
+        return "\\citep";
+    }
+    "\\cite"
+}
+
+fn is_citation_insertion_request(user_prompt: &str) -> bool {
+    let lower = user_prompt.to_lowercase();
+    lower.contains("citation")
+        || lower.contains("insert cite")
+        || lower.contains("cite ")
+        || user_prompt.contains("引用")
+        || user_prompt.contains("引文")
+        || user_prompt.contains("插入参考文献")
+}
+
 fn derive_task_search_queries(
     user_prompt: &str,
     paper_context_title: Option<&str>,
@@ -277,6 +313,16 @@ pub fn build_task_execution_prompt(
     ];
     if let Some(strategy) = translation_strategy {
         sections.push(strategy);
+        sections.push(String::new());
+    }
+    if is_citation_insertion_request(user_prompt) {
+        sections.push("[citation.insertion.v1]".to_string());
+        sections.push(format!(
+            "- Preferred citation command for this target: {}{{key}}.",
+            detect_citation_command(user_prompt, &normalized)
+        ));
+        sections.push("- Use BibTeX keys from attached .bib context when available.".to_string());
+        sections.push("- Insert citations into the target .tex content, not into the .bib file, unless the user explicitly asks to edit bibliography entries.".to_string());
         sections.push(String::new());
     }
     sections.push(query_block);

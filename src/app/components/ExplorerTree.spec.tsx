@@ -255,6 +255,65 @@ describe("ExplorerTree", () => {
     container.remove();
   });
 
+  it("keeps directories collapsed when defaultExpanded is false", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          mode="library"
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          defaultExpanded={false}
+          onSelect={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    expect(container.querySelector("[title='papers/demo.bib']")).toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("reports persisted expanded paths after folder toggles", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onExpandedPathsChange = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          mode="library"
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          defaultExpanded={false}
+          onSelect={() => undefined}
+          onExpandedPathsChange={onExpandedPathsChange}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const papersNode = container.querySelector("[title='papers']");
+    await act(async () => {
+      papersNode?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onExpandedPathsChange).toHaveBeenLastCalledWith(["papers"]);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("moves a library directory into another directory through pointer dragging", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

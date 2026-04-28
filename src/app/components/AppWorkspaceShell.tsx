@@ -136,6 +136,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     chatAgentModelId,
     translationModelId,
     paperBriefEngine,
+    workspaceExplorerDefaultExpanded,
+    libraryExplorerDefaultExpanded,
+    workspaceExplorerExpandedPaths,
+    libraryExplorerExpandedPaths,
+    onWorkspaceExplorerExpandedPathsChange,
+    onLibraryExplorerExpandedPathsChange,
     onFsAction,
     onRunFsAction,
     t,
@@ -564,6 +570,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             onLibraryViewModeChange={onLibraryViewModeChange}
             translationModelId={translationModelId}
             paperBriefEngine={paperBriefEngine}
+            workspaceExplorerDefaultExpanded={workspaceExplorerDefaultExpanded}
+            libraryExplorerDefaultExpanded={libraryExplorerDefaultExpanded}
+            workspaceExplorerExpandedPaths={workspaceExplorerExpandedPaths}
+            libraryExplorerExpandedPaths={libraryExplorerExpandedPaths}
+            onWorkspaceExplorerExpandedPathsChange={onWorkspaceExplorerExpandedPathsChange}
+            onLibraryExplorerExpandedPathsChange={onLibraryExplorerExpandedPathsChange}
             onSavePanelLayout={onSavePanelLayout}
             renderMainPanel={renderMainPanel}
             renderPdfPreviewPanel={renderPdfPreviewPanel}

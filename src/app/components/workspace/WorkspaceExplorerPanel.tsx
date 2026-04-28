@@ -25,6 +25,9 @@ export function WorkspaceExplorerPanel(props: {
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onWorkspaceRescan: () => void | Promise<void>;
+  defaultExpanded: boolean;
+  expandedPaths?: string[];
+  onExpandedPathsChange: (paths: string[]) => void;
   t: TranslationFn;
 }) {
   const {
@@ -39,6 +42,9 @@ export function WorkspaceExplorerPanel(props: {
     onWorkspaceRevealInSystem,
     onWorkspaceOpenTerminal,
     onWorkspaceRescan,
+    defaultExpanded,
+    expandedPaths,
+    onExpandedPathsChange,
     t,
   } = props;
 
@@ -73,6 +79,9 @@ export function WorkspaceExplorerPanel(props: {
             onRevealInSystem={onWorkspaceRevealInSystem}
             onOpenTerminal={onWorkspaceOpenTerminal}
             onRescan={onWorkspaceRescan}
+            defaultExpanded={defaultExpanded}
+            expandedPaths={expandedPaths}
+            onExpandedPathsChange={onExpandedPathsChange}
             t={t}
           />
         ) : (

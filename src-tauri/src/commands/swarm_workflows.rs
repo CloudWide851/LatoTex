@@ -133,11 +133,44 @@ fn provider(
     }
 }
 
+fn step(id: &str, kind: &str, title: &str, source: &str) -> WorkflowStep {
+    WorkflowStep {
+        id: id.to_string(),
+        kind: kind.to_string(),
+        title: title.to_string(),
+        source: source.to_string(),
+        retryable: Some(true),
+        approval_required: Some(false),
+    }
+}
+
+fn with_tools(mut workflow: WorkflowDefinition, tools: &[(&str, &str, &str, &str)]) -> WorkflowDefinition {
+    let mut next_steps = tools
+        .iter()
+        .map(|(id, kind, title, source)| step(id, kind, title, source))
+        .collect::<Vec<_>>();
+    next_steps.extend(std::mem::take(&mut workflow.steps));
+    workflow.steps = next_steps;
+    for (_, kind, _, _) in tools {
+        let normalized = normalize_tool_name(kind);
+        if !workflow.constraints.allowed_tools.iter().any(|item| item == &normalized) {
+            workflow.constraints.allowed_tools.push(normalized);
+        }
+    }
+    workflow
+}
+
 fn default_workflow_registry() -> WorkflowRegistry {
     WorkflowRegistry {
-        version: 2,
+        version: 3,
         workflows: vec![
-            provider("latex.edit", "LaTeX Edit", &["latex.overlay"], &["latex"], "supervisor"),
+            with_tools(
+                provider("latex.edit", "LaTeX Edit", &["latex.overlay"], &["latex"], "supervisor"),
+                &[
+                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
+                    ("search", "tool.search", "Web Search", "workflow"),
+                ],
+            ),
             provider(
                 "latex.review_fix",
                 "LaTeX Review Fix",
@@ -182,26 +215,45 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 &["readonly"],
                 "supervisor",
             ),
-            provider(
-                "analysis.explore_chunk",
-                "Analysis Explore",
-                &["analysis.workspace"],
-                &["data"],
-                "supervisor",
+            with_tools(
+                provider(
+                    "analysis.explore_chunk",
+                    "Analysis Explore",
+                    &["analysis.workspace"],
+                    &["data"],
+                    "supervisor",
+                ),
+                &[
+                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
+                    ("python", "tool.python", "Python Analysis", "workflow"),
+                    ("search", "tool.search", "Web Search", "workflow"),
+                ],
             ),
-            provider(
-                "analysis.synthesize",
-                "Analysis Synthesize",
-                &["analysis.workspace"],
-                &["data"],
-                "supervisor",
+            with_tools(
+                provider(
+                    "analysis.synthesize",
+                    "Analysis Synthesize",
+                    &["analysis.workspace"],
+                    &["data"],
+                    "supervisor",
+                ),
+                &[
+                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
+                    ("python", "tool.python", "Python Analysis", "workflow"),
+                ],
             ),
-            provider(
-                "chat.general",
-                "Chat General",
-                &["chat.workspace"],
-                &["latex", "drawings", "data"],
-                "supervisor",
+            with_tools(
+                provider(
+                    "chat.general",
+                    "Chat General",
+                    &["chat.workspace"],
+                    &["latex", "drawings", "data"],
+                    "supervisor",
+                ),
+                &[
+                    ("workspace", "tool.workspace", "Workspace Search", "workflow"),
+                    ("search", "tool.search", "Web Search", "workflow"),
+                ],
             ),
             provider(
                 "completion.latex",
@@ -245,8 +297,24 @@ pub(super) fn load_registry_for_project(
     let file_path = ensure_registry_file(&project_root)?;
     let raw = fs::read_to_string(&file_path)
         .map_err(|error| format!("workflow.config.read_failed:{error}"))?;
-    serde_json::from_str::<WorkflowRegistry>(&raw)
-        .map_err(|error| format!("workflow.config.invalid_json:{error}"))
+    let mut registry = serde_json::from_str::<WorkflowRegistry>(&raw)
+        .map_err(|error| format!("workflow.config.invalid_json:{error}"))?;
+    if registry.version < 3 {
+        let defaults = default_workflow_registry();
+        for default_workflow in defaults.workflows {
+            if let Some(existing) = registry
+                .workflows
+                .iter_mut()
+                .find(|workflow| workflow.id == default_workflow.id)
+            {
+                *existing = default_workflow;
+            } else {
+                registry.workflows.push(default_workflow);
+            }
+        }
+        registry.version = 3;
+    }
+    Ok(registry)
 }
 
 pub(super) fn resolve_workflow<'a>(
@@ -301,6 +369,9 @@ pub(super) fn normalize_tool_name(step_kind: &str) -> String {
     match step_kind {
         "provider.generate" => "provider_generate".to_string(),
         "tool.search" => "tool_search".to_string(),
+        "tool.workspace" => "tool_workspace".to_string(),
+        "tool.python" => "tool_python".to_string(),
+        "mcp.call" => "mcp_call".to_string(),
         other => other.replace('.', "_"),
     }
 }

@@ -12,6 +12,12 @@ mod swarm_runtime;
 mod swarm_supervisor;
 #[path = "swarm_tool_search.rs"]
 mod swarm_tool_search;
+#[path = "swarm_tool_workspace.rs"]
+mod swarm_tool_workspace;
+#[path = "swarm_tool_python.rs"]
+mod swarm_tool_python;
+#[path = "swarm_tool_mcp.rs"]
+mod swarm_tool_mcp;
 #[path = "swarm_workflows.rs"]
 mod swarm_workflows;
 pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_retry_streaming};

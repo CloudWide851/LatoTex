@@ -177,6 +177,7 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn run_stage_tool_search(
     db_path: &Path,
+    runtime_root: &Path,
     run_id: &str,
     project_id: &str,
     event_scope: &str,
@@ -194,6 +195,16 @@ pub(super) fn run_stage_tool_search(
     metadata: EventMetadata<'_>,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
+    let settings = crate::storage::load_settings(db_path, runtime_root)?;
+    let web_enabled = settings
+        .ui_prefs
+        .as_ref()
+        .and_then(|prefs| prefs.agent_tool_prefs.as_ref())
+        .and_then(|prefs| prefs.web_search_enabled)
+        .unwrap_or(true);
+    if !web_enabled {
+        return Ok("[tool_search.compact.v1]\nweb_search=disabled_by_settings".to_string());
+    }
     emit_stage_event(
         db_path,
         run_id,

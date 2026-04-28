@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDiffStats, pickReviewTargetPath } from "./agentPatchEdits";
+import { computeDiffStats, pickReviewTargetPath, pickTargetPath } from "./agentPatchEdits";
 
 describe("computeDiffStats", () => {
   it("keeps +/- counts accurate for single-line insertion", () => {
@@ -36,5 +36,21 @@ describe("pickReviewTargetPath", () => {
 
   it("falls back to main.tex when no latex target is available", () => {
     expect(pickReviewTargetPath("/review assets/logo.png", "notes.md")).toBe("main.tex");
+  });
+});
+
+describe("pickTargetPath", () => {
+  it("keeps citation insertion targeted at the selected tex file when a bib file is mentioned", () => {
+    expect(pickTargetPath("insert citation from refs/library.bib", "paper/main.tex")).toEqual({
+      targetPath: "paper/main.tex",
+      explicitPath: false,
+    });
+  });
+
+  it("still allows explicit bib edits when no tex file is selected", () => {
+    expect(pickTargetPath("dedupe refs/library.bib", null)).toEqual({
+      targetPath: "refs/library.bib",
+      explicitPath: true,
+    });
   });
 });

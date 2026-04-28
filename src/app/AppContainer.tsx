@@ -448,6 +448,7 @@ export function AppContainer() {
       analysisLayout={panels.analysisLayout}
       libraryLayout={panels.libraryLayout}
       settings={s.settings}
+      setSettings={s.setSettings}
       tree={s.tree}
       libraryTree={s.libraryTree}
       selectedFile={s.selectedFile}

@@ -35,6 +35,12 @@ type WorkspacePageLayoutProps = Pick<
   | "onLibraryViewModeChange"
   | "translationModelId"
   | "paperBriefEngine"
+  | "workspaceExplorerDefaultExpanded"
+  | "libraryExplorerDefaultExpanded"
+  | "workspaceExplorerExpandedPaths"
+  | "libraryExplorerExpandedPaths"
+  | "onWorkspaceExplorerExpandedPathsChange"
+  | "onLibraryExplorerExpandedPathsChange"
   | "onSavePanelLayout"
   | "t"
 > & {
@@ -71,6 +77,12 @@ export function WorkspacePageLayout({
   onLibraryViewModeChange,
   translationModelId,
   paperBriefEngine,
+  workspaceExplorerDefaultExpanded,
+  libraryExplorerDefaultExpanded,
+  workspaceExplorerExpandedPaths,
+  libraryExplorerExpandedPaths,
+  onWorkspaceExplorerExpandedPathsChange,
+  onLibraryExplorerExpandedPathsChange,
   onSavePanelLayout,
   t,
   renderMainPanel,
@@ -104,6 +116,9 @@ export function WorkspacePageLayout({
             onLibraryImportPdf={onLibraryImportPdf}
             onLibraryImportLink={onLibraryImportLink}
             onLibrarySyncZotero={onLibrarySyncZotero}
+            defaultExpanded={libraryExplorerDefaultExpanded}
+            expandedPaths={libraryExplorerExpandedPaths}
+            onExpandedPathsChange={onLibraryExplorerExpandedPathsChange}
             t={t}
           />
         </Panel>
@@ -154,6 +169,9 @@ export function WorkspacePageLayout({
             onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
             onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
             onWorkspaceRescan={onWorkspaceRescan}
+            defaultExpanded={workspaceExplorerDefaultExpanded}
+            expandedPaths={workspaceExplorerExpandedPaths}
+            onExpandedPathsChange={onWorkspaceExplorerExpandedPathsChange}
             t={t}
           />
         </Panel>
@@ -195,6 +213,9 @@ export function WorkspacePageLayout({
             onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
             onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
             onWorkspaceRescan={onWorkspaceRescan}
+            defaultExpanded={workspaceExplorerDefaultExpanded}
+            expandedPaths={workspaceExplorerExpandedPaths}
+            onExpandedPathsChange={onWorkspaceExplorerExpandedPathsChange}
             t={t}
           />
         </Panel>

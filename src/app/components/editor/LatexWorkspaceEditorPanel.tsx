@@ -420,6 +420,16 @@ export function LatexWorkspaceEditorPanel(props: {
             onMount={(editor, monaco) => {
               editorInstanceRef.current = editor;
               ensureLatexCompletionProvider(monaco);
+              editor.addCommand(
+                monaco.KeyCode.Tab,
+                () => editor.trigger("keyboard", "acceptSelectedSuggestion", {}),
+                "suggestWidgetVisible",
+              );
+              editor.addCommand(
+                monaco.KeyCode.Tab,
+                () => editor.trigger("keyboard", "acceptInlineSuggestion", {}),
+                "inlineSuggestionVisible",
+              );
               editor.updateOptions(editorOptions);
               editor.layout();
               onEditorMount(editor, monaco);

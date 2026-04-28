@@ -46,7 +46,7 @@ export function useAnalysisLiveState(params: {
     const nextStage = explicitStage || projectionRef.current.stage;
     const nextCards = Array.from(projectionRef.current.cards.values())
       .sort((left, right) => left.seq - right.seq)
-      .slice(-3)
+      .slice(-24)
       .map(({ seq: _seq, ...card }) => card);
     setLiveTimelineCards(nextCards);
     setLiveStage(nextStage);

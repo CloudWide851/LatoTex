@@ -60,6 +60,9 @@ export function LibraryExplorerPanel(props: {
     apiKey?: string;
   }) => void;
   onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
+  defaultExpanded: boolean;
+  expandedPaths?: string[];
+  onExpandedPathsChange: (paths: string[]) => void;
   t: TranslationFn;
 }) {
   const {
@@ -72,6 +75,9 @@ export function LibraryExplorerPanel(props: {
     onLibraryImportPdf,
     onLibraryImportLink,
     onLibrarySyncZotero,
+    defaultExpanded,
+    expandedPaths,
+    onExpandedPathsChange,
     t,
   } = props;
 
@@ -112,6 +118,9 @@ export function LibraryExplorerPanel(props: {
           onAction={(action, path, targetPath, content) =>
             onFsAction("library", action, path, targetPath, content)
           }
+          defaultExpanded={defaultExpanded}
+          expandedPaths={expandedPaths}
+          onExpandedPathsChange={onExpandedPathsChange}
           t={t}
         />
       </div>
