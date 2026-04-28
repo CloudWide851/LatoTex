@@ -556,14 +556,14 @@ video {
   }
 }
 .share-panel {
-  border-radius: 30px;
-  --tw-shadow: 0 24px 60px rgba(15,23,42,0.08);
-  --tw-shadow-colored: 0 24px 60px var(--tw-shadow-color);
+  border-radius: 20px;
+  --tw-shadow: 0 18px 42px rgba(15,23,42,0.07);
+  --tw-shadow-colored: 0 18px 42px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
   --tw-backdrop-blur: blur(24px);
   backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(226, 232, 240, 0.86);
+    background: rgba(255, 255, 255, 0.92);
 }
 .share-control {
   border-radius: 1rem;
@@ -682,28 +682,38 @@ video {
 .share-scrollbar::-webkit-scrollbar-track {
     background: rgba(226, 232, 240, 0.62);
   }
-.share-pdf-page-card {
-  margin-bottom: 1rem;
-  border-radius: 28px;
+.share-pdf-viewer-shell {
+  border-radius: 0.75rem;
   border-width: 1px;
   --tw-border-opacity: 1;
   border-color: rgb(226 232 240 / var(--tw-border-opacity, 1));
   --tw-bg-opacity: 1;
-  background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
-  padding: 1rem;
-  --tw-shadow: 0 18px 36px rgba(15,23,42,0.08);
-  --tw-shadow-colored: 0 18px 36px var(--tw-shadow-color);
-  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+  background-color: rgb(248 250 252 / var(--tw-bg-opacity, 1));
 }
-.share-pdf-canvas {
+.share-pdf-stage {
+  position: relative;
   margin-left: auto;
   margin-right: auto;
+  width: 100%;
+}
+.share-pdf-page-shell {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  --tw-translate-x: -50%;
+  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+  align-items: flex-start;
+  justify-content: center;
+  background-color: transparent;
+}
+.share-pdf-canvas {
   display: block;
   height: auto;
-  width: 100%;
-  border-radius: 1rem;
-  --tw-shadow: 0 20px 34px rgba(15,23,42,0.12);
-  --tw-shadow-colored: 0 20px 34px var(--tw-shadow-color);
+  max-width: 100%;
+  --tw-bg-opacity: 1;
+  background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
+  --tw-shadow: 0 2px 10px rgba(15,23,42,0.12);
+  --tw-shadow-colored: 0 2px 10px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 .pointer-events-none {
@@ -2041,10 +2051,6 @@ video {
 .bg-\[\#05080f\] {
   --tw-bg-opacity: 1;
   background-color: rgb(5 8 15 / var(--tw-bg-opacity, 1));
-}
-.bg-\[\#fcfbf7\] {
-  --tw-bg-opacity: 1;
-  background-color: rgb(252 251 247 / var(--tw-bg-opacity, 1));
 }
 .bg-\[color\:var\(--editor-widget-bg\)\] {
   background-color: var(--editor-widget-bg);

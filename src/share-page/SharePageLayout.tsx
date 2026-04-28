@@ -244,10 +244,10 @@ export function SharePageLayout(props: {
                       <button className="share-icon-btn" onClick={onReloadPdf} type="button"><RefreshCw className="h-4 w-4" /></button>
                     </div>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-hidden rounded-[28px] border border-slate-200 bg-[#fcfbf7]">
+                  <div className="share-pdf-viewer-shell relative min-h-0 flex-1 overflow-hidden">
                     <div ref={pdfPagesRef} className="share-scrollbar h-full overflow-auto px-4 py-4" />
                     {!pdf.ready ? (
-                      <div className="pointer-events-none -mt-full flex h-full items-center justify-center px-6 text-center text-sm text-slate-500">
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-slate-500">
                         {pdf.placeholder}
                       </div>
                     ) : null}

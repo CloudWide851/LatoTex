@@ -7,7 +7,7 @@ const SHARE_CORS_HEADERS: [(&str, &str); 5] = [
     ("Access-Control-Allow-Headers", "Content-Type, Range"),
     (
         "Access-Control-Expose-Headers",
-        "Accept-Ranges, Content-Length, Content-Range, Content-Type, Cache-Control",
+        "Accept-Ranges, Content-Length, Content-Range, Content-Type, Cache-Control, ETag",
     ),
     ("Access-Control-Max-Age", "600"),
 ];

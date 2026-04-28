@@ -13,6 +13,11 @@ fn css_header() -> Header {
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/css").unwrap())
 }
 
+fn svg_header() -> Header {
+    Header::from_bytes("Content-Type", "image/svg+xml; charset=utf-8")
+        .unwrap_or_else(|_| Header::from_bytes("Content-Type", "image/svg+xml").unwrap())
+}
+
 fn content_type_header(value: &str) -> Header {
     Header::from_bytes("Content-Type", value)
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/octet-stream").unwrap())
@@ -40,6 +45,13 @@ fn static_bytes_response(
             .with_header(header)
             .with_header(no_cache_header()),
     )
+}
+
+fn static_asset_bytes_response(
+    content: &'static [u8],
+    header: Header,
+) -> Response<std::io::Cursor<Vec<u8>>> {
+    static_bytes_response(content.to_vec(), header)
 }
 
 fn resolve_share_vendor_root() -> Option<PathBuf> {
@@ -135,9 +147,10 @@ pub(super) fn try_serve_static_route(
     path: &str,
     request: Request,
 ) -> Option<Request> {
-    if *method == Method::Get && path == "/favicon.ico" {
-        let _ = request.respond(share_http_response::with_share_headers(
-            Response::empty(StatusCode(204)).with_header(no_cache_header()),
+    if *method == Method::Get && (path == "/favicon.ico" || path == "/assets/logo-icon-rounded.svg") {
+        let _ = request.respond(static_asset_bytes_response(
+            include_bytes!("../../../src/assets/branding/logo-icon-rounded.svg"),
+            svg_header(),
         ));
         return None;
     }
@@ -204,4 +217,17 @@ pub(super) fn try_serve_static_route(
         return None;
     }
     Some(request)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn share_page_header_supports_svg_assets() {
+        let header = svg_header();
+
+        assert!(header.field.equiv("Content-Type"));
+        assert_eq!(header.value.as_str(), "image/svg+xml; charset=utf-8");
+    }
 }

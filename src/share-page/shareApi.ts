@@ -1,5 +1,13 @@
 import type { ShareComment, ShareParticipant } from "./shareTypes";
 
+export type SharePdfStatus = {
+  ready: boolean;
+  state?: string;
+  updatedAt?: string | null;
+  sizeBytes?: number;
+  version?: string | null;
+};
+
 export async function postShareJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
@@ -104,21 +112,28 @@ export async function postShareComment(params: {
   return postShareJson("/api/comments/post", params);
 }
 
-export async function fetchSharePdfStatus(sid: string, pwd: string): Promise<{ ready: boolean; state?: string; updatedAt?: string | null }> {
-  const response = await fetch(`/api/pdf/status?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}&t=${Date.now()}`);
+export async function fetchSharePdfStatus(sid: string, pwd: string): Promise<SharePdfStatus> {
+  const response = await fetch(`/api/pdf/status?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`, {
+    cache: "no-store",
+  });
   if (!response.ok) {
     return { ready: false };
   }
-  const payload = await response.json() as { state?: string; updatedAt?: string | null };
+  const payload = await response.json() as { state?: string; updatedAt?: string | null; sizeBytes?: number; version?: string | null };
   return {
     ready: payload?.state === "ready",
     state: payload?.state,
     updatedAt: payload?.updatedAt ?? null,
+    sizeBytes: Number(payload?.sizeBytes || 0),
+    version: typeof payload?.version === "string" && payload.version.trim() ? payload.version : null,
   };
 }
 
-export async function fetchSharePdfBuffer(sid: string, pwd: string): Promise<ArrayBuffer> {
-  const response = await fetch(`/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}&t=${Date.now()}`);
+export async function fetchSharePdfBuffer(sid: string, pwd: string, version?: string | null): Promise<ArrayBuffer> {
+  const versionParam = version ? `&v=${encodeURIComponent(version)}` : "";
+  const response = await fetch(`/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}${versionParam}`, {
+    cache: "force-cache",
+  });
   if (!response.ok) {
     throw new Error(await response.text());
   }

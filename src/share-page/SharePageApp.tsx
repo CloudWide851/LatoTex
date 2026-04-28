@@ -210,7 +210,7 @@ export function SharePageApp(props: SharePageAppProps) {
       window.clearTimeout(presenceTimer);
       window.clearTimeout(pdfTimer);
     };
-  }, [connected, i18n.actionReading, i18n.statusSyncFailed, loadComments, pdf, pingPresence, pullUpdates, setStatusLine, view]);
+  }, [connected, i18n.actionReading, i18n.statusSyncFailed, loadComments, pdf.reload, pingPresence, pullUpdates, setStatusLine, view]);
 
   const handleConnect = useCallback(async () => {
     const trimmedPassword = password.trim();
@@ -253,7 +253,7 @@ export function SharePageApp(props: SharePageAppProps) {
       setConnected(false);
       setStatusLine(i18n.statusConnectFailed(String(error)), true);
     }
-  }, [i18n, loadComments, password, pdf, pingPresence, setStatusLine, sid, username, usernameStorageKey]);
+  }, [i18n, loadComments, password, pdf.ready, pdf.reload, pingPresence, setStatusLine, sid, username, usernameStorageKey]);
 
   const handleEditorChange = useCallback((value: string) => {
     setEditorText(value);
@@ -315,7 +315,7 @@ export function SharePageApp(props: SharePageAppProps) {
       textarea.scrollTop = Math.max(0, textarea.scrollHeight * (start / Math.max(textarea.value.length, 1)) - 120);
       updateEditorSelection();
     });
-  }, [pdf, updateEditorSelection]);
+  }, [pdf.reload, pdf.scrollToPage, updateEditorSelection]);
 
   const handlePostComment = useCallback(async () => {
     if (!connected) {

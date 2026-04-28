@@ -4,6 +4,35 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use std::fs::File;
 
+fn share_pdf_version(updated_at: Option<&str>, size_bytes: u64) -> Option<String> {
+    if size_bytes == 0 {
+        return None;
+    }
+    let stamp = updated_at
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("unknown");
+    Some(format!("{stamp}-{size_bytes}"))
+}
+
+fn sanitize_etag_version(version: &str) -> String {
+    version
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | ':'))
+        .collect::<String>()
+}
+
+fn pdf_cache_header() -> Header {
+    Header::from_bytes("Cache-Control", "private, max-age=86400, immutable")
+        .unwrap_or_else(|_| Header::from_bytes("Cache-Control", "private").unwrap())
+}
+
+fn pdf_etag_header(version: &str) -> Header {
+    let value = format!("\"{}\"", sanitize_etag_version(version));
+    Header::from_bytes("ETag", value)
+        .unwrap_or_else(|_| Header::from_bytes("ETag", "\"share-pdf\"").unwrap())
+}
+
 pub(super) fn handle_pdf_upload(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
     let body = match parse_json_body::<UploadPdfBody>(&mut request) {
         Ok(value) => value,
@@ -85,6 +114,7 @@ pub(super) fn handle_pdf_status(
             "state": state,
             "sizeBytes": guard.pdf_size_bytes,
             "updatedAt": guard.pdf_updated_at.clone(),
+            "version": share_pdf_version(guard.pdf_updated_at.as_deref(), guard.pdf_size_bytes),
         }),
     ));
 }
@@ -115,6 +145,8 @@ pub(super) fn handle_pdf_fetch(
         return;
     }
     let pdf_path = guard.pdf_cache_path.clone();
+    let version = share_pdf_version(guard.pdf_updated_at.as_deref(), guard.pdf_size_bytes)
+        .unwrap_or_else(|| "unknown".to_string());
     drop(guard);
     let Some(pdf_path) = pdf_path else {
         let _ = request.respond(json_response(
@@ -138,7 +170,38 @@ pub(super) fn handle_pdf_fetch(
             Response::from_file(file)
                 .with_status_code(StatusCode(200))
                 .with_header(pdf_header())
-                .with_header(no_cache_header())
+                .with_header(pdf_cache_header())
+                .with_header(pdf_etag_header(&version))
         ),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pdf_version_combines_timestamp_and_size() {
+        assert_eq!(
+            share_pdf_version(Some("2026-04-28T10:00:00Z"), 42),
+            Some("2026-04-28T10:00:00Z-42".to_string())
+        );
+        assert_eq!(share_pdf_version(Some("ignored"), 0), None);
+    }
+
+    #[test]
+    fn pdf_cache_header_allows_versioned_browser_cache() {
+        let header = pdf_cache_header();
+
+        assert!(header.field.equiv("Cache-Control"));
+        assert_eq!(header.value.as_str(), "private, max-age=86400, immutable");
+    }
+
+    #[test]
+    fn pdf_etag_sanitizes_header_value() {
+        let header = pdf_etag_header("bad\"tag\\value");
+
+        assert!(header.field.equiv("ETag"));
+        assert_eq!(header.value.as_str(), "\"badtagvalue\"");
+    }
 }

@@ -17,6 +17,7 @@ const shareHtml = `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>LatoTex Share</title>
+    <link rel="icon" href="/assets/logo-icon-rounded.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/assets/share_page.css" />
   </head>
   <body>
