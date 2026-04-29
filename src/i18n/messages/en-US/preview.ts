@@ -1,6 +1,7 @@
 export const enUS_preview = {
   "preview.title": "Preview",
   "preview.empty": "No preview available for the current file.",
+  "preview.unsupported": "This file type is not previewed.",
   "preview.markdownEmpty": "Markdown file is empty.",
   "preview.textEmpty": "Text file is empty.",
   "preview.diagnostics": "Diagnostics",

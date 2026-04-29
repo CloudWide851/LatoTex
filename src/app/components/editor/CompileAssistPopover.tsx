@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type TranslationFn = (key: any) => string;
@@ -22,6 +22,14 @@ export function CompileAssistPopover(props: {
     t,
   } = props;
   const [copied, setCopied] = useState(false);
+  const resetCopiedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (resetCopiedTimerRef.current != null) {
+      window.clearTimeout(resetCopiedTimerRef.current);
+      resetCopiedTimerRef.current = null;
+    }
+  }, []);
 
   if (!visible) {
     return null;
@@ -34,7 +42,13 @@ export function CompileAssistPopover(props: {
     try {
       await navigator.clipboard.writeText(hint);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
+      if (resetCopiedTimerRef.current != null) {
+        window.clearTimeout(resetCopiedTimerRef.current);
+      }
+      resetCopiedTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        resetCopiedTimerRef.current = null;
+      }, 1400);
     } catch {
       setCopied(false);
     }

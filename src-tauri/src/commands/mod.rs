@@ -10,5 +10,5 @@ pub mod projects_translation;
 pub mod settings;
 pub mod share;
 pub mod swarm;
-
+pub mod terminal;
 

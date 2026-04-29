@@ -40,7 +40,6 @@ describe("WorkspacePreviewPanel", () => {
           selectedIsImage={false}
           selectedIsSvg={false}
           selectedIsTabular={false}
-          selectedIsCode={false}
           editorContent=""
           compiledPdfUrl={null}
           previewMode="empty"
@@ -59,6 +58,7 @@ describe("WorkspacePreviewPanel", () => {
           onZoomReset={() => undefined}
           onPreviewZoomChange={() => undefined}
           previewFocusRequest={null}
+          terminalVisible={false}
           t={(key) => String(key)}
         />,
       );

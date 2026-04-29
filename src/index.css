@@ -989,7 +989,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 360;
+  z-index: 520;
 }
 
 .latotex-monaco-overflow-root > * {
@@ -1006,7 +1006,7 @@ body::before {
   background: var(--editor-widget-bg) !important;
   box-shadow: var(--editor-widget-shadow) !important;
   overflow: hidden;
-  z-index: 360 !important;
+  z-index: 520 !important;
 }
 
 .editor-empty-state {

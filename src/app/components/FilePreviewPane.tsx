@@ -1,11 +1,9 @@
-import type { CodeLanguageInfo } from "../../shared/utils/codeLanguage";
 import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { CodePreviewPane } from "./CodePreviewPane";
 import { WorkspacePdfViewport } from "./pdf/WorkspacePdfViewport";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/github.css";
@@ -61,15 +59,12 @@ function buildSvgPreviewDocument(svgContent: string): string {
 }
 
 export function FilePreviewPane(props: {
-  mode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
+  mode: "pdf" | "image" | "markdown" | "svg" | "empty";
   pdfUrl: string | null;
   imageUrl: string | null;
   markdownContent: string;
   svgContent: string;
-  codeContent: string;
   selectedPath: string | null;
-  codeLanguage?: CodeLanguageInfo;
-  codeLanguageTag?: string;
   title: string;
   emptyText: string;
   pdfZoom: number;
@@ -85,10 +80,7 @@ export function FilePreviewPane(props: {
     imageUrl,
     markdownContent,
     svgContent,
-    codeContent,
     selectedPath,
-    codeLanguage,
-    codeLanguageTag,
     title,
     emptyText,
     pdfZoom,
@@ -176,18 +168,6 @@ export function FilePreviewPane(props: {
           </article>
         )}
       </div>
-    );
-  }
-
-  if (mode === "code") {
-    return (
-      <CodePreviewPane
-        filePath={selectedPath}
-        codeContent={codeContent}
-        emptyText={emptyText}
-        language={codeLanguage}
-        languageTag={codeLanguageTag}
-      />
     );
   }
 

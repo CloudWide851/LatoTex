@@ -90,6 +90,7 @@ fn create_test_fixture(name: &str) -> TestFixture {
         library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
         analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
         latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),
+        terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
         agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
         agent_cancel_flags: Arc::new(Mutex::new(HashMap::<String, Arc<AtomicBool>>::new())),
     };

@@ -1,5 +1,5 @@
-import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
+import type { WorkspacePreviewMode } from "../workspace/workspacePreviewMode";
 import { WorkspacePreviewPanel } from "../workspace/WorkspacePreviewPanel";
 
 type PreviewFocusRequest = { page: number; token: number } | null;
@@ -12,12 +12,9 @@ export function WorkspaceEditorPreviewPanel(props: {
   selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
-  selectedIsCode: boolean;
-  selectedCodeLanguage?: CodeLanguageInfo;
-  selectedCodeLanguageTag?: string;
   editorContent: string;
   compiledPdfUrl: string | null;
-  previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
+  previewMode: WorkspacePreviewMode;
   previewPdfUrl: string | null;
   previewPdfFallbackRelativePath: string | null;
   imagePreviewUrl: string | null;
@@ -33,6 +30,7 @@ export function WorkspaceEditorPreviewPanel(props: {
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
   previewFocusRequest: PreviewFocusRequest;
+  terminalVisible: boolean;
   t: (key: any) => string;
 }) {
   return (
@@ -44,9 +42,6 @@ export function WorkspaceEditorPreviewPanel(props: {
       selectedIsImage={props.selectedIsImage}
       selectedIsSvg={props.selectedIsSvg}
       selectedIsTabular={props.selectedIsTabular}
-      selectedIsCode={props.selectedIsCode}
-      selectedCodeLanguage={props.selectedCodeLanguage}
-      selectedCodeLanguageTag={props.selectedCodeLanguageTag}
       editorContent={props.editorContent}
       compiledPdfUrl={props.compiledPdfUrl}
       previewMode={props.previewMode}
@@ -65,6 +60,7 @@ export function WorkspaceEditorPreviewPanel(props: {
       onZoomReset={props.onZoomReset}
       onPreviewZoomChange={props.onPreviewZoomChange}
       previewFocusRequest={props.previewFocusRequest}
+      terminalVisible={props.terminalVisible}
       t={props.t}
     />
   );

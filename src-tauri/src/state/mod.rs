@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStdin};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Condvar, Mutex};
 use tauri::{AppHandle, Manager};
@@ -78,6 +79,24 @@ pub struct LatexCompileTask {
 }
 
 #[derive(Clone)]
+pub struct TerminalOutputChunk {
+    pub seq: u64,
+    pub stream: String,
+    pub text: String,
+}
+
+pub struct TerminalSession {
+    pub cwd: String,
+    pub venv_path: Option<String>,
+    pub child: Mutex<Child>,
+    pub stdin: Mutex<ChildStdin>,
+    pub output: Mutex<Vec<TerminalOutputChunk>>,
+    pub next_seq: AtomicU64,
+    pub status: Mutex<String>,
+    pub exit_code: Mutex<Option<i32>>,
+}
+
+#[derive(Clone)]
 pub struct AppState {
     pub app_name: String,
     pub runtime_root: PathBuf,
@@ -94,6 +113,7 @@ pub struct AppState {
     pub library_translate_tasks: Arc<Mutex<HashMap<String, LibraryTranslateTask>>>,
     pub analysis_env_prepare_tasks: Arc<Mutex<HashMap<String, AnalysisEnvPrepareTask>>>,
     pub latex_compile_tasks: Arc<Mutex<HashMap<String, LatexCompileTask>>>,
+    pub terminal_sessions: Arc<Mutex<HashMap<String, Arc<TerminalSession>>>>,
     pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
     pub agent_cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
@@ -155,6 +175,7 @@ impl AppState {
             library_translate_tasks: Arc::new(Mutex::new(HashMap::new())),
             analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
             latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),
+            terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };

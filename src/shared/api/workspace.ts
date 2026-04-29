@@ -6,6 +6,8 @@ import type {
   FsOperationInput,
   FsOperationResult,
   ResourceNode,
+  TerminalReadResponse,
+  TerminalStartResponse,
   WorkspaceExportAssetResponse,
   WorkspaceExportPdfResponse,
 } from "../types/app";
@@ -24,6 +26,40 @@ export function workspaceRevealInSystem(projectId: string, relativePath?: string
 export function workspaceOpenTerminal(projectId: string, relativePath?: string): Promise<Ack> {
   return invokeCommand<Ack>("workspace_open_terminal", {
     input: { projectId, relativePath },
+  });
+}
+
+export function terminalStart(
+  projectId: string,
+  relativePath?: string | null,
+  size?: { cols?: number; rows?: number },
+): Promise<TerminalStartResponse> {
+  return invokeCommand<TerminalStartResponse>("terminal_start", {
+    input: { projectId, relativePath, cols: size?.cols, rows: size?.rows },
+  });
+}
+
+export function terminalWrite(sessionId: string, data: string): Promise<Ack> {
+  return invokeCommand<Ack>("terminal_write", {
+    input: { sessionId, data },
+  });
+}
+
+export function terminalRead(sessionId: string, cursor?: number): Promise<TerminalReadResponse> {
+  return invokeCommand<TerminalReadResponse>("terminal_read", {
+    input: { sessionId, cursor },
+  });
+}
+
+export function terminalResize(sessionId: string, cols: number, rows: number): Promise<Ack> {
+  return invokeCommand<Ack>("terminal_resize", {
+    input: { sessionId, cols, rows },
+  });
+}
+
+export function terminalStop(sessionId: string): Promise<Ack> {
+  return invokeCommand<Ack>("terminal_stop", {
+    input: { sessionId },
   });
 }
 

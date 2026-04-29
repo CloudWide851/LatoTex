@@ -1,6 +1,7 @@
 export const zhCN_preview = {
   "preview.title": "预览",
   "preview.empty": "当前文件暂无可预览内容。",
+  "preview.unsupported": "此文件类型不需要预览。",
   "preview.markdownEmpty": "Markdown 文件为空。",
   "preview.textEmpty": "文本文件为空。",
   "preview.diagnostics": "诊断信息",

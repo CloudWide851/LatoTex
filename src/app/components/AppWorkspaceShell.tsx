@@ -1,17 +1,6 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { PageRail } from "./PageRail";
-import {
-  isCsvPath,
-  isCodePath,
-  isExcelPath,
-  isImagePath,
-  isMarkdownPath,
-  isPdfPath,
-  isPlainTextPath,
-  isSvgPath,
-  isTabularPath,
-} from "../../shared/utils/fileKind";
-import { resolveCodeLanguage, resolveCodeLanguageTag } from "../../shared/utils/codeLanguage";
+import { resolveCodeLanguage } from "../../shared/utils/codeLanguage";
 import {
   applyCjkAutoFixToSource,
   buildCompileAssistCjkDiagnostics,
@@ -31,6 +20,11 @@ import { buildNewChatTabState } from "./workspace/workspaceChatTab";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 import { createChatSessionInStore, loadChatStore, type ChatSessionOpenDetail } from "../hooks/chatSessionStore";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
+import {
+  resolveWorkspacePreviewFlags,
+  resolveWorkspacePreviewMode,
+  type WorkspacePreviewMode,
+} from "./workspace/workspacePreviewMode";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -158,6 +152,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const [chatTabOpen, setChatTabOpen] = useState(false);
   const [chatTabActive, setChatTabActive] = useState(false);
   const [chatTabTitle, setChatTabTitle] = useState<string | null>(null);
+  const [terminalVisible, setTerminalVisible] = useState(false);
 
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
 
@@ -221,43 +216,31 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   }, [page]);
 
   const previewSelectedPath = previewOverridePath || selectedFile;
-  const selectedIsPdf = isPdfPath(previewSelectedPath);
-  const selectedIsExcel = isExcelPath(previewSelectedPath);
-  const selectedIsImage = isImagePath(previewSelectedPath);
-  const selectedIsMarkdown = isMarkdownPath(previewSelectedPath);
-  const selectedIsSvg = isSvgPath(previewSelectedPath);
-  const selectedIsCsv = isCsvPath(previewSelectedPath);
-  const selectedIsTabular = isTabularPath(previewSelectedPath);
-  const selectedIsPlainText = isPlainTextPath(previewSelectedPath);
+  const previewFlags = useMemo(() => resolveWorkspacePreviewFlags(previewSelectedPath), [previewSelectedPath]);
+  const {
+    selectedIsPdf,
+    selectedIsExcel,
+    selectedIsImage,
+    selectedIsMarkdown,
+    selectedIsSvg,
+    selectedIsCsv,
+    selectedIsTabular,
+    selectedIsTex,
+  } = previewFlags;
   const selectedIsDraw = Boolean(selectedFile && /\.drawio$/i.test(selectedFile));
-  const selectedIsTex = Boolean(previewSelectedPath && /\.tex$/i.test(previewSelectedPath));
-  const selectedIsCode = !selectedIsDraw
-    && !selectedIsTex
-    && !selectedIsPlainText
-    && isCodePath(previewSelectedPath);
   const selectedCodeLanguage = useMemo(
     () => editorTabs.find((tab) => tab.path === previewSelectedPath)?.language ?? resolveCodeLanguage(previewSelectedPath),
     [editorTabs, previewSelectedPath],
   );
-  const selectedCodeLanguageTag = useMemo(
-    () => editorTabs.find((tab) => tab.path === previewSelectedPath)?.languageTag ?? resolveCodeLanguageTag(previewSelectedPath),
-    [editorTabs, previewSelectedPath],
-  );
-  const previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty" = selectedIsImage
-    ? (selectedImagePreviewUrl ? "image" : "empty")
-    : selectedIsPdf
-      ? (selectedFilePdfUrl ? "pdf" : "empty")
-      : selectedIsTabular
-        ? "empty"
-        : selectedIsSvg
-          ? "svg"
-          : selectedIsMarkdown
-            ? "markdown"
-            : selectedIsCode
-              ? "code"
-              : compiledPdfUrl && (!previewSelectedPath || selectedIsTex || preferCompiledPreview)
-                ? "pdf"
-                : "empty";
+  const previewMode: WorkspacePreviewMode = resolveWorkspacePreviewMode({
+    flags: previewFlags,
+    selectedImagePreviewUrl,
+    selectedFilePdfUrl,
+    compiledPdfUrl,
+    previewSelectedPath,
+    preferCompiledPreview,
+    terminalVisible,
+  });
   const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
   const previewPdfFallbackRelativePath = previewMode === "pdf"
     ? (selectedIsPdf ? previewSelectedPath : compiledPdfRelativePath)
@@ -397,9 +380,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedIsImage={selectedIsImage}
       selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}
-      selectedIsCode={selectedIsCode}
-      selectedCodeLanguage={selectedCodeLanguage}
-      selectedCodeLanguageTag={selectedCodeLanguageTag}
       editorContent={editorContent}
       compiledPdfUrl={compiledPdfUrl}
       previewMode={previewMode}
@@ -418,6 +398,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
       previewFocusRequest={previewFocusRequest}
+      terminalVisible={terminalVisible}
       t={t}
     />
   );
@@ -491,6 +472,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         compileAssistDiagnostics={compileAssistDiagnostics}
         compileAssistHint={compileAssistHint}
         compileAssistAutoFixBusy={compileAssistAutoFixBusy}
+        terminalVisible={terminalVisible}
+        onTerminalToggle={() => setTerminalVisible((prev) => !prev)}
         onShareModeChange={onShareModeChange}
         onShareSessionNameChange={onShareSessionNameChange}
         onShareStart={onShareStart}

@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { PenTool, Play, Redo2, Save, Undo2 } from "lucide-react";
+import { PenTool, Play, Redo2, Save, Terminal, Undo2 } from "lucide-react";
 import { AgentProposalMiniBar } from "./AgentProposalMiniBar";
 import { CompileAssistPopover } from "./CompileAssistPopover";
 import { EditorTabsBar } from "./EditorTabsBar";
@@ -80,6 +80,8 @@ export function LatexWorkspaceEditorPanel(props: {
   compileAssistDiagnostics: string[];
   compileAssistHint: string;
   compileAssistAutoFixBusy: boolean;
+  terminalVisible: boolean;
+  onTerminalToggle: () => void;
   onShareModeChange: (mode: any) => void;
   onShareSessionNameChange: (name: string) => void;
   onShareStart: () => void;
@@ -156,6 +158,8 @@ export function LatexWorkspaceEditorPanel(props: {
     compileAssistDiagnostics,
     compileAssistHint,
     compileAssistAutoFixBusy,
+    terminalVisible,
+    onTerminalToggle,
     onShareModeChange,
     onShareSessionNameChange,
     onShareStart,
@@ -194,7 +198,7 @@ export function LatexWorkspaceEditorPanel(props: {
     t,
   } = props;
   const [editorTheme, setEditorTheme] = useState(getEditorSurfaceThemeName);
-  const [monacoOverflowWidgetRoot, setMonacoOverflowWidgetRoot] = useState<HTMLElement | null>(null);
+  const [monacoOverflowWidgetRoot, setMonacoOverflowWidgetRoot] = useState<HTMLElement | null>(() => ensureMonacoOverflowWidgetRoot());
   const editorInstanceRef = useRef<any | null>(null);
   const agentCommandItems = buildAgentCommandItems(t);
   const editorLanguage = selectedCodeLanguage.monaco;
@@ -260,7 +264,7 @@ export function LatexWorkspaceEditorPanel(props: {
     <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
         <div className="panel-topbar flex w-full min-w-0 flex-wrap items-start gap-2">
-          <div className="editor-toolbar-surface-group flex min-w-0 flex-1 flex-wrap items-center gap-2 overflow-visible">
+          <div className="editor-toolbar-surface-group flex min-w-[180px] flex-[1_1_260px] flex-wrap items-center gap-2 overflow-visible">
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}
@@ -283,7 +287,7 @@ export function LatexWorkspaceEditorPanel(props: {
               t={t}
             />
           </div>
-          <div className="editor-toolbar-action-group ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+          <div className="editor-toolbar-action-group flex min-w-[160px] flex-[1_1_220px] flex-wrap items-center justify-end gap-2">
             <button
               className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
               onClick={onEditorUndo}
@@ -310,6 +314,15 @@ export function LatexWorkspaceEditorPanel(props: {
               aria-label={composeTitleWithShortcut(t("workspace.save"), t("shortcut.save"))}
             >
               <Save className="h-4 w-4" />
+            </button>
+            <button
+              className={`panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50 ${terminalVisible ? "editor-tab--active" : ""}`}
+              onClick={onTerminalToggle}
+              disabled={busy}
+              title={t("terminal.title")}
+              aria-label={t("terminal.title")}
+            >
+              <Terminal className="h-4 w-4" />
             </button>
             <div className="relative">
               {selectedIsDraw ? (
@@ -419,6 +432,16 @@ export function LatexWorkspaceEditorPanel(props: {
             onChange={(value) => onEditorChange(value ?? "")}
             onMount={(editor, monaco) => {
               editorInstanceRef.current = editor;
+              let overflowRefreshFrame: number | null = null;
+              const refreshOverflowWidgets = () => {
+                if (overflowRefreshFrame != null || typeof window === "undefined") {
+                  return;
+                }
+                overflowRefreshFrame = window.requestAnimationFrame(() => {
+                  overflowRefreshFrame = null;
+                  editor.render?.(true);
+                });
+              };
               ensureLatexCompletionProvider(monaco);
               editor.addCommand(
                 monaco.KeyCode.Tab,
@@ -432,6 +455,20 @@ export function LatexWorkspaceEditorPanel(props: {
               );
               editor.updateOptions(editorOptions);
               editor.layout();
+              const disposables = [
+                editor.onDidChangeCursorPosition(refreshOverflowWidgets),
+                editor.onDidScrollChange(refreshOverflowWidgets),
+                editor.onDidLayoutChange(refreshOverflowWidgets),
+              ];
+              editor.onDidDispose(() => {
+                if (overflowRefreshFrame != null && typeof window !== "undefined") {
+                  window.cancelAnimationFrame(overflowRefreshFrame);
+                }
+                disposables.forEach((disposable) => disposable.dispose());
+                if (editorInstanceRef.current === editor) {
+                  editorInstanceRef.current = null;
+                }
+              });
               onEditorMount(editor, monaco);
             }}
             options={editorOptions}

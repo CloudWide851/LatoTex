@@ -54,6 +54,9 @@ use commands::swarm::{
     agent_execute_cancel, agent_execute_start, agent_mcp_validate, events_subscribe,
     latex_compile_record,
 };
+use commands::terminal::{
+    terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
+};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -240,6 +243,11 @@ pub fn run() {
             analysis_env_prepare_status,
             analysis_env_status,
             analysis_run_python,
+            terminal_start,
+            terminal_write,
+            terminal_read,
+            terminal_resize,
+            terminal_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

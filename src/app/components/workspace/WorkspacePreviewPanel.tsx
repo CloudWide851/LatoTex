@@ -1,9 +1,10 @@
-import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import { AlertTriangle, Download, ListChecks, Minus, Plus, RotateCcw } from "lucide-react";
 import { FilePreviewPane } from "../FilePreviewPane";
 import { TablePreviewPane } from "../table/TablePreviewPane";
+import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import { shouldDisplayCompileProgress } from "../../hooks/compileWorkflowShared";
+import type { WorkspacePreviewMode } from "./workspacePreviewMode";
 
 type TranslationFn = (key: any) => string;
 type LogTab = "events" | "status";
@@ -16,12 +17,9 @@ export function WorkspacePreviewPanel(props: {
   selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
-  selectedIsCode: boolean;
-  selectedCodeLanguage?: CodeLanguageInfo;
-  selectedCodeLanguageTag?: string;
   editorContent: string;
   compiledPdfUrl: string | null;
-  previewMode: "pdf" | "image" | "markdown" | "svg" | "code" | "empty";
+  previewMode: WorkspacePreviewMode;
   previewPdfUrl: string | null;
   previewPdfFallbackRelativePath: string | null;
   imagePreviewUrl: string | null;
@@ -37,6 +35,7 @@ export function WorkspacePreviewPanel(props: {
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
   previewFocusRequest: { page: number; token: number } | null;
+  terminalVisible: boolean;
   t: TranslationFn;
 }) {
   const {
@@ -47,9 +46,6 @@ export function WorkspacePreviewPanel(props: {
     selectedIsImage,
     selectedIsSvg,
     selectedIsTabular,
-    selectedIsCode,
-    selectedCodeLanguage,
-    selectedCodeLanguageTag,
     editorContent,
     compiledPdfUrl,
     previewMode,
@@ -68,6 +64,7 @@ export function WorkspacePreviewPanel(props: {
     onZoomReset,
     onPreviewZoomChange,
     previewFocusRequest,
+    terminalVisible,
     t,
   } = props;
 
@@ -96,7 +93,7 @@ export function WorkspacePreviewPanel(props: {
           >
             <AlertTriangle className="h-3.5 w-3.5" />
           </button>
-          {!selectedIsTabular ? (
+          {!selectedIsTabular && previewMode !== "terminal" ? (
             <>
               <button
                 className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
@@ -165,7 +162,14 @@ export function WorkspacePreviewPanel(props: {
         data-testid="workspace-preview-content"
         className="min-h-0 flex-1"
       >
-        {selectedIsTabular ? (
+        {previewMode === "terminal" ? (
+          <WorkspaceTerminalPanel
+            activeProjectId={activeProjectId}
+            selectedFile={selectedFile}
+            active={terminalVisible}
+            t={t}
+          />
+        ) : selectedIsTabular ? (
           <TablePreviewPane
             projectId={activeProjectId}
             selectedPath={selectedFile}
@@ -180,12 +184,9 @@ export function WorkspacePreviewPanel(props: {
             imageUrl={imagePreviewUrl ?? null}
             markdownContent={selectedIsMarkdown ? editorContent : ""}
             svgContent={selectedIsSvg ? editorContent : ""}
-            codeContent={selectedIsCode ? editorContent : ""}
             selectedPath={selectedFile}
-            codeLanguage={selectedCodeLanguage}
-            codeLanguageTag={selectedCodeLanguageTag}
             title={t("preview.title")}
-            emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage || selectedIsCode ? t("preview.textEmpty") : t("preview.empty")}
+            emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage ? t("preview.textEmpty") : t("preview.unsupported")}
             pdfZoom={previewZoom}
             onPdfZoomChange={onPreviewZoomChange}
             pdfFallbackProjectId={activeProjectId}
