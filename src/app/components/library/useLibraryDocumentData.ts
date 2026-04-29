@@ -64,6 +64,10 @@ type DocumentCacheEntry = {
 
 const documentCache = new Map<string, DocumentCacheEntry>();
 
+export function clearLibraryDocumentDataCache() {
+  documentCache.clear();
+}
+
 function documentCacheKey(projectId: string, selectedPath: string): string {
   return `${projectId}::${selectedPath}`;
 }

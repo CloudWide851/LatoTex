@@ -63,7 +63,7 @@ export function WorkspaceExplorerPanel(props: {
           <RefreshCcw className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="hide-scrollbar h-[calc(100%-24px)] overflow-auto pr-1">
+      <div className="library-scrollbar h-[calc(100%-24px)] overflow-auto pr-1">
         {activeProjectId ? (
           <ExplorerTree
             tree={tree}

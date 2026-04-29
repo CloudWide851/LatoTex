@@ -70,7 +70,15 @@ export function useWorkbenchRuntimeEffects(params: {
     isTauriRuntime,
     setEvents: s.setEvents,
     suspended: runtime.idleSleep.sleeping,
-    onCriticalMemory: () => runtime.handleOutOfMemorySleep("memory_guard", "runtime memory critical"),
+    prefs: s.settings?.uiPrefs?.memoryGuardPrefs ?? null,
+    onHighMemory: () => runtime.releaseRuntimeMemory(),
+    onCriticalMemory: (action) => {
+      if (action === "release") {
+        runtime.releaseRuntimeMemory();
+        return;
+      }
+      runtime.handleOutOfMemorySleep("memory_guard", "runtime memory critical");
+    },
   });
 
   useEditorDirtySyncEffect({

@@ -58,6 +58,7 @@ export function useAppPanelNodes(params: any) {
     handleTestModel,
     handleTestAllModels,
     setSettings,
+    releaseRuntimeMemory,
     analysisWorkspace,
     gitStatusState,
     gitBranchesState,
@@ -324,6 +325,7 @@ export function useAppPanelNodes(params: any) {
       }}
       onTestModel={(modelId) => void handleTestModel(modelId)}
       onTestAllModels={() => void handleTestAllModels()}
+      onReleaseMemory={releaseRuntimeMemory}
       setSettings={setSettings}
         t={t}
       />

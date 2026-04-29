@@ -369,6 +369,7 @@ export function AppContainer() {
     handleTestModel: workspaceActions.handleTestModel,
     handleTestAllModels: workspaceActions.handleTestAllModels,
     setSettings: s.setSettings,
+    releaseRuntimeMemory: runtime.releaseRuntimeMemory,
     analysisWorkspace,
     gitStatusState: s.gitStatusState,
     gitBranchesState: s.gitBranchesState,

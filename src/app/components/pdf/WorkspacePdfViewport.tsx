@@ -92,8 +92,8 @@ export function WorkspacePdfViewport(props: {
       onScrollAnchorChange={setScrollAnchor}
       initialScrollRatio={scrollRatio}
       onScrollRatioChange={setScrollRatio}
-      containerClassName="relative h-full min-h-0 overflow-x-auto overflow-y-scroll rounded-lg border border-slate-200 bg-slate-50"
-      documentClassName="mx-auto flex w-max min-w-full flex-col gap-3 p-3"
+      containerClassName="library-scrollbar relative h-full min-h-0 overflow-x-auto overflow-y-scroll rounded-lg border border-slate-200 bg-slate-50"
+      documentClassName="mx-auto flex w-max min-w-full flex-col [gap:var(--app-pdf-page-gap)] p-3"
       onDocumentLoadError={() => {
         void tryFallbackToBlob();
       }}

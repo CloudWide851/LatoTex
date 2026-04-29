@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use super::swarm_events::{emit_stage_event, emit_tool_event, EventMetadata};
+use crate::commands::native_runtime::configure_hidden_process;
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
@@ -49,6 +50,7 @@ fn configured_server(
 
 fn run_json_rpc_probe(server: &McpServerConfig) -> Result<String, String> {
     let mut command = Command::new(server.command.trim());
+    configure_hidden_process(&mut command);
     for arg in server.args.clone().unwrap_or_default() {
         command.arg(arg);
     }

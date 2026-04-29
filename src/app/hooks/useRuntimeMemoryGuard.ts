@@ -14,19 +14,29 @@ export function useRuntimeMemoryGuard(params: {
   isTauriRuntime: boolean;
   setEvents: React.Dispatch<React.SetStateAction<SwarmEvent[]>>;
   suspended?: boolean;
-  onCriticalMemory?: () => void;
+  prefs?: {
+    enabled?: boolean;
+    highWatermarkMb?: number;
+    criticalWatermarkMb?: number;
+    sampleIntervalSec?: number;
+    criticalAction?: "release" | "sleep";
+  } | null;
+  onHighMemory?: () => void;
+  onCriticalMemory?: (action: "release" | "sleep") => void;
 }) {
   const {
     isTauriRuntime,
     setEvents,
     suspended = false,
+    prefs,
+    onHighMemory,
     onCriticalMemory,
   } = params;
   const levelRef = useRef<MemoryLevel>("normal");
   const lastLoggedAtRef = useRef(0);
 
   useEffect(() => {
-    if (!isTauriRuntime || suspended) {
+    if (!isTauriRuntime || suspended || prefs?.enabled === false) {
       return;
     }
     let cancelled = false;
@@ -68,9 +78,11 @@ export function useRuntimeMemoryGuard(params: {
           : null;
         const webviewCount = snapshot.webviewProcessCount ?? null;
 
-        const nextLevel: MemoryLevel = rssMb >= CRITICAL_WATERMARK_MB
+        const highWatermarkMb = prefs?.highWatermarkMb ?? HIGH_WATERMARK_MB;
+        const criticalWatermarkMb = prefs?.criticalWatermarkMb ?? CRITICAL_WATERMARK_MB;
+        const nextLevel: MemoryLevel = rssMb >= criticalWatermarkMb
           ? "critical"
-          : rssMb >= HIGH_WATERMARK_MB
+          : rssMb >= highWatermarkMb
             ? "high"
             : "normal";
 
@@ -85,7 +97,7 @@ export function useRuntimeMemoryGuard(params: {
             `runtime memory critical: rss=${rssMb}MB, private=${privateMb ?? "-"}MB, webview=${webviewMb ?? "-"}MB, webviewProcesses=${webviewCount ?? "-"}`,
           );
           if (levelRef.current !== "critical") {
-            onCriticalMemory?.();
+            onCriticalMemory?.(prefs?.criticalAction ?? "sleep");
           }
         } else if (nextLevel === "high") {
           setEvents((prev) => trimEventsForMemoryPressure(prev, {
@@ -93,6 +105,7 @@ export function useRuntimeMemoryGuard(params: {
             minEvents: 72,
             maxBytes: 180_000,
           }));
+          onHighMemory?.();
           if (levelRef.current === "normal") {
             await logWithCooldown(
               "WARN",
@@ -111,7 +124,8 @@ export function useRuntimeMemoryGuard(params: {
         // ignore guard sampling failure
       } finally {
         const hidden = typeof document !== "undefined" && document.hidden;
-        const intervalMs = hidden ? 60_000 : 25_000;
+        const configuredIntervalMs = Math.max(10, Math.min(180, prefs?.sampleIntervalSec ?? 25)) * 1000;
+        const intervalMs = hidden ? Math.max(60_000, configuredIntervalMs) : configuredIntervalMs;
         schedule(intervalMs);
       }
     };
@@ -123,6 +137,6 @@ export function useRuntimeMemoryGuard(params: {
         clearTimeout(timer);
       }
     };
-  }, [isTauriRuntime, onCriticalMemory, setEvents, suspended]);
+  }, [isTauriRuntime, onCriticalMemory, onHighMemory, prefs, setEvents, suspended]);
 }
 

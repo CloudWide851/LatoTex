@@ -242,9 +242,9 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   const pdfPaneLoading = loading || pdfPreviewLoading || pdfObjectUrlLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
   const pdfViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
-  const pdfViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 p-0 pr-3 pb-3";
+  const pdfViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col [gap:var(--app-pdf-page-gap)] p-0 pr-3 pb-3";
   const compareViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
-  const compareViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 px-2 py-0 pr-3 pb-3";
+  const compareViewerDocumentClassName = "mx-auto flex w-max min-w-full flex-col [gap:var(--app-pdf-page-gap)] px-2 py-0 pr-3 pb-3";
 
   useElementScrollRatio({
     node: viewMode === "bib" ? bibContainerRef.current : null,

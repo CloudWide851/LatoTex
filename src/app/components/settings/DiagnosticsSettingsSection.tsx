@@ -254,7 +254,7 @@ export function DiagnosticsSettingsSection(props: {
 
       <div
         ref={consoleRef}
-        className="h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-[#05080f] p-3"
+        className="library-scrollbar h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-[#05080f] p-3"
         onScroll={(event) => {
           const node = event.currentTarget;
           const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
@@ -266,7 +266,7 @@ export function DiagnosticsSettingsSection(props: {
         ) : filteredRuntimeLogs.length === 0 ? (
           <div className="font-mono text-slate-500">{t("settings.logViewerEmpty")}</div>
         ) : (
-          <div className="space-y-1 font-mono text-[11px] leading-5">
+          <div className="space-y-1 font-mono text-[length:var(--app-log-font-size)] leading-5">
             {filteredRuntimeLogs.map((entry, index) => {
               const tone = resolveRuntimeLogTone(entry);
               const label = normalizeLogLevel(entry.level, entry.message || entry.raw);

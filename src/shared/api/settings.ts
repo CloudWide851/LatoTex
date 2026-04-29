@@ -53,6 +53,26 @@ export function updateSettings(input: {
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
+    interfaceDensity?: "compact" | "comfortable" | "spacious";
+    accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
+    accentCustomColor?: string;
+    scrollbarWidthPx?: number;
+    scrollbarThumbColor?: string;
+    scrollbarTrackColor?: string;
+    glassOpacity?: number;
+    glassBlurPx?: number;
+    motionLevel?: "full" | "reduced" | "none";
+    pdfPageGapPx?: number;
+    logFontSizePx?: number;
+    panelRadiusPx?: number;
+    panelBorderContrast?: "soft" | "normal" | "strong";
+    memoryGuardPrefs?: {
+      enabled?: boolean;
+      highWatermarkMb?: number;
+      criticalWatermarkMb?: number;
+      sampleIntervalSec?: number;
+      criticalAction?: "release" | "sleep";
+    };
     analysisEnvRootsByProject?: Record<string, string>;
     librarySelectedPathByProject?: Record<string, string>;
     libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;

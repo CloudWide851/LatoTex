@@ -1,9 +1,8 @@
-import { Bot, Globe, Languages, MoonStar, Palette, Plus, Settings2, Sun, SunMoon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Plus } from "lucide-react";
+import { useCallback } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
-import { Select } from "../../components/ui/select";
 import type {
   AppSettings,
   ModelCatalogItem,
@@ -15,47 +14,22 @@ import type {
 import {
   DEFAULT_PANEL_LAYOUT,
   DEFAULT_PROTOCOLS,
+  SETTINGS_SECTIONS,
   type SettingsSection,
   type ThemeMode,
 } from "../app-config";
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
-import { BackgroundImageCard } from "./settings/BackgroundImageCard";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
-import { AgentToolsSettingsSection } from "./settings/AgentToolsSettingsSection";
+import { AgentToolsSettingsSection, McpSettingsSection, SkillsSettingsSection } from "./settings/AgentToolsSettingsSection";
+import { AgentRoutingSettingsSection } from "./settings/AgentRoutingSettingsSection";
+import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
 import { ExplorerDefaultsSection } from "./settings/ExplorerDefaultsSection";
+import { MemoryGuardSettingsSection } from "./settings/MemoryGuardSettingsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { SettingsSelectRow } from "./settings/SettingsSelectRow";
 
 type TranslationFn = (key: any) => string;
-
-const SETTINGS_SECTIONS: Array<{
-  id: SettingsSection;
-  key:
-    | "settings.section.general"
-    | "settings.section.appearance"
-    | "settings.section.models"
-    | "settings.section.agents"
-    | "settings.section.channels"
-    | "settings.section.diagnostics";
-  icon: typeof Languages;
-}> = [
-  { id: "general", key: "settings.section.general", icon: Languages },
-  { id: "appearance", key: "settings.section.appearance", icon: Palette },
-  { id: "models", key: "settings.section.models", icon: Globe },
-  { id: "agents", key: "settings.section.agents", icon: Bot },
-  { id: "channels", key: "settings.section.channels", icon: Globe },
-  { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
-];
-const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
-const FEATURE_MODEL_BINDING_KEYS = [
-  "latexAgentModelId",
-  "analysisAgentModelId",
-  "gitSummaryModelId",
-  "chatAgentModelId",
-  "translationModelId",
-  "completionModelId",
-] as const;
 
 export function SettingsPanel(props: {
   settings: AppSettings | null;
@@ -86,6 +60,7 @@ export function SettingsPanel(props: {
   onClearCurrentLog: () => Promise<void>;
   onTestModel: (modelId: string) => void;
   onTestAllModels: () => void;
+  onReleaseMemory?: () => void;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
   t: TranslationFn;
 }) {
@@ -114,6 +89,7 @@ export function SettingsPanel(props: {
     onClearCurrentLog,
     onTestModel,
     onTestAllModels,
+    onReleaseMemory,
     setSettings,
     t,
   } = props;
@@ -131,13 +107,30 @@ export function SettingsPanel(props: {
       panelLayout: DEFAULT_PANEL_LAYOUT,
       backgroundImagePaths: [],
       backgroundBlurPx: 18,
+      interfaceDensity: "comfortable",
+      accentColor: "emerald",
+      accentCustomColor: "",
+      scrollbarWidthPx: 14,
+      glassOpacity: 0.78,
+      glassBlurPx: 18,
+      motionLevel: "full",
+      pdfPageGapPx: 12,
+      logFontSizePx: 12,
+      panelRadiusPx: 8,
+      panelBorderContrast: "normal",
+      memoryGuardPrefs: {
+        enabled: true,
+        highWatermarkMb: 560,
+        criticalWatermarkMb: 760,
+        sampleIntervalSec: 25,
+        criticalAction: "sleep",
+      },
     },
   };
 
   const deleteConfirmEnabled = !(localSettings.uiPrefs?.skipDeleteConfirm ?? false);
   const closeToTrayNoticeEnabled = localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true;
   const paperBriefEngine = localSettings.uiPrefs?.paperBriefEngine ?? "auto";
-  const [bulkModelId, setBulkModelId] = useState("");
 
   const updateGeneralUiPrefs = useCallback((patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -153,15 +146,6 @@ export function SettingsPanel(props: {
       };
     });
   }, [locale, localSettings, setSettings]);
-
-  useEffect(() => {
-    if (!bulkModelId) {
-      return;
-    }
-    if (!activeModelCatalog.some((model) => model.id === bulkModelId)) {
-      setBulkModelId("");
-    }
-  }, [activeModelCatalog, bulkModelId]);
 
   return (
     <div className="relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
@@ -193,7 +177,7 @@ export function SettingsPanel(props: {
           "min-h-0 p-3",
           settingsSection === "diagnostics"
             ? "grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
-            : "overflow-auto",
+            : "library-scrollbar overflow-auto",
         )}
       >
         <div className="mb-3 border-b border-slate-200 pb-3">
@@ -253,80 +237,24 @@ export function SettingsPanel(props: {
                 updateGeneralUiPrefs({ closeToTrayNoticeEnabled: nextValue })
               }
             />
+            <MemoryGuardSettingsSection
+              settings={localSettings}
+              setSettings={setSettings}
+              onReleaseMemory={onReleaseMemory}
+              t={t}
+            />
             <ExplorerDefaultsSection settings={localSettings} setSettings={setSettings} t={t} />
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
           </div>
         )}
 
         {settingsSection === "appearance" && (
-          <div className="grid gap-3">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-800">
-                {t("settings.themeTitle")}
-              </h3>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {[
-                  { id: "light" as const, key: "settings.theme.light" as const, icon: Sun },
-                  { id: "dark" as const, key: "settings.theme.dark" as const, icon: MoonStar },
-                  { id: "system" as const, key: "settings.theme.system" as const, icon: SunMoon },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const selected = (localSettings.uiPrefs?.theme ?? "system") === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      className={cn(
-                        "flex h-11 items-center justify-center gap-2 rounded-md border text-sm transition",
-                        selected
-                          ? "border-primary-600 bg-primary-600 text-white"
-                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
-                      )}
-                      onClick={(event) =>
-                        onThemeModeChange(item.id, {
-                          clientX: event.clientX,
-                          clientY: event.clientY,
-                        })
-                      }
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{t(item.key)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-800">
-                {t("settings.previewZoomTitle")}
-              </h3>
-              <div className="grid max-w-xs gap-2">
-                <Select
-                  value={String(localSettings.uiPrefs?.previewDefaultZoom ?? 1)}
-                  onChange={(event) =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            uiPrefs: {
-                              ...(prev.uiPrefs ?? {}),
-                              previewDefaultZoom: Number(event.target.value),
-                            },
-                          }
-                        : prev,
-                    )
-                  }
-                >
-                  {PREVIEW_ZOOM_OPTIONS.map((value) => (
-                    <option key={value} value={String(value)}>
-                      {`${Math.round(value * 100)}%`}
-                    </option>
-                  ))}
-                </Select>
-                <p className="text-xs text-slate-500">{t("settings.previewZoomHint")}</p>
-              </div>
-            </div>
-            <BackgroundImageCard settings={localSettings} setSettings={setSettings} t={t} />
-          </div>
+          <AppearanceSettingsSection
+            settings={localSettings}
+            setSettings={setSettings}
+            onThemeModeChange={onThemeModeChange}
+            t={t}
+          />
         )}
 
         {settingsSection === "models" && (
@@ -351,7 +279,7 @@ export function SettingsPanel(props: {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="max-h-[42vh] space-y-2 overflow-auto pr-1">
+              <div className="library-scrollbar max-h-[42vh] space-y-2 overflow-auto pr-1">
                 {localSettings.modelCatalog.map((model) => {
                   const protocol = localSettings.modelProtocols.find(
                     (item) => item.id === model.protocolId,
@@ -421,121 +349,24 @@ export function SettingsPanel(props: {
         )}
 
         {settingsSection === "agents" && (
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500">{t("settings.agentHint")}</p>
-            <AgentToolsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
-            <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
-              <span className="text-xs font-semibold text-slate-700">
-                {t("settings.agentBulkApplyLabel")}
-              </span>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="min-w-[220px] flex-1">
-                  <Select
-                    value={bulkModelId}
-                    onChange={(event) => setBulkModelId(event.target.value)}
-                  >
-                    <option value="">{t("settings.noModelAssigned")}</option>
-                    {activeModelCatalog.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.displayName} ({model.requestName || "-"})
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={!bulkModelId}
-                  onClick={() =>
-                    setSettings((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            uiPrefs: {
-                              ...(prev.uiPrefs ?? {}),
-                              featureModelBindings: FEATURE_MODEL_BINDING_KEYS.reduce(
-                                (bindings, key) => ({
-                                  ...bindings,
-                                  [key]: bulkModelId,
-                                }),
-                                { ...(prev.uiPrefs?.featureModelBindings ?? {}) },
-                              ),
-                            },
-                          }
-                        : prev
-                    )
-                  }
-                >
-                  {t("settings.agentBulkApplyAction")}
-                </Button>
-              </div>
-            </div>
-            {[
-              {
-                key: "latexAgentModelId",
-                label: t("settings.featureModel.latexAgent"),
-              },
-              {
-                key: "analysisAgentModelId",
-                label: t("settings.featureModel.analysisAgent"),
-              },
-              {
-                key: "gitSummaryModelId",
-                label: t("settings.featureModel.gitSummary"),
-              },
-              {
-                key: "chatAgentModelId",
-                label: t("settings.featureModel.chatAgent"),
-              },
-              {
-                key: "translationModelId",
-                label: t("settings.featureModel.translation"),
-              },
-              {
-                key: "completionModelId",
-                label: t("settings.featureModel.completion"),
-              },
-            ].map((item) => {
-              const featureBindings = localSettings.uiPrefs?.featureModelBindings ?? {};
-              const currentValue = (featureBindings as Record<string, string | undefined>)[item.key] ?? "";
-              return (
-                <div
-                  className="grid grid-cols-[180px_minmax(220px,1fr)] items-center gap-2 rounded-lg border border-slate-200 p-2 max-[980px]:grid-cols-1"
-                  key={item.key}
-                >
-                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
-                    {item.label}
-                  </span>
-                  <Select
-                    value={currentValue}
-                    onChange={(event) =>
-                      setSettings((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              uiPrefs: {
-                                ...(prev.uiPrefs ?? {}),
-                                featureModelBindings: {
-                                  ...(prev.uiPrefs?.featureModelBindings ?? {}),
-                                  [item.key]: event.target.value,
-                                },
-                              },
-                            }
-                          : prev,
-                      )
-                    }
-                  >
-                    <option value="">{t("settings.noModelAssigned")}</option>
-                    {activeModelCatalog.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.displayName} ({model.requestName || "-"})
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              );
-            })}
-          </div>
+          <AgentRoutingSettingsSection
+            settings={localSettings}
+            activeModelCatalog={activeModelCatalog}
+            setSettings={setSettings}
+            t={t}
+          />
+        )}
+
+        {settingsSection === "agent-tools" && (
+          <AgentToolsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+        )}
+
+        {settingsSection === "mcp" && (
+          <McpSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+        )}
+
+        {settingsSection === "skills" && (
+          <SkillsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
         )}
 
         {settingsSection === "channels" && (

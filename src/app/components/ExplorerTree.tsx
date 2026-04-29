@@ -469,7 +469,7 @@ export function ExplorerTree(props: {
       }}
     >
       <div
-        className="hide-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-2"
+        className="library-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-2"
         onDoubleClick={(event) => {
           if (mode !== "workspace" || editing) {
             return;

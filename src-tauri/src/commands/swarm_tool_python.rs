@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::swarm_events::{emit_stage_event, emit_tool_event, EventMetadata};
+use crate::commands::native_runtime::configure_hidden_process;
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
@@ -13,7 +14,9 @@ fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
 
 fn python_version() -> String {
     for command_name in ["python", "py"] {
-        let output = Command::new(command_name).arg("--version").output();
+        let mut command = Command::new(command_name);
+        configure_hidden_process(&mut command);
+        let output = command.arg("--version").output();
         if let Ok(output) = output {
             let text = String::from_utf8_lossy(if output.stdout.is_empty() {
                 &output.stderr

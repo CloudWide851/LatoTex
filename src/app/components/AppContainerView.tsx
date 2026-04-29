@@ -11,6 +11,14 @@ const AppWorkspaceShell = lazy(async () => {
   return { default: module.AppWorkspaceShell };
 });
 
+const ACCENT_COLORS: Record<string, string> = {
+  emerald: "#22c55e",
+  blue: "#3b82f6",
+  violet: "#8b5cf6",
+  rose: "#f43f5e",
+  amber: "#f59e0b",
+};
+
 export function AppContainerView(props: any) {
   const {
     status,
@@ -226,15 +234,42 @@ export function AppContainerView(props: any) {
   const backgroundUrl = useBackgroundImageObjectUrl(backgroundPath);
   const rawBlur = Number(settings?.uiPrefs?.backgroundBlurPx ?? 18);
   const backgroundBlurPx = Number.isFinite(rawBlur) ? Math.max(4, Math.min(32, rawBlur)) : 18;
-  const appBackgroundStyle = backgroundUrl
-    ? ({
-        backgroundImage: `url("${backgroundUrl}")`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        ["--wallpaper-blur" as string]: `${backgroundBlurPx}px`,
-      } as CSSProperties)
-    : undefined;
+  const accentChoice = String(settings?.uiPrefs?.accentColor ?? "emerald");
+  const accentColor = accentChoice === "custom"
+    ? String(settings?.uiPrefs?.accentCustomColor || ACCENT_COLORS.emerald)
+    : ACCENT_COLORS[accentChoice] ?? ACCENT_COLORS.emerald;
+  const scrollbarThumbColor = String(settings?.uiPrefs?.scrollbarThumbColor || accentColor);
+  const scrollbarTrackColor = String(settings?.uiPrefs?.scrollbarTrackColor || "");
+  const scrollbarWidth = Math.max(8, Math.min(18, Number(settings?.uiPrefs?.scrollbarWidthPx ?? 14)));
+  const appBackgroundStyle = {
+    ...(backgroundUrl
+      ? {
+          backgroundImage: `url("${backgroundUrl}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          ["--wallpaper-blur" as string]: `${backgroundBlurPx}px`,
+        }
+      : {}),
+    ["--app-accent" as string]: accentColor,
+    ["--control-primary-top" as string]: accentColor,
+    ["--control-primary-bottom" as string]: accentColor,
+    ["--control-primary-top-hover" as string]: accentColor,
+    ["--control-primary-bottom-hover" as string]: accentColor,
+    ["--control-primary-border" as string]: accentColor,
+    ["--library-scrollbar-thumb" as string]: scrollbarThumbColor,
+    ["--library-scrollbar-thumb-hover" as string]: accentColor,
+    ...(scrollbarTrackColor ? { ["--library-scrollbar-track" as string]: scrollbarTrackColor } : {}),
+    ["--app-scrollbar-size" as string]: `${scrollbarWidth}px`,
+    ["--app-glass-opacity" as string]: String(Math.max(0.55, Math.min(1, Number(settings?.uiPrefs?.glassOpacity ?? 0.78)))),
+    ["--app-glass-blur" as string]: `${Math.max(0, Math.min(32, Number(settings?.uiPrefs?.glassBlurPx ?? 18)))}px`,
+    ["--app-panel-radius" as string]: `${Math.max(4, Math.min(14, Number(settings?.uiPrefs?.panelRadiusPx ?? 8)))}px`,
+    ["--app-pdf-page-gap" as string]: `${Math.max(4, Math.min(28, Number(settings?.uiPrefs?.pdfPageGapPx ?? 12)))}px`,
+    ["--app-log-font-size" as string]: `${Math.max(10, Math.min(16, Number(settings?.uiPrefs?.logFontSizePx ?? 12)))}px`,
+  } as CSSProperties;
+  const densityClass = `app-density-${settings?.uiPrefs?.interfaceDensity ?? "comfortable"}`;
+  const motionClass = `app-motion-${settings?.uiPrefs?.motionLevel ?? "full"}`;
+  const borderClass = `app-border-${settings?.uiPrefs?.panelBorderContrast ?? "normal"}`;
 
   if (sleeping) {
     return <SleepWakeScreen logoMark={logoMark} t={t} onWake={onWakeFromSleep} />;
@@ -242,7 +277,7 @@ export function AppContainerView(props: any) {
 
   return (
     <div
-      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${backgroundUrl ? "wallpaper-enabled" : ""}`}
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${densityClass} ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
       style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">

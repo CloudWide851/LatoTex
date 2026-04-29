@@ -10,6 +10,16 @@ pub struct AgentToolPrefs {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct MemoryGuardPrefs {
+    pub enabled: Option<bool>,
+    pub high_watermark_mb: Option<u32>,
+    pub critical_watermark_mb: Option<u32>,
+    pub sample_interval_sec: Option<u32>,
+    pub critical_action: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct McpServerConfig {
     pub id: String,
     pub command: String,

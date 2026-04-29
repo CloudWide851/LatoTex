@@ -12,13 +12,11 @@ import { useLibraryPdfLayoutRefresh } from "./useLibraryPdfLayoutRefresh";
 ensureReactPdfWorker();
 export type { LibraryPdfScrollViewerHandle } from "./libraryPdfScrollViewerConfig";
 const ANNOTATION_REFERENCE_WIDTH = 1000;
-
 function isPdfViewerWheelTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && !target.closest(
     "[contenteditable='true'],[data-textbox-editing='true'],[data-textbox-menu='true']",
   );
 }
-
 export const LibraryPdfScrollViewer = forwardRef<
   LibraryPdfScrollViewerHandle,
   LibraryPdfScrollViewerProps
@@ -44,7 +42,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     syncId = "viewer",
     syncGroupRef,
     containerClassName = "library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded border border-slate-200 bg-slate-100",
-    documentClassName = "mx-auto flex w-max min-w-full flex-col gap-3 p-3 pr-4 pb-4",
+    documentClassName = "mx-auto flex w-max min-w-full flex-col [gap:var(--app-pdf-page-gap)] p-3 pr-4 pb-4",
     onZoomChange,
     initialScrollAnchor = null,
     onScrollAnchorChange,
@@ -106,12 +104,10 @@ export const LibraryPdfScrollViewer = forwardRef<
   onPageCountChangeRef.current = onPageCountChange;
   onScrollAnchorChangeRef.current = onScrollAnchorChange;
   onScrollRatioChangeRef.current = onScrollRatioChange; onDocumentLoadErrorRef.current = onDocumentLoadError;
-
   const pages = useMemo(() => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1), [documentPages]);
   const frameWidth = useMemo(() => Math.floor(Math.max(360, Math.floor((viewportWidth - 42) * 0.92)) * zoom), [viewportWidth, zoom]);
   const annotationScale = useMemo(() => frameWidth / ANNOTATION_REFERENCE_WIDTH, [frameWidth]);
   const lensPageWidth = useMemo(() => Math.max(280, Math.floor(frameWidth * LENS_SCALE)), [frameWidth]);
-
   const updateVisiblePage = useCallback(() => {
     const root = scrollRef.current;
     if (!root) {

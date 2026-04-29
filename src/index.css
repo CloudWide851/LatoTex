@@ -36,6 +36,13 @@
   --control-primary-border: rgba(37, 99, 235, 0.92);
   --control-primary-ring: rgba(59, 130, 246, 0.28);
   --control-primary-shadow: 0 16px 32px rgba(37, 99, 235, 0.22), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+  --app-accent: #22c55e;
+  --app-scrollbar-size: 14px;
+  --app-glass-opacity: 0.78;
+  --app-glass-blur: 18px;
+  --app-panel-radius: 8px;
+  --app-pdf-page-gap: 12px;
+  --app-log-font-size: 12px;
   --library-scrollbar-thumb: rgba(34, 197, 94, 0.72);
   --library-scrollbar-thumb-hover: rgba(22, 163, 74, 0.9);
   --library-scrollbar-track: rgba(203, 213, 225, 0.92);
@@ -168,12 +175,12 @@ body::before {
 
 .wallpaper-enabled {
   --wallpaper-blur: 18px;
-  --control-surface-top: rgba(255, 255, 255, 0.7);
-  --control-surface-bottom: rgba(241, 245, 249, 0.62);
-  --control-surface-hover-top: rgba(255, 255, 255, 0.78);
-  --control-surface-hover-bottom: rgba(226, 232, 240, 0.72);
-  --control-menu-top: rgba(255, 255, 255, 0.8);
-  --control-menu-bottom: rgba(248, 250, 252, 0.72);
+  --control-surface-top: rgba(255, 255, 255, var(--app-glass-opacity));
+  --control-surface-bottom: rgba(241, 245, 249, calc(var(--app-glass-opacity) - 0.08));
+  --control-surface-hover-top: rgba(255, 255, 255, calc(var(--app-glass-opacity) + 0.08));
+  --control-surface-hover-bottom: rgba(226, 232, 240, var(--app-glass-opacity));
+  --control-menu-top: rgba(255, 255, 255, calc(var(--app-glass-opacity) + 0.02));
+  --control-menu-bottom: rgba(248, 250, 252, var(--app-glass-opacity));
   --explorer-node-fg: #0f172a;
   --explorer-node-muted: #334155;
   --brand-wordmark-fg: #0f172a;
@@ -193,12 +200,12 @@ body::before {
 }
 
 [data-theme="dark"] .wallpaper-enabled {
-  --control-surface-top: rgba(37, 50, 74, 0.74);
-  --control-surface-bottom: rgba(22, 32, 51, 0.7);
-  --control-surface-hover-top: rgba(47, 64, 92, 0.78);
-  --control-surface-hover-bottom: rgba(28, 40, 61, 0.76);
-  --control-menu-top: rgba(22, 32, 51, 0.84);
-  --control-menu-bottom: rgba(15, 23, 42, 0.8);
+  --control-surface-top: rgba(37, 50, 74, var(--app-glass-opacity));
+  --control-surface-bottom: rgba(22, 32, 51, calc(var(--app-glass-opacity) - 0.04));
+  --control-surface-hover-top: rgba(47, 64, 92, calc(var(--app-glass-opacity) + 0.04));
+  --control-surface-hover-bottom: rgba(28, 40, 61, var(--app-glass-opacity));
+  --control-menu-top: rgba(22, 32, 51, calc(var(--app-glass-opacity) + 0.06));
+  --control-menu-bottom: rgba(15, 23, 42, calc(var(--app-glass-opacity) + 0.02));
   --explorer-node-fg: #e2e8f0;
   --explorer-node-muted: #cbd5e1;
   --brand-wordmark-fg: #0f172a;
@@ -276,23 +283,27 @@ body::before {
   will-change: transform, opacity;
 }
 
-.library-scrollbar {
+.library-scrollbar,
+:where(.overflow-auto, .overflow-y-auto, .overflow-y-scroll, .overflow-x-auto):not(.hide-scrollbar) {
   scrollbar-width: auto;
   scrollbar-color: var(--library-scrollbar-thumb) var(--library-scrollbar-track);
   scrollbar-gutter: stable both-edges;
 }
 
-.library-scrollbar::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
+.library-scrollbar::-webkit-scrollbar,
+:where(.overflow-auto, .overflow-y-auto, .overflow-y-scroll, .overflow-x-auto):not(.hide-scrollbar)::-webkit-scrollbar {
+  width: var(--app-scrollbar-size);
+  height: var(--app-scrollbar-size);
 }
 
-.library-scrollbar::-webkit-scrollbar-track {
+.library-scrollbar::-webkit-scrollbar-track,
+:where(.overflow-auto, .overflow-y-auto, .overflow-y-scroll, .overflow-x-auto):not(.hide-scrollbar)::-webkit-scrollbar-track {
   background: var(--library-scrollbar-track);
   border-radius: 999px;
 }
 
-.library-scrollbar::-webkit-scrollbar-thumb {
+.library-scrollbar::-webkit-scrollbar-thumb,
+:where(.overflow-auto, .overflow-y-auto, .overflow-y-scroll, .overflow-x-auto):not(.hide-scrollbar)::-webkit-scrollbar-thumb {
   background: var(--library-scrollbar-thumb);
   border: 2px solid rgba(255, 255, 255, 0.52);
   border-radius: 999px;
@@ -300,9 +311,42 @@ body::before {
   min-height: 48px;
 }
 
-.library-scrollbar::-webkit-scrollbar-thumb:hover {
+.library-scrollbar::-webkit-scrollbar-thumb:hover,
+:where(.overflow-auto, .overflow-y-auto, .overflow-y-scroll, .overflow-x-auto):not(.hide-scrollbar)::-webkit-scrollbar-thumb:hover {
   background: var(--library-scrollbar-thumb-hover);
   background-clip: padding-box;
+}
+
+.app-density-compact {
+  --settings-density-padding: 0.75rem;
+}
+
+.app-density-spacious {
+  --settings-density-padding: 1.25rem;
+}
+
+.app-motion-reduced :where(.motion-slide-up, .motion-page-in, .motion-fade-in) {
+  animation-duration: 1ms !important;
+}
+
+.app-motion-none *,
+.app-motion-none *::before,
+.app-motion-none *::after {
+  animation: none !important;
+  transition-duration: 0ms !important;
+}
+
+.app-border-soft {
+  --app-border: color-mix(in srgb, var(--app-border) 58%, transparent);
+}
+
+.app-border-strong {
+  --app-border: color-mix(in srgb, var(--app-border) 76%, var(--app-text));
+}
+
+.rounded-lg,
+.rounded-xl {
+  border-radius: var(--app-panel-radius);
 }
 
 .theme-ripple-overlay {
@@ -601,8 +645,8 @@ body::before {
   border: 1px solid var(--editor-shell-border);
   background: var(--editor-shell-bg);
   box-shadow: var(--editor-paper-shadow);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .editor-toolbar-shell {
@@ -678,8 +722,8 @@ body::before {
   background: var(--editor-widget-bg);
   color: var(--editor-tab-text);
   box-shadow: var(--editor-widget-shadow);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur));
 }
 
 .editor-tabs-overflow-wrap {
@@ -696,8 +740,8 @@ body::before {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(148, 163, 184, 0.16)),
     linear-gradient(90deg, rgba(226, 232, 240, 0), rgba(148, 163, 184, 0.34));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: blur(var(--app-glass-blur));
   opacity: 0.9;
 }
 

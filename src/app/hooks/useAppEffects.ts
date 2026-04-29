@@ -16,6 +16,10 @@ type ToastSetter = (value: { type: "info" | "error"; message: string } | null) =
 
 type TranslationFn = (key: any) => string;
 
+export function isBenignResizeObserverMessage(value: string): boolean {
+  return /^ResizeObserver loop (completed with undelivered notifications|limit exceeded)/i.test(value.trim());
+}
+
 export function useAppEffects(params: {
   t: TranslationFn;
   isTauriRuntime: boolean;
@@ -397,12 +401,14 @@ export function useAppEffects(params: {
       /wasm.*out of memory/i,
     ];
     const isOutOfMemoryMessage = (value: string) => OOM_PATTERNS.some((pattern) => pattern.test(value));
-
     const onError = (event: ErrorEvent) => {
       const location = event.filename
         ? `${event.filename}:${event.lineno}:${event.colno}`
         : "unknown";
       const message = event.message || "unknown error";
+      if (isBenignResizeObserverMessage(message)) {
+        return;
+      }
       runtimeLogWrite("ERROR", `frontend.error: ${message} @ ${location}`).catch(() => undefined);
       if (isOutOfMemoryMessage(message)) {
         runtimeLogWrite("WARN", `frontend.oom.error: ${message}`).catch(() => undefined);

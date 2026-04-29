@@ -1,14 +1,17 @@
 import {
   Bot,
+  BrainCircuit,
   FileCode2,
   GitBranch,
   Globe,
   Languages,
   Library,
+  Network,
   Palette,
   PenTool,
   SearchCode,
   Settings2,
+  Wrench,
 } from "lucide-react";
 import type {
   AgentModelBinding,
@@ -21,7 +24,16 @@ import type {
 } from "../shared/types/app";
 
 export type Toast = { type: "info" | "error"; message: string } | null;
-export type SettingsSection = "general" | "appearance" | "models" | "agents" | "channels" | "diagnostics";
+export type SettingsSection =
+  | "general"
+  | "appearance"
+  | "models"
+  | "agents"
+  | "agent-tools"
+  | "mcp"
+  | "skills"
+  | "channels"
+  | "diagnostics";
 export type OverlayType = "logs" | null;
 export type LogTab = "status" | "events";
 export type DeleteIntent = { scope: "workspace" | "library"; path: string } | null;
@@ -70,6 +82,9 @@ export const SETTINGS_SECTIONS: Array<{
     | "settings.section.appearance"
     | "settings.section.models"
     | "settings.section.agents"
+    | "settings.section.agentTools"
+    | "settings.section.mcp"
+    | "settings.section.skills"
     | "settings.section.channels"
     | "settings.section.diagnostics";
   icon: typeof Languages;
@@ -78,6 +93,9 @@ export const SETTINGS_SECTIONS: Array<{
   { id: "appearance", key: "settings.section.appearance", icon: Palette },
   { id: "models", key: "settings.section.models", icon: Globe },
   { id: "agents", key: "settings.section.agents", icon: Bot },
+  { id: "agent-tools", key: "settings.section.agentTools", icon: Wrench },
+  { id: "mcp", key: "settings.section.mcp", icon: Network },
+  { id: "skills", key: "settings.section.skills", icon: BrainCircuit },
   { id: "channels", key: "settings.section.channels", icon: Globe },
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];

@@ -96,6 +96,7 @@ export function useWorkbenchRuntimeState(params: {
     getCachedTextContent,
     handleTextFileLoaded,
     handleOutOfMemorySleep,
+    releaseRuntimeMemory: () => runtimePressureRelief.release("manual"),
   };
 }
 

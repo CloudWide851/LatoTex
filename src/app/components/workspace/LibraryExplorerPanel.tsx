@@ -108,7 +108,7 @@ export function LibraryExplorerPanel(props: {
           />
         </div>
       </div>
-      <div className="hide-scrollbar h-[calc(100%-32px)] overflow-auto pr-1">
+      <div className="library-scrollbar h-[calc(100%-32px)] overflow-auto pr-1">
         <ExplorerTree
           mode="library"
           tree={filteredLibraryTree}
