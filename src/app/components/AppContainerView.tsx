@@ -278,7 +278,6 @@ export function AppContainerView(props: any) {
     ["--app-pdf-page-gap" as string]: `${Math.max(4, Math.min(28, Number(settings?.uiPrefs?.pdfPageGapPx ?? 12)))}px`,
     ["--app-log-font-size" as string]: `${Math.max(10, Math.min(16, Number(settings?.uiPrefs?.logFontSizePx ?? 12)))}px`,
   } as CSSProperties;
-  const densityClass = `app-density-${settings?.uiPrefs?.interfaceDensity ?? "comfortable"}`;
   const motionClass = `app-motion-${settings?.uiPrefs?.motionLevel ?? "full"}`;
   const borderClass = `app-border-${settings?.uiPrefs?.panelBorderContrast ?? "normal"}`;
 
@@ -288,7 +287,7 @@ export function AppContainerView(props: any) {
 
   return (
     <div
-      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${densityClass} ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
       style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">

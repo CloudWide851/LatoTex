@@ -49,7 +49,7 @@ export function WorkspaceExplorerPanel(props: {
   } = props;
 
   return (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
+    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5 shadow-soft motion-slide-up">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("explorer.title")}</h2>
         <button
@@ -63,7 +63,7 @@ export function WorkspaceExplorerPanel(props: {
           <RefreshCcw className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="library-scrollbar h-[calc(100%-24px)] overflow-auto pr-1">
+      <div className="h-[calc(100%-24px)] min-h-0 overflow-hidden">
         {activeProjectId ? (
           <ExplorerTree
             tree={tree}

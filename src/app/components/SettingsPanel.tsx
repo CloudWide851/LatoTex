@@ -109,7 +109,6 @@ export function SettingsPanel(props: {
       panelLayout: DEFAULT_PANEL_LAYOUT,
       backgroundImagePaths: [],
       backgroundBlurPx: 18,
-      interfaceDensity: "comfortable",
       accentColor: "emerald",
       accentCustomColor: "",
       scrollbarColorMode: "accent",

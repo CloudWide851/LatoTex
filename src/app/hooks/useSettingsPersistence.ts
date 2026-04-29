@@ -162,7 +162,6 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           backgroundImagePath: normalizedBackgroundPath,
           backgroundImagePaths: normalizedBackgroundPaths,
           backgroundBlurPx: normalizedBackgroundBlur,
-          interfaceDensity: nextSettings.uiPrefs?.interfaceDensity ?? "comfortable",
           accentColor: nextSettings.uiPrefs?.accentColor ?? "emerald",
           accentCustomColor: nextSettings.uiPrefs?.accentCustomColor ?? "",
           scrollbarColorMode,

@@ -10,7 +10,6 @@ import { SettingsSelectRow } from "./SettingsSelectRow";
 type TranslationFn = (key: any) => string;
 
 const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
-const DENSITY_OPTIONS = ["compact", "comfortable", "spacious"] as const;
 const ACCENT_OPTIONS = ["emerald", "blue", "violet", "rose", "amber", "custom"] as const;
 const SCROLLBAR_COLOR_MODES = ["accent", "custom"] as const;
 const MOTION_OPTIONS = ["full", "reduced", "none"] as const;
@@ -78,17 +77,6 @@ export function AppearanceSettingsSection(props: {
           })}
         </div>
       </div>
-
-      <SettingsSelectRow
-        title={t("settings.interfaceDensityTitle")}
-        value={prefs.interfaceDensity ?? "comfortable"}
-        description={t("settings.interfaceDensityHint")}
-        options={DENSITY_OPTIONS.map((value) => ({
-          value,
-          label: t(`settings.interfaceDensity.${value}`),
-        }))}
-        onChange={(value) => updateUiPrefs({ interfaceDensity: value as typeof DENSITY_OPTIONS[number] })}
-      />
 
       <div className="grid gap-3 rounded-lg border border-slate-200 p-4">
         <h3 className="text-sm font-semibold text-slate-800">

@@ -84,7 +84,7 @@ export function LibraryExplorerPanel(props: {
   const filteredLibraryTree = filterPaperNodes(libraryTree);
 
   return (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft">
+    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5 shadow-soft">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           {t("library.title")}
@@ -108,7 +108,7 @@ export function LibraryExplorerPanel(props: {
           />
         </div>
       </div>
-      <div className="library-scrollbar h-[calc(100%-32px)] overflow-auto pr-1">
+      <div className="h-[calc(100%-32px)] min-h-0 overflow-hidden">
         <ExplorerTree
           mode="library"
           tree={filteredLibraryTree}

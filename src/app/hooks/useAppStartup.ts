@@ -61,7 +61,6 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       backgroundImagePath: activeBackgroundPath,
       backgroundImagePaths: backgroundList,
       backgroundBlurPx: normalizedBackgroundBlur,
-      interfaceDensity: appSettings.uiPrefs?.interfaceDensity ?? "comfortable",
       accentColor: appSettings.uiPrefs?.accentColor ?? "emerald",
       accentCustomColor: appSettings.uiPrefs?.accentCustomColor ?? "",
       scrollbarWidthPx: appSettings.uiPrefs?.scrollbarWidthPx ?? 14,

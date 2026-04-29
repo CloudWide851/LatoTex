@@ -296,13 +296,13 @@ export function ExplorerTree(props: {
     const decoration = !isDirectory ? gitDecorations?.[node.relativePath] : undefined;
     const isIgnored = Boolean(decoration?.ignored);
     const decorationTone = resolveDecorationTone(decoration);
-    const indentStyle = { paddingLeft: `${depth * 10}px` };
+    const indentStyle = { paddingLeft: `${Math.max(0, depth * 8)}px` };
     return (
       <Fragment key={node.relativePath}>
         <div
           data-explorer-node="true"
           className={cn(
-            "group flex select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs transition",
+            "group flex w-full select-none items-center gap-1.5 rounded-md px-1.5 py-1.5 text-xs transition",
             isSelected
               ? "bg-primary-100 text-primary-900"
               : dragPreview?.active && node.relativePath === dragSourcePath
@@ -469,7 +469,7 @@ export function ExplorerTree(props: {
       }}
     >
       <div
-        className="library-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-2"
+        className="library-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-0.5"
         onDoubleClick={(event) => {
           if (mode !== "workspace" || editing) {
             return;
