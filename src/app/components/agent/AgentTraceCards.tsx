@@ -1,6 +1,7 @@
 import { cn } from "../../../lib/utils";
 import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
+import { AgentActionRenderer } from "./AgentActionRenderer";
 
 function tone(status: string): string {
   if (status === "error" || status === "failed") {
@@ -106,6 +107,7 @@ type TaskGroup = {
   inputRefs: string[];
   outputRefs: string[];
   requiresApproval: boolean;
+  teamRoleName?: string;
 };
 
 function buildTaskGroups(cards: AgentEventCard[], t: (key: any) => string): TaskGroup[] {
@@ -129,11 +131,13 @@ function buildTaskGroups(cards: AgentEventCard[], t: (key: any) => string): Task
       inputRefs: [],
       outputRefs: [],
       requiresApproval: false,
+      teamRoleName: card.teamRoleName,
     };
     group.label = group.label || nextLabel;
     group.status = card.status || group.status;
     group.steps.push(card);
     group.requiresApproval = group.requiresApproval || card.requiresApproval === true;
+    group.teamRoleName = card.teamRoleName ?? group.teamRoleName;
     if (outputLike) {
       group.outputRefs = unique([...group.outputRefs, ...refs]);
     } else {
@@ -185,7 +189,7 @@ export function AgentTraceCards(props: {
         {groups.map((group) => (
           <article key={group.key} className={cn("rounded border px-2 py-2 text-[11px]", tone(group.status))}>
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate font-semibold">{group.label}</span>
+              <span className="truncate font-semibold">{group.teamRoleName ?? group.label}</span>
               <span className="max-w-[40%] truncate uppercase opacity-80">{group.steps[group.steps.length - 1]?.status || group.status}</span>
             </div>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -232,6 +236,7 @@ export function AgentTraceCards(props: {
                         {card.content}
                       </p>
                     ) : null}
+                    <AgentActionRenderer actions={card.actions ?? []} />
                   </div>
                 ))}
               </div>

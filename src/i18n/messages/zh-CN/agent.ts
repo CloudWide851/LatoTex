@@ -79,7 +79,7 @@ export const zhCN_agent = {
   "agent.resume.title": "会话历史",
   "agent.resume.hint": "可用滚轮 / 上下键 / 回车选择会话。",
   "agent.resume.empty": "暂无已保存会话。",
-  "agent.patch.noApplicableEdits": "未为目标文件生成可应用的 SEARCH/REPLACE 编辑块。",
+  "agent.patch.noApplicableEdits": "未为目标文件生成可应用的 YAML 编辑动作。",
   "agent.task.fileEdit": "文件修改任务",
   "agent.task.analysis": "分析任务",
   "agent.task.generic": "Agent 任务",

@@ -10,6 +10,7 @@ use super::swarm_supervisor::{
     build_context_summary, build_evaluator_prompt, build_revision_prompt, build_supervisor_plan,
     execution_mode_label, parse_supervisor_evaluation, requires_write_checkpoint,
 };
+use super::swarm_team_executor::{run_execute_pipeline_team, select_agent_team};
 use super::swarm_tool_search;
 use super::{swarm_tool_mcp, swarm_tool_python, swarm_tool_workspace};
 use super::swarm_workflows::{
@@ -32,7 +33,7 @@ fn step_metadata<'a>(
     EventMetadata::base(workflow_id, step_id, callsite)
 }
 
-fn run_workflow_step(
+pub(super) fn run_workflow_step(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
     run_id: &str,
@@ -127,7 +128,7 @@ fn run_workflow_step(
     }
 }
 
-fn emit_supervisor_trace(
+pub(super) fn emit_supervisor_trace(
     db_path: &std::path::Path,
     run_id: &str,
     input: &AgentExecuteRequest,
@@ -209,7 +210,7 @@ fn run_execute_pipeline_single(
     Ok(output)
 }
 
-fn run_execute_pipeline_supervisor(
+pub(super) fn run_execute_pipeline_supervisor(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
     run_id: &str,
@@ -482,6 +483,17 @@ pub(super) fn run_execute_pipeline_async(
     input: AgentExecuteRequest,
     workflow: WorkflowDefinition,
 ) -> Result<String, String> {
+    if let Some(team) = select_agent_team(&db_path, &runtime_root, &input.callsite) {
+        return run_execute_pipeline_team(
+            &db_path,
+            &runtime_root,
+            &run_id,
+            &cancel_flag,
+            &input,
+            &workflow,
+            team,
+        );
+    }
     match execution_mode_for_workflow(&workflow, &input.callsite) {
         "single" => run_execute_pipeline_single(
             &db_path,

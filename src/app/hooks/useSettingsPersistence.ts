@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { setModelApiKey, updateSettings } from "../../shared/api/settings";
 import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
+import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
 
 type SettingsPersistenceParams = {
   activeProjectId: string | null;
@@ -124,6 +125,13 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const normalizedLibraryExplorerExpandedPathsByProject = normalizeExpandedMap(
         nextSettings.uiPrefs?.libraryExplorerExpandedPathsByProject,
       );
+      const hasCustomScrollbarColors = Boolean(
+        String(nextSettings.uiPrefs?.scrollbarThumbColor ?? "").trim()
+        || String(nextSettings.uiPrefs?.scrollbarTrackColor ?? "").trim(),
+      );
+      const scrollbarColorMode = nextSettings.uiPrefs?.scrollbarColorMode
+        ?? (hasCustomScrollbarColors ? "custom" : "accent");
+      const normalizedAgentTeamPrefs = normalizeAgentTeamPrefs(nextSettings.uiPrefs?.agentTeamPrefs);
       const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
@@ -157,6 +165,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           interfaceDensity: nextSettings.uiPrefs?.interfaceDensity ?? "comfortable",
           accentColor: nextSettings.uiPrefs?.accentColor ?? "emerald",
           accentCustomColor: nextSettings.uiPrefs?.accentCustomColor ?? "",
+          scrollbarColorMode,
           scrollbarWidthPx: nextSettings.uiPrefs?.scrollbarWidthPx ?? 14,
           scrollbarThumbColor: nextSettings.uiPrefs?.scrollbarThumbColor ?? "",
           scrollbarTrackColor: nextSettings.uiPrefs?.scrollbarTrackColor ?? "",
@@ -188,6 +197,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
             mcpEnabled: nextSettings.uiPrefs?.agentToolPrefs?.mcpEnabled ?? true,
             writeRequiresConfirmation: nextSettings.uiPrefs?.agentToolPrefs?.writeRequiresConfirmation ?? true,
           },
+          agentTeamPrefs: normalizedAgentTeamPrefs,
           mcpServers: (nextSettings.uiPrefs?.mcpServers ?? [])
             .map((server) => ({
               id: String(server.id ?? "").trim(),

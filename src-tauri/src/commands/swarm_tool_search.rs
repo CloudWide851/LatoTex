@@ -217,6 +217,7 @@ pub(super) fn run_stage_tool_search(
         "",
         metadata,
     )?;
+    let running_actions = json!([{"type":"search","tool":"web","status":"running"}]);
     emit_tool_event(
         db_path,
         run_id,
@@ -227,10 +228,18 @@ pub(super) fn run_stage_tool_search(
         "tool_search",
         "running",
         "",
-        metadata,
+        EventMetadata { actions: Some(&running_actions), ..metadata },
     )?;
     let (queries, compact_context, evidence_count) = build_tool_search_context(prompt);
     ensure_not_cancelled(cancel_flag)?;
+    let query_count = queries.len();
+    let result_actions = json!([{
+        "type": "search",
+        "tool": "web",
+        "status": "success",
+        "queries": queries,
+        "evidenceCount": evidence_count
+    }]);
     emit_tool_event(
         db_path,
         run_id,
@@ -242,14 +251,14 @@ pub(super) fn run_stage_tool_search(
         "success",
         &format!(
             "queries={}, evidence={}, token_mode=compact",
-            queries.len(),
+            query_count,
             evidence_count
         ),
-        metadata,
+        EventMetadata { actions: Some(&result_actions), ..metadata },
     )?;
 
     let estimated_saved =
-        ((queries.len().saturating_mul(850)) as i64 - (compact_context.len() as i64 / 4)).max(0);
+        ((query_count.saturating_mul(850)) as i64 - (compact_context.len() as i64 / 4)).max(0);
     let mut stats_payload = run_envelope(
         run_id,
         "success",

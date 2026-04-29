@@ -12,6 +12,7 @@ type TranslationFn = (key: any) => string;
 const PREVIEW_ZOOM_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
 const DENSITY_OPTIONS = ["compact", "comfortable", "spacious"] as const;
 const ACCENT_OPTIONS = ["emerald", "blue", "violet", "rose", "amber", "custom"] as const;
+const SCROLLBAR_COLOR_MODES = ["accent", "custom"] as const;
 const MOTION_OPTIONS = ["full", "reduced", "none"] as const;
 const CONTRAST_OPTIONS = ["soft", "normal", "strong"] as const;
 
@@ -57,11 +58,12 @@ export function AppearanceSettingsSection(props: {
               <button
                 key={item.id}
                 className={cn(
-                  "flex h-11 items-center justify-center gap-2 rounded-md border text-sm transition",
+                  "flex h-11 items-center justify-center gap-2 rounded-md border text-sm transition focus:outline-none focus-visible:ring-2",
                   selected
-                    ? "border-primary-600 bg-primary-600 text-white"
+                    ? "border-[var(--app-accent)] bg-[var(--app-accent)] text-white focus-visible:ring-[var(--control-primary-ring)]"
                     : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
                 )}
+                style={selected ? { boxShadow: "0 0 0 1px color-mix(in srgb, var(--app-accent) 28%, transparent)" } : undefined}
                 onClick={(event) =>
                   onThemeModeChange(item.id, {
                     clientX: event.clientX,
@@ -127,14 +129,27 @@ export function AppearanceSettingsSection(props: {
             onChange={(event) => updateUiPrefs({ scrollbarWidthPx: Number(event.target.value) })}
           />
         </label>
-        <div className="flex flex-wrap gap-3">
+        <SettingsSelectRow
+          title={t("settings.scrollbarColorModeTitle")}
+          value={prefs.scrollbarColorMode ?? ((prefs.scrollbarThumbColor || prefs.scrollbarTrackColor) ? "custom" : "accent")}
+          description={t("settings.scrollbarColorModeHint")}
+          options={SCROLLBAR_COLOR_MODES.map((value) => ({
+            value,
+            label: t(`settings.scrollbarColorMode.${value}`),
+          }))}
+          onChange={(value) => updateUiPrefs({ scrollbarColorMode: value as typeof SCROLLBAR_COLOR_MODES[number] })}
+        />
+        <div className={cn(
+          "flex flex-wrap gap-3",
+          (prefs.scrollbarColorMode ?? ((prefs.scrollbarThumbColor || prefs.scrollbarTrackColor) ? "custom" : "accent")) === "accent" && "opacity-60",
+        )}>
           <label className="grid gap-1 text-xs text-slate-600">
             <span>{t("settings.scrollbarThumbColor")}</span>
             <input
               type="color"
               value={prefs.scrollbarThumbColor || "#22c55e"}
               className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
-              onChange={(event) => updateUiPrefs({ scrollbarThumbColor: event.target.value })}
+              onChange={(event) => updateUiPrefs({ scrollbarColorMode: "custom", scrollbarThumbColor: event.target.value })}
             />
           </label>
           <label className="grid gap-1 text-xs text-slate-600">
@@ -143,7 +158,7 @@ export function AppearanceSettingsSection(props: {
               type="color"
               value={prefs.scrollbarTrackColor || "#cbd5e1"}
               className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
-              onChange={(event) => updateUiPrefs({ scrollbarTrackColor: event.target.value })}
+              onChange={(event) => updateUiPrefs({ scrollbarColorMode: "custom", scrollbarTrackColor: event.target.value })}
             />
           </label>
         </div>

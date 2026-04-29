@@ -10,6 +10,43 @@ pub struct AgentToolPrefs {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentTeamRolePrefs {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub identity_prompt: Option<String>,
+    pub model_id: Option<String>,
+    pub phase: Option<String>,
+    pub can_write: Option<bool>,
+    pub tool_access: Option<Vec<String>>,
+    pub mcp_server_ids: Option<Vec<String>>,
+    pub skill_ids: Option<Vec<String>>,
+    pub color: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTeamConfig {
+    pub id: String,
+    pub name: String,
+    pub enabled: Option<bool>,
+    pub callsites: Option<Vec<String>>,
+    pub parallelism: Option<u32>,
+    pub require_plan_approval: Option<bool>,
+    pub roles: Option<Vec<AgentTeamRolePrefs>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTeamPrefs {
+    pub enabled: Option<bool>,
+    pub default_team_id: Option<String>,
+    pub teams: Option<Vec<AgentTeamConfig>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryGuardPrefs {
     pub enabled: Option<bool>,
     pub high_watermark_mb: Option<u32>,

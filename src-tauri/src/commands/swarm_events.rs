@@ -14,6 +14,11 @@ pub(super) struct EventMetadata<'a> {
     pub risk_level: Option<&'a str>,
     pub artifact_refs: Option<&'a [String]>,
     pub requires_approval: Option<bool>,
+    pub team_id: Option<&'a str>,
+    pub team_role_id: Option<&'a str>,
+    pub team_role_name: Option<&'a str>,
+    pub team_task_id: Option<&'a str>,
+    pub actions: Option<&'a serde_json::Value>,
 }
 
 impl<'a> EventMetadata<'a> {
@@ -29,6 +34,11 @@ impl<'a> EventMetadata<'a> {
             risk_level: None,
             artifact_refs: None,
             requires_approval: None,
+            team_id: None,
+            team_role_id: None,
+            team_role_name: None,
+            team_task_id: None,
+            actions: None,
         }
     }
 }
@@ -80,6 +90,21 @@ fn apply_metadata(payload: &mut serde_json::Value, metadata: EventMetadata<'_>) 
         }
         if let Some(value) = metadata.requires_approval {
             object.insert("requiresApproval".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.team_id.filter(|value| !value.trim().is_empty()) {
+            object.insert("teamId".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.team_role_id.filter(|value| !value.trim().is_empty()) {
+            object.insert("teamRoleId".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.team_role_name.filter(|value| !value.trim().is_empty()) {
+            object.insert("teamRoleName".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.team_task_id.filter(|value| !value.trim().is_empty()) {
+            object.insert("teamTaskId".to_string(), json!(value));
+        }
+        if let Some(value) = metadata.actions {
+            object.insert("actions".to_string(), value.clone());
         }
     }
 }

@@ -228,6 +228,7 @@ export type AppSettings = {
     interfaceDensity?: "compact" | "comfortable" | "spacious";
     accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
     accentCustomColor?: string;
+    scrollbarColorMode?: "accent" | "custom";
     scrollbarWidthPx?: number;
     scrollbarThumbColor?: string;
     scrollbarTrackColor?: string;
@@ -247,9 +248,41 @@ export type AppSettings = {
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
     agentToolPrefs?: AgentToolPrefs;
+    agentTeamPrefs?: AgentTeamPrefs;
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
   };
+};
+
+export type AgentTeamRolePrefs = {
+  id: string;
+  name: string;
+  description?: string;
+  identityPrompt?: string;
+  modelId?: string;
+  phase?: "plan" | "research" | "edit" | "review" | "final";
+  canWrite?: boolean;
+  toolAccess?: string[];
+  mcpServerIds?: string[];
+  skillIds?: string[];
+  color?: string;
+  enabled?: boolean;
+};
+
+export type AgentTeamConfig = {
+  id: string;
+  name: string;
+  enabled?: boolean;
+  callsites?: string[];
+  parallelism?: number;
+  requirePlanApproval?: boolean;
+  roles?: AgentTeamRolePrefs[];
+};
+
+export type AgentTeamPrefs = {
+  enabled?: boolean;
+  defaultTeamId?: string;
+  teams?: AgentTeamConfig[];
 };
 
 export type AgentToolPrefs = {

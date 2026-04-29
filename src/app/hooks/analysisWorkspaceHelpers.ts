@@ -1,4 +1,5 @@
 import type { SwarmEvent } from "../../shared/types/app";
+import { normalizeAgentActions, parseYamlAgentActions, type AgentAction } from "../components/agent/agentActionParser";
 import type { AnalysisSourceSnapshot } from "./analysisDataSources";
 import type { AnalysisOutputLanguage, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
 import { nowIso } from "./analysisTypes";
@@ -22,6 +23,11 @@ export type AgentEventCard = {
   parentNodeId?: string;
   artifactRefs?: string[];
   requiresApproval?: boolean;
+  teamId?: string;
+  teamRoleId?: string;
+  teamRoleName?: string;
+  teamTaskId?: string;
+  actions?: AgentAction[];
 };
 
 export type AgentAnalysisPayload = {
@@ -287,6 +293,8 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
           ? payload.output
           : "";
     const existing = byCard.get(cardKey);
+    const actions = normalizeAgentActions(payload.actions);
+    const fallbackActions = actions.length > 0 ? actions : parseYamlAgentActions(content);
     if (!existing) {
       byCard.set(cardKey, {
         id: event.id,
@@ -306,6 +314,11 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
         parentNodeId: typeof payload.parentNodeId === "string" ? payload.parentNodeId : undefined,
         artifactRefs: toArtifactRefs(payload),
         requiresApproval: payload.requiresApproval === true,
+        teamId: typeof payload.teamId === "string" ? payload.teamId : undefined,
+        teamRoleId: typeof payload.teamRoleId === "string" ? payload.teamRoleId : undefined,
+        teamRoleName: typeof payload.teamRoleName === "string" ? payload.teamRoleName : undefined,
+        teamTaskId: typeof payload.teamTaskId === "string" ? payload.teamTaskId : undefined,
+        actions: fallbackActions,
       });
       continue;
     }
@@ -322,6 +335,11 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
     existing.artifactRefs = toArtifactRefs(payload);
     existing.requiresApproval = payload.requiresApproval === true || existing.requiresApproval;
     existing.content = append ? `${existing.content}${content}` : content || existing.content;
+    existing.teamId = typeof payload.teamId === "string" && payload.teamId ? payload.teamId : existing.teamId;
+    existing.teamRoleId = typeof payload.teamRoleId === "string" && payload.teamRoleId ? payload.teamRoleId : existing.teamRoleId;
+    existing.teamRoleName = typeof payload.teamRoleName === "string" && payload.teamRoleName ? payload.teamRoleName : existing.teamRoleName;
+    existing.teamTaskId = typeof payload.teamTaskId === "string" && payload.teamTaskId ? payload.teamTaskId : existing.teamTaskId;
+    existing.actions = fallbackActions.length > 0 ? fallbackActions : existing.actions;
   }
   return Array.from(byCard.values());
 }

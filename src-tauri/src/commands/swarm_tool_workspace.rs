@@ -1,4 +1,5 @@
 use crate::storage;
+use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -144,11 +145,41 @@ pub(super) fn run_stage_workspace_search(
     if !enabled {
         return Ok("[workspace_search.compact.v1]\nworkspace_read=disabled_by_settings".to_string());
     }
+    let running_actions = json!([{"type":"search","tool":"workspace","status":"running","query":prompt.chars().take(180).collect::<String>()}]);
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
-    emit_tool_event(db_path, run_id, project_id, event_scope, source, stage, "workspace_search", "running", "", metadata)?;
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "workspace_search",
+        "running",
+        "",
+        EventMetadata { actions: Some(&running_actions), ..metadata },
+    )?;
     let context = build_context(db_path, project_id, prompt)?;
     ensure_not_cancelled(cancel_flag)?;
-    emit_tool_event(db_path, run_id, project_id, event_scope, source, stage, "workspace_search", "success", "workspace context collected", metadata)?;
+    let files = context
+        .lines()
+        .filter_map(|line| line.strip_prefix("File: "))
+        .take(8)
+        .map(|path| json!({"path": path}))
+        .collect::<Vec<_>>();
+    let success_actions = json!([{"type":"search","tool":"workspace","status":"success","results":files}]);
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "workspace_search",
+        "success",
+        "workspace context collected",
+        EventMetadata { actions: Some(&success_actions), ..metadata },
+    )?;
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
     Ok(format!("[workspace_search.compact.v1]\n{context}"))
 }

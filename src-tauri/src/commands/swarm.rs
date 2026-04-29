@@ -10,6 +10,8 @@ mod swarm_provider;
 mod swarm_runtime;
 #[path = "swarm_supervisor.rs"]
 mod swarm_supervisor;
+#[path = "swarm_team_executor.rs"]
+mod swarm_team_executor;
 #[path = "swarm_tool_search.rs"]
 mod swarm_tool_search;
 #[path = "swarm_tool_workspace.rs"]

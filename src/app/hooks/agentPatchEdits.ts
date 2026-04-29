@@ -1,4 +1,5 @@
 import type { AgentDiffBlock } from "./agentTypes";
+import { parse as parseYaml } from "yaml";
 
 const LATEX_EXTENSIONS = [".tex", ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".ltx", ".tikz", ".pgf"];
 const BIB_EXTENSION = ".bib";
@@ -141,9 +142,60 @@ function parseEditsInBlock(block: string): SearchReplaceEdit[] {
   return edits;
 }
 
+function toSearchReplaceEdit(value: unknown): SearchReplaceEdit | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const type = typeof record.type === "string" ? record.type.trim().toLowerCase() : "";
+  if (type && type !== "replace" && type !== "edit") {
+    return null;
+  }
+  const search = typeof record.search === "string" ? record.search : "";
+  const replace = typeof record.replace === "string"
+    ? record.replace
+    : typeof record.content === "string" ? record.content : "";
+  if (!search) {
+    return null;
+  }
+  return {
+    path: typeof record.path === "string" ? normalizePath(record.path) : undefined,
+    search,
+    replace,
+  };
+}
+
+function parseYamlEdits(raw: string): SearchReplaceEdit[] {
+  const edits: SearchReplaceEdit[] = [];
+  const fenceRegex = /```(?:ya?ml|agent-actions?|edit|patch)\s*([\s\S]*?)```/gi;
+  let match: RegExpExecArray | null = fenceRegex.exec(raw);
+  while (match) {
+    try {
+      const parsed = parseYaml(match[1] ?? "");
+      const candidate = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray((parsed as Record<string, unknown> | null)?.actions)
+          ? (parsed as Record<string, unknown>).actions
+          : Array.isArray((parsed as Record<string, unknown> | null)?.edits)
+            ? (parsed as Record<string, unknown>).edits
+            : [];
+      for (const item of candidate as unknown[]) {
+        const edit = toSearchReplaceEdit(item);
+        if (edit) {
+          edits.push(edit);
+        }
+      }
+    } catch {
+      // Malformed YAML should not block legacy SEARCH/REPLACE parsing.
+    }
+    match = fenceRegex.exec(raw);
+  }
+  return edits;
+}
+
 export function parseSearchReplaceEdits(raw: string): SearchReplaceEdit[] {
   const source = raw.replace(/\r\n/g, "\n");
-  const edits: SearchReplaceEdit[] = [];
+  const edits: SearchReplaceEdit[] = parseYamlEdits(source);
   const blocks: string[] = [];
   const fenceRegex = /```(?:edit|patch)\s*([\s\S]*?)```/gi;
   let fenceMatch: RegExpExecArray | null = fenceRegex.exec(source);

@@ -22,12 +22,14 @@ import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSectio
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
 import { AgentToolsSettingsSection, McpSettingsSection, SkillsSettingsSection } from "./settings/AgentToolsSettingsSection";
+import { AgentTeamsSettingsSection } from "./settings/AgentTeamsSettingsSection";
 import { AgentRoutingSettingsSection } from "./settings/AgentRoutingSettingsSection";
 import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
 import { ExplorerDefaultsSection } from "./settings/ExplorerDefaultsSection";
 import { MemoryGuardSettingsSection } from "./settings/MemoryGuardSettingsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { SettingsSelectRow } from "./settings/SettingsSelectRow";
+import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
 
 type TranslationFn = (key: any) => string;
 
@@ -110,6 +112,7 @@ export function SettingsPanel(props: {
       interfaceDensity: "comfortable",
       accentColor: "emerald",
       accentCustomColor: "",
+      scrollbarColorMode: "accent",
       scrollbarWidthPx: 14,
       glassOpacity: 0.78,
       glassBlurPx: 18,
@@ -125,6 +128,7 @@ export function SettingsPanel(props: {
         sampleIntervalSec: 25,
         criticalAction: "sleep",
       },
+      agentTeamPrefs: DEFAULT_AGENT_TEAM_PREFS,
     },
   };
 
@@ -350,6 +354,15 @@ export function SettingsPanel(props: {
 
         {settingsSection === "agents" && (
           <AgentRoutingSettingsSection
+            settings={localSettings}
+            activeModelCatalog={activeModelCatalog}
+            setSettings={setSettings}
+            t={t}
+          />
+        )}
+
+        {settingsSection === "agent-teams" && (
+          <AgentTeamsSettingsSection
             settings={localSettings}
             activeModelCatalog={activeModelCatalog}
             setSettings={setSettings}

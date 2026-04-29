@@ -444,6 +444,7 @@ pub struct UiPrefs {
     pub interface_density: Option<String>,
     pub accent_color: Option<String>,
     pub accent_custom_color: Option<String>,
+    pub scrollbar_color_mode: Option<String>,
     pub scrollbar_width_px: Option<f64>,
     pub scrollbar_thumb_color: Option<String>,
     pub scrollbar_track_color: Option<String>,
@@ -463,6 +464,7 @@ pub struct UiPrefs {
     pub workspace_explorer_expanded_paths_by_project: Option<std::collections::HashMap<String, Vec<String>>>,
     pub library_explorer_expanded_paths_by_project: Option<std::collections::HashMap<String, Vec<String>>>,
     pub agent_tool_prefs: Option<AgentToolPrefs>,
+    pub agent_team_prefs: Option<AgentTeamPrefs>,
     pub mcp_servers: Option<Vec<McpServerConfig>>,
     pub enabled_skills: Option<Vec<String>>,
 }

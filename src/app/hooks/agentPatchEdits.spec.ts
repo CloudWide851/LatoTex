@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDiffStats, pickReviewTargetPath, pickTargetPath } from "./agentPatchEdits";
+import { computeDiffStats, parseSearchReplaceEdits, pickReviewTargetPath, pickTargetPath } from "./agentPatchEdits";
 
 describe("computeDiffStats", () => {
   it("keeps +/- counts accurate for single-line insertion", () => {
@@ -52,5 +52,23 @@ describe("pickTargetPath", () => {
       targetPath: "refs/library.bib",
       explicitPath: true,
     });
+  });
+});
+
+describe("parseSearchReplaceEdits", () => {
+  it("parses YAML replace actions while keeping path scope", () => {
+    const edits = parseSearchReplaceEdits([
+      "```yaml",
+      "actions:",
+      "  - type: replace",
+      "    path: paper/main.tex",
+      "    search: old text",
+      "    replace: new text",
+      "```",
+    ].join("\n"));
+
+    expect(edits).toEqual([
+      { path: "paper/main.tex", search: "old text", replace: "new text" },
+    ]);
   });
 });

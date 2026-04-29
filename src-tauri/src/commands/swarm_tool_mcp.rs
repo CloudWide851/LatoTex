@@ -120,11 +120,35 @@ pub(super) fn run_stage_mcp_call(
     ensure_not_cancelled(cancel_flag)?;
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
     let server_id = parse_server_id(source);
-    emit_tool_event(db_path, run_id, project_id, event_scope, source, stage, "mcp_call", "running", &server_id, metadata)?;
+    let running_actions = json!([{"type":"call","tool":"mcp","status":"running","serverId":server_id.clone()}]);
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "mcp_call",
+        "running",
+        &server_id,
+        EventMetadata { actions: Some(&running_actions), ..metadata },
+    )?;
     let server = configured_server(db_path, runtime_root, &server_id)?;
     let output = run_json_rpc_probe(&server)?;
     ensure_not_cancelled(cancel_flag)?;
-    emit_tool_event(db_path, run_id, project_id, event_scope, source, stage, "mcp_call", "success", "mcp server responded", metadata)?;
+    let success_actions = json!([{"type":"call","tool":"mcp","status":"success","serverId":server_id.clone()}]);
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "mcp_call",
+        "success",
+        "mcp server responded",
+        EventMetadata { actions: Some(&success_actions), ..metadata },
+    )?;
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
     Ok(format!("[mcp.response.v1]\nserver={server_id}\n{output}"))
 }

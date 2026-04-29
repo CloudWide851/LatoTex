@@ -1,6 +1,7 @@
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use serde_json::json;
 
 use super::swarm_events::{emit_stage_event, emit_tool_event, EventMetadata};
 use crate::commands::native_runtime::configure_hidden_process;
@@ -57,7 +58,19 @@ pub(super) fn run_stage_python_probe(
         return Ok("[python_analysis.runtime.v1]\npython=disabled_by_settings".to_string());
     }
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
-    emit_tool_event(db_path, run_id, project_id, event_scope, source, stage, "python_analysis", "running", "", metadata)?;
+    let running_actions = json!([{"type":"run","tool":"python","status":"running"}]);
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "python_analysis",
+        "running",
+        "",
+        EventMetadata { actions: Some(&running_actions), ..metadata },
+    )?;
     let version = python_version();
     ensure_not_cancelled(cancel_flag)?;
     let prompt_size = prompt.chars().count();
@@ -65,7 +78,19 @@ pub(super) fn run_stage_python_probe(
         "[python_analysis.runtime.v1]\nstatus={}\nprompt_chars={prompt_size}",
         version
     );
-    emit_tool_event(db_path, run_id, project_id, event_scope, source, stage, "python_analysis", "success", &content, metadata)?;
+    let success_actions = json!([{"type":"run","tool":"python","status":"success","summary":version}]);
+    emit_tool_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "python_analysis",
+        "success",
+        &content,
+        EventMetadata { actions: Some(&success_actions), ..metadata },
+    )?;
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
     Ok(content)
 }

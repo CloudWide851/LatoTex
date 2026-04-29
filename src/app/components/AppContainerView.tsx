@@ -238,8 +238,19 @@ export function AppContainerView(props: any) {
   const accentColor = accentChoice === "custom"
     ? String(settings?.uiPrefs?.accentCustomColor || ACCENT_COLORS.emerald)
     : ACCENT_COLORS[accentChoice] ?? ACCENT_COLORS.emerald;
-  const scrollbarThumbColor = String(settings?.uiPrefs?.scrollbarThumbColor || accentColor);
-  const scrollbarTrackColor = String(settings?.uiPrefs?.scrollbarTrackColor || "");
+  const hasCustomScrollbarColors = Boolean(
+    String(settings?.uiPrefs?.scrollbarThumbColor ?? "").trim()
+    || String(settings?.uiPrefs?.scrollbarTrackColor ?? "").trim(),
+  );
+  const scrollbarColorMode = String(
+    settings?.uiPrefs?.scrollbarColorMode ?? (hasCustomScrollbarColors ? "custom" : "accent"),
+  );
+  const scrollbarThumbColor = scrollbarColorMode === "custom"
+    ? String(settings?.uiPrefs?.scrollbarThumbColor || accentColor)
+    : accentColor;
+  const scrollbarTrackColor = scrollbarColorMode === "custom"
+    ? String(settings?.uiPrefs?.scrollbarTrackColor || "")
+    : "";
   const scrollbarWidth = Math.max(8, Math.min(18, Number(settings?.uiPrefs?.scrollbarWidthPx ?? 14)));
   const appBackgroundStyle = {
     ...(backgroundUrl
@@ -258,7 +269,7 @@ export function AppContainerView(props: any) {
     ["--control-primary-bottom-hover" as string]: accentColor,
     ["--control-primary-border" as string]: accentColor,
     ["--library-scrollbar-thumb" as string]: scrollbarThumbColor,
-    ["--library-scrollbar-thumb-hover" as string]: accentColor,
+    ["--library-scrollbar-thumb-hover" as string]: scrollbarColorMode === "custom" ? scrollbarThumbColor : accentColor,
     ...(scrollbarTrackColor ? { ["--library-scrollbar-track" as string]: scrollbarTrackColor } : {}),
     ["--app-scrollbar-size" as string]: `${scrollbarWidth}px`,
     ["--app-glass-opacity" as string]: String(Math.max(0.55, Math.min(1, Number(settings?.uiPrefs?.glassOpacity ?? 0.78)))),

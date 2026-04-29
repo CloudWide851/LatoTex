@@ -1,6 +1,7 @@
 import type {
   Ack,
   AgentModelBinding,
+  AgentTeamPrefs,
   AppBackgroundImage,
   AppBackgroundImagePayload,
   AppSettings,
@@ -56,6 +57,7 @@ export function updateSettings(input: {
     interfaceDensity?: "compact" | "comfortable" | "spacious";
     accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
     accentCustomColor?: string;
+    scrollbarColorMode?: "accent" | "custom";
     scrollbarWidthPx?: number;
     scrollbarThumbColor?: string;
     scrollbarTrackColor?: string;
@@ -81,6 +83,7 @@ export function updateSettings(input: {
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
     agentToolPrefs?: AgentToolPrefs;
+    agentTeamPrefs?: AgentTeamPrefs;
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
   };
