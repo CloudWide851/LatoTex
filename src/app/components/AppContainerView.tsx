@@ -19,6 +19,22 @@ const ACCENT_COLORS: Record<string, string> = {
   amber: "#f59e0b",
 };
 
+const THEME_PRESETS: Record<string, {
+  accent: string;
+  background: string;
+  surface: string;
+  scrollbarTrack: string;
+}> = {
+  default: { accent: ACCENT_COLORS.emerald, background: "#f1f5f9", surface: "#ffffff", scrollbarTrack: "#e2e8f0" },
+  graphite: { accent: "#475569", background: "#e5e7eb", surface: "#f8fafc", scrollbarTrack: "#cbd5e1" },
+  paper: { accent: "#b45309", background: "#f5f1e8", surface: "#fffaf0", scrollbarTrack: "#e7dcc6" },
+  forest: { accent: "#15803d", background: "#edf7ef", surface: "#fbfff9", scrollbarTrack: "#cfe8d3" },
+  ocean: { accent: "#0284c7", background: "#edf7fb", surface: "#f8fdff", scrollbarTrack: "#cfe7f3" },
+  rose: { accent: "#e11d48", background: "#fff1f5", surface: "#fffafb", scrollbarTrack: "#f8cddd" },
+  amber: { accent: "#d97706", background: "#fff7ed", surface: "#fffdf7", scrollbarTrack: "#f5d8aa" },
+  highContrast: { accent: "#0f172a", background: "#f8fafc", surface: "#ffffff", scrollbarTrack: "#94a3b8" },
+};
+
 export function AppContainerView(props: any) {
   const {
     status,
@@ -234,10 +250,11 @@ export function AppContainerView(props: any) {
   const backgroundUrl = useBackgroundImageObjectUrl(backgroundPath);
   const rawBlur = Number(settings?.uiPrefs?.backgroundBlurPx ?? 18);
   const backgroundBlurPx = Number.isFinite(rawBlur) ? Math.max(4, Math.min(32, rawBlur)) : 18;
+  const themePreset = THEME_PRESETS[String(settings?.uiPrefs?.themePreset ?? "default")] ?? THEME_PRESETS.default;
   const accentChoice = String(settings?.uiPrefs?.accentColor ?? "emerald");
   const accentColor = accentChoice === "custom"
     ? String(settings?.uiPrefs?.accentCustomColor || ACCENT_COLORS.emerald)
-    : ACCENT_COLORS[accentChoice] ?? ACCENT_COLORS.emerald;
+    : ACCENT_COLORS[accentChoice] ?? themePreset.accent;
   const hasCustomScrollbarColors = Boolean(
     String(settings?.uiPrefs?.scrollbarThumbColor ?? "").trim()
     || String(settings?.uiPrefs?.scrollbarTrackColor ?? "").trim(),
@@ -263,6 +280,7 @@ export function AppContainerView(props: any) {
         }
       : {}),
     ["--app-accent" as string]: accentColor,
+    ["--app-theme-surface" as string]: themePreset.surface,
     ["--control-primary-top" as string]: accentColor,
     ["--control-primary-bottom" as string]: accentColor,
     ["--control-primary-top-hover" as string]: accentColor,
@@ -270,13 +288,14 @@ export function AppContainerView(props: any) {
     ["--control-primary-border" as string]: accentColor,
     ["--library-scrollbar-thumb" as string]: scrollbarThumbColor,
     ["--library-scrollbar-thumb-hover" as string]: scrollbarColorMode === "custom" ? scrollbarThumbColor : accentColor,
-    ...(scrollbarTrackColor ? { ["--library-scrollbar-track" as string]: scrollbarTrackColor } : {}),
+    ["--library-scrollbar-track" as string]: scrollbarTrackColor || themePreset.scrollbarTrack,
     ["--app-scrollbar-size" as string]: `${scrollbarWidth}px`,
     ["--app-glass-opacity" as string]: String(Math.max(0.55, Math.min(1, Number(settings?.uiPrefs?.glassOpacity ?? 0.78)))),
     ["--app-glass-blur" as string]: `${Math.max(0, Math.min(32, Number(settings?.uiPrefs?.glassBlurPx ?? 18)))}px`,
     ["--app-panel-radius" as string]: `${Math.max(4, Math.min(14, Number(settings?.uiPrefs?.panelRadiusPx ?? 8)))}px`,
     ["--app-pdf-page-gap" as string]: `${Math.max(4, Math.min(28, Number(settings?.uiPrefs?.pdfPageGapPx ?? 12)))}px`,
     ["--app-log-font-size" as string]: `${Math.max(10, Math.min(16, Number(settings?.uiPrefs?.logFontSizePx ?? 12)))}px`,
+    backgroundColor: themePreset.background,
   } as CSSProperties;
   const motionClass = `app-motion-${settings?.uiPrefs?.motionLevel ?? "full"}`;
   const borderClass = `app-border-${settings?.uiPrefs?.panelBorderContrast ?? "normal"}`;
@@ -287,7 +306,7 @@ export function AppContainerView(props: any) {
 
   return (
     <div
-      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden bg-slate-100 ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
+      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
       style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">

@@ -1,6 +1,7 @@
-use crate::models::McpServerConfig;
+use crate::models::{McpServerConfig, McpValidationResult};
 use crate::storage;
 use serde_json::json;
+use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -103,6 +104,54 @@ fn run_json_rpc_probe(server: &McpServerConfig) -> Result<String, String> {
         return Err("mcp.no_response".to_string());
     }
     Ok(lines.join("\n"))
+}
+
+fn parse_tool_names(output: &str) -> Vec<String> {
+    output
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter_map(|payload| payload.get("result").cloned())
+        .filter_map(|result| result.get("tools").and_then(Value::as_array).cloned())
+        .flat_map(|tools| tools.into_iter())
+        .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_string))
+        .collect()
+}
+
+pub(super) fn validate_mcp_server(server: McpServerConfig) -> Result<McpValidationResult, String> {
+    let id = server.id.trim();
+    if id.is_empty() {
+        return Ok(McpValidationResult {
+            ok: false,
+            message: "mcp.validation.id_missing".to_string(),
+            tools: Vec::new(),
+        });
+    }
+    if server.command.trim().is_empty() {
+        return Ok(McpValidationResult {
+            ok: false,
+            message: "mcp.validation.command_missing".to_string(),
+            tools: Vec::new(),
+        });
+    }
+    match run_json_rpc_probe(&server) {
+        Ok(output) => {
+            let tools = parse_tool_names(&output);
+            Ok(McpValidationResult {
+                ok: true,
+                message: if tools.is_empty() {
+                    "mcp.validation.connected".to_string()
+                } else {
+                    format!("mcp.validation.tools:{}", tools.len())
+                },
+                tools,
+            })
+        }
+        Err(error) => Ok(McpValidationResult {
+            ok: false,
+            message: error,
+            tools: Vec::new(),
+        }),
+    }
 }
 
 pub(super) fn run_stage_mcp_call(

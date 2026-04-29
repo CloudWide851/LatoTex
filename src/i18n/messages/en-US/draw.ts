@@ -16,6 +16,7 @@ export const enUS_draw = {
   "draw.startFailed": "Draw editor connection failed.",
   "draw.startFailedDetail": "Draw editor connection failed: {detail}.",
   "draw.retry": "Retry Draw Editor",
+  "draw.released": "Draw editor was unloaded by memory protection. Retry when needed.",
   "draw.renameExists": "A draw tab with this name already exists.",
   "draw.fileMissingRemoved": "Source file is missing. Removed stale draw tab.",
 } as const;

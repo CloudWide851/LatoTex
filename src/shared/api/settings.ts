@@ -7,6 +7,7 @@ import type {
   AppSettings,
   AgentToolPrefs,
   CredentialSaveResult,
+  McpValidationResult,
   McpServerConfig,
   ModelApiKeyValue,
   ModelCatalogItemInput,
@@ -33,6 +34,7 @@ export function updateSettings(input: {
     skipDeleteConfirm?: boolean;
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
+    themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
     previewDefaultZoom?: number;
     paperBriefEngine?: "auto" | "pdfjs" | "python";
     panelLayout?: PanelLayoutPrefs;
@@ -89,6 +91,10 @@ export function updateSettings(input: {
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });
+}
+
+export function validateMcpServer(input: McpServerConfig): Promise<McpValidationResult> {
+  return invokeCommand<McpValidationResult>("agent_mcp_validate", { input });
 }
 
 export function pickBackgroundImage(): Promise<AppBackgroundImage | null> {

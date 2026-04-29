@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
-import { runtimeLogWrite } from "../../../shared/api/runtime";
 import { readFile, workspaceExportAsset, writeFile } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
 import {
@@ -17,7 +16,6 @@ import {
   normalizePath,
   parseDrawMessage,
   type PendingDrawExportRequest,
-  resolveDrawioHostFrameSrc,
   savePersistedTabs,
   shouldClearPendingDrawExport,
   tabTitleFromPath,
@@ -25,44 +23,10 @@ import {
 } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
 import { DrawWorkspaceTabs } from "./DrawWorkspaceTabs";
+import { formatDrawStartFailure, useDrawFrameLifecycle } from "./drawFrameLifecycle";
+import { EMPTY_DIAGRAM, type WorkspaceFsEventDetail } from "./drawWorkspaceConstants";
 
 type TranslationFn = (key: any) => string;
-
-type WorkspaceFsEventDetail = {
-  scope: FsScope;
-  action: FsAction;
-  path: string;
-  targetPath?: string;
-};
-
-const EMPTY_DIAGRAM = `<?xml version="1.0" encoding="UTF-8"?>
-<mxfile host="app.diagrams.net">
-  <diagram id="default" name="Page-1">
-    <mxGraphModel dx="1240" dy="720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1080" background="#ffffff" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-      </root>
-    </mxGraphModel>
-  </diagram>
-</mxfile>`;
-
-function formatDrawStartFailure(t: TranslationFn, detail?: string | null): string {
-  const normalized = String(detail || "").trim();
-  if (!normalized) {
-    return t("draw.startFailed");
-  }
-  return t("draw.startFailedDetail").replace("{detail}", normalized);
-}
-
-function withReloadToken(url: string, reloadToken: number): string {
-  const normalized = String(url || "").trim();
-  if (!normalized) {
-    return "";
-  }
-  return `${normalized}${normalized.includes("?") ? "&" : "?"}latotexReload=${reloadToken}`;
-}
-
 export function DrawWorkspace(props: {
   projectId: string | null;
   selectedPath: string | null;
@@ -78,10 +42,6 @@ export function DrawWorkspace(props: {
 }) {
   const { projectId, selectedPath, onSelectPath, onRunFsAction, t } = props;
   const { locale } = useI18n();
-  const frameRef = useRef<HTMLIFrameElement | null>(null);
-  const initTimerRef = useRef<number | null>(null);
-  const loadTimerRef = useRef<number | null>(null);
-  const handshakeStageRef = useRef("boot");
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
   const activePathRef = useRef<string | null>(null);
@@ -89,64 +49,25 @@ export function DrawWorkspace(props: {
 
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [frameSrc, setFrameSrc] = useState<string | null>(null);
-  const [framePhase, setFramePhase] = useState<"loading" | "ready" | "error">("loading");
-  const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
-  const [frameReloadToken, setFrameReloadToken] = useState(0);
-  const [frameDocumentLoaded, setFrameDocumentLoaded] = useState(false);
   const [tabPaths, setTabPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
-
-  const logDrawRuntime = useCallback((level: "INFO" | "WARN" | "ERROR", message: string) => {
-    void runtimeLogWrite(level, `draw.workspace: ${message}`).catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    try {
-      const resolved = resolveDrawioHostFrameSrc(undefined, locale);
-      if (!resolved) {
-        const failure = formatDrawStartFailure(t, "drawio entry url is missing");
-        handshakeStageRef.current = "missing_entry_url";
-        setFramePhase("error");
-        setFrameSrc(null);
-        setFrameFailureDetail(failure);
-        setStatus(failure);
-        logDrawRuntime("ERROR", "entry_url_missing");
-        return;
-      }
-      handshakeStageRef.current = "frame_src_resolved";
-      setFramePhase("loading");
-      setFrameFailureDetail(null);
-      setFrameDocumentLoaded(false);
-      setFrameSrc(withReloadToken(resolved, frameReloadToken));
-      setStatus(t("draw.waiting"));
-      logDrawRuntime("INFO", `frame_load_start: src=${resolved}, reload_token=${frameReloadToken}`);
-    } catch (error) {
-      const failure = formatDrawStartFailure(t, String(error));
-      handshakeStageRef.current = "frame_src_failed";
-      setFramePhase("error");
-      setFrameSrc(null);
-      setFrameFailureDetail(failure);
-      setStatus(failure);
-      logDrawRuntime("ERROR", `frame_src_failed: ${String(error)}`);
-    }
-  }, [frameReloadToken, locale, logDrawRuntime, t]);
-
-  const retryFrameLoad = useCallback(() => {
-    logDrawRuntime("WARN", `frame_retry_requested: stage=${handshakeStageRef.current}`);
-    if (loadTimerRef.current !== null) {
-      window.clearTimeout(loadTimerRef.current);
-      loadTimerRef.current = null;
-    }
-    setFramePhase("loading");
-    setFrameSrc(null);
-    setFrameFailureDetail(null);
-    setFrameDocumentLoaded(false);
-    setStatus(t("draw.waiting"));
-    setFrameReloadToken((prev) => prev + 1);
-  }, [logDrawRuntime, t]);
+  const {
+    frameRef,
+    initTimerRef,
+    loadTimerRef,
+    handshakeStageRef,
+    frameSrc,
+    setFrameSrc,
+    framePhase,
+    setFramePhase,
+    frameFailureDetail,
+    setFrameFailureDetail,
+    setFrameDocumentLoaded,
+    logDrawRuntime,
+    retryFrameLoad,
+  } = useDrawFrameLifecycle({ locale, t, setStatus });
 
   useEffect(() => {
     activePathRef.current = activePath;
@@ -575,61 +496,6 @@ export function DrawWorkspace(props: {
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [activePath, loadActiveToFrame, logDrawRuntime, postToFrame, postToFrameRaw, projectId, t]);
-
-  useEffect(() => {
-    if (!frameSrc || frameDocumentLoaded || framePhase !== "loading") {
-      return;
-    }
-    if (loadTimerRef.current !== null) {
-      window.clearTimeout(loadTimerRef.current);
-    }
-    loadTimerRef.current = window.setTimeout(() => {
-      const failure = formatDrawStartFailure(
-        t,
-        `drawio frame did not finish loading in time (last stage: ${handshakeStageRef.current})`,
-      );
-      logDrawRuntime("ERROR", `iframe_load_timeout: last_stage=${handshakeStageRef.current}`);
-      setFramePhase("error");
-      setFrameSrc(null);
-      setFrameFailureDetail(failure);
-      setStatus(failure);
-    }, 15_000);
-    return () => {
-      if (loadTimerRef.current !== null) {
-        window.clearTimeout(loadTimerRef.current);
-        loadTimerRef.current = null;
-      }
-    };
-  }, [frameDocumentLoaded, framePhase, frameSrc, logDrawRuntime, t]);
-
-  useEffect(() => {
-    if (!frameSrc || !frameDocumentLoaded || framePhase !== "loading") {
-      return;
-    }
-    handshakeStageRef.current = "iframe_loaded";
-    logDrawRuntime("INFO", "iframe_document_loaded");
-    initTimerRef.current = window.setTimeout(() => {
-      const failure = formatDrawStartFailure(
-        t,
-        `drawio local resource channel did not initialize in time (last stage: ${handshakeStageRef.current})`,
-      );
-      logDrawRuntime("ERROR", `handshake_timeout: last_stage=${handshakeStageRef.current}`);
-      setFramePhase("error");
-      setFrameSrc(null);
-      setFrameFailureDetail(failure);
-      setStatus(failure);
-    }, 20_000);
-    return () => {
-      if (loadTimerRef.current !== null) {
-        window.clearTimeout(loadTimerRef.current);
-        loadTimerRef.current = null;
-      }
-      if (initTimerRef.current !== null) {
-        window.clearTimeout(initTimerRef.current);
-        initTimerRef.current = null;
-      }
-    };
-  }, [frameDocumentLoaded, framePhase, frameSrc, logDrawRuntime, t]);
 
   if (!projectId) {
     return (

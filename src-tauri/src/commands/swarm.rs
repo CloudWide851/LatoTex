@@ -26,7 +26,7 @@ pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_ret
 
 use crate::models::{
     Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted, CompileRecord,
-    CompileRecordInput, EventBatch, EventQuery,
+    CompileRecordInput, EventBatch, EventQuery, McpServerConfig, McpValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -86,6 +86,15 @@ pub fn agent_execute_cancel(
         ok: true,
         message: "cancelling".to_string(),
     })
+}
+
+#[tauri::command]
+pub fn agent_mcp_validate(
+    state: State<'_, AppState>,
+    input: McpServerConfig,
+) -> Result<McpValidationResult, String> {
+    state.log("INFO", &format!("agent_mcp_validate: {}", input.id));
+    swarm_tool_mcp::validate_mcp_server(input)
 }
 
 #[tauri::command]

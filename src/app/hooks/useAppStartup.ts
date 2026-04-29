@@ -43,6 +43,7 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       closeBehavior: appSettings.uiPrefs?.closeBehavior ?? "ask",
       closeBehaviorRemember: appSettings.uiPrefs?.closeBehaviorRemember ?? false,
       theme: (appSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
+      themePreset: appSettings.uiPrefs?.themePreset ?? "default",
       previewDefaultZoom: appSettings.uiPrefs?.previewDefaultZoom ?? 1,
       paperBriefEngine: appSettings.uiPrefs?.paperBriefEngine ?? "auto",
       workspaceExplorerDefaultExpanded: appSettings.uiPrefs?.workspaceExplorerDefaultExpanded ?? true,

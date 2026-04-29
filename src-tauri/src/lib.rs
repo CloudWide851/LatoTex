@@ -13,7 +13,7 @@ use commands::agent_workflows::{
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
-use commands::channels::{channels_telegram_poll, channels_telegram_send};
+use commands::channels::{channels_telegram_poll, channels_telegram_send, channels_telegram_test};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_commit_files, git_diff_file,
     git_download_cancel, git_download_installer_start, git_download_status, git_fetch,
@@ -51,7 +51,8 @@ use commands::settings::{
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::swarm::{
-    agent_execute_cancel, agent_execute_start, events_subscribe, latex_compile_record,
+    agent_execute_cancel, agent_execute_start, agent_mcp_validate, events_subscribe,
+    latex_compile_record,
 };
 use tauri::{
     menu::MenuBuilder,
@@ -180,10 +181,12 @@ pub fn run() {
             share_session_stop,
             channels_telegram_poll,
             channels_telegram_send,
+            channels_telegram_test,
             fs_operation,
             latex_compile_record,
             agent_execute_start,
             agent_execute_cancel,
+            agent_mcp_validate,
             latex_edit_start,
             latex_review_fix_start,
             latex_reference_check_start,

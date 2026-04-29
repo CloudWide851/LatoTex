@@ -105,6 +105,7 @@ export function SettingsPanel(props: {
       language: locale,
       closeToTrayNoticeEnabled: true,
       theme: "system",
+      themePreset: "default",
       previewDefaultZoom: 1,
       panelLayout: DEFAULT_PANEL_LAYOUT,
       backgroundImagePaths: [],

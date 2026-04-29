@@ -1,4 +1,4 @@
-import { Check, Pencil, Plus, RotateCcw } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -67,9 +67,14 @@ export function AgentTeamsSettingsSection(props: {
   const teams = prefs.teams ?? [];
   const initialEditId = prefs.defaultTeamId ?? teams[0]?.id ?? DEFAULT_AGENT_TEAM.id;
   const [editingTeamId, setEditingTeamId] = useState(initialEditId);
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const editingTeam = useMemo(
     () => teams.find((team) => team.id === editingTeamId) ?? teams[0] ?? DEFAULT_AGENT_TEAM,
     [editingTeamId, teams],
+  );
+  const editingRole = useMemo(
+    () => (editingTeam.roles ?? []).find((role) => role.id === editingRoleId) ?? null,
+    [editingRoleId, editingTeam.roles],
   );
 
   useEffect(() => {
@@ -77,6 +82,12 @@ export function AgentTeamsSettingsSection(props: {
       setEditingTeamId(prefs.defaultTeamId ?? teams[0]?.id ?? DEFAULT_AGENT_TEAM.id);
     }
   }, [editingTeamId, prefs.defaultTeamId, teams]);
+
+  useEffect(() => {
+    if (editingRoleId && !(editingTeam.roles ?? []).some((role) => role.id === editingRoleId)) {
+      setEditingRoleId(null);
+    }
+  }, [editingRoleId, editingTeam.roles]);
 
   const updatePrefs = (nextPrefs: typeof prefs) => {
     setSettings((prev) => {
@@ -167,7 +178,14 @@ export function AgentTeamsSettingsSection(props: {
                         .replace("{parallelism}", String(team.parallelism ?? 2))}
                     </div>
                   </div>
-                  <Button size="sm" variant={selected ? "surface" : "ghost"} onClick={() => setEditingTeamId(team.id)}>
+                  <Button
+                    size="sm"
+                    variant={selected ? "surface" : "ghost"}
+                    onClick={() => {
+                      setEditingTeamId(team.id);
+                      setEditingRoleId(null);
+                    }}
+                  >
                     <Pencil className="mr-1.5 h-3.5 w-3.5" />
                     {t("settings.agentTeamsEdit")}
                   </Button>
@@ -189,8 +207,8 @@ export function AgentTeamsSettingsSection(props: {
             <div>
               <h3 className="text-sm font-semibold text-slate-900">{t("settings.agentTeamsEditorTitle")}</h3>
               <p className="text-xs text-slate-500">{t("settings.agentTeamsEditorHint")}</p>
-            </div>
-            <Button
+          </div>
+          <Button
               size="sm"
               variant={editingTeam.id === prefs.defaultTeamId ? "surface" : "secondary"}
               onClick={() => updatePrefs({ ...prefs, defaultTeamId: editingTeam.id })}
@@ -200,6 +218,118 @@ export function AgentTeamsSettingsSection(props: {
             </Button>
           </div>
 
+          {editingRole ? (
+            <div className="grid gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white p-2">
+                <Button size="sm" variant="ghost" onClick={() => setEditingRoleId(null)}>
+                  <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                  {t("settings.agentTeamsBackToTeam")}
+                </Button>
+                <div className="min-w-0 text-right">
+                  <div className="text-xs font-semibold text-slate-800">{t("settings.agentTeamsRoleConfigTitle")}</div>
+                  <div className="truncate text-[11px] text-slate-500">{editingRole.name}</div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 lg:grid-cols-[minmax(140px,0.8fr)_minmax(120px,0.55fr)_minmax(180px,1fr)_auto]">
+                <Input value={editingRole.name} onChange={(event) => updateEditingRole(editingRole.id, { name: event.target.value })} />
+                <Select
+                  value={editingRole.phase ?? "research"}
+                  onChange={(event) => updateEditingRole(editingRole.id, { phase: event.target.value as AgentTeamRolePrefs["phase"] })}
+                >
+                  {ROLE_PHASES.map((phase) => (
+                    <option key={phase} value={phase}>{t(`settings.agentTeamRole.phase.${phase}`)}</option>
+                  ))}
+                </Select>
+                <Select
+                  value={editingRole.modelId ?? ""}
+                  onChange={(event) => updateEditingRole(editingRole.id, { modelId: event.target.value })}
+                >
+                  <option value="">{t("settings.noModelAssigned")}</option>
+                  {activeModelCatalog.map((model) => (
+                    <option key={model.id} value={model.id}>{model.displayName}</option>
+                  ))}
+                </Select>
+                <label className="inline-flex items-center justify-end gap-1 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={editingRole.enabled ?? true}
+                    onChange={(event) => updateEditingRole(editingRole.id, { enabled: event.target.checked })}
+                  />
+                  {t("settings.agentTeamRole.enabled")}
+                </label>
+              </div>
+
+              <textarea
+                value={editingRole.identityPrompt ?? ""}
+                onChange={(event) => updateEditingRole(editingRole.id, { identityPrompt: event.target.value })}
+                className="library-scrollbar h-28 w-full resize-none overflow-auto rounded border border-slate-300 bg-white px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
+                placeholder={t("settings.agentTeamRole.promptPlaceholder")}
+              />
+
+              <div className="grid gap-2 md:grid-cols-[minmax(160px,1fr)_80px]">
+                <label className="grid gap-1 text-[11px] text-slate-600">
+                  <span>{t("settings.agentTeamRole.description")}</span>
+                  <Input
+                    value={editingRole.description ?? ""}
+                    onChange={(event) => updateEditingRole(editingRole.id, { description: event.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </label>
+                <label className="grid gap-1 text-[11px] text-slate-600">
+                  <span>{t("settings.agentTeamRole.color")}</span>
+                  <input
+                    type="color"
+                    value={editingRole.color ?? "#64748b"}
+                    className="h-8 w-16 rounded border border-slate-300 bg-white p-1"
+                    onChange={(event) => updateEditingRole(editingRole.id, { color: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-2">
+                <label className="inline-flex items-center gap-1 text-[11px] text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={editingRole.canWrite ?? false}
+                    onChange={(event) => updateEditingRole(editingRole.id, { canWrite: event.target.checked })}
+                  />
+                  {t("settings.agentTeamRole.canWrite")}
+                </label>
+                {TOOL_CHOICES.map((tool) => (
+                  <label key={tool} className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={(editingRole.toolAccess ?? []).includes(tool)}
+                      onChange={(event) => updateEditingRole(editingRole.id, {
+                        toolAccess: toggleValue(editingRole.toolAccess, tool, event.target.checked),
+                      })}
+                    />
+                    {t(`settings.agentTeamTool.${tool}`)}
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <label className="grid gap-1 text-[11px] text-slate-600">
+                  <span>{t("settings.agentTeamRole.mcpServers")}</span>
+                  <Input
+                    value={joinCsv(editingRole.mcpServerIds)}
+                    onChange={(event) => updateEditingRole(editingRole.id, { mcpServerIds: splitCsv(event.target.value) })}
+                    className="h-8 text-xs"
+                  />
+                </label>
+                <label className="grid gap-1 text-[11px] text-slate-600">
+                  <span>{t("settings.agentTeamRole.skills")}</span>
+                  <Input
+                    value={joinCsv(editingRole.skillIds)}
+                    onChange={(event) => updateEditingRole(editingRole.id, { skillIds: splitCsv(event.target.value) })}
+                    className="h-8 text-xs"
+                  />
+                </label>
+              </div>
+            </div>
+          ) : (
           <div className="grid gap-3">
             <div className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_120px_120px]">
               <label className="grid gap-1 text-xs text-slate-600">
@@ -242,109 +372,35 @@ export function AgentTeamsSettingsSection(props: {
             </div>
 
             <div className="grid gap-2">
+              <div>
+                <h4 className="text-xs font-semibold text-slate-700">{t("settings.agentTeamsRolesTitle")}</h4>
+                <p className="text-[11px] text-slate-500">{t("settings.agentTeamsRoleTagsHint")}</p>
+              </div>
               {(editingTeam.roles ?? []).map((role) => (
-                <article key={role.id} className="rounded-md border border-slate-200 bg-white p-3">
-                  <div className="grid gap-2 lg:grid-cols-[minmax(120px,0.7fr)_minmax(110px,0.55fr)_minmax(150px,0.85fr)_auto]">
-                    <Input value={role.name} onChange={(event) => updateEditingRole(role.id, { name: event.target.value })} />
-                    <Select
-                      value={role.phase ?? "research"}
-                      onChange={(event) => updateEditingRole(role.id, { phase: event.target.value as AgentTeamRolePrefs["phase"] })}
-                    >
-                      {ROLE_PHASES.map((phase) => (
-                        <option key={phase} value={phase}>{t(`settings.agentTeamRole.phase.${phase}`)}</option>
-                      ))}
-                    </Select>
-                    <Select
-                      value={role.modelId ?? ""}
-                      onChange={(event) => updateEditingRole(role.id, { modelId: event.target.value })}
-                    >
-                      <option value="">{t("settings.noModelAssigned")}</option>
-                      {activeModelCatalog.map((model) => (
-                        <option key={model.id} value={model.id}>{model.displayName}</option>
-                      ))}
-                    </Select>
-                    <label className="inline-flex items-center justify-end gap-1 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={role.enabled ?? true}
-                        onChange={(event) => updateEditingRole(role.id, { enabled: event.target.checked })}
-                      />
-                      {t("settings.agentTeamRole.enabled")}
-                    </label>
-                  </div>
-
-                  <textarea
-                    value={role.identityPrompt ?? ""}
-                    onChange={(event) => updateEditingRole(role.id, { identityPrompt: event.target.value })}
-                    className="library-scrollbar mt-2 h-24 w-full resize-none overflow-auto rounded border border-slate-300 bg-white px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
-                    placeholder={t("settings.agentTeamRole.promptPlaceholder")}
-                  />
-
-                  <div className="mt-2 grid gap-2 md:grid-cols-[minmax(160px,1fr)_minmax(160px,1fr)]">
-                    <label className="grid gap-1 text-[11px] text-slate-600">
-                      <span>{t("settings.agentTeamRole.description")}</span>
-                      <Input
-                        value={role.description ?? ""}
-                        onChange={(event) => updateEditingRole(role.id, { description: event.target.value })}
-                        className="h-8 text-xs"
-                      />
-                    </label>
-                    <label className="grid gap-1 text-[11px] text-slate-600">
-                      <span>{t("settings.agentTeamRole.color")}</span>
-                      <input
-                        type="color"
-                        value={role.color ?? "#64748b"}
-                        className="h-8 w-16 rounded border border-slate-300 bg-white p-1"
-                        onChange={(event) => updateEditingRole(role.id, { color: event.target.value })}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <label className="inline-flex items-center gap-1 text-[11px] text-slate-600">
-                      <input
-                        type="checkbox"
-                        checked={role.canWrite ?? false}
-                        onChange={(event) => updateEditingRole(role.id, { canWrite: event.target.checked })}
-                      />
-                      {t("settings.agentTeamRole.canWrite")}
-                    </label>
-                    {TOOL_CHOICES.map((tool) => (
-                      <label key={tool} className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={(role.toolAccess ?? []).includes(tool)}
-                          onChange={(event) => updateEditingRole(role.id, {
-                            toolAccess: toggleValue(role.toolAccess, tool, event.target.checked),
-                          })}
-                        />
+                <button
+                  key={role.id}
+                  type="button"
+                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--app-accent)]"
+                  onClick={() => setEditingRoleId(role.id)}
+                >
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: role.color ?? "#64748b" }} />
+                    <span className="truncate text-sm font-semibold text-slate-800">{role.name}</span>
+                    <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-600">
+                      {t(`settings.agentTeamRole.phase.${role.phase ?? "research"}`)}
+                    </span>
+                    {(role.toolAccess ?? []).map((tool) => (
+                      <span key={tool} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-500">
                         {t(`settings.agentTeamTool.${tool}`)}
-                      </label>
+                      </span>
                     ))}
-                  </div>
-
-                  <div className="mt-2 grid gap-2 md:grid-cols-2">
-                    <label className="grid gap-1 text-[11px] text-slate-600">
-                      <span>{t("settings.agentTeamRole.mcpServers")}</span>
-                      <Input
-                        value={joinCsv(role.mcpServerIds)}
-                        onChange={(event) => updateEditingRole(role.id, { mcpServerIds: splitCsv(event.target.value) })}
-                        className="h-8 text-xs"
-                      />
-                    </label>
-                    <label className="grid gap-1 text-[11px] text-slate-600">
-                      <span>{t("settings.agentTeamRole.skills")}</span>
-                      <Input
-                        value={joinCsv(role.skillIds)}
-                        onChange={(event) => updateEditingRole(role.id, { skillIds: splitCsv(event.target.value) })}
-                        className="h-8 text-xs"
-                      />
-                    </label>
-                  </div>
-                </article>
+                  </span>
+                  <span className="text-[11px] text-slate-500">{t("settings.agentTeamsOpenRole")}</span>
+                </button>
               ))}
             </div>
           </div>
+          )}
         </section>
       </div>
     </div>

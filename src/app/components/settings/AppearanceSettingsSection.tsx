@@ -14,6 +14,16 @@ const ACCENT_OPTIONS = ["emerald", "blue", "violet", "rose", "amber", "custom"] 
 const SCROLLBAR_COLOR_MODES = ["accent", "custom"] as const;
 const MOTION_OPTIONS = ["full", "reduced", "none"] as const;
 const CONTRAST_OPTIONS = ["soft", "normal", "strong"] as const;
+const THEME_PRESETS = [
+  { id: "default", accent: "#22c55e" },
+  { id: "graphite", accent: "#475569" },
+  { id: "paper", accent: "#b45309" },
+  { id: "forest", accent: "#15803d" },
+  { id: "ocean", accent: "#0284c7" },
+  { id: "rose", accent: "#e11d48" },
+  { id: "amber", accent: "#d97706" },
+  { id: "highContrast", accent: "#0f172a" },
+] as const;
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
   const numeric = Number(value);
@@ -82,6 +92,30 @@ export function AppearanceSettingsSection(props: {
         <h3 className="text-sm font-semibold text-slate-800">
           {t("settings.colorStyleTitle")}
         </h3>
+        <div className="grid gap-2 sm:grid-cols-4">
+          {THEME_PRESETS.map((preset) => {
+            const selected = (prefs.themePreset ?? "default") === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                className={cn(
+                  "flex min-h-16 flex-col items-start justify-between rounded-md border p-2 text-left text-xs transition",
+                  selected ? "border-[var(--app-accent)] bg-slate-50" : "border-slate-200 bg-white hover:border-slate-300",
+                )}
+                onClick={() => updateUiPrefs({
+                  themePreset: preset.id,
+                  accentColor: "custom",
+                  accentCustomColor: preset.accent,
+                  scrollbarColorMode: "accent",
+                })}
+              >
+                <span className="font-semibold text-slate-700">{t(`settings.themePreset.${preset.id}`)}</span>
+                <span className="h-3 w-full rounded-full" style={{ backgroundColor: preset.accent }} />
+              </button>
+            );
+          })}
+        </div>
         <SettingsSelectRow
           title={t("settings.accentColorTitle")}
           value={prefs.accentColor ?? "emerald"}

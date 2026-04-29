@@ -433,6 +433,7 @@ pub struct UiPrefs {
     pub close_behavior: Option<String>,
     pub close_behavior_remember: Option<bool>,
     pub theme: Option<String>,
+    pub theme_preset: Option<String>,
     pub preview_default_zoom: Option<f64>,
     pub paper_brief_engine: Option<String>,
     pub panel_layout: Option<Value>,

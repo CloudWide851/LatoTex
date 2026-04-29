@@ -1,5 +1,6 @@
 use crate::models::{
-    Ack, TelegramPollInput, TelegramPollResult, TelegramSendInput, TelegramUpdateItem,
+    Ack, TelegramPollInput, TelegramPollResult, TelegramSendInput, TelegramTestInput,
+    TelegramUpdateItem,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -52,6 +53,65 @@ fn parse_chat_id(value: &Value) -> Option<String> {
         return Some(id.to_string());
     }
     value.as_str().map(|item| item.to_string())
+}
+
+async fn send_telegram_message(
+    token: &str,
+    chat_id: &str,
+    text: &str,
+    reply_to_message_id: Option<i64>,
+) -> Result<Ack, String> {
+    let token = token.trim();
+    let chat_id = chat_id.trim();
+    let text = text.trim();
+    if token.is_empty() {
+        return Err("channels.telegram.token_missing".to_string());
+    }
+    if chat_id.is_empty() {
+        return Err("channels.telegram.chat_id_missing".to_string());
+    }
+    if text.is_empty() {
+        return Err("channels.telegram.empty_text".to_string());
+    }
+    let client = Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut body = json!({
+        "chat_id": chat_id,
+        "text": text,
+    });
+    if let Some(reply_to_message_id) = reply_to_message_id {
+        body["reply_to_message_id"] = json!(reply_to_message_id);
+    }
+    let response = client
+        .post(format!(
+            "https://api.telegram.org/bot{}/sendMessage",
+            token
+        ))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("channels.telegram.transport: {e}"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let payload = response.text().await.unwrap_or_default();
+        return Err(format!("channels.telegram.http_{status}: {payload}"));
+    }
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("channels.telegram.parse: {e}"))?;
+    if payload.get("ok").and_then(Value::as_bool) != Some(true) {
+        return Err(extract_telegram_error(
+            &payload,
+            "channels.telegram.send_failed",
+        ));
+    }
+    Ok(Ack {
+        ok: true,
+        message: "sent".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -178,43 +238,10 @@ pub async fn channels_telegram_send(
         .map(str::to_string)
         .or(config.allowed_chat_id)
         .ok_or_else(|| "channels.telegram.chat_id_missing".to_string())?;
-    let client = Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let mut body = json!({
-        "chat_id": chat_id,
-        "text": text,
-    });
-    if let Some(reply_to_message_id) = input.reply_to_message_id {
-        body["reply_to_message_id"] = json!(reply_to_message_id);
-    }
-    let response = client
-        .post(format!(
-            "https://api.telegram.org/bot{}/sendMessage",
-            config.token
-        ))
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("channels.telegram.transport: {e}"))?;
-    if !response.status().is_success() {
-        let status = response.status();
-        let payload = response.text().await.unwrap_or_default();
-        return Err(format!("channels.telegram.http_{status}: {payload}"));
-    }
-    let payload: Value = response
-        .json()
-        .await
-        .map_err(|e| format!("channels.telegram.parse: {e}"))?;
-    if payload.get("ok").and_then(Value::as_bool) != Some(true) {
-        return Err(extract_telegram_error(
-            &payload,
-            "channels.telegram.send_failed",
-        ));
-    }
-    Ok(Ack {
-        ok: true,
-        message: "sent".to_string(),
-    })
+    send_telegram_message(&config.token, &chat_id, text, input.reply_to_message_id).await
+}
+
+#[tauri::command]
+pub async fn channels_telegram_test(input: TelegramTestInput) -> Result<Ack, String> {
+    send_telegram_message(&input.token, &input.chat_id, &input.text, None).await
 }

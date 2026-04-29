@@ -215,6 +215,7 @@ export type AppSettings = {
     skipDeleteConfirm?: boolean;
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
+    themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
     previewDefaultZoom?: number;
     paperBriefEngine?: "auto" | "pdfjs" | "python";
     panelLayout?: PanelLayoutPrefs;
@@ -307,6 +308,18 @@ export type McpServerConfig = {
   args?: string[];
   env?: Record<string, string>;
   enabled?: boolean;
+};
+
+export type McpValidationResult = {
+  ok: boolean;
+  message: string;
+  tools: string[];
+};
+
+export type TelegramTestInput = {
+  token: string;
+  chatId: string;
+  text: string;
 };
 
 export type FeatureModelBindings = {

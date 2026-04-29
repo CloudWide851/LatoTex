@@ -154,6 +154,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           closeBehavior: nextSettings.uiPrefs?.closeBehavior ?? "ask",
           closeBehaviorRemember: nextSettings.uiPrefs?.closeBehaviorRemember ?? false,
           theme: (nextSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system",
+          themePreset: nextSettings.uiPrefs?.themePreset ?? "default",
           previewDefaultZoom: nextSettings.uiPrefs?.previewDefaultZoom ?? 1,
           paperBriefEngine: nextSettings.uiPrefs?.paperBriefEngine ?? "auto",
           panelLayout: nextSettings.uiPrefs?.panelLayout,

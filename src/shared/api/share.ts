@@ -3,6 +3,7 @@ import type {
   ShareSessionInfo,
   TelegramPollInput,
   TelegramPollResult,
+  TelegramTestInput,
 } from "../types/app";
 import { invokeCommand } from "./core";
 
@@ -35,4 +36,8 @@ export function channelsTelegramSend(input: {
   replyToMessageId?: number;
 }): Promise<Ack> {
   return invokeCommand<Ack>("channels_telegram_send", { input });
+}
+
+export function channelsTelegramTest(input: TelegramTestInput): Promise<Ack> {
+  return invokeCommand<Ack>("channels_telegram_test", { input });
 }

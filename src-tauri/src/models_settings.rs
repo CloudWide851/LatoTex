@@ -65,6 +65,14 @@ pub struct McpServerConfig {
     pub enabled: Option<bool>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpValidationResult {
+    pub ok: bool,
+    pub message: String,
+    pub tools: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FeatureModelBindings {
@@ -115,4 +123,12 @@ pub struct TelegramSendInput {
     pub chat_id: Option<String>,
     pub text: String,
     pub reply_to_message_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelegramTestInput {
+    pub token: String,
+    pub chat_id: String,
+    pub text: String,
 }
