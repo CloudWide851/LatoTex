@@ -13,7 +13,10 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   pgf: { monaco: "latex", highlight: "latex" },
   md: { monaco: "markdown", highlight: "markdown" },
   markdown: { monaco: "markdown", highlight: "markdown" },
+  mdx: { monaco: "mdx", highlight: "markdown" },
   txt: { monaco: "plaintext", highlight: null },
+  csv: { monaco: "csv", highlight: null },
+  tsv: { monaco: "csv", highlight: null },
   json: { monaco: "json", highlight: "json" },
   jsonl: { monaco: "json", highlight: "json" },
   yaml: { monaco: "yaml", highlight: "yaml" },
@@ -34,6 +37,8 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   tsx: { monaco: "typescript", highlight: "typescript" },
   vue: { monaco: "html", highlight: "xml" },
   svelte: { monaco: "html", highlight: "xml" },
+  graphql: { monaco: "graphql", highlight: "graphql" },
+  gql: { monaco: "graphql", highlight: "graphql" },
   py: { monaco: "python", highlight: "python" },
   ipynb: { monaco: "json", highlight: "json" },
   rs: { monaco: "rust", highlight: "rust" },
@@ -68,7 +73,12 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   makefile: { monaco: "plaintext", highlight: "makefile" },
   mk: { monaco: "plaintext", highlight: "makefile" },
   gradle: { monaco: "groovy", highlight: "gradle" },
+  hcl: { monaco: "hcl", highlight: null },
+  proto: { monaco: "protobuf", highlight: "protobuf" },
   dockerfile: { monaco: "dockerfile", highlight: "dockerfile" },
+  dockerignore: { monaco: "ignore", highlight: null },
+  gitignore: { monaco: "ignore", highlight: null },
+  editorconfig: { monaco: "editorconfig", highlight: "ini" },
   env: { monaco: "shell", highlight: "bash" },
   log: { monaco: "plaintext", highlight: null },
 };
@@ -80,8 +90,16 @@ function normalizePath(value: string | null | undefined): string {
 export function extensionOfPath(path: string | null | undefined): string {
   const normalized = normalizePath(path).toLowerCase();
   const basename = normalized.split("/").pop() || normalized;
-  if (basename === "dockerfile") {
-    return "dockerfile";
+  const special = new Set([
+    "dockerfile",
+    "makefile",
+    "gemfile",
+    ".gitignore",
+    ".dockerignore",
+    ".editorconfig",
+  ]);
+  if (special.has(basename)) {
+    return basename.replace(/^\./, "");
   }
   const dot = basename.lastIndexOf(".");
   if (dot < 0 || dot === basename.length - 1) {

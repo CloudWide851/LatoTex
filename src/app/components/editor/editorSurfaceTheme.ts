@@ -33,7 +33,16 @@ export function registerEditorSurfaceThemes(monaco: MonacoLike) {
     rules: [
       { token: "comment", foreground: "6b7280", fontStyle: "italic" },
       { token: "keyword", foreground: "1d4ed8" },
+      { token: "keyword.control", foreground: "9333ea", fontStyle: "bold" },
+      { token: "keyword.declaration", foreground: "be123c" },
       { token: "string", foreground: "047857" },
+      { token: "string.delimiter", foreground: "0f766e" },
+      { token: "type.identifier", foreground: "7c3aed" },
+      { token: "attribute.name", foreground: "b45309" },
+      { token: "attribute.value", foreground: "0e7490" },
+      { token: "number", foreground: "c2410c" },
+      { token: "operator", foreground: "334155" },
+      { token: "delimiter", foreground: "475569" },
     ],
     colors: {
       "editor.background": "#fffdf8",
@@ -78,7 +87,16 @@ export function registerEditorSurfaceThemes(monaco: MonacoLike) {
     rules: [
       { token: "comment", foreground: "7c8aa5", fontStyle: "italic" },
       { token: "keyword", foreground: "8ab4ff" },
+      { token: "keyword.control", foreground: "c4b5fd", fontStyle: "bold" },
+      { token: "keyword.declaration", foreground: "fda4af" },
       { token: "string", foreground: "7dd3a7" },
+      { token: "string.delimiter", foreground: "5eead4" },
+      { token: "type.identifier", foreground: "c4b5fd" },
+      { token: "attribute.name", foreground: "fbbf24" },
+      { token: "attribute.value", foreground: "67e8f9" },
+      { token: "number", foreground: "fdba74" },
+      { token: "operator", foreground: "cbd5e1" },
+      { token: "delimiter", foreground: "94a3b8" },
     ],
     colors: {
       "editor.background": "#0f1720",

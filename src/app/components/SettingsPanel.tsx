@@ -108,6 +108,7 @@ export function SettingsPanel(props: {
       themePreset: "default",
       previewDefaultZoom: 1,
       panelLayout: DEFAULT_PANEL_LAYOUT,
+      terminalShell: "powershell",
       backgroundImagePaths: [],
       backgroundBlurPx: 18,
       accentColor: "emerald",
@@ -135,6 +136,7 @@ export function SettingsPanel(props: {
   const deleteConfirmEnabled = !(localSettings.uiPrefs?.skipDeleteConfirm ?? false);
   const closeToTrayNoticeEnabled = localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true;
   const paperBriefEngine = localSettings.uiPrefs?.paperBriefEngine ?? "auto";
+  const terminalShell = localSettings.uiPrefs?.terminalShell ?? "powershell";
 
   const updateGeneralUiPrefs = useCallback((patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -224,6 +226,21 @@ export function SettingsPanel(props: {
               onChange={(value) =>
                 updateGeneralUiPrefs({
                   paperBriefEngine: value as "auto" | "pdfjs" | "python",
+                })
+              }
+            />
+            <SettingsSelectRow
+              title={t("settings.terminalShellTitle")}
+              value={terminalShell}
+              description={t("settings.terminalShellHint")}
+              options={[
+                { value: "powershell", label: t("settings.terminalShell.powershell") },
+                { value: "cmd", label: t("settings.terminalShell.cmd") },
+                { value: "system", label: t("settings.terminalShell.system") },
+              ]}
+              onChange={(value) =>
+                updateGeneralUiPrefs({
+                  terminalShell: value as "powershell" | "cmd" | "system",
                 })
               }
             />

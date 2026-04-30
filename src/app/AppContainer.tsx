@@ -446,6 +446,7 @@ export function AppContainer() {
       pageRailItems={s.pageRailItems}
       shellLayout={panels.shellLayout}
       latexLayout={panels.latexLayout}
+      latexTerminalLayout={panels.latexTerminalLayout}
       analysisLayout={panels.analysisLayout}
       libraryLayout={panels.libraryLayout}
       libraryBibLayout={panels.libraryBibLayout}

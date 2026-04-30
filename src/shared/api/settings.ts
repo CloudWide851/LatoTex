@@ -37,6 +37,7 @@ export function updateSettings(input: {
     themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
     previewDefaultZoom?: number;
     paperBriefEngine?: "auto" | "pdfjs" | "python";
+    terminalShell?: "powershell" | "cmd" | "system";
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: {
       latexAgentModelId?: string;

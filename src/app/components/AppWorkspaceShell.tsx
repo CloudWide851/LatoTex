@@ -35,6 +35,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     suspended = false,
     shellLayout,
     latexLayout,
+    latexTerminalLayout,
     analysisLayout,
     libraryLayout,
     libraryBibLayout,
@@ -472,6 +473,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         compileAssistHint={compileAssistHint}
         compileAssistAutoFixBusy={compileAssistAutoFixBusy}
         terminalVisible={terminalVisible}
+        terminalLayout={latexTerminalLayout}
+        onTerminalLayoutChange={(layout) => onSavePanelLayout("latexTerminal", layout)}
         onTerminalToggle={() => setTerminalVisible((prev) => !prev)}
         onShareModeChange={onShareModeChange}
         onShareSessionNameChange={onShareSessionNameChange}

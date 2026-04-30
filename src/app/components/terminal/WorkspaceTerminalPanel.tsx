@@ -1,7 +1,7 @@
 import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as XTerm } from "@xterm/xterm";
-import { Plus, RefreshCcw, Square, X } from "lucide-react";
+import { RefreshCcw, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   terminalRead,
@@ -11,29 +11,10 @@ import {
   terminalWrite,
 } from "../../../shared/api/workspace";
 import type { TerminalOutputChunk } from "../../../shared/types/app";
-
-type TranslationFn = (key: any) => string;
+import { TerminalSessionRail } from "./TerminalSessionRail";
+import type { ProjectTerminalState, TerminalTab, TranslationFn } from "./terminalTypes";
 
 const TERMINAL_POLL_MS = 180;
-
-type TerminalTab = {
-  id: string;
-  title: string;
-  relativePath: string | null;
-  sessionId: string | null;
-  cwd: string;
-  venvPath: string | null;
-  envSource: string | null;
-  status: string;
-  cursor: number;
-  buffer: string;
-  error: string | null;
-};
-
-type ProjectTerminalState = {
-  tabs: TerminalTab[];
-  activeTabId: string | null;
-};
 
 const terminalStates = new Map<string, ProjectTerminalState>();
 
@@ -455,36 +436,26 @@ export function WorkspaceTerminalPanel(props: {
   const statusLabel = busyTabId === activeTab?.id ? t("terminal.starting") : activeTab?.status ?? "idle";
 
   return (
-    <section className="flex h-full min-h-0 flex-col rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-paper-bg)] text-[color:var(--editor-tab-text)]">
-      <div className="flex min-h-9 items-center gap-2 border-b border-[color:var(--editor-shell-divider)] px-2 py-1">
-        <div className="library-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`group flex max-w-[180px] shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs ${
-                tab.id === activeTabId
-                  ? "border-primary-400 bg-primary-50 text-primary-900"
-                  : "border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] text-[color:var(--editor-tab-muted)]"
-              }`}
-              onClick={() => setActiveTabId(tab.id)}
-              title={tab.cwd || tab.relativePath || tab.title}
-            >
-              <span className="truncate">{tab.title}</span>
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50" />
-            </button>
-          ))}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <span className="max-w-[260px] truncate text-[10px] text-[color:var(--editor-tab-muted)]" title={activeTab?.venvPath ?? activeTab?.cwd}>
+    <section className="flex h-full min-h-0 overflow-hidden rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-paper-bg)] text-[color:var(--editor-tab-text)]">
+      <TerminalSessionRail
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onSelect={setActiveTabId}
+        onClose={(tabId) => {
+          void closeTab(tabId);
+        }}
+        onNew={newTab}
+        t={t}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-9 items-center gap-2 border-b border-[color:var(--editor-shell-divider)] px-2 py-1">
+          <span className="min-w-0 flex-1 truncate text-[10px] text-[color:var(--editor-tab-muted)]" title={activeTab?.venvPath ?? activeTab?.cwd}>
             {activeTab?.venvPath || activeTab?.cwd || statusLabel}
           </span>
-          <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+          <span className="shrink-0 rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-muted)]">
             {statusLabel}
           </span>
-          <button className="panel-topbar-btn editor-toolbar-btn" onClick={newTab} title={t("terminal.new")} aria-label={t("terminal.new")}>
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
           <button
             className="panel-topbar-btn editor-toolbar-btn"
             onClick={() => activeTab && void stopTab(activeTab.id).then(() => startTab(activeTab.id))}
@@ -503,23 +474,15 @@ export function WorkspaceTerminalPanel(props: {
           >
             <Square className="h-3.5 w-3.5" />
           </button>
-          <button
-            className="panel-topbar-btn editor-toolbar-btn"
-            onClick={() => activeTab && void closeTab(activeTab.id)}
-            disabled={!activeTab}
-            title={t("terminal.close")}
-            aria-label={t("terminal.close")}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          </div>
         </div>
+        {activeTab?.error ? (
+          <div className="border-b border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+            {activeTab.error}
+          </div>
+        ) : null}
+        <div ref={viewportRef} className="min-h-0 flex-1 overflow-hidden bg-slate-950 p-1" />
       </div>
-      {activeTab?.error ? (
-        <div className="border-b border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
-          {activeTab.error}
-        </div>
-      ) : null}
-      <div ref={viewportRef} className="min-h-0 flex-1 overflow-hidden bg-slate-950 p-1" />
     </section>
   );
 }

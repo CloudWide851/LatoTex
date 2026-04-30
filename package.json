@@ -29,6 +29,7 @@
   "packageManager": "pnpm@10.29.2",
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.55.1",
     "@picocss/pico": "^2.1.1",
     "@tauri-apps/api": "^2.0.0",
     "@xterm/addon-fit": "^0.10.0",

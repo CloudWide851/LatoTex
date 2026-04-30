@@ -77,6 +77,7 @@ export function AppContainerView(props: any) {
     pageRailItems,
     shellLayout,
     latexLayout,
+    latexTerminalLayout,
     analysisLayout,
     libraryLayout,
     libraryBibLayout,
@@ -366,6 +367,7 @@ export function AppContainerView(props: any) {
                 busy={busy}
                 shellLayout={shellLayout}
                 latexLayout={latexLayout}
+                latexTerminalLayout={latexTerminalLayout}
                 analysisLayout={analysisLayout}
                 libraryLayout={libraryLayout}
                 libraryBibLayout={libraryBibLayout}

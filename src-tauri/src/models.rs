@@ -329,13 +329,9 @@ pub struct AgentExecuteRequest {
     pub bypass_cache: bool,
     pub team_mode: Option<String>,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentExecuteCancelInput {
-    pub run_id: String,
-}
-
+pub struct AgentExecuteCancelInput { pub run_id: String }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExecuteStartAccepted {
@@ -449,6 +445,7 @@ pub struct UiPrefs {
     pub theme_preset: Option<String>,
     pub preview_default_zoom: Option<f64>,
     pub paper_brief_engine: Option<String>,
+    pub terminal_shell: Option<String>,
     pub panel_layout: Option<Value>,
     pub feature_model_bindings: Option<FeatureModelBindings>,
     pub channels: Option<ChannelPrefs>,

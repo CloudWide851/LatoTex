@@ -157,6 +157,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           themePreset: nextSettings.uiPrefs?.themePreset ?? "default",
           previewDefaultZoom: nextSettings.uiPrefs?.previewDefaultZoom ?? 1,
           paperBriefEngine: nextSettings.uiPrefs?.paperBriefEngine ?? "auto",
+          terminalShell: nextSettings.uiPrefs?.terminalShell ?? "powershell",
           panelLayout: nextSettings.uiPrefs?.panelLayout,
           featureModelBindings: nextSettings.uiPrefs?.featureModelBindings,
           channels: nextSettings.uiPrefs?.channels,
@@ -250,6 +251,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const expectedLengthMap: Record<keyof PanelLayoutPrefs, number> = {
         shell: 2,
         latex: 3,
+        latexTerminal: 2,
         analysis: 2,
         library: 2,
         libraryBib: 2,

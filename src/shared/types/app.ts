@@ -246,6 +246,7 @@ export type AppSettings = {
     themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
     previewDefaultZoom?: number;
     paperBriefEngine?: "auto" | "pdfjs" | "python";
+    terminalShell?: "powershell" | "cmd" | "system";
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: FeatureModelBindings;
     channels?: ChannelPrefs;
@@ -387,6 +388,7 @@ export type TelegramPollResult = {
 export type PanelLayoutPrefs = {
   shell?: number[];
   latex?: number[];
+  latexTerminal?: number[];
   analysis?: number[];
   library?: number[];
   libraryBib?: number[];

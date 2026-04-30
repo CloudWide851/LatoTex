@@ -23,6 +23,11 @@ struct TerminalEnv {
     env_source: String,
 }
 
+struct TerminalShellSpec {
+    shell: String,
+    args: Vec<String>,
+}
+
 fn append_output(session: &TerminalSession, stream: &str, text: String) {
     if text.is_empty() {
         return;
@@ -75,6 +80,30 @@ fn venv_bin_dir(venv_path: &Path) -> PathBuf {
     }
 }
 
+fn strip_windows_verbatim_prefix(text: &str) -> String {
+    if cfg!(target_os = "windows") {
+        if let Some(stripped) = text.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{stripped}");
+        }
+        if let Some(stripped) = text.strip_prefix(r"\\?\") {
+            return stripped.to_string();
+        }
+    }
+    text.to_string()
+}
+
+fn runtime_path_text(path: &Path) -> String {
+    strip_windows_verbatim_prefix(&path.to_string_lossy())
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn cmd_quote(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
+}
+
 fn venv_env_pairs(venv_path: &Path) -> Vec<(String, String)> {
     let bin_dir = venv_bin_dir(venv_path);
     let current_path = env::var_os("PATH").unwrap_or_default();
@@ -94,15 +123,67 @@ fn venv_env_pairs(venv_path: &Path) -> Vec<(String, String)> {
         ("PATH".to_string(), next_path),
         ("TERM".to_string(), "xterm-256color".to_string()),
         ("COLORTERM".to_string(), "truecolor".to_string()),
+        ("FORCE_COLOR".to_string(), "1".to_string()),
     ]
 }
 
-fn terminal_shell_command() -> (String, Vec<String>) {
+fn terminal_shell_pref(state: &AppState) -> String {
+    storage::load_settings(&state.db_path, &state.runtime_root)
+        .ok()
+        .and_then(|settings| settings.ui_prefs)
+        .and_then(|prefs| prefs.terminal_shell)
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| matches!(value.as_str(), "powershell" | "cmd" | "system"))
+        .unwrap_or_else(|| "powershell".to_string())
+}
+
+fn powershell_spec(directory: &Path, venv_path: &Path) -> TerminalShellSpec {
+    let cwd = runtime_path_text(directory);
+    let venv = runtime_path_text(venv_path);
+    let activate = runtime_path_text(&venv_path.join("Scripts").join("Activate.ps1"));
+    let command = format!(
+        "$ErrorActionPreference='Continue'; Set-Location -LiteralPath {}; if (Test-Path -LiteralPath {}) {{ . {}; }} else {{ $env:VIRTUAL_ENV={}; function global:prompt {{ \"({}) \" + (Get-Location) + \"> \" }} }}; try {{ if (Get-Command Set-PSReadLineOption -ErrorAction SilentlyContinue) {{ Set-PSReadLineOption -Colors @{{ Command='Cyan'; Parameter='Gray'; String='Green'; Operator='DarkCyan'; Variable='Yellow'; Number='Magenta' }} -ErrorAction SilentlyContinue }} }} catch {{}}",
+        shell_single_quote(&cwd),
+        shell_single_quote(&activate),
+        shell_single_quote(&activate),
+        shell_single_quote(&venv),
+        venv_path.file_name().and_then(|value| value.to_str()).unwrap_or("venv"),
+    );
+    TerminalShellSpec {
+        shell: "powershell.exe".to_string(),
+        args: vec![
+            "-NoLogo".to_string(),
+            "-NoExit".to_string(),
+            "-ExecutionPolicy".to_string(),
+            "Bypass".to_string(),
+            "-Command".to_string(),
+            command,
+        ],
+    }
+}
+
+fn cmd_spec(directory: &Path, venv_path: &Path) -> TerminalShellSpec {
+    let cwd = runtime_path_text(directory);
+    let activate = runtime_path_text(&venv_path.join("Scripts").join("activate.bat"));
+    TerminalShellSpec {
+        shell: env::var("COMSPEC")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "cmd.exe".to_string()),
+        args: vec![
+            "/K".to_string(),
+            format!("cd /d {} && call {}", cmd_quote(&cwd), cmd_quote(&activate)),
+        ],
+    }
+}
+
+fn terminal_shell_command(setting: &str, directory: &Path, venv_path: &Path) -> TerminalShellSpec {
     if cfg!(target_os = "windows") {
-        return (
-            "powershell.exe".to_string(),
-            vec!["-NoLogo".to_string(), "-NoExit".to_string()],
-        );
+        return match setting {
+            "cmd" => cmd_spec(directory, venv_path),
+            "system" if env::var("COMSPEC").is_ok() => cmd_spec(directory, venv_path),
+            _ => powershell_spec(directory, venv_path),
+        };
     }
     let shell = env::var("SHELL")
         .ok()
@@ -119,9 +200,15 @@ fn terminal_shell_command() -> (String, Vec<String>) {
         .and_then(|value| value.to_str())
         .unwrap_or_default();
     if shell_name.contains("zsh") {
-        (shell, vec!["-il".to_string()])
+        TerminalShellSpec {
+            shell,
+            args: vec!["-il".to_string()],
+        }
     } else {
-        (shell, vec!["-l".to_string(), "-i".to_string()])
+        TerminalShellSpec {
+            shell,
+            args: vec!["-l".to_string(), "-i".to_string()],
+        }
     }
 }
 
@@ -190,9 +277,11 @@ pub async fn terminal_start(
             input.relative_path.as_deref(),
         )?;
         let terminal_env = resolve_terminal_env(&state_snapshot, &input.project_id, &project_root)?;
-        let (shell, args) = terminal_shell_command();
+        let shell_setting = terminal_shell_pref(&state_snapshot);
+        let shell_spec = terminal_shell_command(&shell_setting, &directory, &terminal_env.venv_path);
         let session_id = Uuid::new_v4().to_string();
         let size = clamp_pty_size(input.cols, input.rows);
+        let command_cwd = PathBuf::from(runtime_path_text(&directory));
 
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -207,9 +296,9 @@ pub async fn terminal_start(
             .take_writer()
             .map_err(|e| format!("terminal.writer_unavailable: {e}"))?;
 
-        let mut command = CommandBuilder::new(&shell);
-        command.args(&args);
-        command.cwd(&directory);
+        let mut command = CommandBuilder::new(&shell_spec.shell);
+        command.args(&shell_spec.args);
+        command.cwd(command_cwd);
         for (key, value) in venv_env_pairs(&terminal_env.venv_path) {
             command.env(key, value);
         }
@@ -220,8 +309,8 @@ pub async fn terminal_start(
         drop(pair.slave);
 
         let session = Arc::new(TerminalSession {
-            cwd: directory.to_string_lossy().to_string(),
-            venv_path: Some(terminal_env.venv_path.to_string_lossy().to_string()),
+            cwd: runtime_path_text(&directory),
+            venv_path: Some(runtime_path_text(&terminal_env.venv_path)),
             env_source: Some(terminal_env.env_source.clone()),
             master: Mutex::new(pair.master),
             child: Mutex::new(child),
@@ -251,7 +340,7 @@ pub async fn terminal_start(
                 input.project_id,
                 session_id,
                 session.cwd,
-                shell,
+                shell_spec.shell,
                 session.venv_path.as_deref().unwrap_or("-"),
                 size.cols,
                 size.rows,
@@ -266,7 +355,7 @@ pub async fn terminal_start(
         Ok(TerminalStartResponse {
             session_id,
             cwd: session.cwd.clone(),
-            shell,
+            shell: shell_spec.shell,
             venv_path: session.venv_path.clone(),
             env_source: session.env_source.clone(),
             status: "running".to_string(),
@@ -425,7 +514,9 @@ pub fn terminal_stop(state: State<'_, AppState>, input: TerminalStopInput) -> Re
 
 #[cfg(test)]
 mod tests {
-    use super::{clamp_pty_size, venv_bin_dir};
+    use super::{
+        clamp_pty_size, strip_windows_verbatim_prefix, terminal_shell_command, venv_bin_dir,
+    };
     use std::path::PathBuf;
 
     #[test]
@@ -446,6 +537,36 @@ mod tests {
             assert!(rendered.ends_with("demo-venv/Scripts"));
         } else {
             assert!(rendered.ends_with("demo-venv/bin"));
+        }
+    }
+
+    #[test]
+    fn strips_windows_verbatim_paths_for_shell_display() {
+        if cfg!(target_os = "windows") {
+            assert_eq!(
+                strip_windows_verbatim_prefix(r"\\?\H:\LatoTex"),
+                r"H:\LatoTex"
+            );
+            assert_eq!(
+                strip_windows_verbatim_prefix(r"\\?\UNC\server\share\demo"),
+                r"\\server\share\demo"
+            );
+        } else {
+            assert_eq!(strip_windows_verbatim_prefix("/tmp/demo"), "/tmp/demo");
+        }
+    }
+
+    #[test]
+    fn builds_configured_terminal_shell_specs() {
+        let cwd = PathBuf::from(r"H:\LatoTex");
+        let venv = PathBuf::from(r"H:\LatoTex\.venv");
+        let powershell = terminal_shell_command("powershell", &cwd, &venv);
+        assert!(powershell.shell.to_lowercase().contains("powershell"));
+        assert!(powershell.args.iter().any(|arg| arg.contains("Activate.ps1") || cfg!(not(target_os = "windows"))));
+
+        if cfg!(target_os = "windows") {
+            let cmd = terminal_shell_command("cmd", &cwd, &venv);
+            assert!(cmd.args.iter().any(|arg| arg.contains("activate.bat")));
         }
     }
 }

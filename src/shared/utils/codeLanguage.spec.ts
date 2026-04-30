@@ -6,6 +6,8 @@ describe("codeLanguage", () => {
     expect(extensionOfPath("src/main.rs")).toBe("rs");
     expect(extensionOfPath("src\\main.TS")).toBe("ts");
     expect(extensionOfPath("Dockerfile")).toBe("dockerfile");
+    expect(extensionOfPath(".editorconfig")).toBe("editorconfig");
+    expect(extensionOfPath(".gitignore")).toBe("gitignore");
   });
 
   it("resolves editor and preview languages for common source files", () => {
@@ -16,6 +18,18 @@ describe("codeLanguage", () => {
     expect(resolveCodeLanguage("scripts/setup.ps1")).toEqual({
       monaco: "powershell",
       highlight: "powershell",
+    });
+    expect(resolveCodeLanguage("data/product_catalog.csv")).toEqual({
+      monaco: "csv",
+      highlight: null,
+    });
+    expect(resolveCodeLanguage(".editorconfig")).toEqual({
+      monaco: "editorconfig",
+      highlight: "ini",
+    });
+    expect(resolveCodeLanguage(".gitignore")).toEqual({
+      monaco: "ignore",
+      highlight: null,
     });
     expect(resolveCodeLanguage("papers/ref.bib")).toEqual({
       monaco: "bibtex",

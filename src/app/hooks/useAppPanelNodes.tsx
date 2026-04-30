@@ -219,6 +219,7 @@ export function useAppPanelNodes(params: any) {
   const panelLayout = settings?.uiPrefs?.panelLayout ?? DEFAULT_PANEL_LAYOUT;
   const shellLayout = clampLayout(panelLayout.shell, DEFAULT_PANEL_LAYOUT.shell!);
   const latexLayout = clampLayout(panelLayout.latex, DEFAULT_PANEL_LAYOUT.latex!);
+  const latexTerminalLayout = clampLayout(panelLayout.latexTerminal, DEFAULT_PANEL_LAYOUT.latexTerminal!);
   const analysisLayout = clampLayout(panelLayout.analysis, DEFAULT_PANEL_LAYOUT.analysis!);
   const libraryLayout = clampLayout(panelLayout.library, DEFAULT_PANEL_LAYOUT.library!);
   const libraryBibLayout = clampLayout(panelLayout.libraryBib, DEFAULT_PANEL_LAYOUT.libraryBib!);
@@ -276,6 +277,7 @@ export function useAppPanelNodes(params: any) {
       };
       if (page === "latex") {
         nextPanelLayout.latex = [...(DEFAULT_PANEL_LAYOUT.latex ?? [22, 48, 30])];
+        nextPanelLayout.latexTerminal = [...(DEFAULT_PANEL_LAYOUT.latexTerminal ?? [68, 32])];
       } else if (page === "analysis") {
         nextPanelLayout.analysis = [...(DEFAULT_PANEL_LAYOUT.analysis ?? [26, 74])];
       } else if (page === "library") {
@@ -427,6 +429,7 @@ export function useAppPanelNodes(params: any) {
   return {
     shellLayout,
     latexLayout,
+    latexTerminalLayout,
     analysisLayout,
     libraryLayout,
     activeModelCatalog,

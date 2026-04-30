@@ -15,7 +15,7 @@ import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
-import { WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
+import { emitWorkspaceLayoutRefresh, WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
 import type { AgentTeamMode, ShareCommentItem } from "../../../shared/types/app";
 import {
   LazyAgentChatOverlay,
@@ -83,6 +83,8 @@ export function LatexWorkspaceEditorPanel(props: {
   compileAssistHint: string;
   compileAssistAutoFixBusy: boolean;
   terminalVisible: boolean;
+  terminalLayout: number[];
+  onTerminalLayoutChange: (layout: number[]) => void;
   onTerminalToggle: () => void;
   onShareModeChange: (mode: any) => void;
   onShareSessionNameChange: (name: string) => void;
@@ -161,6 +163,8 @@ export function LatexWorkspaceEditorPanel(props: {
     compileAssistHint,
     compileAssistAutoFixBusy,
     terminalVisible,
+    terminalLayout,
+    onTerminalLayoutChange,
     onTerminalToggle,
     onShareModeChange,
     onShareSessionNameChange,
@@ -535,12 +539,20 @@ export function LatexWorkspaceEditorPanel(props: {
 
       <div className="editor-content-stage h-full min-h-0">
         {terminalVisible ? (
-          <PanelGroup direction="vertical" className="h-full min-h-0" onLayout={() => editorInstanceRef.current?.layout()}>
-            <Panel id="latex-editor-main" order={1} defaultSize={68} minSize={36} className="min-h-0">
+          <PanelGroup
+            direction="vertical"
+            className="h-full min-h-0"
+            onLayout={(layout) => {
+              onTerminalLayoutChange(layout);
+              editorInstanceRef.current?.layout();
+              emitWorkspaceLayoutRefresh("latex", "panel-layout");
+            }}
+          >
+            <Panel id="latex-editor-main" order={1} defaultSize={terminalLayout[0] ?? 68} minSize={36} className="min-h-0">
               <div className="relative h-full min-h-0">{editorStageContent}</div>
             </Panel>
             <PanelResizeHandle className="resizable-handle resizable-handle-vertical" />
-            <Panel id="latex-editor-terminal" order={2} defaultSize={32} minSize={18} className="min-h-0">
+            <Panel id="latex-editor-terminal" order={2} defaultSize={terminalLayout[1] ?? 32} minSize={18} className="min-h-0">
               <WorkspaceTerminalPanel
                 activeProjectId={activeProjectId}
                 selectedFile={selectedFile}
