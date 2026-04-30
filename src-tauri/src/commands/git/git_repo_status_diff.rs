@@ -183,35 +183,44 @@ pub async fn git_branches(
 }
 
 #[tauri::command]
-pub fn git_log(state: State<'_, AppState>, input: GitLogInput) -> Result<Vec<GitCommitInfo>, String> {
+pub async fn git_log(
+    state: State<'_, AppState>,
+    input: GitLogInput,
+) -> Result<Vec<GitCommitInfo>, String> {
     state.log("INFO", &format!("git_log: {}", input.project_id));
-    let root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let limit = input.limit.unwrap_or(50).min(200).to_string();
-    let raw = run_git(
-        &root,
-        &[
-            "log",
-            "--date=iso",
-            "--pretty=format:%H%x09%h%x09%an%x09%ad%x09%s",
-            "-n",
-            &limit,
-        ],
-    )?;
-    let mut commits = Vec::new();
-    for line in raw.lines() {
-        let parts = line.splitn(5, '\t').collect::<Vec<_>>();
-        if parts.len() < 5 {
-            continue;
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let limit = input.limit.unwrap_or(100).min(200).to_string();
+    spawn_blocking(move || {
+        let root = storage::load_project_root(&db_path, &project_id)?;
+        let raw = run_git(
+            &root,
+            &[
+                "log",
+                "--date=iso",
+                "--pretty=format:%H%x09%h%x09%an%x09%ad%x09%s",
+                "-n",
+                &limit,
+            ],
+        )?;
+        let mut commits = Vec::new();
+        for line in raw.lines() {
+            let parts = line.splitn(5, '\t').collect::<Vec<_>>();
+            if parts.len() < 5 {
+                continue;
+            }
+            commits.push(GitCommitInfo {
+                hash: parts[0].to_string(),
+                short_hash: parts[1].to_string(),
+                author: parts[2].to_string(),
+                date: parts[3].to_string(),
+                subject: parts[4].to_string(),
+            });
         }
-        commits.push(GitCommitInfo {
-            hash: parts[0].to_string(),
-            short_hash: parts[1].to_string(),
-            author: parts[2].to_string(),
-            date: parts[3].to_string(),
-            subject: parts[4].to_string(),
-        });
-    }
-    Ok(commits)
+        Ok(commits)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

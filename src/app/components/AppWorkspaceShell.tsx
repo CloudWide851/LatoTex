@@ -37,6 +37,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     latexLayout,
     analysisLayout,
     libraryLayout,
+    libraryBibLayout,
     tree,
     libraryTree,
     selectedFile,
@@ -239,7 +240,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     compiledPdfUrl,
     previewSelectedPath,
     preferCompiledPreview,
-    terminalVisible,
   });
   const previewPdfUrl = previewMode === "pdf" ? (selectedIsPdf ? selectedFilePdfUrl : compiledPdfUrl) : null;
   const previewPdfFallbackRelativePath = previewMode === "pdf"
@@ -398,7 +398,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
       previewFocusRequest={previewFocusRequest}
-      terminalVisible={terminalVisible}
       t={t}
     />
   );
@@ -532,6 +531,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             latexLayout={latexLayout}
             analysisLayout={analysisLayout}
             libraryLayout={libraryLayout}
+            libraryBibLayout={libraryBibLayout}
             tree={tree}
             libraryTree={libraryTree}
             selectedFile={selectedFile}

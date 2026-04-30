@@ -1,5 +1,8 @@
-import { RefreshCcw, Send, Square } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import "@xterm/xterm/css/xterm.css";
+import { FitAddon } from "@xterm/addon-fit";
+import { Terminal as XTerm } from "@xterm/xterm";
+import { Plus, RefreshCcw, Square, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   terminalRead,
   terminalResize,
@@ -7,25 +10,128 @@ import {
   terminalStop,
   terminalWrite,
 } from "../../../shared/api/workspace";
-import type { TerminalOutputChunk, TerminalStartResponse } from "../../../shared/types/app";
+import type { TerminalOutputChunk } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
-const TERMINAL_POLL_MS = 420;
+const TERMINAL_POLL_MS = 180;
+
+type TerminalTab = {
+  id: string;
+  title: string;
+  relativePath: string | null;
+  sessionId: string | null;
+  cwd: string;
+  venvPath: string | null;
+  envSource: string | null;
+  status: string;
+  cursor: number;
+  buffer: string;
+  error: string | null;
+};
+
+type ProjectTerminalState = {
+  tabs: TerminalTab[];
+  activeTabId: string | null;
+};
+
+const terminalStates = new Map<string, ProjectTerminalState>();
+
+function stopTerminalTabs(tabs: TerminalTab[]) {
+  const sessions = tabs.map((tab) => tab.sessionId).filter(Boolean) as string[];
+  sessions.forEach((sessionId) => void terminalStop(sessionId).catch(() => undefined));
+}
+
+function stopProjectTerminalState(projectId: string | null) {
+  if (!projectId) {
+    return;
+  }
+  const existing = terminalStates.get(projectId);
+  if (!existing) {
+    return;
+  }
+  stopTerminalTabs(existing.tabs);
+  terminalStates.delete(projectId);
+}
+
+function stopAllProjectTerminalStates() {
+  terminalStates.forEach((state) => stopTerminalTabs(state.tabs));
+  terminalStates.clear();
+}
 
 function joinChunks(chunks: TerminalOutputChunk[]): string {
   return chunks.map((chunk) => chunk.text).join("");
 }
 
-function estimateTerminalSize(element: HTMLElement | null): { cols: number; rows: number } {
-  if (!element) {
-    return { cols: 100, rows: 28 };
+function tabTitle(relativePath: string | null, count: number): string {
+  if (!relativePath) {
+    return `Terminal ${count}`;
   }
-  const rect = element.getBoundingClientRect();
+  const parts = relativePath.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || `Terminal ${count}`;
+}
+
+function createTab(relativePath: string | null, count: number): TerminalTab {
   return {
-    cols: Math.max(40, Math.min(220, Math.floor(rect.width / 8))),
-    rows: Math.max(10, Math.min(80, Math.floor(rect.height / 18))),
+    id: `term-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: tabTitle(relativePath, count),
+    relativePath,
+    sessionId: null,
+    cwd: "",
+    venvPath: null,
+    envSource: null,
+    status: "idle",
+    cursor: 0,
+    buffer: "",
+    error: null,
   };
+}
+
+function snapshotState(projectId: string | null, selectedFile: string | null): ProjectTerminalState {
+  if (!projectId) {
+    return { tabs: [], activeTabId: null };
+  }
+  const existing = terminalStates.get(projectId);
+  if (existing && existing.tabs.length > 0) {
+    return {
+      tabs: existing.tabs.map((tab) => ({ ...tab })),
+      activeTabId: existing.activeTabId ?? existing.tabs[0]?.id ?? null,
+    };
+  }
+  const first = createTab(selectedFile, 1);
+  const next = { tabs: [first], activeTabId: first.id };
+  terminalStates.set(projectId, next);
+  return {
+    tabs: next.tabs.map((tab) => ({ ...tab })),
+    activeTabId: next.activeTabId,
+  };
+}
+
+function persistState(projectId: string | null, tabs: TerminalTab[], activeTabId: string | null) {
+  if (!projectId) {
+    return;
+  }
+  terminalStates.set(projectId, {
+    tabs: tabs.map((tab) => ({ ...tab })),
+    activeTabId,
+  });
+}
+
+function xtermTheme() {
+  const dark = typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
+  return dark
+    ? {
+        background: "#0f172a",
+        foreground: "#e2e8f0",
+        cursor: "#38bdf8",
+        selectionBackground: "#334155",
+      }
+    : {
+        background: "#111827",
+        foreground: "#f8fafc",
+        cursor: "#34d399",
+        selectionBackground: "#475569",
+      };
 }
 
 export function WorkspaceTerminalPanel(props: {
@@ -35,178 +141,354 @@ export function WorkspaceTerminalPanel(props: {
   t: TranslationFn;
 }) {
   const { activeProjectId, selectedFile, active, t } = props;
-  const [session, setSession] = useState<TerminalStartResponse | null>(null);
-  const [output, setOutput] = useState("");
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState("idle");
-  const cursorRef = useRef(0);
-  const sessionRef = useRef<TerminalStartResponse | null>(null);
+  const initialState = useMemo(
+    () => snapshotState(activeProjectId, selectedFile),
+    [activeProjectId, selectedFile],
+  );
+  const [tabs, setTabs] = useState<TerminalTab[]>(initialState.tabs);
+  const [activeTabId, setActiveTabId] = useState<string | null>(initialState.activeTabId);
+  const [busyTabId, setBusyTabId] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const pollTimerRef = useRef<number | null>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const startingRef = useRef(new Set<string>());
+  const tabsRef = useRef(tabs);
+  const activeTabIdRef = useRef(activeTabId);
 
-  const stopSession = useCallback(async () => {
-    const current = sessionRef.current;
-    sessionRef.current = null;
-    setSession(null);
-    if (pollTimerRef.current != null) {
-      window.clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
+  useEffect(() => {
+    tabsRef.current = tabs;
+    persistState(activeProjectId, tabs, activeTabId);
+  }, [activeProjectId, activeTabId, tabs]);
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  useEffect(() => {
+    const next = snapshotState(activeProjectId, selectedFile);
+    setTabs(next.tabs);
+    setActiveTabId(next.activeTabId);
+  }, [activeProjectId, selectedFile]);
+
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null;
+
+  const updateTabs = useCallback((updater: (prev: TerminalTab[]) => TerminalTab[]) => {
+    setTabs((prev) => updater(prev));
+  }, []);
+
+  const fitAndResize = useCallback(() => {
+    const term = xtermRef.current;
+    const fit = fitAddonRef.current;
+    const tab = tabsRef.current.find((item) => item.id === activeTabIdRef.current);
+    if (!term || !fit) {
+      return;
     }
-    if (current?.sessionId) {
-      await terminalStop(current.sessionId).catch(() => undefined);
+    try {
+      fit.fit();
+      if (tab?.sessionId) {
+        void terminalResize(tab.sessionId, term.cols, term.rows).catch(() => undefined);
+      }
+    } catch {
+      // xterm can throw while hidden during panel transitions.
     }
   }, []);
 
-  const startSession = useCallback(async () => {
-    if (!activeProjectId || !active) {
+  const startTab = useCallback(async (tabId: string) => {
+    if (!activeProjectId || startingRef.current.has(tabId)) {
       return;
     }
-    await stopSession();
-    setBusy(true);
-    setError(null);
-    setOutput("");
-    cursorRef.current = 0;
+    const tab = tabsRef.current.find((item) => item.id === tabId);
+    if (!tab || tab.sessionId) {
+      return;
+    }
+    startingRef.current.add(tabId);
+    setBusyTabId(tabId);
+    updateTabs((prev) =>
+      prev.map((item) =>
+        item.id === tabId ? { ...item, status: "starting", error: null } : item,
+      ),
+    );
     try {
-      const size = estimateTerminalSize(viewportRef.current);
-      const next = await terminalStart(activeProjectId, selectedFile, size);
-      sessionRef.current = next;
-      setSession(next);
-      setStatus(next.status);
-    } catch (err) {
-      setError(String(err));
-      setStatus("failed");
+      const term = xtermRef.current;
+      const response = await terminalStart(activeProjectId, tab.relativePath ?? selectedFile, {
+        cols: term?.cols ?? 100,
+        rows: term?.rows ?? 24,
+      });
+      updateTabs((prev) =>
+        prev.map((item) =>
+          item.id === tabId
+            ? {
+                ...item,
+                sessionId: response.sessionId,
+                cwd: response.cwd,
+                venvPath: response.venvPath ?? null,
+                envSource: response.envSource ?? null,
+                status: response.status,
+                cursor: 0,
+                buffer: "",
+                error: null,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      updateTabs((prev) =>
+        prev.map((item) =>
+          item.id === tabId ? { ...item, status: "failed", error: String(error) } : item,
+        ),
+      );
     } finally {
-      setBusy(false);
+      startingRef.current.delete(tabId);
+      setBusyTabId((prev) => (prev === tabId ? null : prev));
     }
-  }, [active, activeProjectId, selectedFile, stopSession]);
+  }, [activeProjectId, selectedFile, updateTabs]);
+
+  const stopTab = useCallback(async (tabId: string) => {
+    const tab = tabsRef.current.find((item) => item.id === tabId);
+    if (tab?.sessionId) {
+      await terminalStop(tab.sessionId).catch(() => undefined);
+    }
+    updateTabs((prev) =>
+      prev.map((item) =>
+        item.id === tabId
+          ? { ...item, sessionId: null, status: "idle", cursor: 0, buffer: "", error: null }
+          : item,
+      ),
+    );
+    if (tabId === activeTabIdRef.current) {
+      xtermRef.current?.clear();
+    }
+  }, [updateTabs]);
+
+  const closeTab = useCallback(async (tabId: string) => {
+    const tab = tabsRef.current.find((item) => item.id === tabId);
+    if (tab?.sessionId) {
+      await terminalStop(tab.sessionId).catch(() => undefined);
+    }
+    updateTabs((prev) => {
+      const next = prev.filter((item) => item.id !== tabId);
+      if (next.length > 0) {
+        setActiveTabId((activeId) => (activeId === tabId ? next[0].id : activeId));
+        return next;
+      }
+      const replacement = createTab(selectedFile, 1);
+      setActiveTabId(replacement.id);
+      return [replacement];
+    });
+  }, [selectedFile, updateTabs]);
+
+  const newTab = useCallback(() => {
+    setTabs((prev) => {
+      const next = [...prev, createTab(selectedFile, prev.length + 1)];
+      setActiveTabId(next[next.length - 1].id);
+      return next;
+    });
+  }, [selectedFile]);
 
   useEffect(() => {
-    if (!active) {
-      void stopSession();
+    if (!active || !activeTabId) {
       return;
     }
-    void startSession();
-    return () => {
-      void stopSession();
-    };
-  }, [active, activeProjectId, selectedFile, startSession, stopSession]);
+    const tab = tabs.find((item) => item.id === activeTabId);
+    if (tab && !tab.sessionId && tab.status !== "starting" && tab.status !== "failed") {
+      void startTab(tab.id);
+    }
+  }, [active, activeTabId, startTab, tabs]);
 
   useEffect(() => {
-    if (!active || !session?.sessionId) {
+    const target = viewportRef.current;
+    if (!target || !activeTab) {
+      return;
+    }
+    const term = new XTerm({
+      convertEol: true,
+      cursorBlink: true,
+      fontFamily: "Consolas, 'Cascadia Mono', 'SFMono-Regular', monospace",
+      fontSize: 12,
+      lineHeight: 1.25,
+      scrollback: 4000,
+      theme: xtermTheme(),
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(target);
+    if (activeTab.buffer) {
+      term.write(activeTab.buffer);
+    }
+    const disposable = term.onData((data) => {
+      const live = tabsRef.current.find((item) => item.id === activeTabIdRef.current);
+      if (live?.sessionId && live.status !== "exited") {
+        void terminalWrite(live.sessionId, data).catch((error) => {
+          updateTabs((prev) =>
+            prev.map((item) =>
+              item.id === live.id ? { ...item, error: String(error) } : item,
+            ),
+          );
+        });
+      }
+    });
+    xtermRef.current = term;
+    fitAddonRef.current = fit;
+    window.requestAnimationFrame(fitAndResize);
+    return () => {
+      disposable.dispose();
+      term.dispose();
+      if (xtermRef.current === term) {
+        xtermRef.current = null;
+      }
+      if (fitAddonRef.current === fit) {
+        fitAddonRef.current = null;
+      }
+    };
+  }, [activeTab?.id, fitAndResize, updateTabs]);
+
+  useEffect(() => {
+    const target = viewportRef.current;
+    if (!target || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(() => fitAndResize());
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fitAndResize, activeTab?.id]);
+
+  useEffect(() => {
+    if (!active || !activeTab?.sessionId) {
       return;
     }
     let cancelled = false;
+    let timer: number | null = null;
     const poll = async () => {
+      const live = tabsRef.current.find((item) => item.id === activeTab.id);
+      if (!live?.sessionId || cancelled) {
+        return;
+      }
       try {
-        const response = await terminalRead(session.sessionId, cursorRef.current);
+        const response = await terminalRead(live.sessionId, live.cursor);
         if (cancelled) {
           return;
         }
-        cursorRef.current = response.cursor;
-        setStatus(response.status);
-        if (response.chunks.length > 0) {
-          setOutput((prev) => prev + joinChunks(response.chunks));
+        const text = joinChunks(response.chunks);
+        if (text) {
+          xtermRef.current?.write(text);
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(String(err));
-          setStatus("failed");
-        }
+        updateTabs((prev) =>
+          prev.map((item) =>
+            item.id === live.id
+              ? {
+                  ...item,
+                  cursor: response.cursor,
+                  status: response.status,
+                  buffer: text ? `${item.buffer}${text}`.slice(-160_000) : item.buffer,
+                }
+              : item,
+          ),
+        );
+      } catch (error) {
+        updateTabs((prev) =>
+          prev.map((item) =>
+            item.id === live.id ? { ...item, status: "failed", error: String(error) } : item,
+          ),
+        );
       } finally {
-        if (!cancelled && sessionRef.current?.sessionId === session.sessionId) {
-          pollTimerRef.current = window.setTimeout(poll, TERMINAL_POLL_MS);
+        if (!cancelled) {
+          timer = window.setTimeout(poll, TERMINAL_POLL_MS);
         }
       }
     };
-    pollTimerRef.current = window.setTimeout(poll, 80);
+    timer = window.setTimeout(poll, 60);
     return () => {
       cancelled = true;
-      if (pollTimerRef.current != null) {
-        window.clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
+      if (timer != null) {
+        window.clearTimeout(timer);
       }
     };
-  }, [active, session?.sessionId]);
-
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    viewport?.scrollTo({ top: viewport.scrollHeight });
-  }, [output]);
-
-  useEffect(() => {
-    if (!session?.sessionId || typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const target = viewportRef.current;
-    if (!target) {
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      const size = estimateTerminalSize(target);
-      void terminalResize(session.sessionId, size.cols, size.rows).catch(() => undefined);
-    });
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [session?.sessionId]);
-
-  useEffect(() => {
-    if (status !== "exited" || !session?.sessionId) {
-      return;
-    }
-    const sessionId = session.sessionId;
-    sessionRef.current = null;
-    setSession(null);
-    if (pollTimerRef.current != null) {
-      window.clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-    void terminalStop(sessionId).catch(() => undefined);
-  }, [session?.sessionId, status]);
+  }, [active, activeTab?.id, activeTab?.sessionId, updateTabs]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
     const release = () => {
-      void stopSession();
+      stopAllProjectTerminalStates();
+      updateTabs((prev) =>
+        prev.map((tab) => ({
+          ...tab,
+          sessionId: null,
+          status: "idle",
+          cursor: 0,
+          buffer: "",
+        })),
+      );
+      xtermRef.current?.clear();
     };
     window.addEventListener("latotex.runtime.release-heavy-resources", release);
     return () => window.removeEventListener("latotex.runtime.release-heavy-resources", release);
-  }, [stopSession]);
+  }, [updateTabs]);
 
-  const sendInput = async () => {
-    const current = sessionRef.current;
-    const command = input;
-    if (!current?.sessionId || !command.trim()) {
+  useEffect(() => {
+    if (typeof window === "undefined") {
       return;
     }
-    setInput("");
-    try {
-      await terminalWrite(current.sessionId, `${command}\n`);
-    } catch (err) {
-      setError(String(err));
-    }
-  };
+    const handleProjectClosed = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string | null }>).detail;
+      const projectId = detail?.projectId ?? null;
+      stopProjectTerminalState(projectId);
+      if (projectId !== activeProjectId) {
+        return;
+      }
+      updateTabs((prev) =>
+        prev.map((tab) => ({
+          ...tab,
+          sessionId: null,
+          status: "idle",
+          cursor: 0,
+          buffer: "",
+        })),
+      );
+      xtermRef.current?.clear();
+    };
+    window.addEventListener("latotex.project.closed", handleProjectClosed);
+    return () => window.removeEventListener("latotex.project.closed", handleProjectClosed);
+  }, [activeProjectId, updateTabs]);
+
+  const statusLabel = busyTabId === activeTab?.id ? t("terminal.starting") : activeTab?.status ?? "idle";
 
   return (
     <section className="flex h-full min-h-0 flex-col rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-paper-bg)] text-[color:var(--editor-tab-text)]">
-      <div className="flex items-center justify-between gap-2 border-b border-[color:var(--editor-shell-divider)] px-2 py-1.5">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold">{t("terminal.title")}</div>
-          <div className="truncate text-[10px] text-[color:var(--editor-tab-muted)]">
-            {session?.venvPath || session?.cwd || t("terminal.starting")}
-          </div>
+      <div className="flex min-h-9 items-center gap-2 border-b border-[color:var(--editor-shell-divider)] px-2 py-1">
+        <div className="library-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`group flex max-w-[180px] shrink-0 items-center gap-1 rounded border px-2 py-1 text-xs ${
+                tab.id === activeTabId
+                  ? "border-primary-400 bg-primary-50 text-primary-900"
+                  : "border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] text-[color:var(--editor-tab-muted)]"
+              }`}
+              onClick={() => setActiveTabId(tab.id)}
+              title={tab.cwd || tab.relativePath || tab.title}
+            >
+              <span className="truncate">{tab.title}</span>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50" />
+            </button>
+          ))}
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-muted)]">
-            {busy ? t("terminal.starting") : status}
+          <span className="max-w-[260px] truncate text-[10px] text-[color:var(--editor-tab-muted)]" title={activeTab?.venvPath ?? activeTab?.cwd}>
+            {activeTab?.venvPath || activeTab?.cwd || statusLabel}
           </span>
+          <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+            {statusLabel}
+          </span>
+          <button className="panel-topbar-btn editor-toolbar-btn" onClick={newTab} title={t("terminal.new")} aria-label={t("terminal.new")}>
+            <Plus className="h-3.5 w-3.5" />
+          </button>
           <button
             className="panel-topbar-btn editor-toolbar-btn"
-            onClick={() => void startSession()}
-            disabled={busy}
+            onClick={() => activeTab && void stopTab(activeTab.id).then(() => startTab(activeTab.id))}
+            disabled={!activeTab || busyTabId === activeTab.id}
             title={t("terminal.restart")}
             aria-label={t("terminal.restart")}
           >
@@ -214,47 +496,30 @@ export function WorkspaceTerminalPanel(props: {
           </button>
           <button
             className="panel-topbar-btn editor-toolbar-btn"
-            onClick={() => void stopSession()}
-            disabled={!session}
+            onClick={() => activeTab && void stopTab(activeTab.id)}
+            disabled={!activeTab?.sessionId}
             title={t("terminal.stop")}
             aria-label={t("terminal.stop")}
           >
             <Square className="h-3.5 w-3.5" />
           </button>
+          <button
+            className="panel-topbar-btn editor-toolbar-btn"
+            onClick={() => activeTab && void closeTab(activeTab.id)}
+            disabled={!activeTab}
+            title={t("terminal.close")}
+            aria-label={t("terminal.close")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
-      <div
-        ref={viewportRef}
-        className="library-scrollbar min-h-0 flex-1 overflow-auto bg-slate-950 px-3 py-2 font-mono text-[12px] leading-5 text-slate-100"
-      >
-        {error ? <div className="mb-2 text-rose-300">{error}</div> : null}
-        <pre className="m-0 whitespace-pre-wrap break-words">{output || t("terminal.empty")}</pre>
-      </div>
-      <div className="flex items-center gap-2 border-t border-[color:var(--editor-shell-divider)] px-2 py-2">
-        <span className="font-mono text-xs text-[color:var(--editor-tab-muted)]">$</span>
-        <input
-          value={input}
-          onChange={(event) => setInput(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void sendInput();
-            }
-          }}
-          disabled={!session || status === "exited"}
-          className="min-w-0 flex-1 rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-2 py-1 font-mono text-xs outline-none focus:border-primary-400"
-          placeholder={t("terminal.inputPlaceholder")}
-        />
-        <button
-          className="panel-topbar-btn editor-toolbar-btn"
-          onClick={() => void sendInput()}
-          disabled={!session || !input.trim() || status === "exited"}
-          title={t("terminal.send")}
-          aria-label={t("terminal.send")}
-        >
-          <Send className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {activeTab?.error ? (
+        <div className="border-b border-rose-300 bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+          {activeTab.error}
+        </div>
+      ) : null}
+      <div ref={viewportRef} className="min-h-0 flex-1 overflow-hidden bg-slate-950 p-1" />
     </section>
   );
 }

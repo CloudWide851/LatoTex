@@ -40,6 +40,7 @@ ring = "0.17.14"
 tiny_http = "0.12.0"
 zip = "2"
 tar = "0.4"
+portable-pty = "0.8"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_ProcessStatus", "Win32_System_Threading"] }

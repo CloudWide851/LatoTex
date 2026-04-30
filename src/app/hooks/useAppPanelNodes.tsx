@@ -221,6 +221,7 @@ export function useAppPanelNodes(params: any) {
   const latexLayout = clampLayout(panelLayout.latex, DEFAULT_PANEL_LAYOUT.latex!);
   const analysisLayout = clampLayout(panelLayout.analysis, DEFAULT_PANEL_LAYOUT.analysis!);
   const libraryLayout = clampLayout(panelLayout.library, DEFAULT_PANEL_LAYOUT.library!);
+  const libraryBibLayout = clampLayout(panelLayout.libraryBib, DEFAULT_PANEL_LAYOUT.libraryBib!);
   const activeModelCatalog = settings?.modelCatalog ?? [];
 
   const analysisPanel = (
@@ -279,6 +280,7 @@ export function useAppPanelNodes(params: any) {
         nextPanelLayout.analysis = [...(DEFAULT_PANEL_LAYOUT.analysis ?? [26, 74])];
       } else if (page === "library") {
         nextPanelLayout.library = [...(DEFAULT_PANEL_LAYOUT.library ?? [30, 70])];
+        nextPanelLayout.libraryBib = [...(DEFAULT_PANEL_LAYOUT.libraryBib ?? [54, 46])];
       }
       return {
         ...prev,
@@ -433,6 +435,7 @@ export function useAppPanelNodes(params: any) {
     analysisPanel,
     settingsPanel,
     gitPanel,
+    libraryBibLayout,
     recoverWorkspaceLayout,
   };
 }

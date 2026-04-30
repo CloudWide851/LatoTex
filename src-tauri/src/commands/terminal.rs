@@ -1,4 +1,4 @@
-use crate::commands::native_runtime::configure_hidden_process;
+use crate::commands::native_runtime::ensure_analysis_env_blocking;
 use crate::models::{
     Ack, TerminalOutputChunk as TerminalOutputChunkModel, TerminalReadInput, TerminalReadResponse,
     TerminalResizeInput, TerminalStartInput, TerminalStartResponse, TerminalStopInput,
@@ -7,16 +7,21 @@ use crate::models::{
 use crate::state::{AppState, TerminalOutputChunk, TerminalSession};
 use crate::storage;
 use latotex_workspace::resolve_workspace_target_path;
+use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::env;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 use uuid::Uuid;
 
 const MAX_TERMINAL_CHUNKS: usize = 2_000;
+
+struct TerminalEnv {
+    venv_path: PathBuf,
+    env_source: String,
+}
 
 fn append_output(session: &TerminalSession, stream: &str, text: String) {
     if text.is_empty() {
@@ -36,16 +41,16 @@ fn append_output(session: &TerminalSession, stream: &str, text: String) {
     }
 }
 
-fn spawn_reader(session: Arc<TerminalSession>, stream: &'static str, mut reader: ChildStdout) {
+fn spawn_pty_reader(session: Arc<TerminalSession>, mut reader: Box<dyn Read + Send>) {
     std::thread::spawn(move || {
-        let mut buffer = [0_u8; 4096];
+        let mut buffer = [0_u8; 8192];
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(count) => {
                     append_output(
                         &session,
-                        stream,
+                        "stdout",
                         String::from_utf8_lossy(&buffer[..count]).to_string(),
                     );
                 }
@@ -62,74 +67,6 @@ fn spawn_reader(session: Arc<TerminalSession>, stream: &'static str, mut reader:
     });
 }
 
-fn spawn_stderr_reader(session: Arc<TerminalSession>, mut reader: std::process::ChildStderr) {
-    std::thread::spawn(move || {
-        let mut buffer = [0_u8; 4096];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(count) => {
-                    append_output(
-                        &session,
-                        "stderr",
-                        String::from_utf8_lossy(&buffer[..count]).to_string(),
-                    );
-                }
-                Err(error) => {
-                    append_output(
-                        &session,
-                        "stderr",
-                        format!("\r\nterminal.stderr_failed: {error}\r\n"),
-                    );
-                    break;
-                }
-            }
-        }
-    });
-}
-
-fn looks_like_python_venv_name(name: &str) -> bool {
-    matches!(
-        name.to_ascii_lowercase().as_str(),
-        ".venv" | "venv" | "env" | ".env" | "virtualenv"
-    )
-}
-
-fn is_python_venv_dir(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
-        return false;
-    };
-    if !looks_like_python_venv_name(name) {
-        return false;
-    }
-    path.join("pyvenv.cfg").exists()
-        || path.join("Scripts").join("python.exe").exists()
-        || path.join("Scripts").join("activate").exists()
-        || path.join("bin").join("python").exists()
-        || path.join("bin").join("activate").exists()
-}
-
-fn find_python_venv(project_root: &Path, cwd: &Path) -> Option<PathBuf> {
-    let canonical_root = project_root.canonicalize().ok()?;
-    let mut current = cwd.canonicalize().ok()?;
-    loop {
-        for name in [".venv", "venv", "env", ".env", "virtualenv"] {
-            let candidate = current.join(name);
-            if candidate.starts_with(&canonical_root) && is_python_venv_dir(&candidate) {
-                return Some(candidate);
-            }
-        }
-        if current == canonical_root {
-            break;
-        }
-        current = current.parent()?.to_path_buf();
-        if !current.starts_with(&canonical_root) {
-            break;
-        }
-    }
-    None
-}
-
 fn venv_bin_dir(venv_path: &Path) -> PathBuf {
     if cfg!(target_os = "windows") {
         venv_path.join("Scripts")
@@ -138,42 +75,33 @@ fn venv_bin_dir(venv_path: &Path) -> PathBuf {
     }
 }
 
-fn prepend_venv_env(command: &mut Command, venv_path: Option<&Path>) {
-    let Some(venv) = venv_path else {
-        return;
-    };
-    let bin_dir = venv_bin_dir(venv);
-    let path_key = "PATH";
-    let current_path = env::var_os(path_key).unwrap_or_default();
-    let separator = if cfg!(target_os = "windows") {
-        ";"
-    } else {
-        ":"
-    };
-    let next_path = if current_path.is_empty() {
-        bin_dir.to_string_lossy().to_string()
-    } else {
-        format!(
-            "{}{}{}",
-            bin_dir.to_string_lossy(),
-            separator,
-            current_path.to_string_lossy()
-        )
-    };
-    command.env("VIRTUAL_ENV", venv);
-    command.env(path_key, next_path);
-    if cfg!(target_os = "windows") {
-        command.env("PROMPT", "(venv) $P$G");
-    } else {
-        command.env("PS1", "(venv) \\w $ ");
-    }
+fn venv_env_pairs(venv_path: &Path) -> Vec<(String, String)> {
+    let bin_dir = venv_bin_dir(venv_path);
+    let current_path = env::var_os("PATH").unwrap_or_default();
+    let mut path_entries = vec![bin_dir];
+    path_entries.extend(env::split_paths(&current_path));
+    let next_path = env::join_paths(path_entries)
+        .unwrap_or(current_path)
+        .to_string_lossy()
+        .to_string();
+    let prompt = venv_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("venv");
+    vec![
+        ("VIRTUAL_ENV".to_string(), venv_path.to_string_lossy().to_string()),
+        ("VIRTUAL_ENV_PROMPT".to_string(), format!("({prompt}) ")),
+        ("PATH".to_string(), next_path),
+        ("TERM".to_string(), "xterm-256color".to_string()),
+        ("COLORTERM".to_string(), "truecolor".to_string()),
+    ]
 }
 
 fn terminal_shell_command() -> (String, Vec<String>) {
     if cfg!(target_os = "windows") {
         return (
-            "cmd.exe".to_string(),
-            vec!["/Q".to_string(), "/K".to_string()],
+            "powershell.exe".to_string(),
+            vec!["-NoLogo".to_string(), "-NoExit".to_string()],
         );
     }
     let shell = env::var("SHELL")
@@ -218,97 +146,134 @@ fn resolve_terminal_directory(
     Ok((project_root, directory))
 }
 
+fn resolve_terminal_env(
+    state: &AppState,
+    project_id: &str,
+    project_root: &Path,
+) -> Result<TerminalEnv, String> {
+    let status = ensure_analysis_env_blocking(
+        &state.db_path,
+        &state.runtime_root,
+        &state.app_data_dir,
+        project_id,
+        project_root,
+    )?;
+    let venv_path = PathBuf::from(status.venv_path);
+    if !venv_path.exists() {
+        return Err("terminal.env.not_ready".to_string());
+    }
+    Ok(TerminalEnv {
+        venv_path,
+        env_source: "analysis".to_string(),
+    })
+}
+
+fn clamp_pty_size(cols: Option<u16>, rows: Option<u16>) -> PtySize {
+    PtySize {
+        rows: rows.unwrap_or(24).clamp(8, 120),
+        cols: cols.unwrap_or(80).clamp(40, 240),
+        pixel_width: 0,
+        pixel_height: 0,
+    }
+}
+
 #[tauri::command]
-pub fn terminal_start(
+pub async fn terminal_start(
     state: State<'_, AppState>,
     input: TerminalStartInput,
 ) -> Result<TerminalStartResponse, String> {
-    let (project_root, directory) =
-        resolve_terminal_directory(&state, &input.project_id, input.relative_path.as_deref())?;
-    let venv_path = find_python_venv(&project_root, &directory);
-    let (shell, args) = terminal_shell_command();
-    let session_id = Uuid::new_v4().to_string();
+    let state_snapshot = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (project_root, directory) = resolve_terminal_directory(
+            &state_snapshot,
+            &input.project_id,
+            input.relative_path.as_deref(),
+        )?;
+        let terminal_env = resolve_terminal_env(&state_snapshot, &input.project_id, &project_root)?;
+        let (shell, args) = terminal_shell_command();
+        let session_id = Uuid::new_v4().to_string();
+        let size = clamp_pty_size(input.cols, input.rows);
 
-    let mut command = Command::new(&shell);
-    command
-        .args(&args)
-        .current_dir(&directory)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    prepend_venv_env(&mut command, venv_path.as_deref());
-    configure_hidden_process(&mut command);
+        let pty_system = native_pty_system();
+        let pair = pty_system
+            .openpty(size)
+            .map_err(|e| format!("terminal.pty_open_failed: {e}"))?;
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|e| format!("terminal.reader_unavailable: {e}"))?;
+        let writer = pair
+            .master
+            .take_writer()
+            .map_err(|e| format!("terminal.writer_unavailable: {e}"))?;
 
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("terminal.spawn_failed: {e}"))?;
-    let stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "terminal.stdin_unavailable".to_string())?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "terminal.stdout_unavailable".to_string())?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| "terminal.stderr_unavailable".to_string())?;
+        let mut command = CommandBuilder::new(&shell);
+        command.args(&args);
+        command.cwd(&directory);
+        for (key, value) in venv_env_pairs(&terminal_env.venv_path) {
+            command.env(key, value);
+        }
+        let child = pair
+            .slave
+            .spawn_command(command)
+            .map_err(|e| format!("terminal.spawn_failed: {e}"))?;
+        drop(pair.slave);
 
-    let session = Arc::new(TerminalSession {
-        cwd: directory.to_string_lossy().to_string(),
-        venv_path: venv_path
-            .as_ref()
-            .map(|path| path.to_string_lossy().to_string()),
-        child: Mutex::new(child),
-        stdin: Mutex::new(stdin),
-        output: Mutex::new(Vec::new()),
-        next_seq: AtomicU64::new(0),
-        status: Mutex::new("running".to_string()),
-        exit_code: Mutex::new(None),
-    });
+        let session = Arc::new(TerminalSession {
+            cwd: directory.to_string_lossy().to_string(),
+            venv_path: Some(terminal_env.venv_path.to_string_lossy().to_string()),
+            env_source: Some(terminal_env.env_source.clone()),
+            master: Mutex::new(pair.master),
+            child: Mutex::new(child),
+            writer: Mutex::new(writer),
+            output: Mutex::new(Vec::new()),
+            next_seq: AtomicU64::new(0),
+            status: Mutex::new("running".to_string()),
+            exit_code: Mutex::new(None),
+        });
 
-    append_output(
-        &session,
-        "stdout",
-        format!(
-            "LatoTex terminal started: cwd={}{}\r\n",
-            session.cwd,
-            session
-                .venv_path
-                .as_ref()
-                .map(|value| format!(", venv={value}"))
-                .unwrap_or_default()
-        ),
-    );
-    spawn_reader(session.clone(), "stdout", stdout);
-    spawn_stderr_reader(session.clone(), stderr);
+        append_output(
+            &session,
+            "stdout",
+            format!(
+                "LatoTex terminal started: cwd={}, venv={}, source={}\r\n",
+                session.cwd,
+                session.venv_path.as_deref().unwrap_or("-"),
+                terminal_env.env_source,
+            ),
+        );
+        spawn_pty_reader(session.clone(), reader);
 
-    state.log(
-        "INFO",
-        &format!(
-            "terminal_start: project={}, session={}, cwd={}, shell={}, cols={}, rows={}",
-            input.project_id,
+        state_snapshot.log(
+            "INFO",
+            &format!(
+                "terminal_start: project={}, session={}, cwd={}, shell={}, venv={}, cols={}, rows={}",
+                input.project_id,
+                session_id,
+                session.cwd,
+                shell,
+                session.venv_path.as_deref().unwrap_or("-"),
+                size.cols,
+                size.rows,
+            ),
+        );
+        state_snapshot
+            .terminal_sessions
+            .lock()
+            .map_err(|_| "terminal.sessions.lock_failed".to_string())?
+            .insert(session_id.clone(), session.clone());
+
+        Ok(TerminalStartResponse {
             session_id,
-            session.cwd,
+            cwd: session.cwd.clone(),
             shell,
-            input.cols.unwrap_or(80),
-            input.rows.unwrap_or(24),
-        ),
-    );
-    state
-        .terminal_sessions
-        .lock()
-        .map_err(|_| "terminal.sessions.lock_failed".to_string())?
-        .insert(session_id.clone(), session.clone());
-
-    Ok(TerminalStartResponse {
-        session_id,
-        cwd: session.cwd.clone(),
-        shell,
-        venv_path: session.venv_path.clone(),
-        status: "running".to_string(),
+            venv_path: session.venv_path.clone(),
+            env_source: session.env_source.clone(),
+            status: "running".to_string(),
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -323,14 +288,14 @@ pub fn terminal_write(
         .get(&input.session_id)
         .cloned()
         .ok_or_else(|| "terminal.session.not_found".to_string())?;
-    let mut stdin = session
-        .stdin
+    let mut writer = session
+        .writer
         .lock()
-        .map_err(|_| "terminal.stdin.lock_failed".to_string())?;
-    stdin
+        .map_err(|_| "terminal.writer.lock_failed".to_string())?;
+    writer
         .write_all(input.data.as_bytes())
         .map_err(|e| format!("terminal.write_failed: {e}"))?;
-    stdin
+    writer
         .flush()
         .map_err(|e| format!("terminal.flush_failed: {e}"))?;
     Ok(Ack {
@@ -359,7 +324,7 @@ pub fn terminal_read(
                     *session_status = "exited".to_string();
                 }
                 if let Ok(mut exit_code) = session.exit_code.lock() {
-                    *exit_code = status.code();
+                    *exit_code = Some(status.exit_code() as i32);
                 }
             }
             Ok(None) => {}
@@ -408,19 +373,25 @@ pub fn terminal_resize(
     state: State<'_, AppState>,
     input: TerminalResizeInput,
 ) -> Result<Ack, String> {
-    let exists = state
+    let session = state
         .terminal_sessions
         .lock()
         .map_err(|_| "terminal.sessions.lock_failed".to_string())?
-        .contains_key(&input.session_id);
-    if !exists {
-        return Err("terminal.session.not_found".to_string());
-    }
+        .get(&input.session_id)
+        .cloned()
+        .ok_or_else(|| "terminal.session.not_found".to_string())?;
+    let size = clamp_pty_size(Some(input.cols), Some(input.rows));
+    session
+        .master
+        .lock()
+        .map_err(|_| "terminal.master.lock_failed".to_string())?
+        .resize(size)
+        .map_err(|e| format!("terminal.resize_failed: {e}"))?;
     state.log(
         "INFO",
         &format!(
             "terminal_resize: session={}, cols={}, rows={}",
-            input.session_id, input.cols, input.rows
+            input.session_id, size.cols, size.rows
         ),
     );
     Ok(Ack {
@@ -454,40 +425,27 @@ pub fn terminal_stop(state: State<'_, AppState>, input: TerminalStopInput) -> Re
 
 #[cfg(test)]
 mod tests {
-    use super::{find_python_venv, is_python_venv_dir};
-    use std::fs;
+    use super::{clamp_pty_size, venv_bin_dir};
     use std::path::PathBuf;
-    use uuid::Uuid;
 
-    fn unique_temp_dir(name: &str) -> PathBuf {
-        let path = std::env::temp_dir().join(format!("latotex-terminal-{name}-{}", Uuid::new_v4()));
-        fs::create_dir_all(&path).unwrap();
-        path
+    #[test]
+    fn clamps_terminal_size() {
+        let small = clamp_pty_size(Some(1), Some(1));
+        assert_eq!(small.cols, 40);
+        assert_eq!(small.rows, 8);
+        let large = clamp_pty_size(Some(999), Some(999));
+        assert_eq!(large.cols, 240);
+        assert_eq!(large.rows, 120);
     }
 
     #[test]
-    fn venv_detection_requires_real_markers() {
-        let root = unique_temp_dir("markers");
-        let fake = root.join(".venv");
-        fs::create_dir_all(&fake).unwrap();
-        assert!(!is_python_venv_dir(&fake));
-        fs::write(fake.join("pyvenv.cfg"), "home = python").unwrap();
-        assert!(is_python_venv_dir(&fake));
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
-    fn finds_nearest_project_venv_from_nested_cwd() {
-        let root = unique_temp_dir("nearest");
-        let nested = root.join("src").join("pkg");
-        let venv = root.join(".venv");
-        fs::create_dir_all(&nested).unwrap();
-        fs::create_dir_all(&venv).unwrap();
-        fs::write(venv.join("pyvenv.cfg"), "home = python").unwrap();
-        assert_eq!(
-            find_python_venv(&root, &nested).unwrap(),
-            venv.canonicalize().unwrap()
-        );
-        let _ = fs::remove_dir_all(root);
+    fn resolves_platform_venv_bin_dir() {
+        let root = PathBuf::from("demo-venv");
+        let rendered = venv_bin_dir(&root).to_string_lossy().replace('\\', "/");
+        if cfg!(target_os = "windows") {
+            assert!(rendered.ends_with("demo-venv/Scripts"));
+        } else {
+            assert!(rendered.ends_with("demo-venv/bin"));
+        }
     }
 }

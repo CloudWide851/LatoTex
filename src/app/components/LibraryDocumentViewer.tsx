@@ -38,6 +38,8 @@ export function LibraryDocumentViewer(props: {
   onPersistViewMode?: (mode: ViewMode) => void;
   translationModelId?: string | null;
   paperBriefEngine: "auto" | "pdfjs" | "python";
+  bibLayout?: number[];
+  onBibLayoutChange?: (layout: number[]) => void;
   t: TranslationFn;
 }) {
   const {
@@ -50,6 +52,8 @@ export function LibraryDocumentViewer(props: {
     onPersistViewMode,
     translationModelId,
     paperBriefEngine,
+    bibLayout,
+    onBibLayoutChange,
     t,
   } = props;
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -579,6 +583,8 @@ export function LibraryDocumentViewer(props: {
           paperPreviewError={paperPreviewError}
           onAnalyzePaper={() => onAnalyzePaper(selectedPath)}
           linkError={linkError}
+          bibLayout={bibLayout}
+          onBibLayoutChange={onBibLayoutChange}
           t={t}
         />
       </div>

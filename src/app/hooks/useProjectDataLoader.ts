@@ -113,10 +113,9 @@ export function useProjectDataLoader(params: {
     setGitBranchesState(branches);
     const shouldLoadHistory = page === "git";
     if (!shouldLoadHistory) {
-      setGitCommits([]);
       return;
     }
-    const commits = await gitLog(projectId, 30).catch(() => []);
+    const commits = await gitLog(projectId, 100).catch(() => []);
     setGitCommits(commits);
   }, [
     activeProjectIdRef,

@@ -41,6 +41,8 @@ export const enUS_workspace = {
   "terminal.starting": "Starting",
   "terminal.restart": "Restart terminal",
   "terminal.stop": "Stop terminal",
+  "terminal.new": "New terminal",
+  "terminal.close": "Close terminal",
   "terminal.empty": "Terminal output will appear here.",
   "terminal.inputPlaceholder": "Type a command",
   "terminal.send": "Send command",

@@ -1,5 +1,6 @@
 import { FileUp, Minus, Plus } from "lucide-react";
 import { useRef, type MutableRefObject } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
 import { LibraryCitationMetaPanel } from "./LibraryCitationMetaPanel";
 import {
@@ -154,6 +155,8 @@ type LibraryViewerContentPanelProps = {
   paperPreviewError: string | null;
   onAnalyzePaper?: (() => void) | null;
   linkError: string | null;
+  bibLayout?: number[];
+  onBibLayoutChange?: (layout: number[]) => void;
   t: TranslationFn;
 };
 
@@ -233,6 +236,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     paperPreviewError,
     onAnalyzePaper,
     linkError,
+    bibLayout = [54, 46],
+    onBibLayoutChange,
     t,
   } = props;
 
@@ -459,13 +464,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   }
 
   return (
-    <div
-      className={`grid h-full min-h-0 ${
-        pdfRequestStatusVisible
-          ? "grid-rows-[auto_minmax(0,1fr)_minmax(230px,1fr)]"
-          : "grid-rows-[minmax(0,1fr)_minmax(230px,1fr)]"
-      } gap-2`}
-    >
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
       {pdfRequestStatusVisible ? (
         <LibraryPdfBlockedNotice
           error={pdfPaneError}
@@ -474,42 +473,53 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           t={t}
         />
       ) : null}
-      <section
-        ref={(node) => {
-          bibContainerRef.current = node;
-        }}
-        className={LIBRARY_INFO_PANE_CLASSNAME}
+      <PanelGroup
+        direction="vertical"
+        className="h-full min-h-0"
+        onLayout={(layout) => onBibLayoutChange?.(layout)}
       >
-        {loading ? (
-          <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
-        ) : loadError ? (
-          <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
-        ) : bibPreview.trim().length > 0 ? (
-          <pre className="min-h-full whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50/70 p-3 font-mono text-xs leading-5 text-slate-700">
-            {bibPreview}
-          </pre>
-        ) : (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-            {t("library.viewer.noBib")}
+        <Panel id="library-bib-preview" order={1} defaultSize={bibLayout[0] ?? 54} minSize={24} className="min-h-0">
+          <section
+            ref={(node) => {
+              bibContainerRef.current = node;
+            }}
+            className={LIBRARY_INFO_PANE_CLASSNAME}
+          >
+            {loading ? (
+              <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
+            ) : loadError ? (
+              <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
+            ) : bibPreview.trim().length > 0 ? (
+              <pre className="min-h-full whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50/70 p-3 font-mono text-xs leading-5 text-slate-700">
+                {bibPreview}
+              </pre>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+                {t("library.viewer.noBib")}
+              </div>
+            )}
+          </section>
+        </Panel>
+        <PanelResizeHandle className="resizable-handle resizable-handle-vertical" />
+        <Panel id="library-meta-preview" order={2} defaultSize={bibLayout[1] ?? 46} minSize={22} className="min-h-0">
+          <div
+            ref={(node) => {
+              metaContainerRef.current = node;
+            }}
+            className={LIBRARY_INFO_PANE_CLASSNAME}
+          >
+            <LibraryCitationMetaPanel
+              citation={citation}
+              linkError={linkError}
+              paperPreview={paperPreview}
+              paperPreviewLoading={paperPreviewLoading}
+              paperPreviewError={paperPreviewError}
+              onAnalyzePaper={onAnalyzePaper}
+              t={t}
+            />
           </div>
-        )}
-      </section>
-      <div
-        ref={(node) => {
-          metaContainerRef.current = node;
-        }}
-        className={LIBRARY_INFO_PANE_CLASSNAME}
-      >
-        <LibraryCitationMetaPanel
-          citation={citation}
-          linkError={linkError}
-          paperPreview={paperPreview}
-          paperPreviewLoading={paperPreviewLoading}
-          paperPreviewError={paperPreviewError}
-          onAnalyzePaper={onAnalyzePaper}
-          t={t}
-        />
-      </div>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }

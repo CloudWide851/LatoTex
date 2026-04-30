@@ -448,6 +448,7 @@ export function AppContainer() {
       latexLayout={panels.latexLayout}
       analysisLayout={panels.analysisLayout}
       libraryLayout={panels.libraryLayout}
+      libraryBibLayout={panels.libraryBibLayout}
       settings={s.settings}
       setSettings={s.setSettings}
       tree={s.tree}

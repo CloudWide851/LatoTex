@@ -138,6 +138,7 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayoutPrefs = {
   latex: [22, 48, 30],
   analysis: [26, 74],
   library: [30, 70],
+  libraryBib: [54, 46],
   git: [100],
   settings: [100],
 };

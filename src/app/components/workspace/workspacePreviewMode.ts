@@ -9,7 +9,7 @@ import {
   isTabularPath,
 } from "../../../shared/utils/fileKind";
 
-export type WorkspacePreviewMode = "pdf" | "image" | "markdown" | "svg" | "terminal" | "empty";
+export type WorkspacePreviewMode = "pdf" | "image" | "markdown" | "svg" | "empty";
 
 export type WorkspacePreviewFlags = {
   selectedIsPdf: boolean;
@@ -44,7 +44,6 @@ export function resolveWorkspacePreviewMode(input: {
   compiledPdfUrl: string | null;
   previewSelectedPath: string | null;
   preferCompiledPreview: boolean;
-  terminalVisible: boolean;
 }): WorkspacePreviewMode {
   const {
     flags,
@@ -53,11 +52,7 @@ export function resolveWorkspacePreviewMode(input: {
     compiledPdfUrl,
     previewSelectedPath,
     preferCompiledPreview,
-    terminalVisible,
   } = input;
-  if (terminalVisible) {
-    return "terminal";
-  }
   if (flags.selectedIsImage) {
     return selectedImagePreviewUrl ? "image" : "empty";
   }

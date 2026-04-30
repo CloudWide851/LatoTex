@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 import { PenTool, Play, Redo2, Save, Terminal, Undo2 } from "lucide-react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentProposalMiniBar } from "./AgentProposalMiniBar";
 import { CompileAssistPopover } from "./CompileAssistPopover";
 import { EditorTabsBar } from "./EditorTabsBar";
@@ -21,6 +22,7 @@ import {
   LazyChatWorkspace,
   WorkspacePanelFallback,
 } from "../workspace/workspaceShellLazy";
+import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import { isTexPath } from "../../../shared/utils/fileKind";
 
 type TranslationFn = (key: any) => string;
@@ -260,6 +262,157 @@ export function LatexWorkspaceEditorPanel(props: {
     };
   }, []);
 
+  const editorStageContent = (
+    <>
+      {agentProposal ? (
+        <AgentProposalMiniBar
+          proposal={agentProposal}
+          busy={busy}
+          onAccept={() => onAgentAcceptProposal(false)}
+          onReject={onAgentRejectProposal}
+          t={t}
+        />
+      ) : null}
+
+      {showChatWorkspace ? (
+        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+          <LazyChatWorkspace
+            projectId={activeProjectId}
+            channelPrefs={channelPrefs}
+            suspended={suspended}
+            chatAgentModelId={chatAgentModelId}
+            agentPhase={agentPhase}
+            agentRunId={agentRunId}
+            agentMessages={agentMessages}
+            agentProposal={agentProposal}
+            agentPendingAction={agentPendingAction}
+            events={events}
+            onRunWorkspaceAgent={onAgentRun}
+            onAcceptWorkspaceAgentProposal={onAgentAcceptProposal}
+            onRejectWorkspaceAgentProposal={onAgentRejectProposal}
+            onResolveWorkspaceAgentPendingAction={onAgentPendingActionResolve}
+            onRequestAgentReview={(prompt) => {
+              onChatReviewRequest(prompt);
+            }}
+            t={t}
+          />
+        </Suspense>
+      ) : selectedIsExcel ? (
+        <div className="editor-empty-state flex h-full items-center justify-center text-xs">
+          {t("editor.excelPreviewOnly")}
+        </div>
+      ) : (
+        <MonacoEditor
+          path={selectedFile ?? undefined}
+          language={editorLanguage}
+          theme={editorTheme}
+          value={editorContent}
+          saveViewState
+          beforeMount={(monaco) => {
+            registerEditorSurfaceThemes(monaco);
+            registerEditorCodeLanguages(monaco);
+          }}
+          onChange={(value) => onEditorChange(value ?? "")}
+          onMount={(editor, monaco) => {
+            editorInstanceRef.current = editor;
+            let overflowRefreshFrame: number | null = null;
+            const refreshOverflowWidgets = () => {
+              if (overflowRefreshFrame != null || typeof window === "undefined") {
+                return;
+              }
+              overflowRefreshFrame = window.requestAnimationFrame(() => {
+                overflowRefreshFrame = null;
+                editor.render?.(true);
+              });
+            };
+            ensureLatexCompletionProvider(monaco);
+            editor.addCommand(
+              monaco.KeyCode.Tab,
+              () => editor.trigger("keyboard", "acceptSelectedSuggestion", {}),
+              "suggestWidgetVisible",
+            );
+            editor.addCommand(
+              monaco.KeyCode.Tab,
+              () => editor.trigger("keyboard", "acceptInlineSuggestion", {}),
+              "inlineSuggestionVisible",
+            );
+            editor.updateOptions(editorOptions);
+            editor.layout();
+            const disposables = [
+              editor.onDidChangeCursorPosition(refreshOverflowWidgets),
+              editor.onDidScrollChange(refreshOverflowWidgets),
+              editor.onDidLayoutChange(refreshOverflowWidgets),
+            ];
+            editor.onDidDispose(() => {
+              if (overflowRefreshFrame != null && typeof window !== "undefined") {
+                window.cancelAnimationFrame(overflowRefreshFrame);
+              }
+              disposables.forEach((disposable) => disposable.dispose());
+              if (editorInstanceRef.current === editor) {
+                editorInstanceRef.current = null;
+              }
+            });
+            onEditorMount(editor, monaco);
+          }}
+          options={editorOptions}
+        />
+      )}
+
+      {showChatWorkspace ? null : (
+        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+          <LazyAgentChatOverlay
+            collapsed={agentCollapsed}
+            phase={agentPhase}
+            statusLine={t(agentStatusKey)}
+            title={t("agent.chatTitle")}
+            collapseLabel={t("agent.collapse")}
+            prompt={agentPrompt}
+            busy={busy}
+            messages={agentMessages}
+            proposal={agentProposal}
+            pendingAction={agentPendingAction}
+            runId={agentRunId}
+            sessions={agentSessions}
+            sessionPickerOpen={agentSessionPickerOpen}
+            sessionPickerIndex={agentSessionPickerIndex}
+            rollbackVisible={agentRollbackVisible}
+            events={events}
+            onPromptChange={onAgentPromptChange}
+            onRun={() => onAgentRun()}
+            onRunTeams={() => onAgentRun(undefined, { teamMode: "force" })}
+            onSessionPickerOpenChange={onAgentSessionPickerOpenChange}
+            onSessionPickerIndexChange={onAgentSessionPickerIndexChange}
+            onSessionConfirm={onAgentSessionConfirm}
+            onRollback={onAgentRollback}
+            onToggle={onAgentToggle}
+            onAcceptProposal={onAgentAcceptProposal}
+            onRejectProposal={onAgentRejectProposal}
+            onPendingActionResolve={onAgentPendingActionResolve}
+            runLabel={agentPhase === "running" ? t("agent.run.cancel") : t("workspace.runTaskAgent")}
+            placeholder={t("workspace.agentPlaceholder")}
+            activityShowLabel={t("agent.activityShow")}
+            activityHideLabel={t("agent.activityHide")}
+            applyLabel={t("agent.proposalApply")}
+            rejectLabel={t("agent.proposalReject")}
+            autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
+            showMoreLabel={t("agent.showMore")}
+            showLessLabel={t("agent.showLess")}
+            commands={agentCommandItems}
+            resumeTitle={t("agent.resume.title")}
+            resumeHint={t("agent.resume.hint")}
+            resumeEmptyLabel={t("agent.resume.empty")}
+            rollbackLabel={t("agent.rollback.restore")}
+            pendingActionTitle={t("agent.autoCommit.title")}
+            pendingActionDesc={t("agent.autoCommit.desc")}
+            pendingActionWaitLabel={t("agent.pendingAction.waiting")}
+            pendingActionYesLabel={t("agent.autoCommit.yes")}
+            pendingActionNoLabel={t("agent.autoCommit.no")}
+          />
+        </Suspense>
+      )}
+    </>
+  );
+
   return (
     <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
@@ -380,152 +533,24 @@ export function LatexWorkspaceEditorPanel(props: {
         t={t}
       />
 
-      <div className="editor-content-stage relative h-full min-h-0">
-        {agentProposal ? (
-          <AgentProposalMiniBar
-            proposal={agentProposal}
-            busy={busy}
-            onAccept={() => onAgentAcceptProposal(false)}
-            onReject={onAgentRejectProposal}
-            t={t}
-          />
-        ) : null}
-
-        {showChatWorkspace ? (
-          <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-            <LazyChatWorkspace
-              projectId={activeProjectId}
-              channelPrefs={channelPrefs}
-              suspended={suspended}
-              chatAgentModelId={chatAgentModelId}
-              agentPhase={agentPhase}
-              agentRunId={agentRunId}
-              agentMessages={agentMessages}
-              agentProposal={agentProposal}
-              agentPendingAction={agentPendingAction}
-              events={events}
-              onRunWorkspaceAgent={onAgentRun}
-              onAcceptWorkspaceAgentProposal={onAgentAcceptProposal}
-              onRejectWorkspaceAgentProposal={onAgentRejectProposal}
-              onResolveWorkspaceAgentPendingAction={onAgentPendingActionResolve}
-              onRequestAgentReview={(prompt) => {
-                onChatReviewRequest(prompt);
-              }}
-              t={t}
-            />
-          </Suspense>
-        ) : selectedIsExcel ? (
-          <div className="editor-empty-state flex h-full items-center justify-center text-xs">
-            {t("editor.excelPreviewOnly")}
-          </div>
+      <div className="editor-content-stage h-full min-h-0">
+        {terminalVisible ? (
+          <PanelGroup direction="vertical" className="h-full min-h-0" onLayout={() => editorInstanceRef.current?.layout()}>
+            <Panel id="latex-editor-main" order={1} defaultSize={68} minSize={36} className="min-h-0">
+              <div className="relative h-full min-h-0">{editorStageContent}</div>
+            </Panel>
+            <PanelResizeHandle className="resizable-handle resizable-handle-vertical" />
+            <Panel id="latex-editor-terminal" order={2} defaultSize={32} minSize={18} className="min-h-0">
+              <WorkspaceTerminalPanel
+                activeProjectId={activeProjectId}
+                selectedFile={selectedFile}
+                active={terminalVisible}
+                t={t}
+              />
+            </Panel>
+          </PanelGroup>
         ) : (
-          <MonacoEditor
-            path={selectedFile ?? undefined}
-            language={editorLanguage}
-            theme={editorTheme}
-            value={editorContent}
-            saveViewState
-            beforeMount={(monaco) => {
-              registerEditorSurfaceThemes(monaco);
-              registerEditorCodeLanguages(monaco);
-            }}
-            onChange={(value) => onEditorChange(value ?? "")}
-            onMount={(editor, monaco) => {
-              editorInstanceRef.current = editor;
-              let overflowRefreshFrame: number | null = null;
-              const refreshOverflowWidgets = () => {
-                if (overflowRefreshFrame != null || typeof window === "undefined") {
-                  return;
-                }
-                overflowRefreshFrame = window.requestAnimationFrame(() => {
-                  overflowRefreshFrame = null;
-                  editor.render?.(true);
-                });
-              };
-              ensureLatexCompletionProvider(monaco);
-              editor.addCommand(
-                monaco.KeyCode.Tab,
-                () => editor.trigger("keyboard", "acceptSelectedSuggestion", {}),
-                "suggestWidgetVisible",
-              );
-              editor.addCommand(
-                monaco.KeyCode.Tab,
-                () => editor.trigger("keyboard", "acceptInlineSuggestion", {}),
-                "inlineSuggestionVisible",
-              );
-              editor.updateOptions(editorOptions);
-              editor.layout();
-              const disposables = [
-                editor.onDidChangeCursorPosition(refreshOverflowWidgets),
-                editor.onDidScrollChange(refreshOverflowWidgets),
-                editor.onDidLayoutChange(refreshOverflowWidgets),
-              ];
-              editor.onDidDispose(() => {
-                if (overflowRefreshFrame != null && typeof window !== "undefined") {
-                  window.cancelAnimationFrame(overflowRefreshFrame);
-                }
-                disposables.forEach((disposable) => disposable.dispose());
-                if (editorInstanceRef.current === editor) {
-                  editorInstanceRef.current = null;
-                }
-              });
-              onEditorMount(editor, monaco);
-            }}
-            options={editorOptions}
-          />
-        )}
-
-        {showChatWorkspace ? null : (
-          <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-            <LazyAgentChatOverlay
-              collapsed={agentCollapsed}
-              phase={agentPhase}
-              statusLine={t(agentStatusKey)}
-              title={t("agent.chatTitle")}
-              collapseLabel={t("agent.collapse")}
-              prompt={agentPrompt}
-              busy={busy}
-              messages={agentMessages}
-              proposal={agentProposal}
-              pendingAction={agentPendingAction}
-              runId={agentRunId}
-              sessions={agentSessions}
-              sessionPickerOpen={agentSessionPickerOpen}
-              sessionPickerIndex={agentSessionPickerIndex}
-              rollbackVisible={agentRollbackVisible}
-              events={events}
-              onPromptChange={onAgentPromptChange}
-              onRun={() => onAgentRun()}
-              onRunTeams={() => onAgentRun(undefined, { teamMode: "force" })}
-              onSessionPickerOpenChange={onAgentSessionPickerOpenChange}
-              onSessionPickerIndexChange={onAgentSessionPickerIndexChange}
-              onSessionConfirm={onAgentSessionConfirm}
-              onRollback={onAgentRollback}
-              onToggle={onAgentToggle}
-              onAcceptProposal={onAgentAcceptProposal}
-              onRejectProposal={onAgentRejectProposal}
-              onPendingActionResolve={onAgentPendingActionResolve}
-              runLabel={agentPhase === "running" ? t("agent.run.cancel") : t("workspace.runTaskAgent")}
-              placeholder={t("workspace.agentPlaceholder")}
-              activityShowLabel={t("agent.activityShow")}
-              activityHideLabel={t("agent.activityHide")}
-              applyLabel={t("agent.proposalApply")}
-              rejectLabel={t("agent.proposalReject")}
-              autoAnalyzeLabel={t("agent.proposalAutoAnalyze")}
-              showMoreLabel={t("agent.showMore")}
-              showLessLabel={t("agent.showLess")}
-              commands={agentCommandItems}
-              resumeTitle={t("agent.resume.title")}
-              resumeHint={t("agent.resume.hint")}
-              resumeEmptyLabel={t("agent.resume.empty")}
-              rollbackLabel={t("agent.rollback.restore")}
-              pendingActionTitle={t("agent.autoCommit.title")}
-              pendingActionDesc={t("agent.autoCommit.desc")}
-              pendingActionWaitLabel={t("agent.pendingAction.waiting")}
-              pendingActionYesLabel={t("agent.autoCommit.yes")}
-              pendingActionNoLabel={t("agent.autoCommit.no")}
-            />
-          </Suspense>
+          <div className="relative h-full min-h-0">{editorStageContent}</div>
         )}
       </div>
     </div>

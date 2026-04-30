@@ -78,6 +78,7 @@ export type TerminalStartResponse = {
   cwd: string;
   shell: string;
   venvPath?: string | null;
+  envSource?: string | null;
   status: string;
 };
 
@@ -388,6 +389,7 @@ export type PanelLayoutPrefs = {
   latex?: number[];
   analysis?: number[];
   library?: number[];
+  libraryBib?: number[];
   git?: number[];
   settings?: number[];
 };

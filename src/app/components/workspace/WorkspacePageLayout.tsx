@@ -14,6 +14,7 @@ type WorkspacePageLayoutProps = Pick<
   | "latexLayout"
   | "analysisLayout"
   | "libraryLayout"
+  | "libraryBibLayout"
   | "tree"
   | "libraryTree"
   | "selectedFile"
@@ -56,6 +57,7 @@ export function WorkspacePageLayout({
   latexLayout,
   analysisLayout,
   libraryLayout,
+  libraryBibLayout,
   tree,
   libraryTree,
   selectedFile,
@@ -89,9 +91,9 @@ export function WorkspacePageLayout({
   renderPdfPreviewPanel,
   onSelectWorkspaceFile,
 }: WorkspacePageLayoutProps) {
-  const handleLayout = (targetPage: "latex" | "analysis" | "library", layout: number[]) => {
+  const handleLayout = (targetPage: "latex" | "analysis" | "library" | "libraryBib", layout: number[]) => {
     onSavePanelLayout(targetPage, layout);
-    emitWorkspaceLayoutRefresh(targetPage, "panel-layout");
+    emitWorkspaceLayoutRefresh(targetPage === "libraryBib" ? "library" : targetPage, "panel-layout");
   };
 
   const renderLibraryPanel = () => {
@@ -136,6 +138,8 @@ export function WorkspacePageLayout({
                 onPersistViewMode={onLibraryViewModeChange}
                 translationModelId={translationModelId}
                 paperBriefEngine={paperBriefEngine}
+                bibLayout={libraryBibLayout}
+                onBibLayoutChange={(layout) => handleLayout("libraryBib", layout)}
                 t={t}
               />
             </Suspense>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { enUS, type MessageKey } from "./messages/en-US/index";
 import { zhCN } from "./messages/zh-CN/index";
 
@@ -45,6 +45,14 @@ export function I18nProvider(props: {
 }) {
   const { initialLocale, children, onLocaleChange } = props;
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.lang = locale;
+    document.documentElement.dataset.locale = locale;
+  }, [locale]);
 
   const value = useMemo<I18nContextValue>(() => {
     const messages = MESSAGE_MAP[locale];

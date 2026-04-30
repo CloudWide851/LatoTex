@@ -14,6 +14,7 @@ pub struct TerminalStartResponse {
     pub cwd: String,
     pub shell: String,
     pub venv_path: Option<String>,
+    pub env_source: Option<String>,
     pub status: String,
 }
 

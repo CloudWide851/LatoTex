@@ -32,6 +32,7 @@ export type AppWorkspaceShellProps = {
   latexLayout: number[];
   analysisLayout: number[];
   libraryLayout: number[];
+  libraryBibLayout: number[];
   tree: ResourceNode[];
   libraryTree: ResourceNode[];
   selectedFile: string | null;
@@ -127,7 +128,7 @@ export type AppWorkspaceShellProps = {
   onWorkspaceRevealInSystem: (relativePath?: string) => void | Promise<void>;
   onWorkspaceOpenTerminal: (relativePath?: string) => void | Promise<void>;
   onWorkspaceRescan: () => void | Promise<void>;
-  onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library", layout: number[]) => void;
+  onSavePanelLayout: (panel: "shell" | "latex" | "analysis" | "library" | "libraryBib", layout: number[]) => void;
   previewDefaultZoom: number;
   completionModelId: string | null;
   chatAgentModelId: string | null;

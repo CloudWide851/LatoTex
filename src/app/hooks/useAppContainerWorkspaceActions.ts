@@ -321,6 +321,14 @@ export function useAppContainerWorkspaceActions(
   const handleProjectChange = useCallback((projectId: string | null) => {
     const proceed = async () => {
       if (!projectId) {
+        const closedProjectId = activeProjectIdRef.current;
+        if (typeof window !== "undefined" && closedProjectId) {
+          window.dispatchEvent(
+            new CustomEvent("latotex.project.closed", {
+              detail: { projectId: closedProjectId },
+            }),
+          );
+        }
         setIntegrityIssue(null);
         resetEditorSession();
         setPreviewOverridePath(null);

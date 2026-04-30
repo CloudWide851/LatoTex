@@ -14,7 +14,6 @@ function modeFor(path: string | null, overrides: Partial<Parameters<typeof resol
     compiledPdfUrl: null,
     previewSelectedPath: path,
     preferCompiledPreview: false,
-    terminalVisible: false,
     ...overrides,
   });
 }
@@ -25,11 +24,10 @@ describe("workspacePreviewMode", () => {
     expect(isWorkspaceUnsupportedPreviewPath("scripts/analyze.py")).toBe(true);
   });
 
-  it("allows explicit preview types and terminal mode", () => {
+  it("allows explicit preview types without hijacking the preview for terminal", () => {
     expect(modeFor("paper.md")).toBe("markdown");
     expect(modeFor("figure.svg")).toBe("svg");
     expect(modeFor("figure.png", { selectedImagePreviewUrl: "blob:figure" })).toBe("image");
     expect(modeFor("main.tex", { compiledPdfUrl: "blob:pdf" })).toBe("pdf");
-    expect(modeFor("scripts/analyze.py", { terminalVisible: true })).toBe("terminal");
   });
 });

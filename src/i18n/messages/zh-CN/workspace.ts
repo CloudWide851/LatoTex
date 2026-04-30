@@ -41,6 +41,8 @@ export const zhCN_workspace = {
   "terminal.starting": "正在启动",
   "terminal.restart": "重启终端",
   "terminal.stop": "停止终端",
+  "terminal.new": "新建终端",
+  "terminal.close": "关闭终端",
   "terminal.empty": "终端输出会显示在这里。",
   "terminal.inputPlaceholder": "输入命令",
   "terminal.send": "发送命令",

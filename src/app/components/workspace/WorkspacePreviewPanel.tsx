@@ -1,7 +1,6 @@
 import { AlertTriangle, Download, ListChecks, Minus, Plus, RotateCcw } from "lucide-react";
 import { FilePreviewPane } from "../FilePreviewPane";
 import { TablePreviewPane } from "../table/TablePreviewPane";
-import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import { shouldDisplayCompileProgress } from "../../hooks/compileWorkflowShared";
 import type { WorkspacePreviewMode } from "./workspacePreviewMode";
@@ -35,7 +34,6 @@ export function WorkspacePreviewPanel(props: {
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
   previewFocusRequest: { page: number; token: number } | null;
-  terminalVisible: boolean;
   t: TranslationFn;
 }) {
   const {
@@ -64,7 +62,6 @@ export function WorkspacePreviewPanel(props: {
     onZoomReset,
     onPreviewZoomChange,
     previewFocusRequest,
-    terminalVisible,
     t,
   } = props;
 
@@ -93,7 +90,7 @@ export function WorkspacePreviewPanel(props: {
           >
             <AlertTriangle className="h-3.5 w-3.5" />
           </button>
-          {!selectedIsTabular && previewMode !== "terminal" ? (
+          {!selectedIsTabular ? (
             <>
               <button
                 className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
@@ -162,14 +159,7 @@ export function WorkspacePreviewPanel(props: {
         data-testid="workspace-preview-content"
         className="min-h-0 flex-1"
       >
-        {previewMode === "terminal" ? (
-          <WorkspaceTerminalPanel
-            activeProjectId={activeProjectId}
-            selectedFile={selectedFile}
-            active={terminalVisible}
-            t={t}
-          />
-        ) : selectedIsTabular ? (
+        {selectedIsTabular ? (
           <TablePreviewPane
             projectId={activeProjectId}
             selectedPath={selectedFile}

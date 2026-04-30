@@ -5,7 +5,7 @@ import {
   Upload,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { GitCommitTab } from "./git/GitCommitTab";
 import { GitHistoryTab } from "./git/GitHistoryTab";
@@ -107,6 +107,7 @@ export function GitWorkspace(props: {
   const [historyFilesBusy, setHistoryFilesBusy] = useState(false);
   const [historyFilesError, setHistoryFilesError] = useState("");
   const [historyFilePath, setHistoryFilePath] = useState("");
+  const historyRefreshRequestedRef = useRef(false);
 
   const changedFiles = (status?.changes ?? []).filter((item) => !item.ignored);
   const stagedFiles = useMemo(
@@ -150,6 +151,20 @@ export function GitWorkspace(props: {
   useEffect(() => {
     setExcludedPaths((prev) => prev.filter((path) => changedPathSet.has(path)));
   }, [changedPathSet]);
+
+  useEffect(() => {
+    if (activeTab === "history" && commits.length === 0 && !busy) {
+      if (historyRefreshRequestedRef.current) {
+        return;
+      }
+      historyRefreshRequestedRef.current = true;
+      onRefresh();
+      return;
+    }
+    if (activeTab !== "history" || commits.length > 0) {
+      historyRefreshRequestedRef.current = false;
+    }
+  }, [activeTab, busy, commits.length, onRefresh]);
 
   useEffect(() => {
     if (!selectedHistoryHash) {

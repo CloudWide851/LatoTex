@@ -79,6 +79,7 @@ export function AppContainerView(props: any) {
     latexLayout,
     analysisLayout,
     libraryLayout,
+    libraryBibLayout,
     settings,
     tree,
     libraryTree,
@@ -367,6 +368,7 @@ export function AppContainerView(props: any) {
                 latexLayout={latexLayout}
                 analysisLayout={analysisLayout}
                 libraryLayout={libraryLayout}
+                libraryBibLayout={libraryBibLayout}
                 previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
                 completionModelId={completionModelId}
                 chatAgentModelId={chatAgentModelId}

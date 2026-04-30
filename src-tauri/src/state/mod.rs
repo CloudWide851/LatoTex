@@ -4,9 +4,9 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Condvar, Mutex};
 use tauri::{AppHandle, Manager};
@@ -88,8 +88,10 @@ pub struct TerminalOutputChunk {
 pub struct TerminalSession {
     pub cwd: String,
     pub venv_path: Option<String>,
-    pub child: Mutex<Child>,
-    pub stdin: Mutex<ChildStdin>,
+    pub env_source: Option<String>,
+    pub master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
+    pub child: Mutex<Box<dyn portable_pty::Child + Send>>,
+    pub writer: Mutex<Box<dyn Write + Send>>,
     pub output: Mutex<Vec<TerminalOutputChunk>>,
     pub next_seq: AtomicU64,
     pub status: Mutex<String>,

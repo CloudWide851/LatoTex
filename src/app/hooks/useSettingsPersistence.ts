@@ -252,6 +252,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
         latex: 3,
         analysis: 2,
         library: 2,
+        libraryBib: 2,
         git: 1,
         settings: 1,
       };

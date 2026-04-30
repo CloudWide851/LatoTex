@@ -58,7 +58,6 @@ describe("WorkspacePreviewPanel", () => {
           onZoomReset={() => undefined}
           onPreviewZoomChange={() => undefined}
           previewFocusRequest={null}
-          terminalVisible={false}
           t={(key) => String(key)}
         />,
       );
