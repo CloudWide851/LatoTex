@@ -33,6 +33,27 @@ fn step_metadata<'a>(
     EventMetadata::base(workflow_id, step_id, callsite)
 }
 
+fn prompt_requests_team(prompt: &str) -> bool {
+    let lower = prompt.to_ascii_lowercase();
+    lower.contains("teams")
+        || lower.contains("team mode")
+        || lower.contains("multi-agent")
+        || lower.contains("multi agent")
+        || prompt.contains("团队")
+        || prompt.contains("协作")
+        || prompt.contains("多Agent")
+        || prompt.contains("多 agent")
+        || prompt.contains("多智能体")
+}
+
+fn should_use_team(input: &AgentExecuteRequest) -> bool {
+    match input.team_mode.as_deref().unwrap_or("auto") {
+        "force" => true,
+        "off" => false,
+        _ => prompt_requests_team(&input.prompt),
+    }
+}
+
 pub(super) fn run_workflow_step(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
@@ -483,16 +504,18 @@ pub(super) fn run_execute_pipeline_async(
     input: AgentExecuteRequest,
     workflow: WorkflowDefinition,
 ) -> Result<String, String> {
-    if let Some(team) = select_agent_team(&db_path, &runtime_root, &input.callsite) {
-        return run_execute_pipeline_team(
-            &db_path,
-            &runtime_root,
-            &run_id,
-            &cancel_flag,
-            &input,
-            &workflow,
-            team,
-        );
+    if should_use_team(&input) {
+        if let Some(team) = select_agent_team(&db_path, &runtime_root, &input.callsite) {
+            return run_execute_pipeline_team(
+                &db_path,
+                &runtime_root,
+                &run_id,
+                &cancel_flag,
+                &input,
+                &workflow,
+                team,
+            );
+        }
     }
     match execution_mode_for_workflow(&workflow, &input.callsite) {
         "single" => run_execute_pipeline_single(

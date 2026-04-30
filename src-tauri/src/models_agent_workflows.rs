@@ -10,6 +10,7 @@ pub struct LatexEditStartInput {
     #[serde(default)]
     pub context_paths: Vec<String>,
     pub model_override: Option<String>,
+    pub team_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,6 +22,7 @@ pub struct LatexReviewFixStartInput {
     pub diagnostics: Vec<String>,
     pub extra_instruction: Option<String>,
     pub model_override: Option<String>,
+    pub team_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -33,6 +35,7 @@ pub struct LatexReferenceCheckStartInput {
     #[serde(default)]
     pub context_paths: Vec<String>,
     pub model_override: Option<String>,
+    pub team_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,6 +45,7 @@ pub struct LatexPaperAnalyzeStartInput {
     pub source_path: String,
     pub instruction: Option<String>,
     pub model_override: Option<String>,
+    pub team_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,6 +56,7 @@ pub struct ChatWorkflowStartInput {
     #[serde(default)]
     pub context_paths: Vec<String>,
     pub model_override: Option<String>,
+    pub team_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

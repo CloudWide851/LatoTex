@@ -25,8 +25,9 @@ mod swarm_workflows;
 pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_retry_streaming};
 
 use crate::models::{
-    Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted, CompileRecord,
-    CompileRecordInput, EventBatch, EventQuery, McpServerConfig, McpValidationResult,
+    Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted,
+    AgentRunsRecoverInput, AgentRunsRecoverResponse, CompileRecord, CompileRecordInput,
+    EventBatch, EventQuery, McpServerConfig, McpValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -63,6 +64,56 @@ pub(crate) fn start_agent_execution(
     input: AgentExecuteRequest,
 ) -> Result<AgentExecuteStartAccepted, String> {
     swarm_pipeline::agent_execute_start(state, input)
+}
+
+#[tauri::command]
+pub fn agent_runs_recover(
+    state: State<'_, AppState>,
+    input: AgentRunsRecoverInput,
+) -> Result<AgentRunsRecoverResponse, String> {
+    let records = storage::list_recoverable_agent_runs(
+        &state.db_path,
+        input.project_id.as_deref(),
+    )?;
+    let mut recovered_run_ids = Vec::new();
+    for record in records {
+        if storage::agent_run_has_terminal_event(&state.db_path, &record.run_id)? {
+            continue;
+        }
+        {
+            let flags = state
+                .agent_cancel_flags
+                .lock()
+                .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+            if flags.contains_key(&record.run_id) {
+                continue;
+            }
+        }
+        let request = serde_json::from_str::<AgentExecuteRequest>(&record.request_json)
+            .map_err(|e| format!("agent.run.recover.deserialize: {}", e))?;
+        let lease_id = uuid::Uuid::new_v4().to_string();
+        storage::mark_agent_run_recovering(&state.db_path, &record.run_id, &lease_id)?;
+        swarm_pipeline::agent_execute_start_with_run_id(
+            &state,
+            request,
+            record.run_id.clone(),
+            true,
+        )?;
+        state.log(
+            "INFO",
+            &format!(
+                "agent_runs_recover: run={}, project={}, workflow={}, callsite={}, previous_status={}, recovered_count={}",
+                record.run_id,
+                record.project_id,
+                record.workflow_id,
+                record.callsite,
+                record.status,
+                record.recovered_count + 1
+            ),
+        );
+        recovered_run_ids.push(record.run_id);
+    }
+    Ok(AgentRunsRecoverResponse { recovered_run_ids })
 }
 
 #[tauri::command]

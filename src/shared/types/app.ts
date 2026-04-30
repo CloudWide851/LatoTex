@@ -160,6 +160,12 @@ export type AgentExecuteStartAccepted = {
   status: string;
 };
 
+export type AgentTeamMode = "auto" | "force" | "off";
+
+export type AgentRunsRecoverResponse = {
+  recoveredRunIds: string[];
+};
+
 export type AgentModelBinding = {
   role: string;
   modelId: string;

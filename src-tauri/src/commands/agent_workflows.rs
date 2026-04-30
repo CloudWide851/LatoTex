@@ -248,6 +248,7 @@ fn start_workflow(
     context_refs: Vec<String>,
     model_override: Option<String>,
     bypass_cache: bool,
+    team_mode: Option<String>,
 ) -> Result<AgentExecuteStartAccepted, String> {
     start_agent_execution(
         state,
@@ -259,6 +260,7 @@ fn start_workflow(
             context_refs,
             model_override,
             bypass_cache,
+            team_mode,
         },
     )
 }
@@ -375,6 +377,7 @@ pub fn latex_edit_start(
         context_refs,
         input.model_override,
         false,
+        input.team_mode,
     )
 }
 
@@ -418,6 +421,7 @@ pub fn latex_review_fix_start(
         vec![format!("file:{}", input.selected_file.trim())],
         input.model_override,
         false,
+        input.team_mode,
     )
 }
 
@@ -454,6 +458,7 @@ pub fn latex_reference_check_start(
         context_refs,
         input.model_override,
         false,
+        input.team_mode,
     )
 }
 
@@ -500,6 +505,7 @@ pub fn latex_paper_analyze_start(
         vec![format!("paper:{}", input.source_path.trim())],
         input.model_override,
         false,
+        input.team_mode,
     )
 }
 
@@ -522,6 +528,7 @@ pub fn chat_workflow_start(
         context_refs,
         input.model_override,
         false,
+        input.team_mode,
     )
 }
 
@@ -558,6 +565,7 @@ pub fn completion_latex_start(
         context_refs,
         input.model_override,
         false,
+        None,
     )
 }
 
@@ -581,5 +589,6 @@ pub fn git_summary_workflow_start(
         context_refs,
         None,
         true,
+        None,
     )
 }

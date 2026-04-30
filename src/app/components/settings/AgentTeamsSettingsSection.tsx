@@ -65,8 +65,7 @@ export function AgentTeamsSettingsSection(props: {
   const { settings, activeModelCatalog, setSettings, t } = props;
   const prefs = normalizeAgentTeamPrefs(settings.uiPrefs?.agentTeamPrefs);
   const teams = prefs.teams ?? [];
-  const initialEditId = prefs.defaultTeamId ?? teams[0]?.id ?? DEFAULT_AGENT_TEAM.id;
-  const [editingTeamId, setEditingTeamId] = useState(initialEditId);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const editingTeam = useMemo(
     () => teams.find((team) => team.id === editingTeamId) ?? teams[0] ?? DEFAULT_AGENT_TEAM,
@@ -78,10 +77,11 @@ export function AgentTeamsSettingsSection(props: {
   );
 
   useEffect(() => {
-    if (!teams.some((team) => team.id === editingTeamId)) {
-      setEditingTeamId(prefs.defaultTeamId ?? teams[0]?.id ?? DEFAULT_AGENT_TEAM.id);
+    if (editingTeamId && !teams.some((team) => team.id === editingTeamId)) {
+      setEditingTeamId(null);
+      setEditingRoleId(null);
     }
-  }, [editingTeamId, prefs.defaultTeamId, teams]);
+  }, [editingTeamId, teams]);
 
   useEffect(() => {
     if (editingRoleId && !(editingTeam.roles ?? []).some((role) => role.id === editingRoleId)) {
@@ -116,12 +116,14 @@ export function AgentTeamsSettingsSection(props: {
       teams: [...teams, team],
     });
     setEditingTeamId(team.id);
+    setEditingRoleId(null);
   };
 
   const resetTeams = () => {
     const nextPrefs = normalizeAgentTeamPrefs(null);
     updatePrefs(nextPrefs);
-    setEditingTeamId(nextPrefs.defaultTeamId ?? DEFAULT_AGENT_TEAM.id);
+    setEditingTeamId(null);
+    setEditingRoleId(null);
   };
 
   return (
@@ -148,11 +150,14 @@ export function AgentTeamsSettingsSection(props: {
         onCheckedChange={(enabled) => updatePrefs({ ...prefs, enabled })}
       />
 
-      <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(260px,0.78fr)_minmax(360px,1.22fr)]">
+      <div className={cn(
+        "grid min-h-0 gap-3",
+        editingTeamId ? "xl:grid-cols-[minmax(260px,0.78fr)_minmax(360px,1.22fr)]" : "",
+      )}>
         <div className="grid content-start gap-2">
           {teams.map((team) => {
             const enabledRoles = (team.roles ?? []).filter((role) => role.enabled ?? true).length;
-            const selected = team.id === editingTeam.id;
+            const selected = team.id === editingTeamId;
             const isDefault = team.id === prefs.defaultTeamId;
             return (
               <article
@@ -202,13 +207,25 @@ export function AgentTeamsSettingsSection(props: {
           })}
         </div>
 
-        <section className="min-h-0 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">{t("settings.agentTeamsEditorTitle")}</h3>
-              <p className="text-xs text-slate-500">{t("settings.agentTeamsEditorHint")}</p>
-          </div>
-          <Button
+        {editingTeamId ? (
+          <section className="min-h-0 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">{t("settings.agentTeamsEditorTitle")}</h3>
+                <p className="text-xs text-slate-500">{t("settings.agentTeamsEditorHint")}</p>
+              </div>
+              <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditingTeamId(null);
+                setEditingRoleId(null);
+              }}
+            >
+              <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+              {t("settings.agentTeamsCloseEditor")}
+            </Button>
+            <Button
               size="sm"
               variant={editingTeam.id === prefs.defaultTeamId ? "surface" : "secondary"}
               onClick={() => updatePrefs({ ...prefs, defaultTeamId: editingTeam.id })}
@@ -216,7 +233,7 @@ export function AgentTeamsSettingsSection(props: {
               <Check className="mr-1.5 h-3.5 w-3.5" />
               {t("settings.agentTeamsSetDefault")}
             </Button>
-          </div>
+            </div>
 
           {editingRole ? (
             <div className="grid gap-3">
@@ -330,7 +347,7 @@ export function AgentTeamsSettingsSection(props: {
               </div>
             </div>
           ) : (
-          <div className="grid gap-3">
+            <div className="grid gap-3">
             <div className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_120px_120px]">
               <label className="grid gap-1 text-xs text-slate-600">
                 <span>{t("settings.agentTeamsName")}</span>
@@ -399,9 +416,10 @@ export function AgentTeamsSettingsSection(props: {
                 </button>
               ))}
             </div>
-          </div>
+            </div>
           )}
-        </section>
+          </section>
+        ) : null}
       </div>
     </div>
   );

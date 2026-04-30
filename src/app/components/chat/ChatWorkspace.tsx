@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { executeWorkflowCancel, getEvents, startChatWorkflow } from "../../../shared/api/agent";
 import { channelsTelegramPoll, channelsTelegramSend } from "../../../shared/api/share";
 import type { ChannelPrefs, SwarmEvent } from "../../../shared/types/app";
+import type { AgentTeamMode } from "../../../shared/types/app";
 import { newChatSession, type ChatMessage } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
 import { extractPromptRefValues } from "../../hooks/analysisPromptRefs";
@@ -38,7 +39,7 @@ export function ChatWorkspace(props: {
   agentProposal?: AgentFileProposal | null;
   agentPendingAction?: AgentPendingAction;
   events?: SwarmEvent[];
-  onRunWorkspaceAgent?: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void> | void;
+  onRunWorkspaceAgent?: (promptOverride?: string, options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode }) => Promise<void> | void;
   onAcceptWorkspaceAgentProposal?: (withAnalysis: boolean) => void;
   onRejectWorkspaceAgentProposal?: () => void;
   onResolveWorkspaceAgentPendingAction?: (accept: boolean) => void;
@@ -105,6 +106,7 @@ export function ChatWorkspace(props: {
       telegramMessageId?: number;
       telegramUser?: string;
       forceNewSession?: boolean;
+      teamMode?: AgentTeamMode;
     },
   ) => {
     const prompt = promptRaw.trim();
@@ -208,7 +210,10 @@ export function ChatWorkspace(props: {
           messageId: assistantMessageId,
           startIndex: agentMessages.length,
         });
-        await Promise.resolve(onRunWorkspaceAgent(prompt, { forceNewSession: true }));
+        await Promise.resolve(onRunWorkspaceAgent(prompt, {
+          forceNewSession: true,
+          teamMode: options?.teamMode ?? "auto",
+        }));
         await new Promise((resolve) => window.setTimeout(resolve, 80));
         const finalText = latestWorkspaceAgentTextRef.current.trim() || t("chat.emptyResult");
         updateMessageText(sessionId, assistantMessageId, finalText);
@@ -220,6 +225,7 @@ export function ChatWorkspace(props: {
         prompt,
         contextPaths: extractPromptRefValues(prompt),
         modelOverride: chatAgentModelId ?? undefined,
+        teamMode: options?.teamMode ?? "auto",
       });
       updateMessageRunId(sessionId, assistantMessageId, accepted.runId);
       setPendingRunId(accepted.runId);
@@ -317,8 +323,8 @@ export function ChatWorkspace(props: {
     void executeWorkflowCancel(pendingRunId).catch(() => undefined);
   }, [pendingRunId, suspended]);
 
-  const sendMessage = async () => {
-    await runPrompt(draft);
+  const sendMessage = async (teamMode: AgentTeamMode = "auto") => {
+    await runPrompt(draft, { teamMode });
   };
   const processTelegramQueue = useCallback(async () => {
     if (!projectId || telegramProcessingRef.current || running) {
@@ -527,6 +533,7 @@ export function ChatWorkspace(props: {
         agentPendingAction={agentPendingAction}
         onDraftChange={setDraft}
         onSend={() => void sendMessage()}
+        onSendTeams={() => void sendMessage("force")}
         onStop={() => void stopRun()}
         onAcceptWorkspaceAgentProposal={onAcceptWorkspaceAgentProposal}
         onRejectWorkspaceAgentProposal={onRejectWorkspaceAgentProposal}

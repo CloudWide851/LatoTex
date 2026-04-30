@@ -118,6 +118,7 @@ export const zhCN_settings = {
   "settings.agentTeamsSummary": "{roles} 个角色启用 / 并行 {parallelism}",
   "settings.agentTeamsEditorTitle": "团队编辑",
   "settings.agentTeamsEditorHint": "从左侧选择团队，在这里调整角色和工具。",
+  "settings.agentTeamsCloseEditor": "关闭编辑",
   "settings.agentTeamsSetDefault": "设为默认",
   "settings.agentTeamsBackToTeam": "返回团队",
   "settings.agentTeamsRolesTitle": "团队 Agent",

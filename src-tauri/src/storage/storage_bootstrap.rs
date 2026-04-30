@@ -45,6 +45,21 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             hit_count INTEGER NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS agent_runs (
+            run_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            workflow_id TEXT NOT NULL,
+            callsite TEXT NOT NULL,
+            request_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            lease_id TEXT,
+            recovered_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            started_at TEXT,
+            finished_at TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS provider_profiles (
             provider TEXT PRIMARY KEY,
             base_url TEXT NOT NULL,
@@ -99,6 +114,7 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_root_path ON projects(root_path);
         CREATE INDEX IF NOT EXISTS idx_swarm_events_run_seq ON swarm_events(run_id, seq);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_status_project ON agent_runs(status, project_id);
         CREATE INDEX IF NOT EXISTS idx_translation_terms_lookup
           ON translation_terms(project_id, target_language, updated_at DESC);
         ",

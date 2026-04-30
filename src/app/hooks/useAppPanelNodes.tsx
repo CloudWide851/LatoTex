@@ -245,6 +245,9 @@ export function useAppPanelNodes(params: any) {
       onRun={() => {
         void analysisWorkspace.runAnalysis();
       }}
+      onRunTeams={() => {
+        void analysisWorkspace.runAnalysis("force");
+      }}
       onSelectTask={analysisWorkspace.setActiveTaskId}
       onCreateTask={() => analysisWorkspace.createTask("data")}
       onRenameTask={analysisWorkspace.renameTask}

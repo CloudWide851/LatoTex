@@ -316,7 +316,7 @@ pub struct CompileRecord {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExecuteRequest {
     pub project_id: String,
@@ -327,6 +327,7 @@ pub struct AgentExecuteRequest {
     pub model_override: Option<String>,
     #[serde(default)]
     pub bypass_cache: bool,
+    pub team_mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -340,6 +341,18 @@ pub struct AgentExecuteCancelInput {
 pub struct AgentExecuteStartAccepted {
     pub run_id: String,
     pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunsRecoverInput {
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunsRecoverResponse {
+    pub recovered_run_ids: Vec<String>,
 }
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

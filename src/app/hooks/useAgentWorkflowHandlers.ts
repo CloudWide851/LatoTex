@@ -3,6 +3,7 @@ import { applyAgentProposal } from "./agentProposalActions";
 import { runAgentWorkflow } from "./agentWorkflow";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import type { AgentPendingAction, AgentProposalMap } from "./useAppContainerState";
+import type { AgentTeamMode } from "../../shared/types/app";
 
 export function useAgentWorkflowHandlers(params: {
   activeProjectId: string | null;
@@ -128,7 +129,10 @@ export function useAgentWorkflowHandlers(params: {
     [currentProposal?.targetPath, selectedFile, setAgentProposalsByPath],
   );
 
-  const handleRunAgent = useCallback(async (promptOverride?: string, _options?: { forceNewSession?: boolean }) => {
+  const handleRunAgent = useCallback(async (
+    promptOverride?: string,
+    options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode },
+  ) => {
     clearPendingDecision(false);
     const nextPrompt = (promptOverride ?? agentPrompt).trim();
     if (!activeProjectId || !nextPrompt) {
@@ -154,6 +158,7 @@ export function useAgentWorkflowHandlers(params: {
       runCompilePass: ({ projectId, mainPath, mainContent, options }) =>
         runCompilePass({ projectId, mainPath, mainContent, options }),
       taskModelOverride,
+      teamMode: options?.teamMode ?? "auto",
     });
   }, [
     activeProjectId,

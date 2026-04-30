@@ -6,6 +6,7 @@ import {
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile, writeFile } from "../../shared/api/workspace";
 import type { Dispatch, SetStateAction } from "react";
+import type { AgentTeamMode } from "../../shared/types/app";
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import { parseAgentPrompt, resolveAgentCommitIntent } from "./agentCommands";
 import { prioritizeCompileDiagnostics } from "../components/editor/compileAssistHint";
@@ -222,6 +223,7 @@ export async function runAgentWorkflow(params: {
     options: { updatePreview: boolean; emitToast: boolean };
   }) => Promise<{ status: string; diagnostics: string[] }>;
   taskModelOverride?: string | null;
+  teamMode?: AgentTeamMode;
 }) {
   const {
     activeProjectId,
@@ -241,6 +243,7 @@ export async function runAgentWorkflow(params: {
     setSelectedFile,
     runCompilePass,
     taskModelOverride,
+    teamMode = "auto",
   } = params;
 
   const prompt = agentPrompt.trim();
@@ -304,6 +307,7 @@ export async function runAgentWorkflow(params: {
             diagnostics: prioritizeCompileDiagnostics(compileResult.diagnostics),
             extraInstruction,
             modelOverride: taskModelOverride ?? undefined,
+            teamMode,
           }),
           setAgentRunId,
         });
@@ -380,6 +384,7 @@ export async function runAgentWorkflow(params: {
           userHint: parsed.args,
           contextPaths: promptContextPaths,
           modelOverride: taskModelOverride ?? undefined,
+          teamMode,
         }),
         setAgentRunId,
       });
@@ -462,8 +467,9 @@ export async function runAgentWorkflow(params: {
         selectedFile,
         paperContextSourcePath: paperContextRef,
         contextPaths: Array.from(new Set([...promptContextPaths, ...promptMentionedPaths])),
-        modelOverride: taskModelOverride ?? undefined,
-      }),
+            modelOverride: taskModelOverride ?? undefined,
+            teamMode,
+          }),
       setAgentRunId,
     });
     await runtimeLogWrite("INFO", `${t("log.agentRunDone")}, runId=${response.runId}`);

@@ -1,4 +1,5 @@
 import { executeWorkflowStart } from "../../shared/api/agent";
+import type { AgentTeamMode } from "../../shared/types/app";
 import type { MutableRefObject } from "react";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";
@@ -36,6 +37,7 @@ export async function runRolePromptWithAgent(params: {
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
+  teamMode?: AgentTeamMode;
   onAcceptedRunId?: (runId: string) => void;
 }): Promise<{ runId: string; output: string }> {
   const {
@@ -45,6 +47,7 @@ export async function runRolePromptWithAgent(params: {
     contextRefs,
     modelOverride,
     bypassCache = false,
+    teamMode = "auto",
     onAcceptedRunId,
   } = params;
   const promptRefContext = extractPromptRefValues(promptText).map((path) => `file:${path}`);
@@ -63,6 +66,7 @@ export async function runRolePromptWithAgent(params: {
         contextRefs: mergedContextRefs,
         modelOverride,
         bypassCache: runBypassCache,
+        teamMode,
       });
       onAcceptedRunId?.(accepted.runId);
       return {

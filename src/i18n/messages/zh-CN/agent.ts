@@ -74,6 +74,7 @@ export const zhCN_agent = {
   "agent.run.failed": "Agent 运行失败。",
   "agent.run.cancel": "中断",
   "agent.run.cancelled": "Agent 运行已中断。",
+  "agent.teams.run": "使用 Teams 运行",
   "agent.rollback.restore": "恢复上一次对话",
   "agent.rollback.restored": "已恢复上一次对话。",
   "agent.resume.title": "会话历史",

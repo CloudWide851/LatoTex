@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { executeWorkflowCancel } from "../../shared/api/agent";
+import type { AgentTeamMode } from "../../shared/types/app";
 import type { AgentStatusKey } from "../app-config";
 import { parseAgentPrompt } from "./agentCommands";
 import type { AgentChatMessage, AgentRunRollback, AgentSessionSummary } from "./agentTypes";
@@ -20,7 +21,7 @@ export function useAgentSessionController(params: {
   setSelectedFile: React.Dispatch<React.SetStateAction<string | null>>;
   setToast: React.Dispatch<React.SetStateAction<{ type: "info" | "error"; message: string } | null>>;
   suspended?: boolean;
-  runTaskAgent: (promptOverride?: string, options?: { forceNewSession?: boolean }) => Promise<void>;
+  runTaskAgent: (promptOverride?: string, options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode }) => Promise<void>;
   t: (key: any) => string;
 }) {
   const {
@@ -85,7 +86,10 @@ export function useAgentSessionController(params: {
     t,
   ]);
 
-  const handleAgentRun = useCallback(async (promptOverride?: string, options?: { forceNewSession?: boolean }) => {
+  const handleAgentRun = useCallback(async (
+    promptOverride?: string,
+    options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode },
+  ) => {
     const projectId = activeProjectId;
     if (!projectId || suspended) {
       if (!projectId) {

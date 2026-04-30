@@ -5,6 +5,7 @@ import type {
   FsAction,
   FsScope,
   ResourceNode,
+  AgentTeamMode,
   ShareCommentItem,
   ShareSessionInfo,
   SwarmEvent,
@@ -94,7 +95,7 @@ export type AppWorkspaceShellProps = {
   onChatReviewRequest: (prompt: string) => void;
   onAgentPromptChange: (value: string) => void;
   onAgentToggle: () => void;
-  onAgentRun: (promptOverride?: string, options?: { forceNewSession?: boolean }) => void;
+  onAgentRun: (promptOverride?: string, options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode }) => void;
   onAgentSessionPickerOpenChange: (value: boolean) => void;
   onAgentSessionPickerIndexChange: (value: number) => void;
   onAgentSessionConfirm: () => void;

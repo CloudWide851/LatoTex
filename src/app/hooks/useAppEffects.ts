@@ -1,6 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef } from "react";
-import { getEvents } from "../../shared/api/agent";
+import { getEvents, recoverAgentRuns } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { getWorkspaceTree } from "../../shared/api/workspace";
 import type { SwarmEvent } from "../../shared/types/app";
@@ -8,6 +8,7 @@ import {
   applyTheme,  type ThemeMode,
 } from "../app-config";
 import { appendEventsWithBudget } from "./eventMemoryBudget";
+import { waitForRunOutputWithPolicy } from "./runEventWait";
 import { useGitRuntimeEffects } from "./useGitRuntimeEffects";
 import { useSelectedFilePreviewEffects } from "./useSelectedFilePreviewEffects";
 import { WINDOW_TRANSITION_EVENT } from "./windowTransitionSignal";
@@ -53,6 +54,11 @@ export function useAppEffects(params: {
   setProjectSearchQuery: (value: string) => void;
   setProjectSearchResults: (value: any) => void;
   setProjectSearchSearched: (value: boolean) => void;
+  setAgentRunId: (value: string | null) => void;
+  setAgentPhase: (value: "idle" | "running" | "done" | "error") => void;
+  setAgentStatusKey: (
+    value: "agent.statusIdle" | "agent.statusRunning" | "agent.statusDone" | "agent.statusError",
+  ) => void;
   setEvents: (value: any) => void;
   setCursor: (value: number) => void;
   resizeFrameRef: React.MutableRefObject<number | null>;
@@ -99,6 +105,9 @@ export function useAppEffects(params: {
     setProjectSearchQuery,
     setProjectSearchResults,
     setProjectSearchSearched,
+    setAgentRunId,
+    setAgentPhase,
+    setAgentStatusKey,
     setEvents,
     setCursor,
     resizeFrameRef,
@@ -192,6 +201,55 @@ export function useAppEffects(params: {
         setToast({ type: "error", message: String(error) });
       });
   }, [activeProjectId, lastLoadedProjectIdRef, loadProjectData, refreshGitWorkspace, setEditorContent, setLibraryTree, setPreviewOverridePath, setSelectedFile, setSelectedFilePdfUrl, setSelectedImagePreviewUrl, setSelectedLibraryPath, setSelectedTextFileReadyPath, setToast, setTree]);
+
+  useEffect(() => {
+    if (!activeProjectId || suspended) {
+      return;
+    }
+    let cancelled = false;
+    void recoverAgentRuns(activeProjectId)
+      .then((result) => {
+        if (cancelled || result.recoveredRunIds.length === 0) {
+          return;
+        }
+        const primaryRunId = result.recoveredRunIds[0];
+        setAgentRunId(primaryRunId);
+        setAgentPhase("running");
+        setAgentStatusKey("agent.statusRunning");
+        void runtimeLogWrite(
+          "INFO",
+          `agent_runs_recover.frontend: project=${activeProjectId}, recovered=${result.recoveredRunIds.length}`,
+        ).catch(() => undefined);
+        void waitForRunOutputWithPolicy({
+          runId: primaryRunId,
+          totalTimeoutMs: 6 * 60 * 60 * 1000,
+          inactivityTimeoutMs: 0,
+          eventLimit: 220,
+          waitMs: 2_500,
+        })
+          .then(() => {
+            if (cancelled) {
+              return;
+            }
+            setAgentPhase("done");
+            setAgentStatusKey("agent.statusDone");
+          })
+          .catch((error) => {
+            if (cancelled) {
+              return;
+            }
+            setAgentPhase("error");
+            setAgentStatusKey("agent.statusError");
+            void runtimeLogWrite("WARN", `agent_runs_recover.wait_failed: ${String(error)}`).catch(() => undefined);
+          });
+      })
+      .catch((error) => {
+        void runtimeLogWrite("WARN", `agent_runs_recover.frontend_failed: ${String(error)}`).catch(() => undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProjectId, setAgentPhase, setAgentRunId, setAgentStatusKey, suspended]);
 
   useSelectedFilePreviewEffects({
     activeProjectId,

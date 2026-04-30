@@ -51,7 +51,7 @@ use commands::settings::{
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::swarm::{
-    agent_execute_cancel, agent_execute_start, agent_mcp_validate, events_subscribe,
+    agent_execute_cancel, agent_execute_start, agent_mcp_validate, agent_runs_recover, events_subscribe,
     latex_compile_record,
 };
 use commands::terminal::{
@@ -189,6 +189,7 @@ pub fn run() {
             latex_compile_record,
             agent_execute_start,
             agent_execute_cancel,
+            agent_runs_recover,
             agent_mcp_validate,
             latex_edit_start,
             latex_review_fix_start,

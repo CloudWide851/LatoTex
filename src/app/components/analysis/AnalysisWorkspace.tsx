@@ -46,6 +46,7 @@ export function AnalysisWorkspace(props: {
   onPromptChange: (value: string) => void;
   onDropPaths: (paths: string[]) => void;
   onRun: () => void;
+  onRunTeams: () => void;
   onSelectTask: (taskId: string) => void;
   onCreateTask: () => void;
   onRenameTask: (taskId: string, name: string) => void;
@@ -73,6 +74,7 @@ export function AnalysisWorkspace(props: {
     onPromptChange,
     onDropPaths,
     onRun,
+    onRunTeams,
     onSelectTask,
     onCreateTask,
     onRenameTask,
@@ -291,6 +293,7 @@ export function AnalysisWorkspace(props: {
               onPromptChange={onPromptChange}
               onDropPaths={onDropPaths}
               onRun={onRun}
+              onRunTeams={onRunTeams}
               t={t}
             />
           </div>

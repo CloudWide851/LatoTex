@@ -1,4 +1,10 @@
-import type { Ack, AgentExecuteStartAccepted, EventBatch } from "../types/app";
+import type {
+  Ack,
+  AgentExecuteStartAccepted,
+  AgentRunsRecoverResponse,
+  AgentTeamMode,
+  EventBatch,
+} from "../types/app";
 import { invokeCommand } from "./core";
 
 export function executeWorkflowStart(input: {
@@ -9,6 +15,7 @@ export function executeWorkflowStart(input: {
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -19,6 +26,7 @@ export function executeWorkflowStart(input: {
       contextRefs: input.contextRefs,
       modelOverride: input.modelOverride,
       bypassCache: input.bypassCache ?? false,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }
@@ -32,6 +40,7 @@ export function startLatexEdit(input: {
   paperContextSourcePath?: string | null;
   contextPaths?: string[];
   modelOverride?: string;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("latex_edit_start", {
     input: {
@@ -43,6 +52,7 @@ export function startLatexEdit(input: {
       paperContextSourcePath: input.paperContextSourcePath ?? null,
       contextPaths: input.contextPaths ?? [],
       modelOverride: input.modelOverride,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }
@@ -54,6 +64,7 @@ export function startLatexReviewFix(input: {
   diagnostics: string[];
   extraInstruction?: string;
   modelOverride?: string;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("latex_review_fix_start", {
     input: {
@@ -63,6 +74,7 @@ export function startLatexReviewFix(input: {
       diagnostics: input.diagnostics,
       extraInstruction: input.extraInstruction,
       modelOverride: input.modelOverride,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }
@@ -74,6 +86,7 @@ export function startLatexReferenceCheck(input: {
   userHint?: string;
   contextPaths?: string[];
   modelOverride?: string;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("latex_reference_check_start", {
     input: {
@@ -83,6 +96,7 @@ export function startLatexReferenceCheck(input: {
       userHint: input.userHint,
       contextPaths: input.contextPaths ?? [],
       modelOverride: input.modelOverride,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }
@@ -92,6 +106,7 @@ export function startLatexPaperAnalyze(input: {
   sourcePath: string;
   instruction?: string;
   modelOverride?: string;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("latex_paper_analyze_start", {
     input: {
@@ -99,6 +114,7 @@ export function startLatexPaperAnalyze(input: {
       sourcePath: input.sourcePath,
       instruction: input.instruction,
       modelOverride: input.modelOverride,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }
@@ -108,6 +124,7 @@ export function startChatWorkflow(input: {
   prompt: string;
   contextPaths?: string[];
   modelOverride?: string;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("chat_workflow_start", {
     input: {
@@ -115,6 +132,7 @@ export function startChatWorkflow(input: {
       prompt: input.prompt,
       contextPaths: input.contextPaths ?? [],
       modelOverride: input.modelOverride,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }
@@ -155,6 +173,12 @@ export function startGitSummaryWorkflow(input: {
 
 export function executeWorkflowCancel(runId: string): Promise<Ack> {
   return invokeCommand<Ack>("agent_execute_cancel", { input: { runId } });
+}
+
+export function recoverAgentRuns(projectId?: string | null): Promise<AgentRunsRecoverResponse> {
+  return invokeCommand<AgentRunsRecoverResponse>("agent_runs_recover", {
+    input: { projectId: projectId ?? null },
+  });
 }
 
 export function getEvents(

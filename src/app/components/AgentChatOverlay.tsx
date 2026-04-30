@@ -6,6 +6,7 @@ import {
   Send,
   Sparkles,
   Square,
+  UsersRound,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
@@ -87,6 +88,7 @@ export function AgentChatOverlay(props: {
   events: SwarmEvent[];
   onPromptChange: (value: string) => void;
   onRun: () => void;
+  onRunTeams: () => void;
   onSessionPickerOpenChange: (value: boolean) => void;
   onSessionPickerIndexChange: (value: number) => void;
   onSessionConfirm: () => void;
@@ -132,6 +134,7 @@ export function AgentChatOverlay(props: {
     events,
     onPromptChange,
     onRun,
+    onRunTeams,
     onSessionPickerOpenChange,
     onSessionPickerIndexChange,
     onSessionConfirm,
@@ -298,7 +301,7 @@ export function AgentChatOverlay(props: {
             />
             <textarea
               ref={promptRef}
-              className="editor-chat-input h-[clamp(84px,16vh,132px)] w-full resize-none rounded-lg border px-2 py-1.5 pr-10 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+              className="editor-chat-input hide-scrollbar h-[clamp(84px,16vh,132px)] w-full resize-none overflow-auto rounded-lg border px-2 pb-10 pt-1.5 pr-20 text-xs outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
               value={prompt}
               placeholder={placeholder}
               onChange={(event) => onPromptChange(event.target.value)}
@@ -416,14 +419,27 @@ export function AgentChatOverlay(props: {
                 <CornerDownLeft className="h-3.5 w-3.5" />
               </button>
             ) : null}
-            <button
-              className="absolute bottom-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40 motion-hover-rise"
-              onClick={onRun}
-              disabled={busy || (phase !== "running" && !prompt.trim())}
-              title={runLabel}
-            >
-              {phase === "running" ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-            </button>
+            <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+              {phase !== "running" ? (
+                <button
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-[color:var(--editor-widget-bg)] text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 motion-hover-rise"
+                  onClick={onRunTeams}
+                  disabled={busy || !prompt.trim()}
+                  title={t("agent.teams.run")}
+                  aria-label={t("agent.teams.run")}
+                >
+                  <UsersRound className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+              <button
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-40 motion-hover-rise"
+                onClick={onRun}
+                disabled={busy || (phase !== "running" && !prompt.trim())}
+                title={runLabel}
+              >
+                {phase === "running" ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+              </button>
+            </div>
           </div>
         </div>
       </div>

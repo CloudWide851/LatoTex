@@ -1,5 +1,6 @@
 use crate::models::{AgentExecuteRequest, AgentExecuteStartAccepted};
 use crate::state::AppState;
+use crate::storage;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
@@ -50,11 +51,21 @@ pub fn agent_execute_start(
     state: &AppState,
     input: AgentExecuteRequest,
 ) -> Result<AgentExecuteStartAccepted, String> {
+    let run_id = Uuid::new_v4().to_string();
+    agent_execute_start_with_run_id(state, input, run_id, false)
+}
+
+pub(super) fn agent_execute_start_with_run_id(
+    state: &AppState,
+    input: AgentExecuteRequest,
+    run_id: String,
+    recovered: bool,
+) -> Result<AgentExecuteStartAccepted, String> {
     state.log(
         "INFO",
         &format!(
-            "agent_execute_start: workflow={}, callsite={}, project={}",
-            input.workflow_id, input.callsite, input.project_id
+            "agent_execute_start: workflow={}, callsite={}, project={}, run={}, recovered={}",
+            input.workflow_id, input.callsite, input.project_id, run_id, recovered
         ),
     );
 
@@ -63,28 +74,52 @@ pub fn agent_execute_start(
     validate_invocation(&workflow, &input.callsite, &input.context_refs)?;
     validate_step_tools(&workflow)?;
 
-    let run_id = Uuid::new_v4().to_string();
-    append_protocol_event(
-        &state.db_path,
-        &run_id,
-        &input.project_id,
-        &workflow.id,
-        "agent.run.accepted",
-        run_envelope(
+    if !recovered {
+        storage::insert_agent_run(&state.db_path, &run_id, &input)?;
+        append_protocol_event(
+            &state.db_path,
             &run_id,
-            "accepted",
-            "Run Accepted",
-            "",
-            &format!("{run_id}:run:accepted"),
-            EventMetadata {
-                phase: Some("run"),
-                node_id: Some("run:accepted"),
-                parent_node_id: None,
-                artifact_refs: Some(input.context_refs.as_slice()),
-                ..EventMetadata::base(&workflow.id, "run", &input.callsite)
-            },
-        ),
-    )?;
+            &input.project_id,
+            &workflow.id,
+            "agent.run.accepted",
+            run_envelope(
+                &run_id,
+                "accepted",
+                "Run Accepted",
+                "",
+                &format!("{run_id}:run:accepted"),
+                EventMetadata {
+                    phase: Some("run"),
+                    node_id: Some("run:accepted"),
+                    parent_node_id: None,
+                    artifact_refs: Some(input.context_refs.as_slice()),
+                    ..EventMetadata::base(&workflow.id, "run", &input.callsite)
+                },
+            ),
+        )?;
+    } else {
+        append_protocol_event(
+            &state.db_path,
+            &run_id,
+            &input.project_id,
+            &workflow.id,
+            "agent.run.recovered",
+            run_envelope(
+                &run_id,
+                "running",
+                "Run Recovered",
+                "Recovered unfinished Agent run after application restart.",
+                &format!("{run_id}:run:recovered"),
+                EventMetadata {
+                    phase: Some("run"),
+                    node_id: Some("run:recovered"),
+                    parent_node_id: None,
+                    artifact_refs: Some(input.context_refs.as_slice()),
+                    ..EventMetadata::base(&workflow.id, "run", &input.callsite)
+                },
+            ),
+        )?;
+    }
 
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
@@ -96,6 +131,12 @@ pub fn agent_execute_start(
         let mut flags = cancel_flags
             .lock()
             .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+        if flags.contains_key(&run_id) {
+            return Ok(AgentExecuteStartAccepted {
+                run_id,
+                status: "running".to_string(),
+            });
+        }
         flags.insert(run_id.clone(), cancel_flag.clone());
     }
 
@@ -103,11 +144,16 @@ pub fn agent_execute_start(
     let worker_workflow_id = workflow.id.clone();
     let worker_callsite = input.callsite.clone();
     thread::spawn(move || {
+        let lease_id = Uuid::new_v4().to_string();
+        let _ =
+            storage::update_agent_run_status(&db_path, &run_id_for_worker, "running", Some(&lease_id));
         let slot_guard = acquire_agent_slot_from(slots);
         if slot_guard.is_err() {
             let message = slot_guard
                 .err()
                 .unwrap_or_else(|| "failed to acquire slot".to_string());
+            let _ =
+                storage::update_agent_run_status(&db_path, &run_id_for_worker, "failed", Some(&lease_id));
             let _ = append_protocol_event(
                 &db_path,
                 &run_id_for_worker,
@@ -138,6 +184,12 @@ pub fn agent_execute_start(
         );
         match run_output {
             Ok(output) => {
+                let _ = storage::update_agent_run_status(
+                    &db_path,
+                    &run_id_for_worker,
+                    "completed",
+                    Some(&lease_id),
+                );
                 let _ = append_protocol_event(
                     &db_path,
                     &run_id_for_worker,
@@ -155,6 +207,12 @@ pub fn agent_execute_start(
             }
             Err(error) => {
                 if error == "agent.run.cancelled" {
+                    let _ = storage::update_agent_run_status(
+                        &db_path,
+                        &run_id_for_worker,
+                        "cancelled",
+                        Some(&lease_id),
+                    );
                     let _ = append_protocol_event(
                         &db_path,
                         &run_id_for_worker,
@@ -174,6 +232,8 @@ pub fn agent_execute_start(
                     }
                     return;
                 }
+                let _ =
+                    storage::update_agent_run_status(&db_path, &run_id_for_worker, "failed", Some(&lease_id));
                 let _ = append_protocol_event(
                     &db_path,
                     &run_id_for_worker,

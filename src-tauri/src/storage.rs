@@ -23,6 +23,7 @@ include!("storage/search_index.rs");
 include!("storage/search_index_queries.rs");
 include!("storage/workspace_files_search.rs");
 include!("storage/events_settings_models.rs");
+include!("storage/agent_runs.rs");
 include!("storage/agent_cache_time.rs");
 include!("storage/library_remote_endpoints.rs");
 include!("storage/library_import_zotero.rs");

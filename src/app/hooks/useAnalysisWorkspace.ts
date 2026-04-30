@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AgentTeamMode } from "../../shared/types/app";
 import { analysisEnvPrepare, analysisRunPython, analysisSaveReport } from "../../shared/api/analysis";
 import { executeWorkflowCancel } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
@@ -346,6 +347,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       forcedTaskId?: string;
       taskSnapshot?: AnalysisTask;
       savePrompt?: boolean;
+      teamMode?: AgentTeamMode;
     },
   ) => {
     const normalizedPrompt = inputPrompt.trim();
@@ -445,6 +447,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         contextRefs,
         modelOverride: analysisModelOverride ?? undefined,
         bypassCache,
+        teamMode: options?.teamMode ?? "auto",
         onAcceptedRunId: appendAcceptedRun,
       });
       const promptSignature = buildAnalysisPromptSignature(normalizedPrompt, outputLanguageLabel);
@@ -762,7 +765,9 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     updateTaskById,
     persistStageCacheEntry,
   ]);
-  const runAnalysis = useCallback(async () => runAnalysisForPrompt(prompt), [prompt, runAnalysisForPrompt]);
+  const runAnalysis = useCallback(async (teamMode: AgentTeamMode = "auto") => {
+    await runAnalysisForPrompt(prompt, { teamMode });
+  }, [prompt, runAnalysisForPrompt]);
   const runAnalysisWithPrompt = useCallback(
     async (inputPrompt: string) => {
       setPrompt(inputPrompt);

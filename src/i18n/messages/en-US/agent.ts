@@ -74,6 +74,7 @@ export const enUS_agent = {
   "agent.run.failed": "Agent run failed.",
   "agent.run.cancel": "Interrupt",
   "agent.run.cancelled": "Agent run was interrupted.",
+  "agent.teams.run": "Run with Teams",
   "agent.rollback.restore": "Restore previous conversation",
   "agent.rollback.restored": "Previous conversation restored.",
   "agent.resume.title": "Session History",

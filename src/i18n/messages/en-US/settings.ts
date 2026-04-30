@@ -118,6 +118,7 @@ export const enUS_settings = {
   "settings.agentTeamsSummary": "{roles} roles active / parallel {parallelism}",
   "settings.agentTeamsEditorTitle": "Team editor",
   "settings.agentTeamsEditorHint": "Select a team on the left, then tune its roles and tools here.",
+  "settings.agentTeamsCloseEditor": "Close editor",
   "settings.agentTeamsSetDefault": "Set default",
   "settings.agentTeamsBackToTeam": "Back to team",
   "settings.agentTeamsRolesTitle": "Team Agents",

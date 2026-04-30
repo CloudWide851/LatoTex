@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Play, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { cn } from "../../../lib/utils";
 import { SvgSpinner } from "../../../components/ui/svg-spinner";
@@ -31,9 +31,10 @@ export function AnalysisPromptOverlay(props: {
   onPromptChange: (value: string) => void;
   onDropPaths: (paths: string[]) => void;
   onRun: () => void;
+  onRunTeams: () => void;
   t: TranslationFn;
 }) {
-  const { prompt, canRun, running, busy, candidateFiles, embedded = false, onPromptChange, onDropPaths, onRun, t } = props;
+  const { prompt, canRun, running, busy, candidateFiles, embedded = false, onPromptChange, onDropPaths, onRun, onRunTeams, t } = props;
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [suggestionPlacement, setSuggestionPlacement] = useState<"above" | "below">("above");
@@ -104,7 +105,7 @@ export function AnalysisPromptOverlay(props: {
           <textarea
             ref={textareaRef}
             className={cn(
-              "h-[96px] w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 pr-24 text-sm text-slate-700 outline-none transition",
+              "hide-scrollbar h-[96px] w-full resize-none overflow-auto rounded-lg border border-slate-300 bg-white px-3 pb-12 pt-2 pr-24 text-sm text-slate-700 outline-none transition",
               "focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
               dragActive ? "border-primary-500 bg-primary-50/50" : "",
             )}
@@ -181,6 +182,17 @@ export function AnalysisPromptOverlay(props: {
             </div>
           ) : null}
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
+            {!running ? (
+              <button
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+                title={t("agent.teams.run")}
+                aria-label={t("agent.teams.run")}
+                onClick={onRunTeams}
+                disabled={!canRun || busy}
+              >
+                <UsersRound className="h-4 w-4" />
+              </button>
+            ) : null}
             <button
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-40"
               title={running ? t("analysis.running") : t("analysis.run")}

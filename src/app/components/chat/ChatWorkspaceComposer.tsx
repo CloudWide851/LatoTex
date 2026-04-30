@@ -1,4 +1,4 @@
-import { Send, Square } from "lucide-react";
+import { Send, Square, UsersRound } from "lucide-react";
 import { AgentProposalMiniBar } from "../editor/AgentProposalMiniBar";
 import type { AgentFileProposal } from "../../hooks/agentTypes";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
@@ -15,6 +15,7 @@ export function ChatWorkspaceComposer(props: {
   agentPendingAction: AgentPendingAction | null;
   onDraftChange: (value: string) => void;
   onSend: () => void;
+  onSendTeams: () => void;
   onStop: () => void;
   onAcceptWorkspaceAgentProposal?: (withAnalysis: boolean) => void;
   onRejectWorkspaceAgentProposal?: () => void;
@@ -30,6 +31,7 @@ export function ChatWorkspaceComposer(props: {
     agentPendingAction,
     onDraftChange,
     onSend,
+    onSendTeams,
     onStop,
     onAcceptWorkspaceAgentProposal,
     onRejectWorkspaceAgentProposal,
@@ -76,21 +78,34 @@ export function ChatWorkspaceComposer(props: {
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
           placeholder={t("chat.inputPlaceholder")}
-          className="editor-chat-input h-full w-full resize-none rounded-md border px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
+          className="editor-chat-input hide-scrollbar h-full w-full resize-none overflow-auto rounded-md border px-3 pb-12 pt-2 pr-24 text-sm leading-5 outline-none focus:border-primary-500"
         />
-        <button
-          className={`absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
-            running
-              ? "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"
-              : "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-          }`}
-          onClick={running ? onStop : onSend}
-          disabled={!running && !draft.trim()}
-          title={running ? t("agent.run.cancel") : t("chat.send")}
-          aria-label={running ? t("agent.run.cancel") : t("chat.send")}
-        >
-          {running ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
-        </button>
+        <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+          {!running ? (
+            <button
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+              onClick={onSendTeams}
+              disabled={!draft.trim()}
+              title={t("agent.teams.run")}
+              aria-label={t("agent.teams.run")}
+            >
+              <UsersRound className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          <button
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${
+              running
+                ? "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                : "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+            }`}
+            onClick={running ? onStop : onSend}
+            disabled={!running && !draft.trim()}
+            title={running ? t("agent.run.cancel") : t("chat.send")}
+            aria-label={running ? t("agent.run.cancel") : t("chat.send")}
+          >
+            {running ? <Square className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
       {lastError ? <div className="mt-1 truncate text-[11px] text-rose-600">{lastError}</div> : null}
     </div>

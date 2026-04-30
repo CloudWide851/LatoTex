@@ -15,7 +15,7 @@ import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
 import { WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
-import type { ShareCommentItem } from "../../../shared/types/app";
+import type { AgentTeamMode, ShareCommentItem } from "../../../shared/types/app";
 import {
   LazyAgentChatOverlay,
   LazyChatWorkspace,
@@ -110,7 +110,7 @@ export function LatexWorkspaceEditorPanel(props: {
   onEditorChange: (value: string) => void;
   onEditorMount: (editor: any, monaco: any) => void;
   onAgentPromptChange: (value: string) => void;
-  onAgentRun: (promptOverride?: string, options?: { forceNewSession?: boolean }) => void;
+  onAgentRun: (promptOverride?: string, options?: { forceNewSession?: boolean; teamMode?: AgentTeamMode }) => void;
   onAgentSessionPickerOpenChange: (open: boolean) => void;
   onAgentSessionPickerIndexChange: (index: number) => void;
   onAgentSessionConfirm: () => void;
@@ -263,8 +263,8 @@ export function LatexWorkspaceEditorPanel(props: {
   return (
     <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
-        <div className="panel-topbar flex w-full min-w-0 flex-wrap items-start gap-2">
-          <div className="editor-toolbar-surface-group flex min-w-[180px] flex-[1_1_260px] flex-wrap items-center gap-2 overflow-visible">
+        <div className="panel-topbar grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div className="editor-toolbar-surface-group flex min-w-0 items-center gap-2 overflow-visible">
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}
@@ -287,7 +287,7 @@ export function LatexWorkspaceEditorPanel(props: {
               t={t}
             />
           </div>
-          <div className="editor-toolbar-action-group flex min-w-[160px] flex-[1_1_220px] flex-wrap items-center justify-end gap-2">
+          <div className="editor-toolbar-action-group flex min-w-max items-center justify-end gap-2">
             <button
               className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
               onClick={onEditorUndo}
@@ -496,6 +496,7 @@ export function LatexWorkspaceEditorPanel(props: {
               events={events}
               onPromptChange={onAgentPromptChange}
               onRun={() => onAgentRun()}
+              onRunTeams={() => onAgentRun(undefined, { teamMode: "force" })}
               onSessionPickerOpenChange={onAgentSessionPickerOpenChange}
               onSessionPickerIndexChange={onAgentSessionPickerIndexChange}
               onSessionConfirm={onAgentSessionConfirm}
