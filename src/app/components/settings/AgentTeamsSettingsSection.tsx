@@ -150,10 +150,7 @@ export function AgentTeamsSettingsSection(props: {
         onCheckedChange={(enabled) => updatePrefs({ ...prefs, enabled })}
       />
 
-      <div className={cn(
-        "grid min-h-0 gap-3",
-        editingTeamId ? "xl:grid-cols-[minmax(260px,0.78fr)_minmax(360px,1.22fr)]" : "",
-      )}>
+      <div className="grid min-h-0 gap-3">
         <div className="grid content-start gap-2">
           {teams.map((team) => {
             const enabledRoles = (team.roles ?? []).filter((role) => role.enabled ?? true).length;
@@ -208,10 +205,25 @@ export function AgentTeamsSettingsSection(props: {
         </div>
 
         {editingTeamId ? (
-          <section className="min-h-0 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div
+            className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setEditingTeamId(null);
+                setEditingRoleId(null);
+              }
+            }}
+          >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agent-teams-editor-title"
+            className="library-scrollbar max-h-[min(760px,calc(100vh-40px))] w-[min(920px,calc(100vw-32px))] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-soft"
+          >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">{t("settings.agentTeamsEditorTitle")}</h3>
+                <h3 id="agent-teams-editor-title" className="text-sm font-semibold text-slate-900">{t("settings.agentTeamsEditorTitle")}</h3>
                 <p className="text-xs text-slate-500">{t("settings.agentTeamsEditorHint")}</p>
               </div>
               <Button
@@ -419,6 +431,7 @@ export function AgentTeamsSettingsSection(props: {
             </div>
           )}
           </section>
+          </div>
         ) : null}
       </div>
     </div>

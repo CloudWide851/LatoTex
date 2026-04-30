@@ -142,7 +142,7 @@ fn powershell_spec(directory: &Path, venv_path: &Path) -> TerminalShellSpec {
     let venv = runtime_path_text(venv_path);
     let activate = runtime_path_text(&venv_path.join("Scripts").join("Activate.ps1"));
     let command = format!(
-        "$ErrorActionPreference='Continue'; Set-Location -LiteralPath {}; if (Test-Path -LiteralPath {}) {{ . {}; }} else {{ $env:VIRTUAL_ENV={}; function global:prompt {{ \"({}) \" + (Get-Location) + \"> \" }} }}; try {{ if (Get-Command Set-PSReadLineOption -ErrorAction SilentlyContinue) {{ Set-PSReadLineOption -Colors @{{ Command='Cyan'; Parameter='Gray'; String='Green'; Operator='DarkCyan'; Variable='Yellow'; Number='Magenta' }} -ErrorAction SilentlyContinue }} }} catch {{}}",
+        "$ErrorActionPreference='Continue'; Set-Location -LiteralPath {}; if (Test-Path -LiteralPath {}) {{ . {}; }} else {{ $env:VIRTUAL_ENV={}; function global:prompt {{ \"({}) \" + (Get-Location) + \"> \" }} }}; try {{ if (Get-Command Set-PSReadLineOption -ErrorAction SilentlyContinue) {{ Set-PSReadLineOption -PredictionSource History -PredictionViewStyle ListView -Colors @{{ Command='Cyan'; Parameter='Gray'; String='Green'; Operator='DarkCyan'; Variable='Yellow'; Number='Magenta' }} -ErrorAction SilentlyContinue; Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete -ErrorAction SilentlyContinue }} }} catch {{}}",
         shell_single_quote(&cwd),
         shell_single_quote(&activate),
         shell_single_quote(&activate),

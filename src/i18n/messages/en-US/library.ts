@@ -23,6 +23,7 @@ export const enUS_library = {
   "library.viewer.downloadProgress": "Download progress",
   "library.viewer.downloadedBytes": "Downloaded",
   "library.viewer.error": "Failed to load paper preview.",
+  "library.viewer.bibReadFailed": "Bib content could not be loaded.",
   "library.viewer.pdfBlocked": "PDF is not ready yet, so the PDF view stays blocked.",
   "library.viewer.retryPdf": "Retry PDF",
   "library.viewer.unsupported": "Preview is not available for this file type.",

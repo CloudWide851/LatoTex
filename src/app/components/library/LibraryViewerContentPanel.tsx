@@ -143,6 +143,7 @@ type LibraryViewerContentPanelProps = {
   hasComparePair: boolean;
   translatedPdfUrl: string | null;
   bibPreview: string;
+  bibPreviewError?: string | null;
   citation: LibraryCitationSummary | null;
   paperPreview?: {
     title?: string | null;
@@ -230,6 +231,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     hasComparePair,
     translatedPdfUrl,
     bibPreview,
+    bibPreviewError = null,
     citation,
     paperPreview,
     paperPreviewLoading,
@@ -489,6 +491,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("library.viewer.loading")}</div>
             ) : loadError ? (
               <div className="rounded border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-700">{t("library.viewer.error")} {loadError}</div>
+            ) : bibPreviewError ? (
+              <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">{t("library.viewer.bibReadFailed")} {bibPreviewError}</div>
             ) : bibPreview.trim().length > 0 ? (
               <pre className="min-h-full whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50/70 p-3 font-mono text-xs leading-5 text-slate-700">
                 {bibPreview}

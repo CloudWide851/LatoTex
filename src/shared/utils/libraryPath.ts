@@ -5,6 +5,8 @@ export function toLibraryWorkspacePath(relativePath: string): string {
   if (!normalized) {
     return LIBRARY_ROOT;
   }
+  if (normalized === LIBRARY_ROOT || normalized.startsWith(`${LIBRARY_ROOT}/`)) {
+    return normalized;
+  }
   return `${LIBRARY_ROOT}/${normalized}`;
 }
-

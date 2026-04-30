@@ -17,6 +17,7 @@ type DocumentDataState = {
   citation: LibraryCitationSummary | null;
   paperPreview: PaperPreview;
   bibPreview: string;
+  bibPreviewError: string | null;
   resolvedLink: string | null;
   sourcePdfRelativePath: string | null;
   translatedPdfRelativePath: string | null;
@@ -44,6 +45,7 @@ const EMPTY_STATE: DocumentDataState = {
   citation: null,
   paperPreview: null,
   bibPreview: "",
+  bibPreviewError: null,
   resolvedLink: null,
   sourcePdfRelativePath: null,
   translatedPdfRelativePath: null,
@@ -138,7 +140,7 @@ function mergePdfPreviewState(
   current: DocumentDataState,
   preview: LibraryPdfPreview,
   citationOverride?: LibraryCitationSummary | null,
-): Omit<DocumentDataState, "citation" | "bibPreview"> {
+): Omit<DocumentDataState, "citation" | "bibPreview" | "bibPreviewError"> {
   const citation = citationOverride ?? current.citation;
   return {
     paperPreview: null,
@@ -162,6 +164,7 @@ function toDocumentState(params: {
   return {
     citation,
     bibPreview: params.bibPreview,
+    bibPreviewError: null,
     ...mergePdfPreviewState(params.current, params.pdfPreview, citation),
   };
 }
@@ -183,12 +186,14 @@ function toCitationOnlyDocumentState(
   current: DocumentDataState,
   citation: LibraryCitationSummary,
   bibPreview: string,
+  bibPreviewError: string | null = null,
 ): DocumentDataState {
   const nextCitation = mergeSummaries(current.citation, applySummaryDefaults(citation));
   return {
     ...EMPTY_STATE,
     citation: nextCitation,
     bibPreview,
+    bibPreviewError,
     resolvedLink: nextCitation?.urls?.[0] ?? null,
   };
 }
@@ -371,11 +376,17 @@ export function useLibraryDocumentData(params: {
 
     try {
       const citation = await libraryCitationSummary(projectId, selectedPath);
-      const bibPreview = await readBibPreview(projectId, selectedPath, citation);
+      let bibPreview = "";
+      let bibPreviewError: string | null = null;
+      try {
+        bibPreview = await readBibPreview(projectId, selectedPath, citation);
+      } catch (error) {
+        bibPreviewError = String(error);
+      }
       if (requestIdRef.current !== requestId) {
         return null;
       }
-      const nextState = toCitationOnlyDocumentState(stateRef.current, citation, bibPreview);
+      const nextState = toCitationOnlyDocumentState(stateRef.current, citation, bibPreview, bibPreviewError);
       setCachedDocumentState(cacheKey, nextState);
       applyState(nextState, {
         loading: false,

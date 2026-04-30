@@ -99,6 +99,7 @@ export function LibraryDocumentViewer(props: {
     citation,
     paperPreview,
     bibPreview,
+    bibPreviewError,
     resolvedLink,
     sourcePdfRelativePath,
     translatedPdfRelativePath,
@@ -577,6 +578,7 @@ export function LibraryDocumentViewer(props: {
           hasComparePair={hasComparePair}
           translatedPdfUrl={translatedPdfUrl}
           bibPreview={bibPreview}
+          bibPreviewError={bibPreviewError}
           citation={citation}
           paperPreview={computedPaperPreview ?? paperPreview}
           paperPreviewLoading={paperPreviewLoading}

@@ -11,12 +11,12 @@ export type LoadProjectDataOptions = {
   deferLibraryLoad?: boolean;
 };
 
-function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
-  const output = new Set<string>();
+function collectResourceFilePaths(nodes: ResourceNode[]): string[] {
+  const output: string[] = [];
   const walk = (items: ResourceNode[]) => {
     for (const node of items) {
       if (node.kind === "file") {
-        output.add(node.relativePath);
+        output.push(node.relativePath);
         continue;
       }
       if (Array.isArray(node.children) && node.children.length > 0) {
@@ -28,19 +28,25 @@ function collectResourceFilePaths(nodes: ResourceNode[]): Set<string> {
   return output;
 }
 
+function firstPaperPath(paths: string[]): string | null {
+  return paths.find((path) => /\.bib$/i.test(path))
+    ?? paths.find((path) => /\.pdf$/i.test(path))
+    ?? null;
+}
+
 function resolvePersistedLibrarySelection(
   settings: AppSettings | null,
   projectId: string,
   papers: ResourceNode[],
 ): string | null {
+  const filePaths = collectResourceFilePaths(papers);
   const selectedPath = String(
     settings?.uiPrefs?.librarySelectedPathByProject?.[projectId] ?? "",
-  ).trim();
+  ).trim().replace(/^\.latotex\/papers\/?/i, "");
   if (!selectedPath) {
-    return null;
+    return firstPaperPath(filePaths);
   }
-  const filePaths = collectResourceFilePaths(papers);
-  return filePaths.has(selectedPath) ? selectedPath : null;
+  return filePaths.includes(selectedPath) ? selectedPath : firstPaperPath(filePaths);
 }
 
 export function useProjectDataLoader(params: {

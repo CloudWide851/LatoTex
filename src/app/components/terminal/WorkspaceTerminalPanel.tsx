@@ -12,6 +12,8 @@ import {
 } from "../../../shared/api/workspace";
 import type { TerminalOutputChunk } from "../../../shared/types/app";
 import { TerminalSessionRail } from "./TerminalSessionRail";
+import { TerminalSuggestionOverlay } from "./TerminalSuggestionOverlay";
+import { buildTerminalSuggestions, nextTerminalInputLine } from "./terminalSuggestions";
 import type { ProjectTerminalState, TerminalTab, TranslationFn } from "./terminalTypes";
 
 const TERMINAL_POLL_MS = 180;
@@ -129,12 +131,17 @@ export function WorkspaceTerminalPanel(props: {
   const [tabs, setTabs] = useState<TerminalTab[]>(initialState.tabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(initialState.activeTabId);
   const [busyTabId, setBusyTabId] = useState<string | null>(null);
+  const [inputLine, setInputLine] = useState("");
+  const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const startingRef = useRef(new Set<string>());
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
+  const inputLineRef = useRef(inputLine);
+  const terminalHistoryRef = useRef(terminalHistory);
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -146,16 +153,69 @@ export function WorkspaceTerminalPanel(props: {
   }, [activeTabId]);
 
   useEffect(() => {
+    inputLineRef.current = inputLine;
+  }, [inputLine]);
+
+  useEffect(() => {
+    terminalHistoryRef.current = terminalHistory;
+  }, [terminalHistory]);
+
+  useEffect(() => {
     const next = snapshotState(activeProjectId, selectedFile);
     setTabs(next.tabs);
     setActiveTabId(next.activeTabId);
   }, [activeProjectId, selectedFile]);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null;
+  const suggestions = useMemo(
+    () => buildTerminalSuggestions(inputLine, { tab: activeTab, selectedFile, history: terminalHistory }),
+    [activeTab, inputLine, selectedFile, terminalHistory],
+  );
+  const suggestionsRef = useRef(suggestions);
+  const suggestionIndexRef = useRef(suggestionIndex);
+
+  useEffect(() => {
+    suggestionsRef.current = suggestions;
+    setSuggestionIndex((prev) => Math.min(prev, Math.max(0, suggestions.length - 1)));
+  }, [suggestions]);
+
+  useEffect(() => {
+    suggestionIndexRef.current = suggestionIndex;
+  }, [suggestionIndex]);
 
   const updateTabs = useCallback((updater: (prev: TerminalTab[]) => TerminalTab[]) => {
     setTabs((prev) => updater(prev));
   }, []);
+
+  const writeToActiveSession = useCallback((data: string) => {
+    const live = tabsRef.current.find((item) => item.id === activeTabIdRef.current);
+    if (live?.sessionId && live.status !== "exited") {
+      void terminalWrite(live.sessionId, data).catch((error) => {
+        updateTabs((prev) =>
+          prev.map((item) =>
+            item.id === live.id ? { ...item, error: String(error) } : item,
+          ),
+        );
+      });
+    }
+  }, [updateTabs]);
+
+  const acceptSuggestion = useCallback((index: number) => {
+    const suggestion = suggestionsRef.current[index];
+    if (!suggestion) {
+      return false;
+    }
+    const current = inputLineRef.current;
+    const trimmed = current.trimStart();
+    const prefix = current.slice(0, current.length - trimmed.length);
+    const nextLine = `${prefix}${suggestion.value}`;
+    const suffix = nextLine.slice(current.length);
+    if (suffix) {
+      writeToActiveSession(suffix);
+    }
+    setInputLine(nextLine);
+    return true;
+  }, [writeToActiveSession]);
 
   const fitAndResize = useCallback(() => {
     const term = xtermRef.current;
@@ -297,15 +357,35 @@ export function WorkspaceTerminalPanel(props: {
       term.write(activeTab.buffer);
     }
     const disposable = term.onData((data) => {
-      const live = tabsRef.current.find((item) => item.id === activeTabIdRef.current);
-      if (live?.sessionId && live.status !== "exited") {
-        void terminalWrite(live.sessionId, data).catch((error) => {
-          updateTabs((prev) =>
-            prev.map((item) =>
-              item.id === live.id ? { ...item, error: String(error) } : item,
-            ),
-          );
-        });
+      const visibleSuggestions = suggestionsRef.current;
+      if (visibleSuggestions.length > 0) {
+        if (data === "\x1b[B" || data === "\x1b[A") {
+          setSuggestionIndex((prev) => {
+            const delta = data === "\x1b[B" ? 1 : -1;
+            return Math.max(0, Math.min(visibleSuggestions.length - 1, prev + delta));
+          });
+          return;
+        }
+        if (data === "\t" || data === "\r") {
+          if (acceptSuggestion(suggestionIndexRef.current)) {
+            return;
+          }
+        }
+        if (data === "\x1b") {
+          setInputLine("");
+          return;
+        }
+      }
+      if (data === "\r") {
+        const command = inputLineRef.current.trim();
+        if (command) {
+          setTerminalHistory((prev) => [command, ...prev.filter((item) => item !== command)].slice(0, 40));
+        }
+      }
+      writeToActiveSession(data);
+      setInputLine((current) => nextTerminalInputLine(current, data));
+      if (data !== "\x1b[B" && data !== "\x1b[A") {
+        setSuggestionIndex(0);
       }
     });
     xtermRef.current = term;
@@ -321,7 +401,7 @@ export function WorkspaceTerminalPanel(props: {
         fitAddonRef.current = null;
       }
     };
-  }, [activeTab?.id, fitAndResize, updateTabs]);
+  }, [acceptSuggestion, activeTab?.id, fitAndResize, updateTabs, writeToActiveSession]);
 
   useEffect(() => {
     const target = viewportRef.current;
@@ -481,7 +561,14 @@ export function WorkspaceTerminalPanel(props: {
             {activeTab.error}
           </div>
         ) : null}
-        <div ref={viewportRef} className="min-h-0 flex-1 overflow-hidden bg-slate-950 p-1" />
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-slate-950 p-1">
+          <div ref={viewportRef} className="h-full min-h-0" />
+          <TerminalSuggestionOverlay
+            suggestions={suggestions}
+            selectedIndex={suggestionIndex}
+            onSelect={acceptSuggestion}
+          />
+        </div>
       </div>
     </section>
   );

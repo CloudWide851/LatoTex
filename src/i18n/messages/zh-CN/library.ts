@@ -23,6 +23,7 @@ export const zhCN_library = {
   "library.viewer.downloadProgress": "下载进度",
   "library.viewer.downloadedBytes": "已下载",
   "library.viewer.error": "论文预览加载失败。",
+  "library.viewer.bibReadFailed": "Bib 内容无法加载。",
   "library.viewer.pdfBlocked": "PDF 尚未就绪，当前禁止打开 PDF 视图。",
   "library.viewer.retryPdf": "重试 PDF",
   "library.viewer.unsupported": "当前文件类型暂不支持预览。",

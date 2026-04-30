@@ -373,6 +373,46 @@ describe("useLibraryDocumentData", () => {
     await unmountProbe(view.root, view.container);
   });
 
+  it("keeps citation data visible when the bib file text cannot be read", async () => {
+    libraryCitationSummaryMock.mockResolvedValue({
+      sourcePath: "denied.bib",
+      bibPath: "denied.bib",
+      authors: ["Local Author"],
+      urls: ["https://example.com/denied"],
+      title: "Denied Demo",
+    });
+    readFileMock.mockRejectedValue(new Error("workspace.file_read.access_denied"));
+    libraryResolvePdfPreviewMock.mockResolvedValue({
+      relativePath: ".latotex/papers/denied.pdf",
+      translatedRelativePath: null,
+      sourceUrl: null,
+      cached: false,
+      cacheState: "ready",
+      cacheError: null,
+      downloadedBytes: null,
+      totalBytes: null,
+    });
+
+    const view = await renderProbe({
+      projectId: "project-1",
+      selectedPath: "denied.bib",
+      active: true,
+    });
+
+    await flushAsyncWork(5);
+
+    expect(readProbeState(view.container)).toMatchObject({
+      loading: false,
+      loadError: null,
+      bibPreview: "",
+      bibPreviewError: "Error: workspace.file_read.access_denied",
+      citation: expect.any(Object),
+      sourcePdfRelativePath: ".latotex/papers/denied.pdf",
+    });
+
+    await unmountProbe(view.root, view.container);
+  });
+
   it("retries a failed pdf preview with bust-cache enabled", async () => {
     libraryCitationSummaryMock.mockResolvedValue({
       sourcePath: "retry-demo.bib",

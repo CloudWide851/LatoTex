@@ -1194,6 +1194,9 @@ video {
 .max-h-\[min\(24rem\2c calc\(100vh-3\.5rem\)\)\] {
   max-height: min(24rem, calc(100vh - 3.5rem));
 }
+.max-h-\[min\(760px\2c calc\(100vh-40px\)\)\] {
+  max-height: min(760px, calc(100vh - 40px));
+}
 .max-h-full {
   max-height: 100%;
 }
@@ -1326,11 +1329,17 @@ video {
 .w-\[min\(430px\2c 86vw\)\] {
   width: min(430px, 86vw);
 }
+.w-\[min\(520px\2c calc\(100\%-24px\)\)\] {
+  width: min(520px, calc(100% - 24px));
+}
 .w-\[min\(560px\2c 92vw\)\] {
   width: min(560px, 92vw);
 }
 .w-\[min\(920px\2c 100\%\)\] {
   width: min(920px, 100%);
+}
+.w-\[min\(920px\2c calc\(100vw-32px\)\)\] {
+  width: min(920px, calc(100vw - 32px));
 }
 .w-\[min\(92vw\2c 560px\)\] {
   width: min(92vw, 560px);
@@ -2229,6 +2238,10 @@ video {
 .bg-slate-50\/80 {
   background-color: rgb(248 250 252 / 0.8);
 }
+.bg-slate-800 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(30 41 59 / var(--tw-bg-opacity, 1));
+}
 .bg-slate-900 {
   --tw-bg-opacity: 1;
   background-color: rgb(15 23 42 / var(--tw-bg-opacity, 1));
@@ -2676,6 +2689,10 @@ video {
   --tw-text-opacity: 1;
   color: rgb(209 250 229 / var(--tw-text-opacity, 1));
 }
+.text-emerald-200 {
+  --tw-text-opacity: 1;
+  color: rgb(167 243 208 / var(--tw-text-opacity, 1));
+}
 .text-emerald-600 {
   --tw-text-opacity: 1;
   color: rgb(5 150 105 / var(--tw-text-opacity, 1));
@@ -2743,6 +2760,10 @@ video {
 .text-slate-100 {
   --tw-text-opacity: 1;
   color: rgb(241 245 249 / var(--tw-text-opacity, 1));
+}
+.text-slate-200 {
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity, 1));
 }
 .text-slate-300 {
   --tw-text-opacity: 1;
@@ -3114,6 +3135,10 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(248 250 252 / var(--tw-bg-opacity, 1));
 }
+.hover\:bg-slate-900:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(15 23 42 / var(--tw-bg-opacity, 1));
+}
 .hover\:bg-white\/70:hover {
   background-color: rgb(255 255 255 / 0.7);
 }
@@ -3342,10 +3367,6 @@ video {
 
   .xl\:grid {
     display: grid;
-  }
-
-  .xl\:grid-cols-\[minmax\(260px\2c 0\.78fr\)_minmax\(360px\2c 1\.22fr\)\] {
-    grid-template-columns: minmax(260px,0.78fr) minmax(360px,1.22fr);
   }
 
   .xl\:pr-\[324px\] {
