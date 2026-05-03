@@ -587,6 +587,7 @@ export function LibraryDocumentViewer(props: {
           linkError={linkError}
           bibLayout={bibLayout}
           onBibLayoutChange={onBibLayoutChange}
+          layoutKey={`${projectId ?? "none"}::${selectedPath ?? "none"}::${viewMode}`}
           t={t}
         />
       </div>

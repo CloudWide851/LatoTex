@@ -12,6 +12,7 @@ import { LibraryPdfToolSidebar } from "./LibraryPdfToolSidebar";
 import type { LibraryPdfScrollSyncGroup } from "./libraryPdfScrollViewerShared";
 import type { PdfScrollAnchor } from "./libraryPdfScrollState";
 import { useElementScrollRatio } from "./useElementScrollRatio";
+import { isPersistableLibraryBibLayout, normalizeLibraryBibLayout } from "./libraryBibLayout";
 import type {
   AnnotationStroke,
   AnnotationTextBox,
@@ -158,6 +159,7 @@ type LibraryViewerContentPanelProps = {
   linkError: string | null;
   bibLayout?: number[];
   onBibLayoutChange?: (layout: number[]) => void;
+  layoutKey?: string;
   t: TranslationFn;
 };
 
@@ -240,12 +242,14 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     linkError,
     bibLayout = [54, 46],
     onBibLayoutChange,
+    layoutKey = "default",
     t,
   } = props;
 
   const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
   const bibContainerRef = useRef<HTMLElement | null>(null);
   const metaContainerRef = useRef<HTMLElement | null>(null);
+  const normalizedBibLayout = normalizeLibraryBibLayout(bibLayout);
   const pdfPaneLoading = loading || pdfPreviewLoading || pdfObjectUrlLoading;
   const pdfPaneError = loadError ?? pdfPreviewError;
   const pdfViewerContainerClassName = "library-scrollbar relative h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll bg-transparent";
@@ -476,11 +480,16 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
         />
       ) : null}
       <PanelGroup
+        key={`library-bib-panels-${layoutKey}`}
         direction="vertical"
         className="h-full min-h-0"
-        onLayout={(layout) => onBibLayoutChange?.(layout)}
+        onLayout={(layout) => {
+          if (isPersistableLibraryBibLayout(layout)) {
+            onBibLayoutChange?.(normalizeLibraryBibLayout(layout));
+          }
+        }}
       >
-        <Panel id="library-bib-preview" order={1} defaultSize={bibLayout[0] ?? 54} minSize={24} className="min-h-0">
+        <Panel id="library-bib-preview" order={1} defaultSize={normalizedBibLayout[0]} minSize={24} className="min-h-0">
           <section
             ref={(node) => {
               bibContainerRef.current = node;
@@ -505,7 +514,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           </section>
         </Panel>
         <PanelResizeHandle className="resizable-handle resizable-handle-vertical" />
-        <Panel id="library-meta-preview" order={2} defaultSize={bibLayout[1] ?? 46} minSize={22} className="min-h-0">
+        <Panel id="library-meta-preview" order={2} defaultSize={normalizedBibLayout[1]} minSize={22} className="min-h-0">
           <div
             ref={(node) => {
               metaContainerRef.current = node;

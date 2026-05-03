@@ -14,6 +14,7 @@ import type { TerminalOutputChunk } from "../../../shared/types/app";
 import { TerminalSessionRail } from "./TerminalSessionRail";
 import { TerminalSuggestionOverlay } from "./TerminalSuggestionOverlay";
 import { buildTerminalSuggestions, nextTerminalInputLine } from "./terminalSuggestions";
+import { reorderTerminalTabs } from "./terminalTabOrder";
 import type { ProjectTerminalState, TerminalTab, TranslationFn } from "./terminalTypes";
 
 const TERMINAL_POLL_MS = 180;
@@ -326,6 +327,10 @@ export function WorkspaceTerminalPanel(props: {
     });
   }, [selectedFile]);
 
+  const reorderTabs = useCallback((sourceId: string, targetId: string) => {
+    setTabs((prev) => reorderTerminalTabs(prev, sourceId, targetId));
+  }, []);
+
   useEffect(() => {
     if (!active || !activeTabId) {
       return;
@@ -525,6 +530,7 @@ export function WorkspaceTerminalPanel(props: {
           void closeTab(tabId);
         }}
         onNew={newTab}
+        onReorder={reorderTabs}
         t={t}
       />
       <div className="flex min-w-0 flex-1 flex-col">

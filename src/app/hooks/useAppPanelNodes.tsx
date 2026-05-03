@@ -18,6 +18,7 @@ import {
   runtimeLogRead,
 } from "../../shared/api/runtime";
 import { clampLayout, DEFAULT_PANEL_LAYOUT } from "../app-config";
+import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 const LazyGitWorkspace = lazy(async () => {
   const module = await import("../components/GitWorkspace");
   return { default: module.GitWorkspace };
@@ -222,7 +223,7 @@ export function useAppPanelNodes(params: any) {
   const latexTerminalLayout = clampLayout(panelLayout.latexTerminal, DEFAULT_PANEL_LAYOUT.latexTerminal!);
   const analysisLayout = clampLayout(panelLayout.analysis, DEFAULT_PANEL_LAYOUT.analysis!);
   const libraryLayout = clampLayout(panelLayout.library, DEFAULT_PANEL_LAYOUT.library!);
-  const libraryBibLayout = clampLayout(panelLayout.libraryBib, DEFAULT_PANEL_LAYOUT.libraryBib!);
+  const libraryBibLayout = normalizeLibraryBibLayout(clampLayout(panelLayout.libraryBib, DEFAULT_PANEL_LAYOUT.libraryBib!));
   const activeModelCatalog = settings?.modelCatalog ?? [];
 
   const analysisPanel = (

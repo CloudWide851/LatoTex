@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { setModelApiKey, updateSettings } from "../../shared/api/settings";
 import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
+import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
 
 type SettingsPersistenceParams = {
@@ -259,7 +260,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
         settings: 1,
       };
       const expectedLength = expectedLengthMap[panelKey];
-      const normalizedLayout = layout
+      const normalizedLayout = (panelKey === "libraryBib" ? normalizeLibraryBibLayout(layout) : layout)
         .filter((value) => Number.isFinite(value))
         .map((value) => Math.max(5, Math.min(95, Number(value))));
       if (normalizedLayout.length !== expectedLength) {
