@@ -353,6 +353,10 @@ describe("LibraryViewerContentPanel", () => {
     const paneShells = Array.from(container.querySelectorAll(".library-scrollbar"));
     expect(paneShells).toHaveLength(2);
     expect(paneShells[0]?.className).toBe(paneShells[1]?.className);
+    expect(paneShells[0]?.className).toContain("h-full");
+    expect(paneShells[0]?.className).toContain("min-w-0");
+    expect(container.querySelector("#library-bib-preview")?.className).toContain("overflow-hidden");
+    expect(container.querySelector("#library-meta-preview")?.className).toContain("overflow-hidden");
     expect(container.querySelector("[data-testid='meta-content']")).not.toBeNull();
 
     await act(async () => {

@@ -31,7 +31,7 @@ function clampCompareZoom(next: number): number {
 }
 
 const LIBRARY_INFO_PANE_CLASSNAME = [
-  "library-scrollbar min-h-0 overflow-x-auto overflow-y-scroll rounded-xl",
+  "library-scrollbar h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll rounded-xl",
   "border border-slate-200 bg-white p-3 motion-card-pop",
 ].join(" ");
 const LIBRARY_VIEWER_FRAME_CLASSNAME = "h-full min-h-0 min-w-0 overflow-hidden";
@@ -470,7 +470,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2">
+    <div className={`grid h-full min-h-0 ${pdfRequestStatusVisible ? "grid-rows-[auto_minmax(0,1fr)]" : "grid-rows-[minmax(0,1fr)]"} gap-2`}>
       {pdfRequestStatusVisible ? (
         <LibraryPdfBlockedNotice
           error={pdfPaneError}
@@ -489,7 +489,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           }
         }}
       >
-        <Panel id="library-bib-preview" order={1} defaultSize={normalizedBibLayout[0]} minSize={24} className="min-h-0">
+        <Panel id="library-bib-preview" order={1} defaultSize={normalizedBibLayout[0]} minSize={24} className="min-h-0 overflow-hidden">
           <section
             ref={(node) => {
               bibContainerRef.current = node;
@@ -514,7 +514,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           </section>
         </Panel>
         <PanelResizeHandle className="resizable-handle resizable-handle-vertical" />
-        <Panel id="library-meta-preview" order={2} defaultSize={normalizedBibLayout[1]} minSize={22} className="min-h-0">
+        <Panel id="library-meta-preview" order={2} defaultSize={normalizedBibLayout[1]} minSize={22} className="min-h-0 overflow-hidden">
           <div
             ref={(node) => {
               metaContainerRef.current = node;
