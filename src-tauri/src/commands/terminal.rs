@@ -152,6 +152,7 @@ fn powershell_spec(directory: &Path, venv_path: &Path) -> TerminalShellSpec {
     TerminalShellSpec {
         shell: "powershell.exe".to_string(),
         args: vec![
+            "-NoProfile".to_string(),
             "-NoLogo".to_string(),
             "-NoExit".to_string(),
             "-ExecutionPolicy".to_string(),
@@ -562,6 +563,7 @@ mod tests {
         let venv = PathBuf::from(r"H:\LatoTex\.venv");
         let powershell = terminal_shell_command("powershell", &cwd, &venv);
         assert!(powershell.shell.to_lowercase().contains("powershell"));
+        assert!(powershell.args.iter().any(|arg| arg == "-NoProfile"));
         assert!(powershell.args.iter().any(|arg| arg.contains("Activate.ps1") || cfg!(not(target_os = "windows"))));
 
         if cfg!(target_os = "windows") {

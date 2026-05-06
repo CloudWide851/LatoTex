@@ -193,6 +193,7 @@ fn step_metadata<'a>(workflow_id: &'a str, step_id: &'a str, callsite: &'a str) 
 pub(super) fn run_execute_pipeline_team(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
+    app_data_dir: &std::path::Path,
     run_id: &str,
     cancel_flag: &Arc<AtomicBool>,
     input: &AgentExecuteRequest,
@@ -208,7 +209,7 @@ pub(super) fn run_execute_pipeline_team(
         .filter(|role| role.enabled.unwrap_or(true))
         .collect::<Vec<_>>();
     if active_roles.is_empty() {
-        return run_execute_pipeline_supervisor(db_path, runtime_root, run_id, cancel_flag, input, workflow);
+        return run_execute_pipeline_supervisor(db_path, runtime_root, app_data_dir, run_id, cancel_flag, input, workflow);
     }
 
     let plan_content = format!(
@@ -288,6 +289,7 @@ pub(super) fn run_execute_pipeline_team(
             let output = run_workflow_step(
                 db_path,
                 runtime_root,
+                app_data_dir,
                 run_id,
                 input,
                 workflow,
@@ -324,6 +326,7 @@ pub(super) fn run_execute_pipeline_team(
         let role_output = run_workflow_step(
             db_path,
             runtime_root,
+            app_data_dir,
             run_id,
             input,
             workflow,

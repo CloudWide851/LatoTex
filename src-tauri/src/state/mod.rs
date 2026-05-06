@@ -54,6 +54,8 @@ pub struct LibraryPdfCacheTask {
 #[derive(Clone)]
 pub struct AnalysisEnvPrepareTask {
     pub id: String,
+    pub project_id: String,
+    pub env_key: String,
     pub status: Arc<Mutex<String>>,
     pub stage: Arc<Mutex<Option<String>>>,
     pub message: Arc<Mutex<Option<String>>>,

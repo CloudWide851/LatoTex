@@ -123,6 +123,7 @@ pub(super) fn agent_execute_start_with_run_id(
 
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
+    let app_data_dir = state.app_data_dir.clone();
     let run_id_for_worker = run_id.clone();
     let slots = state.agent_slots.clone();
     let cancel_flags = state.agent_cancel_flags.clone();
@@ -177,6 +178,7 @@ pub(super) fn agent_execute_start_with_run_id(
         let run_output = run_execute_pipeline_async(
             db_path.clone(),
             runtime_root.clone(),
+            app_data_dir.clone(),
             run_id_for_worker.clone(),
             cancel_flag,
             input,

@@ -57,6 +57,7 @@ fn should_use_team(input: &AgentExecuteRequest) -> bool {
 pub(super) fn run_workflow_step(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
+    app_data_dir: &std::path::Path,
     run_id: &str,
     input: &AgentExecuteRequest,
     workflow: &WorkflowDefinition,
@@ -123,6 +124,7 @@ pub(super) fn run_workflow_step(
         "tool.python" => swarm_tool_python::run_stage_python_probe(
             db_path,
             runtime_root,
+            app_data_dir,
             run_id,
             &input.project_id,
             &workflow.id,
@@ -177,6 +179,7 @@ pub(super) fn emit_supervisor_trace(
 fn run_execute_pipeline_single(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
+    app_data_dir: &std::path::Path,
     run_id: &str,
     cancel_flag: &Arc<AtomicBool>,
     input: &AgentExecuteRequest,
@@ -213,6 +216,7 @@ fn run_execute_pipeline_single(
         output = run_workflow_step(
             db_path,
             runtime_root,
+            app_data_dir,
             run_id,
             input,
             workflow,
@@ -234,6 +238,7 @@ fn run_execute_pipeline_single(
 pub(super) fn run_execute_pipeline_supervisor(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
+    app_data_dir: &std::path::Path,
     run_id: &str,
     cancel_flag: &Arc<AtomicBool>,
     input: &AgentExecuteRequest,
@@ -356,6 +361,7 @@ pub(super) fn run_execute_pipeline_supervisor(
                 latest_output = run_workflow_step(
                     db_path,
                     runtime_root,
+                    app_data_dir,
                     run_id,
                     input,
                     workflow,
@@ -385,6 +391,7 @@ pub(super) fn run_execute_pipeline_supervisor(
                 let evaluator_raw = run_workflow_step(
                     db_path,
                     runtime_root,
+                    app_data_dir,
                     run_id,
                     input,
                     workflow,
@@ -447,6 +454,7 @@ pub(super) fn run_execute_pipeline_supervisor(
         output = run_workflow_step(
             db_path,
             runtime_root,
+            app_data_dir,
             run_id,
             input,
             workflow,
@@ -499,6 +507,7 @@ pub(super) fn run_execute_pipeline_supervisor(
 pub(super) fn run_execute_pipeline_async(
     db_path: std::path::PathBuf,
     runtime_root: std::path::PathBuf,
+    app_data_dir: std::path::PathBuf,
     run_id: String,
     cancel_flag: Arc<AtomicBool>,
     input: AgentExecuteRequest,
@@ -509,6 +518,7 @@ pub(super) fn run_execute_pipeline_async(
             return run_execute_pipeline_team(
                 &db_path,
                 &runtime_root,
+                &app_data_dir,
                 &run_id,
                 &cancel_flag,
                 &input,
@@ -521,6 +531,7 @@ pub(super) fn run_execute_pipeline_async(
         "single" => run_execute_pipeline_single(
             &db_path,
             &runtime_root,
+            &app_data_dir,
             &run_id,
             &cancel_flag,
             &input,
@@ -529,6 +540,7 @@ pub(super) fn run_execute_pipeline_async(
         _ => run_execute_pipeline_supervisor(
             &db_path,
             &runtime_root,
+            &app_data_dir,
             &run_id,
             &cancel_flag,
             &input,

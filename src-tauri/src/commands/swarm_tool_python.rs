@@ -1,10 +1,10 @@
-use std::process::Command;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use serde_json::json;
 
 use super::swarm_events::{emit_stage_event, emit_tool_event, EventMetadata};
-use crate::commands::native_runtime::configure_hidden_process;
+use crate::commands::native_runtime::ensure_analysis_env_blocking;
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
@@ -13,30 +13,10 @@ fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     Ok(())
 }
 
-fn python_version() -> String {
-    for command_name in ["python", "py"] {
-        let mut command = Command::new(command_name);
-        configure_hidden_process(&mut command);
-        let output = command.arg("--version").output();
-        if let Ok(output) = output {
-            let text = String::from_utf8_lossy(if output.stdout.is_empty() {
-                &output.stderr
-            } else {
-                &output.stdout
-            })
-            .trim()
-            .to_string();
-            if output.status.success() && !text.is_empty() {
-                return format!("{command_name}: {text}");
-            }
-        }
-    }
-    "python: unavailable".to_string()
-}
-
 pub(super) fn run_stage_python_probe(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
+    app_data_dir: &std::path::Path,
     run_id: &str,
     project_id: &str,
     event_scope: &str,
@@ -71,14 +51,37 @@ pub(super) fn run_stage_python_probe(
         "",
         EventMetadata { actions: Some(&running_actions), ..metadata },
     )?;
-    let version = python_version();
+    let project_root = crate::storage::load_project_root(db_path, project_id)?;
+    let env_status = ensure_analysis_env_blocking(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
+        &project_root,
+    )?;
+    let python_path = env_status
+        .python_path
+        .clone()
+        .ok_or_else(|| "python.env.python_missing".to_string())?;
+    let version = env_status
+        .python_version
+        .clone()
+        .unwrap_or_else(|| "python: managed".to_string());
     ensure_not_cancelled(cancel_flag)?;
     let prompt_size = prompt.chars().count();
     let content = format!(
-        "[python_analysis.runtime.v1]\nstatus={}\nprompt_chars={prompt_size}",
-        version
+        "[python_analysis.runtime.v1]\nstatus={}\nprompt_chars={prompt_size}\nruntime_source=managed_uv\nvenv={}",
+        version,
+        env_status.venv_path
     );
-    let success_actions = json!([{"type":"run","tool":"python","status":"success","summary":version}]);
+    let success_actions = json!([{
+        "type": "run",
+        "tool": "python",
+        "status": "success",
+        "summary": version,
+        "pythonPath": PathBuf::from(python_path).to_string_lossy().to_string(),
+        "venvPath": env_status.venv_path
+    }]);
     emit_tool_event(
         db_path,
         run_id,

@@ -1,4 +1,7 @@
-use super::native_runtime_common::{command_from_path_or_name, configure_hidden_process, try_version_command};
+use super::native_runtime_analysis_uv::{
+    configure_uv_command, ensure_managed_python, resolve_uv_path, MANAGED_PYTHON_VERSION,
+};
+use super::native_runtime_common::{configure_hidden_process, try_version_command};
 use crate::models::AnalysisEnvStatusResponse;
 use crate::storage;
 use ring::digest::{digest, SHA256};
@@ -6,7 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn analysis_resource_candidates(relative_path: &str) -> Vec<PathBuf> {
+pub(crate) fn analysis_resource_candidates(relative_path: &str) -> Vec<PathBuf> {
     let mut candidates = vec![
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative_path),
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../src-tauri/{relative_path}")),
@@ -19,20 +22,6 @@ fn analysis_resource_candidates(relative_path: &str) -> Vec<PathBuf> {
         }
     }
     candidates
-}
-pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
-    for candidate in analysis_resource_candidates("resources/tools/uv/windows-x64/uv.exe") {
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    if let Some(version) = try_version_command(&command_from_path_or_name("uv"), &["--version"])
-    {
-        if !version.is_empty() {
-            return Some(PathBuf::from("uv"));
-        }
-    }
-    None
 }
 
 pub(crate) fn resolve_analysis_runtime_root() -> Option<PathBuf> {
@@ -268,12 +257,13 @@ fn pdf2zh_entry_ready(python_path: &Path) -> bool {
 
 fn install_python_package(
     uv_path: &Path,
+    runtime_root: &Path,
     python_path: &Path,
     package_spec: &Path,
     editable: bool,
 ) -> Result<(), String> {
     let mut command = Command::new(uv_path);
-    configure_hidden_process(&mut command);
+    configure_uv_command(&mut command, runtime_root);
     command
         .arg("pip")
         .arg("install")
@@ -297,11 +287,12 @@ fn install_python_package(
 
 fn install_python_requirement(
     uv_path: &Path,
+    runtime_root: &Path,
     python_path: &Path,
     requirement: &str,
 ) -> Result<(), String> {
     let mut command = Command::new(uv_path);
-    configure_hidden_process(&mut command);
+    configure_uv_command(&mut command, runtime_root);
     let output = command
         .arg("pip")
         .arg("install")
@@ -321,6 +312,7 @@ fn install_python_requirement(
 
 fn ensure_runtime_packages<F>(
     uv_path: &Path,
+    app_runtime_root: &Path,
     python_path: &Path,
     runtime_root: &Path,
     vendor_root: Option<&Path>,
@@ -339,13 +331,13 @@ where
 
     if let Some(vendor_root) = vendor_root {
         on_progress(52.0, "installing_pdf2zh", vendor_root.file_name().and_then(|value| value.to_str()));
-        install_python_package(uv_path, python_path, vendor_root, false)?;
+        install_python_package(uv_path, app_runtime_root, python_path, vendor_root, false)?;
     } else {
         on_progress(52.0, "installing_pdf2zh", Some("pdf2zh>=1.9.11,<2"));
-        install_python_requirement(uv_path, python_path, "pdf2zh>=1.9.11,<2")?;
+        install_python_requirement(uv_path, app_runtime_root, python_path, "pdf2zh>=1.9.11,<2")?;
     }
     on_progress(78.0, "installing_runtime", runtime_root.file_name().and_then(|value| value.to_str()));
-    install_python_package(uv_path, python_path, runtime_root, true)?;
+    install_python_package(uv_path, app_runtime_root, python_path, runtime_root, true)?;
     fs::write(stamp_path, fingerprint).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -482,15 +474,17 @@ where
     on_progress(6.0, "resolving", Some(&managed_root_text));
     if !env_paths.python_path.exists() {
         fs::create_dir_all(&env_paths.managed_root).map_err(|e| e.to_string())?;
+        on_progress(14.0, "installing_python", Some(MANAGED_PYTHON_VERSION));
+        ensure_managed_python(&uv_path, runtime_root, MANAGED_PYTHON_VERSION)?;
         let mut command = Command::new(&uv_path);
-        configure_hidden_process(&mut command);
+        configure_uv_command(&mut command, runtime_root);
         let venv_path_text = env_paths.venv_path.to_string_lossy().to_string();
         on_progress(18.0, "creating_venv", Some(&venv_path_text));
         let output = command
             .arg("venv")
             .arg(&env_paths.venv_path)
             .arg("--python")
-            .arg("3.12")
+            .arg(MANAGED_PYTHON_VERSION)
             .output()
             .map_err(|e| format!("python.env.spawn_failed: {e}"))?;
         if !output.status.success() {
@@ -505,6 +499,7 @@ where
 
     ensure_runtime_packages(
         &uv_path,
+        runtime_root,
         &env_paths.python_path,
         &analysis_runtime_root,
         vendor_root.as_deref(),

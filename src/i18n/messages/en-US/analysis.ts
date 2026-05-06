@@ -60,6 +60,7 @@ export const enUS_analysis = {
   "analysis.envPromptProgress": "Preparing environment...",
   "analysis.envPromptStage.queued": "Queued",
   "analysis.envPromptStage.resolving": "Resolving environment path",
+  "analysis.envPromptStage.installing_python": "Installing Python runtime",
   "analysis.envPromptStage.creating_venv": "Creating Python environment",
   "analysis.envPromptStage.installing_pdf2zh": "Installing pdf2zh",
   "analysis.envPromptStage.installing_runtime": "Installing analysis runtime",

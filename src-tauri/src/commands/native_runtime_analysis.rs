@@ -1,8 +1,9 @@
 use super::native_runtime_analysis_env::{
     analysis_env_status_blocking, ensure_analysis_env_blocking,
     ensure_analysis_env_with_progress_blocking, project_env_key, resolve_analysis_env_paths,
-    resolve_analysis_runtime_root, resolve_uv_path,
+    resolve_analysis_runtime_root,
 };
+use super::native_runtime_analysis_uv::resolve_uv_path;
 use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines, try_version_command};
 use crate::models::{
     AnalysisEnvPrepareStartResponse, AnalysisEnvPrepareStatusResponse, AnalysisEnvStatusResponse,
@@ -102,9 +103,43 @@ pub fn analysis_env_prepare_start(
         "INFO",
         &format!("analysis_env_prepare_start: project={}", input.project_id),
     );
+    let project_id = input.project_id;
+    let project_root = storage::load_project_root(&state.db_path, &project_id)?;
+    let env_key = project_env_key(&project_root)?;
+    {
+        let tasks = state
+            .analysis_env_prepare_tasks
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?;
+        for task in tasks.values() {
+            if task.project_id != project_id || task.env_key != env_key {
+                continue;
+            }
+            let status = task
+                .status
+                .lock()
+                .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+                .clone();
+            if status == "running" {
+                state.log(
+                    "INFO",
+                    &format!(
+                        "analysis_env_prepare_start.reuse: project={}, task={}, status={}",
+                        project_id, task.id, status
+                    ),
+                );
+                return Ok(AnalysisEnvPrepareStartResponse {
+                    task_id: task.id.clone(),
+                });
+            }
+        }
+    }
+
     let task_id = Uuid::new_v4().to_string();
     let task = AnalysisEnvPrepareTask {
         id: task_id.clone(),
+        project_id: project_id.clone(),
+        env_key: env_key.clone(),
         status: Arc::new(Mutex::new("running".to_string())),
         stage: Arc::new(Mutex::new(Some("queued".to_string()))),
         message: Arc::new(Mutex::new(Some("queued".to_string()))),
@@ -125,7 +160,6 @@ pub fn analysis_env_prepare_start(
     let db_path = state.db_path.clone();
     let app_data_dir = state.app_data_dir.clone();
     let runtime_root = state.runtime_root.clone();
-    let project_id = input.project_id;
     let task_id_for_thread = task_id.clone();
 
     std::thread::spawn(move || {
@@ -145,48 +179,46 @@ pub fn analysis_env_prepare_start(
                 task_id_for_thread, project_id
             ),
         );
-        match storage::load_project_root(&db_path, &project_id).and_then(|project_root| {
-            ensure_analysis_env_with_progress_blocking(
-                &db_path,
-                &runtime_root,
-                &app_data_dir,
-                &project_id,
-                &project_root,
-                |percent, stage, current_item| {
-                    with_task(&|task_ref| {
-                        task_ref
-                            .percent_basis_points
-                            .store((percent.clamp(0.0, 100.0) * 100.0).round() as u64, Ordering::Relaxed);
-                        if let Ok(mut stage_slot) = task_ref.stage.lock() {
-                            *stage_slot = Some(stage.to_string());
-                        }
-                        if let Ok(mut message_slot) = task_ref.message.lock() {
-                            *message_slot = Some(stage.to_string());
-                        }
-                        if let Ok(mut current_item_slot) = task_ref.current_item.lock() {
-                            *current_item_slot = current_item.map(|value| value.to_string());
-                        }
-                    });
-                    let log_line = format!(
-                        "stage={} percent={:.1} current_item={}",
-                        stage,
-                        percent,
-                        current_item.unwrap_or("-")
-                    );
-                    if log_line != last_progress {
-                        append_runtime_log(
-                            &session_log_path,
-                            "INFO",
-                            format!(
-                                "analysis_env_prepare.task.progress: task_id={}, {}",
-                                task_id_for_thread, log_line
-                            ),
-                        );
-                        last_progress = log_line;
+        match ensure_analysis_env_with_progress_blocking(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &project_id,
+            &project_root,
+            |percent, stage, current_item| {
+                with_task(&|task_ref| {
+                    task_ref
+                        .percent_basis_points
+                        .store((percent.clamp(0.0, 100.0) * 100.0).round() as u64, Ordering::Relaxed);
+                    if let Ok(mut stage_slot) = task_ref.stage.lock() {
+                        *stage_slot = Some(stage.to_string());
                     }
-                },
-            )
-        }) {
+                    if let Ok(mut message_slot) = task_ref.message.lock() {
+                        *message_slot = Some(stage.to_string());
+                    }
+                    if let Ok(mut current_item_slot) = task_ref.current_item.lock() {
+                        *current_item_slot = current_item.map(|value| value.to_string());
+                    }
+                });
+                let log_line = format!(
+                    "stage={} percent={:.1} current_item={}",
+                    stage,
+                    percent,
+                    current_item.unwrap_or("-")
+                );
+                if log_line != last_progress {
+                    append_runtime_log(
+                        &session_log_path,
+                        "INFO",
+                        format!(
+                            "analysis_env_prepare.task.progress: task_id={}, {}",
+                            task_id_for_thread, log_line
+                        ),
+                    );
+                    last_progress = log_line;
+                }
+            },
+        ) {
             Ok(status) => {
                 with_task(&|task_ref| {
                     if let Ok(mut status_slot) = task_ref.status.lock() {

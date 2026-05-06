@@ -45,6 +45,7 @@ export function useAnalysisEnvPrompt(params: {
 }) {
   const { activeProjectId, settings, persistSettings, enabled = true, t, setToast } = params;
   const dismissedProjectIdsRef = useRef<Set<string>>(new Set());
+  const autoStartedProjectIdsRef = useRef<Set<string>>(new Set());
   const mountedRef = useRef(true);
   const [envPromptProjectId, setEnvPromptProjectId] = useState<string | null>(null);
   const [envPromptStatus, setEnvPromptStatus] = useState<AnalysisEnvStatus | null>(null);
@@ -56,7 +57,7 @@ export function useAnalysisEnvPrompt(params: {
     mountedRef.current = false;
   }, []);
 
-  const reloadStatus = useCallback(async (projectId: string) => {
+  const reloadStatus = useCallback(async (projectId: string, openWhenMissing = true) => {
     const status = await analysisEnvStatus(projectId);
     if (!mountedRef.current) {
       return status;
@@ -70,7 +71,7 @@ export function useAnalysisEnvPrompt(params: {
     }
     setEnvPromptProjectId(projectId);
     setEnvPromptStatus(status);
-    setEnvPromptOpen(true);
+    setEnvPromptOpen(openWhenMissing);
     return status;
   }, []);
 
@@ -95,7 +96,7 @@ export function useAnalysisEnvPrompt(params: {
     }
 
     let cancelled = false;
-    reloadStatus(activeProjectId).catch(() => {
+    reloadStatus(activeProjectId, false).catch(() => {
       if (!cancelled && mountedRef.current) {
         setEnvPromptOpen(false);
       }
@@ -155,10 +156,12 @@ export function useAnalysisEnvPrompt(params: {
     }
   }, [envPromptBusy, envPromptProjectId, persistSettings, reloadStatus, setToast, settings]);
 
-  const handleEnvPromptCreate = useCallback(async () => {
+  const handleEnvPromptCreate = useCallback(async (options?: { openPrompt?: boolean; showReadyToast?: boolean }) => {
     if (!envPromptProjectId || envPromptBusy) {
       return;
     }
+    const openPrompt = options?.openPrompt ?? true;
+    const showReadyToast = options?.showReadyToast ?? true;
     setEnvPromptBusy(true);
     setEnvPromptTaskStatus({
       taskId: "pending",
@@ -169,7 +172,7 @@ export function useAnalysisEnvPrompt(params: {
       currentItem: envPromptStatus?.venvPath ?? envPromptStatus?.managedRoot ?? null,
       diagnostics: [],
     });
-    setEnvPromptOpen(true);
+    setEnvPromptOpen(openPrompt);
     try {
       const started = await analysisEnvPrepareStart(envPromptProjectId);
       if (mountedRef.current) {
@@ -183,8 +186,11 @@ export function useAnalysisEnvPrompt(params: {
       setEnvPromptStatus(finalStatus);
       setEnvPromptTaskStatus(finalTaskStatus);
       dismissedProjectIdsRef.current.delete(envPromptProjectId);
+      autoStartedProjectIdsRef.current.delete(envPromptProjectId);
       setEnvPromptOpen(false);
-      setToast({ type: "info", message: t("analysis.envPromptReady") });
+      if (showReadyToast) {
+        setToast({ type: "info", message: t("analysis.envPromptReady") });
+      }
     } catch (error) {
       const message = String(error);
       if (!mountedRef.current) {
@@ -214,6 +220,31 @@ export function useAnalysisEnvPrompt(params: {
       }
     }
   }, [envPromptBusy, envPromptProjectId, envPromptStatus?.managedRoot, envPromptStatus?.venvPath, pollPrepareTask, setToast, t]);
+
+  useEffect(() => {
+    if (!enabled || !activeProjectId || envPromptProjectId !== activeProjectId || !envPromptStatus) {
+      return;
+    }
+    if (envPromptStatus.ready || dismissedProjectIdsRef.current.has(activeProjectId)) {
+      return;
+    }
+    if (envPromptBusy || envPromptTaskStatus?.status === "running") {
+      return;
+    }
+    if (autoStartedProjectIdsRef.current.has(activeProjectId)) {
+      return;
+    }
+    autoStartedProjectIdsRef.current.add(activeProjectId);
+    void handleEnvPromptCreate({ openPrompt: false, showReadyToast: false });
+  }, [
+    activeProjectId,
+    enabled,
+    envPromptBusy,
+    envPromptProjectId,
+    envPromptStatus,
+    envPromptTaskStatus?.status,
+    handleEnvPromptCreate,
+  ]);
 
   return {
     envPromptOpen,

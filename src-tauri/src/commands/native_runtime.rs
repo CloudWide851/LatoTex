@@ -2,6 +2,8 @@
 mod native_runtime_analysis;
 #[path = "native_runtime_analysis_env.rs"]
 mod native_runtime_analysis_env;
+#[path = "native_runtime_analysis_uv.rs"]
+mod native_runtime_analysis_uv;
 #[path = "native_runtime_common.rs"]
 mod native_runtime_common;
 #[path = "native_runtime_latex.rs"]
@@ -22,8 +24,10 @@ pub use native_runtime_latex::{latex_compile_native, latex_compile_start, latex_
 pub(crate) use native_runtime_analysis_env::{
     analysis_env_status_blocking, ensure_analysis_env_blocking,
     ensure_analysis_env_with_progress_blocking, managed_analysis_root, project_env_key,
-    resolve_analysis_runtime_root, resolve_pdfmathtranslate_vendor_root, resolve_uv_path,
+    resolve_analysis_runtime_root, resolve_pdfmathtranslate_vendor_root,
 };
+#[allow(unused_imports)]
+pub(crate) use native_runtime_analysis_uv::resolve_uv_path;
 #[allow(unused_imports)]
 pub(crate) use native_runtime_common::{configure_hidden_process, sanitize_log_lines};
 
