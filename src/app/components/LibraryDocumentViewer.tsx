@@ -21,6 +21,7 @@ import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { useLibraryPdfViewController } from "./library/useLibraryPdfViewController";
 import { useLibraryCompareScrollDraft } from "./library/useLibraryCompareScrollDraft";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
+import { useLibraryTranslationDriftRefresh } from "./library/useLibraryTranslationDriftRefresh";
 import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
 import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
 
@@ -174,6 +175,20 @@ export function LibraryDocumentViewer(props: {
   const hasTranslatedArtifact = Boolean(translatedSessionPath || translatedPdfRelativePath);
   const pdfOpenError = pdfPreviewError ?? pdfObjectUrlError;
 
+  useLibraryTranslationDriftRefresh({
+    projectId,
+    selectedPath,
+    translatedSessionPath,
+    translatedSessionSourcePath,
+    translatedPdfRelativePath,
+    sourcePdfRelativePath,
+    pdfPreviewRequested,
+    viewMode,
+    refreshDocumentData,
+    ensurePdfPreviewLoaded,
+    resetTranslationState,
+  });
+
   const applyViewMode = useCallback((nextMode: ViewMode) => {
     setSession({ viewMode: nextMode });
     onPersistViewMode?.(nextMode);
@@ -288,34 +303,6 @@ export function LibraryDocumentViewer(props: {
       window.clearTimeout(timer);
     };
   }, [annotationLoaded, annotationPath, annotationStrokes, annotationTextBoxes, projectId]);
-
-  useEffect(() => {
-    if (translatedSessionPath && translatedSessionPath !== translatedPdfRelativePath) {
-      void refreshDocumentData().then(() => {
-        if (pdfPreviewRequested || viewMode === "pdf" || viewMode === "compare") {
-          return ensurePdfPreviewLoaded();
-        }
-        return undefined;
-      });
-    }
-  }, [
-    ensurePdfPreviewLoaded,
-    pdfPreviewRequested,
-    refreshDocumentData,
-    translatedPdfRelativePath,
-    translatedSessionPath,
-    viewMode,
-  ]);
-
-  useEffect(() => {
-    if (
-      translatedSessionSourcePath
-      && sourcePdfRelativePath
-      && translatedSessionSourcePath !== sourcePdfRelativePath
-    ) {
-      void refreshDocumentData();
-    }
-  }, [refreshDocumentData, sourcePdfRelativePath, translatedSessionSourcePath]);
 
   const {
     pendingPdfOpen,

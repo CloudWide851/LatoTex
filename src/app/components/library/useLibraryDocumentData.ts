@@ -10,10 +10,14 @@ import type {
   LibraryPdfPreview,
 } from "../../../shared/types/app";
 import { toLibraryWorkspacePath } from "../../../shared/utils/libraryPath";
+import {
+  hasPdfPreviewIdentityChanged,
+  isDocumentDataStateEqual,
+} from "./libraryDocumentDataState";
 
 type PaperPreview = null;
 
-type DocumentDataState = {
+export type DocumentDataState = {
   citation: LibraryCitationSummary | null;
   paperPreview: PaperPreview;
   bibPreview: string;
@@ -154,21 +158,6 @@ function mergePdfPreviewState(
   };
 }
 
-function toDocumentState(params: {
-  current: DocumentDataState;
-  citation: LibraryCitationSummary;
-  bibPreview: string;
-  pdfPreview: LibraryPdfPreview;
-}): DocumentDataState {
-  const citation = mergeSummaries(params.current.citation, applySummaryDefaults(params.citation));
-  return {
-    citation,
-    bibPreview: params.bibPreview,
-    bibPreviewError: null,
-    ...mergePdfPreviewState(params.current, params.pdfPreview, citation),
-  };
-}
-
 async function readBibPreview(
   projectId: string,
   selectedPath: string,
@@ -187,14 +176,16 @@ function toCitationOnlyDocumentState(
   citation: LibraryCitationSummary,
   bibPreview: string,
   bibPreviewError: string | null = null,
+  preservePdfPreview = false,
 ): DocumentDataState {
   const nextCitation = mergeSummaries(current.citation, applySummaryDefaults(citation));
+  const baseState = preservePdfPreview ? current : EMPTY_STATE;
   return {
-    ...EMPTY_STATE,
+    ...baseState,
     citation: nextCitation,
     bibPreview,
     bibPreviewError,
-    resolvedLink: nextCitation?.urls?.[0] ?? null,
+    resolvedLink: nextCitation?.urls?.[0] ?? baseState.resolvedLink ?? null,
   };
 }
 
@@ -214,7 +205,8 @@ export function useLibraryDocumentData(params: {
   const [pdfPreviewRequested, setPdfPreviewRequested] = useState(false);
   const [state, setState] = useState<DocumentDataState>(EMPTY_STATE);
   const requestIdRef = useRef(0);
-  const previewRequestRef = useRef<{ key: string; promise: Promise<DocumentDataState | null> } | null>(null);
+  const previewRequestRef = useRef<{ key: string; promise: Promise<LibraryPdfPreview> } | null>(null);
+  const activeDocumentKeyRef = useRef<string | null>(null);
   const pdfPreviewRequestedRef = useRef(false);
   const stateRef = useRef<DocumentDataState>(EMPTY_STATE);
 
@@ -236,6 +228,7 @@ export function useLibraryDocumentData(params: {
   const reset = useCallback(() => {
     requestIdRef.current += 1;
     previewRequestRef.current = null;
+    activeDocumentKeyRef.current = null;
     pdfPreviewRequestedRef.current = false;
     stateRef.current = EMPTY_STATE;
     setLoading(false);
@@ -263,6 +256,7 @@ export function useLibraryDocumentData(params: {
       resolvedLink: stateRef.current.resolvedLink ?? nextCitation?.urls?.[0] ?? null,
     };
     stateRef.current = nextState;
+    activeDocumentKeyRef.current = cacheKey;
     setCachedDocumentState(cacheKey, nextState);
     startTransition(() => setState(nextState));
   }, []);
@@ -276,11 +270,14 @@ export function useLibraryDocumentData(params: {
     if (requestIdRef.current !== requestId) {
       return null;
     }
+    const currentState = stateRef.current;
     const nextState: DocumentDataState = {
-      ...stateRef.current,
-      ...mergePdfPreviewState(stateRef.current, preview),
+      ...currentState,
+      ...mergePdfPreviewState(currentState, preview),
     };
+    const shouldBumpPreviewRevision = hasPdfPreviewIdentityChanged(currentState, nextState);
     setCachedDocumentState(cacheKey, nextState);
+    activeDocumentKeyRef.current = cacheKey;
     applyState(nextState, {
       loading: false,
       loadError: null,
@@ -289,37 +286,9 @@ export function useLibraryDocumentData(params: {
       paperPreviewLoading: false,
       paperPreviewError: null,
     });
-    setPreviewRevision(requestId);
-    return nextState;
-  }, [applyState]);
-
-  const applyDocumentPayload = useCallback(async (options: {
-    requestId: number;
-    cacheKey: string;
-    citation: LibraryCitationSummary;
-    bibPreview: string;
-    pdfPreview: LibraryPdfPreview;
-  }) => {
-    const { requestId, cacheKey, citation, bibPreview, pdfPreview } = options;
-    if (requestIdRef.current !== requestId) {
-      return null;
+    if (shouldBumpPreviewRevision) {
+      setPreviewRevision((revision) => revision + 1);
     }
-    const nextState = toDocumentState({
-      current: stateRef.current,
-      citation,
-      bibPreview,
-      pdfPreview,
-    });
-    setCachedDocumentState(cacheKey, nextState);
-    applyState(nextState, {
-      loading: false,
-      loadError: null,
-      pdfPreviewLoading: nextState.pdfCacheState === "pending",
-      pdfPreviewError: nextState.pdfCacheState === "error" ? nextState.pdfCacheError : null,
-      paperPreviewLoading: false,
-      paperPreviewError: null,
-    });
-    setPreviewRevision(requestId);
     return nextState;
   }, [applyState]);
 
@@ -332,13 +301,10 @@ export function useLibraryDocumentData(params: {
     if (!projectId || !selectedPath) {
       return null;
     }
-    const requestKey = `${requestId}:${projectId}:${selectedPath}:${bustCache ? "1" : "0"}`;
+    const requestKey = `${projectId}:${selectedPath}:${bustCache ? "1" : "0"}`;
     if (previewRequestRef.current?.key === requestKey) {
-      return await previewRequestRef.current.promise;
-    }
-    const promise = (async () => {
       try {
-        const preview = await libraryResolvePdfPreview(projectId, selectedPath, { bustCache });
+        const preview = await previewRequestRef.current.promise;
         return await applyResolvedPdfPreview({ requestId, cacheKey, preview });
       } catch (error) {
         if (requestIdRef.current === requestId) {
@@ -348,14 +314,28 @@ export function useLibraryDocumentData(params: {
           });
         }
         return null;
-      } finally {
-        if (previewRequestRef.current?.key === requestKey) {
-          previewRequestRef.current = null;
-        }
       }
+    }
+    const promise = (async () => {
+      return await libraryResolvePdfPreview(projectId, selectedPath, { bustCache });
     })();
     previewRequestRef.current = { key: requestKey, promise };
-    return await promise;
+    try {
+      const preview = await promise;
+      return await applyResolvedPdfPreview({ requestId, cacheKey, preview });
+    } catch (error) {
+      if (requestIdRef.current === requestId) {
+        startTransition(() => {
+          setPdfPreviewLoading(false);
+          setPdfPreviewError(String(error));
+        });
+      }
+      return null;
+    } finally {
+      if (previewRequestRef.current?.key === requestKey) {
+        previewRequestRef.current = null;
+      }
+    }
   }, [applyResolvedPdfPreview, projectId, selectedPath]);
 
   const loadDocument = useCallback(async (options?: RefreshOptions) => {
@@ -386,8 +366,15 @@ export function useLibraryDocumentData(params: {
       if (requestIdRef.current !== requestId) {
         return null;
       }
-      const nextState = toCitationOnlyDocumentState(stateRef.current, citation, bibPreview, bibPreviewError);
+      const nextState = toCitationOnlyDocumentState(
+        stateRef.current,
+        citation,
+        bibPreview,
+        bibPreviewError,
+        activeDocumentKeyRef.current === cacheKey,
+      );
       setCachedDocumentState(cacheKey, nextState);
+      activeDocumentKeyRef.current = cacheKey;
       applyState(nextState, {
         loading: false,
         loadError: null,
@@ -396,7 +383,6 @@ export function useLibraryDocumentData(params: {
         paperPreviewLoading: false,
         paperPreviewError: null,
       });
-      setPreviewRevision(requestId);
 
       void resolveRemotePdfPreview({
         requestId,
@@ -474,17 +460,21 @@ export function useLibraryDocumentData(params: {
     if (!options?.bustCache && options?.preferCache) {
       const cached = getCachedDocumentState(cacheKey);
       if (cached) {
-        const requestId = requestIdRef.current + 1;
-        requestIdRef.current = requestId;
-        applyState(cached, {
-          loading: false,
-          loadError: null,
-          pdfPreviewLoading: cached.pdfCacheState === "pending",
-          pdfPreviewError: cached.pdfCacheState === "error" ? cached.pdfCacheError : null,
-          paperPreviewLoading: false,
-          paperPreviewError: null,
-        });
-        setPreviewRevision(requestId);
+        const sameActiveDocument = activeDocumentKeyRef.current === cacheKey;
+        if (!sameActiveDocument) {
+          requestIdRef.current += 1;
+        }
+        activeDocumentKeyRef.current = cacheKey;
+        if (!isDocumentDataStateEqual(stateRef.current, cached)) {
+          applyState(cached, {
+            loading: false,
+            loadError: null,
+            pdfPreviewLoading: cached.pdfCacheState === "pending",
+            pdfPreviewError: cached.pdfCacheState === "error" ? cached.pdfCacheError : null,
+            paperPreviewLoading: false,
+            paperPreviewError: null,
+          });
+        }
         return cached;
       }
     }
