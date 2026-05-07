@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import { isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 import { buildWorkspaceResourceUrl, buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
@@ -38,6 +39,7 @@ export function useSelectedFilePreviewEffects(params: {
 
   const selectedFilePdfUrlRef = useRef<string | null>(null);
   const selectedImageUrlRef = useRef<string | null>(null);
+  const textLoadSeqRef = useRef(0);
 
   const mapReadErrorMessage = (error: unknown): string => {
     const message = String(error ?? "").trim();
@@ -51,6 +53,8 @@ export function useSelectedFilePreviewEffects(params: {
   };
 
   useEffect(() => {
+    const seq = textLoadSeqRef.current + 1;
+    textLoadSeqRef.current = seq;
     if (!activeProjectId || !selectedFile) {
       setSelectedTextFileReadyPath(null);
       setEditorContent("");
@@ -68,27 +72,46 @@ export function useSelectedFilePreviewEffects(params: {
     }
 
     let cancelled = false;
+    const startedAt = Date.now();
     const cached = getCachedTextContent?.(selectedFile);
     if (typeof cached === "string") {
       setEditorContent(cached);
       setSelectedTextFileReadyPath(selectedFile);
+      void runtimeLogWrite(
+        "INFO",
+        `editor_file_load.cache_hit: project=${activeProjectId}, path=${selectedFile}, chars=${cached.length}`,
+      ).catch(() => undefined);
       return () => {
         cancelled = true;
       };
     }
 
     setSelectedTextFileReadyPath(null);
+    void runtimeLogWrite(
+      "INFO",
+      `editor_file_load.start: project=${activeProjectId}, path=${selectedFile}`,
+    ).catch(() => undefined);
     readFile(activeProjectId, selectedFile)
       .then((result) => {
-        if (!cancelled) {
+        if (!cancelled && textLoadSeqRef.current === seq) {
           setEditorContent(result.content);
           setSelectedTextFileReadyPath(selectedFile);
           onTextFileLoaded?.(selectedFile, result.content);
+          void runtimeLogWrite(
+            "INFO",
+            `editor_file_load.success: project=${activeProjectId}, path=${selectedFile}, chars=${result.content.length}, durationMs=${Date.now() - startedAt}`,
+          ).catch(() => undefined);
         }
       })
       .catch((error) => {
-        if (!cancelled) {
+        if (!cancelled && textLoadSeqRef.current === seq) {
+          setSelectedTextFileReadyPath(null);
+          setEditorContent("");
           setToast({ type: "error", message: mapReadErrorMessage(error) });
+          void runtimeLogWrite(
+            "ERROR",
+            `editor_file_load.error: project=${activeProjectId}, path=${selectedFile}, durationMs=${Date.now() - startedAt}, reason=${String(error)}`,
+          ).catch(() => undefined);
         }
       });
 

@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { runtimeLogWrite } from "../../shared/api/runtime";
 
 type Props = {
   onRecover?: () => void;
@@ -21,8 +22,10 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { hasError: true };
   }
 
-  componentDidCatch() {
-    // Error details are captured by the global runtime log listeners.
+  componentDidCatch(error: Error, info: { componentStack?: string }) {
+    const message = error?.message || String(error || "unknown error");
+    const stack = String(info?.componentStack ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+    void runtimeLogWrite("ERROR", `react.render_error: ${message}; componentStack=${stack}`).catch(() => undefined);
   }
 
   private handleRetry = () => {

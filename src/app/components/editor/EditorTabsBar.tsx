@@ -1,6 +1,7 @@
 import { ChevronDown, Circle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "../../../lib/utils";
+import { runtimeLogWrite } from "../../../shared/api/runtime";
 import type { CloseTabsAction, EditorTab } from "../../../shared/types/app";
 import { EditorTabContextMenu } from "./EditorTabContextMenu";
 import { runTabButtonAction, swallowTabButtonEvent } from "./editorTabButtonAction";
@@ -96,16 +97,33 @@ export function EditorTabsBar(props: {
     [dirtyByPath, extraTabWidths, extraTabs, fileTabLayouts, tabs],
   );
   const overflowLayout = useMemo(
-    () => resolveEditorTabOverflow(
-      sizedItems,
-      activeDomTabId,
-      availableWidth,
-      {
-        gap: editorTabOverflowConstants.DEFAULT_TAB_GAP,
-        overflowButtonWidth: editorTabOverflowConstants.DEFAULT_OVERFLOW_BUTTON_WIDTH,
-      },
-    ),
-    [activeDomTabId, availableWidth, sizedItems],
+    () => {
+      try {
+        return resolveEditorTabOverflow(
+          sizedItems,
+          activeDomTabId,
+          availableWidth,
+          {
+            gap: editorTabOverflowConstants.DEFAULT_TAB_GAP,
+            overflowButtonWidth: editorTabOverflowConstants.DEFAULT_OVERFLOW_BUTTON_WIDTH,
+          },
+        );
+      } catch (error) {
+        void runtimeLogWrite(
+          "ERROR",
+          `editor_tabs_overflow.error: tabs=${tabs.length}, extraTabs=${extraTabs.length}, width=${availableWidth}, active=${activeDomTabId ?? "-"}, reason=${String(error)}`,
+        ).catch(() => undefined);
+        const visibleId = activeDomTabId && sizedItems.some((item) => item.id === activeDomTabId)
+          ? activeDomTabId
+          : sizedItems[0]?.id ?? "";
+        return {
+          visibleIds: visibleId ? [visibleId] : [],
+          hiddenIds: sizedItems.map((item) => item.id).filter((id) => id !== visibleId),
+          hasOverflow: sizedItems.length > 1,
+        };
+      }
+    },
+    [activeDomTabId, availableWidth, extraTabs.length, sizedItems, tabs.length],
   );
   const hiddenTabIds = overflowLayout.hiddenIds;
   const hiddenTabIdSet = useMemo(() => new Set(hiddenTabIds), [hiddenTabIds]);
@@ -148,6 +166,9 @@ export function EditorTabsBar(props: {
       setAvailableWidth(element.clientWidth);
     };
     refreshWidth();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
     const observer = new ResizeObserver(() => {
       window.requestAnimationFrame(refreshWidth);
     });

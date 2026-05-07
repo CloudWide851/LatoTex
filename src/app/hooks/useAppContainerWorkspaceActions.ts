@@ -17,6 +17,7 @@ import type { AppContainerWorkspaceActionsResult, UseAppContainerWorkspaceAction
 import { useNativeWindowCloseInterception } from "./windowCloseRequest";
 import { resolveWindowCloseRequestPlan, type CloseBehavior } from "./windowCloseFlow";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
+import { useLatexWorkspaceSessionRestore } from "./useLatexWorkspaceSessionRestore";
 
 export function useAppContainerWorkspaceActions(
   params: UseAppContainerWorkspaceActionsParams,
@@ -169,6 +170,7 @@ export function useAppContainerWorkspaceActions(
   const activateTabById = useCallback((tabId: string) => {
     const target = editorTabsRef.current.find((tab: any) => tab.id === tabId);
     if (!target) {
+      void runtimeLogWrite("WARN", `editor_tab_activate_missing: tabId=${tabId}`).catch(() => undefined);
       return;
     }
     setEditorTabs((prev: any[]) =>
@@ -178,7 +180,8 @@ export function useAppContainerWorkspaceActions(
     setPreferCompiledPreview(false);
     setPreviewOverridePath(null);
     setSelectedFile(target.path);
-  }, [editorTabsRef, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setSelectedFile]);
+    void runtimeLogWrite("INFO", `editor_tab_activate: path=${target.path}, tabId=${tabId}`).catch(() => undefined);
+  }, [editorTabsRef, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setPreviewOverridePath, setSelectedFile]);
 
   const handleTabSelect = useCallback((tabId: string) => {
     activateTabById(tabId);
@@ -186,6 +189,7 @@ export function useAppContainerWorkspaceActions(
 
   const openWorkspaceFile = useCallback((path: string, mode: "preview" | "pinned" = "preview") => {
     if (!path || !fileSet.has(path)) {
+      void runtimeLogWrite("WARN", `editor_file_open_rejected: path=${path || "-"}, reason=missing_from_tree`).catch(() => undefined);
       return;
     }
     const tabs = editorTabsRef.current;
@@ -204,6 +208,7 @@ export function useAppContainerWorkspaceActions(
         }
       }
       activateTabById(existing.id);
+      void runtimeLogWrite("INFO", `editor_file_open_existing: path=${path}, mode=${mode}, tabId=${existing.id}`).catch(() => undefined);
       return;
     }
 
@@ -225,6 +230,7 @@ export function useAppContainerWorkspaceActions(
       setPreviewOverridePath(null);
       setSelectedFile(path);
       setPreviewTabId(mode === "preview" ? newTab.id : previewTabIdRef.current);
+      void runtimeLogWrite("INFO", `editor_file_open_new: path=${path}, mode=${mode}, tabId=${newTab.id}`).catch(() => undefined);
     };
 
     if (mode === "preview") {
@@ -238,7 +244,7 @@ export function useAppContainerWorkspaceActions(
       }
     }
     openTab();
-  }, [activateTabById, buildEditorTab, editorTabsRef, fileSet, previewTabIdRef, requestUnsavedGuard, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setPreviewTabId, setSelectedFile]);
+  }, [activateTabById, buildEditorTab, editorTabsRef, fileSet, previewTabIdRef, requestUnsavedGuard, setActiveTabId, setEditorTabs, setPreferCompiledPreview, setPreviewOverridePath, setPreviewTabId, setSelectedFile]);
 
   const handleTabPin = useCallback((tabId: string) => {
     setEditorTabs((prev: any[]) =>
@@ -256,8 +262,10 @@ export function useAppContainerWorkspaceActions(
   const handleTabClose = useCallback((tabId: string) => {
     const tab = editorTabsRef.current.find((item: any) => item.id === tabId);
     if (!tab) {
+      void runtimeLogWrite("WARN", `editor_tab_close_missing: tabId=${tabId}`).catch(() => undefined);
       return;
     }
+    void runtimeLogWrite("INFO", `editor_tab_close_requested: path=${tab.path}, tabId=${tabId}`).catch(() => undefined);
     requestUnsavedGuard("closeTabs", [tab.path], () => closeTabsNow([tabId]));
   }, [closeTabsNow, requestUnsavedGuard, editorTabsRef]);
 
@@ -301,6 +309,20 @@ export function useAppContainerWorkspaceActions(
       setSelectedFile(normalized);
     }
   }, [fileSet, openWorkspaceFile, selectedFile, setPreferCompiledPreview, setPreviewOverridePath, setSelectedFile]);
+
+  useLatexWorkspaceSessionRestore({
+    activeProjectId,
+    buildEditorTab,
+    editorTabsRef,
+    fileSet,
+    selectedFile,
+    setActiveTabId,
+    setEditorTabs,
+    setPreferCompiledPreview,
+    setPreviewOverridePath,
+    setPreviewTabId,
+    setSelectedFile,
+  });
 
   useEffect(() => {
     if (!selectedFile || !fileSet.has(selectedFile)) {

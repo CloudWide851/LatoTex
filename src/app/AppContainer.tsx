@@ -352,6 +352,7 @@ export function AppContainer() {
     t,
     busy: s.busy,
     activeProjectId: s.activeProjectId,
+    fileList: s.fileList,
     settingsSection: s.settingsSection,
     setSettingsSection: s.setSettingsSection,
     runtimeInfo: s.runtimeInfo,

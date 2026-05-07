@@ -17,9 +17,14 @@ import {
   WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
 import { buildNewChatTabState } from "./workspace/workspaceChatTab";
+import {
+  loadLatexWorkspaceSession,
+  persistLatexWorkspaceChatSession,
+} from "./workspace/latexWorkspaceSession";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 import { createChatSessionInStore, loadChatStore, type ChatSessionOpenDetail } from "../hooks/chatSessionStore";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
+import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
   resolveWorkspacePreviewFlags,
   resolveWorkspacePreviewMode,
@@ -183,8 +188,42 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     if (!activeProjectId) {
       setChatTabOpen(false);
       setChatTabActive(false);
+      return;
     }
+    const restored = loadLatexWorkspaceSession(activeProjectId);
+    if (!restored?.chatTabOpen) {
+      setChatTabOpen(false);
+      setChatTabActive(false);
+      return;
+    }
+    const store = loadChatStore(activeProjectId);
+    const activeTitle = store.activeSessionId
+      ? store.sessions.find((item) => item.id === store.activeSessionId)?.title ?? null
+      : null;
+    setChatTabOpen(true);
+    setChatTabActive(restored.chatTabActive);
+    setChatTabTitle(activeTitle);
+    void runtimeLogWrite(
+      "INFO",
+      `latex_chat_tab_restore: project=${activeProjectId}, active=${restored.chatTabActive}`,
+    ).catch(() => undefined);
   }, [activeProjectId]);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      persistLatexWorkspaceChatSession({
+        projectId: activeProjectId,
+        chatTabOpen,
+        chatTabActive,
+      });
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activeProjectId, chatTabActive, chatTabOpen]);
 
   useEffect(() => {
     if (page !== "latex") {

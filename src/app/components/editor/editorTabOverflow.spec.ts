@@ -38,4 +38,31 @@ describe("editorTabOverflow", () => {
     expect(result.hiddenIds).toEqual([]);
     expect(result.hasOverflow).toBe(false);
   });
+
+  it("does not render every tab while the container width is still unmeasured", () => {
+    const result = resolveEditorTabOverflow(items, "d", 0);
+
+    expect(result.visibleIds).toEqual(["d"]);
+    expect(result.hiddenIds).toEqual(["a", "b", "c", "e"]);
+    expect(result.hasOverflow).toBe(true);
+  });
+
+  it("keeps one valid tab visible when the active id is missing", () => {
+    const result = resolveEditorTabOverflow(items, "missing", 32);
+
+    expect(result.visibleIds).toEqual(["a"]);
+    expect(result.hiddenIds).toEqual(["b", "c", "d", "e"]);
+    expect(result.hasOverflow).toBe(true);
+  });
+
+  it("normalizes invalid widths instead of throwing", () => {
+    const result = resolveEditorTabOverflow([
+      { id: "a", width: Number.NaN },
+      { id: "b", width: Number.POSITIVE_INFINITY },
+      { id: "c", width: 80 },
+    ], "c", 64);
+
+    expect(result.visibleIds).toEqual(["c"]);
+    expect(result.hiddenIds).toEqual(["a", "b"]);
+  });
 });

@@ -32,6 +32,7 @@ import {
 import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import type { CompileInstallProgress } from "./compileWorkflow";
 import { loadWorkspacePage, persistWorkspacePage } from "./workspacePageStorage";
+import { persistLatexWorkspaceFileSession } from "../components/workspace/latexWorkspaceSession";
 
 export type AgentProposalMap = Record<string, AgentFileProposal>;
 export type AgentPendingAction =
@@ -219,6 +220,22 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   useEffect(() => {
     persistWorkspacePage(page);
   }, [page]);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      persistLatexWorkspaceFileSession({
+        projectId: activeProjectId,
+        tabs: editorTabs,
+        activePath: selectedFile,
+      });
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activeProjectId, editorTabs, selectedFile]);
 
   useEffect(() => {
     if (!activeProjectId) {

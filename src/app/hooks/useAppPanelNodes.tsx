@@ -42,6 +42,7 @@ export function useAppPanelNodes(params: any) {
     t,
     busy,
     activeProjectId,
+    fileList,
     settingsSection,
     setSettingsSection,
     runtimeInfo,
@@ -302,6 +303,7 @@ export function useAppPanelNodes(params: any) {
       <LazySettingsPanel
       settings={settings}
       activeProjectId={activeProjectId}
+      fileList={fileList ?? []}
       locale={locale}
       busy={busy}
       settingsSection={settingsSection}

@@ -26,15 +26,13 @@ function resolveVisibleWindow(
   if (items.length === 0) {
     return { visibleIds: [], hiddenIds: [], hasOverflow: false };
   }
-  if (availableWidth <= 0) {
-    const allIds = items.map((item) => item.id);
-    return { visibleIds: allIds, hiddenIds: [], hasOverflow: false };
+  const activeMatchIndex = activeId ? items.findIndex((item) => item.id === activeId) : -1;
+  const activeIndex = activeMatchIndex >= 0 ? activeMatchIndex : 0;
+  if (!Number.isFinite(availableWidth) || availableWidth <= 0) {
+    const visibleIds = [items[activeIndex]!.id];
+    const hiddenIds = items.filter((_, index) => index !== activeIndex).map((item) => item.id);
+    return { visibleIds, hiddenIds, hasOverflow: hiddenIds.length > 0 };
   }
-
-  const activeIndex = Math.max(
-    0,
-    activeId ? items.findIndex((item) => item.id === activeId) : 0,
-  );
   const visibleIndices = new Set<number>([activeIndex]);
   let usedWidth = items[activeIndex]?.width ?? 0;
   let leftIndex = activeIndex - 1;
@@ -111,12 +109,18 @@ export function resolveEditorTabOverflow(
 ): ResolveTabOverflowResult {
   const gap = options.gap ?? DEFAULT_TAB_GAP;
   const overflowButtonWidth = options.overflowButtonWidth ?? DEFAULT_OVERFLOW_BUTTON_WIDTH;
-  const baseLayout = resolveVisibleWindow(items, activeId, availableWidth, gap);
+  const normalizedItems = items
+    .filter((item) => item && typeof item.id === "string" && item.id.trim().length > 0)
+    .map((item) => ({
+      id: item.id,
+      width: Number.isFinite(item.width) ? Math.max(1, item.width) : 1,
+    }));
+  const baseLayout = resolveVisibleWindow(normalizedItems, activeId, availableWidth, gap);
   if (!baseLayout.hasOverflow) {
     return baseLayout;
   }
   const reservedWidth = Math.max(0, availableWidth - overflowButtonWidth - gap);
-  return resolveVisibleWindow(items, activeId, reservedWidth, gap);
+  return resolveVisibleWindow(normalizedItems, activeId, reservedWidth, gap);
 }
 
 export const editorTabOverflowConstants = {

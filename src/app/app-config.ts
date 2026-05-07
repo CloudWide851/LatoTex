@@ -35,6 +35,7 @@ export type SettingsSection =
   | "mcp"
   | "skills"
   | "channels"
+  | "doctor"
   | "diagnostics";
 export type OverlayType = "logs" | null;
 export type LogTab = "status" | "events";
@@ -89,6 +90,7 @@ export const SETTINGS_SECTIONS: Array<{
     | "settings.section.mcp"
     | "settings.section.skills"
     | "settings.section.channels"
+    | "settings.section.doctor"
     | "settings.section.diagnostics";
   icon: typeof Languages;
 }> = [
@@ -101,6 +103,7 @@ export const SETTINGS_SECTIONS: Array<{
   { id: "mcp", key: "settings.section.mcp", icon: Network },
   { id: "skills", key: "settings.section.skills", icon: BrainCircuit },
   { id: "channels", key: "settings.section.channels", icon: Globe },
+  { id: "doctor", key: "settings.section.doctor", icon: Wrench },
   { id: "diagnostics", key: "settings.section.diagnostics", icon: Settings2 },
 ];
 

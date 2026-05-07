@@ -19,6 +19,7 @@ import {
   type ThemeMode,
 } from "../app-config";
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
+import { SettingsDoctorSection } from "./settings/SettingsDoctorSection";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
 import { AgentToolsSettingsSection, McpSettingsSection, SkillsSettingsSection } from "./settings/AgentToolsSettingsSection";
@@ -36,6 +37,7 @@ type TranslationFn = (key: any) => string;
 export function SettingsPanel(props: {
   settings: AppSettings | null;
   activeProjectId: string | null;
+  fileList: string[];
   locale: Locale;
   busy: boolean;
   settingsSection: SettingsSection;
@@ -69,6 +71,7 @@ export function SettingsPanel(props: {
   const {
     settings,
     activeProjectId,
+    fileList,
     locale,
     busy,
     settingsSection,
@@ -401,6 +404,17 @@ export function SettingsPanel(props: {
 
         {settingsSection === "channels" && (
           <ChannelsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+        )}
+
+        {settingsSection === "doctor" && (
+          <SettingsDoctorSection
+            activeProjectId={activeProjectId}
+            fileList={fileList}
+            settings={settings}
+            setSettings={setSettings}
+            onReleaseMemory={onReleaseMemory}
+            t={t}
+          />
         )}
 
         {settingsSection === "diagnostics" && (
