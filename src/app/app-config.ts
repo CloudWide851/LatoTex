@@ -136,7 +136,7 @@ export const DEFAULT_BINDINGS: AgentModelBinding[] = [
 export const DEFAULT_PANEL_LAYOUT: PanelLayoutPrefs = {
   shell: [7, 93],
   latex: [22, 48, 30],
-  latexTerminal: [68, 32],
+  latexTerminal: [78, 22],
   analysis: [26, 74],
   library: [30, 70],
   libraryBib: [54, 46],

@@ -548,11 +548,11 @@ export function LatexWorkspaceEditorPanel(props: {
               emitWorkspaceLayoutRefresh("latex", "panel-layout");
             }}
           >
-            <Panel id="latex-editor-main" order={1} defaultSize={terminalLayout[0] ?? 68} minSize={36} className="min-h-0">
+            <Panel id="latex-editor-main" order={1} defaultSize={terminalLayout[0] ?? 78} minSize={42} className="min-h-0">
               <div className="relative h-full min-h-0">{editorStageContent}</div>
             </Panel>
             <PanelResizeHandle className="resizable-handle resizable-handle-vertical" />
-            <Panel id="latex-editor-terminal" order={2} defaultSize={terminalLayout[1] ?? 32} minSize={18} className="min-h-0">
+            <Panel id="latex-editor-terminal" order={2} defaultSize={terminalLayout[1] ?? 22} minSize={10} className="min-h-0">
               <WorkspaceTerminalPanel
                 activeProjectId={activeProjectId}
                 selectedFile={selectedFile}

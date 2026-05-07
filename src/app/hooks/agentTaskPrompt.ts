@@ -173,6 +173,7 @@ export function buildTaskExecutionPrompt(params: {
           "[citation.insertion.v1]",
           `- Preferred citation command for this target: ${detectCitationCommand(userPrompt, normalized)}{key}.`,
           "- Use BibTeX keys from attached .bib context when available.",
+          "- If you cite a key from an attached .bib file, ensure the target .tex has a matching bibliography resource: use \\addbibresource{<attached .bib path>} for biblatex, or add/extend \\bibliography{<attached .bib path without .bib>} for BibTeX.",
           "- Insert citations into the target .tex content, not into the .bib file, unless the user explicitly asks to edit bibliography entries.",
           "",
         ]

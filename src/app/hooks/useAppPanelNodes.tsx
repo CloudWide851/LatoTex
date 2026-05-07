@@ -278,7 +278,7 @@ export function useAppPanelNodes(params: any) {
       };
       if (page === "latex") {
         nextPanelLayout.latex = [...(DEFAULT_PANEL_LAYOUT.latex ?? [22, 48, 30])];
-        nextPanelLayout.latexTerminal = [...(DEFAULT_PANEL_LAYOUT.latexTerminal ?? [68, 32])];
+        nextPanelLayout.latexTerminal = [...(DEFAULT_PANEL_LAYOUT.latexTerminal ?? [78, 22])];
       } else if (page === "analysis") {
         nextPanelLayout.analysis = [...(DEFAULT_PANEL_LAYOUT.analysis ?? [26, 74])];
       } else if (page === "library") {

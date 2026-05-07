@@ -262,11 +262,11 @@ body::before {
 }
 
 .motion-fade-in {
-  animation: fade-in 140ms ease-out;
+  animation: fade-in 170ms var(--motion-ease-out-quart);
 }
 
 .motion-slide-up {
-  animation: slide-up 140ms ease-out;
+  animation: slide-up 180ms var(--motion-ease-out-quart);
   backface-visibility: hidden;
   transform: translateZ(0);
   will-change: transform, opacity;
@@ -284,7 +284,7 @@ body::before {
 }
 
 .motion-page-in {
-  animation: page-in 120ms ease-out;
+  animation: page-in 180ms var(--motion-ease-out-quart);
   backface-visibility: hidden;
   transform: translateZ(0);
   will-change: transform, opacity;

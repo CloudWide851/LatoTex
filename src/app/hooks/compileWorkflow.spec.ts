@@ -10,6 +10,7 @@ import {
   resolveFontFallbackCandidates,
   shouldDisplayCompileProgress,
 } from "./compileWorkflow";
+import { collectBibliographyResourcePathsFromFileMap } from "./compileBibliographyFiles";
 
 describe("compile workflow missing package detection", () => {
   it("detects missing styles and ignores fontspec package-error false positives", () => {
@@ -192,6 +193,24 @@ describe("compile workflow progress visibility", () => {
       total: 100,
       message: "Starting Tectonic",
     })).toBe(true);
+  });
+});
+
+describe("compile workflow bibliography resources", () => {
+  it("collects biblatex and BibTeX resources including paper-library paths", () => {
+    const fileMap = {
+      "main.tex": String.raw`\addbibresource{.latotex/papers/library paper.bib}
+\bibliography{refs/local,.latotex/papers/nested/remote}`,
+      "sections/intro.tex": String.raw`\addbibresource[datatype=bibtex]{refs/extra.bib}`,
+      "notes.md": "\\bibliography{ignored}",
+    };
+
+    expect(collectBibliographyResourcePathsFromFileMap(fileMap)).toEqual([
+      ".latotex/papers/library paper.bib",
+      "refs/local.bib",
+      ".latotex/papers/nested/remote.bib",
+      "refs/extra.bib",
+    ]);
   });
 });
 

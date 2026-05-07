@@ -6,6 +6,7 @@ import { runtimeSystemFontProbe } from "../../shared/api/runtimeFontProbe";
 import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 import type { NativeLatexCompileTaskStatus } from "../../shared/types/app";
 import { applyFontFallbackToCompileMap, collectConfiguredFontsFromCompileMap } from "./compileFontFallbackFiles";
+import { appendBibliographyResourcesToFileMap } from "./compileBibliographyFiles";
 import {
   type CompileInstallProgress,
   isLikelyFontFamily,
@@ -303,6 +304,12 @@ async function buildCompileFileMap(
     const data = await readFile(projectId, filePath);
     fileMap[filePath] = data.content;
   }
+  await appendBibliographyResourcesToFileMap({
+    fileMap,
+    scanFileMap: { ...fileMap, [mainPath]: mainContent },
+    readTextFile: async (path) => (await readFile(projectId, path)).content,
+    shouldIncludeFile: shouldIncludeCompileFile,
+  });
   return fileMap;
 }
 type NativeCompileResult = Awaited<ReturnType<typeof compileWithNativeLatex>>;

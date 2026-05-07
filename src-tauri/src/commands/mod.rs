@@ -1,4 +1,5 @@
 pub mod agent_workflows;
+mod agent_workflows_context;
 pub mod analysis;
 pub mod channels;
 pub mod git;
@@ -11,4 +12,3 @@ pub mod settings;
 pub mod share;
 pub mod swarm;
 pub mod terminal;
-

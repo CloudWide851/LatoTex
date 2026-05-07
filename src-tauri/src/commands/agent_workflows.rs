@@ -1,4 +1,5 @@
 use crate::commands::swarm::start_agent_execution;
+use crate::commands::agent_workflows_context::context_path_candidates;
 use crate::models::{
     AgentExecuteRequest, AgentExecuteStartAccepted, ChatWorkflowStartInput,
     CompletionWorkflowStartInput, GitSummaryWorkflowStartInput, LatexEditStartInput,
@@ -30,14 +31,6 @@ fn dedupe_push(values: &mut Vec<String>, next: impl Into<String>) {
     }
 }
 
-fn normalize_context_path(value: &str) -> Option<String> {
-    let normalized = value.trim().replace('\\', "/").trim_matches('/').to_string();
-    if normalized.is_empty() {
-        return None;
-    }
-    Some(normalized)
-}
-
 fn supported_context_extension(path: &Path) -> bool {
     matches!(
         path.extension()
@@ -65,26 +58,26 @@ fn resolve_context_refs(
 ) -> Vec<String> {
     let mut resolved = Vec::new();
     for raw in context_paths {
-        let Some(relative_path) = normalize_context_path(raw) else {
-            continue;
-        };
-        let Ok(target) = storage::resolve_project_relative_path(db_path, project_id, &relative_path) else {
-            continue;
-        };
-        let Ok(metadata) = fs::metadata(&target) else {
-            continue;
-        };
-        if metadata.is_dir() {
-            dedupe_push(&mut resolved, format!("folder:{relative_path}"));
-        } else if target
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(|value| value.eq_ignore_ascii_case("pdf"))
-            .unwrap_or(false)
-        {
-            dedupe_push(&mut resolved, format!("paper:{relative_path}"));
-        } else {
-            dedupe_push(&mut resolved, format!("file:{relative_path}"));
+        for relative_path in context_path_candidates(raw) {
+            let Ok(target) = storage::resolve_project_relative_path(db_path, project_id, &relative_path) else {
+                continue;
+            };
+            let Ok(metadata) = fs::metadata(&target) else {
+                continue;
+            };
+            if metadata.is_dir() {
+                dedupe_push(&mut resolved, format!("folder:{relative_path}"));
+            } else if target
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(|value| value.eq_ignore_ascii_case("pdf"))
+                .unwrap_or(false)
+            {
+                dedupe_push(&mut resolved, format!("paper:{relative_path}"));
+            } else {
+                dedupe_push(&mut resolved, format!("file:{relative_path}"));
+            }
+            break;
         }
     }
     resolved

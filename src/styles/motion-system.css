@@ -69,15 +69,15 @@
 }
 
 .motion-shell-stage {
-  animation: prism-rise 360ms var(--motion-ease-out-expo);
+  animation: prism-rise 280ms var(--motion-ease-out-expo);
 }
 
 .motion-card-pop {
-  animation: prism-pop 300ms var(--motion-ease-soft);
+  animation: prism-pop 240ms var(--motion-ease-soft);
 }
 
 .motion-overlay-enter {
-  animation: prism-veil 220ms var(--motion-ease-out-quart);
+  animation: prism-veil 190ms var(--motion-ease-out-quart);
 }
 
 .motion-panel-glow {
@@ -156,6 +156,7 @@
 
 .motion-hover-rise {
   transition:
+    transform 170ms var(--motion-ease-out-quart),
     box-shadow 170ms var(--motion-ease-out-quart),
     background-color 170ms var(--motion-ease-out-quart),
     border-color 170ms var(--motion-ease-out-quart),
@@ -163,6 +164,7 @@
 }
 
 .motion-hover-rise:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
