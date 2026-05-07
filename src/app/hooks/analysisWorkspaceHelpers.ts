@@ -1,4 +1,6 @@
 import type { SwarmEvent } from "../../shared/types/app";
+import { enUS_analysis } from "../../i18n/messages/en-US/analysis";
+import { zhCN_analysis } from "../../i18n/messages/zh-CN/analysis";
 import { normalizeAgentActions, parseYamlAgentActions, type AgentAction } from "../components/agent/agentActionParser";
 import type { AnalysisSourceSnapshot } from "./analysisDataSources";
 import type { AnalysisOutputLanguage, AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
@@ -91,27 +93,16 @@ function buildBarChartSvg(labels: string[], values: number[]): string {
 }
 
 function reportText(language: AnalysisOutputLanguage) {
-  if (language === "zh-CN") {
-    return {
-      generatedAt: "生成时间",
-      summary: "摘要",
-      methods: "方法与流程",
-      findings: "关键发现",
-      sections: "详细分析",
-      chart: "图表",
-      empty: "暂无内容",
-      chartAlt: "分析图表",
-    };
-  }
+  const messages = language === "zh-CN" ? zhCN_analysis : enUS_analysis;
   return {
-    generatedAt: "Generated At",
-    summary: "Summary",
-    methods: "Methods",
-    findings: "Key Findings",
-    sections: "Detailed Analysis",
-    chart: "Charts",
-    empty: "No content",
-    chartAlt: "analysis chart",
+    generatedAt: messages["analysis.report.generatedAt"],
+    summary: messages["analysis.report.summary"],
+    methods: messages["analysis.report.methods"],
+    findings: messages["analysis.report.findings"],
+    sections: messages["analysis.report.sections"],
+    chart: messages["analysis.report.chart"],
+    empty: messages["analysis.report.empty"],
+    chartAlt: messages["analysis.report.chartAlt"],
   };
 }
 
@@ -237,7 +228,10 @@ export function buildReportHtml(input: {
   <div class="wrap">
     <section class="hero">
       <h1>${input.title}</h1>
-      <p class="muted">${text.generatedAt}: ${new Date().toLocaleString()}</p>
+      <p class="muted">${text.generatedAt}: ${new Intl.DateTimeFormat(input.language, {
+        dateStyle: "short",
+        timeStyle: "medium",
+      }).format(new Date())}</p>
     </section>
     <section class="card">
       <h2>${text.summary}</h2>

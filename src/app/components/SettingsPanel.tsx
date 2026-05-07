@@ -157,7 +157,7 @@ export function SettingsPanel(props: {
   }, [locale, localSettings, setSettings]);
 
   return (
-    <div className="relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
+    <div className="settings-panel-scroll-scope relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
       <aside className="bg-slate-50 p-2 max-[980px]:border-b">
         <div className="space-y-1">
           {SETTINGS_SECTIONS.map((item) => {
@@ -166,10 +166,8 @@ export function SettingsPanel(props: {
               <button
                 key={item.id}
                 className={cn(
-                  "flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
-                  settingsSection === item.id
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-700 hover:bg-slate-200",
+                  "settings-nav-item flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition focus:outline-none",
+                  settingsSection === item.id && "settings-nav-item--active",
                 )}
                 onClick={() => onSettingsSectionChange(item.id)}
               >
@@ -186,7 +184,7 @@ export function SettingsPanel(props: {
           "min-h-0 p-3",
           settingsSection === "diagnostics"
             ? "grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
-            : "library-scrollbar overflow-auto",
+            : "settings-scrollbar-hidden overflow-auto",
         )}
       >
         <div className="mb-3 border-b border-slate-200 pb-3">
@@ -303,7 +301,7 @@ export function SettingsPanel(props: {
               </div>
             </div>
             <div className="space-y-2">
-              <div className="library-scrollbar max-h-[42vh] space-y-2 overflow-auto pr-1">
+              <div className="settings-scrollbar-hidden max-h-[42vh] space-y-2 overflow-auto pr-1">
                 {localSettings.modelCatalog.map((model) => {
                   const protocol = localSettings.modelProtocols.find(
                     (item) => item.id === model.protocolId,
@@ -410,6 +408,7 @@ export function SettingsPanel(props: {
           <SettingsDoctorSection
             activeProjectId={activeProjectId}
             fileList={fileList}
+            locale={locale}
             settings={settings}
             setSettings={setSettings}
             onReleaseMemory={onReleaseMemory}

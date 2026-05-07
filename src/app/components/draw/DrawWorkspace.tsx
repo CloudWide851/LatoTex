@@ -554,7 +554,7 @@ export function DrawWorkspace(props: {
                 ref={frameRef}
                 key={frameSrc}
                 src={frameSrc}
-                title="drawio"
+                title={t("draw.frameTitle")}
                 className={`h-full w-full border-0 transition-opacity duration-200 ${framePhase === "ready" ? "opacity-100" : "opacity-0"}`}
                 onLoad={() => {
                   handshakeStageRef.current = "iframe_load_event";

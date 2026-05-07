@@ -16,6 +16,7 @@ export const zhCN_share = {
   "share.qrHint": "扫描二维码加入协同。",
   "share.qrHintLocal": "扫描二维码可直接加入本地协同。",
   "share.qrHintRemote": "扫描二维码后输入口令加入远程协同。",
+  "share.qrAlt": "共享二维码",
   "share.openPanel": "打开共享面板",
   "share.status.starting": "共享启动中",
   "share.status.startingLocal": "本地共享启动中",

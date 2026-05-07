@@ -16,6 +16,7 @@ export const enUS_share = {
   "share.qrHint": "Scan QR code to join collaboration.",
   "share.qrHintLocal": "Scan QR code to join local collaboration directly.",
   "share.qrHintRemote": "Scan QR code, then enter password to join remote collaboration.",
+  "share.qrAlt": "Share QR code",
   "share.openPanel": "Open Share Panel",
   "share.status.starting": "Starting share",
   "share.status.startingLocal": "Starting local share",

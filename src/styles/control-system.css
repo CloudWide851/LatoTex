@@ -367,8 +367,9 @@
 }
 
 [data-theme="dark"] .control-menu-item--selected {
-  background-color: rgba(59, 130, 246, 0.22);
-  color: #dbeafe;
+  border-color: color-mix(in srgb, var(--control-primary-border) 72%, transparent);
+  background-color: color-mix(in srgb, var(--app-accent) 24%, rgba(15, 23, 42, 0.9));
+  color: color-mix(in srgb, var(--app-accent) 34%, #e2e8f0);
 }
 
 .panel-topbar-btn {

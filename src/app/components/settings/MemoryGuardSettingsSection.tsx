@@ -99,6 +99,7 @@ export function MemoryGuardSettingsSection(props: {
       </div>
       <Select
         value={prefs.criticalAction ?? "sleep"}
+        portalClassName="settings-scrollbar-hidden"
         onChange={(event) => updatePrefs({ criticalAction: event.target.value as "release" | "sleep" })}
       >
         <option value="release">{t("settings.memoryGuardAction.release")}</option>

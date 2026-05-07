@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2, RefreshCw, Stethoscope, Wrench, XCircle } from "lucide-react";
+import { Activity, CheckCircle2, Loader2, RefreshCw, Stethoscope, Wrench, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { analysisEnvPrepareStart, analysisEnvPrepareStatus, analysisEnvStatus } from "../../../shared/api/analysis";
@@ -13,6 +13,7 @@ import {
 
 type TranslationFn = (key: any) => string;
 type DoctorStatus = "pass" | "warn" | "fail" | "info";
+type DoctorPhase = "pending" | "running" | "done";
 type DoctorRepairId =
   | "projectIntegrity"
   | "searchIndex"
@@ -25,9 +26,54 @@ type DoctorCheck = {
   id: string;
   titleKey: string;
   status: DoctorStatus;
-  message: string;
+  phase: DoctorPhase;
+  messageKey: string;
+  params?: Record<string, string>;
   repairId?: DoctorRepairId;
 };
+
+type DoctorCheckId =
+  | "runtimeLog"
+  | "memory"
+  | "projectIntegrity"
+  | "searchIndex"
+  | "latexSession"
+  | "pythonEnv"
+  | "latexLayout";
+
+const DOCTOR_CHECK_ORDER: Array<{ id: DoctorCheckId; titleKey: string }> = [
+  { id: "runtimeLog", titleKey: "settings.doctor.runtimeLog" },
+  { id: "memory", titleKey: "settings.doctor.memory" },
+  { id: "projectIntegrity", titleKey: "settings.doctor.project" },
+  { id: "searchIndex", titleKey: "settings.doctor.searchIndex" },
+  { id: "latexSession", titleKey: "settings.doctor.latexSession" },
+  { id: "pythonEnv", titleKey: "settings.doctor.pythonEnv" },
+  { id: "latexLayout", titleKey: "settings.doctor.latexLayout" },
+];
+
+export function formatDoctorMessage(
+  t: TranslationFn,
+  key: string,
+  params?: Record<string, string>,
+): string {
+  let message = t(key);
+  for (const [name, value] of Object.entries(params ?? {})) {
+    message = message.replaceAll(`{${name}}`, value);
+  }
+  return message;
+}
+
+export function createInitialDoctorChecks(activeProjectId: string | null): DoctorCheck[] {
+  return DOCTOR_CHECK_ORDER
+    .filter((item) => activeProjectId || !["projectIntegrity", "searchIndex", "latexSession", "pythonEnv"].includes(item.id))
+    .map((item) => ({
+      id: item.id,
+      titleKey: item.titleKey,
+      status: "info",
+      phase: "pending",
+      messageKey: "settings.doctor.pending",
+    }));
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -63,7 +109,10 @@ function statusTone(status: DoctorStatus) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function StatusIcon(props: { status: DoctorStatus }) {
+function StatusIcon(props: { status: DoctorStatus; phase?: DoctorPhase }) {
+  if (props.phase === "running") {
+    return <Loader2 className="h-4 w-4 animate-spin text-[color:var(--app-accent)]" />;
+  }
   if (props.status === "pass") {
     return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
   }
@@ -79,146 +128,231 @@ function StatusIcon(props: { status: DoctorStatus }) {
 export function SettingsDoctorSection(props: {
   activeProjectId: string | null;
   fileList: string[];
+  locale: string;
   settings: AppSettings | null;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;
   onReleaseMemory?: () => void;
   t: TranslationFn;
 }) {
-  const { activeProjectId, fileList, settings, setSettings, onReleaseMemory, t } = props;
+  const { activeProjectId, fileList, locale, settings, setSettings, onReleaseMemory, t } = props;
   const [checks, setChecks] = useState<DoctorCheck[]>([]);
   const [running, setRunning] = useState(false);
   const [repairing, setRepairing] = useState<DoctorRepairId | null>(null);
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
   const fileSet = useMemo(() => new Set(fileList), [fileList]);
 
+  const upsertCheck = (check: DoctorCheck) => {
+    setChecks((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === check.id);
+      if (existingIndex < 0) {
+        return [...prev, check];
+      }
+      const next = [...prev];
+      next[existingIndex] = check;
+      return next;
+    });
+  };
+
+  const markRunning = (id: DoctorCheckId) => {
+    setChecks((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, phase: "running", messageKey: "settings.doctor.checkingItem" }
+          : item,
+      ),
+    );
+  };
+
   const runChecks = async () => {
     setRunning(true);
-    const next: DoctorCheck[] = [];
+    const initialChecks = createInitialDoctorChecks(activeProjectId);
+    const nextById = new Map<string, DoctorCheck>(initialChecks.map((check) => [check.id, check]));
+    setChecks(initialChecks);
     await runtimeLogWrite("INFO", "doctor.check.start").catch(() => undefined);
     try {
+      markRunning("runtimeLog");
       try {
         const [info, sessions] = await Promise.all([runtimeLogInfo(), runtimeLogListSessions()]);
-        next.push({
+        const check: DoctorCheck = {
           id: "runtimeLog",
           titleKey: "settings.doctor.runtimeLog",
           status: info.sessionLogFile && sessions.sessions.length > 0 ? "pass" : "warn",
-          message: t("settings.doctor.runtimeLog.ok")
-            .replace("{file}", info.sessionLogFile || "-")
-            .replace("{count}", String(sessions.sessions.length)),
-        });
+          phase: "done",
+          messageKey: "settings.doctor.runtimeLog.ok",
+          params: {
+            file: info.sessionLogFile || "-",
+            count: String(sessions.sessions.length),
+          },
+        };
+        nextById.set(check.id, check);
+        upsertCheck(check);
       } catch (error) {
-        next.push({
+        const check: DoctorCheck = {
           id: "runtimeLog",
           titleKey: "settings.doctor.runtimeLog",
           status: "fail",
-          message: String(error),
-        });
+          phase: "done",
+          messageKey: "settings.doctor.error",
+          params: { reason: String(error) },
+        };
+        nextById.set(check.id, check);
+        upsertCheck(check);
       }
 
+      markRunning("memory");
       try {
         const memory = await runtimeMemorySnapshot();
-        next.push({
+        const check: DoctorCheck = {
           id: "memory",
           titleKey: "settings.doctor.memory",
           status: "info",
-          message: t("settings.doctor.memory.ok")
-            .replace("{rss}", bytesToMb(memory.totalRssBytes ?? memory.rssBytes))
-            .replace("{webview}", bytesToMb(memory.webviewRssBytes)),
+          phase: "done",
+          messageKey: "settings.doctor.memory.ok",
+          params: {
+            rss: bytesToMb(memory.totalRssBytes ?? memory.rssBytes),
+            webview: bytesToMb(memory.webviewRssBytes),
+          },
           repairId: onReleaseMemory ? "releaseMemory" : undefined,
-        });
+        };
+        nextById.set(check.id, check);
+        upsertCheck(check);
       } catch (error) {
-        next.push({
+        const check: DoctorCheck = {
           id: "memory",
           titleKey: "settings.doctor.memory",
           status: "warn",
-          message: String(error),
-        });
+          phase: "done",
+          messageKey: "settings.doctor.error",
+          params: { reason: String(error) },
+        };
+        nextById.set(check.id, check);
+        upsertCheck(check);
       }
 
       if (!activeProjectId) {
-        next.push({
-          id: "project",
+        const check: DoctorCheck = {
+          id: "projectIntegrity",
           titleKey: "settings.doctor.project",
           status: "info",
-          message: t("settings.doctor.noProject"),
-        });
+          phase: "done",
+          messageKey: "settings.doctor.noProject",
+        };
+        nextById.set(check.id, check);
+        upsertCheck(check);
       } else {
+        markRunning("projectIntegrity");
         try {
           const integrity = await projectIntegrityStatus(activeProjectId);
-          next.push({
+          const missing = integrity.missingRequired.length;
+          const check: DoctorCheck = {
             id: "projectIntegrity",
             titleKey: "settings.doctor.project",
-            status: integrity.missingRequired.length === 0 ? "pass" : "warn",
-            message: integrity.missingRequired.length === 0
-              ? t("settings.doctor.project.ok")
-              : t("settings.doctor.project.missing").replace("{items}", integrity.missingRequired.join(", ")),
-            repairId: integrity.missingRequired.length > 0 ? "projectIntegrity" : undefined,
-          });
+            status: missing === 0 ? "pass" : "warn",
+            phase: "done",
+            messageKey: missing === 0 ? "settings.doctor.project.ok" : "settings.doctor.project.missing",
+            params: missing === 0 ? undefined : { items: integrity.missingRequired.join(", ") },
+            repairId: missing > 0 ? "projectIntegrity" : undefined,
+          };
+          nextById.set(check.id, check);
+          upsertCheck(check);
         } catch (error) {
-          next.push({
+          const check: DoctorCheck = {
             id: "projectIntegrity",
             titleKey: "settings.doctor.project",
             status: "fail",
-            message: String(error),
-          });
+            phase: "done",
+            messageKey: "settings.doctor.error",
+            params: { reason: String(error) },
+          };
+          nextById.set(check.id, check);
+          upsertCheck(check);
         }
 
-        next.push({
+        markRunning("searchIndex");
+        const searchCheck: DoctorCheck = {
           id: "searchIndex",
           titleKey: "settings.doctor.searchIndex",
           status: "info",
-          message: t("settings.doctor.searchIndex.info"),
+          phase: "done",
+          messageKey: "settings.doctor.searchIndex.info",
           repairId: "searchIndex",
-        });
+        };
+        nextById.set(searchCheck.id, searchCheck);
+        upsertCheck(searchCheck);
 
+        markRunning("latexSession");
         const session = loadLatexWorkspaceSession(activeProjectId);
         const invalidPaths = (session?.tabPaths ?? []).filter((path) => !fileSet.has(path));
-        next.push({
+        const sessionCheck: DoctorCheck = {
           id: "latexSession",
           titleKey: "settings.doctor.latexSession",
           status: invalidPaths.length === 0 ? "pass" : "warn",
-          message: invalidPaths.length === 0
-            ? t("settings.doctor.latexSession.ok")
-            : t("settings.doctor.latexSession.invalid").replace("{count}", String(invalidPaths.length)),
+          phase: "done",
+          messageKey: invalidPaths.length === 0
+            ? "settings.doctor.latexSession.ok"
+            : "settings.doctor.latexSession.invalid",
+          params: invalidPaths.length === 0 ? undefined : { count: String(invalidPaths.length) },
           repairId: invalidPaths.length > 0 ? "latexSession" : undefined,
-        });
+        };
+        nextById.set(sessionCheck.id, sessionCheck);
+        upsertCheck(sessionCheck);
 
+        markRunning("pythonEnv");
         try {
           const env = await analysisEnvStatus(activeProjectId);
-          next.push({
+          const check: DoctorCheck = {
             id: "pythonEnv",
             titleKey: "settings.doctor.pythonEnv",
             status: env.ready ? "pass" : "warn",
-            message: env.ready
-              ? t("settings.doctor.pythonEnv.ok").replace("{python}", env.pythonVersion ?? "-")
-              : t("settings.doctor.pythonEnv.notReady").replace("{reason}", env.lastError ?? "-"),
+            phase: "done",
+            messageKey: env.ready
+              ? "settings.doctor.pythonEnv.ok"
+              : "settings.doctor.pythonEnv.notReady",
+            params: env.ready
+              ? { python: env.pythonVersion ?? "-" }
+              : { reason: env.lastError ?? "-" },
             repairId: env.ready ? undefined : "pythonEnv",
-          });
+          };
+          nextById.set(check.id, check);
+          upsertCheck(check);
         } catch (error) {
-          next.push({
+          const check: DoctorCheck = {
             id: "pythonEnv",
             titleKey: "settings.doctor.pythonEnv",
             status: "warn",
-            message: String(error),
+            phase: "done",
+            messageKey: "settings.doctor.error",
+            params: { reason: String(error) },
             repairId: "pythonEnv",
-          });
+          };
+          nextById.set(check.id, check);
+          upsertCheck(check);
         }
       }
 
+      markRunning("latexLayout");
       const panelLayout = settings?.uiPrefs?.panelLayout as PanelLayoutPrefs | undefined;
       const latexLayoutOk = isValidPanelLayout(panelLayout?.latex, DEFAULT_PANEL_LAYOUT.latex!)
         && isValidPanelLayout(panelLayout?.latexTerminal, DEFAULT_PANEL_LAYOUT.latexTerminal!);
-      next.push({
+      const layoutCheck: DoctorCheck = {
         id: "latexLayout",
         titleKey: "settings.doctor.latexLayout",
         status: latexLayoutOk ? "pass" : "warn",
-        message: latexLayoutOk ? t("settings.doctor.latexLayout.ok") : t("settings.doctor.latexLayout.invalid"),
+        phase: "done",
+        messageKey: latexLayoutOk ? "settings.doctor.latexLayout.ok" : "settings.doctor.latexLayout.invalid",
         repairId: latexLayoutOk ? undefined : "latexLayout",
-      });
+      };
+      nextById.set(layoutCheck.id, layoutCheck);
+      upsertCheck(layoutCheck);
 
-      setChecks(next);
-      setLastRunAt(new Date().toLocaleString());
-      await runtimeLogWrite("INFO", `doctor.check.done: items=${next.length}`).catch(() => undefined);
+      const finalChecks = initialChecks
+        .map((check) => nextById.get(check.id) ?? check)
+        .map((check) => check.phase === "pending"
+          ? { ...check, phase: "done" as const, messageKey: "settings.doctor.skipped" }
+          : check);
+      setChecks(finalChecks);
+      setLastRunAt(new Date().toISOString());
+      await runtimeLogWrite("INFO", `doctor.check.done: items=${finalChecks.length}`).catch(() => undefined);
     } finally {
       setRunning(false);
     }
@@ -280,7 +414,15 @@ export function SettingsDoctorSection(props: {
       await runtimeLogWrite("ERROR", `doctor.repair.failed: ${repairId}, reason=${String(error)}`).catch(() => undefined);
       setChecks((prev) =>
         prev.map((item) =>
-          item.repairId === repairId ? { ...item, status: "fail", message: String(error) } : item,
+          item.repairId === repairId
+            ? {
+                ...item,
+                status: "fail",
+                phase: "done",
+                messageKey: "settings.doctor.error",
+                params: { reason: String(error) },
+              }
+            : item,
         ),
       );
     } finally {
@@ -288,8 +430,15 @@ export function SettingsDoctorSection(props: {
     }
   };
 
+  const lastRunLabel = lastRunAt
+    ? new Intl.DateTimeFormat(locale, {
+        dateStyle: "short",
+        timeStyle: "medium",
+      }).format(new Date(lastRunAt))
+    : null;
+
   return (
-    <div className="library-scrollbar h-full min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4">
+    <div className="settings-scrollbar-hidden h-full min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -297,7 +446,11 @@ export function SettingsDoctorSection(props: {
             <span>{t("settings.doctor.title")}</span>
           </div>
           <p className="mt-1 text-xs text-slate-600">{t("settings.doctor.hint")}</p>
-          {lastRunAt ? <p className="mt-1 text-[11px] text-slate-500">{t("settings.doctor.lastRun").replace("{time}", lastRunAt)}</p> : null}
+          {lastRunLabel ? (
+            <p className="mt-1 text-[11px] text-slate-500">
+              {formatDoctorMessage(t, "settings.doctor.lastRun", { time: lastRunLabel })}
+            </p>
+          ) : null}
         </div>
         <Button onClick={() => void runChecks()} disabled={running || Boolean(repairing)}>
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -316,12 +469,12 @@ export function SettingsDoctorSection(props: {
               key={check.id}
               className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-3 ${statusTone(check.status)}`}
             >
-              <StatusIcon status={check.status} />
+              <StatusIcon status={check.status} phase={check.phase} />
               <div className="min-w-[220px] flex-1">
                 <h3 className="text-sm font-semibold">{t(check.titleKey)}</h3>
-                <p className="mt-1 break-words text-xs">{check.message}</p>
+                <p className="mt-1 break-words text-xs">{formatDoctorMessage(t, check.messageKey, check.params)}</p>
               </div>
-              {check.repairId ? (
+              {check.repairId && check.phase === "done" ? (
                 <Button
                   size="sm"
                   variant="secondary"

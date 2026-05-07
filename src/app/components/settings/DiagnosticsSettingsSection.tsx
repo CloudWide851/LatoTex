@@ -196,7 +196,7 @@ export function DiagnosticsSettingsSection(props: {
                       return (
                         <button
                           key={session.fileName}
-                          className={dropdownItemClassName(active ? "bg-primary-50 text-primary-700" : "")}
+                          className={dropdownItemClassName(active ? "control-menu-item--selected" : "")}
                           title={session.fileName}
                           onMouseDown={(event) => {
                             event.preventDefault();
@@ -219,6 +219,7 @@ export function DiagnosticsSettingsSection(props: {
           <Select
             value={logLevelFilter}
             wrapperClassName="w-[190px] shrink-0"
+            portalClassName="settings-scrollbar-hidden"
             className="text-sm"
             onChange={(event) => setLogLevelFilter(event.target.value)}
             aria-label={t("settings.logFilterLevel")}
@@ -254,7 +255,7 @@ export function DiagnosticsSettingsSection(props: {
 
       <div
         ref={consoleRef}
-        className="library-scrollbar h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-[#05080f] p-3"
+        className="settings-scrollbar-hidden h-full min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-[#05080f] p-3"
         onScroll={(event) => {
           const node = event.currentTarget;
           const distance = node.scrollHeight - node.scrollTop - node.clientHeight;

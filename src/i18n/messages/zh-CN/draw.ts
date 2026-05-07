@@ -19,4 +19,5 @@ export const zhCN_draw = {
   "draw.released": "绘图编辑器已因内存保护卸载，需要时可重试加载",
   "draw.renameExists": "已存在同名绘图标签。",
   "draw.fileMissingRemoved": "源文件不存在，已自动清理失效绘图标签。",
+  "draw.frameTitle": "绘图编辑器",
 } as const;

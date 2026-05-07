@@ -240,6 +240,7 @@ export function AppearanceSettingsSection(props: {
         <div className="grid max-w-xs gap-2">
           <Select
             value={String(prefs.previewDefaultZoom ?? 1)}
+            portalClassName="settings-scrollbar-hidden"
             onChange={(event) => updateUiPrefs({ previewDefaultZoom: Number(event.target.value) })}
           >
             {PREVIEW_ZOOM_OPTIONS.map((value) => (

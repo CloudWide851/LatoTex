@@ -47,7 +47,11 @@ export function AgentRoutingSettingsSection(props: {
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-[220px] flex-1">
-            <Select value={bulkModelId} onChange={(event) => setBulkModelId(event.target.value)}>
+            <Select
+              value={bulkModelId}
+              portalClassName="settings-scrollbar-hidden"
+              onChange={(event) => setBulkModelId(event.target.value)}
+            >
               <option value="">{t("settings.noModelAssigned")}</option>
               {activeModelCatalog.map((model) => (
                 <option key={model.id} value={model.id}>
@@ -97,6 +101,7 @@ export function AgentRoutingSettingsSection(props: {
             </span>
             <Select
               value={currentValue}
+              portalClassName="settings-scrollbar-hidden"
               onChange={(event) =>
                 setSettings((prev) =>
                   prev

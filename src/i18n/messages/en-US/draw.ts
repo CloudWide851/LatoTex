@@ -19,4 +19,5 @@ export const enUS_draw = {
   "draw.released": "Draw editor was unloaded by memory protection. Retry when needed.",
   "draw.renameExists": "A draw tab with this name already exists.",
   "draw.fileMissingRemoved": "Source file is missing. Removed stale draw tab.",
+  "draw.frameTitle": "Draw editor",
 } as const;

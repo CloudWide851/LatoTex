@@ -207,7 +207,7 @@ export function McpSettingsSection(props: {
               value={formatEnv(server.env)}
               onChange={(event) => updateServer(server.id, { env: parseEnv(event.target.value) })}
               placeholder={t("settings.mcpEnvPlaceholder")}
-              className="library-scrollbar min-h-16 resize-none rounded border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
+              className="settings-scrollbar-hidden min-h-16 resize-none rounded border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
             />
             {validation ? (
               <div className={cn("flex items-start gap-2 rounded border px-2 py-1.5 text-[11px]", statusTone(validation))}>

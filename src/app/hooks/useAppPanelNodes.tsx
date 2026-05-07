@@ -389,7 +389,8 @@ export function useAppPanelNodes(params: any) {
         try {
           return await handleGenerateGitSummary(includedPaths);
         } catch (error) {
-          setToast({ type: "error", message: String(error) });
+          const rawMessage = error instanceof Error ? error.message : String(error);
+          setToast({ type: "error", message: rawMessage === "git.noProject" ? t("git.noProject") : rawMessage });
           return "";
         }
       }}

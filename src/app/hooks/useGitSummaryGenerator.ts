@@ -11,7 +11,7 @@ export async function generateGitSummary(
   includedPaths: string[],
 ): Promise<string> {
   if (!activeProjectId) {
-    throw new Error("No active project");
+    throw new Error("git.noProject");
   }
   const files = Array.from(
     new Set(

@@ -458,7 +458,7 @@ export function WorkspaceShareControl(props: {
 
               {qrDataUrl ? (
                 <div className="mt-3 flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <img src={qrDataUrl} alt="share qr" className="h-24 w-24 rounded bg-white p-1" />
+                  <img src={qrDataUrl} alt={t("share.qrAlt")} className="h-24 w-24 rounded bg-white p-1" />
                   <p className="text-[11px] leading-5 text-slate-600">
                     {activeMode === "local" ? t("share.qrHintLocal") : t("share.qrHintRemote")}
                   </p>

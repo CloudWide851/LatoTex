@@ -219,7 +219,7 @@ export function AgentTeamsSettingsSection(props: {
             role="dialog"
             aria-modal="true"
             aria-labelledby="agent-teams-editor-title"
-            className="library-scrollbar max-h-[min(760px,calc(100vh-40px))] w-[min(920px,calc(100vw-32px))] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-soft"
+            className="settings-scrollbar-hidden max-h-[min(760px,calc(100vh-40px))] w-[min(920px,calc(100vw-32px))] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-soft"
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -264,6 +264,7 @@ export function AgentTeamsSettingsSection(props: {
                 <Input value={editingRole.name} onChange={(event) => updateEditingRole(editingRole.id, { name: event.target.value })} />
                 <Select
                   value={editingRole.phase ?? "research"}
+                  portalClassName="settings-scrollbar-hidden"
                   onChange={(event) => updateEditingRole(editingRole.id, { phase: event.target.value as AgentTeamRolePrefs["phase"] })}
                 >
                   {ROLE_PHASES.map((phase) => (
@@ -272,6 +273,7 @@ export function AgentTeamsSettingsSection(props: {
                 </Select>
                 <Select
                   value={editingRole.modelId ?? ""}
+                  portalClassName="settings-scrollbar-hidden"
                   onChange={(event) => updateEditingRole(editingRole.id, { modelId: event.target.value })}
                 >
                   <option value="">{t("settings.noModelAssigned")}</option>
@@ -292,7 +294,7 @@ export function AgentTeamsSettingsSection(props: {
               <textarea
                 value={editingRole.identityPrompt ?? ""}
                 onChange={(event) => updateEditingRole(editingRole.id, { identityPrompt: event.target.value })}
-                className="library-scrollbar h-28 w-full resize-none overflow-auto rounded border border-slate-300 bg-white px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
+                className="settings-scrollbar-hidden h-28 w-full resize-none overflow-auto rounded border border-slate-300 bg-white px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
                 placeholder={t("settings.agentTeamRole.promptPlaceholder")}
               />
 

@@ -66,8 +66,8 @@ function BackgroundThumb(props: {
       type="button"
       className={`group relative flex h-24 w-36 shrink-0 items-center justify-center overflow-hidden rounded-md border transition ${
         active
-          ? "border-primary-500 ring-2 ring-primary-200"
-          : "border-slate-300 hover:border-primary-300"
+          ? "border-[var(--app-accent)] ring-2 ring-[var(--control-primary-ring)]"
+          : "border-slate-300 hover:border-[var(--app-accent)]"
       }`}
       onClick={() => onSelect(path)}
       onContextMenu={(event) => {
@@ -101,7 +101,7 @@ function AddBackgroundCard(props: { onUpload: () => void; t: TranslationFn }) {
   return (
     <button
       type="button"
-      className="flex h-24 w-36 shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-slate-600 transition hover:border-primary-400 hover:bg-primary-50"
+      className="settings-background-upload-card flex h-24 w-36 shrink-0 flex-col items-center justify-center rounded-md border border-dashed text-slate-600 transition"
       onClick={onUpload}
       title={t("settings.backgroundUpload")}
       aria-label={t("settings.backgroundUpload")}
@@ -284,7 +284,7 @@ export function BackgroundImageCard(props: {
 
         <div className="grid gap-2">
           <p className="text-xs text-slate-500">{t("settings.backgroundGalleryHint")}</p>
-          <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
+          <div className="settings-scrollbar-hidden flex max-w-full gap-2 overflow-x-auto pb-1">
             {paths.map((path) => (
               <BackgroundThumb
                 key={path}

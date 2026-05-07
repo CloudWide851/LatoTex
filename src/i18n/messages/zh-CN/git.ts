@@ -1,5 +1,6 @@
 export const zhCN_git = {
   "git.notRepo": "当前项目不是 Git 仓库。",
+  "git.noProject": "当前没有打开项目。",
   "git.refresh": "刷新",
   "git.fetch": "抓取",
   "git.pull": "拉取",

@@ -1,5 +1,6 @@
 export const enUS_git = {
   "git.notRepo": "Current project is not a Git repository.",
+  "git.noProject": "No active project.",
   "git.refresh": "Refresh",
   "git.fetch": "Fetch",
   "git.pull": "Pull",
