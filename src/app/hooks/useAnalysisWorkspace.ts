@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentTeamMode } from "../../shared/types/app";
 import { analysisEnvPrepare, analysisRunPython, analysisSaveReport } from "../../shared/api/analysis";
-import { executeWorkflowCancel } from "../../shared/api/agent";
+import { executeWorkflowCancel, getEvents } from "../../shared/api/agent";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import {
@@ -73,6 +73,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const [tasks, setTasks] = useState<AnalysisTask[]>([]);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [activeRunHtml, setActiveRunHtml] = useState("");
+  const [historicalEvents, setHistoricalEvents] = useState<typeof events>([]);
   const [liveRunIds, setLiveRunIds] = useState<string[]>([]);
   const [liveStageLabel, setLiveStageLabel] = useState("");
   const loadedRef = useRef(false);
@@ -107,6 +108,19 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [activeTask]);
   const prompt = activeTask?.draftPrompt ?? "";
   const analysisError = activeTask?.lastError ?? null;
+  const mergedAnalysisEvents = useMemo(() => {
+    if (historicalEvents.length === 0) {
+      return events;
+    }
+    const byId = new Map<string, typeof events[number]>();
+    for (const event of historicalEvents) {
+      byId.set(event.id, event);
+    }
+    for (const event of events) {
+      byId.set(event.id, event);
+    }
+    return Array.from(byId.values()).sort((left, right) => left.seq - right.seq);
+  }, [events, historicalEvents]);
   const {
     timelineCards,
     liveTimelineCards,
@@ -114,10 +128,45 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     liveStage,
   } = useAnalysisLiveState({
     activeRun,
-    events,
+    events: mergedAnalysisEvents,
     liveRunIds,
     liveStageLabel,
   });
+  useEffect(() => {
+    if (!activeRun || liveRunIds.length > 0) {
+      setHistoricalEvents([]);
+      return;
+    }
+    const runIds = Array.from(new Set(
+      Array.isArray(activeRun.eventRunIds) && activeRun.eventRunIds.length > 0
+        ? activeRun.eventRunIds
+        : activeRun.agentRunId
+          ? [activeRun.agentRunId]
+          : [],
+    ));
+    if (runIds.length === 0) {
+      setHistoricalEvents([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(runIds.map((runId) => getEvents(0, 1000, runId, 0)))
+      .then((batches) => {
+        if (cancelled) {
+          return;
+        }
+        const hydrated = batches.flatMap((batch) => batch.events ?? []);
+        setHistoricalEvents(hydrated);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setHistoricalEvents([]);
+          void runtimeLogWrite("WARN", `analysis history hydrate failed: runIds=${runIds.join(",")}, reason=${String(error)}`).catch(() => undefined);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRun, liveRunIds.length]);
   useEffect(() => {
     if (!activeRun) {
       setActiveRunHtml("");

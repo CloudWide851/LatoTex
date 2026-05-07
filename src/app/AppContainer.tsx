@@ -336,6 +336,7 @@ export function AppContainer() {
     editorContent: s.editorContent,
     compiledPdfUrl: s.pdfUrl,
     setEditorContent: s.setEditorContent,
+    markPathSaved: unsaved.markPathSaved,
     onCompile: handlers.handleCompile,
     setToast: (value) => {
       if (value) {

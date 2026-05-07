@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { useState, type Dispatch, type SetStateAction } from "react";
-import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult } from "../../../shared/types/app";
-import { validateMcpServer } from "../../../shared/api/settings";
+import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult, SkillValidationResult } from "../../../shared/types/app";
+import { validateAgentSkill, validateMcpServer } from "../../../shared/api/settings";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
@@ -79,6 +79,22 @@ function formatMcpValidationMessage(result: McpValidationResult, t: TranslationF
   return result.message;
 }
 
+function formatSkillValidationMessage(result: SkillValidationResult, t: TranslationFn): string {
+  if (result.message === "skill.validation.builtIn") {
+    return t("settings.skillValidateBuiltIn");
+  }
+  if (result.message === "skill.validation.configured") {
+    return t("settings.skillValidateConfigured");
+  }
+  if (result.message === "skill.validation.custom") {
+    return t("settings.skillValidateCustom");
+  }
+  if (result.message === "skill.validation.invalid_id") {
+    return t("settings.skillValidateInvalid");
+  }
+  return result.message;
+}
+
 export function AgentToolsSettingsSection(props: {
   settings: AppSettings;
   setSettings: Dispatch<SetStateAction<AppSettings | null>>;
@@ -122,8 +138,8 @@ export function McpSettingsSection(props: {
 }) {
   const { settings, setSettings, t } = props;
   const servers = settings.uiPrefs?.mcpServers ?? [];
-  const [validationById, setValidationById] = useState<Record<string, McpValidationResult | undefined>>({});
-  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [validationByKey, setValidationByKey] = useState<Record<string, McpValidationResult | undefined>>({});
+  const [validatingKey, setValidatingKey] = useState<string | null>(null);
 
   const updateUiPrefs = (patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -132,8 +148,9 @@ export function McpSettingsSection(props: {
     });
   };
   const updateServers = (nextServers: McpServerConfig[]) => updateUiPrefs({ mcpServers: nextServers });
-  const updateServer = (id: string, patch: Partial<McpServerConfig>) => {
-    updateServers(servers.map((server) => (server.id === id ? { ...server, ...patch } : server)));
+  const serverKey = (index: number) => `mcp-row-${index}`;
+  const updateServer = (index: number, patch: Partial<McpServerConfig>) => {
+    updateServers(servers.map((server, itemIndex) => (itemIndex === index ? { ...server, ...patch } : server)));
   };
   const addServer = (server: McpServerConfig) => {
     if (servers.some((item) => item.id === server.id)) {
@@ -141,18 +158,18 @@ export function McpSettingsSection(props: {
     }
     updateServers([...servers, server]);
   };
-  const validateServer = async (server: McpServerConfig) => {
-    setValidatingId(server.id);
+  const validateServer = async (server: McpServerConfig, key: string) => {
+    setValidatingKey(key);
     try {
       const result = await validateMcpServer(server);
-      setValidationById((prev) => ({ ...prev, [server.id]: result }));
+      setValidationByKey((prev) => ({ ...prev, [key]: result }));
     } catch (error) {
-      setValidationById((prev) => ({
+      setValidationByKey((prev) => ({
         ...prev,
-        [server.id]: { ok: false, message: String(error), tools: [] },
+        [key]: { ok: false, message: String(error), tools: [] },
       }));
     } finally {
-      setValidatingId(null);
+      setValidatingKey(null);
     }
   };
 
@@ -176,36 +193,37 @@ export function McpSettingsSection(props: {
         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">
           {t("settings.mcpEmpty")}
         </div>
-      ) : servers.map((server) => {
-        const validation = validationById[server.id];
+      ) : servers.map((server, index) => {
+        const key = serverKey(index);
+        const validation = validationByKey[key];
         return (
-          <section key={server.id} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <section key={key} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                 <input
                   type="checkbox"
                   checked={server.enabled ?? true}
-                  onChange={(event) => updateServer(server.id, { enabled: event.target.checked })}
+                  onChange={(event) => updateServer(index, { enabled: event.target.checked })}
                 />
                 {server.id || t("settings.mcpUnnamed")}
               </label>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" disabled={validatingId === server.id} onClick={() => void validateServer(server)}>
-                  {validatingId === server.id ? t("common.loading") : t("settings.mcpValidate")}
+                <Button size="sm" variant="secondary" disabled={validatingKey === key} onClick={() => void validateServer(server, key)}>
+                  {validatingKey === key ? t("common.loading") : t("settings.mcpValidate")}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => updateServers(servers.filter((item) => item.id !== server.id))}>
+                <Button size="sm" variant="ghost" onClick={() => updateServers(servers.filter((_, itemIndex) => itemIndex !== index))}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
             <div className="grid gap-2 md:grid-cols-[minmax(120px,0.5fr)_minmax(160px,1fr)_minmax(160px,1fr)]">
-              <Input value={server.id} onChange={(event) => updateServer(server.id, { id: event.target.value.trim() })} placeholder={t("settings.mcpIdPlaceholder")} className="h-8 text-xs" />
-              <Input value={server.command} onChange={(event) => updateServer(server.id, { command: event.target.value })} placeholder={t("settings.mcpCommandPlaceholder")} className="h-8 text-xs" />
-              <Input value={(server.args ?? []).join(" ")} onChange={(event) => updateServer(server.id, { args: parseArgs(event.target.value) })} placeholder={t("settings.mcpArgsPlaceholder")} className="h-8 text-xs" />
+              <Input value={server.id} onChange={(event) => updateServer(index, { id: event.target.value.trim() })} placeholder={t("settings.mcpIdPlaceholder")} className="h-8 text-xs" />
+              <Input value={server.command} onChange={(event) => updateServer(index, { command: event.target.value })} placeholder={t("settings.mcpCommandPlaceholder")} className="h-8 text-xs" />
+              <Input value={(server.args ?? []).join(" ")} onChange={(event) => updateServer(index, { args: parseArgs(event.target.value) })} placeholder={t("settings.mcpArgsPlaceholder")} className="h-8 text-xs" />
             </div>
             <textarea
               value={formatEnv(server.env)}
-              onChange={(event) => updateServer(server.id, { env: parseEnv(event.target.value) })}
+              onChange={(event) => updateServer(index, { env: parseEnv(event.target.value) })}
               placeholder={t("settings.mcpEnvPlaceholder")}
               className="settings-scrollbar-hidden min-h-16 resize-none rounded border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
             />
@@ -233,7 +251,8 @@ export function SkillsSettingsSection(props: {
   const { settings, setSettings, t } = props;
   const enabledSkills = settings.uiPrefs?.enabledSkills ?? [];
   const [customSkill, setCustomSkill] = useState("");
-  const [validationBySkill, setValidationBySkill] = useState<Record<string, { ok: boolean; message: string }>>({});
+  const [validationBySkill, setValidationBySkill] = useState<Record<string, SkillValidationResult | undefined>>({});
+  const [validatingSkill, setValidatingSkill] = useState<string | null>(null);
 
   const updateUiPrefs = (patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -253,16 +272,25 @@ export function SkillsSettingsSection(props: {
     setSkills([...enabledSkills, skill]);
     setCustomSkill("");
   };
-  const validateSkill = (skill: string) => {
+  const validateSkill = async (skill: string) => {
     const normalized = skill.trim();
-    const ok = normalized.length > 0 && !/\s/.test(normalized);
-    setValidationBySkill((prev) => ({
-      ...prev,
-      [skill]: {
-        ok,
-        message: ok ? t("settings.skillValidateOk") : t("settings.skillValidateInvalid"),
-      },
-    }));
+    setValidatingSkill(skill);
+    try {
+      const result = await validateAgentSkill(normalized);
+      setValidationBySkill((prev) => ({ ...prev, [skill]: result }));
+    } catch (error) {
+      setValidationBySkill((prev) => ({
+        ...prev,
+        [skill]: {
+          ok: false,
+          skillId: normalized,
+          message: String(error),
+          source: "custom",
+        },
+      }));
+    } finally {
+      setValidatingSkill(null);
+    }
   };
   const visibleSkills = Array.from(new Set([...BUILT_IN_SKILLS, ...enabledSkills]));
 
@@ -291,8 +319,8 @@ export function SkillsSettingsSection(props: {
                   {t(`settings.skill.${skill}`) === `settings.skill.${skill}` ? skill : t(`settings.skill.${skill}`)}
                 </label>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => validateSkill(skill)}>
-                    {t("settings.skillValidate")}
+                  <Button size="sm" variant="secondary" disabled={validatingSkill === skill} onClick={() => void validateSkill(skill)}>
+                    {validatingSkill === skill ? t("common.loading") : t("settings.skillValidate")}
                   </Button>
                   {!BUILT_IN_SKILLS.includes(skill as typeof BUILT_IN_SKILLS[number]) ? (
                     <Button size="sm" variant="ghost" onClick={() => setSkills(enabledSkills.filter((item) => item !== skill))}>
@@ -303,7 +331,7 @@ export function SkillsSettingsSection(props: {
               </div>
               {validation ? (
                 <div className={cn("mt-2 rounded border px-2 py-1 text-[11px]", statusTone(validation))}>
-                  {validation.message}
+                  {formatSkillValidationMessage(validation, t)}
                 </div>
               ) : null}
             </div>

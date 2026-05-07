@@ -8,27 +8,16 @@ import {
   isShareReady,
   matchPath,
   postJson,
+  scheduleShareFileWriteBack,
   toBase64,
   toShareCommentItems,
-  wait,
+  waitForShareSessionReady,
   type ShareMode,
+  type YDocLike,
+  type YTextLike,
 } from "./shareSessionUtils";
 
 type TranslationFn = (key: any) => string;
-type YTextLike = {
-  toString: () => string;
-  delete: (index: number, length: number) => void;
-  insert: (index: number, text: string) => void;
-  observe: (cb: () => void) => void;
-  unobserve: (cb: () => void) => void;
-};
-type YDocLike = {
-  getText: (name: string) => YTextLike;
-  on: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
-  off: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
-  transact: (fn: () => void, origin?: unknown) => void;
-  destroy: () => void;
-};
 
 export function useShareSession(params: {
   activeProjectId: string | null;
@@ -36,6 +25,7 @@ export function useShareSession(params: {
   editorContent: string;
   compiledPdfUrl: string | null;
   setEditorContent: (value: string) => void;
+  markPathSaved: (path: string, content: string) => void;
   onCompile: () => Promise<CompileActionResult | null>;
   setToast: (value: { type: "info" | "error"; message: string } | null) => void;
   t: TranslationFn;
@@ -47,6 +37,7 @@ export function useShareSession(params: {
     editorContent,
     compiledPdfUrl,
     setEditorContent,
+    markPathSaved,
     onCompile,
     setToast,
     t,
@@ -65,6 +56,7 @@ export function useShareSession(params: {
   const statusTimerRef = useRef<number | null>(null);
   const commentsTimerRef = useRef<number | null>(null);
   const syncTimerRef = useRef<number | null>(null);
+  const writeBackTimerRef = useRef<number | null>(null);
   const compileTimerRef = useRef<number | null>(null);
   const statusFlightRef = useRef(false);
   const syncFlightRef = useRef(false);
@@ -75,6 +67,7 @@ export function useShareSession(params: {
   const participantIdRef = useRef(`desktop-owner-${Math.random().toString(36).slice(2, 8)}`);
   const participantTokenRef = useRef("");
   const editorContentRef = useRef(editorContent);
+  const lastWriteBackRef = useRef<{ path: string; content: string } | null>(null);
   useEffect(() => {
     editorContentRef.current = editorContent;
   }, [editorContent]);
@@ -95,6 +88,26 @@ export function useShareSession(params: {
       timerRef.current = null;
     }
   };
+  const scheduleLocalWriteBack = useCallback((path: string | null, content: string) => {
+    scheduleShareFileWriteBack({
+      projectId: activeProjectId,
+      path,
+      content,
+      timerRef: writeBackTimerRef,
+      lastWriteRef: lastWriteBackRef,
+      clearTimer,
+      markPathSaved,
+      onError: (error) => {
+        void postJson(`${localUrl}/api/presence/ping`, {
+          sid: sessionId,
+          pwd: sessionPwd,
+          participantId: participantIdRef.current,
+          participantToken: participantTokenRef.current,
+          action: `writeback failed: ${String(error).slice(0, 120)}`,
+        }).catch(() => undefined);
+      },
+    });
+  }, [activeProjectId, localUrl, markPathSaved, sessionId, sessionPwd]);
   const refreshShareStatus = useCallback(async () => {
     if (statusFlightRef.current) {
       return shareSession;
@@ -133,41 +146,6 @@ export function useShareSession(params: {
     await uploadPdfBytes(session, new Uint8Array(await response.arrayBuffer()));
   }, [uploadPdfBytes]);
 
-  const waitForShareReady = useCallback(
-    async (expectedSessionId: string, mode: ShareMode) => {
-      const timeoutMs = mode === "local" ? 18_000 : 120_000;
-      const startedAt = Date.now();
-      let waitMs = 620;
-      let lastSeen: ShareSessionInfo | null = null;
-      while (Date.now() - startedAt < timeoutMs) {
-        const next = await refreshShareStatus();
-        if (!next) {
-          await wait(waitMs);
-          waitMs = Math.min(1_800, waitMs + 120);
-          continue;
-        }
-        lastSeen = next;
-        if (next.sessionId !== expectedSessionId) {
-          await wait(waitMs);
-          waitMs = Math.min(1_800, waitMs + 120);
-          continue;
-        }
-        if (isShareReady(next, mode)) {
-          return next;
-        }
-        if (next.status === "failed") {
-          throw new Error(next.tunnelError || "share tunnel failed");
-        }
-        await wait(waitMs);
-        waitMs = Math.min(1_800, waitMs + 120);
-      }
-      if (lastSeen && lastSeen.sessionId === expectedSessionId) {
-        return lastSeen;
-      }
-      throw new Error(t("share.startTimeout"));
-    },
-    [refreshShareStatus, t],
-  );
   const startShare = useCallback(async (mode: ShareMode = shareMode) => {
     if (!activeProjectId || !selectedFile || !selectedFile.toLowerCase().endsWith(".tex")) {
       setToast({ type: "error", message: t("share.startNeedTex") });
@@ -201,7 +179,12 @@ export function useShareSession(params: {
       } else {
         void onCompile().catch(() => undefined);
       }
-      const ready = await waitForShareReady(created.sessionId || "", nextMode);
+      const ready = await waitForShareSessionReady({
+        expectedSessionId: created.sessionId || "",
+        mode: nextMode,
+        refreshShareStatus,
+        startTimeoutMessage: t("share.startTimeout"),
+      });
       setShareSession(ready);
       if (ready.sessionName?.trim()) {
         setShareSessionName(ready.sessionName.trim());
@@ -225,7 +208,7 @@ export function useShareSession(params: {
     } finally {
       setShareBusy(false);
     }
-  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, uploadCompiledPdfFromUrl, waitForShareReady]);
+  }, [activeProjectId, onCompile, refreshShareStatus, selectedFile, setToast, shareMode, shareSessionName, t, uploadCompiledPdfFromUrl]);
   const stopShare = useCallback(async () => {
     setShareBusy(true);
     try {
@@ -315,6 +298,7 @@ export function useShareSession(params: {
       yTextRef.current = null;
       participantTokenRef.current = "";
       clearTimer(syncTimerRef);
+      clearTimer(writeBackTimerRef);
       return;
     }
     let disposed = false;
@@ -362,6 +346,7 @@ export function useShareSession(params: {
       doc.on("update", onDocUpdate);
       const onText = () => {
         const next = yText.toString();
+        scheduleLocalWriteBack(activeTarget, next);
         if (next === editorContentRef.current) {
           return;
         }
@@ -441,6 +426,7 @@ export function useShareSession(params: {
         doc.off("update", onDocUpdate);
         yText.unobserve(onText);
         clearTimer(syncTimerRef);
+        clearTimer(writeBackTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
         participantTokenRef.current = "";
@@ -459,12 +445,13 @@ export function useShareSession(params: {
       } else {
         setSyncing(false);
         clearTimer(syncTimerRef);
+        clearTimer(writeBackTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
         participantTokenRef.current = "";
       }
     };
-  }, [collabEnabled, localUrl, sessionId, sessionPwd, setEditorContent, setToast, t]);
+  }, [activeTarget, collabEnabled, localUrl, scheduleLocalWriteBack, sessionId, sessionPwd, setEditorContent, setToast, t]);
   useEffect(() => {
     if (!collabEnabled || applyingRemoteRef.current) {
       return;

@@ -1,6 +1,24 @@
 import type { ShareCommentItem, ShareSessionInfo } from "../../shared/types/app";
+import { writeFile } from "../../shared/api/workspace";
+import type { MutableRefObject } from "react";
 
 export type ShareMode = "local" | "remote";
+
+export type YTextLike = {
+  toString: () => string;
+  delete: (index: number, length: number) => void;
+  insert: (index: number, text: string) => void;
+  observe: (cb: () => void) => void;
+  unobserve: (cb: () => void) => void;
+};
+
+export type YDocLike = {
+  getText: (name: string) => YTextLike;
+  on: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
+  off: (event: "update", cb: (update: Uint8Array, origin: unknown) => void) => void;
+  transact: (fn: () => void, origin?: unknown) => void;
+  destroy: () => void;
+};
 
 export function isShareReady(status: ShareSessionInfo, mode: ShareMode): boolean {
   if (status.status !== "ready") {
@@ -74,6 +92,39 @@ export async function wait(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export async function waitForShareSessionReady(params: {
+  expectedSessionId: string;
+  mode: ShareMode;
+  refreshShareStatus: () => Promise<ShareSessionInfo | null>;
+  startTimeoutMessage: string;
+}): Promise<ShareSessionInfo> {
+  const timeoutMs = params.mode === "local" ? 18_000 : 120_000;
+  const startedAt = Date.now();
+  let waitMs = 620;
+  let lastSeen: ShareSessionInfo | null = null;
+  while (Date.now() - startedAt < timeoutMs) {
+    const next = await params.refreshShareStatus();
+    if (!next || next.sessionId !== params.expectedSessionId) {
+      await wait(waitMs);
+      waitMs = Math.min(1_800, waitMs + 120);
+      continue;
+    }
+    lastSeen = next;
+    if (isShareReady(next, params.mode)) {
+      return next;
+    }
+    if (next.status === "failed") {
+      throw new Error(next.tunnelError || "share tunnel failed");
+    }
+    await wait(waitMs);
+    waitMs = Math.min(1_800, waitMs + 120);
+  }
+  if (lastSeen?.sessionId === params.expectedSessionId) {
+    return lastSeen;
+  }
+  throw new Error(params.startTimeoutMessage);
+}
+
 export function matchPath(left: string | null | undefined, right: string | null | undefined): boolean {
   if (!left || !right) {
     return false;
@@ -112,4 +163,35 @@ export function applyYTextDelta(
   if (insert.length > 0) {
     target.insert(start, insert);
   }
+}
+
+export function scheduleShareFileWriteBack(params: {
+  projectId: string | null;
+  path: string | null;
+  content: string;
+  timerRef: MutableRefObject<number | null>;
+  lastWriteRef: MutableRefObject<{ path: string; content: string } | null>;
+  clearTimer: (timerRef: MutableRefObject<number | null>) => void;
+  markPathSaved: (path: string, content: string) => void;
+  onError?: (error: unknown) => void;
+}) {
+  const { projectId, path, content, timerRef, lastWriteRef, clearTimer, markPathSaved, onError } = params;
+  if (!projectId || !path) {
+    return;
+  }
+  const previous = lastWriteRef.current;
+  if (previous?.path === path && previous.content === content) {
+    return;
+  }
+  clearTimer(timerRef);
+  timerRef.current = Number(window.setTimeout(() => {
+    const targetPath = path;
+    const targetContent = content;
+    void writeFile(projectId, targetPath, targetContent)
+      .then(() => {
+        lastWriteRef.current = { path: targetPath, content: targetContent };
+        markPathSaved(targetPath, targetContent);
+      })
+      .catch((error) => onError?.(error));
+  }, 520));
 }

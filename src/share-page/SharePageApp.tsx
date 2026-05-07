@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import { fetchShareSnapshot, joinShareSession, listShareComments, pingSharePresence, postShareComment, pullShareUpdates, pushShareUpdate } from "./shareApi";
 import { createShareI18n } from "./shareMessages";
 import { SharePageLayout } from "./SharePageLayout";
-import { deriveSelectionQuote, fromBase64, normalizeComment, toBase64 } from "./shareUtils";
+import { applyYTextDelta, deriveSelectionQuote, fromBase64, normalizeComment, toBase64 } from "./shareUtils";
 import { useShareEditorReview } from "./useShareEditorReview";
 import { useSharePdfPreview } from "./useSharePdfPreview";
 import type { ShareDevice, ShareI18n, ShareLocale, ShareParticipant, ShareQuote, ShareComment, ShareView } from "./shareTypes";
@@ -37,6 +37,7 @@ export function SharePageApp(props: SharePageAppProps) {
   const pdfPagesRef = useRef<HTMLDivElement | null>(null);
   const docRef = useRef(new Y.Doc());
   const yTextRef = useRef(docRef.current.getText("tex"));
+  const clientIdRef = useRef(`web-${Math.random().toString(36).slice(2, 10)}`);
   const participantIdRef = useRef("");
   const participantTokenRef = useRef("");
   const pullCursorRef = useRef(0);
@@ -80,7 +81,7 @@ export function SharePageApp(props: SharePageAppProps) {
       void pushShareUpdate({
         sid,
         pwd: password.trim(),
-        clientId: `web-${Math.random().toString(36).slice(2, 10)}`,
+        clientId: clientIdRef.current,
         participantId: participantIdRef.current,
         participantToken: participantTokenRef.current,
         username: username.trim(),
@@ -138,6 +139,9 @@ export function SharePageApp(props: SharePageAppProps) {
       });
       for (const item of payload.events || []) {
         pullCursorRef.current = Math.max(pullCursorRef.current, Number(item.seq || 0));
+        if (item.from === clientIdRef.current) {
+          continue;
+        }
         syncingRemoteRef.current = true;
         try {
           Y.applyUpdate(docRef.current, fromBase64(item.update), "remote");
@@ -222,11 +226,10 @@ export function SharePageApp(props: SharePageAppProps) {
     localStorage.setItem(usernameStorageKey, trimmedUsername);
     setStatusLine(i18n.statusConnecting);
     try {
-      const clientId = `web-${Math.random().toString(36).slice(2, 10)}`;
       const joined = await joinShareSession({
         sid,
         pwd: trimmedPassword,
-        clientId,
+        clientId: clientIdRef.current,
         username: trimmedUsername,
       });
       participantIdRef.current = String(joined.participantId || "");
@@ -263,25 +266,7 @@ export function SharePageApp(props: SharePageAppProps) {
       return;
     }
     docRef.current.transact(() => {
-      let start = 0;
-      const maxStart = Math.min(current.length, value.length);
-      while (start < maxStart && current[start] === value[start]) {
-        start += 1;
-      }
-      let endCurrent = current.length;
-      let endNext = value.length;
-      while (endCurrent > start && endNext > start && current[endCurrent - 1] === value[endNext - 1]) {
-        endCurrent -= 1;
-        endNext -= 1;
-      }
-      const removeLength = endCurrent - start;
-      const insertText = value.slice(start, endNext);
-      if (removeLength > 0) {
-        yText.delete(start, removeLength);
-      }
-      if (insertText.length > 0) {
-        yText.insert(start, insertText);
-      }
+      applyYTextDelta(yText, current, value);
     }, "editor");
   }, []);
 

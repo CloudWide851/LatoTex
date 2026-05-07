@@ -73,6 +73,21 @@ pub struct McpValidationResult {
     pub tools: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillValidationInput {
+    pub skill_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillValidationResult {
+    pub ok: bool,
+    pub skill_id: String,
+    pub message: String,
+    pub source: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FeatureModelBindings {

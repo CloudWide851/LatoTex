@@ -6,6 +6,7 @@ import { projectIntegrityRepair, projectIntegrityStatus, projectPrepareSearchInd
 import { runtimeLogInfo, runtimeLogListSessions, runtimeLogWrite, runtimeMemorySnapshot } from "../../../shared/api/runtime";
 import type { AppSettings, PanelLayoutPrefs } from "../../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT } from "../../app-config";
+import { loadAnalysisTaskState } from "../../hooks/analysisTaskStore";
 import {
   clearLatexWorkspaceSession,
   loadLatexWorkspaceSession,
@@ -39,7 +40,12 @@ type DoctorCheckId =
   | "searchIndex"
   | "latexSession"
   | "pythonEnv"
-  | "latexLayout";
+  | "latexLayout"
+  | "mcpConfig"
+  | "skillsConfig"
+  | "analysisStore"
+  | "shareCollab"
+  | "runtimeAssets";
 
 const DOCTOR_CHECK_ORDER: Array<{ id: DoctorCheckId; titleKey: string }> = [
   { id: "runtimeLog", titleKey: "settings.doctor.runtimeLog" },
@@ -49,6 +55,11 @@ const DOCTOR_CHECK_ORDER: Array<{ id: DoctorCheckId; titleKey: string }> = [
   { id: "latexSession", titleKey: "settings.doctor.latexSession" },
   { id: "pythonEnv", titleKey: "settings.doctor.pythonEnv" },
   { id: "latexLayout", titleKey: "settings.doctor.latexLayout" },
+  { id: "mcpConfig", titleKey: "settings.doctor.mcpConfig" },
+  { id: "skillsConfig", titleKey: "settings.doctor.skillsConfig" },
+  { id: "analysisStore", titleKey: "settings.doctor.analysisStore" },
+  { id: "shareCollab", titleKey: "settings.doctor.shareCollab" },
+  { id: "runtimeAssets", titleKey: "settings.doctor.runtimeAssets" },
 ];
 
 export function formatDoctorMessage(
@@ -64,8 +75,9 @@ export function formatDoctorMessage(
 }
 
 export function createInitialDoctorChecks(activeProjectId: string | null): DoctorCheck[] {
+  const projectScopedChecks = ["projectIntegrity", "searchIndex", "latexSession", "pythonEnv", "analysisStore", "shareCollab"];
   return DOCTOR_CHECK_ORDER
-    .filter((item) => activeProjectId || !["projectIntegrity", "searchIndex", "latexSession", "pythonEnv"].includes(item.id))
+    .filter((item) => activeProjectId || !projectScopedChecks.includes(item.id))
     .map((item) => ({
       id: item.id,
       titleKey: item.titleKey,
@@ -107,6 +119,13 @@ function statusTone(status: DoctorStatus) {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
   return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function skillIdIsValid(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0
+    && trimmed.length <= 80
+    && /^[a-zA-Z0-9_.:-]+$/.test(trimmed);
 }
 
 function StatusIcon(props: { status: DoctorStatus; phase?: DoctorPhase }) {
@@ -153,203 +172,216 @@ export function SettingsDoctorSection(props: {
     });
   };
 
-  const markRunning = (id: DoctorCheckId) => {
-    setChecks((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, phase: "running", messageKey: "settings.doctor.checkingItem" }
-          : item,
-      ),
-    );
-  };
-
-  const runChecks = async () => {
-    setRunning(true);
-    const initialChecks = createInitialDoctorChecks(activeProjectId);
-    const nextById = new Map<string, DoctorCheck>(initialChecks.map((check) => [check.id, check]));
-    setChecks(initialChecks);
-    await runtimeLogWrite("INFO", "doctor.check.start").catch(() => undefined);
-    try {
-      markRunning("runtimeLog");
-      try {
-        const [info, sessions] = await Promise.all([runtimeLogInfo(), runtimeLogListSessions()]);
-        const check: DoctorCheck = {
-          id: "runtimeLog",
-          titleKey: "settings.doctor.runtimeLog",
-          status: info.sessionLogFile && sessions.sessions.length > 0 ? "pass" : "warn",
-          phase: "done",
-          messageKey: "settings.doctor.runtimeLog.ok",
-          params: {
-            file: info.sessionLogFile || "-",
-            count: String(sessions.sessions.length),
-          },
-        };
-        nextById.set(check.id, check);
-        upsertCheck(check);
-      } catch (error) {
-        const check: DoctorCheck = {
-          id: "runtimeLog",
-          titleKey: "settings.doctor.runtimeLog",
-          status: "fail",
-          phase: "done",
-          messageKey: "settings.doctor.error",
-          params: { reason: String(error) },
-        };
-        nextById.set(check.id, check);
-        upsertCheck(check);
-      }
-
-      markRunning("memory");
-      try {
-        const memory = await runtimeMemorySnapshot();
-        const check: DoctorCheck = {
-          id: "memory",
-          titleKey: "settings.doctor.memory",
-          status: "info",
-          phase: "done",
-          messageKey: "settings.doctor.memory.ok",
-          params: {
-            rss: bytesToMb(memory.totalRssBytes ?? memory.rssBytes),
-            webview: bytesToMb(memory.webviewRssBytes),
-          },
-          repairId: onReleaseMemory ? "releaseMemory" : undefined,
-        };
-        nextById.set(check.id, check);
-        upsertCheck(check);
-      } catch (error) {
-        const check: DoctorCheck = {
-          id: "memory",
-          titleKey: "settings.doctor.memory",
-          status: "warn",
-          phase: "done",
-          messageKey: "settings.doctor.error",
-          params: { reason: String(error) },
-        };
-        nextById.set(check.id, check);
-        upsertCheck(check);
-      }
-
-      if (!activeProjectId) {
-        const check: DoctorCheck = {
-          id: "projectIntegrity",
-          titleKey: "settings.doctor.project",
-          status: "info",
-          phase: "done",
-          messageKey: "settings.doctor.noProject",
-        };
-        nextById.set(check.id, check);
-        upsertCheck(check);
-      } else {
-        markRunning("projectIntegrity");
-        try {
-          const integrity = await projectIntegrityStatus(activeProjectId);
-          const missing = integrity.missingRequired.length;
-          const check: DoctorCheck = {
-            id: "projectIntegrity",
-            titleKey: "settings.doctor.project",
-            status: missing === 0 ? "pass" : "warn",
-            phase: "done",
-            messageKey: missing === 0 ? "settings.doctor.project.ok" : "settings.doctor.project.missing",
-            params: missing === 0 ? undefined : { items: integrity.missingRequired.join(", ") },
-            repairId: missing > 0 ? "projectIntegrity" : undefined,
-          };
-          nextById.set(check.id, check);
-          upsertCheck(check);
-        } catch (error) {
-          const check: DoctorCheck = {
-            id: "projectIntegrity",
-            titleKey: "settings.doctor.project",
-            status: "fail",
-            phase: "done",
-            messageKey: "settings.doctor.error",
-            params: { reason: String(error) },
-          };
-          nextById.set(check.id, check);
-          upsertCheck(check);
-        }
-
-        markRunning("searchIndex");
-        const searchCheck: DoctorCheck = {
-          id: "searchIndex",
-          titleKey: "settings.doctor.searchIndex",
-          status: "info",
-          phase: "done",
-          messageKey: "settings.doctor.searchIndex.info",
-          repairId: "searchIndex",
-        };
-        nextById.set(searchCheck.id, searchCheck);
-        upsertCheck(searchCheck);
-
-        markRunning("latexSession");
-        const session = loadLatexWorkspaceSession(activeProjectId);
-        const invalidPaths = (session?.tabPaths ?? []).filter((path) => !fileSet.has(path));
-        const sessionCheck: DoctorCheck = {
-          id: "latexSession",
-          titleKey: "settings.doctor.latexSession",
-          status: invalidPaths.length === 0 ? "pass" : "warn",
-          phase: "done",
-          messageKey: invalidPaths.length === 0
-            ? "settings.doctor.latexSession.ok"
-            : "settings.doctor.latexSession.invalid",
-          params: invalidPaths.length === 0 ? undefined : { count: String(invalidPaths.length) },
-          repairId: invalidPaths.length > 0 ? "latexSession" : undefined,
-        };
-        nextById.set(sessionCheck.id, sessionCheck);
-        upsertCheck(sessionCheck);
-
-        markRunning("pythonEnv");
-        try {
-          const env = await analysisEnvStatus(activeProjectId);
-          const check: DoctorCheck = {
-            id: "pythonEnv",
-            titleKey: "settings.doctor.pythonEnv",
-            status: env.ready ? "pass" : "warn",
-            phase: "done",
-            messageKey: env.ready
-              ? "settings.doctor.pythonEnv.ok"
-              : "settings.doctor.pythonEnv.notReady",
-            params: env.ready
-              ? { python: env.pythonVersion ?? "-" }
-              : { reason: env.lastError ?? "-" },
-            repairId: env.ready ? undefined : "pythonEnv",
-          };
-          nextById.set(check.id, check);
-          upsertCheck(check);
-        } catch (error) {
-          const check: DoctorCheck = {
-            id: "pythonEnv",
-            titleKey: "settings.doctor.pythonEnv",
-            status: "warn",
-            phase: "done",
-            messageKey: "settings.doctor.error",
-            params: { reason: String(error) },
-            repairId: "pythonEnv",
-          };
-          nextById.set(check.id, check);
-          upsertCheck(check);
-        }
-      }
-
-      markRunning("latexLayout");
+  const runDoctorCheck = async (id: DoctorCheckId): Promise<DoctorCheck> => {
+    if (id === "runtimeLog") {
+      const [info, sessions] = await Promise.all([runtimeLogInfo(), runtimeLogListSessions()]);
+      return {
+        id,
+        titleKey: "settings.doctor.runtimeLog",
+        status: info.sessionLogFile && sessions.sessions.length > 0 ? "pass" : "warn",
+        phase: "done",
+        messageKey: "settings.doctor.runtimeLog.ok",
+        params: { file: info.sessionLogFile || "-", count: String(sessions.sessions.length) },
+      };
+    }
+    if (id === "memory") {
+      const memory = await runtimeMemorySnapshot();
+      return {
+        id,
+        titleKey: "settings.doctor.memory",
+        status: "info",
+        phase: "done",
+        messageKey: "settings.doctor.memory.ok",
+        params: {
+          rss: bytesToMb(memory.totalRssBytes ?? memory.rssBytes),
+          webview: bytesToMb(memory.webviewRssBytes),
+        },
+        repairId: onReleaseMemory ? "releaseMemory" : undefined,
+      };
+    }
+    if (id === "projectIntegrity" && activeProjectId) {
+      const integrity = await projectIntegrityStatus(activeProjectId);
+      const missing = integrity.missingRequired.length;
+      return {
+        id,
+        titleKey: "settings.doctor.project",
+        status: missing === 0 ? "pass" : "warn",
+        phase: "done",
+        messageKey: missing === 0 ? "settings.doctor.project.ok" : "settings.doctor.project.missing",
+        params: missing === 0 ? undefined : { items: integrity.missingRequired.join(", ") },
+        repairId: missing > 0 ? "projectIntegrity" : undefined,
+      };
+    }
+    if (id === "searchIndex") {
+      return {
+        id,
+        titleKey: "settings.doctor.searchIndex",
+        status: "info",
+        phase: "done",
+        messageKey: "settings.doctor.searchIndex.info",
+        repairId: "searchIndex",
+      };
+    }
+    if (id === "latexSession" && activeProjectId) {
+      const session = loadLatexWorkspaceSession(activeProjectId);
+      const invalidPaths = (session?.tabPaths ?? []).filter((path) => !fileSet.has(path));
+      return {
+        id,
+        titleKey: "settings.doctor.latexSession",
+        status: invalidPaths.length === 0 ? "pass" : "warn",
+        phase: "done",
+        messageKey: invalidPaths.length === 0
+          ? "settings.doctor.latexSession.ok"
+          : "settings.doctor.latexSession.invalid",
+        params: invalidPaths.length === 0 ? undefined : { count: String(invalidPaths.length) },
+        repairId: invalidPaths.length > 0 ? "latexSession" : undefined,
+      };
+    }
+    if (id === "pythonEnv" && activeProjectId) {
+      const env = await analysisEnvStatus(activeProjectId);
+      return {
+        id,
+        titleKey: "settings.doctor.pythonEnv",
+        status: env.ready ? "pass" : "warn",
+        phase: "done",
+        messageKey: env.ready
+          ? "settings.doctor.pythonEnv.ok"
+          : "settings.doctor.pythonEnv.notReady",
+        params: env.ready ? { python: env.pythonVersion ?? "-" } : { reason: env.lastError ?? "-" },
+        repairId: env.ready ? undefined : "pythonEnv",
+      };
+    }
+    if (id === "latexLayout") {
       const panelLayout = settings?.uiPrefs?.panelLayout as PanelLayoutPrefs | undefined;
       const latexLayoutOk = isValidPanelLayout(panelLayout?.latex, DEFAULT_PANEL_LAYOUT.latex!)
         && isValidPanelLayout(panelLayout?.latexTerminal, DEFAULT_PANEL_LAYOUT.latexTerminal!);
-      const layoutCheck: DoctorCheck = {
-        id: "latexLayout",
+      return {
+        id,
         titleKey: "settings.doctor.latexLayout",
         status: latexLayoutOk ? "pass" : "warn",
         phase: "done",
         messageKey: latexLayoutOk ? "settings.doctor.latexLayout.ok" : "settings.doctor.latexLayout.invalid",
         repairId: latexLayoutOk ? undefined : "latexLayout",
       };
-      nextById.set(layoutCheck.id, layoutCheck);
-      upsertCheck(layoutCheck);
+    }
+    if (id === "mcpConfig") {
+      const servers = settings?.uiPrefs?.mcpServers ?? [];
+      const enabled = settings?.uiPrefs?.agentToolPrefs?.mcpEnabled ?? true;
+      const readyCount = servers.filter((server) =>
+        server.enabled !== false && Boolean(server.id.trim()) && Boolean(server.command.trim())
+      ).length;
+      const draftCount = servers.length - readyCount;
+      return {
+        id,
+        titleKey: "settings.doctor.mcpConfig",
+        status: !enabled ? "info" : readyCount > 0 ? "pass" : draftCount > 0 ? "warn" : "info",
+        phase: "done",
+        messageKey: !enabled
+          ? "settings.doctor.mcpConfig.disabled"
+          : readyCount > 0
+            ? "settings.doctor.mcpConfig.ok"
+            : draftCount > 0
+              ? "settings.doctor.mcpConfig.drafts"
+              : "settings.doctor.mcpConfig.empty",
+        params: { count: String(readyCount), drafts: String(draftCount) },
+      };
+    }
+    if (id === "skillsConfig") {
+      const skills = settings?.uiPrefs?.enabledSkills ?? [];
+      const invalid = skills.filter((skill) => !skillIdIsValid(skill));
+      return {
+        id,
+        titleKey: "settings.doctor.skillsConfig",
+        status: invalid.length > 0 ? "warn" : skills.length > 0 ? "pass" : "info",
+        phase: "done",
+        messageKey: invalid.length > 0
+          ? "settings.doctor.skillsConfig.invalid"
+          : skills.length > 0
+            ? "settings.doctor.skillsConfig.ok"
+            : "settings.doctor.skillsConfig.empty",
+        params: { count: String(skills.length), invalid: invalid.join(", ") },
+      };
+    }
+    if (id === "analysisStore" && activeProjectId) {
+      const state = await loadAnalysisTaskState(activeProjectId);
+      const runs = state.tasks.flatMap((task) => task.runs);
+      const eventRuns = runs.reduce((count, run) => count + (run.eventRunIds?.length ?? (run.agentRunId ? 1 : 0)), 0);
+      return {
+        id,
+        titleKey: "settings.doctor.analysisStore",
+        status: runs.length === 0 ? "info" : eventRuns > 0 ? "pass" : "warn",
+        phase: "done",
+        messageKey: runs.length === 0
+          ? "settings.doctor.analysisStore.empty"
+          : eventRuns > 0
+            ? "settings.doctor.analysisStore.ok"
+            : "settings.doctor.analysisStore.noEvents",
+        params: { tasks: String(state.tasks.length), runs: String(runs.length), eventRuns: String(eventRuns) },
+      };
+    }
+    if (id === "shareCollab") {
+      const texCount = fileList.filter((path) => path.toLowerCase().endsWith(".tex")).length;
+      return {
+        id,
+        titleKey: "settings.doctor.shareCollab",
+        status: texCount > 0 ? "pass" : "warn",
+        phase: "done",
+        messageKey: texCount > 0 ? "settings.doctor.shareCollab.ok" : "settings.doctor.shareCollab.noTex",
+        params: { count: String(texCount) },
+      };
+    }
+    if (id === "runtimeAssets") {
+      const info = await runtimeLogInfo();
+      return {
+        id,
+        titleKey: "settings.doctor.runtimeAssets",
+        status: "info",
+        phase: "done",
+        messageKey: "settings.doctor.runtimeAssets.ok",
+        params: { mode: info.installMode || "-", version: info.version || "-" },
+      };
+    }
+    return {
+      id,
+      titleKey: DOCTOR_CHECK_ORDER.find((item) => item.id === id)?.titleKey ?? "settings.doctor.title",
+      status: "info",
+      phase: "done",
+      messageKey: "settings.doctor.skipped",
+    };
+  };
 
-      const finalChecks = initialChecks
-        .map((check) => nextById.get(check.id) ?? check)
-        .map((check) => check.phase === "pending"
-          ? { ...check, phase: "done" as const, messageKey: "settings.doctor.skipped" }
-          : check);
+  const runChecks = async () => {
+    setRunning(true);
+    const initialChecks = createInitialDoctorChecks(activeProjectId);
+    setChecks([]);
+    await runtimeLogWrite("INFO", `doctor.check.start: items=${initialChecks.length}`).catch(() => undefined);
+    const resultPromises = new Map(
+      initialChecks.map((check) => [
+        check.id,
+        runDoctorCheck(check.id as DoctorCheckId).catch((error): DoctorCheck => ({
+          ...check,
+          status: check.id === "pythonEnv" || check.id === "memory" ? "warn" : "fail",
+          phase: "done",
+          messageKey: "settings.doctor.error",
+          params: { reason: String(error) },
+          repairId: check.id === "pythonEnv" ? "pythonEnv" : undefined,
+        })),
+      ]),
+    );
+    const finalChecks: DoctorCheck[] = [];
+    try {
+      for (const check of initialChecks) {
+        const runningCheck: DoctorCheck = {
+          ...check,
+          phase: "running",
+          messageKey: "settings.doctor.checkingItem",
+        };
+        upsertCheck(runningCheck);
+        const result = await resultPromises.get(check.id)!;
+        finalChecks.push(result);
+        upsertCheck(result);
+        await sleep(90);
+      }
       setChecks(finalChecks);
       setLastRunAt(new Date().toISOString());
       await runtimeLogWrite("INFO", `doctor.check.done: items=${finalChecks.length}`).catch(() => undefined);
@@ -467,7 +499,7 @@ export function SettingsDoctorSection(props: {
           checks.map((check) => (
             <article
               key={check.id}
-              className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-3 ${statusTone(check.status)}`}
+              className={`motion-slide-up flex flex-wrap items-center gap-3 rounded-lg border px-3 py-3 transition-[border-color,background-color,color,transform,opacity] duration-200 ${statusTone(check.status)}`}
             >
               <StatusIcon status={check.status} phase={check.phase} />
               <div className="min-w-[220px] flex-1">

@@ -9,6 +9,7 @@ use super::swarm_executor::{
     emit_supervisor_trace, run_execute_pipeline_supervisor, run_workflow_step,
 };
 use super::swarm_runtime::resolve_model_connection;
+use super::swarm_tool_skills;
 use super::swarm_supervisor::requires_write_checkpoint;
 use super::swarm_workflows::{timeout_for_workflow, WorkflowDefinition, WorkflowStep};
 
@@ -17,6 +18,27 @@ fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
         return Err("agent.run.cancelled".to_string());
     }
     Ok(())
+}
+
+fn prompt_requests_team(prompt: &str) -> bool {
+    let lower = prompt.to_ascii_lowercase();
+    lower.contains("teams")
+        || lower.contains("team mode")
+        || lower.contains("multi-agent")
+        || lower.contains("multi agent")
+        || prompt.contains("团队")
+        || prompt.contains("协作")
+        || prompt.contains("多Agent")
+        || prompt.contains("多 agent")
+        || prompt.contains("多智能体")
+}
+
+pub(super) fn should_use_team(input: &AgentExecuteRequest) -> bool {
+    match input.team_mode.as_deref().unwrap_or("auto") {
+        "force" => true,
+        "off" => false,
+        _ => prompt_requests_team(&input.prompt),
+    }
 }
 
 fn default_team_roles() -> Vec<AgentTeamRolePrefs> {
@@ -154,12 +176,21 @@ fn role_identity(role: &AgentTeamRolePrefs) -> String {
 }
 
 fn build_role_prompt(
+    db_path: &std::path::Path,
+    runtime_root: &std::path::Path,
     input: &AgentExecuteRequest,
     team: &AgentTeamConfig,
     role: &AgentTeamRolePrefs,
     previous_outputs: &[String],
 ) -> String {
-    let skills = role.skill_ids.clone().unwrap_or_default();
+    let mut skills = swarm_tool_skills::enabled_skill_ids(db_path, runtime_root);
+    for skill in role.skill_ids.clone().unwrap_or_default() {
+        if let Some(normalized) = swarm_tool_skills::normalize_skill_id(&skill) {
+            if !skills.iter().any(|item| item == &normalized) {
+                skills.push(normalized);
+            }
+        }
+    }
     let mcp = role.mcp_server_ids.clone().unwrap_or_default();
     [
         format!("[team]\nid={}\nname={}", team.id, team.name),
@@ -173,6 +204,11 @@ fn build_role_prompt(
         format!("tools={}", role_tools(role).join(",")),
         format!("mcp_servers={}", mcp.join(",")),
         format!("skills={}", skills.join(",")),
+        if skills.is_empty() {
+            "[skill_context]\nNo validated skills enabled for this role.".to_string()
+        } else {
+            "[skill_context]\nUse these skill constraints when relevant. Do not claim to execute unavailable skills.".to_string()
+        },
         "[identity]".to_string(),
         role_identity(role),
         "[user_request]".to_string(),
@@ -258,7 +294,7 @@ pub(super) fn run_execute_pipeline_team(
             workflow,
             input.model_override.as_deref().or(role.model_id.as_deref()),
         )?;
-        let mut prompt = build_role_prompt(input, &team, &role, &role_outputs);
+        let mut prompt = build_role_prompt(db_path, runtime_root, input, &team, &role, &role_outputs);
         for tool in role_tools(&role) {
             ensure_not_cancelled(cancel_flag)?;
             let (kind, title, source) = match tool.as_str() {

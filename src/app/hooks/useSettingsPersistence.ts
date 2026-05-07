@@ -210,7 +210,12 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
               ),
               enabled: server.enabled ?? true,
             }))
-            .filter((server) => server.id.length > 0 && server.command.length > 0),
+            .filter((server) =>
+              server.id.length > 0
+              || server.command.length > 0
+              || server.args.length > 0
+              || Object.keys(server.env).length > 0,
+            ),
           enabledSkills: Array.from(new Set(
             (nextSettings.uiPrefs?.enabledSkills ?? [])
               .map((skill) => String(skill ?? "").trim())

@@ -345,6 +345,13 @@ export type McpValidationResult = {
   tools: string[];
 };
 
+export type SkillValidationResult = {
+  ok: boolean;
+  skillId: string;
+  message: string;
+  source: "builtIn" | "configured" | "custom" | string;
+};
+
 export type TelegramTestInput = {
   token: string;
   chatId: string;

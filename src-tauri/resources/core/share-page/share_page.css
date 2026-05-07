@@ -2984,6 +2984,11 @@ video {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
+.transition-\[border-color\2c background-color\2c color\2c transform\2c opacity\] {
+  transition-property: border-color,background-color,color,transform,opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
 .transition-\[box-shadow\2c border-color\2c opacity\] {
   transition-property: box-shadow,border-color,opacity;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);

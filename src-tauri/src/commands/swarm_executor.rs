@@ -10,9 +10,9 @@ use super::swarm_supervisor::{
     build_context_summary, build_evaluator_prompt, build_revision_prompt, build_supervisor_plan,
     execution_mode_label, parse_supervisor_evaluation, requires_write_checkpoint,
 };
-use super::swarm_team_executor::{run_execute_pipeline_team, select_agent_team};
+use super::swarm_team_executor::{run_execute_pipeline_team, select_agent_team, should_use_team};
 use super::swarm_tool_search;
-use super::{swarm_tool_mcp, swarm_tool_python, swarm_tool_workspace};
+use super::{swarm_tool_mcp, swarm_tool_python, swarm_tool_skills, swarm_tool_workspace};
 use super::swarm_workflows::{
     execution_mode_for_workflow, max_iterations_for_workflow, max_steps_for_workflow,
     timeout_for_workflow, WorkflowDefinition, WorkflowStep,
@@ -31,27 +31,6 @@ fn step_metadata<'a>(
     callsite: &'a str,
 ) -> EventMetadata<'a> {
     EventMetadata::base(workflow_id, step_id, callsite)
-}
-
-fn prompt_requests_team(prompt: &str) -> bool {
-    let lower = prompt.to_ascii_lowercase();
-    lower.contains("teams")
-        || lower.contains("team mode")
-        || lower.contains("multi-agent")
-        || lower.contains("multi agent")
-        || prompt.contains("团队")
-        || prompt.contains("协作")
-        || prompt.contains("多Agent")
-        || prompt.contains("多 agent")
-        || prompt.contains("多智能体")
-}
-
-fn should_use_team(input: &AgentExecuteRequest) -> bool {
-    match input.team_mode.as_deref().unwrap_or("auto") {
-        "force" => true,
-        "off" => false,
-        _ => prompt_requests_team(&input.prompt),
-    }
 }
 
 pub(super) fn run_workflow_step(
@@ -196,7 +175,9 @@ fn run_execute_pipeline_single(
     let timeout_ms = timeout_for_workflow(workflow);
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     let mut output = String::new();
-    let mut step_prompt = input.prompt.clone();
+    let skill_context = swarm_tool_skills::build_enabled_skills_prompt(db_path, runtime_root);
+    let base_prompt = swarm_tool_skills::append_skill_context(&input.prompt, &skill_context);
+    let mut step_prompt = base_prompt.clone();
     let mut tool_context = Vec::<String>::new();
 
     for step in workflow.steps.iter().take(max_steps) {
@@ -228,7 +209,7 @@ fn run_execute_pipeline_single(
         )?;
         if step.kind != "provider.generate" && !output.trim().is_empty() {
             tool_context.push(output.clone());
-            step_prompt = format!("{}\n\n[Previous Tool Output]\n{}", input.prompt, tool_context.join("\n\n"));
+            step_prompt = format!("{base_prompt}\n\n[Previous Tool Output]\n{}", tool_context.join("\n\n"));
         }
     }
 
@@ -310,7 +291,9 @@ pub(super) fn run_execute_pipeline_supervisor(
     }
 
     let mut output = String::new();
-    let mut step_prompt = input.prompt.clone();
+    let skill_context = swarm_tool_skills::build_enabled_skills_prompt(db_path, runtime_root);
+    let base_prompt = swarm_tool_skills::append_skill_context(&input.prompt, &skill_context);
+    let mut step_prompt = base_prompt.clone();
     let mut tool_context = Vec::<String>::new();
     let parent_node = if input.context_refs.is_empty() {
         plan_node_id.as_str()
@@ -438,7 +421,7 @@ pub(super) fn run_execute_pipeline_supervisor(
                 if evaluation.decision != "revise" || iteration + 1 >= max_iterations {
                     break;
                 }
-                attempt_prompt = build_revision_prompt(&input.prompt, &evaluation, iteration + 1);
+                attempt_prompt = build_revision_prompt(&base_prompt, &evaluation, iteration + 1);
             }
             output = latest_output;
             continue;
@@ -466,7 +449,7 @@ pub(super) fn run_execute_pipeline_supervisor(
         )?;
         if !output.trim().is_empty() {
             tool_context.push(output.clone());
-            step_prompt = format!("{}\n\n[Previous Tool Output]\n{}", input.prompt, tool_context.join("\n\n"));
+            step_prompt = format!("{base_prompt}\n\n[Previous Tool Output]\n{}", tool_context.join("\n\n"));
         }
     }
 

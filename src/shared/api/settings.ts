@@ -9,6 +9,7 @@ import type {
   CredentialSaveResult,
   McpValidationResult,
   McpServerConfig,
+  SkillValidationResult,
   ModelApiKeyValue,
   ModelCatalogItemInput,
   ModelDraftTestInput,
@@ -96,6 +97,10 @@ export function updateSettings(input: {
 
 export function validateMcpServer(input: McpServerConfig): Promise<McpValidationResult> {
   return invokeCommand<McpValidationResult>("agent_mcp_validate", { input });
+}
+
+export function validateAgentSkill(skillId: string): Promise<SkillValidationResult> {
+  return invokeCommand<SkillValidationResult>("agent_skill_validate", { input: { skillId } });
 }
 
 export function pickBackgroundImage(): Promise<AppBackgroundImage | null> {

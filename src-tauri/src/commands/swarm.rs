@@ -20,6 +20,8 @@ mod swarm_tool_workspace;
 mod swarm_tool_python;
 #[path = "swarm_tool_mcp.rs"]
 mod swarm_tool_mcp;
+#[path = "swarm_tool_skills.rs"]
+mod swarm_tool_skills;
 #[path = "swarm_workflows.rs"]
 mod swarm_workflows;
 pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_retry_streaming};
@@ -27,7 +29,8 @@ pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_ret
 use crate::models::{
     Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted,
     AgentRunsRecoverInput, AgentRunsRecoverResponse, CompileRecord, CompileRecordInput,
-    EventBatch, EventQuery, McpServerConfig, McpValidationResult,
+    EventBatch, EventQuery, McpServerConfig, McpValidationResult, SkillValidationInput,
+    SkillValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -146,6 +149,15 @@ pub fn agent_mcp_validate(
 ) -> Result<McpValidationResult, String> {
     state.log("INFO", &format!("agent_mcp_validate: {}", input.id));
     swarm_tool_mcp::validate_mcp_server(input)
+}
+
+#[tauri::command]
+pub fn agent_skill_validate(
+    state: State<'_, AppState>,
+    input: SkillValidationInput,
+) -> Result<SkillValidationResult, String> {
+    state.log("INFO", &format!("agent_skill_validate: {}", input.skill_id));
+    swarm_tool_skills::validate_skill(&state.db_path, &state.runtime_root, &input.skill_id)
 }
 
 #[tauri::command]

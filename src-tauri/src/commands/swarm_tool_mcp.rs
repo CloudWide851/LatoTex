@@ -45,7 +45,11 @@ fn configured_server(
         .unwrap_or_default();
     servers
         .into_iter()
-        .find(|server| server.id == server_id && server.enabled.unwrap_or(true))
+        .find(|server| {
+            server.id == server_id
+                && server.enabled.unwrap_or(true)
+                && !server.command.trim().is_empty()
+        })
         .ok_or_else(|| format!("mcp.server.not_configured:{server_id}"))
 }
 

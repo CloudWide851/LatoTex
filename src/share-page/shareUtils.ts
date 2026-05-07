@@ -68,3 +68,32 @@ export function deriveSelectionQuote(text: string, start: number, end: number): 
   }
   return { source: "tex", text: selected, start, end };
 }
+
+export function applyYTextDelta(
+  target: { delete: (index: number, length: number) => void; insert: (index: number, text: string) => void },
+  current: string,
+  next: string,
+) {
+  if (current === next) {
+    return;
+  }
+  let start = 0;
+  const maxStart = Math.min(current.length, next.length);
+  while (start < maxStart && current[start] === next[start]) {
+    start += 1;
+  }
+  let endCurrent = current.length;
+  let endNext = next.length;
+  while (endCurrent > start && endNext > start && current[endCurrent - 1] === next[endNext - 1]) {
+    endCurrent -= 1;
+    endNext -= 1;
+  }
+  const removeLength = endCurrent - start;
+  const insertText = next.slice(start, endNext);
+  if (removeLength > 0) {
+    target.delete(start, removeLength);
+  }
+  if (insertText.length > 0) {
+    target.insert(start, insertText);
+  }
+}

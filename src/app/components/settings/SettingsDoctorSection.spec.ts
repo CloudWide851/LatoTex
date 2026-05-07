@@ -19,7 +19,11 @@ describe("SettingsDoctorSection helpers", () => {
       "runtimeLog",
       "memory",
       "latexLayout",
+      "mcpConfig",
+      "skillsConfig",
+      "runtimeAssets",
     ]);
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("pythonEnv");
+    expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("shareCollab");
   });
 });
