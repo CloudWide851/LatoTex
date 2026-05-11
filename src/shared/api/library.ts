@@ -1,5 +1,7 @@
 import type {
   Ack,
+  LibraryCitationIndexStatus,
+  LibraryCitationResolveResult,
   LibraryCitationSummary,
   LibraryPdfImportResult,
   LibraryLinkImportResult,
@@ -128,6 +130,34 @@ export function libraryCitationSummary(
 ): Promise<LibraryCitationSummary> {
   return invokeCommand<LibraryCitationSummary>("library_citation_summary", {
     input: { projectId, relativePath },
+  });
+}
+
+export function libraryCitationResolve(input: {
+  projectId: string;
+  relativePath?: string | null;
+  query?: string | null;
+  includeRemote?: boolean;
+}): Promise<LibraryCitationResolveResult> {
+  return invokeCommand<LibraryCitationResolveResult>("library_citation_resolve", {
+    input: {
+      projectId: input.projectId,
+      relativePath: input.relativePath ?? null,
+      query: input.query ?? null,
+      includeRemote: input.includeRemote ?? false,
+    },
+  });
+}
+
+export function libraryCitationIndexStatus(projectId: string): Promise<LibraryCitationIndexStatus> {
+  return invokeCommand<LibraryCitationIndexStatus>("library_citation_index_status", {
+    input: { projectId },
+  });
+}
+
+export function libraryCitationIndexRebuild(projectId: string): Promise<LibraryCitationIndexStatus> {
+  return invokeCommand<LibraryCitationIndexStatus>("library_citation_index_rebuild", {
+    input: { projectId },
   });
 }
 

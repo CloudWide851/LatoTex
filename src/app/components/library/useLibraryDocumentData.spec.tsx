@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  libraryCitationResolve,
   libraryCitationSummary,
   libraryCitationSummaryRemote,
   libraryResolvePdfPreview,
@@ -13,6 +14,7 @@ import { readFile } from "../../../shared/api/workspace";
 import { useLibraryDocumentData } from "./useLibraryDocumentData";
 
 vi.mock("../../../shared/api/library", () => ({
+  libraryCitationResolve: vi.fn(),
   libraryCitationSummary: vi.fn(),
   libraryCitationSummaryRemote: vi.fn(),
   libraryResolvePdfPreview: vi.fn(),
@@ -104,6 +106,7 @@ function readProbeState(container: HTMLDivElement) {
 
 describe("useLibraryDocumentData", () => {
   const libraryCitationSummaryMock = vi.mocked(libraryCitationSummary);
+  const libraryCitationResolveMock = vi.mocked(libraryCitationResolve);
   const libraryCitationSummaryRemoteMock = vi.mocked(libraryCitationSummaryRemote);
   const libraryResolvePdfPreviewMock = vi.mocked(libraryResolvePdfPreview);
   const readFileMock = vi.mocked(readFile);
@@ -119,6 +122,7 @@ describe("useLibraryDocumentData", () => {
       urls: ["https://example.com/demo"],
       title: "Remote Demo",
     });
+    libraryCitationResolveMock.mockRejectedValue(new Error("resolver fallback"));
   });
 
   afterEach(() => {

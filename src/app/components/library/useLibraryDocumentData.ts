@@ -1,5 +1,6 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
+  libraryCitationResolve,
   libraryCitationSummary,
   libraryCitationSummaryRemote,
   libraryResolvePdfPreview,
@@ -355,7 +356,18 @@ export function useLibraryDocumentData(params: {
     setPaperPreviewError(null);
 
     try {
-      const citation = await libraryCitationSummary(projectId, selectedPath);
+      const resolved = await libraryCitationResolve({
+        projectId,
+        relativePath: selectedPath,
+        includeRemote: false,
+      }).catch(async () => ({
+        matchedPath: selectedPath,
+        matchKind: "legacy",
+        summary: await libraryCitationSummary(projectId, selectedPath),
+        pdfPreview: null,
+        diagnostics: [],
+      }));
+      const citation = resolved.summary;
       let bibPreview = "";
       let bibPreviewError: string | null = null;
       try {
@@ -378,17 +390,22 @@ export function useLibraryDocumentData(params: {
       applyState(nextState, {
         loading: false,
         loadError: null,
-        pdfPreviewLoading: false,
+        pdfPreviewLoading: Boolean(resolved.pdfPreview && resolved.pdfPreview.cacheState === "pending"),
         pdfPreviewError: null,
         paperPreviewLoading: false,
         paperPreviewError: null,
       });
+      if (resolved.pdfPreview) {
+        await applyResolvedPdfPreview({ requestId, cacheKey, preview: resolved.pdfPreview });
+      }
 
-      void resolveRemotePdfPreview({
-        requestId,
-        cacheKey,
-        bustCache: options?.bustCache ?? false,
-      });
+      if (!resolved.pdfPreview || resolved.pdfPreview.cacheState !== "ready") {
+        void resolveRemotePdfPreview({
+          requestId,
+          cacheKey,
+          bustCache: options?.bustCache ?? false,
+        });
+      }
 
       void libraryCitationSummaryRemote(projectId, selectedPath)
         .then((remoteSummary) => {

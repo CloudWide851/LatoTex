@@ -24,6 +24,7 @@ describe("SettingsDoctorSection helpers", () => {
       "runtimeAssets",
     ]);
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("pythonEnv");
+    expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("libraryCitationIndex");
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("shareCollab");
   });
 });

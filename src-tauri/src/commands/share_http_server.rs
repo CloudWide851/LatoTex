@@ -398,6 +398,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             update: normalize_share_sync_update(&body.update),
             created_at: now_iso(),
         });
+        guard.last_sync_at = Some(now_iso());
         let participant_id = body
             .participant_id
             .as_deref()

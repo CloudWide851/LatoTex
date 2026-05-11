@@ -2,6 +2,7 @@ import { Activity, CheckCircle2, Loader2, RefreshCw, Stethoscope, Wrench, XCircl
 import { useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { analysisEnvPrepareStart, analysisEnvPrepareStatus, analysisEnvStatus } from "../../../shared/api/analysis";
+import { libraryCitationIndexRebuild, libraryCitationIndexStatus } from "../../../shared/api/library";
 import { projectIntegrityRepair, projectIntegrityStatus, projectPrepareSearchIndex } from "../../../shared/api/projects";
 import { runtimeLogInfo, runtimeLogListSessions, runtimeLogWrite, runtimeMemorySnapshot } from "../../../shared/api/runtime";
 import type { AppSettings, PanelLayoutPrefs } from "../../../shared/types/app";
@@ -11,122 +12,25 @@ import {
   clearLatexWorkspaceSession,
   loadLatexWorkspaceSession,
 } from "../workspace/latexWorkspaceSession";
+import {
+  bytesToMb,
+  createInitialDoctorChecks,
+  DOCTOR_CHECK_ORDER,
+  formatDoctorMessage,
+  isValidPanelLayout,
+  SAFE_REPAIR_IDS,
+  skillIdIsValid,
+  sleep,
+  statusTone,
+  type DoctorCheck,
+  type DoctorCheckId,
+  type DoctorPhase,
+  type DoctorRepairId,
+  type DoctorStatus,
+  type TranslationFn,
+} from "./settingsDoctorHelpers";
 
-type TranslationFn = (key: any) => string;
-type DoctorStatus = "pass" | "warn" | "fail" | "info";
-type DoctorPhase = "pending" | "running" | "done";
-type DoctorRepairId =
-  | "projectIntegrity"
-  | "searchIndex"
-  | "latexSession"
-  | "latexLayout"
-  | "pythonEnv"
-  | "releaseMemory";
-
-type DoctorCheck = {
-  id: string;
-  titleKey: string;
-  status: DoctorStatus;
-  phase: DoctorPhase;
-  messageKey: string;
-  params?: Record<string, string>;
-  repairId?: DoctorRepairId;
-};
-
-type DoctorCheckId =
-  | "runtimeLog"
-  | "memory"
-  | "projectIntegrity"
-  | "searchIndex"
-  | "latexSession"
-  | "pythonEnv"
-  | "latexLayout"
-  | "mcpConfig"
-  | "skillsConfig"
-  | "analysisStore"
-  | "shareCollab"
-  | "runtimeAssets";
-
-const DOCTOR_CHECK_ORDER: Array<{ id: DoctorCheckId; titleKey: string }> = [
-  { id: "runtimeLog", titleKey: "settings.doctor.runtimeLog" },
-  { id: "memory", titleKey: "settings.doctor.memory" },
-  { id: "projectIntegrity", titleKey: "settings.doctor.project" },
-  { id: "searchIndex", titleKey: "settings.doctor.searchIndex" },
-  { id: "latexSession", titleKey: "settings.doctor.latexSession" },
-  { id: "pythonEnv", titleKey: "settings.doctor.pythonEnv" },
-  { id: "latexLayout", titleKey: "settings.doctor.latexLayout" },
-  { id: "mcpConfig", titleKey: "settings.doctor.mcpConfig" },
-  { id: "skillsConfig", titleKey: "settings.doctor.skillsConfig" },
-  { id: "analysisStore", titleKey: "settings.doctor.analysisStore" },
-  { id: "shareCollab", titleKey: "settings.doctor.shareCollab" },
-  { id: "runtimeAssets", titleKey: "settings.doctor.runtimeAssets" },
-];
-
-export function formatDoctorMessage(
-  t: TranslationFn,
-  key: string,
-  params?: Record<string, string>,
-): string {
-  let message = t(key);
-  for (const [name, value] of Object.entries(params ?? {})) {
-    message = message.replaceAll(`{${name}}`, value);
-  }
-  return message;
-}
-
-export function createInitialDoctorChecks(activeProjectId: string | null): DoctorCheck[] {
-  const projectScopedChecks = ["projectIntegrity", "searchIndex", "latexSession", "pythonEnv", "analysisStore", "shareCollab"];
-  return DOCTOR_CHECK_ORDER
-    .filter((item) => activeProjectId || !projectScopedChecks.includes(item.id))
-    .map((item) => ({
-      id: item.id,
-      titleKey: item.titleKey,
-      status: "info",
-      phase: "pending",
-      messageKey: "settings.doctor.pending",
-    }));
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function bytesToMb(value: number | null | undefined): string {
-  if (!value || value <= 0) {
-    return "-";
-  }
-  return `${Math.round(value / 1024 / 1024)} MB`;
-}
-
-function isValidPanelLayout(layout: unknown, fallback: number[]): boolean {
-  if (!Array.isArray(layout) || layout.length !== fallback.length) {
-    return false;
-  }
-  const sum = layout.reduce((acc, value) => acc + Number(value), 0);
-  return Number.isFinite(sum)
-    && sum > 0
-    && layout.every((value) => Number.isFinite(Number(value)) && Number(value) >= 5);
-}
-
-function statusTone(status: DoctorStatus) {
-  if (status === "pass") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-  if (status === "warn") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-  if (status === "fail") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-  return "border-slate-200 bg-slate-50 text-slate-600";
-}
-
-function skillIdIsValid(value: string): boolean {
-  const trimmed = value.trim();
-  return trimmed.length > 0
-    && trimmed.length <= 80
-    && /^[a-zA-Z0-9_.:-]+$/.test(trimmed);
-}
+export { createInitialDoctorChecks, formatDoctorMessage } from "./settingsDoctorHelpers";
 
 function StatusIcon(props: { status: DoctorStatus; phase?: DoctorPhase }) {
   if (props.phase === "running") {
@@ -319,6 +223,32 @@ export function SettingsDoctorSection(props: {
         params: { tasks: String(state.tasks.length), runs: String(runs.length), eventRuns: String(eventRuns) },
       };
     }
+    if (id === "libraryCitationIndex" && activeProjectId) {
+      const status = await libraryCitationIndexStatus(activeProjectId);
+      const issueCount = status.duplicateKeys.length
+        + status.invalidBibFiles.length
+        + status.missingBibForPdfs.length
+        + status.missingPdfForBibs.length;
+      return {
+        id,
+        titleKey: "settings.doctor.libraryCitationIndex",
+        status: issueCount === 0 ? "pass" : "warn",
+        phase: "done",
+        messageKey: issueCount === 0
+          ? "settings.doctor.libraryCitationIndex.ok"
+          : "settings.doctor.libraryCitationIndex.issues",
+        params: {
+          bibs: String(status.totalBibFiles),
+          pdfs: String(status.totalPdfFiles),
+          indexed: String(status.indexedEntries),
+          duplicates: String(status.duplicateKeys.length),
+          missingBib: String(status.missingBibForPdfs.length),
+          missingPdf: String(status.missingPdfForBibs.length),
+          invalid: String(status.invalidBibFiles.length),
+        },
+        repairId: issueCount > 0 ? "libraryCitationIndex" : undefined,
+      };
+    }
     if (id === "shareCollab") {
       const texCount = fileList.filter((path) => path.toLowerCase().endsWith(".tex")).length;
       return {
@@ -327,7 +257,9 @@ export function SettingsDoctorSection(props: {
         status: texCount > 0 ? "pass" : "warn",
         phase: "done",
         messageKey: texCount > 0 ? "settings.doctor.shareCollab.ok" : "settings.doctor.shareCollab.noTex",
-        params: { count: String(texCount) },
+        params: {
+          count: String(texCount),
+        },
       };
     }
     if (id === "runtimeAssets") {
@@ -401,6 +333,8 @@ export function SettingsDoctorSection(props: {
         await projectIntegrityRepair(activeProjectId);
       } else if (repairId === "searchIndex" && activeProjectId) {
         await projectPrepareSearchIndex(activeProjectId);
+      } else if (repairId === "libraryCitationIndex" && activeProjectId) {
+        await libraryCitationIndexRebuild(activeProjectId);
       } else if (repairId === "latexSession" && activeProjectId) {
         clearLatexWorkspaceSession(activeProjectId);
       } else if (repairId === "latexLayout") {
@@ -462,6 +396,22 @@ export function SettingsDoctorSection(props: {
     }
   };
 
+  const runSafeRepairs = async () => {
+    const repairIds = Array.from(new Set(
+      checks
+        .map((check) => check.repairId)
+        .filter((repairId): repairId is DoctorRepairId => {
+          if (!repairId) {
+            return false;
+          }
+          return SAFE_REPAIR_IDS.has(repairId);
+        }),
+    ));
+    for (const repairId of repairIds) {
+      await runRepair(repairId);
+    }
+  };
+
   const lastRunLabel = lastRunAt
     ? new Intl.DateTimeFormat(locale, {
         dateStyle: "short",
@@ -484,10 +434,20 @@ export function SettingsDoctorSection(props: {
             </p>
           ) : null}
         </div>
-        <Button onClick={() => void runChecks()} disabled={running || Boolean(repairing)}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {running ? t("settings.doctor.running") : t("settings.doctor.run")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => void runSafeRepairs()}
+            disabled={running || Boolean(repairing) || !checks.some((check) => check.repairId && SAFE_REPAIR_IDS.has(check.repairId))}
+          >
+            <Wrench className="mr-2 h-4 w-4" />
+            {repairing ? t("settings.doctor.repairing") : t("settings.doctor.repairSafe")}
+          </Button>
+          <Button onClick={() => void runChecks()} disabled={running || Boolean(repairing)}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {running ? t("settings.doctor.running") : t("settings.doctor.run")}
+          </Button>
+        </div>
       </div>
 
       <div className="mt-3 space-y-2">

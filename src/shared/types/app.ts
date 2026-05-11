@@ -114,6 +114,9 @@ export type ShareSessionInfo = {
   status?: "starting" | "ready" | "failed" | "stopping" | string | null;
   pdfState?: "empty" | "ready" | "uploading" | "error" | string | null;
   pdfUpdatedAt?: string | null;
+  syncSeq?: number | null;
+  syncEventCount?: number | null;
+  lastSyncAt?: string | null;
   tunnelState?: "pending" | "ready" | "failed" | string | null;
   tunnelError?: string | null;
   participants?: ShareParticipantInfo[];

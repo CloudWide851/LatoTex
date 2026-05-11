@@ -2,19 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/share";
 import type { ShareCommentItem, ShareSessionInfo } from "../../shared/types/app";
 import type { CompileActionResult } from "./compileActionTypes";
+import { useShareCollaborationSync } from "./useShareCollaborationSync";
 import {
-  applyYTextDelta,
-  fromBase64,
   isShareReady,
   matchPath,
   postJson,
-  scheduleShareFileWriteBack,
   toBase64,
   toShareCommentItems,
   waitForShareSessionReady,
   type ShareMode,
-  type YDocLike,
-  type YTextLike,
 } from "./shareSessionUtils";
 
 type TranslationFn = (key: any) => string;
@@ -45,32 +41,16 @@ export function useShareSession(params: {
   } = params;
   const [shareSession, setShareSession] = useState<ShareSessionInfo | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [shareComments, setShareComments] = useState<ShareCommentItem[]>([]);
   const [shareMode, setShareMode] = useState<ShareMode>("remote");
   const [shareSessionName, setShareSessionName] = useState("");
-  const yDocRef = useRef<YDocLike | null>(null);
-  const yTextRef = useRef<YTextLike | null>(null);
-  const pullCursorRef = useRef(0);
-  const applyingRemoteRef = useRef(false);
   const statusTimerRef = useRef<number | null>(null);
   const commentsTimerRef = useRef<number | null>(null);
-  const syncTimerRef = useRef<number | null>(null);
-  const writeBackTimerRef = useRef<number | null>(null);
   const compileTimerRef = useRef<number | null>(null);
   const statusFlightRef = useRef(false);
-  const syncFlightRef = useRef(false);
   const compileFlightRef = useRef(false);
   const uploadingPdfRef = useRef(false);
   const lastUploadedPdfUrlRef = useRef<string | null>(null);
-  const localClientIdRef = useRef(`desktop-${Math.random().toString(36).slice(2, 10)}`);
-  const participantIdRef = useRef(`desktop-owner-${Math.random().toString(36).slice(2, 8)}`);
-  const participantTokenRef = useRef("");
-  const editorContentRef = useRef(editorContent);
-  const lastWriteBackRef = useRef<{ path: string; content: string } | null>(null);
-  useEffect(() => {
-    editorContentRef.current = editorContent;
-  }, [editorContent]);
   const active = Boolean(!suspended && 
     shareSession?.active &&
       shareSession?.status === "ready" &&
@@ -88,26 +68,19 @@ export function useShareSession(params: {
       timerRef.current = null;
     }
   };
-  const scheduleLocalWriteBack = useCallback((path: string | null, content: string) => {
-    scheduleShareFileWriteBack({
-      projectId: activeProjectId,
-      path,
-      content,
-      timerRef: writeBackTimerRef,
-      lastWriteRef: lastWriteBackRef,
-      clearTimer,
-      markPathSaved,
-      onError: (error) => {
-        void postJson(`${localUrl}/api/presence/ping`, {
-          sid: sessionId,
-          pwd: sessionPwd,
-          participantId: participantIdRef.current,
-          participantToken: participantTokenRef.current,
-          action: `writeback failed: ${String(error).slice(0, 120)}`,
-        }).catch(() => undefined);
-      },
-    });
-  }, [activeProjectId, localUrl, markPathSaved, sessionId, sessionPwd]);
+  const collaboration = useShareCollaborationSync({
+    activeProjectId,
+    activeTarget,
+    collabEnabled,
+    editorContent,
+    localUrl,
+    sessionId,
+    sessionPwd,
+    setEditorContent,
+    markPathSaved,
+    setToast,
+    t,
+  });
   const refreshShareStatus = useCallback(async () => {
     if (statusFlightRef.current) {
       return shareSession;
@@ -292,184 +265,6 @@ export function useShareSession(params: {
     };
   }, [active, localUrl, sessionId, sessionPwd]);
   useEffect(() => {
-    if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
-      setSyncing(false);
-      yDocRef.current = null;
-      yTextRef.current = null;
-      participantTokenRef.current = "";
-      clearTimer(syncTimerRef);
-      clearTimer(writeBackTimerRef);
-      return;
-    }
-    let disposed = false;
-    let dispose: (() => void) | null = null;
-    const start = async () => {
-      const yjs = await import("yjs");
-      if (disposed) {
-        return;
-      }
-      const doc = new yjs.Doc();
-      const yText = doc.getText("tex");
-      yDocRef.current = doc as unknown as YDocLike;
-      yTextRef.current = yText as unknown as YTextLike;
-      pullCursorRef.current = 0;
-      applyingRemoteRef.current = false;
-      setSyncing(true);
-      const joined = await postJson(`${localUrl}/api/join`, {
-        sid: sessionId,
-        pwd: sessionPwd,
-        clientId: localClientIdRef.current,
-        username: t("share.desktopUser"),
-      }) as { participantId?: string; participantToken?: string };
-      if (joined?.participantId) {
-        participantIdRef.current = String(joined.participantId);
-      }
-      participantTokenRef.current = String(joined?.participantToken ?? "");
-      const pushUpdate = async (update: Uint8Array) => {
-        await postJson(`${localUrl}/api/sync/push`, {
-          sid: sessionId,
-          pwd: sessionPwd,
-          clientId: localClientIdRef.current,
-          participantId: participantIdRef.current,
-          participantToken: participantTokenRef.current,
-          username: t("share.desktopUser"),
-          action: t("share.action.editing"),
-          update: toBase64(update),
-        });
-      };
-      const onDocUpdate = (update: Uint8Array, origin: unknown) => {
-        if (origin === "remote" || applyingRemoteRef.current) {
-          return;
-        }
-        void pushUpdate(update).catch(() => undefined);
-      };
-      doc.on("update", onDocUpdate);
-      const onText = () => {
-        const next = yText.toString();
-        scheduleLocalWriteBack(activeTarget, next);
-        if (next === editorContentRef.current) {
-          return;
-        }
-        applyingRemoteRef.current = true;
-        if (typeof window !== "undefined") {
-          window.requestAnimationFrame(() => {
-            setEditorContent(next);
-            applyingRemoteRef.current = false;
-          });
-        } else {
-          setEditorContent(next);
-          applyingRemoteRef.current = false;
-        }
-      };
-      yText.observe(onText);
-      const initialize = async () => {
-        const response = await fetch(
-          `${localUrl}/api/snapshot?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}`,
-        );
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-        const payload = await response.json() as { content?: string };
-        const initial = payload.content ?? "";
-        doc.transact(() => {
-          applyYTextDelta(yText as unknown as YTextLike, yText.toString(), initial);
-        }, "remote");
-      };
-      const pullUpdates = async () => {
-        if (syncFlightRef.current) {
-          return;
-        }
-        syncFlightRef.current = true;
-        try {
-          const tokenParam = participantTokenRef.current
-            ? `&participantToken=${encodeURIComponent(participantTokenRef.current)}`
-            : "";
-          const response = await fetch(
-            `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&participantId=${encodeURIComponent(participantIdRef.current)}${tokenParam}&cursor=${pullCursorRef.current}`,
-          );
-          if (!response.ok) {
-            throw new Error(await response.text());
-          }
-          const payload = await response.json() as { nextCursor?: number; events?: Array<{ seq: number; from: string; update: string }> };
-          const updates = Array.isArray(payload.events) ? payload.events : [];
-          for (const event of updates) {
-            pullCursorRef.current = Math.max(pullCursorRef.current, Number(event.seq || 0));
-            if (event.from === localClientIdRef.current) {
-              continue;
-            }
-            applyingRemoteRef.current = true;
-            try {
-              yjs.applyUpdate(doc, fromBase64(event.update), "remote");
-            } finally {
-              applyingRemoteRef.current = false;
-            }
-          }
-          pullCursorRef.current = Math.max(pullCursorRef.current, Number(payload.nextCursor || pullCursorRef.current));
-        } finally {
-          syncFlightRef.current = false;
-        }
-      };
-      const syncLoop = async () => {
-        if (!collabEnabled || disposed) {
-          return;
-        }
-        await pullUpdates().catch(() => undefined);
-        const hidden = typeof document !== "undefined" && document.hidden;
-        syncTimerRef.current = Number(window.setTimeout(syncLoop, hidden ? 1800 : 820));
-      };
-      void initialize().catch((error) => {
-        setToast({ type: "error", message: String(error) });
-      });
-      syncTimerRef.current = Number(window.setTimeout(syncLoop, 760));
-      dispose = () => {
-        setSyncing(false);
-        doc.off("update", onDocUpdate);
-        yText.unobserve(onText);
-        clearTimer(syncTimerRef);
-        clearTimer(writeBackTimerRef);
-        yDocRef.current = null;
-        yTextRef.current = null;
-        participantTokenRef.current = "";
-        doc.destroy();
-      };
-    };
-    void start().catch((error) => {
-      if (!disposed) {
-        setToast({ type: "error", message: String(error) });
-      }
-    });
-    return () => {
-      disposed = true;
-      if (dispose) {
-        dispose();
-      } else {
-        setSyncing(false);
-        clearTimer(syncTimerRef);
-        clearTimer(writeBackTimerRef);
-        yDocRef.current = null;
-        yTextRef.current = null;
-        participantTokenRef.current = "";
-      }
-    };
-  }, [activeTarget, collabEnabled, localUrl, scheduleLocalWriteBack, sessionId, sessionPwd, setEditorContent, setToast, t]);
-  useEffect(() => {
-    if (!collabEnabled || applyingRemoteRef.current) {
-      return;
-    }
-    const yText = yTextRef.current;
-    const doc = yDocRef.current;
-    if (!yText || !doc) {
-      return;
-    }
-    const current = yText.toString();
-    if (current === editorContent) {
-      return;
-    }
-    doc.transact(() => {
-      applyYTextDelta(yText, current, editorContent);
-    }, "editor");
-  }, [collabEnabled, editorContent]);
-  useEffect(() => {
     clearTimer(compileTimerRef);
     if (!active || !localUrl || !sessionId || !sessionPwd) {
       return;
@@ -527,7 +322,8 @@ export function useShareSession(params: {
     () => ({
       shareSession,
       shareBusy,
-      shareSyncing: syncing,
+      shareSyncing: collaboration.shareSyncing,
+      shareConflict: collaboration.shareConflict,
       shareMode,
       shareComments,
       shareSessionName,
@@ -536,8 +332,12 @@ export function useShareSession(params: {
       startShare,
       stopShare,
       refreshShareStatus,
+      resolveShareConflict: collaboration.resolveShareConflict,
     }),
     [
+      collaboration.resolveShareConflict,
+      collaboration.shareConflict,
+      collaboration.shareSyncing,
       refreshShareStatus,
       shareBusy,
       shareComments,
@@ -546,7 +346,6 @@ export function useShareSession(params: {
       shareSessionName,
       startShare,
       stopShare,
-      syncing,
     ],
   );
 }

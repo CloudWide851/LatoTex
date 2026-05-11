@@ -1,4 +1,9 @@
-import { getLibraryTree, importLibraryLink, libraryResolvePdfPreview } from "../../shared/api/library";
+import {
+  getLibraryTree,
+  importLibraryLink,
+  libraryCitationResolve,
+  libraryResolvePdfPreview,
+} from "../../shared/api/library";
 import type { ResourceNode } from "../../shared/types/app";
 import { buildPaperAnalysisContext } from "./analysisDataSources";
 
@@ -51,11 +56,11 @@ function flattenLibraryPaperRefs(nodes: ResourceNode[], acc: string[] = []): str
 }
 
 function extractExplicitPaperRef(prompt: string): string | null {
-  const quotedMatch = prompt.match(/["'`]([^"'`]+?\.pdf)["'`]/i);
+  const quotedMatch = prompt.match(/["'`]([^"'`]+?\.(?:pdf|bib))["'`]/i);
   if (quotedMatch?.[1]) {
     return normalizePaperRef(quotedMatch[1]);
   }
-  const plainMatch = prompt.match(/[\p{L}\p{N}_\-./\\]+\.pdf\b/iu);
+  const plainMatch = prompt.match(/[\p{L}\p{N}_\-./\\]+\.(?:pdf|bib)\b/iu);
   if (plainMatch?.[0]) {
     return normalizePaperRef(plainMatch[0]);
   }
@@ -211,8 +216,21 @@ export async function resolveAgentPaperSourcePath(
   if (!explicitRef) {
     return { status: "missing_explicit" };
   }
+  try {
+    const resolved = await libraryCitationResolve({
+      projectId,
+      relativePath: explicitRef,
+      query: explicitRef,
+      includeRemote: false,
+    });
+    if (resolved.matchedPath) {
+      return { status: "ok", sourcePath: resolved.matchedPath };
+    }
+  } catch {
+    // Fall back to tree matching for older projects or partial library state.
+  }
   const tree = await getLibraryTree(projectId);
-  const pdfPaths = flattenLibraryPaths(tree).filter((item) => /\.pdf$/i.test(item));
+  const pdfPaths = flattenLibraryPaths(tree).filter((item) => /\.(pdf|bib)$/i.test(item));
   const byExact = pdfPaths.find(
     (item) => item.toLowerCase() === explicitRef.toLowerCase(),
   );

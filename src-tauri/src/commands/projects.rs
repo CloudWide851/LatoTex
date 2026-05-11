@@ -1,7 +1,8 @@
 use crate::models::{
     Ack, CreateProjectInput, DrawExportAssetInput, DrawExportAssetResponse,
     FileReadBinaryResponse, FileReadInput, FileReadResponse, FileWriteBinaryInput, FileWriteInput,
-    FsOperationInput, FsOperationResult, LibraryCitationSummaryInput,
+    FsOperationInput, FsOperationResult, LibraryCitationIndexStatus,
+    LibraryCitationResolveInput, LibraryCitationResolveResponse, LibraryCitationSummaryInput,
     LibraryCitationSummaryResponse, LibraryLinkImportInput, LibraryLinkImportResponse,
     LibraryPdfPreviewInput, LibraryPdfPreviewResponse, LibraryPdfResumeResponse, LibraryRefInput,
     LibraryZoteroSyncInput, LibraryZoteroSyncResponse, OpenExternalLinkInput,
@@ -545,6 +546,70 @@ pub async fn library_resolve_pdf_preview(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn library_citation_resolve(
+    state: State<'_, AppState>,
+    input: LibraryCitationResolveInput,
+) -> Result<LibraryCitationResolveResponse, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "library_citation_resolve: project={}, path={}, query={}",
+            input.project_id,
+            input.relative_path.as_deref().unwrap_or("-"),
+            input.query.as_deref().unwrap_or("-")
+        ),
+    );
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    let relative_path = input.relative_path;
+    let query = input.query;
+    let include_remote = input.include_remote.unwrap_or(false);
+    spawn_blocking(move || {
+        storage::library_citation_resolve(
+            &db_path,
+            &project_id,
+            relative_path.as_deref(),
+            query.as_deref(),
+            include_remote,
+        )
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn library_citation_index_status(
+    state: State<'_, AppState>,
+    input: ProjectRefInput,
+) -> Result<LibraryCitationIndexStatus, String> {
+    state.log(
+        "INFO",
+        &format!("library_citation_index_status: project={}", input.project_id),
+    );
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::library_citation_index_status(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn library_citation_index_rebuild(
+    state: State<'_, AppState>,
+    input: ProjectRefInput,
+) -> Result<LibraryCitationIndexStatus, String> {
+    state.log(
+        "INFO",
+        &format!("library_citation_index_rebuild: project={}", input.project_id),
+    );
+    let db_path = state.db_path.clone();
+    let project_id = input.project_id;
+    spawn_blocking(move || storage::library_citation_index_rebuild(&db_path, &project_id))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

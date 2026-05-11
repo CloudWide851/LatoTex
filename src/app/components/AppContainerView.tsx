@@ -63,6 +63,7 @@ export function AppContainerView(props: any) {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareConflict,
     shareComments,
     shareMode,
     shareSessionName,
@@ -71,6 +72,7 @@ export function AppContainerView(props: any) {
     handleShareStart,
     handleShareStop,
     handleShareRefresh,
+    handleShareConflictResolve,
     t,
     recoverWorkspaceLayout,
     page,
@@ -426,6 +428,7 @@ export function AppContainerView(props: any) {
                 shareSession={shareSession}
                 shareBusy={shareBusy}
                 shareSyncing={shareSyncing}
+                shareConflict={shareConflict}
                 shareComments={shareComments}
                 channelPrefs={settings?.uiPrefs?.channels ?? null}
                 shareMode={shareMode}
@@ -435,6 +438,7 @@ export function AppContainerView(props: any) {
                 onShareStart={handleShareStart}
                 onShareStop={handleShareStop}
                 onShareRefresh={handleShareRefresh}
+                onShareConflictResolve={handleShareConflictResolve}
                 onSelectFile={handleSelectWorkspacePath}
                 onSelectLibraryPath={setSelectedLibraryPath}
                 onEditorChange={setEditorContent}

@@ -83,6 +83,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareConflict,
     shareComments,
     channelPrefs,
     shareMode,
@@ -93,6 +94,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onShareStart,
     onShareStop,
     onShareRefresh,
+    onShareConflictResolve,
     onSelectFile,
     onSelectLibraryPath,
     onTabSelect,
@@ -487,6 +489,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         shareSession={shareSession}
         shareBusy={shareBusy}
         shareSyncing={shareSyncing}
+        shareConflict={shareConflict}
         shareMode={shareMode}
         shareSessionName={shareSessionName}
         shareComments={shareComments}
@@ -520,6 +523,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onShareStart={onShareStart}
         onShareStop={onShareStop}
         onShareRefresh={onShareRefresh}
+        onShareConflictResolve={onShareConflictResolve}
         onCreateChatTab={handleCreateChatTab}
         onOpenChatTab={handleOpenChatTab}
         onChatTabTitleChange={setChatTabTitle}

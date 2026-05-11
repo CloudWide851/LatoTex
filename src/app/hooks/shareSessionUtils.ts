@@ -3,6 +3,16 @@ import { writeFile } from "../../shared/api/workspace";
 import type { MutableRefObject } from "react";
 
 export type ShareMode = "local" | "remote";
+export type ShareConflictResolution = "local" | "remote";
+
+export type ShareConflict = {
+  path: string;
+  localContent: string;
+  remoteContent: string;
+  baseContent: string;
+  remoteSeq: number | null;
+  detectedAt: string;
+};
 
 export type YTextLike = {
   toString: () => string;
@@ -163,6 +173,32 @@ export function applyYTextDelta(
   if (insert.length > 0) {
     target.insert(start, insert);
   }
+}
+
+export function detectShareConflict(params: {
+  path: string | null;
+  localContent: string;
+  remoteContent: string;
+  baseContent: string | null;
+  remoteSeq?: number | null;
+}): ShareConflict | null {
+  const { path, localContent, remoteContent, baseContent, remoteSeq = null } = params;
+  if (!path || baseContent === null) {
+    return null;
+  }
+  const localChanged = localContent !== baseContent;
+  const remoteChanged = remoteContent !== baseContent;
+  if (!localChanged || !remoteChanged || localContent === remoteContent) {
+    return null;
+  }
+  return {
+    path,
+    localContent,
+    remoteContent,
+    baseContent,
+    remoteSeq,
+    detectedAt: new Date().toISOString(),
+  };
 }
 
 export function scheduleShareFileWriteBack(params: {

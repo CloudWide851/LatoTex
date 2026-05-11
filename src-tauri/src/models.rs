@@ -146,6 +146,9 @@ pub struct ShareSessionInfo {
     pub status: Option<String>,
     pub pdf_state: Option<String>,
     pub pdf_updated_at: Option<String>,
+    pub sync_seq: Option<u64>,
+    pub sync_event_count: Option<u32>,
+    pub last_sync_at: Option<String>,
     pub tunnel_state: Option<String>,
     pub tunnel_error: Option<String>,
     #[serde(default)]

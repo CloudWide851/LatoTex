@@ -18,6 +18,7 @@ import type { AgentChatMessage, AgentFileProposal, AgentSessionSummary } from ".
 import type { AgentStatusKey } from "./workspaceShellUtils";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import type { CompileActionResult } from "../../hooks/compileActionTypes";
+import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
 
 export type TranslationFn = (key: any) => string;
 export type ShareMode = "local" | "remote";
@@ -76,6 +77,7 @@ export type AppWorkspaceShellProps = {
   shareSession: ShareSessionInfo | null;
   shareBusy: boolean;
   shareSyncing: boolean;
+  shareConflict: ShareConflict | null;
   shareComments: ShareCommentItem[];
   channelPrefs?: ChannelPrefs | null;
   shareMode: ShareMode;
@@ -86,6 +88,7 @@ export type AppWorkspaceShellProps = {
   onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
+  onShareConflictResolve: (resolution: ShareConflictResolution) => void;
   onSelectFile: (path: string | null) => void;
   onSelectLibraryPath: (path: string | null) => void;
   onTabSelect: (tabId: string) => void;

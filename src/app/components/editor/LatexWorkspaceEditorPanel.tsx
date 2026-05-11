@@ -16,6 +16,7 @@ import type { AgentPhase } from "../AgentChatOverlay";
 import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
 import { emitWorkspaceLayoutRefresh, WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
+import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
 import type { AgentTeamMode, ShareCommentItem } from "../../../shared/types/app";
 import {
   LazyAgentChatOverlay,
@@ -58,6 +59,7 @@ export function LatexWorkspaceEditorPanel(props: {
   shareSession: any;
   shareBusy: boolean;
   shareSyncing: boolean;
+  shareConflict: ShareConflict | null;
   shareMode: any;
   shareSessionName: string;
   shareComments: ShareCommentItem[];
@@ -91,6 +93,7 @@ export function LatexWorkspaceEditorPanel(props: {
   onShareStart: () => void;
   onShareStop: () => void;
   onShareRefresh: () => void;
+  onShareConflictResolve: (resolution: ShareConflictResolution) => void;
   onCreateChatTab: () => void;
   onOpenChatTab: () => void;
   onChatTabTitleChange: (value: string | null) => void;
@@ -138,6 +141,7 @@ export function LatexWorkspaceEditorPanel(props: {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareConflict,
     shareMode,
     shareSessionName,
     shareComments,
@@ -171,6 +175,7 @@ export function LatexWorkspaceEditorPanel(props: {
     onShareStart,
     onShareStop,
     onShareRefresh,
+    onShareConflictResolve,
     onCreateChatTab,
     onOpenChatTab,
     onChatTabTitleChange,
@@ -427,6 +432,7 @@ export function LatexWorkspaceEditorPanel(props: {
               shareSession={shareSession}
               shareBusy={shareBusy}
               shareSyncing={shareSyncing}
+              shareConflict={shareConflict}
               shareMode={shareMode}
               shareSessionName={shareSessionName}
               onShareModeChange={onShareModeChange}
@@ -434,6 +440,7 @@ export function LatexWorkspaceEditorPanel(props: {
               onShareStart={onShareStart}
               onShareStop={onShareStop}
               onShareRefresh={onShareRefresh}
+              onShareConflictResolve={onShareConflictResolve}
               t={t}
             />
             <ChatTopbarSessionControl

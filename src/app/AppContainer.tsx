@@ -434,6 +434,7 @@ export function AppContainer() {
       shareSession={shareSession.shareSession}
       shareBusy={shareSession.shareBusy}
       shareSyncing={shareSession.shareSyncing}
+      shareConflict={shareSession.shareConflict}
       shareComments={shareSession.shareComments}
       shareMode={shareSession.shareMode}
       shareSessionName={shareSession.shareSessionName}
@@ -442,6 +443,7 @@ export function AppContainer() {
       handleShareStart={shareSession.startShare}
       handleShareStop={shareSession.stopShare}
       handleShareRefresh={shareSession.refreshShareStatus}
+      handleShareConflictResolve={shareSession.resolveShareConflict}
       t={t}
       recoverWorkspaceLayout={panels.recoverWorkspaceLayout}
       page={s.page}

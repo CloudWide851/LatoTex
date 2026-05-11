@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  libraryCitationResolve,
   libraryCitationSummary,
   libraryCitationSummaryRemote,
   libraryResolvePdfPreview,
@@ -16,6 +17,7 @@ import {
 } from "./useLibraryDocumentData";
 
 vi.mock("../../../shared/api/library", () => ({
+  libraryCitationResolve: vi.fn(),
   libraryCitationSummary: vi.fn(),
   libraryCitationSummaryRemote: vi.fn(),
   libraryResolvePdfPreview: vi.fn(),
@@ -101,6 +103,7 @@ function readProbeState(container: HTMLDivElement) {
 
 describe("useLibraryDocumentData loading-loop guards", () => {
   const libraryCitationSummaryMock = vi.mocked(libraryCitationSummary);
+  const libraryCitationResolveMock = vi.mocked(libraryCitationResolve);
   const libraryCitationSummaryRemoteMock = vi.mocked(libraryCitationSummaryRemote);
   const libraryResolvePdfPreviewMock = vi.mocked(libraryResolvePdfPreview);
   const readFileMock = vi.mocked(readFile);
@@ -110,6 +113,7 @@ describe("useLibraryDocumentData loading-loop guards", () => {
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     clearLibraryDocumentDataCache();
+    libraryCitationResolveMock.mockRejectedValue(new Error("resolver fallback"));
     libraryCitationSummaryRemoteMock.mockResolvedValue({
       sourcePath: "loading-loop.bib",
       bibPath: "loading-loop.bib",

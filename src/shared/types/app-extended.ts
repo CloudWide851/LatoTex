@@ -20,6 +20,28 @@ export type LibraryCitationSummary = {
   urls: string[];
 };
 
+export type LibraryCitationIndexIssue = {
+  path: string;
+  message: string;
+};
+
+export type LibraryCitationDuplicateKey = {
+  citationKey: string;
+  paths: string[];
+};
+
+export type LibraryCitationIndexStatus = {
+  totalBibFiles: number;
+  totalPdfFiles: number;
+  indexedEntries: number;
+  duplicateKeys: LibraryCitationDuplicateKey[];
+  missingBibForPdfs: string[];
+  missingPdfForBibs: string[];
+  invalidBibFiles: LibraryCitationIndexIssue[];
+  indexPath: string;
+  updatedAt?: string | null;
+};
+
 export type LibraryPdfPreview = {
   relativePath?: string | null;
   sourceUrl?: string | null;
@@ -29,6 +51,14 @@ export type LibraryPdfPreview = {
   downloadedBytes?: number | null;
   totalBytes?: number | null;
   translatedRelativePath?: string | null;
+};
+
+export type LibraryCitationResolveResult = {
+  matchedPath: string;
+  matchKind: string;
+  summary: LibraryCitationSummary;
+  pdfPreview?: LibraryPdfPreview | null;
+  diagnostics: string[];
 };
 
 export type LibraryLinkImportResult = {

@@ -1,7 +1,8 @@
-import { Check, ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Select } from "../../../components/ui/select";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
+import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
 
 type TranslationFn = (key: any) => string;
 type ShareMode = "local" | "remote";
@@ -150,6 +151,7 @@ export function WorkspaceShareControl(props: {
   shareSession: ShareSessionInfo | null;
   shareBusy: boolean;
   shareSyncing: boolean;
+  shareConflict: ShareConflict | null;
   shareMode: ShareMode;
   shareSessionName: string;
   onShareModeChange: (mode: ShareMode) => void;
@@ -157,6 +159,7 @@ export function WorkspaceShareControl(props: {
   onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
+  onShareConflictResolve: (resolution: ShareConflictResolution) => void;
   t: TranslationFn;
 }) {
   const {
@@ -164,6 +167,7 @@ export function WorkspaceShareControl(props: {
     shareSession,
     shareBusy,
     shareSyncing,
+    shareConflict,
     shareMode,
     shareSessionName,
     onShareModeChange,
@@ -171,6 +175,7 @@ export function WorkspaceShareControl(props: {
     onShareStart,
     onShareStop,
     onShareRefresh,
+    onShareConflictResolve,
     t,
   } = props;
   const [panelOpen, setPanelOpen] = useState(false);
@@ -183,7 +188,7 @@ export function WorkspaceShareControl(props: {
   const sessionExists = Boolean(shareSession?.sessionId);
   const activeMode = normalizeMode(shareSession?.mode, shareMode);
   const shareReady = Boolean(shareSession?.status === "ready" && shareSession?.activeJoinUrl);
-  const statusText = statusMessage(shareSession, shareSyncing, activeMode, t);
+  const statusText = shareConflict ? t("share.status.conflict") : statusMessage(shareSession, shareSyncing, activeMode, t);
   const participants = useMemo(
     () => (Array.isArray(shareSession?.participants) ? shareSession?.participants : []),
     [shareSession?.participants],
@@ -389,9 +394,41 @@ export function WorkspaceShareControl(props: {
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
                   <strong>{t("share.expiresAt")}:</strong> {shareSession?.expiresAt || "-"}
                 </div>
-                {shareSession?.tunnelError ? (
+              {shareSession?.tunnelError ? (
                   <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-700">
                     {shareSession.tunnelError}
+                  </div>
+                ) : null}
+                {shareConflict ? (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-semibold">{t("share.conflictTitle")}</div>
+                        <div className="mt-0.5 break-words text-[11px] leading-5">
+                          {t("share.conflictDesc")}
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-amber-800">
+                          {t("share.conflictPath")}: {shareConflict.path}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        className="rounded border border-amber-700 bg-amber-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-amber-800"
+                        type="button"
+                        onClick={() => onShareConflictResolve("remote")}
+                      >
+                        {t("share.conflictUseRemote")}
+                      </button>
+                      <button
+                        className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                        type="button"
+                        onClick={() => onShareConflictResolve("local")}
+                      >
+                        {t("share.conflictKeepLocal")}
+                      </button>
+                    </div>
                   </div>
                 ) : null}
               </div>

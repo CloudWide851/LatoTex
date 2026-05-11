@@ -29,6 +29,7 @@ use commands::native_runtime::{
 };
 use commands::projects::{
     draw_export_asset, file_read, file_read_binary, file_write, file_write_binary, fs_operation,
+    library_citation_index_rebuild, library_citation_index_status, library_citation_resolve,
     library_citation_summary, library_citation_summary_remote, library_import_link,
     library_import_pdf, library_rescan, library_resolve_pdf_preview,
     library_resume_pdf_downloads, library_tree, library_zotero_sync, open_external_link,
@@ -176,6 +177,9 @@ pub fn run() {
             library_translate_start,
             library_translate_status,
             library_zotero_sync,
+            library_citation_resolve,
+            library_citation_index_status,
+            library_citation_index_rebuild,
             library_citation_summary,
             library_citation_summary_remote,
             library_resolve_pdf_preview,

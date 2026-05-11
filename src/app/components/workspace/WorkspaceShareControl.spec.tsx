@@ -29,6 +29,7 @@ describe("WorkspaceShareControl", () => {
           shareSession={null}
           shareBusy
           shareSyncing={false}
+          shareConflict={null}
           shareMode="remote"
           shareSessionName=""
           onShareModeChange={() => undefined}
@@ -36,6 +37,7 @@ describe("WorkspaceShareControl", () => {
           onShareStart={() => undefined}
           onShareStop={() => undefined}
           onShareRefresh={() => undefined}
+          onShareConflictResolve={() => undefined}
           t={(key) => String(key)}
         />,
       );

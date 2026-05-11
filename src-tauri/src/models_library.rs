@@ -19,6 +19,15 @@ pub struct LibraryPdfPreviewInput {
     pub bust_cache: Option<bool>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationResolveInput {
+    pub project_id: String,
+    pub relative_path: Option<String>,
+    pub query: Option<String>,
+    pub include_remote: Option<bool>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCitationSummaryResponse {
@@ -32,6 +41,44 @@ pub struct LibraryCitationSummaryResponse {
     pub arxiv_id: Option<String>,
     pub source: Option<String>,
     pub urls: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationIndexIssue {
+    pub path: String,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationDuplicateKey {
+    pub citation_key: String,
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationIndexStatus {
+    pub total_bib_files: u32,
+    pub total_pdf_files: u32,
+    pub indexed_entries: u32,
+    pub duplicate_keys: Vec<LibraryCitationDuplicateKey>,
+    pub missing_bib_for_pdfs: Vec<String>,
+    pub missing_pdf_for_bibs: Vec<String>,
+    pub invalid_bib_files: Vec<LibraryCitationIndexIssue>,
+    pub index_path: String,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCitationResolveResponse {
+    pub matched_path: String,
+    pub match_kind: String,
+    pub summary: LibraryCitationSummaryResponse,
+    pub pdf_preview: Option<LibraryPdfPreviewResponse>,
+    pub diagnostics: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]

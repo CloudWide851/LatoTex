@@ -2,7 +2,8 @@ use crate::models::{
     Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, DrawExportAssetResponse,
     EventBatch, EventQuery, FileReadBinaryResponse, FileReadResponse, FileWriteInput,
     FsOperationInput, FsOperationResult,
-    LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
+    LibraryCitationDuplicateKey, LibraryCitationIndexIssue, LibraryCitationIndexStatus,
+    LibraryCitationResolveResponse, LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
     LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
     ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchBatch, ProjectSearchHit,
     ProjectSearchIncrementalInput, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
@@ -28,6 +29,7 @@ include!("storage/agent_cache_time.rs");
 include!("storage/library_remote_endpoints.rs");
 include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
+include!("storage/library_citation_resolver.rs");
 include!("storage/library_pdf_preview_core.rs");
 include!("storage/library_pdf_preview_cache.rs");
 include!("storage/library_pdf_download_queue.rs");
