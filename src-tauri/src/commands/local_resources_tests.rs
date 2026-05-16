@@ -1,6 +1,6 @@
 use super::{
     handle_local_resource_request, normalize_workspace_relative_path, workspace_file_response,
-    LOCAL_RESOURCE_SCHEME,
+    set_local_resource_origin, LOCAL_RESOURCE_SCHEME,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -104,7 +104,8 @@ fn create_test_fixture(name: &str) -> TestFixture {
 }
 
 #[test]
-fn workspace_file_response_sets_cors_headers_for_pdf_reads() {
+fn workspace_file_response_does_not_emit_wildcard_cors_for_pdf_reads() {
+    set_local_resource_origin(None);
     let path = temp_workspace_file_path("sample.pdf", b"%PDF-demo");
     let response = workspace_file_response(
         &Method::GET,
@@ -115,7 +116,7 @@ fn workspace_file_response_sets_cors_headers_for_pdf_reads() {
     assert_eq!(response.status(), 200);
     assert_eq!(
         response.headers().get("Access-Control-Allow-Origin"),
-        Some(&HeaderValue::from_static("*"))
+        None
     );
     assert_eq!(
         response.headers().get("Accept-Ranges"),
@@ -129,7 +130,37 @@ fn workspace_file_response_sets_cors_headers_for_pdf_reads() {
 }
 
 #[test]
+fn handle_local_resource_request_allows_known_app_origin() {
+    let fixture = create_test_fixture("allowed-origin");
+    let relative_path = ".latotex/papers/origin-check.pdf";
+    let pdf_path = fixture.project_root.join(".latotex").join("papers").join("origin-check.pdf");
+    fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
+    fs::write(&pdf_path, b"%PDF-origin").unwrap();
+
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!(
+            "http://{}.localhost/workspace-file/{}/{}",
+            LOCAL_RESOURCE_SCHEME,
+            encode(&fixture.project_id),
+            encode(relative_path),
+        ))
+        .header("Origin", "http://localhost:1420")
+        .body(Vec::new())
+        .unwrap();
+
+    let response = handle_local_resource_request(&fixture.state, &request);
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.headers().get("Access-Control-Allow-Origin"),
+        Some(&HeaderValue::from_static("http://localhost:1420"))
+    );
+}
+
+#[test]
 fn workspace_file_response_supports_single_byte_ranges() {
+    set_local_resource_origin(None);
     let path = temp_workspace_file_path("range.pdf", b"0123456789");
     let response = workspace_file_response(
         &Method::GET,
@@ -148,6 +179,7 @@ fn workspace_file_response_supports_single_byte_ranges() {
 
 #[test]
 fn workspace_file_response_rejects_unsatisfiable_ranges() {
+    set_local_resource_origin(None);
     let path = temp_workspace_file_path("unsat.pdf", b"0123");
     let response = workspace_file_response(
         &Method::GET,
@@ -165,6 +197,7 @@ fn workspace_file_response_rejects_unsatisfiable_ranges() {
 
 #[test]
 fn workspace_file_response_head_reports_real_content_length() {
+    set_local_resource_origin(None);
     let path = temp_workspace_file_path("head.pdf", b"%PDF-1.7\npayload");
     let response = workspace_file_response(
         &Method::HEAD,

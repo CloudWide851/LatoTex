@@ -2,10 +2,12 @@ use super::share_http_auth::{verify_sync_body_auth, verify_sync_query_auth};
 use super::*;
 use tiny_http::Method;
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
+    let origin = share_http_response::request_origin(&request);
+    share_http_response::set_request_origin(origin.clone());
     let method = request.method().clone();
     let (path, query) = split_url_path_query(request.url());
     if method == Method::Options {
-        let _ = request.respond(share_http_response::share_options_response());
+        let _ = request.respond(share_http_response::share_options_response(origin.as_deref()));
         return;
     }
     let runtime_snapshot = if let Ok(guard) = runtime.lock() {
@@ -54,16 +56,12 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
                 "sessionId": guard.session_id,
                 "targetPath": guard.target_path,
                 "expiresAt": guard.expires_at,
-                "hasPdf": share_pdf_ready(&guard),
-                "pdfState": if share_pdf_ready(&guard) { "ready" } else { "empty" },
-                "pdfUpdatedAt": guard.pdf_updated_at.clone(),
                 "status": guard.status.clone(),
                 "tunnelState": guard.tunnel_state.clone(),
                 "tunnelError": guard.tunnel_error.clone(),
                 "sessionName": guard.session_name.clone(),
                 "sessionCreatedAt": guard.session_created_at.clone(),
-                "participants": participant_public_list(&guard),
-                "comments": guard.comments.clone(),
+                "passwordRequired": !guard.password.is_empty(),
             }),
         ));
         return;

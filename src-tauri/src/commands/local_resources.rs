@@ -1,5 +1,6 @@
 use crate::state::AppState;
 use crate::storage;
+use std::cell::RefCell;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
@@ -33,6 +34,10 @@ const REQUIRED_DRAWIO_ASSETS: [&str; 19] = [
     "vendor/images/spin.gif",
     "vendor/images/github-logo.svg",
 ];
+
+thread_local! {
+    static LOCAL_RESOURCE_ORIGIN: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 
 fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
     required_assets.iter().all(|name| dir.join(name).exists())
@@ -116,16 +121,52 @@ fn mime_type_for_path(path: &Path) -> &'static str {
     }
 }
 
-fn local_resource_header_values() -> [(&'static str, &'static str); 4] {
-    [
-        ("Access-Control-Allow-Origin", "*"),
-        ("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS"),
-        ("Access-Control-Allow-Headers", "Range, Content-Type"),
-        (
+fn request_origin(request: &Request<Vec<u8>>) -> Option<String> {
+    request
+        .headers()
+        .get("Origin")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn is_allowed_local_resource_origin(origin: &str) -> bool {
+    let normalized = origin.trim().to_ascii_lowercase();
+    normalized == "http://tauri.localhost"
+        || normalized == "http://latotex-resource.localhost"
+        || normalized.starts_with("http://localhost:")
+        || normalized.starts_with("http://127.0.0.1:")
+}
+
+fn set_local_resource_origin(origin: Option<String>) {
+    LOCAL_RESOURCE_ORIGIN.with(|slot| {
+        *slot.borrow_mut() = origin;
+    });
+}
+
+fn current_local_resource_origin() -> Option<String> {
+    LOCAL_RESOURCE_ORIGIN.with(|slot| slot.borrow().clone())
+}
+
+fn apply_local_resource_headers(mut builder: tauri::http::response::Builder) -> tauri::http::response::Builder {
+    builder = builder
+        .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+        .header("Access-Control-Allow-Headers", "Range, Content-Type")
+        .header(
             "Access-Control-Expose-Headers",
             "Accept-Ranges, Content-Length, Content-Range, Content-Type, Cache-Control",
-        ),
-    ]
+        )
+        .header("Vary", "Origin");
+    let origin = current_local_resource_origin();
+    if let Some(allowed_origin) = origin
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| is_allowed_local_resource_origin(value))
+    {
+        builder = builder.header("Access-Control-Allow-Origin", allowed_origin);
+    }
+    builder
 }
 
 fn build_text_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
@@ -135,9 +176,7 @@ fn build_text_response(status: StatusCode, message: &str) -> Response<Vec<u8>> {
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")
         .header(CACHE_CONTROL, "no-store")
         .header("Content-Length", body.len().to_string());
-    for (name, value) in local_resource_header_values() {
-        builder = builder.header(name, value);
-    }
+    builder = apply_local_resource_headers(builder);
     builder
         .body(body.clone())
         .unwrap_or_else(|_| Response::new(body))
@@ -159,9 +198,7 @@ fn build_binary_response_with_headers(
         .header(CACHE_CONTROL, "no-store")
         .header("Accept-Ranges", "bytes")
         .header("Content-Length", bytes.len().to_string());
-    for (name, value) in local_resource_header_values() {
-        builder = builder.header(name, value);
-    }
+    builder = apply_local_resource_headers(builder);
     for (name, value) in extra_headers {
         builder = builder.header(*name, value);
     }
@@ -186,9 +223,7 @@ fn build_head_response(
         .header(CACHE_CONTROL, "no-store")
         .header("Accept-Ranges", "bytes")
         .header("Content-Length", content_length.to_string());
-    for (name, value) in local_resource_header_values() {
-        builder = builder.header(name, value);
-    }
+    builder = apply_local_resource_headers(builder);
     for (name, value) in extra_headers {
         builder = builder.header(*name, value);
     }
@@ -525,6 +560,7 @@ pub fn handle_local_resource_request(
     state: &AppState,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
+    set_local_resource_origin(request_origin(request));
     if request.method() == Method::OPTIONS {
         return build_options_response();
     }

@@ -58,7 +58,13 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: "0.0.0.0"
+    host: "0.0.0.0",
+    fs: {
+      deny: ["**/src-tauri/target/**", "**/src-tauri/resources/python/**"],
+    },
+  },
+  optimizeDeps: {
+    entries: ["index.html"],
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {
