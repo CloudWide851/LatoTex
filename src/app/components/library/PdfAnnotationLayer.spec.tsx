@@ -130,6 +130,39 @@ function MoveHarness() {
   );
 }
 
+function StrokeHarness(props: { mode: "highlight" | "eraser" }) {
+  const [strokes, setStrokes] = useState<any[]>(props.mode === "eraser"
+    ? [{
+      id: "stroke-1",
+      page: 1,
+      color: "#fde047",
+      width: 16,
+      opacity: 0.65,
+      points: [{ x: 330, y: 330 }, { x: 360, y: 360 }],
+    }]
+    : []);
+  const [textBoxes, setTextBoxes] = useState<any[]>([]);
+  return (
+    <div className="relative h-[480px] w-[360px]">
+      <PdfAnnotationLayer
+        page={1}
+        mode={props.mode}
+        highlightColor="#fde047"
+        highlightWidth={16}
+        highlightOpacity={0.65}
+        textColor="#111827"
+        textBoxStylePreset="minimal"
+        strokes={strokes}
+        textBoxes={textBoxes}
+        onStrokesChange={setStrokes}
+        onTextBoxesChange={setTextBoxes}
+        t={(key) => String(key)}
+      />
+      <pre data-testid="stroke-state">{JSON.stringify(strokes)}</pre>
+    </div>
+  );
+}
+
 describe("PdfAnnotationLayer", () => {
   const originalRequestAnimationFrame = window.requestAnimationFrame;
   const originalCancelAnimationFrame = window.cancelAnimationFrame;
@@ -447,5 +480,68 @@ describe("PdfAnnotationLayer", () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it("creates highlight strokes and removes nearby strokes with the eraser", async () => {
+    const highlightContainer = document.createElement("div");
+    document.body.appendChild(highlightContainer);
+    const highlightRoot = createRoot(highlightContainer);
+
+    await act(async () => {
+      highlightRoot.render(<StrokeHarness mode="highlight" />);
+    });
+    const highlightLayer = highlightContainer.querySelector(".absolute.inset-0.z-20") as HTMLDivElement | null;
+    expect(highlightLayer).not.toBeNull();
+    highlightLayer!.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 360,
+      bottom: 480,
+      width: 360,
+      height: 480,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    await act(async () => {
+      highlightLayer?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
+      highlightLayer?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, button: 0, clientX: 180, clientY: 220 }));
+      highlightLayer?.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0, clientX: 180, clientY: 220 }));
+      await Promise.resolve();
+    });
+
+    const highlightState = JSON.parse(highlightContainer.querySelector("[data-testid='stroke-state']")?.textContent ?? "[]");
+    expect(highlightState).toHaveLength(1);
+    expect(highlightState[0]?.points).toHaveLength(2);
+
+    await act(async () => {
+      highlightRoot.unmount();
+    });
+    highlightContainer.remove();
+
+    const eraserContainer = document.createElement("div");
+    document.body.appendChild(eraserContainer);
+    const eraserRoot = createRoot(eraserContainer);
+
+    await act(async () => {
+      eraserRoot.render(<StrokeHarness mode="eraser" />);
+    });
+    const eraserLayer = eraserContainer.querySelector(".absolute.inset-0.z-20") as HTMLDivElement | null;
+    expect(eraserLayer).not.toBeNull();
+    eraserLayer!.getBoundingClientRect = highlightLayer!.getBoundingClientRect;
+
+    await act(async () => {
+      eraserLayer?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 120, clientY: 160 }));
+      await Promise.resolve();
+    });
+
+    const eraserState = JSON.parse(eraserContainer.querySelector("[data-testid='stroke-state']")?.textContent ?? "[]");
+    expect(eraserState).toHaveLength(0);
+
+    await act(async () => {
+      eraserRoot.unmount();
+    });
+    eraserContainer.remove();
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createInitialDoctorChecks,
   formatDoctorMessage,
+  SAFE_REPAIR_IDS,
 } from "./SettingsDoctorSection";
 
 describe("SettingsDoctorSection helpers", () => {
@@ -26,5 +27,12 @@ describe("SettingsDoctorSection helpers", () => {
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("pythonEnv");
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("libraryCitationIndex");
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("shareCollab");
+  });
+
+  it("keeps risky repairs out of the one-click safe repair set", () => {
+    expect(SAFE_REPAIR_IDS.has("projectIntegrity")).toBe(true);
+    expect(SAFE_REPAIR_IDS.has("searchIndex")).toBe(true);
+    expect(SAFE_REPAIR_IDS.has("releaseMemory")).toBe(true);
+    expect(SAFE_REPAIR_IDS.has("pythonEnv")).toBe(false);
   });
 });

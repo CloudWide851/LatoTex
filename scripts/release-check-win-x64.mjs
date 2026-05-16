@@ -7,11 +7,15 @@ const validationSteps = [
   ["pnpm", ["test:e2e"]],
   ["pnpm", ["build"]],
   ["pnpm", ["perf:baseline"]],
+  ["pnpm", ["security:scan"]],
+  ["pnpm", ["sbom:generate", "--", "--check"]],
   ["cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml"]],
 ];
 
 const packageSteps = [
   ["pnpm", ["tauri", "build", "--target", "x86_64-pc-windows-msvc", "--bundles", "nsis"]],
+  ["pnpm", ["release:hash:win-x64"]],
+  ["pnpm", ["release:sign:preview"]],
 ];
 
 const mode = process.argv.find((arg) => arg.startsWith("--mode="))?.slice("--mode=".length) ?? "check";

@@ -11,7 +11,11 @@ vi.mock("../pdf/reactPdfSetup", () => ({
 }));
 
 vi.mock("react-pdf", () => ({
-  Document: (props: { children: ReactNode; onLoadSuccess?: (payload: { numPages: number }) => void }) => (
+  Document: (props: {
+    children: ReactNode;
+    onLoadSuccess?: (payload: { numPages: number }) => void;
+    onLoadError?: (error: unknown) => void;
+  }) => (
     <div data-testid="pdf-document">
       <button
         type="button"
@@ -19,6 +23,13 @@ vi.mock("react-pdf", () => ({
         onClick={() => props.onLoadSuccess?.({ numPages: 3 })}
       >
         load-document
+      </button>
+      <button
+        type="button"
+        data-testid="document-load-error"
+        onClick={() => props.onLoadError?.(new Error("broken pdf"))}
+      >
+        error-document
       </button>
       {props.children}
     </div>
@@ -501,6 +512,50 @@ describe("LibraryPdfScrollViewer", () => {
 
     expect(container.querySelector("[data-testid='page-2']")).not.toBeNull();
     expect(container.querySelector("[data-testid='page-3']")).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("reports document load errors through the page-level callback", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onDocumentLoadError = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <LibraryPdfScrollViewer
+          pdfUrl="blob:broken"
+          pageCount={2}
+          zoom={1}
+          mode="select"
+          highlightColor="#fde047"
+          highlightWidth={16}
+          highlightOpacity={0.65}
+          textColor="#111827"
+          textBoxStylePreset="minimal"
+          strokes={[]}
+          textBoxes={[]}
+          onStrokesChange={() => undefined}
+          onTextBoxesChange={() => undefined}
+          onVisiblePageChange={() => undefined}
+          onPageCountChange={() => undefined}
+          onDocumentLoadError={onDocumentLoadError}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    await act(async () => {
+      container.querySelector("[data-testid='document-load-error']")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onDocumentLoadError).toHaveBeenCalledWith("Error: broken pdf");
+    expect(container.textContent).toContain("library.viewer.error");
 
     await act(async () => {
       root.unmount();

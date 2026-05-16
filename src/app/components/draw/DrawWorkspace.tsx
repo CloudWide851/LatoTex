@@ -2,28 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
 import { readFile, workspaceExportAsset, writeFile } from "../../../shared/api/workspace";
 import type { FsAction, FsScope } from "../../../shared/types/app";
-import {
-  buildDrawExportAction,
-  buildDrawLoadPayload,
-  buildRenamedDrawPath,
-  decodeDrawExportPayload,
-  DRAWIO_CONFIG_MESSAGE,
-  inferExportExtension,
-  interpretDrawHandshakeMessage,
-  isDrawPath,
-  loadPersistedTabs,
-  mergeDrawExportRequest,
-  normalizePath,
-  parseDrawMessage,
-  type PendingDrawExportRequest,
-  savePersistedTabs,
-  shouldClearPendingDrawExport,
-  tabTitleFromPath,
-  toDrawExportDialogDefaults,
-} from "./drawWorkspaceUtils";
+import { buildDrawExportAction, buildDrawLoadPayload, buildRenamedDrawPath, decodeDrawExportPayload, DRAWIO_CONFIG_MESSAGE, inferExportExtension, interpretDrawHandshakeMessage, isDrawPath, loadPersistedTabs, mergeDrawExportRequest, normalizePath, parseDrawMessage, type PendingDrawExportRequest, savePersistedTabs, shouldClearPendingDrawExport, tabTitleFromPath, toDrawExportDialogDefaults } from "./drawWorkspaceUtils";
 import { isMissingFileReadError } from "./drawFileError";
-import { DrawWorkspaceTabs } from "./DrawWorkspaceTabs";
+import { DrawWorkspaceHeader } from "./DrawWorkspaceHeader";
 import { formatDrawStartFailure, useDrawFrameLifecycle } from "./drawFrameLifecycle";
+import { DrawWorkspaceFrameSurface, DrawWorkspaceNoProject } from "./DrawWorkspaceFrameSurface";
 import { EMPTY_DIAGRAM, type WorkspaceFsEventDetail } from "./drawWorkspaceConstants";
 
 type TranslationFn = (key: any) => string;
@@ -498,16 +481,12 @@ export function DrawWorkspace(props: {
   }, [activePath, loadActiveToFrame, logDrawRuntime, postToFrame, postToFrameRaw, projectId, t]);
 
   if (!projectId) {
-    return (
-      <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
-        {t("workspace.noProject")}
-      </section>
-    );
+    return <DrawWorkspaceNoProject t={t} />;
   }
 
   return (
     <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
-      <DrawWorkspaceTabs
+      <DrawWorkspaceHeader
         tabPaths={tabPaths}
         activePath={activePath}
         renamingPath={renamingPath}
@@ -531,68 +510,24 @@ export function DrawWorkspace(props: {
       />
 
       <div className="relative min-h-0">
-        {activePath ? (
-          frameFailureDetail ? (
-            <div className="flex h-full items-center justify-center p-4">
-              <div className="w-full max-w-md rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-left shadow-sm">
-                <div className="text-sm font-semibold text-amber-950">{t("draw.startFailed")}</div>
-                <div className="mt-2 break-all text-xs leading-5 text-amber-900">{frameFailureDetail}</div>
-                <button
-                  type="button"
-                  className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
-                  onClick={() => {
-                    void retryFrameLoad();
-                  }}
-                >
-                  {t("draw.retry")}
-                </button>
-              </div>
-            </div>
-          ) : frameSrc ? (
-            <>
-              <iframe
-                ref={frameRef}
-                key={frameSrc}
-                src={frameSrc}
-                title={t("draw.frameTitle")}
-                className={`h-full w-full border-0 transition-opacity duration-200 ${framePhase === "ready" ? "opacity-100" : "opacity-0"}`}
-                onLoad={() => {
-                  handshakeStageRef.current = "iframe_load_event";
-                  logDrawRuntime("INFO", "iframe_load_event");
-                  if (loadTimerRef.current !== null) {
-                    window.clearTimeout(loadTimerRef.current);
-                    loadTimerRef.current = null;
-                  }
-                  setFrameDocumentLoaded(true);
-                }}
-                onError={() => {
-                  const failure = formatDrawStartFailure(
-                    t,
-                    `drawio frame failed to load (last stage: ${handshakeStageRef.current})`,
-                  );
-                  logDrawRuntime("ERROR", `iframe_load_error: last_stage=${handshakeStageRef.current}`);
-                  if (loadTimerRef.current !== null) {
-                    window.clearTimeout(loadTimerRef.current);
-                    loadTimerRef.current = null;
-                  }
-                  setFramePhase("error");
-                  setFrameSrc(null);
-                  setFrameFailureDetail(failure);
-                  setStatus(failure);
-                }}
-              />
-              {framePhase !== "ready" ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/92 px-4 text-center text-xs text-slate-500">
-                  {status || t("draw.waiting")}
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("draw.waiting")}</div>
-          )
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("draw.noTabs")}</div>
-        )}
+        <DrawWorkspaceFrameSurface
+          activePath={activePath}
+          frameFailureDetail={frameFailureDetail}
+          frameRef={frameRef}
+          frameSrc={frameSrc}
+          framePhase={framePhase}
+          handshakeStageRef={handshakeStageRef}
+          loadTimerRef={loadTimerRef}
+          status={status}
+          retryFrameLoad={retryFrameLoad}
+          setFrameDocumentLoaded={setFrameDocumentLoaded}
+          setFrameFailureDetail={setFrameFailureDetail}
+          setFramePhase={setFramePhase}
+          setFrameSrc={setFrameSrc}
+          setStatus={setStatus}
+          logDrawRuntime={logDrawRuntime}
+          t={t}
+        />
       </div>
     </section>
   );

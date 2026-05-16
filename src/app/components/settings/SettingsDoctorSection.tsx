@@ -30,7 +30,7 @@ import {
   type TranslationFn,
 } from "./settingsDoctorHelpers";
 
-export { createInitialDoctorChecks, formatDoctorMessage } from "./settingsDoctorHelpers";
+export { createInitialDoctorChecks, formatDoctorMessage, SAFE_REPAIR_IDS } from "./settingsDoctorHelpers";
 
 function StatusIcon(props: { status: DoctorStatus; phase?: DoctorPhase }) {
   if (props.phase === "running") {

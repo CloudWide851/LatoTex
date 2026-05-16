@@ -8,7 +8,9 @@ export function clampAnnotationDisplayScale(scale: number | undefined): number {
   return Math.max(MIN_ANNOTATION_DISPLAY_SCALE, Math.min(MAX_ANNOTATION_DISPLAY_SCALE, scale));
 }
 
-export function resolveTextBoxDisplayMetrics(scale: number): { padding: number; lineHeight: number } {
+export type TextBoxDisplayMetrics = { padding: number; lineHeight: number };
+
+export function resolveTextBoxDisplayMetrics(scale: number): TextBoxDisplayMetrics {
   return {
     padding: Math.max(2, 6 * scale),
     lineHeight: Math.max(12, 20 * scale),

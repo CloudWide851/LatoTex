@@ -3,6 +3,7 @@ import { runtimeLogWrite } from "../../../shared/api/runtime";
 import { resolveDrawioHostFrameSrc } from "./drawWorkspaceUtils";
 
 type TranslationFn = (key: any) => string;
+export type DrawFramePhase = "loading" | "ready" | "error";
 
 export function formatDrawStartFailure(t: TranslationFn, detail?: string | null): string {
   const normalized = String(detail || "").trim();
@@ -31,7 +32,7 @@ export function useDrawFrameLifecycle(params: {
   const loadTimerRef = useRef<number | null>(null);
   const handshakeStageRef = useRef("boot");
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
-  const [framePhase, setFramePhase] = useState<"loading" | "ready" | "error">("loading");
+  const [framePhase, setFramePhase] = useState<DrawFramePhase>("loading");
   const [frameFailureDetail, setFrameFailureDetail] = useState<string | null>(null);
   const [frameReloadToken, setFrameReloadToken] = useState(0);
   const [frameDocumentLoaded, setFrameDocumentLoaded] = useState(false);
