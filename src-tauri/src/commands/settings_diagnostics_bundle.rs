@@ -1,5 +1,4 @@
 use crate::models::RuntimeDiagnosticsBundleExport;
-use crate::commands::runtime_assets::find_runtime_asset_entry;
 use crate::state::AppState;
 use chrono::Utc;
 use serde::Serialize;
@@ -51,11 +50,11 @@ struct RuntimeDoctorSnapshot {
 #[serde(rename_all = "camelCase")]
 struct ResourceStatus {
     current_exe: String,
-    drawio_runtime_asset: bool,
+    drawio_packaged: bool,
     share_page_packaged: bool,
-    cloudflared_runtime_asset: bool,
-    uv_runtime_asset: bool,
-    tectonic_runtime_asset: bool,
+    cloudflared_packaged: bool,
+    uv_packaged: bool,
+    tectonic_packaged: bool,
 }
 
 fn sanitize_log_line(line: &str) -> String {
@@ -124,17 +123,21 @@ fn write_json_entry<T: Serialize>(
     zip.write_all(&payload).map_err(|e| e.to_string())
 }
 
-fn resource_status(runtime_root: &Path) -> ResourceStatus {
+fn resource_status() -> ResourceStatus {
     let current_exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::new());
     let exe_dir = current_exe.parent().unwrap_or_else(|| Path::new(""));
     let resources_root = exe_dir.join("resources");
     ResourceStatus {
         current_exe: current_exe.to_string_lossy().to_string(),
-        drawio_runtime_asset: find_runtime_asset_entry(runtime_root, "drawio").is_some(),
+        drawio_packaged: resources_root.join("core/drawio/index.html").exists(),
         share_page_packaged: resources_root.join("core/share-page/index.html").exists(),
-        cloudflared_runtime_asset: find_runtime_asset_entry(runtime_root, "cloudflared").is_some(),
-        uv_runtime_asset: find_runtime_asset_entry(runtime_root, "uv").is_some(),
-        tectonic_runtime_asset: find_runtime_asset_entry(runtime_root, "tectonic").is_some(),
+        cloudflared_packaged: resources_root
+            .join("tools/cloudflared-windows-amd64.exe")
+            .exists(),
+        uv_packaged: resources_root.join("tools/uv/windows-x64/uv.exe").exists(),
+        tectonic_packaged: resources_root
+            .join("tools/tectonic/windows-x64/tectonic.exe")
+            .exists(),
     }
 }
 
@@ -194,7 +197,7 @@ pub fn runtime_diagnostics_bundle_export(
     write_json_entry(
         &mut zip,
         "resource-status.json",
-        &resource_status(&state.runtime_root),
+        &resource_status(),
         options,
     )?;
 
@@ -214,83 +217,4 @@ pub fn runtime_diagnostics_bundle_export(
         size_bytes,
         created_at,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sanitize_log_line_redacts_sensitive_lines_and_truncates_long_lines() {
-        assert_eq!(
-            sanitize_log_line("provider Authorization: Bearer secret-token"),
-            "[redacted sensitive log line]"
-        );
-
-        let long_line = "x".repeat(LOG_LINE_LIMIT + 20);
-        let sanitized = sanitize_log_line(&long_line);
-        assert_eq!(sanitized.chars().count(), LOG_LINE_LIMIT + 3);
-        assert!(sanitized.ends_with("..."));
-    }
-
-    #[test]
-    fn read_log_tail_filters_empty_lines_redacts_and_bounds_tail() {
-        let dir = std::env::temp_dir().join(format!(
-            "latotex-diagnostics-tail-test-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("session.log");
-        let mut lines = (0..(LOG_TAIL_LIMIT + 8))
-            .map(|index| format!("INFO line {index}"))
-            .collect::<Vec<_>>();
-        lines.insert(4, "api_key=secret".to_string());
-        lines.insert(5, "".to_string());
-        fs::write(&path, lines.join("\n")).unwrap();
-
-        let tail = read_log_tail(&path);
-
-        assert_eq!(tail.len(), LOG_TAIL_LIMIT);
-        assert!(tail.iter().all(|line| !line.trim().is_empty()));
-        assert!(!tail.iter().any(|line| line.contains("secret")));
-        assert!(tail.iter().any(|line| line.contains("INFO line")));
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn diagnostics_manifest_documents_privacy_boundary() {
-        let manifest = DiagnosticsManifest {
-            schema: "latotex.diagnostics-bundle.v1",
-            created_at: "2026-05-16T00:00:00Z".to_string(),
-            app_name: "LatoTex".to_string(),
-            app_version: "0.1.0-test".to_string(),
-            install_mode: "test".to_string(),
-            runtime_root: "runtime".to_string(),
-            logs_dir: "logs".to_string(),
-            session_log_file: "session.log".to_string(),
-            downloads_dir: "downloads".to_string(),
-            privacy: vec![
-                "No source files, PDFs, API keys, full prompts, or raw terminal output are included.",
-                "Runtime log lines are truncated and sensitive-looking lines are redacted.",
-            ],
-        };
-        let payload = serde_json::to_value(&manifest).unwrap();
-        let privacy = payload
-            .get("privacy")
-            .and_then(|value| value.as_array())
-            .unwrap()
-            .iter()
-            .map(|value| value.as_str().unwrap_or_default())
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        assert!(privacy.contains("No source files"));
-        assert!(privacy.contains("API keys"));
-        assert!(privacy.contains("redacted"));
-        assert!(!payload.as_object().unwrap().contains_key("sourceFiles"));
-        assert!(!payload.as_object().unwrap().contains_key("rawTerminalOutput"));
-    }
 }

@@ -24,6 +24,7 @@ pub struct ResourceNode {
     pub name: String,
     pub relative_path: String,
     pub kind: String,
+    pub directory_role: Option<String>,
     pub children: Vec<ResourceNode>,
 }
 
@@ -77,6 +78,37 @@ pub struct WorkspaceExportPdfResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportAssetInput {
+    pub project_id: String,
+    pub default_relative_dir: String,
+    pub default_file_name: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceExportAssetResponse {
+    pub saved_path: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawExportAssetInput {
+    pub project_id: String,
+    pub relative_path: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawExportAssetResponse {
+    pub saved_path: String,
+    pub file_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ShareSessionCreateInput {
     pub project_id: String,
     pub target_path: String,
@@ -114,6 +146,9 @@ pub struct ShareSessionInfo {
     pub status: Option<String>,
     pub pdf_state: Option<String>,
     pub pdf_updated_at: Option<String>,
+    pub sync_seq: Option<u64>,
+    pub sync_event_count: Option<u32>,
+    pub last_sync_at: Option<String>,
     pub tunnel_state: Option<String>,
     pub tunnel_error: Option<String>,
     #[serde(default)]
@@ -244,6 +279,15 @@ pub struct RuntimeMemorySnapshot {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeDiagnosticsBundleExport {
+    pub path: String,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppBackgroundImage {
     pub path: String,
 }
@@ -284,7 +328,7 @@ pub struct CompileRecord {
     pub created_at: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExecuteRequest {
     pub project_id: String,
@@ -295,19 +339,30 @@ pub struct AgentExecuteRequest {
     pub model_override: Option<String>,
     #[serde(default)]
     pub bypass_cache: bool,
+    pub team_mode: Option<String>,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExecuteCancelInput {
     pub run_id: String,
 }
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExecuteStartAccepted {
     pub run_id: String,
     pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunsRecoverInput {
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRunsRecoverResponse {
+    pub recovered_run_ids: Vec<String>,
 }
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -401,66 +456,47 @@ pub struct UiPrefs {
     pub close_behavior: Option<String>,
     pub close_behavior_remember: Option<bool>,
     pub theme: Option<String>,
-    pub busytex_cache_policy: Option<String>,
-    pub busytex_cache_dir: Option<String>,
+    pub theme_preset: Option<String>,
     pub preview_default_zoom: Option<f64>,
+    pub paper_brief_engine: Option<String>,
+    pub terminal_shell: Option<String>,
     pub panel_layout: Option<Value>,
     pub feature_model_bindings: Option<FeatureModelBindings>,
     pub channels: Option<ChannelPrefs>,
     pub background_image_path: Option<String>,
     pub background_image_paths: Option<Vec<String>>,
     pub background_blur_px: Option<f64>,
+    pub interface_density: Option<String>,
+    pub accent_color: Option<String>,
+    pub accent_custom_color: Option<String>,
+    pub scrollbar_color_mode: Option<String>,
+    pub scrollbar_width_px: Option<f64>,
+    pub scrollbar_thumb_color: Option<String>,
+    pub scrollbar_track_color: Option<String>,
+    pub glass_opacity: Option<f64>,
+    pub glass_blur_px: Option<f64>,
+    pub motion_level: Option<String>,
+    pub pdf_page_gap_px: Option<f64>,
+    pub log_font_size_px: Option<f64>,
+    pub panel_radius_px: Option<f64>,
+    pub panel_border_contrast: Option<String>,
+    pub memory_guard_prefs: Option<MemoryGuardPrefs>,
+    pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
+    pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
+    pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
+    pub workspace_explorer_default_expanded: Option<bool>,
+    pub library_explorer_default_expanded: Option<bool>,
+    pub workspace_explorer_expanded_paths_by_project:
+        Option<std::collections::HashMap<String, Vec<String>>>,
+    pub library_explorer_expanded_paths_by_project:
+        Option<std::collections::HashMap<String, Vec<String>>>,
+    pub agent_tool_prefs: Option<AgentToolPrefs>,
+    pub agent_team_prefs: Option<AgentTeamPrefs>,
+    pub mcp_servers: Option<Vec<McpServerConfig>>,
+    pub enabled_skills: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct FeatureModelBindings {
-    pub latex_agent_model_id: Option<String>,
-    pub analysis_agent_model_id: Option<String>,
-    pub translation_model_id: Option<String>,
-    pub completion_model_id: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ChannelPrefs {
-    pub telegram_enabled: Option<bool>,
-    pub telegram_bot_token: Option<String>,
-    pub telegram_chat_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramPollInput {
-    pub offset: Option<i64>,
-    pub limit: Option<u32>,
-    pub timeout_secs: Option<u64>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramUpdateItem {
-    pub update_id: i64,
-    pub message_id: i64,
-    pub chat_id: String,
-    pub username: String,
-    pub text: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramPollResult {
-    pub next_offset: i64,
-    pub updates: Vec<TelegramUpdateItem>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelegramSendInput {
-    pub chat_id: Option<String>,
-    pub text: String,
-    pub reply_to_message_id: Option<i64>,
-}
+include!("models_settings.rs");
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -572,4 +608,7 @@ pub struct ModelTestResult {
 }
 include!("models_library.rs");
 include!("models_git.rs");
-
+include!("models_agent_workflows.rs");
+include!("models_native_runtime.rs");
+include!("models_resource_warmup.rs");
+include!("models_terminal.rs");

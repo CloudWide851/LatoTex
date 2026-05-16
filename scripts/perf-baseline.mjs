@@ -48,22 +48,7 @@ function isBudgetedDistAsset(filePath) {
 }
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-for (const scriptName of [
-  "arch:check",
-  "typecheck",
-  "test:unit",
-  "test:e2e",
-  "perf:baseline",
-  "build",
-  "tauri:build:win-x64",
-  "release:build-installer:win-x64",
-  "release:validate:win-x64",
-  "release:package:win-x64",
-  "release:install-smoke:win-x64",
-  "release:check:win-x64",
-  "tauri:smoke:win-x64",
-  "soak:matrix",
-]) {
+for (const scriptName of ["arch:check", "typecheck", "test:unit", "test:e2e", "perf:baseline", "build", "tauri:build:win-x64", "release:check:win-x64"]) {
   report.scripts[scriptName] = Boolean(packageJson.scripts?.[scriptName]);
 }
 
