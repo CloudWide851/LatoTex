@@ -4,10 +4,13 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 
 let server: Server;
+let appServer: Server;
 let baseUrl: string;
+let appBaseUrl: string;
 let postedComments = 0;
 
 const shareRoot = resolve("src-tauri/resources/core/share-page");
+const appRoot = resolve("dist");
 const logoPath = resolve("src/assets/branding/logo-icon-rounded.svg");
 
 function contentType(filePath: string) {
@@ -26,6 +29,34 @@ function contentType(filePath: string) {
 }
 
 test.beforeAll(async () => {
+  appServer = createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const relative = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
+    const filePath = normalize(join(appRoot, relative));
+    if (!filePath.startsWith(appRoot)) {
+      response.writeHead(403);
+      response.end("forbidden");
+      return;
+    }
+    try {
+      const bytes = await readFile(filePath);
+      response.writeHead(200, { "Content-Type": contentType(filePath) });
+      response.end(bytes);
+    } catch {
+      response.writeHead(404);
+      response.end("not found");
+    }
+  });
+  await new Promise<void>((resolveServer) => {
+    appServer.listen(0, "127.0.0.1", () => {
+      const address = appServer.address();
+      if (typeof address === "object" && address) {
+        appBaseUrl = `http://127.0.0.1:${address.port}`;
+      }
+      resolveServer();
+    });
+  });
+
   server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     if (url.pathname === "/api/bootstrap") {
@@ -134,7 +165,58 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await new Promise<void>((resolveClose) => appServer.close(() => resolveClose()));
   await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+});
+
+test("app shell boots with mocked Tauri invoke", async ({ page }) => {
+  await page.addInitScript(() => {
+    const e2eWindow = window as Window & {
+      __LATOTEX_E2E_INVOKE__?: (command: string, args?: Record<string, unknown>) => unknown | Promise<unknown>;
+    };
+    e2eWindow.__LATOTEX_E2E_INVOKE__ = async (command) => {
+      switch (command) {
+        case "health_check":
+          return { ok: true, message: "ok" };
+        case "project_list":
+          return [];
+        case "settings_get":
+          return {
+            activeProjectId: null,
+            modelProtocols: [],
+            modelCatalog: [],
+            agentBindings: [],
+            uiPrefs: {
+              language: "en-US",
+              theme: "system",
+              themePreset: "default",
+              panelLayout: {},
+            },
+          };
+        case "runtime_log_info":
+          return {
+            sessionLogFile: "e2e.log",
+            logsDir: "e2e-logs",
+            runtimeRoot: "e2e-runtime",
+            installMode: "e2e",
+            version: "0.1.0-e2e",
+          };
+        case "runtime_log_write":
+        case "window_sync_icon":
+          return { ok: true };
+        case "share_session_status":
+          return { active: false };
+        default:
+          return { ok: true };
+      }
+    };
+  });
+  await page.goto(appBaseUrl, { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveTitle("LatoTex");
+  await expect(page.locator("body")).toContainText("LatoTex");
+  await expect(page.locator("body")).not.toHaveText("");
+  const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(hasHorizontalOverflow).toBe(false);
 });
 
 test("share page shell renders without horizontal overflow", async ({ page }) => {

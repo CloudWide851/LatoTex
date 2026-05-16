@@ -16,20 +16,14 @@ import {
   LazyDrawWorkspace,
   WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
-import { buildNewChatTabState } from "./workspace/workspaceChatTab";
-import {
-  loadLatexWorkspaceSession,
-  persistLatexWorkspaceChatSession,
-} from "./workspace/latexWorkspaceSession";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
-import { createChatSessionInStore, loadChatStore, type ChatSessionOpenDetail } from "../hooks/chatSessionStore";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
-import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
   resolveWorkspacePreviewFlags,
   resolveWorkspacePreviewMode,
   type WorkspacePreviewMode,
 } from "./workspace/workspacePreviewMode";
+import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -158,9 +152,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     | null
   >(null);
   const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
-  const [chatTabOpen, setChatTabOpen] = useState(false);
-  const [chatTabActive, setChatTabActive] = useState(false);
-  const [chatTabTitle, setChatTabTitle] = useState<string | null>(null);
   const [terminalVisible, setTerminalVisible] = useState(false);
 
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
@@ -185,74 +176,25 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     }
   }, [compileErrorLine]);
 
-  useEffect(() => {
-    setChatTabTitle(null);
-    if (!activeProjectId) {
-      setChatTabOpen(false);
-      setChatTabActive(false);
-      return;
-    }
-    const restored = loadLatexWorkspaceSession(activeProjectId);
-    if (!restored?.chatTabOpen) {
-      setChatTabOpen(false);
-      setChatTabActive(false);
-      return;
-    }
-    const store = loadChatStore(activeProjectId);
-    const activeTitle = store.activeSessionId
-      ? store.sessions.find((item) => item.id === store.activeSessionId)?.title ?? null
-      : null;
-    setChatTabOpen(true);
-    setChatTabActive(restored.chatTabActive);
-    setChatTabTitle(activeTitle);
-    void runtimeLogWrite(
-      "INFO",
-      `latex_chat_tab_restore: project=${activeProjectId}, active=${restored.chatTabActive}`,
-    ).catch(() => undefined);
-  }, [activeProjectId]);
-
-  useEffect(() => {
-    if (!activeProjectId) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      persistLatexWorkspaceChatSession({
-        projectId: activeProjectId,
-        chatTabOpen,
-        chatTabActive,
-      });
-    }, 250);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [activeProjectId, chatTabActive, chatTabOpen]);
-
-  useEffect(() => {
-    if (page !== "latex") {
-      setChatTabActive(false);
-    }
-  }, [page]);
-  useEffect(() => {
-    if (!activeProjectId || typeof window === "undefined") {
-      return;
-    }
-    const handleOpenChatSession = (event: Event) => {
-      const custom = event as CustomEvent<ChatSessionOpenDetail>;
-      if (!custom.detail || custom.detail.projectId !== activeProjectId) {
-        return;
-      }
-      const store = loadChatStore(activeProjectId);
-      const title = store.sessions.find((item) => item.id === custom.detail.sessionId)?.title ?? null;
-      setChatTabOpen(true);
-      setChatTabActive(true);
-      setChatTabTitle(title);
-      onPageChange("latex");
-    };
-    window.addEventListener("latotex.chat.session.open", handleOpenChatSession as EventListener);
-    return () => {
-      window.removeEventListener("latotex.chat.session.open", handleOpenChatSession as EventListener);
-    };
-  }, [activeProjectId, onPageChange]);
+  const {
+    chatTabOpen,
+    chatTabTitle,
+    showChatWorkspace,
+    setChatTabActive,
+    setChatTabTitle,
+    handleCreateChatTab,
+    handleOpenChatTab,
+    handleCloseChatTab,
+    handleChatReviewRequest,
+  } = useLatexWorkspaceChatTab({
+    activeProjectId,
+    page,
+    agentCollapsed,
+    onPageChange,
+    onAgentToggle,
+    onChatReviewRequest,
+    t,
+  });
 
   useEffect(() => {
     emitWorkspaceLayoutRefresh(page, "page-change");
@@ -321,28 +263,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     () => compileAssistOverride?.hint ?? buildCompileAssistHint(compileDiagnostics, t, { source: editorContent }),
     [compileAssistOverride, compileDiagnostics, editorContent, t],
   );
-  const showChatWorkspace = chatTabOpen && chatTabActive;
-
-  const handleOpenChatTab = () => {
-    setChatTabOpen(true);
-    setChatTabActive(true);
-  };
-
-  const handleCreateChatTab = () => {
-    const next = buildNewChatTabState(activeProjectId, t("chat.sessionNew"), createChatSessionInStore);
-    if (!next) {
-      return;
-    }
-    setChatTabOpen(next.chatTabOpen);
-    setChatTabActive(next.chatTabActive);
-    setChatTabTitle(next.chatTabTitle);
-  };
-
-  const handleCloseChatTab = () => {
-    setChatTabOpen(false);
-    setChatTabActive(false);
-  };
-
   const handleSelectEditorTab = (tabId: string) => {
     setChatTabActive(false);
     onTabSelect(tabId);
@@ -351,14 +271,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const handleSelectWorkspaceFile = (path: string | null) => {
     setChatTabActive(false);
     onSelectFile(path);
-  };
-
-  const handleChatReviewRequest = (prompt: string) => {
-    setChatTabActive(false);
-    if (agentCollapsed) {
-      onAgentToggle();
-    }
-    onChatReviewRequest(prompt);
   };
 
   const openCjkCompileAssist = (

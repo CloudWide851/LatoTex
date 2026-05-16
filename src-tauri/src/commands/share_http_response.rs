@@ -152,6 +152,21 @@ mod tests {
     }
 
     #[test]
+    fn share_cors_never_uses_wildcard_for_allowed_origins() {
+        let response = with_share_headers_for_origin(
+            Response::from_string("ok").with_status_code(StatusCode(200)),
+            Some("https://example.trycloudflare.com"),
+        );
+
+        assert_eq!(
+            find_header(&response, "Access-Control-Allow-Origin"),
+            Some("https://example.trycloudflare.com")
+        );
+        assert_ne!(find_header(&response, "Access-Control-Allow-Origin"), Some("*"));
+        assert_eq!(find_header(&response, "Vary"), Some("Origin"));
+    }
+
+    #[test]
     fn share_headers_include_page_security_policy() {
         let response = with_share_headers(Response::from_string("<html></html>").with_status_code(StatusCode(200)));
 

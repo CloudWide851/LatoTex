@@ -159,6 +159,32 @@ fn handle_local_resource_request_allows_known_app_origin() {
 }
 
 #[test]
+fn handle_local_resource_request_rejects_unknown_origin_header() {
+    let fixture = create_test_fixture("unknown-origin");
+    let relative_path = ".latotex/papers/origin-reject.pdf";
+    let pdf_path = fixture.project_root.join(".latotex").join("papers").join("origin-reject.pdf");
+    fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
+    fs::write(&pdf_path, b"%PDF-origin").unwrap();
+
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(format!(
+            "http://{}.localhost/workspace-file/{}/{}",
+            LOCAL_RESOURCE_SCHEME,
+            encode(&fixture.project_id),
+            encode(relative_path),
+        ))
+        .header("Origin", "https://evil.example")
+        .body(Vec::new())
+        .unwrap();
+
+    let response = handle_local_resource_request(&fixture.state, &request);
+
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.headers().get("Access-Control-Allow-Origin"), None);
+}
+
+#[test]
 fn workspace_file_response_supports_single_byte_ranges() {
     set_local_resource_origin(None);
     let path = temp_workspace_file_path("range.pdf", b"0123456789");

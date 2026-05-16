@@ -1,4 +1,4 @@
-import { Workbook, type CellValue, type Worksheet } from "exceljs";
+import type { CellValue, Workbook as ExcelWorkbook, Worksheet } from "exceljs";
 import Papa from "papaparse";
 import { Plus, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -165,7 +165,7 @@ export function TablePreviewPane(props: {
   const { projectId, selectedPath, csvText, onCsvTextChange, t } = props;
   const delimiter = csvDelimiter(selectedPath);
   const parsedCsv = useMemo(() => csvParse(csvText, delimiter), [csvText, delimiter]);
-  const workbookRef = useRef<Workbook | null>(null);
+  const workbookRef = useRef<ExcelWorkbook | null>(null);
   const [excelSheets, setExcelSheets] = useState<SheetView[]>([]);
   const [excelLoading, setExcelLoading] = useState(false);
   const [excelSaving, setExcelSaving] = useState(false);
@@ -195,6 +195,7 @@ export function TablePreviewPane(props: {
         if (cancelled) {
           return;
         }
+        const { Workbook } = await import("exceljs");
         const workbook = new Workbook();
         const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
         await workbook.xlsx.load(buffer);

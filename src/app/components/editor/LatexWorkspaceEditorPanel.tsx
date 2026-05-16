@@ -1,13 +1,10 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import MonacoEditor from "@monaco-editor/react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { PenTool, Play, Redo2, Save, Terminal, Undo2 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AgentProposalMiniBar } from "./AgentProposalMiniBar";
 import { CompileAssistPopover } from "./CompileAssistPopover";
 import { EditorTabsBar } from "./EditorTabsBar";
-import { getEditorSurfaceThemeName, registerEditorSurfaceThemes } from "./editorSurfaceTheme";
-import { registerEditorCodeLanguages } from "./editorCodeLanguages";
-import { ensureLatexCompletionProvider } from "./latexCompletion";
+import { getEditorSurfaceThemeName } from "./editorSurfaceTheme";
 import { createWorkspaceEditorMonacoOptions } from "./editorMonacoOptions";
 import { useWorkspaceEditorShareComments } from "./useWorkspaceEditorShareComments";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
@@ -28,6 +25,10 @@ import { isTexPath } from "../../../shared/utils/fileKind";
 
 type TranslationFn = (key: any) => string;
 const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
+const LazyWorkspaceMonacoEditor = lazy(async () => {
+  const module = await import("./WorkspaceMonacoEditor");
+  return { default: module.WorkspaceMonacoEditor };
+});
 
 function ensureMonacoOverflowWidgetRoot(): HTMLElement | null {
   if (typeof document === "undefined") {
@@ -311,60 +312,18 @@ export function LatexWorkspaceEditorPanel(props: {
           {t("editor.excelPreviewOnly")}
         </div>
       ) : (
-        <MonacoEditor
-          path={selectedFile ?? undefined}
-          language={editorLanguage}
-          theme={editorTheme}
-          value={editorContent}
-          saveViewState
-          beforeMount={(monaco) => {
-            registerEditorSurfaceThemes(monaco);
-            registerEditorCodeLanguages(monaco);
-          }}
-          onChange={(value) => onEditorChange(value ?? "")}
-          onMount={(editor, monaco) => {
-            editorInstanceRef.current = editor;
-            let overflowRefreshFrame: number | null = null;
-            const refreshOverflowWidgets = () => {
-              if (overflowRefreshFrame != null || typeof window === "undefined") {
-                return;
-              }
-              overflowRefreshFrame = window.requestAnimationFrame(() => {
-                overflowRefreshFrame = null;
-                editor.render?.(true);
-              });
-            };
-            ensureLatexCompletionProvider(monaco);
-            editor.addCommand(
-              monaco.KeyCode.Tab,
-              () => editor.trigger("keyboard", "acceptSelectedSuggestion", {}),
-              "suggestWidgetVisible",
-            );
-            editor.addCommand(
-              monaco.KeyCode.Tab,
-              () => editor.trigger("keyboard", "acceptInlineSuggestion", {}),
-              "inlineSuggestionVisible",
-            );
-            editor.updateOptions(editorOptions);
-            editor.layout();
-            const disposables = [
-              editor.onDidChangeCursorPosition(refreshOverflowWidgets),
-              editor.onDidScrollChange(refreshOverflowWidgets),
-              editor.onDidLayoutChange(refreshOverflowWidgets),
-            ];
-            editor.onDidDispose(() => {
-              if (overflowRefreshFrame != null && typeof window !== "undefined") {
-                window.cancelAnimationFrame(overflowRefreshFrame);
-              }
-              disposables.forEach((disposable) => disposable.dispose());
-              if (editorInstanceRef.current === editor) {
-                editorInstanceRef.current = null;
-              }
-            });
-            onEditorMount(editor, monaco);
-          }}
-          options={editorOptions}
-        />
+        <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+          <LazyWorkspaceMonacoEditor
+            path={selectedFile ?? undefined}
+            language={editorLanguage}
+            theme={editorTheme}
+            value={editorContent}
+            options={editorOptions}
+            editorInstanceRef={editorInstanceRef}
+            onChange={onEditorChange}
+            onMount={onEditorMount}
+          />
+        </Suspense>
       )}
 
       {showChatWorkspace ? null : (

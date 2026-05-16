@@ -8,9 +8,7 @@ const sourceRoots = ["src", "src-tauri/src"].map((entry) => path.join(repoRoot, 
 const extensions = new Set([".rs", ".ts", ".tsx"]);
 
 const legacyExemptions = new Set([
-  "src/app/components/AppWorkspaceShell.tsx",
   "src/app/components/ExplorerTree.spec.tsx",
-  "src/app/hooks/useAppContainerWorkspaceActions.ts",
   "src-tauri/src/commands/native_runtime_analysis_env.rs",
   "src-tauri/src/models.rs",
   "src-tauri/src/storage/library_translation/paper_translation_engine.rs",
