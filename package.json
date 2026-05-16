@@ -20,6 +20,7 @@
     "test:e2e": "pnpm build:share-page && playwright test",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "perf:baseline": "node scripts/perf-baseline.mjs",
+    "release:check:win-x64": "node scripts/release-check-win-x64.mjs",
     "preview": "vite preview",
     "brand:sync": "node scripts/sync-brand-assets.mjs",
     "brand:icons": "node scripts/ensure-brand-icons.mjs --force",

@@ -38,23 +38,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Architecture and source-size checks
-        run: pnpm arch:check
-
-      - name: Typecheck frontend
-        run: pnpm typecheck
-
-      - name: Unit tests
-        run: pnpm test:unit
-
-      - name: Playwright smoke tests
-        run: pnpm test:e2e
-
-      - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      - name: Build frontend
-        run: pnpm build
-
-      - name: Performance baseline
-        run: pnpm perf:baseline
+      - name: Windows x64 release-quality gate
+        run: pnpm release:check:win-x64

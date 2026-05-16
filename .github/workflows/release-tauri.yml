@@ -35,16 +35,14 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and upload release assets
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Windows x64 release gate
+        run: pnpm release:check:win-x64
+
+      - name: Upload generated Windows installer
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: LatoTex ${{ github.ref_name }}
-          releaseBody: Automated build for ${{ github.ref_name }}.
-          releaseDraft: false
+          name: LatoTex ${{ github.ref_name }}
+          body: Automated Windows x64 build for ${{ github.ref_name }}.
+          draft: false
           prerelease: false
-          args: --target x86_64-pc-windows-msvc --bundles nsis
+          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe

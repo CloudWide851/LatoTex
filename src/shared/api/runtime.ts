@@ -5,6 +5,7 @@ import type {
   RuntimeLogReadResponse,
   RuntimeLogSessionListResponse,
   RuntimeMemorySnapshot,
+  RuntimeDiagnosticsBundleExport,
 } from "../types/app";
 import { invokeCommand } from "./core";
 
@@ -22,6 +23,10 @@ export function runtimeLogListSessions(): Promise<RuntimeLogSessionListResponse>
 
 export function runtimeMemorySnapshot(): Promise<RuntimeMemorySnapshot> {
   return invokeCommand<RuntimeMemorySnapshot>("runtime_memory_snapshot");
+}
+
+export function runtimeDiagnosticsBundleExport(): Promise<RuntimeDiagnosticsBundleExport> {
+  return invokeCommand<RuntimeDiagnosticsBundleExport>("runtime_diagnostics_bundle_export");
 }
 
 export function runtimeLogRead(filters: RuntimeLogReadFilters = {}): Promise<RuntimeLogReadResponse> {

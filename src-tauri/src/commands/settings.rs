@@ -13,6 +13,8 @@ use std::time::Duration;
 use tauri::{async_runtime::spawn_blocking, State};
 #[path = "settings_background.rs"]
 mod settings_background;
+#[path = "settings_diagnostics_bundle.rs"]
+mod settings_diagnostics_bundle;
 #[path = "settings_fonts.rs"]
 mod settings_fonts;
 mod settings_keysave;
@@ -24,6 +26,7 @@ pub use settings_background::{
     settings_pick_background_image, settings_read_background_image,
     settings_remove_background_image,
 };
+pub use settings_diagnostics_bundle::runtime_diagnostics_bundle_export;
 pub use settings_fonts::runtime_system_font_probe;
 pub use settings_keysave::model_api_key_save_verified;
 pub use settings_memory::runtime_memory_snapshot;

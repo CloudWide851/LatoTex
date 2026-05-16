@@ -1,12 +1,9 @@
+use super::swarm_provider_core::*;
+use super::swarm_provider_streaming::stream_anthropic;
 use reqwest::blocking::Client;
 use serde_json::json;
 
-use super::swarm_provider_core::{
-    candidate_gemini_endpoints, classify_http_error, extract_text_content, is_reasoning_model,
-    parse_provider_json, transport_error, ProviderError,
-};
-
-pub(super) fn call_gemini(
+pub(super) fn call_anthropic(
     client: &Client,
     base_url: &str,
     api_key: &str,
@@ -15,59 +12,48 @@ pub(super) fn call_gemini(
 ) -> Result<String, ProviderError> {
     let reasoning = is_reasoning_model(model_name);
     let mut payloads = vec![json!({
-        "contents": [{
-            "role": "user",
-            "parts": [{ "text": prompt }]
-        }],
-        "generationConfig": {
-            "temperature": 0.2,
-            "maxOutputTokens": 2048
-        }
+        "model": model_name,
+        "max_tokens": 2048,
+        "messages": [{ "role": "user", "content": prompt }]
     })];
     if reasoning {
         payloads.insert(
             0,
             json!({
-                "contents": [{
-                    "role": "user",
-                    "parts": [{ "text": prompt }]
-                }],
-                "generationConfig": {
-                    "maxOutputTokens": 2048
-                }
+                "model": model_name,
+                "max_tokens": 2048,
+                "thinking": { "type": "enabled", "budget_tokens": 1024 },
+                "messages": [{ "role": "user", "content": prompt }]
             }),
         );
     }
-    payloads.push(json!({
-        "contents": [{
-            "role": "user",
-            "parts": [{ "text": prompt }]
-        }]
-    }));
-
     let mut last_error: Option<ProviderError> = None;
-    for endpoint in candidate_gemini_endpoints(base_url, model_name, api_key) {
+    for endpoint in candidate_endpoints(base_url, "messages") {
         for payload in &payloads {
-            let response = match client.post(&endpoint).json(payload).send() {
+            let response = match client
+                .post(&endpoint)
+                .header("x-api-key", api_key)
+                .header("anthropic-version", "2023-06-01")
+                .json(payload)
+                .send()
+            {
                 Ok(item) => item,
                 Err(error) => {
                     last_error = Some(transport_error(error));
                     continue;
                 }
             };
-
             let status = response.status();
             let body = response.text().unwrap_or_default();
             if !status.is_success() {
-                let error = classify_http_error("Gemini", status, &body);
+                let error = classify_http_error("Anthropic", status, &body);
                 if error.auto_repairable {
                     last_error = Some(error);
                     continue;
                 }
                 return Err(error);
             }
-
-            let parsed = match parse_provider_json(&body, "Gemini") {
+            let parsed = match parse_provider_json(&body, "Anthropic") {
                 Ok(value) => value,
                 Err(error) => {
                     if error.auto_repairable {
@@ -78,10 +64,7 @@ pub(super) fn call_gemini(
                 }
             };
             let content = parsed
-                .get("candidates")
-                .and_then(|v| v.get(0))
-                .and_then(|v| v.get("content"))
-                .and_then(|v| v.get("parts"))
+                .get("content")
                 .and_then(extract_text_content)
                 .unwrap_or_default();
             if !content.trim().is_empty() {
@@ -89,7 +72,7 @@ pub(super) fn call_gemini(
             }
             last_error = Some(ProviderError {
                 code: "provider.empty_output",
-                message: "Empty response from Gemini endpoint".to_string(),
+                message: "Empty response from Anthropic endpoint".to_string(),
                 retryable: true,
                 auto_repairable: true,
             });
@@ -97,8 +80,32 @@ pub(super) fn call_gemini(
     }
     Err(last_error.unwrap_or(ProviderError {
         code: "provider.endpoint_mismatch",
-        message: "No compatible Gemini endpoint/payload variant succeeded".to_string(),
+        message: "No compatible Anthropic endpoint/payload variant succeeded".to_string(),
         retryable: false,
         auto_repairable: true,
     }))
+}
+
+pub(super) fn call_anthropic_streaming<F>(
+    client: &Client,
+    base_url: &str,
+    api_key: &str,
+    model_name: &str,
+    prompt: &str,
+    mut on_delta: F,
+) -> Result<StreamAttempt, ProviderError>
+where
+    F: FnMut(&str) -> Result<(), String>,
+{
+    match stream_anthropic(client, base_url, api_key, model_name, prompt, &mut on_delta) {
+        Ok(value) => Ok(value),
+        Err(error) if error.auto_repairable => {
+            let fallback = call_anthropic(client, base_url, api_key, model_name, prompt)?;
+            if !fallback.is_empty() {
+                on_delta(&fallback).map_err(consumer_error)?;
+            }
+            Ok(StreamAttempt { text: fallback })
+        }
+        Err(error) => Err(error),
+    }
 }

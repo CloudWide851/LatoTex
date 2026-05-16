@@ -279,6 +279,15 @@ pub struct RuntimeMemorySnapshot {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeDiagnosticsBundleExport {
+    pub path: String,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppBackgroundImage {
     pub path: String,
 }
@@ -334,7 +343,9 @@ pub struct AgentExecuteRequest {
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentExecuteCancelInput { pub run_id: String }
+pub struct AgentExecuteCancelInput {
+    pub run_id: String,
+}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentExecuteStartAccepted {
@@ -475,8 +486,10 @@ pub struct UiPrefs {
     pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
     pub workspace_explorer_default_expanded: Option<bool>,
     pub library_explorer_default_expanded: Option<bool>,
-    pub workspace_explorer_expanded_paths_by_project: Option<std::collections::HashMap<String, Vec<String>>>,
-    pub library_explorer_expanded_paths_by_project: Option<std::collections::HashMap<String, Vec<String>>>,
+    pub workspace_explorer_expanded_paths_by_project:
+        Option<std::collections::HashMap<String, Vec<String>>>,
+    pub library_explorer_expanded_paths_by_project:
+        Option<std::collections::HashMap<String, Vec<String>>>,
     pub agent_tool_prefs: Option<AgentToolPrefs>,
     pub agent_team_prefs: Option<AgentTeamPrefs>,
     pub mcp_servers: Option<Vec<McpServerConfig>>,

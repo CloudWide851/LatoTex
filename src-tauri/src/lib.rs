@@ -24,20 +24,19 @@ use commands::health::{app_exit, health_check, tray_set_labels, window_sync_icon
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
 use commands::native_runtime::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
-    analysis_env_prepare_status, analysis_env_status, analysis_run_python,
-    latex_compile_native, latex_compile_start, latex_compile_status,
+    analysis_env_prepare_status, analysis_env_status, analysis_run_python, latex_compile_native,
+    latex_compile_start, latex_compile_status,
 };
 use commands::projects::{
     draw_export_asset, file_read, file_read_binary, file_write, file_write_binary, fs_operation,
     library_citation_index_rebuild, library_citation_index_status, library_citation_resolve,
     library_citation_summary, library_citation_summary_remote, library_import_link,
-    library_import_pdf, library_rescan, library_resolve_pdf_preview,
-    library_resume_pdf_downloads, library_tree, library_zotero_sync, open_external_link,
-    project_create, project_init_from_folder, project_integrity_repair,
-    project_integrity_status, project_list, project_open, project_prepare_search_index,
-    project_search_content, project_search_content_incremental,
-    workspace_export_asset, workspace_export_pdf, workspace_open_terminal,
-    workspace_reveal_in_system, workspace_tree,
+    library_import_pdf, library_rescan, library_resolve_pdf_preview, library_resume_pdf_downloads,
+    library_tree, library_zotero_sync, open_external_link, project_create,
+    project_init_from_folder, project_integrity_repair, project_integrity_status, project_list,
+    project_open, project_prepare_search_index, project_search_content,
+    project_search_content_incremental, workspace_export_asset, workspace_export_pdf,
+    workspace_open_terminal, workspace_reveal_in_system, workspace_tree,
 };
 use commands::projects_translation::{
     library_extract_paper_context, library_translate_document, library_translate_start,
@@ -45,10 +44,11 @@ use commands::projects_translation::{
 };
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test,
-    model_test_draft, protocol_test, runtime_log_clear_current_session, runtime_log_info,
-    runtime_log_list_sessions, runtime_log_read, runtime_log_write, runtime_memory_snapshot,
-    runtime_system_font_probe, settings_get, settings_pick_background_image,
-    settings_read_background_image, settings_remove_background_image, settings_update,
+    model_test_draft, protocol_test, runtime_diagnostics_bundle_export,
+    runtime_log_clear_current_session, runtime_log_info, runtime_log_list_sessions,
+    runtime_log_read, runtime_log_write, runtime_memory_snapshot, runtime_system_font_probe,
+    settings_get, settings_pick_background_image, settings_read_background_image,
+    settings_remove_background_image, settings_update,
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
 use commands::swarm::{
@@ -219,6 +219,7 @@ pub fn run() {
             runtime_log_info,
             runtime_log_list_sessions,
             runtime_log_read,
+            runtime_diagnostics_bundle_export,
             runtime_memory_snapshot,
             runtime_system_font_probe,
             runtime_log_clear_current_session,

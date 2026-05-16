@@ -426,6 +426,13 @@ export type RuntimeMemorySnapshot = {
   sampledAt: string;
 };
 
+export type RuntimeDiagnosticsBundleExport = {
+  path: string;
+  fileName: string;
+  sizeBytes: number;
+  createdAt: string;
+};
+
 export type RuntimeLogEntry = {
   timestamp: string;
   level: string;

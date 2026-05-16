@@ -5,6 +5,7 @@ import { extname, join, normalize, resolve } from "node:path";
 
 let server: Server;
 let baseUrl: string;
+let postedComments = 0;
 
 const shareRoot = resolve("src-tauri/resources/core/share-page");
 const logoPath = resolve("src/assets/branding/logo-icon-rounded.svg");
@@ -44,6 +45,53 @@ test.beforeAll(async () => {
         sessionCreatedAt: "2026-05-16T00:00:00Z",
         passwordRequired: true,
       }));
+      return;
+    }
+    if (url.pathname === "/api/join" && request.method === "POST") {
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      response.end(JSON.stringify({
+        participantId: "participant-e2e",
+        participantToken: "token-e2e",
+        participants: [{ id: "participant-e2e", username: "E2E", color: "#2563eb", lastSeenAt: new Date().toISOString() }],
+      }));
+      return;
+    }
+    if (url.pathname === "/api/presence/ping" && request.method === "POST") {
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({
+        participants: [{ id: "participant-e2e", username: "E2E", color: "#2563eb", lastSeenAt: new Date().toISOString() }],
+      }));
+      return;
+    }
+    if (url.pathname === "/api/comments/list") {
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({ comments: [] }));
+      return;
+    }
+    if (url.pathname === "/api/comments/post" && request.method === "POST") {
+      postedComments += 1;
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({
+        comments: [{
+          id: `comment-${postedComments}`,
+          username: "E2E",
+          text: "Looks good",
+          quote: "",
+          source: "tex",
+          createdAt: new Date().toISOString(),
+        }],
+      }));
+      return;
+    }
+    if (url.pathname === "/api/pdf/status") {
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      response.end(JSON.stringify({ state: "missing", updatedAt: null, sizeBytes: 0, version: null }));
       return;
     }
     if (url.pathname === "/favicon.ico") {
@@ -104,4 +152,45 @@ test("share page shell renders without horizontal overflow", async ({ page }) =>
   const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(hasHorizontalOverflow).toBe(false);
   expect(consoleErrors.filter((entry) => !entry.includes("ResizeObserver"))).toEqual([]);
+});
+
+test("share bootstrap keeps private document state out of the public payload", async ({ request }) => {
+  const response = await request.get(`${baseUrl}/api/bootstrap`);
+  expect(response.ok()).toBe(true);
+  const payload = await response.json();
+  expect(payload).not.toHaveProperty("comments");
+  expect(payload).not.toHaveProperty("pdfState");
+  expect(payload).not.toHaveProperty("pdfUpdatedAt");
+  expect(payload).not.toHaveProperty("hasPdf");
+  expect(payload).not.toHaveProperty("password");
+  expect(payload.passwordRequired).toBe(true);
+});
+
+test("share collaboration browser endpoints accept the mocked workflow", async ({ request }) => {
+  const join = await request.post(`${baseUrl}/api/join`, {
+    data: { sid: "e2e-session", pwd: "secret", clientId: "client-e2e", username: "E2E" },
+  });
+  expect(join.ok()).toBe(true);
+  const joined = await join.json();
+  expect(joined.participantId).toBe("participant-e2e");
+
+  const ping = await request.post(`${baseUrl}/api/presence/ping`, {
+    data: {
+      sid: "e2e-session",
+      pwd: "secret",
+      participantId: joined.participantId,
+      participantToken: joined.participantToken,
+      action: "focus",
+    },
+  });
+  expect(ping.ok()).toBe(true);
+
+  const comments = await request.get(
+    `${baseUrl}/api/comments/list?sid=e2e-session&pwd=secret&participantId=${joined.participantId}&participantToken=${joined.participantToken}`,
+  );
+  expect(comments.ok()).toBe(true);
+
+  const pdfStatus = await request.get(`${baseUrl}/api/pdf/status?sid=e2e-session&pwd=secret`);
+  expect(pdfStatus.ok()).toBe(true);
+  await expect(pdfStatus.json()).resolves.toMatchObject({ state: "missing" });
 });
