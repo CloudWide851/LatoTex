@@ -20,7 +20,9 @@ use commands::git::{
     git_init_repo, git_log, git_pull, git_push, git_run_installer, git_stage, git_status,
     git_unstage,
 };
-use commands::health::{app_exit, health_check, tray_set_labels, window_sync_icon};
+use commands::health::{
+    app_exit, app_smoke_config, app_smoke_finish, health_check, tray_set_labels, window_sync_icon,
+};
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
 use commands::native_runtime::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
@@ -68,6 +70,120 @@ const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
 const TRAY_MENU_EXIT_ID: &str = "tray_exit_app";
 const TRAY_ID: &str = "latotex-tray";
 
+fn run_native_smoke_fallback_if_requested() -> bool {
+    let smoke_mode = std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1");
+    let native_fallback =
+        std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK").ok().as_deref() == Some("1");
+    if !smoke_mode || !native_fallback {
+        return false;
+    }
+    let result = run_native_smoke_fallback();
+    if let Err(error) = result {
+        let _ = write_native_smoke_report(false, vec![], Some(error));
+    }
+    true
+}
+
+fn write_native_smoke_report(
+    ok: bool,
+    steps: Vec<serde_json::Value>,
+    error: Option<String>,
+) -> Result<(), String> {
+    let report_path = std::env::var("LATOTEX_SMOKE_REPORT_PATH")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
+    if let Some(parent) = report_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let report = serde_json::json!({
+        "ok": ok,
+        "status": if ok { "passed" } else { "failed" },
+        "mode": "native-fallback",
+        "steps": steps,
+        "error": error,
+        "version": env!("CARGO_PKG_VERSION"),
+        "timestamp": crate::storage::now_iso(),
+    });
+    std::fs::write(
+        report_path,
+        serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
+fn run_native_smoke_fallback() -> Result<(), String> {
+    let runtime_root = std::env::var("LATOTEX_E2E_RUNTIME_ROOT")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| "LATOTEX_E2E_RUNTIME_ROOT is required".to_string())?;
+    let projects_dir = runtime_root.join("projects");
+    let db_path = runtime_root.join("latotex.db");
+    std::fs::create_dir_all(&projects_dir).map_err(|e| e.to_string())?;
+    storage::initialize_database(&db_path)?;
+    let mut steps = Vec::<serde_json::Value>::new();
+    let snapshot = storage::create_project(&db_path, &projects_dir, "Smoke Project Native")?;
+    let project_id = snapshot.summary.id;
+    steps.push(serde_json::json!({"name":"native.project.create","ok":true,"detail":project_id}));
+    storage::write_project_file(
+        &db_path,
+        crate::models::FileWriteInput {
+            project_id: project_id.clone(),
+            relative_path: "main.tex".to_string(),
+            content: "\\documentclass{article}\n\\begin{document}\nSmoke path\n\\end{document}\n"
+                .to_string(),
+        },
+    )?;
+    steps.push(serde_json::json!({"name":"native.file.write","ok":true}));
+    let file = storage::read_project_file(&db_path, &project_id, "main.tex")?;
+    let file_read_ok = file.content.contains("Smoke path");
+    steps.push(serde_json::json!({
+        "name":"native.file.read",
+        "ok": file_read_ok,
+        "detail": file.relative_path
+    }));
+    if !file_read_ok {
+        return Err("native smoke file read verification failed".to_string());
+    }
+    let tree = storage::list_workspace_tree(std::path::Path::new(&snapshot.summary.root_path))?;
+    let tree_ok = tree.iter().any(|node| node.relative_path == "main.tex");
+    steps.push(serde_json::json!({
+        "name":"native.workspace.tree",
+        "ok": tree_ok
+    }));
+    if !tree_ok {
+        return Err("native smoke workspace tree verification failed".to_string());
+    }
+    let integrity = storage::project_integrity_status(&db_path, &project_id)?;
+    let integrity_ok = integrity.missing_required.is_empty();
+    steps.push(serde_json::json!({
+        "name":"native.project.integrity",
+        "ok": integrity_ok,
+        "detail": integrity.missing_required.len()
+    }));
+    if !integrity_ok {
+        return Err("native smoke project integrity verification failed".to_string());
+    }
+    storage::prepare_project_search_index(&db_path, &project_id)?;
+    let hits = storage::search_project_content(
+        &db_path,
+        crate::models::ProjectSearchInput {
+            project_id,
+            query: "Smoke".to_string(),
+            limit: Some(5),
+            scopes: Some(vec!["file_content".to_string()]),
+        },
+    )?;
+    let search_ok = !hits.is_empty();
+    steps.push(serde_json::json!({
+        "name":"native.project.search",
+        "ok": search_ok,
+        "detail": hits.len()
+    }));
+    if !search_ok {
+        return Err("native smoke search verification failed".to_string());
+    }
+    write_native_smoke_report(true, steps, None)
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -78,7 +194,11 @@ fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if !single_instance::acquire_or_focus_existing() {
+    if run_native_smoke_fallback_if_requested() {
+        return;
+    }
+    let smoke_mode = std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1");
+    if !smoke_mode && !single_instance::acquire_or_focus_existing() {
         return;
     }
     tauri::Builder::default()
@@ -142,6 +262,8 @@ pub fn run() {
             health_check,
             window_sync_icon,
             app_exit,
+            app_smoke_config,
+            app_smoke_finish,
             tray_set_labels,
             project_list,
             project_create,

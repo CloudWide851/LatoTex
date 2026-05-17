@@ -1,5 +1,8 @@
-use crate::models::{Ack, HealthCheckResponse, TrayLabelsInput};
+use crate::models::{Ack, HealthCheckResponse, TauriSmokeConfig, TauriSmokeFinishInput, TrayLabelsInput};
 use crate::state::AppState;
+use serde_json::json;
+use std::fs;
+use std::path::PathBuf;
 use tauri::{menu::MenuBuilder, AppHandle, Manager, State};
 
 const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
@@ -38,6 +41,68 @@ pub fn app_exit(app: AppHandle, state: State<'_, AppState>) -> Result<Ack, Strin
     Ok(Ack {
         ok: true,
         message: "application exit requested".to_string(),
+    })
+}
+
+fn smoke_enabled() -> bool {
+    std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1")
+}
+
+fn smoke_report_path(state: &AppState) -> PathBuf {
+    std::env::var("LATOTEX_SMOKE_REPORT_PATH")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| state.runtime_root.join("tauri-smoke-report.json"))
+}
+
+#[tauri::command]
+pub fn app_smoke_config(state: State<'_, AppState>) -> TauriSmokeConfig {
+    let enabled = smoke_enabled();
+    TauriSmokeConfig {
+        enabled,
+        report_path: enabled.then(|| smoke_report_path(&state).to_string_lossy().to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn app_smoke_finish(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    input: TauriSmokeFinishInput,
+) -> Result<Ack, String> {
+    if !smoke_enabled() {
+        return Err("tauri_smoke.disabled".to_string());
+    }
+    let report_path = smoke_report_path(&state);
+    if let Some(parent) = report_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let report = json!({
+        "ok": input.ok,
+        "status": input.status,
+        "steps": input.steps,
+        "error": input.error,
+        "version": state.app_version,
+        "timestamp": crate::storage::now_iso(),
+    });
+    fs::write(
+        &report_path,
+        serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    state.log(
+        if input.ok { "INFO" } else { "ERROR" },
+        &format!(
+            "tauri_smoke.finish: ok={} report={}",
+            input.ok,
+            report_path.to_string_lossy()
+        ),
+    );
+    app.exit(if input.ok { 0 } else { 1 });
+    Ok(Ack {
+        ok: true,
+        message: "tauri smoke report written".to_string(),
     })
 }
 

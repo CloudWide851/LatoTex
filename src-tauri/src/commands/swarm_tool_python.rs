@@ -97,3 +97,62 @@ pub(super) fn run_stage_python_probe(
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
     Ok(content)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::run_stage_python_probe;
+    use super::EventMetadata;
+    use crate::storage;
+    use rusqlite::{params, Connection};
+    use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    fn disabled_settings_fixture() -> (PathBuf, PathBuf, PathBuf) {
+        let root = std::env::temp_dir().join(format!("latotex-python-tool-{}", Uuid::new_v4()));
+        let runtime_root = root.join("runtime");
+        let app_data_dir = root.join("app-data");
+        let db_path = runtime_root.join("latotex.db");
+        fs::create_dir_all(&runtime_root).unwrap();
+        fs::create_dir_all(&app_data_dir).unwrap();
+        storage::initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
+            params![json!({"agentToolPrefs":{"pythonEnabled":false}}).to_string()],
+        )
+        .unwrap();
+        (db_path, runtime_root, app_data_dir)
+    }
+
+    #[test]
+    fn python_probe_disabled_returns_without_events_or_env_prepare() {
+        let (db_path, runtime_root, app_data_dir) = disabled_settings_fixture();
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let result = run_stage_python_probe(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            "run-disabled-python",
+            "missing-project",
+            "unit",
+            "python",
+            "python",
+            "Python",
+            "analyze",
+            &cancel_flag,
+            EventMetadata::base("wf", "step", "test"),
+        )
+        .unwrap();
+
+        assert!(result.contains("python=disabled_by_settings"));
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+}

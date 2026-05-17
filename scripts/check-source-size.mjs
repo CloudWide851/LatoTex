@@ -9,10 +9,7 @@ const extensions = new Set([".rs", ".ts", ".tsx"]);
 
 const legacyExemptions = new Set([
   "src/app/components/ExplorerTree.spec.tsx",
-  "src-tauri/src/commands/native_runtime_analysis_env.rs",
-  "src-tauri/src/models.rs",
   "src-tauri/src/storage/library_translation/paper_translation_engine.rs",
-  "src-tauri/src/storage/workspace_files_search.rs",
 ]);
 
 function toRepoPath(filePath) {

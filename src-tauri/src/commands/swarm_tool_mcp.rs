@@ -171,8 +171,9 @@ pub(super) fn run_stage_mcp_call(
     metadata: EventMetadata<'_>,
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
     let server_id = parse_server_id(source);
+    let server = configured_server(db_path, runtime_root, &server_id)?;
+    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
     let running_actions = json!([{"type":"call","tool":"mcp","status":"running","serverId":server_id.clone()}]);
     emit_tool_event(
         db_path,
@@ -186,7 +187,6 @@ pub(super) fn run_stage_mcp_call(
         &server_id,
         EventMetadata { actions: Some(&running_actions), ..metadata },
     )?;
-    let server = configured_server(db_path, runtime_root, &server_id)?;
     let output = run_json_rpc_probe(&server)?;
     ensure_not_cancelled(cancel_flag)?;
     let success_actions = json!([{"type":"call","tool":"mcp","status":"success","serverId":server_id.clone()}]);
@@ -204,4 +204,59 @@ pub(super) fn run_stage_mcp_call(
     )?;
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
     Ok(format!("[mcp.response.v1]\nserver={server_id}\n{output}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_stage_mcp_call;
+    use super::EventMetadata;
+    use crate::storage;
+    use rusqlite::{params, Connection};
+    use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    fn disabled_settings_fixture() -> (PathBuf, PathBuf) {
+        let root = std::env::temp_dir().join(format!("latotex-mcp-tool-{}", Uuid::new_v4()));
+        let runtime_root = root.join("runtime");
+        let db_path = runtime_root.join("latotex.db");
+        fs::create_dir_all(&runtime_root).unwrap();
+        storage::initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
+            params![json!({"agentToolPrefs":{"mcpEnabled":false}}).to_string()],
+        )
+        .unwrap();
+        (db_path, runtime_root)
+    }
+
+    #[test]
+    fn mcp_disabled_returns_before_events_or_process_probe() {
+        let (db_path, runtime_root) = disabled_settings_fixture();
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let error = run_stage_mcp_call(
+            &db_path,
+            &runtime_root,
+            "run-disabled-mcp",
+            "missing-project",
+            "unit",
+            "mcp",
+            "stitch",
+            "MCP",
+            &cancel_flag,
+            EventMetadata::base("wf", "step", "test"),
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "mcp.disabled_by_settings");
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
 }

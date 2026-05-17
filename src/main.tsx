@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./app/App";
+import { startTauriSmokeRunner } from "./app/smoke/tauriSmokeRunner";
 import { I18nProvider, resolveLocale } from "./i18n";
 import "./index.css";
 import "./styles/control-system.css";
@@ -23,3 +24,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     </I18nProvider>
   </React.StrictMode>
 );
+
+startTauriSmokeRunner();

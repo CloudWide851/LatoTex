@@ -26,6 +26,7 @@
     "release:sign:preview": "node scripts/sign-preview-win-x64.mjs",
     "release:validate:win-x64": "node scripts/release-check-win-x64.mjs --mode=validate",
     "release:package:win-x64": "node scripts/release-check-win-x64.mjs --mode=package",
+    "release:package:win-x64:signed": "node scripts/release-check-win-x64.mjs --mode=package --require-signing",
     "release:check:win-x64": "node scripts/release-check-win-x64.mjs --mode=check",
     "preview": "vite preview",
     "brand:sync": "node scripts/sync-brand-assets.mjs",

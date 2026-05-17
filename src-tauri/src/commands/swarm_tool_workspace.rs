@@ -183,3 +183,62 @@ pub(super) fn run_stage_workspace_search(
     emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
     Ok(format!("[workspace_search.compact.v1]\n{context}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::run_stage_workspace_search;
+    use super::EventMetadata;
+    use crate::storage;
+    use rusqlite::{params, Connection};
+    use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    fn disabled_settings_fixture(name: &str, prefs: serde_json::Value) -> (PathBuf, PathBuf) {
+        let root = std::env::temp_dir().join(format!("latotex-workspace-tool-{name}-{}", Uuid::new_v4()));
+        let runtime_root = root.join("runtime");
+        let db_path = runtime_root.join("latotex.db");
+        fs::create_dir_all(&runtime_root).unwrap();
+        storage::initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
+            params![prefs.to_string()],
+        )
+        .unwrap();
+        (db_path, runtime_root)
+    }
+
+    #[test]
+    fn workspace_search_disabled_returns_without_events_or_reads() {
+        let (db_path, runtime_root) = disabled_settings_fixture(
+            "disabled",
+            json!({"agentToolPrefs":{"workspaceReadEnabled":false}}),
+        );
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let result = run_stage_workspace_search(
+            &db_path,
+            &runtime_root,
+            "run-disabled-workspace",
+            "missing-project",
+            "unit",
+            "workspace",
+            "workspace",
+            "Workspace",
+            "read files",
+            &cancel_flag,
+            EventMetadata::base("wf", "step", "test"),
+        )
+        .unwrap();
+
+        assert!(result.contains("workspace_read=disabled_by_settings"));
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+}

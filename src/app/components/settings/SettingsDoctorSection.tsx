@@ -18,6 +18,7 @@ import {
   DOCTOR_CHECK_ORDER,
   formatDoctorMessage,
   isValidPanelLayout,
+  repairTargetsForRepairId,
   SAFE_REPAIR_IDS,
   skillIdIsValid,
   sleep,
@@ -30,7 +31,12 @@ import {
   type TranslationFn,
 } from "./settingsDoctorHelpers";
 
-export { createInitialDoctorChecks, formatDoctorMessage, SAFE_REPAIR_IDS } from "./settingsDoctorHelpers";
+export {
+  createInitialDoctorChecks,
+  formatDoctorMessage,
+  repairTargetsForRepairId,
+  SAFE_REPAIR_IDS,
+} from "./settingsDoctorHelpers";
 
 function StatusIcon(props: { status: DoctorStatus; phase?: DoctorPhase }) {
   if (props.phase === "running") {
@@ -375,17 +381,47 @@ export function SettingsDoctorSection(props: {
         onReleaseMemory?.();
       }
       await runtimeLogWrite("INFO", `doctor.repair.done: ${repairId}`).catch(() => undefined);
-      await runChecks();
+      const targetIds = repairTargetsForRepairId(repairId).filter((id) => {
+        const projectScoped = ["projectIntegrity", "searchIndex", "latexSession", "pythonEnv", "analysisStore", "libraryCitationIndex", "shareCollab"];
+        return activeProjectId || !projectScoped.includes(id);
+      });
+      for (const id of targetIds) {
+        const titleKey = DOCTOR_CHECK_ORDER.find((item) => item.id === id)?.titleKey ?? "settings.doctor.title";
+        upsertCheck({
+          id,
+          titleKey,
+          status: "info",
+          phase: "running",
+          messageKey: "settings.doctor.rechecking",
+        });
+        if (repairId === "latexLayout" && id === "latexLayout") {
+          upsertCheck({
+            id,
+            titleKey,
+            status: "pass",
+            phase: "done",
+            messageKey: "settings.doctor.repairRechecked",
+          });
+          continue;
+        }
+        const result = await runDoctorCheck(id);
+        upsertCheck({
+          ...result,
+          messageKey: result.status === "pass" ? "settings.doctor.repairRechecked" : result.messageKey,
+        });
+      }
+      setLastRunAt(new Date().toISOString());
     } catch (error) {
       await runtimeLogWrite("ERROR", `doctor.repair.failed: ${repairId}, reason=${String(error)}`).catch(() => undefined);
+      const targetIds = new Set(repairTargetsForRepairId(repairId));
       setChecks((prev) =>
         prev.map((item) =>
-          item.repairId === repairId
+          item.repairId === repairId || targetIds.has(item.id as DoctorCheckId)
             ? {
                 ...item,
                 status: "fail",
                 phase: "done",
-                messageKey: "settings.doctor.error",
+                messageKey: "settings.doctor.repairFailed",
                 params: { reason: String(error) },
               }
             : item,

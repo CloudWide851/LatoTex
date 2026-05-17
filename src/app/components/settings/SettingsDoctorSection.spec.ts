@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createInitialDoctorChecks,
   formatDoctorMessage,
+  repairTargetsForRepairId,
   SAFE_REPAIR_IDS,
 } from "./SettingsDoctorSection";
 
@@ -34,5 +35,11 @@ describe("SettingsDoctorSection helpers", () => {
     expect(SAFE_REPAIR_IDS.has("searchIndex")).toBe(true);
     expect(SAFE_REPAIR_IDS.has("releaseMemory")).toBe(true);
     expect(SAFE_REPAIR_IDS.has("pythonEnv")).toBe(false);
+  });
+
+  it("maps repairs to targeted Doctor re-checks", () => {
+    expect(repairTargetsForRepairId("projectIntegrity")).toEqual(["projectIntegrity"]);
+    expect(repairTargetsForRepairId("searchIndex")).toEqual(["searchIndex"]);
+    expect(repairTargetsForRepairId("releaseMemory")).toEqual(["memory"]);
   });
 });

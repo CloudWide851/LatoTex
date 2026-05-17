@@ -333,3 +333,65 @@ pub(super) fn run_stage_tool_search(
     )?;
     Ok(output)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::run_stage_tool_search;
+    use super::EventMetadata;
+    use crate::storage;
+    use rusqlite::{params, Connection};
+    use serde_json::json;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    fn disabled_settings_fixture() -> (PathBuf, PathBuf) {
+        let root = std::env::temp_dir().join(format!("latotex-search-tool-{}", Uuid::new_v4()));
+        let runtime_root = root.join("runtime");
+        let db_path = runtime_root.join("latotex.db");
+        fs::create_dir_all(&runtime_root).unwrap();
+        storage::initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
+            params![json!({"agentToolPrefs":{"webSearchEnabled":false}}).to_string()],
+        )
+        .unwrap();
+        (db_path, runtime_root)
+    }
+
+    #[test]
+    fn web_search_disabled_returns_without_events_or_provider_call() {
+        let (db_path, runtime_root) = disabled_settings_fixture();
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        let result = run_stage_tool_search(
+            &db_path,
+            &runtime_root,
+            "run-disabled-web",
+            "missing-project",
+            "unit",
+            "search",
+            "web",
+            "Web",
+            "query",
+            &[],
+            &cancel_flag,
+            "missing-protocol",
+            "https://example.invalid",
+            "missing-key",
+            "missing-model",
+            false,
+            EventMetadata::base("wf", "step", "test"),
+        )
+        .unwrap();
+
+        assert!(result.contains("web_search=disabled_by_settings"));
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+}

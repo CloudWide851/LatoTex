@@ -19,6 +19,16 @@ export const SAFE_REPAIR_IDS = new Set<DoctorRepairId>([
   "releaseMemory",
 ]);
 
+const REPAIR_CHECK_TARGETS: Record<DoctorRepairId, DoctorCheckId[]> = {
+  projectIntegrity: ["projectIntegrity"],
+  searchIndex: ["searchIndex"],
+  libraryCitationIndex: ["libraryCitationIndex"],
+  latexSession: ["latexSession"],
+  latexLayout: ["latexLayout"],
+  pythonEnv: ["pythonEnv"],
+  releaseMemory: ["memory"],
+};
+
 export type DoctorCheck = {
   id: string;
   titleKey: string;
@@ -43,6 +53,10 @@ export type DoctorCheckId =
   | "libraryCitationIndex"
   | "shareCollab"
   | "runtimeAssets";
+
+export function repairTargetsForRepairId(repairId: DoctorRepairId): DoctorCheckId[] {
+  return REPAIR_CHECK_TARGETS[repairId] ?? [];
+}
 
 export const DOCTOR_CHECK_ORDER: Array<{ id: DoctorCheckId; titleKey: string }> = [
   { id: "runtimeLog", titleKey: "settings.doctor.runtimeLog" },

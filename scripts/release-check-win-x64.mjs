@@ -19,6 +19,10 @@ const packageSteps = [
 ];
 
 const mode = process.argv.find((arg) => arg.startsWith("--mode="))?.slice("--mode=".length) ?? "check";
+const requireSigning = process.argv.includes("--require-signing");
+if (requireSigning) {
+  process.env.LATOTEX_REQUIRE_SIGNING = "1";
+}
 const stepsByMode = {
   validate: validationSteps,
   package: packageSteps,
