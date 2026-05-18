@@ -58,7 +58,13 @@ for (const scriptName of [
   "tauri:build:win-x64",
   "release:validate:win-x64",
   "release:package:win-x64",
+  "release:package:win-x64:signed",
+  "release:sign:win-x64",
+  "release:verify-signature:win-x64",
+  "release:install-smoke:win-x64",
   "release:check:win-x64",
+  "tauri:smoke:win-x64",
+  "soak:matrix",
 ]) {
   report.scripts[scriptName] = Boolean(packageJson.scripts?.[scriptName]);
 }

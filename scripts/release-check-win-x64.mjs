@@ -7,6 +7,7 @@ const validationSteps = [
   ["pnpm", ["test:e2e"]],
   ["pnpm", ["build"]],
   ["pnpm", ["perf:baseline"]],
+  ["pnpm", ["soak:matrix"]],
   ["pnpm", ["security:scan"]],
   ["pnpm", ["sbom:generate", "--", "--check"]],
   ["cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml"]],
@@ -14,14 +15,17 @@ const validationSteps = [
 
 const packageSteps = [
   ["pnpm", ["tauri", "build", "--target", "x86_64-pc-windows-msvc", "--bundles", "nsis"]],
+  ["pnpm", ["release:sign:win-x64"]],
+  ["pnpm", ["release:verify-signature:win-x64"]],
   ["pnpm", ["release:hash:win-x64"]],
-  ["pnpm", ["release:sign:preview"]],
+  ["pnpm", ["tauri:smoke:win-x64"]],
 ];
 
 const mode = process.argv.find((arg) => arg.startsWith("--mode="))?.slice("--mode=".length) ?? "check";
 const requireSigning = process.argv.includes("--require-signing");
 if (requireSigning) {
   process.env.LATOTEX_REQUIRE_SIGNING = "1";
+  packageSteps.push(["pnpm", ["release:install-smoke:win-x64"]]);
 }
 const stepsByMode = {
   validate: validationSteps,

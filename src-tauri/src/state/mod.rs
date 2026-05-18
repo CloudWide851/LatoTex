@@ -229,7 +229,9 @@ fn schedule_windows_shortcut_sync(state: &AppState) {
 }
 
 fn resolve_runtime_root(previous_runtime_root: Option<&PathBuf>) -> Result<PathBuf, String> {
-    if let Ok(override_root) = std::env::var("LATOTEX_E2E_RUNTIME_ROOT") {
+    if let Some(override_root) = runtime_root_arg_value()
+        .or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
+    {
         let runtime_root = PathBuf::from(override_root.trim());
         if !runtime_root.as_os_str().is_empty() {
             fs::create_dir_all(&runtime_root).map_err(|e| {
@@ -260,6 +262,12 @@ fn resolve_runtime_root(previous_runtime_root: Option<&PathBuf>) -> Result<PathB
         )
     })?;
     Ok(runtime_root)
+}
+
+fn runtime_root_arg_value() -> Option<String> {
+    let prefix = "--latotex-runtime-root=";
+    std::env::args()
+        .find_map(|arg| arg.strip_prefix(prefix).map(|value| value.to_string()))
 }
 
 #[cfg(target_os = "windows")]

@@ -46,11 +46,18 @@ pub fn app_exit(app: AppHandle, state: State<'_, AppState>) -> Result<Ack, Strin
 
 fn smoke_enabled() -> bool {
     std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1")
+        || std::env::args().any(|arg| arg == "--latotex-smoke")
+}
+
+fn smoke_arg_value(name: &str) -> Option<String> {
+    let prefix = format!("{name}=");
+    std::env::args()
+        .find_map(|arg| arg.strip_prefix(&prefix).map(|value| value.to_string()))
 }
 
 fn smoke_report_path(state: &AppState) -> PathBuf {
-    std::env::var("LATOTEX_SMOKE_REPORT_PATH")
-        .ok()
+    smoke_arg_value("--latotex-smoke-report")
+        .or_else(|| std::env::var("LATOTEX_SMOKE_REPORT_PATH").ok())
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| state.runtime_root.join("tauri-smoke-report.json"))
@@ -79,11 +86,14 @@ pub fn app_smoke_finish(
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let report = json!({
+        "schema": "latotex.tauri-smoke.v1",
         "ok": input.ok,
         "status": input.status,
+        "mode": "webview",
         "steps": input.steps,
         "error": input.error,
         "version": state.app_version,
+        "runtimeRoot": state.runtime_root.to_string_lossy(),
         "timestamp": crate::storage::now_iso(),
     });
     fs::write(

@@ -70,10 +70,22 @@ const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
 const TRAY_MENU_EXIT_ID: &str = "tray_exit_app";
 const TRAY_ID: &str = "latotex-tray";
 
+fn arg_flag(name: &str) -> bool {
+    std::env::args().any(|arg| arg == name)
+}
+
+fn arg_value(name: &str) -> Option<String> {
+    let prefix = format!("{name}=");
+    std::env::args()
+        .find_map(|arg| arg.strip_prefix(&prefix).map(|value| value.to_string()))
+}
+
 fn run_native_smoke_fallback_if_requested() -> bool {
-    let smoke_mode = std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1");
+    let smoke_mode =
+        std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1") || arg_flag("--latotex-smoke");
     let native_fallback =
-        std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK").ok().as_deref() == Some("1");
+        std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK").ok().as_deref() == Some("1")
+            || arg_flag("--latotex-smoke-native-fallback");
     if !smoke_mode || !native_fallback {
         return false;
     }
@@ -84,18 +96,46 @@ fn run_native_smoke_fallback_if_requested() -> bool {
     true
 }
 
+fn write_smoke_boot_marker() {
+    let smoke_mode =
+        std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1") || arg_flag("--latotex-smoke");
+    if !smoke_mode {
+        return;
+    }
+    let Some(runtime_root) =
+        arg_value("--latotex-runtime-root").or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
+    else {
+        return;
+    };
+    let path = std::path::PathBuf::from(runtime_root).join("tauri-smoke-boot.json");
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let payload = serde_json::json!({
+        "schema": "latotex.tauri-smoke.boot.v1",
+        "pid": std::process::id(),
+        "timestamp": crate::storage::now_iso(),
+        "args": std::env::args().collect::<Vec<_>>(),
+    });
+    if let Ok(serialized) = serde_json::to_string_pretty(&payload) {
+        let _ = std::fs::write(path, serialized);
+    }
+}
+
 fn write_native_smoke_report(
     ok: bool,
     steps: Vec<serde_json::Value>,
     error: Option<String>,
 ) -> Result<(), String> {
-    let report_path = std::env::var("LATOTEX_SMOKE_REPORT_PATH")
+    let report_path = arg_value("--latotex-smoke-report")
+        .or_else(|| std::env::var("LATOTEX_SMOKE_REPORT_PATH").ok())
         .map(std::path::PathBuf::from)
-        .map_err(|_| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
+        .ok_or_else(|| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
     if let Some(parent) = report_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let report = serde_json::json!({
+        "schema": "latotex.tauri-smoke.v1",
         "ok": ok,
         "status": if ok { "passed" } else { "failed" },
         "mode": "native-fallback",
@@ -112,9 +152,10 @@ fn write_native_smoke_report(
 }
 
 fn run_native_smoke_fallback() -> Result<(), String> {
-    let runtime_root = std::env::var("LATOTEX_E2E_RUNTIME_ROOT")
+    let runtime_root = arg_value("--latotex-runtime-root")
+        .or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
         .map(std::path::PathBuf::from)
-        .map_err(|_| "LATOTEX_E2E_RUNTIME_ROOT is required".to_string())?;
+        .ok_or_else(|| "LATOTEX_E2E_RUNTIME_ROOT is required".to_string())?;
     let projects_dir = runtime_root.join("projects");
     let db_path = runtime_root.join("latotex.db");
     std::fs::create_dir_all(&projects_dir).map_err(|e| e.to_string())?;
@@ -194,10 +235,12 @@ fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    write_smoke_boot_marker();
     if run_native_smoke_fallback_if_requested() {
         return;
     }
-    let smoke_mode = std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1");
+    let smoke_mode =
+        std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1") || arg_flag("--latotex-smoke");
     if !smoke_mode && !single_instance::acquire_or_focus_existing() {
         return;
     }

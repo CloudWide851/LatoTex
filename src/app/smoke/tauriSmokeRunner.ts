@@ -5,6 +5,8 @@ import {
   projectPrepareSearchIndex,
   projectSearchContent,
 } from "../../shared/api/projects";
+import { runtimeLogInfo } from "../../shared/api/runtime";
+import { getSettings } from "../../shared/api/settings";
 import { getWorkspaceTree, readFile, writeFile } from "../../shared/api/workspace";
 
 type SmokeStep = {
@@ -50,6 +52,24 @@ async function finishSmoke(ok: boolean, status: string, steps: SmokeStep[], erro
 async function runSmokePath() {
   const steps: SmokeStep[] = [];
   try {
+    await recordStep(
+      steps,
+      "health.check",
+      () => invokeCommand<{ version?: string }>("health_check"),
+      (health) => health.version ?? "-",
+    );
+    await recordStep(
+      steps,
+      "runtime.info",
+      () => runtimeLogInfo(),
+      (info) => `${info.installMode}:${info.version}`,
+    );
+    await recordStep(
+      steps,
+      "settings.load",
+      () => getSettings(),
+      (settings) => settings.uiPrefs?.language ?? "-",
+    );
     const project = await recordStep(
       steps,
       "project.create",

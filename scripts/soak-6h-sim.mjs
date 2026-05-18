@@ -7,6 +7,11 @@ import * as Y from "yjs";
 const DEFAULT_SIM_MINUTES = 360;
 const DEFAULT_TICK_MS = 35;
 const REPORT_ROOT = path.resolve(process.cwd(), ".latotex", "reports", "soak");
+const SOAK_BUDGETS = {
+  rssDriftBytes: 512 * 1024 * 1024,
+  heapDriftBytes: 256 * 1024 * 1024,
+  peakRssBytes: 1536 * 1024 * 1024,
+};
 
 function parseArg(name, fallback) {
   const prefix = `${name}=`;
@@ -16,6 +21,12 @@ function parseArg(name, fallback) {
   }
   const parsed = Number(raw.slice(prefix.length));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseStringArg(name, fallback) {
+  const prefix = `${name}=`;
+  const raw = process.argv.find((arg) => arg.startsWith(prefix));
+  return raw ? raw.slice(prefix.length) : fallback;
 }
 
 function nowStamp() {
@@ -120,6 +131,58 @@ function runShareStep(state, minute) {
   mirror.destroy();
 }
 
+function runWorkspaceStep(state, minute) {
+  const pathName = `sections/section-${minute % 48}.tex`;
+  state.workspaceFiles.set(pathName, `% minute=${minute}\n\\section{Matrix ${minute}}\nSmoke path\n`);
+  if (state.workspaceFiles.size > 240) {
+    const firstKey = state.workspaceFiles.keys().next().value;
+    state.workspaceFiles.delete(firstKey);
+  }
+  const query = minute % 2 === 0 ? "Smoke" : "Matrix";
+  state.searchHits = Array.from(state.workspaceFiles.entries())
+    .filter(([, content]) => content.includes(query))
+    .slice(0, 40)
+    .map(([file]) => file);
+}
+
+function runDoctorStep(state, minute) {
+  const checks = [
+    "runtimeLog",
+    "memory",
+    "projectIntegrity",
+    "searchIndex",
+    "latexSession",
+    "pythonEnv",
+    "runtimeAssets",
+  ];
+  state.doctorCards = checks.map((id, index) => ({
+    id,
+    status: index % 5 === minute % 5 ? "warn" : "pass",
+    checkedAt: minute,
+  }));
+}
+
+function runPdfStep(state, minute) {
+  state.pdfPages.set(minute % 80, {
+    page: (minute % 80) + 1,
+    textLayerBytes: 12000 + minute,
+    annotations: minute % 9,
+  });
+  if (state.pdfPages.size > 80) {
+    state.pdfPages.delete(state.pdfPages.keys().next().value);
+  }
+}
+
+function runTerminalStep(state, minute) {
+  state.terminalChunks.push({
+    seq: minute,
+    text: `PS> tectonic main.tex # ${minute}\nwarning: simulated terminal line\n`,
+  });
+  if (state.terminalChunks.length > 600) {
+    state.terminalChunks.splice(0, state.terminalChunks.length - 600);
+  }
+}
+
 function summarizeScenario(samples, key) {
   const filtered = samples.filter((item) => item.scenario === key);
   if (filtered.length === 0) {
@@ -138,6 +201,9 @@ function renderMarkdown(report) {
   const baseline = report.memory.baseline;
   const peak = report.memory.peak;
   const end = report.memory.end;
+  const budgetLines = Object.entries(report.budgets)
+    .map(([name, value]) => `- ${name}: ${value.ok ? "pass" : "fail"} (${value.actual} / ${value.limit})`)
+    .join("\n");
   const scenarioLines = Object.entries(report.memory.scenarioSummary)
     .map(([name, value]) => `| ${name} | ${value.count} | ${formatMb(value.peakRss)} | ${formatMb(value.peakHeap)} |`)
     .join("\n");
@@ -162,6 +228,10 @@ function renderMarkdown(report) {
     "|---|---:|---:|---:|",
     scenarioLines || "| n/a | 0 | 0 MB | 0 MB |",
     "",
+    "## Budgets",
+    "",
+    budgetLines,
+    "",
     "## Notes",
     "",
     "- This script does not run a real 6-hour wall-clock test. It executes compressed mixed workloads equivalent to Agent/Translation/Share activity.",
@@ -171,8 +241,11 @@ function renderMarkdown(report) {
 }
 
 async function main() {
-  const simulatedMinutes = parseArg("--minutes", DEFAULT_SIM_MINUTES);
-  const tickMs = parseArg("--tickMs", DEFAULT_TICK_MS);
+  const profile = parseStringArg("--profile", "legacy");
+  const profileMinutes = profile === "ci-matrix" ? 90 : DEFAULT_SIM_MINUTES;
+  const profileTickMs = profile === "ci-matrix" ? 10 : DEFAULT_TICK_MS;
+  const simulatedMinutes = parseArg("--minutes", profileMinutes);
+  const tickMs = parseArg("--tickMs", profileTickMs);
   fs.mkdirSync(REPORT_ROOT, { recursive: true });
 
   const state = {
@@ -180,6 +253,11 @@ async function main() {
     agentEvents: [],
     glossary: new Map(),
     translationChunks: [],
+    workspaceFiles: new Map(),
+    searchHits: [],
+    doctorCards: [],
+    pdfPages: new Map(),
+    terminalChunks: [],
     ydoc: new Y.Doc(),
     ytext: null,
     ycomments: null,
@@ -193,14 +271,22 @@ async function main() {
   samples.push(memSnapshot(0, "baseline"));
 
   for (let minute = 1; minute <= simulatedMinutes; minute += 1) {
-    const mod = minute % 3;
-    const scenario = mod === 1 ? "agent" : mod === 2 ? "translation" : "share";
+    const mod = minute % 7;
+    const scenario = ["agent", "translation", "share", "workspace", "doctor", "pdf", "terminal"][mod];
     if (scenario === "agent") {
       runAgentStep(state, minute);
     } else if (scenario === "translation") {
       runTranslationStep(state, minute);
-    } else {
+    } else if (scenario === "share") {
       runShareStep(state, minute);
+    } else if (scenario === "workspace") {
+      runWorkspaceStep(state, minute);
+    } else if (scenario === "doctor") {
+      runDoctorStep(state, minute);
+    } else if (scenario === "pdf") {
+      runPdfStep(state, minute);
+    } else {
+      runTerminalStep(state, minute);
     }
     if (minute % 2 === 0 || minute === simulatedMinutes) {
       samples.push(memSnapshot(minute, scenario));
@@ -230,10 +316,16 @@ async function main() {
     realSeconds,
     compressionRatio: simulatedMinutes / realSeconds,
     workloads: {
+      profile,
       agentEvents: state.agentEvents.length,
       glossaryTerms: state.glossary.size,
       translationChunks: state.translationChunks.length,
       shareLastUpdateBytes: state.lastShareBytes,
+      workspaceFiles: state.workspaceFiles.size,
+      searchHits: state.searchHits.length,
+      doctorCards: state.doctorCards.length,
+      pdfPages: state.pdfPages.size,
+      terminalChunks: state.terminalChunks.length,
     },
     memory: {
       baseline,
@@ -241,6 +333,27 @@ async function main() {
       end,
       scenarioSummary,
       samples,
+    },
+  };
+  report.memory.scenarioSummary.workspace = summarizeScenario(samples, "workspace");
+  report.memory.scenarioSummary.doctor = summarizeScenario(samples, "doctor");
+  report.memory.scenarioSummary.pdf = summarizeScenario(samples, "pdf");
+  report.memory.scenarioSummary.terminal = summarizeScenario(samples, "terminal");
+  report.budgets = {
+    rssDrift: {
+      actual: formatMb(end.rss - baseline.rss),
+      limit: formatMb(SOAK_BUDGETS.rssDriftBytes),
+      ok: end.rss - baseline.rss <= SOAK_BUDGETS.rssDriftBytes,
+    },
+    heapDrift: {
+      actual: formatMb(end.heapUsed - baseline.heapUsed),
+      limit: formatMb(SOAK_BUDGETS.heapDriftBytes),
+      ok: end.heapUsed - baseline.heapUsed <= SOAK_BUDGETS.heapDriftBytes,
+    },
+    peakRss: {
+      actual: formatMb(peak.rss),
+      limit: formatMb(SOAK_BUDGETS.peakRssBytes),
+      ok: peak.rss <= SOAK_BUDGETS.peakRssBytes,
     },
   };
 
@@ -251,6 +364,10 @@ async function main() {
   fs.writeFileSync(mdPath, `${renderMarkdown(report)}\n`, "utf8");
 
   process.stdout.write(`Generated soak report:\n- ${jsonPath}\n- ${mdPath}\n`);
+  if (Object.values(report.budgets).some((budget) => !budget.ok)) {
+    process.stderr.write("[soak-6h-sim] budget failure detected.\n");
+    process.exit(1);
+  }
 }
 
 main().catch((error) => {

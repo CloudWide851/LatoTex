@@ -52,6 +52,7 @@ export type DoctorCheckId =
   | "analysisStore"
   | "libraryCitationIndex"
   | "shareCollab"
+  | "releaseReadiness"
   | "runtimeAssets";
 
 export function repairTargetsForRepairId(repairId: DoctorRepairId): DoctorCheckId[] {
@@ -71,6 +72,7 @@ export const DOCTOR_CHECK_ORDER: Array<{ id: DoctorCheckId; titleKey: string }> 
   { id: "analysisStore", titleKey: "settings.doctor.analysisStore" },
   { id: "libraryCitationIndex", titleKey: "settings.doctor.libraryCitationIndex" },
   { id: "shareCollab", titleKey: "settings.doctor.shareCollab" },
+  { id: "releaseReadiness", titleKey: "settings.doctor.releaseReadiness" },
   { id: "runtimeAssets", titleKey: "settings.doctor.runtimeAssets" },
 ];
 

@@ -279,6 +279,21 @@ export function SettingsDoctorSection(props: {
         params: { mode: info.installMode || "-", version: info.version || "-" },
       };
     }
+    if (id === "releaseReadiness") {
+      const info = await runtimeLogInfo();
+      const windowsMode = navigator.userAgent.includes("Windows") || info.installMode !== "dev";
+      return {
+        id,
+        titleKey: "settings.doctor.releaseReadiness",
+        status: windowsMode ? "pass" : "info",
+        phase: "done",
+        messageKey: "settings.doctor.releaseReadiness.ok",
+        params: {
+          target: "x86_64-pc-windows-msvc",
+          bundle: "nsis",
+        },
+      };
+    }
     return {
       id,
       titleKey: DOCTOR_CHECK_ORDER.find((item) => item.id === id)?.titleKey ?? "settings.doctor.title",

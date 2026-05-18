@@ -124,6 +124,54 @@ for (const filePath of walk(repoRoot)) {
   }
 }
 
+function readRepoText(relativePath) {
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
+
+function addFinding(id, repoPath, line = 1) {
+  findings.push({ id, path: repoPath, line });
+}
+
+function assertReleaseConfiguration() {
+  const packageJson = JSON.parse(readRepoText("package.json"));
+  const scripts = packageJson.scripts ?? {};
+  if (!String(scripts["tauri:build:win-x64"] ?? "").includes("x86_64-pc-windows-msvc")) {
+    addFinding("release-target-drift", "package.json");
+  }
+  if (!String(scripts["tauri:build:win-x64"] ?? "").includes("--bundles nsis")) {
+    addFinding("release-bundle-drift", "package.json");
+  }
+  if (!scripts["release:package:win-x64:signed"]) {
+    addFinding("missing-signed-package-gate", "package.json");
+  }
+  if (!scripts["release:install-smoke:win-x64"]) {
+    addFinding("missing-install-smoke-gate", "package.json");
+  }
+
+  const tauriConfig = JSON.parse(readRepoText("src-tauri/tauri.conf.json"));
+  if (!tauriConfig.app?.security?.csp || tauriConfig.app.security.csp === null) {
+    addFinding("tauri-csp-null", "src-tauri/tauri.conf.json");
+  }
+  if (tauriConfig.bundle?.targets !== "nsis") {
+    addFinding("tauri-bundle-target-drift", "src-tauri/tauri.conf.json");
+  }
+
+  const capability = JSON.parse(readRepoText("src-tauri/capabilities/default.json"));
+  if (!Array.isArray(capability.windows) || capability.windows.length !== 1 || capability.windows[0] !== "main") {
+    addFinding("tauri-capability-window-drift", "src-tauri/capabilities/default.json");
+  }
+
+  const releaseWorkflow = readRepoText(".github/workflows/release-tauri.yml");
+  if (!releaseWorkflow.includes("windows-latest") || releaseWorkflow.includes("ubuntu-latest") || releaseWorkflow.includes("macos-latest")) {
+    addFinding("release-workflow-target-drift", ".github/workflows/release-tauri.yml");
+  }
+  if (!releaseWorkflow.includes("release:package:win-x64:signed")) {
+    addFinding("release-workflow-not-signed", ".github/workflows/release-tauri.yml");
+  }
+}
+
+assertReleaseConfiguration();
+
 if (findings.length > 0) {
   console.error("[release-security-scan] high-risk findings detected:");
   for (const finding of findings) {

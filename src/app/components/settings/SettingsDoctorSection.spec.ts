@@ -23,6 +23,7 @@ describe("SettingsDoctorSection helpers", () => {
       "latexLayout",
       "mcpConfig",
       "skillsConfig",
+      "releaseReadiness",
       "runtimeAssets",
     ]);
     expect(createInitialDoctorChecks("project-1").map((check) => check.id)).toContain("pythonEnv");

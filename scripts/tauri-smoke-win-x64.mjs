@@ -5,8 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const exePath = path.join(repoRoot, "src-tauri", "target", "x86_64-pc-windows-msvc", "release", "LatoTex.exe");
+const releaseDir = path.join(repoRoot, "src-tauri", "target", "x86_64-pc-windows-msvc", "release");
+const exePath = path.join(releaseDir, "latotex.exe");
 const startupWindowMs = Number(process.env.LATOTEX_SMOKE_STARTUP_MS ?? 60000);
+const allowNativeFallback = process.argv.includes("--allow-native-fallback")
+  || process.env.LATOTEX_SMOKE_ALLOW_NATIVE_FALLBACK === "1";
 
 if (process.platform !== "win32") {
   console.log("[tauri-smoke-win-x64] skipped: Windows x64 smoke must run on Windows.");
@@ -20,11 +23,18 @@ if (!fs.existsSync(exePath)) {
 
 const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-smoke-"));
 const reportPath = path.join(runtimeRoot, "tauri-smoke-report.json");
+const processLogPath = path.join(runtimeRoot, "tauri-smoke-process.log");
+const processLog = fs.openSync(processLogPath, "a");
+const smokeArgs = [
+  "--latotex-smoke",
+  `--latotex-runtime-root=${runtimeRoot}`,
+  `--latotex-smoke-report=${reportPath}`,
+];
 console.log(`[tauri-smoke-win-x64] runtime root: ${runtimeRoot}`);
-const child = spawn(exePath, [], {
+const child = spawn(exePath, smokeArgs, {
   cwd: path.dirname(exePath),
   detached: false,
-  stdio: "ignore",
+  stdio: ["ignore", processLog, processLog],
   env: {
     ...process.env,
     LATOTEX_E2E_RUNTIME_ROOT: runtimeRoot,
@@ -57,6 +67,16 @@ function readReportIfReady() {
     return false;
   }
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+  if (report.schema !== "latotex.tauri-smoke.v1") {
+    console.error(`[tauri-smoke-win-x64] unsupported smoke report schema: ${String(report.schema)}`);
+    finish(1);
+    return true;
+  }
+  if (report.mode !== "webview" && !allowNativeFallback) {
+    console.error(`[tauri-smoke-win-x64] smoke report was not produced by WebView: mode=${String(report.mode)}`);
+    finish(1);
+    return true;
+  }
   if (!report.ok) {
     console.error(`[tauri-smoke-win-x64] smoke failed: ${report.error ?? report.status}`);
     console.error(JSON.stringify(report.steps ?? [], null, 2));
@@ -77,7 +97,8 @@ child.once("exit", (code, signal) => {
   exitSignal = signal;
   setTimeout(() => {
     if (!completed && !readReportIfReady()) {
-      console.error(`[tauri-smoke-win-x64] app exited before smoke report: code=${String(exitCode)} signal=${String(exitSignal)}`);
+    console.error(`[tauri-smoke-win-x64] app exited before smoke report: code=${String(exitCode)} signal=${String(exitSignal)}`);
+      console.error(`[tauri-smoke-win-x64] process log: ${processLogPath}`);
       finish(1);
     }
   }, 500);
@@ -88,13 +109,22 @@ const pollTimer = setInterval(() => {
 }, 500);
 
 const timeoutTimer = setTimeout(() => {
-  console.warn(`[tauri-smoke-win-x64] WebView smoke report was not written within ${startupWindowMs}ms; trying native fallback.`);
+  if (!allowNativeFallback) {
+    console.error(`[tauri-smoke-win-x64] WebView smoke report was not written within ${startupWindowMs}ms.`);
+    console.error(`[tauri-smoke-win-x64] process log: ${processLogPath}`);
+    if (!exited) {
+      child.kill();
+    }
+    finish(1);
+    return;
+  }
+  console.warn(`[tauri-smoke-win-x64] WebView smoke report was not written within ${startupWindowMs}ms; trying explicit native fallback.`);
   if (!exited) {
     child.kill();
   }
-  spawnSync(exePath, [], {
+  spawnSync(exePath, [...smokeArgs, "--latotex-smoke-native-fallback"], {
     cwd: path.dirname(exePath),
-    stdio: "ignore",
+    stdio: ["ignore", processLog, processLog],
     timeout: 30000,
     env: {
       ...process.env,
