@@ -21,7 +21,8 @@ if (process.platform !== "win32") {
 }
 
 const signtool = spawnSync("where.exe", ["signtool"], { encoding: "utf8", shell: true });
-if (signtool.status !== 0) {
+const explicitSigntool = process.env.LATOTEX_SIGNTOOL_PATH;
+if (!explicitSigntool && signtool.status !== 0) {
   failOrSkip("signtool.exe was not found on PATH.");
   process.exit(0);
 }
@@ -42,15 +43,16 @@ if (!installer) {
 
 const hasThumbprint = Boolean(process.env.LATOTEX_SIGN_CERT_SHA1);
 const hasCertPath = Boolean(process.env.LATOTEX_SIGN_CERT_PATH);
+const hasPfxBase64 = Boolean(process.env.LATOTEX_SIGN_CERT_PFX_BASE64);
 const hasTimestamp = Boolean(process.env.LATOTEX_SIGN_TIMESTAMP_URL);
-if (!hasThumbprint && !hasCertPath) {
-  failOrSkip("LATOTEX_SIGN_CERT_SHA1 or LATOTEX_SIGN_CERT_PATH is not configured.");
+if (!hasThumbprint && !hasCertPath && !hasPfxBase64) {
+  failOrSkip("LATOTEX_SIGN_CERT_SHA1, LATOTEX_SIGN_CERT_PATH, or LATOTEX_SIGN_CERT_PFX_BASE64 is not configured.");
   process.exit(0);
 }
 
 console.log("[sign-preview-win-x64] signing prerequisites detected:");
-console.log(`- signtool: ${signtool.stdout.trim().split(/\r?\n/)[0]}`);
+console.log(`- signtool: ${explicitSigntool || signtool.stdout.trim().split(/\r?\n/)[0]}`);
 console.log(`- installer: ${path.relative(repoRoot, installer)}`);
-console.log(`- certificate: ${hasThumbprint ? "thumbprint" : "pfx path"}`);
+console.log(`- certificate: ${hasThumbprint ? "thumbprint" : hasCertPath ? "pfx path" : "pfx base64"}`);
 console.log(`- timestamp: ${hasTimestamp ? "configured" : "not configured"}`);
 console.log("[sign-preview-win-x64] preview only; no installer bytes were modified.");

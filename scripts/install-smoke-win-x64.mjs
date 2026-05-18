@@ -53,6 +53,7 @@ if (!installer) {
 const installRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-install-smoke-app-"));
 const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-install-smoke-runtime-"));
 const reportPath = path.join(runtimeRoot, "tauri-smoke-report.json");
+const progressPath = path.join(runtimeRoot, "tauri-smoke-progress.ndjson");
 const installedExe = path.join(installRoot, "LatoTex.exe");
 let passed = false;
 
@@ -79,6 +80,7 @@ try {
     "--latotex-smoke",
     `--latotex-runtime-root=${runtimeRoot}`,
     `--latotex-smoke-report=${reportPath}`,
+    `--latotex-smoke-progress=${progressPath}`,
   ], {
     cwd: installRoot,
     stdio: "ignore",
@@ -87,6 +89,7 @@ try {
       LATOTEX_E2E_RUNTIME_ROOT: runtimeRoot,
       LATOTEX_SMOKE: "1",
       LATOTEX_SMOKE_REPORT_PATH: reportPath,
+      LATOTEX_SMOKE_PROGRESS_PATH: progressPath,
     },
   });
   console.log(`[install-smoke-win-x64] launched installed exe pid=${child.pid}`);
@@ -122,6 +125,7 @@ try {
 } catch (error) {
   console.error(`[install-smoke-win-x64] ${error instanceof Error ? error.message : String(error)}`);
   console.error(`[install-smoke-win-x64] kept failed runtime root: ${runtimeRoot}`);
+  console.error(`[install-smoke-win-x64] progress log: ${progressPath}`);
   process.exit(1);
 } finally {
   const uninstallExe = path.join(installRoot, "uninstall.exe");

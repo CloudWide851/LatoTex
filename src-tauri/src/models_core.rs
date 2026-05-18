@@ -201,6 +201,8 @@ pub struct Ack {
 pub struct TauriSmokeConfig {
     pub enabled: bool,
     pub report_path: Option<String>,
+    pub progress_path: Option<String>,
+    pub scenario: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -210,4 +212,12 @@ pub struct TauriSmokeFinishInput {
     pub status: String,
     pub steps: Vec<Value>,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TauriSmokeProgressInput {
+    pub stage: String,
+    pub status: String,
+    pub detail: Option<Value>,
 }

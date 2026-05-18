@@ -3,6 +3,7 @@ mod logging;
 mod models;
 mod secure;
 mod single_instance;
+mod smoke;
 mod state;
 mod storage;
 
@@ -21,7 +22,8 @@ use commands::git::{
     git_unstage,
 };
 use commands::health::{
-    app_exit, app_smoke_config, app_smoke_finish, health_check, tray_set_labels, window_sync_icon,
+    app_exit, app_smoke_config, app_smoke_finish, app_smoke_progress, health_check, tray_set_labels,
+    window_sync_icon,
 };
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
 use commands::native_runtime::{
@@ -61,6 +63,7 @@ use commands::terminal::{
     terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
 };
 use tauri::{
+    WebviewUrl, WebviewWindowBuilder,
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager,
@@ -70,22 +73,11 @@ const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
 const TRAY_MENU_EXIT_ID: &str = "tray_exit_app";
 const TRAY_ID: &str = "latotex-tray";
 
-fn arg_flag(name: &str) -> bool {
-    std::env::args().any(|arg| arg == name)
-}
-
-fn arg_value(name: &str) -> Option<String> {
-    let prefix = format!("{name}=");
-    std::env::args()
-        .find_map(|arg| arg.strip_prefix(&prefix).map(|value| value.to_string()))
-}
-
 fn run_native_smoke_fallback_if_requested() -> bool {
-    let smoke_mode =
-        std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1") || arg_flag("--latotex-smoke");
+    let smoke_mode = smoke::enabled();
     let native_fallback =
         std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK").ok().as_deref() == Some("1")
-            || arg_flag("--latotex-smoke-native-fallback");
+            || smoke::arg_flag("--latotex-smoke-native-fallback");
     if !smoke_mode || !native_fallback {
         return false;
     }
@@ -96,41 +88,13 @@ fn run_native_smoke_fallback_if_requested() -> bool {
     true
 }
 
-fn write_smoke_boot_marker() {
-    let smoke_mode =
-        std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1") || arg_flag("--latotex-smoke");
-    if !smoke_mode {
-        return;
-    }
-    let Some(runtime_root) =
-        arg_value("--latotex-runtime-root").or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
-    else {
-        return;
-    };
-    let path = std::path::PathBuf::from(runtime_root).join("tauri-smoke-boot.json");
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let payload = serde_json::json!({
-        "schema": "latotex.tauri-smoke.boot.v1",
-        "pid": std::process::id(),
-        "timestamp": crate::storage::now_iso(),
-        "args": std::env::args().collect::<Vec<_>>(),
-    });
-    if let Ok(serialized) = serde_json::to_string_pretty(&payload) {
-        let _ = std::fs::write(path, serialized);
-    }
-}
-
 fn write_native_smoke_report(
     ok: bool,
     steps: Vec<serde_json::Value>,
     error: Option<String>,
 ) -> Result<(), String> {
-    let report_path = arg_value("--latotex-smoke-report")
-        .or_else(|| std::env::var("LATOTEX_SMOKE_REPORT_PATH").ok())
-        .map(std::path::PathBuf::from)
-        .ok_or_else(|| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
+    let report_path =
+        smoke::report_path(None).ok_or_else(|| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
     if let Some(parent) = report_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -152,10 +116,8 @@ fn write_native_smoke_report(
 }
 
 fn run_native_smoke_fallback() -> Result<(), String> {
-    let runtime_root = arg_value("--latotex-runtime-root")
-        .or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
-        .map(std::path::PathBuf::from)
-        .ok_or_else(|| "LATOTEX_E2E_RUNTIME_ROOT is required".to_string())?;
+    let runtime_root =
+        smoke::runtime_root().ok_or_else(|| "LATOTEX_E2E_RUNTIME_ROOT is required".to_string())?;
     let projects_dir = runtime_root.join("projects");
     let db_path = runtime_root.join("latotex.db");
     std::fs::create_dir_all(&projects_dir).map_err(|e| e.to_string())?;
@@ -235,15 +197,19 @@ fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    write_smoke_boot_marker();
+    smoke::write_boot_marker();
     if run_native_smoke_fallback_if_requested() {
         return;
     }
-    let smoke_mode =
-        std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1") || arg_flag("--latotex-smoke");
+    let smoke_mode = smoke::enabled();
     if !smoke_mode && !single_instance::acquire_or_focus_existing() {
         return;
     }
+    let mut context = tauri::generate_context!();
+    if smoke_mode {
+        context.config_mut().app.windows.clear();
+    }
+    smoke::write_progress("tauri.builder.start", "ok", None);
     tauri::Builder::default()
         .register_asynchronous_uri_scheme_protocol(
             LOCAL_RESOURCE_SCHEME,
@@ -264,9 +230,18 @@ pub fn run() {
                 responder.respond(response);
             },
         )
-        .setup(|app| {
+        .setup(move |app| {
+            smoke::write_progress("tauri.setup.start", "ok", None);
             let app_state = state::AppState::bootstrap(app.handle())
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                .map_err(|e| {
+                    smoke::write_progress(
+                        "tauri.setup.error",
+                        "error",
+                        Some(serde_json::json!({ "message": e })),
+                    );
+                    std::io::Error::new(std::io::ErrorKind::Other, e)
+                })?;
+            let runtime_root = app_state.runtime_root.clone();
             app.manage(app_state);
             let tray_menu = MenuBuilder::new(app)
                 .text(TRAY_MENU_SHOW_ID, "Show LatoTex")
@@ -281,6 +256,27 @@ pub fn run() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
             let _ = tray_builder.build(app)?;
+            if smoke_mode {
+                smoke::write_progress("window.create.start", "ok", None);
+                let smoke_webview_data_dir = runtime_root.join("webview-smoke-data");
+                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                    .title("LatoTex")
+                    .inner_size(1200.0, 760.0)
+                    .resizable(true)
+                    .decorations(false)
+                    .data_directory(smoke_webview_data_dir)
+                    .build()
+                    .map_err(|e| {
+                        smoke::write_progress(
+                            "window.create.error",
+                            "error",
+                            Some(serde_json::json!({ "message": e.to_string() })),
+                        );
+                        e
+                    })?;
+                smoke::write_progress("window.ready", "ok", None);
+            }
+            smoke::write_progress("tauri.setup.done", "ok", None);
             Ok(())
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -307,6 +303,7 @@ pub fn run() {
             app_exit,
             app_smoke_config,
             app_smoke_finish,
+            app_smoke_progress,
             tray_set_labels,
             project_list,
             project_create,
@@ -421,6 +418,6 @@ pub fn run() {
             terminal_resize,
             terminal_stop,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

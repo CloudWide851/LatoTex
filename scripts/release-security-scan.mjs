@@ -147,6 +147,12 @@ function assertReleaseConfiguration() {
   if (!scripts["release:install-smoke:win-x64"]) {
     addFinding("missing-install-smoke-gate", "package.json");
   }
+  if (!scripts["release:ensure-signtool:win-x64"]) {
+    addFinding("missing-signtool-gate", "package.json");
+  }
+  if (!String(scripts["soak:matrix"] ?? "").includes("gui-soak-win-x64.mjs")) {
+    addFinding("soak-matrix-not-gui", "package.json");
+  }
 
   const tauriConfig = JSON.parse(readRepoText("src-tauri/tauri.conf.json"));
   if (!tauriConfig.app?.security?.csp || tauriConfig.app.security.csp === null) {

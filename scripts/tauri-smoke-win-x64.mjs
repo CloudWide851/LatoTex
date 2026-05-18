@@ -23,12 +23,14 @@ if (!fs.existsSync(exePath)) {
 
 const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-smoke-"));
 const reportPath = path.join(runtimeRoot, "tauri-smoke-report.json");
+const progressPath = path.join(runtimeRoot, "tauri-smoke-progress.ndjson");
 const processLogPath = path.join(runtimeRoot, "tauri-smoke-process.log");
 const processLog = fs.openSync(processLogPath, "a");
 const smokeArgs = [
   "--latotex-smoke",
   `--latotex-runtime-root=${runtimeRoot}`,
   `--latotex-smoke-report=${reportPath}`,
+  `--latotex-smoke-progress=${progressPath}`,
 ];
 console.log(`[tauri-smoke-win-x64] runtime root: ${runtimeRoot}`);
 const child = spawn(exePath, smokeArgs, {
@@ -40,6 +42,7 @@ const child = spawn(exePath, smokeArgs, {
     LATOTEX_E2E_RUNTIME_ROOT: runtimeRoot,
     LATOTEX_SMOKE: "1",
     LATOTEX_SMOKE_REPORT_PATH: reportPath,
+    LATOTEX_SMOKE_PROGRESS_PATH: progressPath,
   },
 });
 console.log(`[tauri-smoke-win-x64] launched pid=${child.pid}`);
@@ -91,14 +94,30 @@ function readReportIfReady() {
   return true;
 }
 
+function printDiagnostics() {
+  console.error(`[tauri-smoke-win-x64] runtime root: ${runtimeRoot}`);
+  console.error(`[tauri-smoke-win-x64] process log: ${processLogPath}`);
+  console.error(`[tauri-smoke-win-x64] progress log: ${progressPath}`);
+  const bootPath = path.join(runtimeRoot, "tauri-smoke-boot.json");
+  for (const diagnosticPath of [bootPath, progressPath]) {
+    if (!fs.existsSync(diagnosticPath)) {
+      continue;
+    }
+    const content = fs.readFileSync(diagnosticPath, "utf8").trim();
+    if (content) {
+      console.error(`[tauri-smoke-win-x64] ${path.basename(diagnosticPath)}:\n${content.slice(-6000)}`);
+    }
+  }
+}
+
 child.once("exit", (code, signal) => {
   exited = true;
   exitCode = code;
   exitSignal = signal;
   setTimeout(() => {
     if (!completed && !readReportIfReady()) {
-    console.error(`[tauri-smoke-win-x64] app exited before smoke report: code=${String(exitCode)} signal=${String(exitSignal)}`);
-      console.error(`[tauri-smoke-win-x64] process log: ${processLogPath}`);
+      console.error(`[tauri-smoke-win-x64] app exited before smoke report: code=${String(exitCode)} signal=${String(exitSignal)}`);
+      printDiagnostics();
       finish(1);
     }
   }, 500);
@@ -111,7 +130,7 @@ const pollTimer = setInterval(() => {
 const timeoutTimer = setTimeout(() => {
   if (!allowNativeFallback) {
     console.error(`[tauri-smoke-win-x64] WebView smoke report was not written within ${startupWindowMs}ms.`);
-    console.error(`[tauri-smoke-win-x64] process log: ${processLogPath}`);
+    printDiagnostics();
     if (!exited) {
       child.kill();
     }
@@ -132,10 +151,12 @@ const timeoutTimer = setTimeout(() => {
       LATOTEX_SMOKE: "1",
       LATOTEX_SMOKE_NATIVE_FALLBACK: "1",
       LATOTEX_SMOKE_REPORT_PATH: reportPath,
+      LATOTEX_SMOKE_PROGRESS_PATH: progressPath,
     },
   });
   if (!readReportIfReady()) {
     console.error("[tauri-smoke-win-x64] smoke report was not written by WebView or native fallback.");
+    printDiagnostics();
     finish(1);
   }
 }, startupWindowMs);
