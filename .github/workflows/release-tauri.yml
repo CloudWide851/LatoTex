@@ -35,8 +35,15 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Windows x64 release gate
-        run: pnpm release:check:win-x64
+      - name: Windows x64 validation gate
+        run: pnpm release:validate:win-x64
+
+      - name: Windows x64 signed package gate
+        run: pnpm release:package:win-x64:signed
+        env:
+          LATOTEX_SIGN_CERT_PFX_BASE64: ${{ secrets.LATOTEX_SIGN_CERT_PFX_BASE64 }}
+          LATOTEX_SIGN_CERT_PASSWORD: ${{ secrets.LATOTEX_SIGN_CERT_PASSWORD }}
+          LATOTEX_SIGN_TIMESTAMP_URL: ${{ secrets.LATOTEX_SIGN_TIMESTAMP_URL }}
 
       - name: Upload generated Windows installer
         uses: softprops/action-gh-release@v2
