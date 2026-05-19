@@ -13,6 +13,24 @@ import { updateSession } from "./chatWorkspaceUtils";
 
 type TranslationFn = (key: any) => string;
 
+function chatStoreMatchesCurrent(
+  current: ChatSession[],
+  currentActiveSessionId: string | null,
+  nextSessions: ChatSession[],
+  nextActiveSessionId: string | null,
+): boolean {
+  if (currentActiveSessionId !== nextActiveSessionId || current.length !== nextSessions.length) {
+    return false;
+  }
+  return current.every((session, index) => {
+    const next = nextSessions[index];
+    return Boolean(next)
+      && session.id === next.id
+      && session.updatedAt === next.updatedAt
+      && session.messages.length === next.messages.length;
+  });
+}
+
 export function useChatWorkspaceState(props: {
   projectId: string | null;
   agentMessages: AgentChatMessage[];
@@ -33,6 +51,9 @@ export function useChatWorkspaceState(props: {
   } | null>(null);
   const latestWorkspaceAgentTextRef = useRef("");
   const sessionsRef = useRef<ChatSession[]>([]);
+  const activeSessionIdRef = useRef<string | null>(null);
+  sessionsRef.current = sessions;
+  activeSessionIdRef.current = activeSessionId;
 
   useEffect(() => {
     if (!projectId) {
@@ -61,6 +82,16 @@ export function useChatWorkspaceState(props: {
       if (!custom.detail || custom.detail.projectId !== projectId) {
         return;
       }
+      if (
+        chatStoreMatchesCurrent(
+          sessionsRef.current,
+          activeSessionIdRef.current,
+          custom.detail.sessions,
+          custom.detail.activeSessionId,
+        )
+      ) {
+        return;
+      }
       setSessions(custom.detail.sessions);
       setActiveSessionId(custom.detail.activeSessionId);
     };
@@ -69,10 +100,6 @@ export function useChatWorkspaceState(props: {
       window.removeEventListener("latotex.chat.store.changed", handleStoreChanged as EventListener);
     };
   }, [projectId]);
-
-  useEffect(() => {
-    sessionsRef.current = sessions;
-  }, [sessions]);
 
   const activeSession = useMemo(
     () => sessions.find((item) => item.id === activeSessionId) ?? null,

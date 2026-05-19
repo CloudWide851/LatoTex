@@ -83,6 +83,21 @@ function MoveVisibilityHarness() {
   );
 }
 
+function ControlledExpansionHarness() {
+  const [expandedPaths, setExpandedPaths] = useState<string[]>([]);
+  return (
+    <ExplorerTree
+      mode="library"
+      tree={LIBRARY_TREE}
+      selectedPath={null}
+      expandedPaths={expandedPaths}
+      onExpandedPathsChange={setExpandedPaths}
+      onSelect={() => undefined}
+      t={(key) => String(key)}
+    />
+  );
+}
+
 describe("ExplorerTree", () => {
   beforeEach(() => {
     (
@@ -307,6 +322,69 @@ describe("ExplorerTree", () => {
     });
 
     expect(onExpandedPathsChange).toHaveBeenLastCalledWith(["papers"]);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("treats controlled expandedPaths as the only expanded directory set", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <ExplorerTree
+          mode="library"
+          tree={LIBRARY_TREE}
+          selectedPath={null}
+          expandedPaths={[]}
+          onExpandedPathsChange={() => undefined}
+          onSelect={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    expect(container.querySelector("[title='papers/demo.bib']")).toBeNull();
+    expect(container.querySelector("[title='papers/nested']")).toBeNull();
+    expect(container.querySelector("[title='archive']")).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("collapses only the clicked controlled directory after reopening it", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<ControlledExpansionHarness />);
+    });
+
+    const papersNode = () => container.querySelector("[title='papers']");
+    const archiveNode = () => container.querySelector("[title='archive']");
+
+    await act(async () => {
+      papersNode()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("[title='papers/demo.bib']")).not.toBeNull();
+
+    await act(async () => {
+      archiveNode()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("[title='papers/demo.bib']")).not.toBeNull();
+
+    await act(async () => {
+      papersNode()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("[title='papers/demo.bib']")).toBeNull();
+    expect(archiveNode()).not.toBeNull();
 
     await act(async () => {
       root.unmount();

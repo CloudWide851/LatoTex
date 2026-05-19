@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import type { EditorTab } from "../../shared/types/app";
 import { resolveLatexWorkspaceRestore } from "../components/workspace/latexWorkspaceSession";
+import { dedupeEditorTabsByPath } from "./useEditorTabs";
 
 export function useLatexWorkspaceSessionRestore(params: {
   activeProjectId: string | null;
@@ -48,7 +49,7 @@ export function useLatexWorkspaceSessionRestore(params: {
       void runtimeLogWrite("INFO", `latex_workspace_restore_empty: project=${activeProjectId}`).catch(() => undefined);
       return;
     }
-    const tabs = restored.tabPaths.map((path) => buildEditorTab(path, true, false));
+    const tabs = dedupeEditorTabsByPath(restored.tabPaths.map((path) => buildEditorTab(path, true, false)));
     const activeTab = tabs.find((tab) => tab.path === restored.activePath) ?? tabs[0] ?? null;
     setEditorTabs(tabs);
     setActiveTabId(activeTab?.id ?? null);

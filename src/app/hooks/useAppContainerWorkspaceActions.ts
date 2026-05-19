@@ -5,7 +5,7 @@ import { projectIntegrityRepair, projectIntegrityStatus } from "../../shared/api
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 import type { CloseTabsAction } from "../../shared/types/app";
-import { getTabIdsByAction } from "./useEditorTabs";
+import { dedupeEditorTabsByPath, getTabIdsByAction } from "./useEditorTabs";
 import type { AppContainerWorkspaceActionsResult, UseAppContainerWorkspaceActionsParams } from "./useAppContainerWorkspaceActions.types";
 import { useNativeWindowCloseInterception } from "./windowCloseRequest";
 import { resolveWindowCloseRequestPlan, type CloseBehavior } from "./windowCloseFlow";
@@ -226,8 +226,13 @@ export function useAppContainerWorkspaceActions(
           nextTabs = nextTabs.filter((tab: any) => tab.id !== currentPreview.id);
         }
       }
+      const existingAfterGuard = nextTabs.find((tab: any) => tab.path === path);
+      if (existingAfterGuard) {
+        activateTabById(existingAfterGuard.id);
+        return;
+      }
       const newTab = buildEditorTab(path, mode === "pinned", mode === "preview");
-      setEditorTabs([...nextTabs, newTab]);
+      setEditorTabs(dedupeEditorTabsByPath([...nextTabs, newTab]));
       setActiveTabId(newTab.id);
       setPreferCompiledPreview(false);
       setPreviewOverridePath(null);
@@ -339,8 +344,16 @@ export function useAppContainerWorkspaceActions(
       return;
     }
     const tab = buildEditorTab(selectedFile, true, false);
-    setEditorTabs((prev: any[]) => [...prev, tab]);
-    setActiveTabId(tab.id);
+    let activeId = tab.id;
+    setEditorTabs((prev: any[]) => {
+      const existingNow = prev.find((item) => item.path === selectedFile);
+      if (existingNow) {
+        activeId = existingNow.id;
+        return dedupeEditorTabsByPath(prev);
+      }
+      return dedupeEditorTabsByPath([...prev, tab]);
+    });
+    setActiveTabId(activeId);
   }, [fileSet, selectedFile, editorTabsRef, activeTabIdRef, setActiveTabId, buildEditorTab, setEditorTabs]);
 
   const handleProjectChange = useCallback((projectId: string | null) => {

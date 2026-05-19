@@ -24,6 +24,7 @@ import {
   updateSession,
 } from "./chatWorkspaceUtils";
 import { useChatWorkspaceState } from "./useChatWorkspaceState";
+import { useChatRunEventHydration } from "./useChatRunEventHydration";
 
 type TranslationFn = (key: any) => string;
 const HEARTBEAT_EXCLUDE = ["agent.run.heartbeat"];
@@ -97,6 +98,11 @@ export function ChatWorkspace(props: {
     agentMessages,
     agentRunId,
     t,
+  });
+  const mergedEvents = useChatRunEventHydration({
+    messages: activeSession?.messages ?? [],
+    events,
+    suspended,
   });
   const runPrompt = useCallback(async (
     promptRaw: string,
@@ -515,7 +521,7 @@ export function ChatWorkspace(props: {
         ) : (
           <ChatMessageList
             messages={activeSession.messages}
-            events={events}
+            events={mergedEvents}
             running={running}
             latestRunningAssistantMessageId={latestRunningAssistantMessageId}
             agentPendingAction={agentPendingAction}

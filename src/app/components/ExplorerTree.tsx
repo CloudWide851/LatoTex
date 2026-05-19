@@ -94,30 +94,43 @@ export function ExplorerTree(props: {
     walk(displayedTree);
     return paths;
   }, [displayedTree]);
+  const buildDefaultExpandedMap = useCallback(() => {
+    const defaults: Record<string, boolean> = {};
+    const walk = (nodes: ResourceNode[]) => {
+      for (const node of nodes) {
+        if (node.kind !== "directory") {
+          continue;
+        }
+        defaults[node.relativePath] = shouldAutoExpandNode(node) ? defaultExpanded : false;
+        walk(node.children);
+      }
+    };
+    walk(displayedTree);
+    return defaults;
+  }, [defaultExpanded, displayedTree]);
+  const buildControlledExpandedMap = useCallback((paths: string[]) => {
+    const allowed = new Set(paths);
+    return Object.fromEntries(directoryPaths.map((path) => [path, allowed.has(path)]));
+  }, [directoryPaths]);
   const emitExpandedPaths = useCallback((nextExpanded: Record<string, boolean>) => {
     onExpandedPathsChange?.(
       directoryPaths.filter((path) => nextExpanded[path] === true),
     );
   }, [directoryPaths, onExpandedPathsChange]);
   const handleDirectoryExpand = useCallback((path: string) => {
-    setExpanded((prev) => {
-      const base = prev ?? Object.fromEntries(directoryPaths.map((item) => [item, defaultExpanded]));
-      const next = { ...base, [path]: true };
-      emitExpandedPaths(next);
-      return next;
-    });
-  }, [defaultExpanded, directoryPaths, emitExpandedPaths]);
+    const base = expanded ?? buildDefaultExpandedMap();
+    const next = { ...base, [path]: true };
+    setExpanded(next);
+    emitExpandedPaths(next);
+  }, [buildDefaultExpandedMap, emitExpandedPaths, expanded]);
   const handleMove = useCallback(async (sourcePath: string, targetPath: string) => {
     const moveResult = await onAction?.("move", sourcePath, targetPath);
     if (moveResult === false) {
       return;
     }
-    setExpanded((prev) => {
-      const base = prev ?? Object.fromEntries(directoryPaths.map((item) => [item, defaultExpanded]));
-      const next = rewriteExpandedAfterMove(base, sourcePath, targetPath);
-      emitExpandedPaths(next);
-      return next;
-    });
+    const nextExpanded = rewriteExpandedAfterMove(expanded ?? buildDefaultExpandedMap(), sourcePath, targetPath);
+    setExpanded(nextExpanded);
+    emitExpandedPaths(nextExpanded);
     setSelectedPaths((prev) => {
       const rewritten = prev
         .map((path) => rewritePathAfterMove(path, sourcePath, targetPath))
@@ -125,23 +138,13 @@ export function ExplorerTree(props: {
       return Array.from(new Set(rewritten));
     });
     setSelectionAnchorPath((prev) => rewritePathAfterMove(prev, sourcePath, targetPath));
-  }, [defaultExpanded, directoryPaths, emitExpandedPaths, onAction]);
+  }, [buildDefaultExpandedMap, emitExpandedPaths, expanded, onAction]);
   const expandedMap = useMemo(() => {
     if (expanded) {
       return expanded;
     }
-    const defaults: Record<string, boolean> = {};
-    const walk = (nodes: ResourceNode[]) => {
-      for (const node of nodes) {
-        if (shouldAutoExpandNode(node)) {
-          defaults[node.relativePath] = defaultExpanded;
-          walk(node.children);
-        }
-      }
-    };
-    walk(displayedTree);
-    return defaults;
-  }, [defaultExpanded, displayedTree, expanded]);
+    return buildDefaultExpandedMap();
+  }, [buildDefaultExpandedMap, expanded]);
   const { dragSourcePath, dragPreview, dropTargetPath, suppressClickRef, handlePointerDragStart } = useExplorerPointerDrag({
     rootRef,
     onMove: onAction ? handleMove : undefined,
@@ -150,11 +153,11 @@ export function ExplorerTree(props: {
   });
   useEffect(() => {
     if (expandedPaths !== undefined) {
-      setExpanded(Object.fromEntries(expandedPaths.map((path) => [path, true])));
+      setExpanded(buildControlledExpandedMap(expandedPaths));
       return;
     }
     setExpanded(null);
-  }, [expandedPaths]);
+  }, [buildControlledExpandedMap, expandedPaths]);
   useEffect(() => {
     const closeMenuOnOutside = (event: MouseEvent) => {
       if (event.button === 2) {
@@ -338,12 +341,10 @@ export function ExplorerTree(props: {
               return;
             }
             if (isDirectory) {
-              setExpanded((prev) => {
-                const base = prev ?? Object.fromEntries(directoryPaths.map((item) => [item, defaultExpanded]));
-                const next = { ...base, [node.relativePath]: !isExpanded };
-                emitExpandedPaths(next);
-                return next;
-              });
+              const base = expanded ?? buildDefaultExpandedMap();
+              const next = { ...base, [node.relativePath]: !isExpanded };
+              setExpanded(next);
+              emitExpandedPaths(next);
               return;
             }
             const nextSelection = resolveExplorerSelection({

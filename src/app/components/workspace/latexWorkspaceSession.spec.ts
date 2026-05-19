@@ -5,6 +5,7 @@ import {
   persistLatexWorkspaceFileSession,
   resolveLatexWorkspaceRestore,
 } from "./latexWorkspaceSession";
+import { buildEditorTab, dedupeEditorTabsByPath } from "../../hooks/useEditorTabs";
 
 describe("latexWorkspaceSession", () => {
   beforeEach(() => {
@@ -66,6 +67,36 @@ describe("latexWorkspaceSession", () => {
     expect(loadLatexWorkspaceSession("project-1")).toMatchObject({
       chatTabOpen: false,
       chatTabActive: false,
+    });
+  });
+
+  it("deduplicates restored tab paths before selecting the active path", () => {
+    persistLatexWorkspaceFileSession({
+      projectId: "project-1",
+      tabs: [{ path: "main.tex" }, { path: "main.tex" }, { path: "chapters/a.tex" }],
+      activePath: "main.tex",
+    });
+
+    const restored = resolveLatexWorkspaceRestore(
+      "project-1",
+      new Set(["main.tex", "chapters/a.tex"]),
+      "main.tex",
+    );
+
+    expect(restored.tabPaths).toEqual(["main.tex", "chapters/a.tex"]);
+    expect(restored.activePath).toBe("main.tex");
+  });
+
+  it("merges duplicate editor tabs by path without losing pinned state", () => {
+    const first = buildEditorTab("main.tex", false, true);
+    const second = buildEditorTab("main.tex", true, false);
+    const deduped = dedupeEditorTabsByPath([first, second]);
+
+    expect(deduped).toHaveLength(1);
+    expect(deduped[0]).toMatchObject({
+      path: "main.tex",
+      pinned: true,
+      preview: false,
     });
   });
 });

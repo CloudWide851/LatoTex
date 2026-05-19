@@ -33,6 +33,7 @@ import type { AgentChatMessage, AgentFileProposal } from "./agentTypes";
 import type { CompileInstallProgress } from "./compileWorkflow";
 import { loadWorkspacePage, persistWorkspacePage } from "./workspacePageStorage";
 import { persistLatexWorkspaceFileSession } from "../components/workspace/latexWorkspaceSession";
+import { dedupeEditorTabsByPath } from "./useEditorTabs";
 
 export type AgentProposalMap = Record<string, AgentFileProposal>;
 export type AgentPendingAction =
@@ -200,6 +201,20 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   useEffect(() => {
     editorTabsRef.current = editorTabs;
   }, [editorTabs]);
+
+  useEffect(() => {
+    const deduped = dedupeEditorTabsByPath(editorTabs);
+    if (deduped.length === editorTabs.length) {
+      return;
+    }
+    setEditorTabs(deduped);
+    if (activeTabId && !deduped.some((tab) => tab.id === activeTabId)) {
+      const fallback = selectedFile
+        ? deduped.find((tab) => tab.path === selectedFile)
+        : null;
+      setActiveTabId(fallback?.id ?? deduped[0]?.id ?? null);
+    }
+  }, [activeTabId, editorTabs, selectedFile]);
 
   useEffect(() => {
     activeTabIdRef.current = activeTabId;

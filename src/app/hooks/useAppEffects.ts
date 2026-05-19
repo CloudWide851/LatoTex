@@ -303,7 +303,7 @@ export function useAppEffects(params: {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let inFlight = false;
     const hasLiveRun = Boolean(agentRunId) || analysisRunning;
-    const needsWarmPolling = page === "analysis" || page === "latex";
+    const needsWarmPolling = page === "analysis";
     const shouldPollEvents = hasLiveRun || needsWarmPolling;
     const shouldStoreEvents = shouldPollEvents;
     if (!shouldPollEvents) {

@@ -1,6 +1,7 @@
 import { MoonStar, Sun, SunMoon } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { Select } from "../../../components/ui/select";
+import { HelpTooltip } from "../../../components/ui/help-tooltip";
 import { cn } from "../../../lib/utils";
 import type { AppSettings } from "../../../shared/types/app";
 import type { ThemeMode } from "../../app-config";
@@ -238,18 +239,20 @@ export function AppearanceSettingsSection(props: {
           {t("settings.contentStyleTitle")}
         </h3>
         <div className="grid max-w-xs gap-2">
-          <Select
-            value={String(prefs.previewDefaultZoom ?? 1)}
-            portalClassName="settings-scrollbar-hidden"
-            onChange={(event) => updateUiPrefs({ previewDefaultZoom: Number(event.target.value) })}
-          >
-            {PREVIEW_ZOOM_OPTIONS.map((value) => (
-              <option key={value} value={String(value)}>
-                {`${Math.round(value * 100)}%`}
-              </option>
-            ))}
-          </Select>
-          <p className="text-xs text-slate-500">{t("settings.previewZoomHint")}</p>
+          <div className="flex items-center gap-2">
+            <Select
+              value={String(prefs.previewDefaultZoom ?? 1)}
+              portalClassName="settings-scrollbar-hidden"
+              onChange={(event) => updateUiPrefs({ previewDefaultZoom: Number(event.target.value) })}
+            >
+              {PREVIEW_ZOOM_OPTIONS.map((value) => (
+                <option key={value} value={String(value)}>
+                  {`${Math.round(value * 100)}%`}
+                </option>
+              ))}
+            </Select>
+            <HelpTooltip content={t("settings.previewZoomHint")} />
+          </div>
         </div>
         <label className="grid gap-1 text-xs text-slate-600">
           <span>{t("settings.pdfPageGap")}</span>
