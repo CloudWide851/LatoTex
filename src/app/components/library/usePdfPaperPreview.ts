@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { pdfjs } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
+import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
 
 export type PaperPreview = {
   title?: string | null;
@@ -57,11 +58,11 @@ export function extractExcerpt(text: string, fallbackTitle?: string | null): str
 }
 
 export async function buildPdfJsPaperPreview(
-  pdfUrl: string,
+  pdfInput: string | WorkspacePreviewBinarySource,
   fallbackTitle?: string | null,
 ): Promise<PaperPreview> {
   ensureReactPdfWorker();
-  const loadingTask = pdfjs.getDocument(pdfUrl);
+  const loadingTask = pdfjs.getDocument(typeof pdfInput === "string" ? pdfInput : pdfInput.documentData);
   const document = await withTimeout(loadingTask.promise, PDF_PREVIEW_TIMEOUT_MS);
   let combinedText = "";
   try {
@@ -95,16 +96,17 @@ export async function buildPdfJsPaperPreview(
 
 export function usePdfPaperPreview(params: {
   pdfUrl: string | null;
+  pdfSource?: WorkspacePreviewBinarySource | null;
   fallbackTitle?: string | null;
 }) {
-  const { pdfUrl, fallbackTitle } = params;
+  const { pdfUrl, pdfSource = null, fallbackTitle } = params;
   const [paperPreview, setPaperPreview] = useState<PaperPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!pdfUrl) {
+    if (!pdfUrl && !pdfSource) {
       setPaperPreview(null);
       setLoading(false);
       setError(null);
@@ -113,7 +115,7 @@ export function usePdfPaperPreview(params: {
     setLoading(true);
     setError(null);
     setPaperPreview(null);
-    void buildPdfJsPaperPreview(pdfUrl, fallbackTitle)
+    void buildPdfJsPaperPreview(pdfSource ?? (pdfUrl as string), fallbackTitle)
       .then((nextPreview) => {
         if (!cancelled) {
           setPaperPreview(nextPreview);
@@ -130,7 +132,7 @@ export function usePdfPaperPreview(params: {
     return () => {
       cancelled = true;
     };
-  }, [fallbackTitle, pdfUrl]);
+  }, [fallbackTitle, pdfSource, pdfUrl]);
 
   return {
     paperPreview,

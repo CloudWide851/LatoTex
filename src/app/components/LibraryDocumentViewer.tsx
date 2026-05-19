@@ -119,6 +119,8 @@ export function LibraryDocumentViewer(props: {
   const {
     pdfUrl,
     translatedPdfUrl,
+    pdfSource,
+    translatedPdfSource,
     loading: pdfObjectUrlLoading,
     error: pdfObjectUrlError,
   } = useLibraryPdfObjectUrls({
@@ -145,6 +147,7 @@ export function LibraryDocumentViewer(props: {
     projectId,
     selectedPath,
     pdfUrl,
+    pdfSource,
     sourcePdfRelativePath,
     fallbackTitle: citation?.title ?? null,
     engine: paperBriefEngine,
@@ -493,6 +496,7 @@ export function LibraryDocumentViewer(props: {
           onRetryPdf={retryPdfOpen}
           hasPdf={hasPdf}
           pdfUrl={pdfUrl}
+          pdfSource={pdfSource}
           annotationMode={annotationMode}
           setAnnotationMode={setAnnotationMode}
           magnifierActive={magnifierActive}
@@ -564,6 +568,7 @@ export function LibraryDocumentViewer(props: {
           setMetaScrollRatio={(next) => setSession({ metaScrollRatio: next })}
           hasComparePair={hasComparePair}
           translatedPdfUrl={translatedPdfUrl}
+          translatedPdfSource={translatedPdfSource}
           bibPreview={bibPreview}
           bibPreviewError={bibPreviewError}
           citation={citation}

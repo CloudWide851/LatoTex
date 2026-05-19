@@ -1,10 +1,12 @@
-export function createWorkspaceEditorMonacoOptions(overflowWidgetsDomNode?: HTMLElement | null) {
+export function createWorkspaceEditorMonacoOptions(overflowWidgetsDomNode?: HTMLElement | null, fontScale = 1) {
+  const scale = Math.max(0.85, Math.min(1.25, Number(fontScale) || 1));
+  const fontSize = Math.round(14 * scale);
   return {
     minimap: { enabled: false },
-    fontSize: 14,
+    fontSize,
     fontLigatures: true,
-    letterSpacing: 0.15,
-    lineHeight: 22,
+    letterSpacing: 0,
+    lineHeight: Math.round(22 * scale),
     lineNumbers: "on" as const,
     lineNumbersMinChars: 6,
     lineDecorationsWidth: 8,

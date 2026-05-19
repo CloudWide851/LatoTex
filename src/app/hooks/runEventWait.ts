@@ -37,7 +37,7 @@ export async function waitForRunOutputWithPolicy(options: RunWaitOptions): Promi
       throw new Error("agent.run.timeout.inactive");
     }
 
-    const batch = await getEvents(cursor, eventLimit, runId, waitMs, ["responses.output_text.delta", "agent.run.heartbeat"]);
+    const batch = await getEvents(cursor, eventLimit, runId, waitMs, ["agent.run.heartbeat"]);
     cursor = batch.nextCursor;
     if (batch.events.length > 0) {
       lastProgressAt = Date.now();
@@ -58,7 +58,7 @@ export async function waitForRunOutputWithPolicy(options: RunWaitOptions): Promi
           typeof payload.content === "string" && payload.content.trim().length > 0
             ? payload.content
             : "agent.run.failed";
-        throw new Error(message);
+        throw new Error(streamedOutput.trim().length > 0 ? `agent.run.failed_after_delta:${message}` : message);
       } else if (event.kind === "agent.run.cancelled") {
         throw new Error("agent.run.cancelled");
       }

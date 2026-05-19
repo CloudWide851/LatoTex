@@ -22,8 +22,13 @@ export const LazyDrawWorkspace = lazy(async () => {
 
 export function WorkspacePanelFallback(props: { label: string }) {
   return (
-    <div className="flex h-full min-h-0 items-center justify-center text-xs text-slate-500">
-      {props.label}
+    <div className="flex h-full min-h-0 items-center justify-center bg-[color:var(--editor-paper-bg)] text-[color:var(--editor-tab-muted)]">
+      <div className="grid min-w-40 gap-3 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-4 py-3 text-center shadow-sm">
+        <div className="mx-auto h-1.5 w-24 overflow-hidden rounded-full bg-[color:var(--editor-paper-edge)]">
+          <div className="h-full w-10 animate-pulse rounded-full bg-[color:var(--app-accent)]" />
+        </div>
+        <span className="text-xs">{props.label}</span>
+      </div>
     </div>
   );
 }

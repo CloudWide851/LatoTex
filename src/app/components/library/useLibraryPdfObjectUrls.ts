@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  buildWorkspacePreviewBlobUrl,
+  buildWorkspacePreviewBinarySource,
   revokeObjectUrl,
+  type WorkspacePreviewBinarySource,
 } from "../../../shared/utils/workspacePreviewBlob";
 import type { LibraryPdfPreview } from "../../../shared/types/app";
 
@@ -17,6 +18,8 @@ type Params = {
 type ObjectUrlState = {
   pdfUrl: string | null;
   translatedPdfUrl: string | null;
+  pdfSource: WorkspacePreviewBinarySource | null;
+  translatedPdfSource: WorkspacePreviewBinarySource | null;
   loading: boolean;
   error: string | null;
 };
@@ -24,6 +27,8 @@ type ObjectUrlState = {
 const EMPTY_STATE: ObjectUrlState = {
   pdfUrl: null,
   translatedPdfUrl: null,
+  pdfSource: null,
+  translatedPdfSource: null,
   loading: false,
   error: null,
 };
@@ -62,45 +67,49 @@ export function useLibraryPdfObjectUrls(params: Params): ObjectUrlState {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     void (async () => {
-      let nextSourceUrl: string | null = null;
-      let nextTranslatedUrl: string | null = null;
+      let nextSource: WorkspacePreviewBinarySource | null = null;
+      let nextTranslated: WorkspacePreviewBinarySource | null = null;
       try {
-        nextSourceUrl = await buildWorkspacePreviewBlobUrl(projectId, sourcePdfRelativePath);
-        if (!nextSourceUrl) {
+        nextSource = await buildWorkspacePreviewBinarySource(projectId, sourcePdfRelativePath);
+        if (!nextSource) {
           throw new Error("library.viewer.pdfBlobUnavailable");
         }
         if (translatedPdfRelativePath) {
           try {
-            nextTranslatedUrl = await buildWorkspacePreviewBlobUrl(
+            nextTranslated = await buildWorkspacePreviewBinarySource(
               projectId,
               translatedPdfRelativePath,
             );
           } catch {
-            nextTranslatedUrl = null;
+            nextTranslated = null;
           }
         }
         if (cancelled) {
-          revokeObjectUrl(nextSourceUrl);
-          revokeObjectUrl(nextTranslatedUrl);
+          revokeObjectUrl(nextSource?.objectUrl);
+          revokeObjectUrl(nextTranslated?.objectUrl);
           return;
         }
         resetUrls();
-        sourceUrlRef.current = nextSourceUrl;
-        translatedUrlRef.current = nextTranslatedUrl;
+        sourceUrlRef.current = nextSource.objectUrl;
+        translatedUrlRef.current = nextTranslated?.objectUrl ?? null;
         setState({
-          pdfUrl: nextSourceUrl,
-          translatedPdfUrl: nextTranslatedUrl,
+          pdfUrl: nextSource.objectUrl,
+          translatedPdfUrl: nextTranslated?.objectUrl ?? null,
+          pdfSource: nextSource,
+          translatedPdfSource: nextTranslated,
           loading: false,
           error: null,
         });
       } catch (error) {
-        revokeObjectUrl(nextSourceUrl);
-        revokeObjectUrl(nextTranslatedUrl);
+        revokeObjectUrl(nextSource?.objectUrl);
+        revokeObjectUrl(nextTranslated?.objectUrl);
         if (!cancelled) {
           resetUrls();
           setState({
             pdfUrl: null,
             translatedPdfUrl: null,
+            pdfSource: null,
+            translatedPdfSource: null,
             loading: false,
             error: String(error),
           });

@@ -2102,8 +2102,14 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(5 8 15 / var(--tw-bg-opacity, 1));
 }
+.bg-\[color\:var\(--app-accent\)\] {
+  background-color: var(--app-accent);
+}
 .bg-\[color\:var\(--editor-paper-bg\)\] {
   background-color: var(--editor-paper-bg);
+}
+.bg-\[color\:var\(--editor-paper-edge\)\] {
+  background-color: var(--editor-paper-edge);
 }
 .bg-\[color\:var\(--editor-widget-bg\)\] {
   background-color: var(--editor-widget-bg);
@@ -2677,6 +2683,9 @@ video {
 .text-\[color\:var\(--editor-tab-text\)\] {
   color: var(--editor-tab-text);
 }
+.text-\[var\(--app-accent\)\] {
+  color: var(--app-accent);
+}
 .text-amber-100 {
   --tw-text-opacity: 1;
   color: rgb(254 243 199 / var(--tw-text-opacity, 1));
@@ -3192,6 +3201,9 @@ video {
 .hover\:text-slate-900:hover {
   --tw-text-opacity: 1;
   color: rgb(15 23 42 / var(--tw-text-opacity, 1));
+}
+.hover\:underline:hover {
+  text-decoration-line: underline;
 }
 .hover\:opacity-80:hover {
   opacity: 0.8;

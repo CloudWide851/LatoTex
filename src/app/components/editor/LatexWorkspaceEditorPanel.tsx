@@ -87,6 +87,7 @@ export function LatexWorkspaceEditorPanel(props: {
   compileAssistAutoFixBusy: boolean;
   terminalVisible: boolean;
   terminalLayout: number[];
+  fontScale: number;
   onTerminalLayoutChange: (layout: number[]) => void;
   onTerminalToggle: () => void;
   onShareModeChange: (mode: any) => void;
@@ -169,6 +170,7 @@ export function LatexWorkspaceEditorPanel(props: {
     compileAssistAutoFixBusy,
     terminalVisible,
     terminalLayout,
+    fontScale,
     onTerminalLayoutChange,
     onTerminalToggle,
     onShareModeChange,
@@ -216,8 +218,8 @@ export function LatexWorkspaceEditorPanel(props: {
   const editorLanguage = selectedCodeLanguage.monaco;
   const canCompileSelectedFile = isTexPath(selectedFile);
   const editorOptions = useMemo(
-    () => createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot),
-    [monacoOverflowWidgetRoot],
+    () => createWorkspaceEditorMonacoOptions(monacoOverflowWidgetRoot, fontScale),
+    [fontScale, monacoOverflowWidgetRoot],
   );
 
   useEffect(() => {
@@ -523,6 +525,7 @@ export function LatexWorkspaceEditorPanel(props: {
                 activeProjectId={activeProjectId}
                 selectedFile={selectedFile}
                 active={terminalVisible}
+                fontScale={fontScale}
                 t={t}
               />
             </Panel>

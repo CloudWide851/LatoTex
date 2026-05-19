@@ -2,6 +2,7 @@ import { FileUp, Minus, Plus } from "lucide-react";
 import { useRef, type MutableRefObject } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type { LibraryCitationSummary } from "../../../shared/types/app";
+import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
 import { LibraryCitationMetaPanel } from "./LibraryCitationMetaPanel";
 import {
   LibraryPdfScrollViewer,
@@ -87,6 +88,7 @@ type LibraryViewerContentPanelProps = {
   onRetryPdf: () => void;
   hasPdf: boolean;
   pdfUrl: string | null;
+  pdfSource?: WorkspacePreviewBinarySource | null;
   annotationMode: ToolMode;
   setAnnotationMode: (mode: ToolMode) => void;
   magnifierActive: boolean;
@@ -143,6 +145,7 @@ type LibraryViewerContentPanelProps = {
   setMetaScrollRatio: (next: number) => void;
   hasComparePair: boolean;
   translatedPdfUrl: string | null;
+  translatedPdfSource?: WorkspacePreviewBinarySource | null;
   bibPreview: string;
   bibPreviewError?: string | null;
   citation: LibraryCitationSummary | null;
@@ -176,6 +179,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     onRetryPdf,
     hasPdf,
     pdfUrl,
+    pdfSource = null,
     annotationMode,
     setAnnotationMode,
     magnifierActive,
@@ -232,6 +236,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     setMetaScrollRatio,
     hasComparePair,
     translatedPdfUrl,
+    translatedPdfSource = null,
     bibPreview,
     bibPreviewError = null,
     citation,
@@ -329,6 +334,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               <LibraryPdfScrollViewer
                 ref={viewerRef}
                 pdfUrl={pdfUrl}
+                pdfSource={pdfSource}
                 pageCount={pageCount}
                 zoom={pdfZoom}
                 mode={annotationMode}
@@ -393,6 +399,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               />
               <LibraryPdfScrollViewer
                 pdfUrl={pdfUrl}
+                pdfSource={pdfSource}
                 pageCount={pageCount}
                 zoom={compareSourceZoom}
                 mode="select"
@@ -431,6 +438,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
               />
               <LibraryPdfScrollViewer
                 pdfUrl={translatedPdfUrl}
+                pdfSource={translatedPdfSource}
                 pageCount={pageCount}
                 zoom={compareTranslatedZoom}
                 mode="select"

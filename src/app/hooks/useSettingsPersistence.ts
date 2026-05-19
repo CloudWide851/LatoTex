@@ -174,6 +174,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           glassOpacity: nextSettings.uiPrefs?.glassOpacity ?? 0.78,
           glassBlurPx: nextSettings.uiPrefs?.glassBlurPx ?? 18,
           motionLevel: nextSettings.uiPrefs?.motionLevel ?? "full",
+          fontScale: Math.max(0.85, Math.min(1.25, Number(nextSettings.uiPrefs?.fontScale ?? 1))),
           pdfPageGapPx: nextSettings.uiPrefs?.pdfPageGapPx ?? 12,
           logFontSizePx: nextSettings.uiPrefs?.logFontSizePx ?? 12,
           panelRadiusPx: nextSettings.uiPrefs?.panelRadiusPx ?? 8,

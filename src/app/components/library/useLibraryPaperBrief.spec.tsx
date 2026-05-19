@@ -4,7 +4,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { libraryExtractPaperContext } from "../../../shared/api/library";
-import { buildWorkspacePreviewBlobUrl, revokeObjectUrl } from "../../../shared/utils/workspacePreviewBlob";
+import {
+  buildWorkspacePreviewBinarySource,
+  revokeObjectUrl,
+  type WorkspacePreviewBinarySource,
+} from "../../../shared/utils/workspacePreviewBlob";
 import { clearLibraryPaperBriefCache, useLibraryPaperBrief } from "./useLibraryPaperBrief";
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +20,7 @@ vi.mock("../../../shared/api/library", () => ({
 }));
 
 vi.mock("../../../shared/utils/workspacePreviewBlob", () => ({
-  buildWorkspacePreviewBlobUrl: vi.fn(),
+  buildWorkspacePreviewBinarySource: vi.fn(),
   revokeObjectUrl: vi.fn(),
 }));
 
@@ -54,9 +58,19 @@ function readProbeState(container: HTMLDivElement) {
   return JSON.parse(container.querySelector("[data-testid='hook-state']")?.textContent || "{}");
 }
 
+function createPdfSource(relativePath = ".latotex/papers/demo.pdf"): WorkspacePreviewBinarySource {
+  const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  return {
+    relativePath,
+    objectUrl: "blob:hidden-pdf",
+    bytes,
+    documentData: { data: bytes },
+  };
+}
+
 describe("useLibraryPaperBrief", () => {
   const libraryExtractPaperContextMock = vi.mocked(libraryExtractPaperContext);
-  const buildWorkspacePreviewBlobUrlMock = vi.mocked(buildWorkspacePreviewBlobUrl);
+  const buildWorkspacePreviewBinarySourceMock = vi.mocked(buildWorkspacePreviewBinarySource);
   const revokeObjectUrlMock = vi.mocked(revokeObjectUrl);
 
   beforeEach(() => {
@@ -72,7 +86,8 @@ describe("useLibraryPaperBrief", () => {
   });
 
   it("builds a paper brief from the hidden source pdf path on bib-first load", async () => {
-    buildWorkspacePreviewBlobUrlMock.mockResolvedValue("blob:hidden-pdf");
+    const pdfSource = createPdfSource();
+    buildWorkspacePreviewBinarySourceMock.mockResolvedValue(pdfSource);
     mocks.buildPdfJsPaperPreview.mockResolvedValue({
       title: "Demo Paper",
       extractionEngine: "pdfjs",
@@ -96,8 +111,8 @@ describe("useLibraryPaperBrief", () => {
       await Promise.resolve();
     });
 
-    expect(buildWorkspacePreviewBlobUrlMock).toHaveBeenCalledWith("project-1", ".latotex/papers/demo.pdf");
-    expect(mocks.buildPdfJsPaperPreview).toHaveBeenCalledWith("blob:hidden-pdf", "Demo Paper");
+    expect(buildWorkspacePreviewBinarySourceMock).toHaveBeenCalledWith("project-1", ".latotex/papers/demo.pdf");
+    expect(mocks.buildPdfJsPaperPreview).toHaveBeenCalledWith(pdfSource, "Demo Paper");
     expect(revokeObjectUrlMock).toHaveBeenCalledWith("blob:hidden-pdf");
     expect(libraryExtractPaperContextMock).not.toHaveBeenCalled();
     expect(readProbeState(view.container)).toMatchObject({
@@ -114,7 +129,7 @@ describe("useLibraryPaperBrief", () => {
   });
 
   it("falls back to backend extraction when the frontend pdfjs excerpt is unusable", async () => {
-    buildWorkspacePreviewBlobUrlMock.mockResolvedValue("blob:hidden-pdf");
+    buildWorkspacePreviewBinarySourceMock.mockResolvedValue(createPdfSource());
     mocks.buildPdfJsPaperPreview.mockResolvedValue({
       title: "Demo Paper",
       extractionEngine: "pdfjs",

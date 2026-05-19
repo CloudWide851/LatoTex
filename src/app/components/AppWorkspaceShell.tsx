@@ -129,6 +129,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onWorkspaceRescan,
     onSavePanelLayout,
     previewDefaultZoom,
+    fontScale,
     completionModelId,
     chatAgentModelId,
     translationModelId,
@@ -428,6 +429,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         compileAssistAutoFixBusy={compileAssistAutoFixBusy}
         terminalVisible={terminalVisible}
         terminalLayout={latexTerminalLayout}
+        fontScale={fontScale}
         onTerminalLayoutChange={(layout) => onSavePanelLayout("latexTerminal", layout)}
         onTerminalToggle={() => setTerminalVisible((prev) => !prev)}
         onShareModeChange={onShareModeChange}

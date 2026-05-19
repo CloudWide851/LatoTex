@@ -9,7 +9,7 @@ export const zhCN_chat = {
   "chat.roleUser": "用户",
   "chat.roleAssistant": "助手",
   "chat.idle": "就绪",
-  "chat.inputPlaceholder": "输入提示词。该会话会在当前项目下长期保存。",
+  "chat.inputPlaceholder": "输入提示词。",
   "chat.command.new.done": "已开启新会话。",
   "chat.command.memory.empty": "当前项目还没有可读取的 MEMORY.md 内容。",
   "chat.command.review.handoff": "已转交到右侧 Agent 面板，请在提案区确认或拒绝修改。",

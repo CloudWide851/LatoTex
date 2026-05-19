@@ -70,6 +70,7 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       glassOpacity: appSettings.uiPrefs?.glassOpacity ?? 0.78,
       glassBlurPx: appSettings.uiPrefs?.glassBlurPx ?? 18,
       motionLevel: appSettings.uiPrefs?.motionLevel ?? "full",
+      fontScale: appSettings.uiPrefs?.fontScale ?? 1,
       pdfPageGapPx: appSettings.uiPrefs?.pdfPageGapPx ?? 12,
       logFontSizePx: appSettings.uiPrefs?.logFontSizePx ?? 12,
       panelRadiusPx: appSettings.uiPrefs?.panelRadiusPx ?? 8,

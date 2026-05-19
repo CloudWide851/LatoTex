@@ -19,6 +19,7 @@ import {
 } from "../../shared/api/runtime";
 import { clampLayout, DEFAULT_PANEL_LAYOUT } from "../app-config";
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
+import { WorkspacePanelFallback } from "../components/workspace/workspaceShellLazy";
 const LazyGitWorkspace = lazy(async () => {
   const module = await import("../components/GitWorkspace");
   return { default: module.GitWorkspace };
@@ -228,7 +229,7 @@ export function useAppPanelNodes(params: any) {
   const activeModelCatalog = settings?.modelCatalog ?? [];
 
   const analysisPanel = (
-    <Suspense fallback={<section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">{t("common.loading")}</section>}>
+    <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
       <LazyAnalysisWorkspace
       busy={busy}
       prompt={analysisWorkspace.prompt}
@@ -299,7 +300,7 @@ export function useAppPanelNodes(params: any) {
   }, [locale, page, setSettings, setToast, t]);
 
   const settingsPanel = (
-    <Suspense fallback={<section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">{t("common.loading")}</section>}>
+    <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
       <LazySettingsPanel
       settings={settings}
       activeProjectId={activeProjectId}
@@ -360,7 +361,7 @@ export function useAppPanelNodes(params: any) {
   );
 
   const gitPanel = activeProjectId ? (
-    <Suspense fallback={<section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">{t("common.loading")}</section>}>
+    <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
       <LazyGitWorkspace
       status={gitStatusState}
       branches={gitBranchesState}

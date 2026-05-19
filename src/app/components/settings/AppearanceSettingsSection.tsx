@@ -255,6 +255,32 @@ export function AppearanceSettingsSection(props: {
           </div>
         </div>
         <label className="grid gap-1 text-xs text-slate-600">
+          <span className="flex items-center justify-between gap-2">
+            <span>{t("settings.fontScale")}</span>
+            <button
+              type="button"
+              className="text-[11px] font-medium text-[var(--app-accent)] hover:underline"
+              onClick={() => updateUiPrefs({ fontScale: 1 })}
+            >
+              {t("settings.fontScaleReset")}
+            </button>
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              className="min-w-0 flex-1"
+              type="range"
+              min={0.85}
+              max={1.25}
+              step={0.05}
+              value={clampNumber(prefs.fontScale, 0.85, 1.25, 1)}
+              onChange={(event) => updateUiPrefs({ fontScale: Number(event.target.value) })}
+            />
+            <span className="w-10 text-right tabular-nums text-slate-500">
+              {Math.round(clampNumber(prefs.fontScale, 0.85, 1.25, 1) * 100)}%
+            </span>
+          </div>
+        </label>
+        <label className="grid gap-1 text-xs text-slate-600">
           <span>{t("settings.pdfPageGap")}</span>
           <input
             type="range"

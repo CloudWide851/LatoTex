@@ -280,6 +280,7 @@ pub struct UiPrefs {
     pub glass_opacity: Option<f64>,
     pub glass_blur_px: Option<f64>,
     pub motion_level: Option<String>,
+    pub font_scale: Option<f64>,
     pub pdf_page_gap_px: Option<f64>,
     pub log_font_size_px: Option<f64>,
     pub panel_radius_px: Option<f64>,

@@ -5,6 +5,9 @@ import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";
 
 export function isRetryableAnalysisProviderError(message: string): boolean {
+  if (message.includes("agent.run.failed_after_delta")) {
+    return false;
+  }
   return (
     message.includes("provider.empty_body")
     || message.includes("provider.parse_eof")

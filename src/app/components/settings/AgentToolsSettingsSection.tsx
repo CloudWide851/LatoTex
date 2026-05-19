@@ -1,11 +1,14 @@
 import { AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
-import { useState, type Dispatch, type SetStateAction } from "react";
-import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult, SkillValidationResult } from "../../../shared/types/app";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult, SkillValidationResult, SwarmEvent } from "../../../shared/types/app";
+import { executeWorkflowStart, getEvents } from "../../../shared/api/agent";
 import { validateAgentSkill, validateMcpServer } from "../../../shared/api/settings";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
+import { AgentTraceCards } from "../agent/AgentTraceCards";
+import { extractEventCards } from "../../hooks/analysisWorkspaceHelpers";
 
 type TranslationFn = (key: any) => string;
 
@@ -92,7 +95,19 @@ function formatSkillValidationMessage(result: SkillValidationResult, t: Translat
   if (result.message === "skill.validation.invalid_id") {
     return t("settings.skillValidateInvalid");
   }
+  if (result.message === "skill.validation.invalid_manifest") {
+    return t("settings.skillValidateManifestInvalid");
+  }
+  if (result.message === "skill.validation.manifest_missing") {
+    return t("settings.skillValidateManifestMissing");
+  }
   return result.message;
+}
+
+function formatSkillValidationDetail(detail: string, t: TranslationFn): string {
+  const key = `settings.${detail.replace(/\./g, "_")}`;
+  const translated = t(key);
+  return translated === key ? detail : translated;
 }
 
 export function AgentToolsSettingsSection(props: {
@@ -245,14 +260,50 @@ export function McpSettingsSection(props: {
 
 export function SkillsSettingsSection(props: {
   settings: AppSettings;
+  activeProjectId: string | null;
   setSettings: Dispatch<SetStateAction<AppSettings | null>>;
   t: TranslationFn;
 }) {
-  const { settings, setSettings, t } = props;
+  const { settings, activeProjectId, setSettings, t } = props;
   const enabledSkills = settings.uiPrefs?.enabledSkills ?? [];
   const [customSkill, setCustomSkill] = useState("");
   const [validationBySkill, setValidationBySkill] = useState<Record<string, SkillValidationResult | undefined>>({});
   const [validatingSkill, setValidatingSkill] = useState<string | null>(null);
+  const [agentRunBySkill, setAgentRunBySkill] = useState<Record<string, string | undefined>>({});
+  const [agentEventsByRun, setAgentEventsByRun] = useState<Record<string, SwarmEvent[]>>({});
+  const [runningSkill, setRunningSkill] = useState<string | null>(null);
+  const activeSkillRunIds = Object.values(agentRunBySkill)
+    .filter((runId): runId is string => Boolean(runId && !runId.startsWith("error:")));
+
+  useEffect(() => {
+    if (activeSkillRunIds.length === 0) {
+      return;
+    }
+    let disposed = false;
+    const cursors = new Map(activeSkillRunIds.map((runId) => [runId, 0]));
+    const poll = async () => {
+      for (const runId of activeSkillRunIds) {
+        const batch = await getEvents(cursors.get(runId) ?? 0, 80, runId, 600, ["agent.run.heartbeat"]).catch(() => null);
+        if (!batch || disposed) {
+          continue;
+        }
+        cursors.set(runId, batch.nextCursor);
+        if (batch.events.length > 0) {
+          setAgentEventsByRun((prev) => ({
+            ...prev,
+            [runId]: [...(prev[runId] ?? []), ...batch.events].slice(-120),
+          }));
+        }
+      }
+      if (!disposed) {
+        window.setTimeout(poll, 1200);
+      }
+    };
+    void poll();
+    return () => {
+      disposed = true;
+    };
+  }, [activeSkillRunIds.join("|")]);
 
   const updateUiPrefs = (patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -292,6 +343,34 @@ export function SkillsSettingsSection(props: {
       setValidatingSkill(null);
     }
   };
+  const runSkillAgent = async (skill: string) => {
+    if (!activeProjectId) {
+      setAgentRunBySkill((prev) => ({ ...prev, [skill]: `error:${t("settings.skillRunNoProject")}` }));
+      return;
+    }
+    setRunningSkill(skill);
+    try {
+      const accepted = await executeWorkflowStart({
+        projectId: activeProjectId,
+        workflowId: "skill.run",
+        callsite: "chat.workspace",
+        prompt: [
+          `Use the enabled skill "${skill}" as operating guidance.`,
+          "Validate whether the skill format and instructions are suitable for this project.",
+          "If this is a UI/UX skill, produce a concrete before/after improvement plan and identify files that would change.",
+          "Do not write files unless the normal app permission flow asks for confirmation.",
+        ].join("\n"),
+        contextRefs: [],
+        teamMode: "auto",
+        bypassCache: true,
+      });
+      setAgentRunBySkill((prev) => ({ ...prev, [skill]: accepted.runId }));
+    } catch (error) {
+      setAgentRunBySkill((prev) => ({ ...prev, [skill]: `error:${String(error)}` }));
+    } finally {
+      setRunningSkill(null);
+    }
+  };
   const visibleSkills = Array.from(new Set([...BUILT_IN_SKILLS, ...enabledSkills]));
 
   return (
@@ -322,6 +401,9 @@ export function SkillsSettingsSection(props: {
                   <Button size="sm" variant="secondary" disabled={validatingSkill === skill} onClick={() => void validateSkill(skill)}>
                     {validatingSkill === skill ? t("common.loading") : t("settings.skillValidate")}
                   </Button>
+                  <Button size="sm" variant="secondary" disabled={runningSkill === skill} onClick={() => void runSkillAgent(skill)}>
+                    {runningSkill === skill ? t("common.loading") : t("settings.skillRunAgent")}
+                  </Button>
                   {!BUILT_IN_SKILLS.includes(skill as typeof BUILT_IN_SKILLS[number]) ? (
                     <Button size="sm" variant="ghost" onClick={() => setSkills(enabledSkills.filter((item) => item !== skill))}>
                       <Trash2 className="h-3.5 w-3.5" />
@@ -330,9 +412,31 @@ export function SkillsSettingsSection(props: {
                 </div>
               </div>
               {validation ? (
-                <div className={cn("mt-2 rounded border px-2 py-1 text-[11px]", statusTone(validation))}>
-                  {formatSkillValidationMessage(validation, t)}
+                <div className={cn("mt-2 grid gap-1 rounded border px-2 py-1 text-[11px]", statusTone(validation))}>
+                  <span>{formatSkillValidationMessage(validation, t)}</span>
+                  {validation.manifestPath ? <span className="break-all font-mono opacity-80">{validation.manifestPath}</span> : null}
+                  {(validation.details ?? []).length > 0 ? (
+                    <span className="break-words opacity-80">
+                      {(validation.details ?? []).map((detail) => formatSkillValidationDetail(detail, t)).join(", ")}
+                    </span>
+                  ) : null}
                 </div>
+              ) : null}
+              {agentRunBySkill[skill] ? (
+                <div className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+                  {agentRunBySkill[skill]?.startsWith("error:")
+                    ? agentRunBySkill[skill]?.slice(6)
+                    : t("settings.skillRunStarted").replace("{runId}", agentRunBySkill[skill] ?? "")}
+                </div>
+              ) : null}
+              {agentRunBySkill[skill] && !agentRunBySkill[skill]?.startsWith("error:") ? (
+                <AgentTraceCards
+                  cards={extractEventCards(agentEventsByRun[agentRunBySkill[skill] ?? ""] ?? [], [agentRunBySkill[skill] ?? ""])}
+                  title={t("settings.skillRunTrace")}
+                  t={t}
+                  className="mt-2 rounded border border-slate-200 bg-white px-2 py-2"
+                  bodyClassName="max-h-72"
+                />
               ) : null}
             </div>
           );

@@ -22,6 +22,7 @@ export const LibraryPdfScrollViewer = forwardRef<
 >(function LibraryPdfScrollViewer(props, ref) {
   const {
     pdfUrl,
+    pdfSource,
     pageCount,
     zoom,
     mode,
@@ -489,6 +490,7 @@ export const LibraryPdfScrollViewer = forwardRef<
       rootProps={rootProps}
       scrollRef={scrollRef}
       pdfUrl={pdfUrl}
+      pdfSource={pdfSource}
       documentLoadError={documentLoadError}
       documentClassName={documentClassName}
       pages={pages}

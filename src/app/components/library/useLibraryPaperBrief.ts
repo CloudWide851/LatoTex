@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { libraryExtractPaperContext } from "../../../shared/api/library";
-import { buildWorkspacePreviewBlobUrl, revokeObjectUrl } from "../../../shared/utils/workspacePreviewBlob";
+import {
+  buildWorkspacePreviewBinarySource,
+  revokeObjectUrl,
+  type WorkspacePreviewBinarySource,
+} from "../../../shared/utils/workspacePreviewBlob";
 import {
   buildPdfJsPaperPreview,
   extractExcerpt,
@@ -79,14 +83,14 @@ async function buildPdfJsPaperPreviewFromSource(input: {
   sourcePdfRelativePath: string;
   fallbackTitle?: string | null;
 }): Promise<PaperPreview> {
-  const objectUrl = await buildWorkspacePreviewBlobUrl(input.projectId, input.sourcePdfRelativePath);
-  if (!objectUrl) {
+  const source = await buildWorkspacePreviewBinarySource(input.projectId, input.sourcePdfRelativePath);
+  if (!source) {
     throw new Error("library.viewer.pdfBlobUnavailable");
   }
   try {
-    return await buildPdfJsPaperPreview(objectUrl, input.fallbackTitle);
+    return await buildPdfJsPaperPreview(source, input.fallbackTitle);
   } finally {
-    revokeObjectUrl(objectUrl);
+    revokeObjectUrl(source.objectUrl);
   }
 }
 
@@ -97,10 +101,12 @@ function buildCacheKey(input: {
   sourcePdfRelativePath?: string | null;
   previewKey?: string | null;
   pdfUrl: string | null;
+  pdfSource?: WorkspacePreviewBinarySource | null;
 }): string | null {
   const baseKey = input.sourcePdfRelativePath
     ?? input.previewKey
     ?? input.selectedPath
+    ?? input.pdfSource?.relativePath
     ?? input.pdfUrl;
   if (!baseKey) {
     return null;
@@ -117,6 +123,7 @@ export function useLibraryPaperBrief(params: {
   projectId: string | null;
   selectedPath: string | null;
   pdfUrl: string | null;
+  pdfSource?: WorkspacePreviewBinarySource | null;
   sourcePdfRelativePath?: string | null;
   fallbackTitle?: string | null;
   engine: "auto" | "pdfjs" | "python";
@@ -126,6 +133,7 @@ export function useLibraryPaperBrief(params: {
     projectId,
     selectedPath,
     pdfUrl,
+    pdfSource = null,
     sourcePdfRelativePath,
     fallbackTitle,
     engine,
@@ -144,6 +152,7 @@ export function useLibraryPaperBrief(params: {
       sourcePdfRelativePath,
       previewKey,
       pdfUrl,
+      pdfSource,
     });
     const cached = readCachedPaperPreview(cacheKey);
     if (cached) {
@@ -153,7 +162,7 @@ export function useLibraryPaperBrief(params: {
       return;
     }
 
-    const canBuildPdfJsPreview = Boolean(pdfUrl || (projectId && sourcePdfRelativePath));
+    const canBuildPdfJsPreview = Boolean(pdfSource || pdfUrl || (projectId && sourcePdfRelativePath));
     const canBuildBackendPreview = Boolean(projectId && selectedPath);
 
     if (
@@ -173,6 +182,9 @@ export function useLibraryPaperBrief(params: {
       setPaperPreview(null);
       try {
         const buildPdfPreview = async (): Promise<PaperPreview> => {
+          if (pdfSource) {
+            return await buildPdfJsPaperPreview(pdfSource, fallbackTitle);
+          }
           if (pdfUrl) {
             return await buildPdfJsPaperPreview(pdfUrl, fallbackTitle);
           }
@@ -241,7 +253,7 @@ export function useLibraryPaperBrief(params: {
     return () => {
       cancelled = true;
     };
-  }, [engine, fallbackTitle, pdfUrl, previewKey, projectId, selectedPath, sourcePdfRelativePath]);
+  }, [engine, fallbackTitle, pdfSource, pdfUrl, previewKey, projectId, selectedPath, sourcePdfRelativePath]);
 
   return {
     paperPreview,

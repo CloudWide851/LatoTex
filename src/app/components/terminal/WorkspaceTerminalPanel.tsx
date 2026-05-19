@@ -122,9 +122,10 @@ export function WorkspaceTerminalPanel(props: {
   activeProjectId: string | null;
   selectedFile: string | null;
   active: boolean;
+  fontScale?: number;
   t: TranslationFn;
 }) {
-  const { activeProjectId, selectedFile, active, t } = props;
+  const { activeProjectId, selectedFile, active, fontScale = 1, t } = props;
   const initialState = useMemo(
     () => snapshotState(activeProjectId, selectedFile),
     [activeProjectId, selectedFile],
@@ -350,7 +351,7 @@ export function WorkspaceTerminalPanel(props: {
       convertEol: true,
       cursorBlink: true,
       fontFamily: "Consolas, 'Cascadia Mono', 'SFMono-Regular', monospace",
-      fontSize: 12,
+      fontSize: Math.round(12 * Math.max(0.85, Math.min(1.25, Number(fontScale) || 1))),
       lineHeight: 1.25,
       scrollback: 4000,
       theme: xtermTheme(),
@@ -406,7 +407,7 @@ export function WorkspaceTerminalPanel(props: {
         fitAddonRef.current = null;
       }
     };
-  }, [acceptSuggestion, activeTab?.id, fitAndResize, updateTabs, writeToActiveSession]);
+  }, [acceptSuggestion, activeTab?.id, fitAndResize, fontScale, updateTabs, writeToActiveSession]);
 
   useEffect(() => {
     const target = viewportRef.current;

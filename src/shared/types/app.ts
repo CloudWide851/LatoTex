@@ -268,6 +268,7 @@ export type AppSettings = {
     glassOpacity?: number;
     glassBlurPx?: number;
     motionLevel?: "full" | "reduced" | "none";
+    fontScale?: number;
     pdfPageGapPx?: number;
     logFontSizePx?: number;
     panelRadiusPx?: number;
@@ -353,6 +354,8 @@ export type SkillValidationResult = {
   skillId: string;
   message: string;
   source: "builtIn" | "configured" | "custom" | string;
+  manifestPath?: string | null;
+  details?: string[];
 };
 
 export type TelegramTestInput = {

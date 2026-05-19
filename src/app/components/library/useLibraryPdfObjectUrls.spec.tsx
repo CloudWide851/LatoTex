@@ -121,9 +121,18 @@ describe("useLibraryPdfObjectUrls", () => {
     expect(state).toMatchObject({
       pdfUrl: "blob:source-pdf",
       translatedPdfUrl: "blob:translated-pdf",
+      pdfSource: {
+        relativePath: ".latotex/papers/source.pdf",
+        objectUrl: "blob:source-pdf",
+      },
+      translatedPdfSource: {
+        relativePath: ".latotex/papers/source.translated.pdf",
+        objectUrl: "blob:translated-pdf",
+      },
       loading: false,
       error: null,
     });
+    expect(Object.values(state.pdfSource.bytes)).toEqual([0x25, 0x50, 0x44, 0x46, 0x2d, 0x53]);
 
     await unmountProbe(view.root, view.container);
 
@@ -176,6 +185,8 @@ describe("useLibraryPdfObjectUrls", () => {
     expect(state).toMatchObject({
       pdfUrl: null,
       translatedPdfUrl: null,
+      pdfSource: null,
+      translatedPdfSource: null,
       loading: false,
       error: null,
     });

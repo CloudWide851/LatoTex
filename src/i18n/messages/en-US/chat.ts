@@ -9,7 +9,7 @@ export const enUS_chat = {
   "chat.roleUser": "User",
   "chat.roleAssistant": "Assistant",
   "chat.idle": "Ready",
-  "chat.inputPlaceholder": "Enter your prompt. This chat is persisted for the current project.",
+  "chat.inputPlaceholder": "Enter your prompt.",
   "chat.command.new.done": "Started a new conversation session.",
   "chat.command.memory.empty": "No MEMORY.md content found in this project yet.",
   "chat.command.review.handoff": "Handed off to the Agent panel on the right. Review the proposal there.",

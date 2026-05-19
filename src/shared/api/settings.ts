@@ -68,6 +68,7 @@ export function updateSettings(input: {
     glassOpacity?: number;
     glassBlurPx?: number;
     motionLevel?: "full" | "reduced" | "none";
+    fontScale?: number;
     pdfPageGapPx?: number;
     logFontSizePx?: number;
     panelRadiusPx?: number;

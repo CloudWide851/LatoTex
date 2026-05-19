@@ -134,6 +134,7 @@ export type AppWorkspaceShellProps = {
   onWorkspaceRescan: () => void | Promise<void>;
   onSavePanelLayout: (panel: "shell" | "latex" | "latexTerminal" | "analysis" | "library" | "libraryBib", layout: number[]) => void;
   previewDefaultZoom: number;
+  fontScale: number;
   completionModelId: string | null;
   chatAgentModelId: string | null;
   translationModelId: string | null;

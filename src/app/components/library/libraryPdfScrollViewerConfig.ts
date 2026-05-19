@@ -2,6 +2,7 @@ import type { MutableRefObject } from "react";
 import type { AnnotationStroke, AnnotationTextBox, AnnotationTextStylePreset } from "./annotationModel";
 import type { PdfScrollAnchor } from "./libraryPdfScrollState";
 import { clampPdfScrollRatio, type LibraryPdfScrollSyncGroup } from "./libraryPdfScrollViewerShared";
+import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
 
 export type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 export type TranslationFn = (key: any) => string;
@@ -17,6 +18,7 @@ export type LensPendingPoint = {
 
 export type LibraryPdfScrollViewerProps = {
   pdfUrl: string;
+  pdfSource?: WorkspacePreviewBinarySource | null;
   pageCount: number;
   zoom: number;
   mode: ToolMode;

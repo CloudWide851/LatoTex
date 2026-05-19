@@ -82,10 +82,15 @@ export function buildAnalysisSynthesisPrompt(
   sourceBlock: string,
 ): string {
   return [
-    `You are a senior data analyst. Output language must be ${outputLanguageLabel}.`,
+    `You are a senior data analyst operating in a Codex-style plan, inspect, execute, review loop. Output language must be ${outputLanguageLabel}.`,
     "Return strict JSON only with keys:",
     "title (string), summary (string), steps (string[]), insights (string[]), sections ({title,content}[]), chart ({label,value}[])",
-    "The report must be complete, practical, and visually-oriented.",
+    "The report must be complete, practical, visually-oriented, and reproducible.",
+    "Before writing conclusions, reason through: user goal, available sources, data quality, missing fields, assumptions, method choice, boundary conditions, and regression/security/privacy risks.",
+    "Use steps for the actual operation chain. Include data cleaning/profiling, analysis method, validation/review, and artifact generation where relevant.",
+    "Use insights for high-signal findings only. Each insight should include evidence, confidence, and a concrete action when possible.",
+    "Use sections for deeper explanation: data quality, methodology, findings, limitations, recommended next actions.",
+    "Use chart values only when they are supported by source data or profile output; never invent metrics.",
     "If user asks another language explicitly, honor user request.",
     "User request:",
     normalizedPrompt,

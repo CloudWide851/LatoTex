@@ -86,6 +86,8 @@ pub struct SkillValidationResult {
     pub skill_id: String,
     pub message: String,
     pub source: String,
+    pub manifest_path: Option<String>,
+    pub details: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

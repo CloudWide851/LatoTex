@@ -121,6 +121,7 @@ export function SettingsPanel(props: {
       glassOpacity: 0.78,
       glassBlurPx: 18,
       motionLevel: "full",
+      fontScale: 1,
       pdfPageGapPx: 12,
       logFontSizePx: 12,
       panelRadiusPx: 8,
@@ -397,7 +398,12 @@ export function SettingsPanel(props: {
         )}
 
         {settingsSection === "skills" && (
-          <SkillsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+          <SkillsSettingsSection
+            settings={localSettings}
+            activeProjectId={activeProjectId}
+            setSettings={setSettings}
+            t={t}
+          />
         )}
 
         {settingsSection === "channels" && (

@@ -1,4 +1,4 @@
-import { Suspense, lazy, type CSSProperties } from "react";
+import { Suspense, lazy, useEffect, type CSSProperties } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
@@ -273,6 +273,17 @@ export function AppContainerView(props: any) {
     ? String(settings?.uiPrefs?.scrollbarTrackColor || "")
     : "";
   const scrollbarWidth = Math.max(8, Math.min(18, Number(settings?.uiPrefs?.scrollbarWidthPx ?? 14)));
+  const fontScale = Math.max(0.85, Math.min(1.25, Number(settings?.uiPrefs?.fontScale ?? 1)));
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const root = document.documentElement;
+    root.style.setProperty("--app-font-scale", String(fontScale));
+    return () => {
+      root.style.removeProperty("--app-font-scale");
+    };
+  }, [fontScale]);
   const appBackgroundStyle = {
     ...(backgroundUrl
       ? {
@@ -298,6 +309,7 @@ export function AppContainerView(props: any) {
     ["--app-glass-blur" as string]: `${Math.max(0, Math.min(32, Number(settings?.uiPrefs?.glassBlurPx ?? 18)))}px`,
     ["--app-panel-radius" as string]: `${Math.max(4, Math.min(14, Number(settings?.uiPrefs?.panelRadiusPx ?? 8)))}px`,
     ["--app-pdf-page-gap" as string]: `${Math.max(4, Math.min(28, Number(settings?.uiPrefs?.pdfPageGapPx ?? 12)))}px`,
+    ["--app-font-scale" as string]: String(fontScale),
     ["--app-log-font-size" as string]: `${Math.max(10, Math.min(16, Number(settings?.uiPrefs?.logFontSizePx ?? 12)))}px`,
     backgroundColor: themePreset.background,
   } as CSSProperties;
@@ -351,13 +363,13 @@ export function AppContainerView(props: any) {
           onRecover={recoverWorkspaceLayout}
         >
           {!startupReady ? (
-            <section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">
+            <section className="flex h-full min-h-0 items-center justify-center bg-[color:var(--editor-paper-bg)] text-sm text-[color:var(--editor-tab-muted)]">
               {t("common.loading")}
             </section>
           ) : (
             <Suspense
               fallback={
-                <section className="flex h-full min-h-0 items-center justify-center text-sm text-slate-500">
+                <section className="flex h-full min-h-0 items-center justify-center bg-[color:var(--editor-paper-bg)] text-sm text-[color:var(--editor-tab-muted)]">
                   {t("common.loading")}
                 </section>
               }
@@ -374,6 +386,7 @@ export function AppContainerView(props: any) {
                 libraryLayout={libraryLayout}
                 libraryBibLayout={libraryBibLayout}
                 previewDefaultZoom={settings?.uiPrefs?.previewDefaultZoom ?? 1}
+                fontScale={fontScale}
                 completionModelId={completionModelId}
                 chatAgentModelId={chatAgentModelId}
                 translationModelId={translationModelId}

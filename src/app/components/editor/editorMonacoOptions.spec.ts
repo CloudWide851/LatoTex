@@ -13,4 +13,12 @@ describe("editorMonacoOptions", () => {
     expect(options.renderValidationDecorations).toBe("on");
     expect(options.renderLineHighlightGutter).toBe("all");
   });
+
+  it("scales editor font metrics from the interface font scale", () => {
+    const options = createWorkspaceEditorMonacoOptions(null, 1.25);
+
+    expect(options.fontSize).toBe(18);
+    expect(options.lineHeight).toBe(28);
+    expect(options.letterSpacing).toBe(0);
+  });
 });
