@@ -15,18 +15,15 @@ const validationSteps = [
 const packageSteps = [
   ["pnpm", ["tauri", "build", "--target", "x86_64-pc-windows-msvc", "--bundles", "nsis"]],
   ["pnpm", ["soak:matrix"]],
-  ["pnpm", ["release:sign:win-x64"]],
-  ["pnpm", ["release:verify-signature:win-x64"]],
   ["pnpm", ["release:hash:win-x64"]],
   ["pnpm", ["tauri:smoke:win-x64"]],
+  ["pnpm", ["release:install-smoke:win-x64"]],
 ];
 
 const mode = process.argv.find((arg) => arg.startsWith("--mode="))?.slice("--mode=".length) ?? "check";
-const requireSigning = process.argv.includes("--require-signing");
-if (requireSigning) {
-  process.env.LATOTEX_REQUIRE_SIGNING = "1";
-  packageSteps.splice(1, 0, ["pnpm", ["release:ensure-signtool:win-x64"]]);
-  packageSteps.push(["pnpm", ["release:install-smoke:win-x64"]]);
+if (process.argv.includes("--require-signing") || process.env.LATOTEX_REQUIRE_SIGNING === "1") {
+  console.error("[release-check-win-x64] signing flows have been removed; run the unsigned Windows x64 gate.");
+  process.exit(1);
 }
 const stepsByMode = {
   validate: validationSteps,

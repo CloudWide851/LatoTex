@@ -141,14 +141,16 @@ function assertReleaseConfiguration() {
   if (!String(scripts["tauri:build:win-x64"] ?? "").includes("--bundles nsis")) {
     addFinding("release-bundle-drift", "package.json");
   }
-  if (!scripts["release:package:win-x64:signed"]) {
-    addFinding("missing-signed-package-gate", "package.json");
+  for (const scriptName of Object.keys(scripts)) {
+    if (/sign|signtool|pfx/i.test(scriptName)) {
+      addFinding("release-signing-script-present", "package.json");
+    }
+  }
+  if (!scripts["release:package:win-x64"]) {
+    addFinding("missing-package-gate", "package.json");
   }
   if (!scripts["release:install-smoke:win-x64"]) {
     addFinding("missing-install-smoke-gate", "package.json");
-  }
-  if (!scripts["release:ensure-signtool:win-x64"]) {
-    addFinding("missing-signtool-gate", "package.json");
   }
   if (!String(scripts["soak:matrix"] ?? "").includes("gui-soak-win-x64.mjs")) {
     addFinding("soak-matrix-not-gui", "package.json");
@@ -171,8 +173,11 @@ function assertReleaseConfiguration() {
   if (!releaseWorkflow.includes("windows-latest") || releaseWorkflow.includes("ubuntu-latest") || releaseWorkflow.includes("macos-latest")) {
     addFinding("release-workflow-target-drift", ".github/workflows/release-tauri.yml");
   }
-  if (!releaseWorkflow.includes("release:package:win-x64:signed")) {
-    addFinding("release-workflow-not-signed", ".github/workflows/release-tauri.yml");
+  if (!releaseWorkflow.includes("release:package:win-x64")) {
+    addFinding("release-workflow-package-drift", ".github/workflows/release-tauri.yml");
+  }
+  if (/release:package:win-x64:signed|LATOTEX_SIGN|require-signing|signtool|PFX/i.test(releaseWorkflow)) {
+    addFinding("release-workflow-signing-present", ".github/workflows/release-tauri.yml");
   }
 }
 
