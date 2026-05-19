@@ -141,6 +141,9 @@ function assertReleaseConfiguration() {
   if (!String(scripts["tauri:build:win-x64"] ?? "").includes("--bundles nsis")) {
     addFinding("release-bundle-drift", "package.json");
   }
+  if (!String(scripts["release:build-installer:win-x64"] ?? "").includes("package-win-x64.mjs")) {
+    addFinding("missing-package-wrapper", "package.json");
+  }
   for (const scriptName of Object.keys(scripts)) {
     if (/sign|signtool|pfx/i.test(scriptName)) {
       addFinding("release-signing-script-present", "package.json");

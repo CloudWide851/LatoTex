@@ -56,6 +56,7 @@ for (const scriptName of [
   "perf:baseline",
   "build",
   "tauri:build:win-x64",
+  "release:build-installer:win-x64",
   "release:validate:win-x64",
   "release:package:win-x64",
   "release:install-smoke:win-x64",

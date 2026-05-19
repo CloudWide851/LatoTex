@@ -63,10 +63,10 @@ use commands::terminal::{
     terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
 };
 use tauri::{
-    WebviewUrl, WebviewWindowBuilder,
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager,
+    webview::PageLoadEvent,
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
 const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
@@ -195,6 +195,49 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
+fn create_smoke_main_window(app: &AppHandle) {
+    smoke::write_progress("window.create.start", "ok", None);
+    match WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .title("LatoTex")
+        .inner_size(1200.0, 760.0)
+        .resizable(true)
+        .decorations(false)
+        .visible(true)
+        .on_navigation(|url| {
+            smoke::write_progress(
+                "window.navigation",
+                "ok",
+                Some(serde_json::json!({ "url": url.to_string() })),
+            );
+            true
+        })
+        .on_page_load(|_, payload| {
+            let event = match payload.event() {
+                PageLoadEvent::Started => "started",
+                PageLoadEvent::Finished => "finished",
+            };
+            smoke::write_progress(
+                "window.page_load",
+                event,
+                Some(serde_json::json!({ "url": payload.url().to_string() })),
+            );
+        })
+        .build()
+    {
+        Ok(window) => {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+            smoke::write_progress("window.ready", "ok", None);
+        }
+        Err(error) => smoke::write_progress(
+            "window.create.error",
+            "error",
+            Some(serde_json::json!({ "message": error.to_string() })),
+        ),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     smoke::write_boot_marker();
@@ -241,7 +284,6 @@ pub fn run() {
                     );
                     std::io::Error::new(std::io::ErrorKind::Other, e)
                 })?;
-            let runtime_root = app_state.runtime_root.clone();
             app.manage(app_state);
             let tray_menu = MenuBuilder::new(app)
                 .text(TRAY_MENU_SHOW_ID, "Show LatoTex")
@@ -256,27 +298,14 @@ pub fn run() {
                 tray_builder = tray_builder.icon(icon.clone());
             }
             let _ = tray_builder.build(app)?;
-            if smoke_mode {
-                smoke::write_progress("window.create.start", "ok", None);
-                let smoke_webview_data_dir = runtime_root.join("webview-smoke-data");
-                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                    .title("LatoTex")
-                    .inner_size(1200.0, 760.0)
-                    .resizable(true)
-                    .decorations(false)
-                    .data_directory(smoke_webview_data_dir)
-                    .build()
-                    .map_err(|e| {
-                        smoke::write_progress(
-                            "window.create.error",
-                            "error",
-                            Some(serde_json::json!({ "message": e.to_string() })),
-                        );
-                        e
-                    })?;
-                smoke::write_progress("window.ready", "ok", None);
-            }
             smoke::write_progress("tauri.setup.done", "ok", None);
+            if smoke_mode {
+                let app_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                    create_smoke_main_window(&app_handle);
+                });
+            }
             Ok(())
         })
         .on_menu_event(|app, event| match event.id().as_ref() {

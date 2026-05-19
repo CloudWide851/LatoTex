@@ -13,11 +13,11 @@ const validationSteps = [
 ];
 
 const packageSteps = [
-  ["pnpm", ["tauri", "build", "--target", "x86_64-pc-windows-msvc", "--bundles", "nsis"]],
-  ["pnpm", ["soak:matrix"]],
+  ["pnpm", ["release:build-installer:win-x64"]],
   ["pnpm", ["release:hash:win-x64"]],
   ["pnpm", ["tauri:smoke:win-x64"]],
   ["pnpm", ["release:install-smoke:win-x64"]],
+  ["pnpm", ["soak:matrix"]],
 ];
 
 const mode = process.argv.find((arg) => arg.startsWith("--mode="))?.slice("--mode=".length) ?? "check";
