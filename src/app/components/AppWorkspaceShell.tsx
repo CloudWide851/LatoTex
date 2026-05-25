@@ -79,6 +79,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     shareSyncing,
     shareConflict,
     shareComments,
+    shareEditAnnotations,
     channelPrefs,
     shareMode,
     shareSessionName,
@@ -383,6 +384,16 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     if (page === "settings") {
       return settingsPanel;
     }
+    if (page === "plugins") {
+      return (
+        <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/85 p-6 text-center">
+          <div className="max-w-md">
+            <h2 className="text-base font-semibold text-slate-900">{t("plugins.placeholderTitle")}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{t("plugins.placeholderHint")}</p>
+          </div>
+        </section>
+      );
+    }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
@@ -406,6 +417,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         shareMode={shareMode}
         shareSessionName={shareSessionName}
         shareComments={shareComments}
+        shareEditAnnotations={shareEditAnnotations}
         channelPrefs={channelPrefs}
         agentCollapsed={agentCollapsed}
         agentPhase={agentPhase}

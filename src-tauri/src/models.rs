@@ -295,6 +295,7 @@ pub struct UiPrefs {
         Option<std::collections::HashMap<String, Vec<String>>>,
     pub library_explorer_expanded_paths_by_project:
         Option<std::collections::HashMap<String, Vec<String>>>,
+    pub sidebar_page_order: Option<Vec<String>>,
     pub agent_tool_prefs: Option<AgentToolPrefs>,
     pub agent_team_prefs: Option<AgentTeamPrefs>,
     pub mcp_servers: Option<Vec<McpServerConfig>>,

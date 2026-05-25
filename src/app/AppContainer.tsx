@@ -436,6 +436,7 @@ export function AppContainer() {
       shareSyncing={shareSession.shareSyncing}
       shareConflict={shareSession.shareConflict}
       shareComments={shareSession.shareComments}
+      shareEditAnnotations={shareSession.shareEditAnnotations}
       shareMode={shareSession.shareMode}
       shareSessionName={shareSession.shareSessionName}
       handleShareModeChange={(mode: "local" | "remote") => shareSession.setShareMode(mode)}

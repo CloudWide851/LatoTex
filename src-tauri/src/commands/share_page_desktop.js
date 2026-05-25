@@ -54,6 +54,7 @@ export function mountDesktopSharePage(root) {
               <div class="editor-stage__body">
                 <div class="editor-stage__surface">
                   <div id="editor-highlight-layer" class="editor-highlight-layer" aria-hidden="true"></div>
+                  <div id="editor-edit-layer" class="editor-edit-layer" aria-hidden="true"></div>
                   <textarea id="editor" rows="18"></textarea>
                 </div>
                 <aside id="editor-thread-layer" class="editor-thread-layer" aria-hidden="true"></aside>

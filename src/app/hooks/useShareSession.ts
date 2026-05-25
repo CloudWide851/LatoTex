@@ -324,6 +324,7 @@ export function useShareSession(params: {
       shareBusy,
       shareSyncing: collaboration.shareSyncing,
       shareConflict: collaboration.shareConflict,
+      shareEditAnnotations: collaboration.shareEditAnnotations,
       shareMode,
       shareComments,
       shareSessionName,
@@ -337,6 +338,7 @@ export function useShareSession(params: {
     [
       collaboration.resolveShareConflict,
       collaboration.shareConflict,
+      collaboration.shareEditAnnotations,
       collaboration.shareSyncing,
       refreshShareStatus,
       shareBusy,

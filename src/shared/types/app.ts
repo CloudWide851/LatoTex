@@ -1,6 +1,6 @@
 import type { CodeLanguageInfo } from "../utils/codeLanguage";
 
-export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -281,6 +281,7 @@ export type AppSettings = {
     libraryExplorerDefaultExpanded?: boolean;
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
+    sidebarPageOrder?: WorkspacePage[];
     agentToolPrefs?: AgentToolPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
     mcpServers?: McpServerConfig[];

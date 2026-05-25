@@ -52,6 +52,8 @@ export const zhCN_share = {
   "share.mode.remote": "远程",
   "share.sessionNamePlaceholder": "共享会话名称（可选）",
   "share.desktopUser": "桌面端",
+  "share.remoteUser": "协作者",
+  "share.editBy": "修改者",
   "share.action.editing": "编辑中",
 } as const;
 

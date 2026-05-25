@@ -12,6 +12,7 @@ import {
   UsersRound,
   SearchCode,
   Settings2,
+  Store,
   Wrench,
 } from "lucide-react";
 import type {
@@ -67,7 +68,7 @@ export const FIXED_AGENT_ROLES = [
 
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
-  key: "nav.latex" | "nav.analysis" | "nav.draw" | "nav.library" | "nav.git" | "nav.settings";
+  key: "nav.latex" | "nav.analysis" | "nav.draw" | "nav.library" | "nav.git" | "nav.plugins" | "nav.settings";
   icon: typeof FileCode2;
 }> = [
   { id: "latex", key: "nav.latex", icon: FileCode2 },
@@ -75,6 +76,7 @@ export const PAGE_ITEMS: Array<{
   { id: "draw", key: "nav.draw", icon: PenTool },
   { id: "library", key: "nav.library", icon: Library },
   { id: "git", key: "nav.git", icon: GitBranch },
+  { id: "plugins", key: "nav.plugins", icon: Store },
   { id: "settings", key: "nav.settings", icon: Settings2 },
 ];
 

@@ -3,7 +3,7 @@ import { createShareEditorReviewSurface } from "/assets/share_page_editor.js";
 import { createI18n, detectLocale } from "/assets/share_page_i18n.js";
 import { createSharePdfController } from "/assets/share_page_pdf.js";
 import { renderComments, renderParticipants } from "/assets/share_page_render.js";
-import { fromBase64, postJson, toBase64, trimQuote } from "/assets/share_page_utils.js";
+import { createEditAnnotation, fromBase64, postJson, toBase64, trimQuote } from "/assets/share_page_utils.js";
 export async function bootstrapSharePage(options = {}) {
   const params = new URLSearchParams(window.location.search);
   const sid = params.get("sid") || "";
@@ -35,6 +35,7 @@ export async function bootstrapSharePage(options = {}) {
     editorWrap: document.getElementById("editor-wrap"),
     editorStage: document.getElementById("editor-stage"),
     editorHighlightLayer: document.getElementById("editor-highlight-layer"),
+    editorEditLayer: document.getElementById("editor-edit-layer"),
     editorThreadLayer: document.getElementById("editor-thread-layer"),
     editor: document.getElementById("editor"),
     cursor: document.getElementById("cursor-info"),
@@ -86,6 +87,7 @@ export async function bootstrapSharePage(options = {}) {
     selectionQuote: null,
     pdfReady: false,
     comments: [],
+    editAnnotations: [],
     device: options.device || "desktop",
   };
   const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
@@ -118,6 +120,7 @@ export async function bootstrapSharePage(options = {}) {
   const editorReview = createShareEditorReviewSurface({
     textarea: el.editor,
     highlightLayer: el.editorHighlightLayer,
+    editLayer: el.editorEditLayer,
     threadLayer: el.editorThreadLayer,
     onJump: jumpToComment,
     i18n,
@@ -250,14 +253,20 @@ export async function bootstrapSharePage(options = {}) {
       for (const item of payload.events || []) {
         state.cursor = Math.max(state.cursor, Number(item.seq || 0));
         if (item.from === state.clientId) continue;
+        const before = yText.toString();
         state.syncingRemote = true;
         try {
           Y.applyUpdate(doc, fromBase64(item.update), "remote");
         } finally {
           state.syncingRemote = false;
         }
+        const annotation = createEditAnnotation(item, before, yText.toString());
+        if (annotation) {
+          state.editAnnotations = [...state.editAnnotations.filter((entry) => entry.id !== annotation.id), annotation].slice(-20);
+        }
       }
       state.cursor = Math.max(state.cursor, Number(payload.nextCursor || state.cursor));
+      editorReview.refreshEdits(state.editAnnotations);
     } finally {
       state.pullInFlight = false;
     }
@@ -353,6 +362,7 @@ export async function bootstrapSharePage(options = {}) {
       el.editor.setSelectionRange(Math.min(at, value.length), Math.min(at, value.length));
     }
     editorReview.refresh(state.comments);
+    editorReview.refreshEdits(state.editAnnotations);
   });
 
   doc.on("update", (update, origin) => {
@@ -390,6 +400,7 @@ export async function bootstrapSharePage(options = {}) {
       if (insert.length > 0) yText.insert(start, insert);
     }, "editor");
     editorReview.refresh(state.comments);
+    editorReview.refreshEdits(state.editAnnotations);
   });
 
   el.editor.addEventListener("select", () => {
@@ -404,6 +415,7 @@ export async function bootstrapSharePage(options = {}) {
   window.addEventListener("resize", () => {
     setView(state.view);
     editorReview.refresh(state.comments);
+    editorReview.refreshEdits(state.editAnnotations);
   });
   window.addEventListener("scroll", () => {
     if (!el.quickQuote.hidden) updateQuoteFromSelection();

@@ -52,6 +52,8 @@ export const enUS_share = {
   "share.mode.remote": "Remote",
   "share.sessionNamePlaceholder": "Session name (optional)",
   "share.desktopUser": "Desktop",
+  "share.remoteUser": "Collaborator",
+  "share.editBy": "Edited by",
   "share.action.editing": "editing",
 } as const;
 

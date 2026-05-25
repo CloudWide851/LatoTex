@@ -3,7 +3,7 @@ import type { WorkspacePage } from "../../shared/types/app";
 export const DEFAULT_WORKSPACE_PAGE: WorkspacePage = "latex";
 
 const WORKSPACE_PAGE_STORAGE_KEY = "latotex.workspace.page";
-const WORKSPACE_PAGES: WorkspacePage[] = ["latex", "analysis", "draw", "library", "git", "settings"];
+const WORKSPACE_PAGES: WorkspacePage[] = ["latex", "analysis", "draw", "library", "git", "plugins", "settings"];
 
 export function isWorkspacePage(value: unknown): value is WorkspacePage {
   return typeof value === "string" && WORKSPACE_PAGES.includes(value as WorkspacePage);

@@ -34,6 +34,7 @@ import type { CompileInstallProgress } from "./compileWorkflow";
 import { loadWorkspacePage, persistWorkspacePage } from "./workspacePageStorage";
 import { persistLatexWorkspaceFileSession } from "../components/workspace/latexWorkspaceSession";
 import { dedupeEditorTabsByPath } from "./useEditorTabs";
+import { normalizeSidebarPageOrder } from "../pageRailOrder";
 
 export type AgentProposalMap = Record<string, AgentFileProposal>;
 export type AgentPendingAction =
@@ -188,8 +189,15 @@ export function useAppContainerState(t: (...args: any[]) => string) {
 
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
   const pageRailItems = useMemo(
-    () => PAGE_ITEMS.map((item) => ({ id: item.id, icon: item.icon, label: t(item.key) })),
-    [t],
+    () => {
+      const order = normalizeSidebarPageOrder(settings?.uiPrefs?.sidebarPageOrder);
+      const itemMap = new Map(PAGE_ITEMS.map((item) => [item.id, item]));
+      return order
+        .map((id) => itemMap.get(id))
+        .filter((item): item is typeof PAGE_ITEMS[number] => Boolean(item))
+        .map((item) => ({ id: item.id, icon: item.icon, label: t(item.key) }));
+    },
+    [settings?.uiPrefs?.sidebarPageOrder, t],
   );
   const fileSet = useMemo(() => new Set(fileList), [fileList]);
   const libraryFileSet = useMemo(() => collectResourceFilePaths(libraryTree), [libraryTree]);

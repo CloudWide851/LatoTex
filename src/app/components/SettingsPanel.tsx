@@ -30,6 +30,7 @@ import { ExplorerDefaultsSection } from "./settings/ExplorerDefaultsSection";
 import { MemoryGuardSettingsSection } from "./settings/MemoryGuardSettingsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { SettingsSelectRow } from "./settings/SettingsSelectRow";
+import { SidebarPageOrderSettingsSection } from "./settings/SidebarPageOrderSettingsSection";
 import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
 
 type TranslationFn = (key: any) => string;
@@ -267,6 +268,7 @@ export function SettingsPanel(props: {
               t={t}
             />
             <ExplorerDefaultsSection settings={localSettings} setSettings={setSettings} t={t} />
+            <SidebarPageOrderSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
           </div>
         )}

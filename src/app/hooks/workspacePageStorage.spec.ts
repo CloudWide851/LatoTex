@@ -48,6 +48,13 @@ describe("workspacePageStorage", () => {
     expect(loadWorkspacePage()).toBe("analysis");
   });
 
+  it("accepts the plugin marketplace page", () => {
+    persistWorkspacePage("plugins");
+
+    expect(loadWorkspacePage()).toBe("plugins");
+    expect(isWorkspacePage("plugins")).toBe(true);
+  });
+
   it("falls back to latex when no page is persisted", () => {
     expect(loadWorkspacePage()).toBe(DEFAULT_WORKSPACE_PAGE);
   });

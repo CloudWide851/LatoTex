@@ -11,6 +11,7 @@ import type {
   SwarmEvent,
   WorkspacePage,
 } from "../../../shared/types/app";
+import type { ShareEditAnnotation } from "../../hooks/shareEditAnnotations";
 import type { LogTab } from "../../app-config";
 import type { AgentPhase } from "../AgentChatOverlay";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
@@ -79,6 +80,7 @@ export type AppWorkspaceShellProps = {
   shareSyncing: boolean;
   shareConflict: ShareConflict | null;
   shareComments: ShareCommentItem[];
+  shareEditAnnotations: ShareEditAnnotation[];
   channelPrefs?: ChannelPrefs | null;
   shareMode: ShareMode;
   shareSessionName: string;

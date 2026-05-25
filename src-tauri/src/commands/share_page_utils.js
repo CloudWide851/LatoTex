@@ -17,6 +17,34 @@ export function avatarColor(name) {
   return `hsl(${Math.abs(hash) % 360} 70% 45%)`;
 }
 
+export function createEditAnnotation(event, before, after) {
+  if (before === after) return null;
+  let start = 0;
+  const maxStart = Math.min(before.length, after.length);
+  while (start < maxStart && before[start] === after[start]) start += 1;
+  let beforeEnd = before.length;
+  let afterEnd = after.length;
+  while (beforeEnd > start && afterEnd > start && before[beforeEnd - 1] === after[afterEnd - 1]) {
+    beforeEnd -= 1;
+    afterEnd -= 1;
+  }
+  const inserted = Math.max(afterEnd - start, 0);
+  const removed = Math.max(beforeEnd - start, 0);
+  const participantId = String(event?.participantId || event?.from || "remote");
+  const username = String(event?.username || participantId || "Guest");
+  return {
+    id: `edit-${event?.seq || Date.now()}-${participantId}`,
+    seq: Number(event?.seq || 0),
+    participantId,
+    username,
+    color: avatarColor(participantId),
+    start,
+    end: start + inserted,
+    kind: inserted > 0 ? (removed > 0 ? "replace" : "insert") : "delete",
+    createdAt: String(event?.createdAt || new Date().toISOString()),
+  };
+}
+
 export function escapeHtml(raw) {
   return String(raw)
     .replaceAll("&", "&amp;")

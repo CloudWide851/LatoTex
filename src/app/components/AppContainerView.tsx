@@ -65,6 +65,7 @@ export function AppContainerView(props: any) {
     shareSyncing,
     shareConflict,
     shareComments,
+    shareEditAnnotations,
     shareMode,
     shareSessionName,
     handleShareModeChange,
@@ -445,6 +446,7 @@ export function AppContainerView(props: any) {
                 shareSyncing={shareSyncing}
                 shareConflict={shareConflict}
                 shareComments={shareComments}
+                shareEditAnnotations={shareEditAnnotations}
                 channelPrefs={settings?.uiPrefs?.channels ?? null}
                 shareMode={shareMode}
                 shareSessionName={shareSessionName}

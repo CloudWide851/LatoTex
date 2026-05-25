@@ -6,6 +6,7 @@ import { CompileAssistPopover } from "./CompileAssistPopover";
 import { EditorTabsBar } from "./EditorTabsBar";
 import { getEditorSurfaceThemeName } from "./editorSurfaceTheme";
 import { createWorkspaceEditorMonacoOptions } from "./editorMonacoOptions";
+import { useWorkspaceEditorShareEditAnnotations } from "./useWorkspaceEditorShareEditAnnotations";
 import { useWorkspaceEditorShareComments } from "./useWorkspaceEditorShareComments";
 import { ChatTopbarSessionControl } from "../chat/ChatTopbarSessionControl";
 import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
@@ -14,6 +15,7 @@ import { WorkspaceShareControl } from "../workspace/WorkspaceShareControl";
 import { buildAgentCommandItems, composeTitleWithShortcut } from "../workspace/workspaceShellUtils";
 import { emitWorkspaceLayoutRefresh, WORKSPACE_LAYOUT_REFRESH_EVENT, type WorkspaceLayoutRefreshDetail } from "../../hooks/workspaceLayoutRefresh";
 import type { ShareConflict, ShareConflictResolution } from "../../hooks/shareSessionUtils";
+import type { ShareEditAnnotation } from "../../hooks/shareEditAnnotations";
 import type { AgentTeamMode, ShareCommentItem } from "../../../shared/types/app";
 import {
   LazyAgentChatOverlay,
@@ -64,6 +66,7 @@ export function LatexWorkspaceEditorPanel(props: {
   shareMode: any;
   shareSessionName: string;
   shareComments: ShareCommentItem[];
+  shareEditAnnotations: ShareEditAnnotation[];
   channelPrefs: any;
   agentCollapsed: boolean;
   agentPhase: AgentPhase;
@@ -147,6 +150,7 @@ export function LatexWorkspaceEditorPanel(props: {
     shareMode,
     shareSessionName,
     shareComments,
+    shareEditAnnotations,
     channelPrefs,
     agentCollapsed,
     agentPhase,
@@ -243,6 +247,14 @@ export function LatexWorkspaceEditorPanel(props: {
     selectedFile,
     shareSession,
     shareComments,
+    t,
+  });
+
+  useWorkspaceEditorShareEditAnnotations({
+    editor: showChatWorkspace || selectedIsExcel ? null : editorInstanceRef.current,
+    selectedFile,
+    shareSession,
+    annotations: shareEditAnnotations,
     t,
   });
 

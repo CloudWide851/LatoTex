@@ -23,6 +23,7 @@
   display: grid;
   grid-template-columns: minmax(248px, 286px) minmax(0, 1.25fr) minmax(280px, 320px);
   gap: 12px;
+  height: 100%;
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
@@ -109,6 +110,14 @@
   z-index: 2;
 }
 
+.editor-edit-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
 .editor-inline-highlight {
   position: absolute;
   left: 10px;
@@ -116,6 +125,33 @@
   border-radius: 12px;
   background: rgba(25, 114, 70, 0.1);
   border-left: 3px solid rgba(25, 114, 70, 0.44);
+}
+
+.editor-edit-highlight,
+.editor-edit-badge {
+  position: absolute;
+}
+
+.editor-edit-highlight {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--edit-color, var(--share-accent)) 14%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--edit-color, var(--share-accent)) 44%, transparent);
+}
+
+.editor-edit-badge {
+  max-width: 132px;
+  border: 1px solid color-mix(in srgb, var(--edit-color, var(--share-accent)) 42%, transparent);
+  border-radius: 999px;
+  background: rgba(251, 253, 249, 0.72);
+  color: var(--edit-color, var(--share-accent));
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 3px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(23, 49, 38, 0.12);
 }
 
 .editor-thread-layer,
@@ -141,17 +177,23 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
+  overflow: hidden;
 }
 
 .pdf-stage-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .pdf-stage {
   padding: 12px;
   display: block;
+  max-height: 100%;
+  overscroll-behavior: contain;
   background:
     linear-gradient(180deg, rgba(253, 252, 248, 0.98), rgba(247, 244, 237, 0.95)),
     repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(23, 49, 38, 0.03) 18px, rgba(23, 49, 38, 0.03) 19px);
@@ -344,7 +386,7 @@
 @media (max-width: 1220px) {
   .share-layout--desktop .share-desktop-grid {
     grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-    overflow: auto;
+    overflow: hidden;
   }
 
   .share-layout--desktop .side-stack {

@@ -12,6 +12,13 @@ import {
   type YDocLike,
   type YTextLike,
 } from "./shareSessionUtils";
+import {
+  createShareEditAnnotation,
+  mergeShareEditAnnotation,
+  SHARE_EDIT_ANNOTATION_TTL_MS,
+  type ShareEditAnnotation,
+  type ShareSyncRemoteEvent,
+} from "./shareEditAnnotations";
 
 type TranslationFn = (key: any) => string;
 
@@ -43,6 +50,7 @@ export function useShareCollaborationSync(params: {
   } = params;
   const [syncing, setSyncing] = useState(false);
   const [shareConflict, setShareConflict] = useState<ShareConflict | null>(null);
+  const [shareEditAnnotations, setShareEditAnnotations] = useState<ShareEditAnnotation[]>([]);
   const yDocRef = useRef<YDocLike | null>(null);
   const yTextRef = useRef<YTextLike | null>(null);
   const pullCursorRef = useRef(0);
@@ -58,6 +66,7 @@ export function useShareCollaborationSync(params: {
   const lastSyncedRef = useRef<{ path: string; content: string } | null>(null);
   const shareConflictRef = useRef<ShareConflict | null>(null);
   const remoteSeqRef = useRef<number | null>(null);
+  const annotationTimerRef = useRef<number | null>(null);
 
   const clearTimer = (timerRef: MutableRefObject<number | null>) => {
     if (timerRef.current) {
@@ -75,7 +84,15 @@ export function useShareCollaborationSync(params: {
   useEffect(() => {
     updateConflict(null);
     lastSyncedRef.current = null;
+    setShareEditAnnotations([]);
   }, [activeTarget, updateConflict]);
+
+  const pruneExpiredAnnotations = useCallback(() => {
+    const cutoff = Date.now() - SHARE_EDIT_ANNOTATION_TTL_MS;
+    setShareEditAnnotations((prev) =>
+      prev.filter((item) => Date.parse(item.createdAt) >= cutoff),
+    );
+  }, []);
 
   const scheduleLocalWriteBack = useCallback((path: string | null, content: string) => {
     scheduleShareFileWriteBack({
@@ -128,6 +145,8 @@ export function useShareCollaborationSync(params: {
       participantTokenRef.current = "";
       clearTimer(syncTimerRef);
       clearTimer(writeBackTimerRef);
+      clearTimer(annotationTimerRef);
+      setShareEditAnnotations([]);
       updateConflict(null);
       return;
     }
@@ -242,13 +261,14 @@ export function useShareCollaborationSync(params: {
           if (!response.ok) {
             throw new Error(await response.text());
           }
-          const payload = await response.json() as { nextCursor?: number; events?: Array<{ seq: number; from: string; update: string }> };
+          const payload = await response.json() as { nextCursor?: number; events?: ShareSyncRemoteEvent[] };
           const updates = Array.isArray(payload.events) ? payload.events : [];
           for (const event of updates) {
             pullCursorRef.current = Math.max(pullCursorRef.current, Number(event.seq || 0));
             if (event.from === localClientIdRef.current) {
               continue;
             }
+            const before = yText.toString();
             applyingRemoteRef.current = true;
             remoteSeqRef.current = Number(event.seq || 0);
             try {
@@ -257,6 +277,15 @@ export function useShareCollaborationSync(params: {
               applyingRemoteRef.current = false;
               remoteSeqRef.current = null;
             }
+            const after = yText.toString();
+            const annotation = createShareEditAnnotation({
+              event,
+              path: activeTarget,
+              before,
+              after,
+              fallbackUsername: t("share.remoteUser"),
+            });
+            setShareEditAnnotations((prev) => mergeShareEditAnnotation(prev, annotation));
           }
           pullCursorRef.current = Math.max(pullCursorRef.current, Number(payload.nextCursor || pullCursorRef.current));
         } finally {
@@ -279,6 +308,7 @@ export function useShareCollaborationSync(params: {
         yText.unobserve(onText);
         clearTimer(syncTimerRef);
         clearTimer(writeBackTimerRef);
+        clearTimer(annotationTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
         participantTokenRef.current = "";
@@ -298,6 +328,7 @@ export function useShareCollaborationSync(params: {
         setSyncing(false);
         clearTimer(syncTimerRef);
         clearTimer(writeBackTimerRef);
+        clearTimer(annotationTimerRef);
         yDocRef.current = null;
         yTextRef.current = null;
         participantTokenRef.current = "";
@@ -323,5 +354,14 @@ export function useShareCollaborationSync(params: {
     }, "editor");
   }, [collabEnabled, editorContent]);
 
-  return { shareSyncing: syncing, shareConflict, resolveShareConflict };
+  useEffect(() => {
+    clearTimer(annotationTimerRef);
+    if (shareEditAnnotations.length === 0) {
+      return;
+    }
+    annotationTimerRef.current = Number(window.setTimeout(pruneExpiredAnnotations, SHARE_EDIT_ANNOTATION_TTL_MS));
+    return () => clearTimer(annotationTimerRef);
+  }, [pruneExpiredAnnotations, shareEditAnnotations]);
+
+  return { shareSyncing: syncing, shareConflict, shareEditAnnotations, resolveShareConflict };
 }

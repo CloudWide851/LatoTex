@@ -5,5 +5,8 @@ export const zhCN_nav = {
   "nav.draw": "绘图",
   "nav.library": "论文库",
   "nav.git": "Git",
+  "nav.plugins": "插件市场",
   "nav.settings": "设置",
+  "plugins.placeholderTitle": "插件市场",
+  "plugins.placeholderHint": "插件发现与安装入口会在后续版本显示在这里。",
 } as const;

@@ -1209,6 +1209,9 @@ video {
 .min-h-0 {
   min-height: 0px;
 }
+.min-h-10 {
+  min-height: 2.5rem;
+}
 .min-h-16 {
   min-height: 4rem;
 }
@@ -2307,6 +2310,9 @@ video {
 }
 .bg-white\/80 {
   background-color: rgb(255 255 255 / 0.8);
+}
+.bg-white\/85 {
+  background-color: rgb(255 255 255 / 0.85);
 }
 .bg-white\/90 {
   background-color: rgb(255 255 255 / 0.9);

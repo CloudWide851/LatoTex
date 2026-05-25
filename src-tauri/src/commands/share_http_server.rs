@@ -388,15 +388,6 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             let _ = request.respond(response);
             return;
         }
-        let seq = guard.next_seq;
-        guard.next_seq = guard.next_seq.saturating_add(1);
-        guard.sync_events.push(ShareSyncEvent {
-            seq,
-            from: body.client_id,
-            update: normalize_share_sync_update(&body.update),
-            created_at: now_iso(),
-        });
-        guard.last_sync_at = Some(now_iso());
         let participant_id = body
             .participant_id
             .as_deref()
@@ -409,11 +400,30 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             .map(normalize_share_username)
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "Desktop".to_string());
+        let action = body
+            .action
+            .as_deref()
+            .map(normalize_share_action)
+            .filter(|value| !value.is_empty())
+            .or_else(|| Some("editing".to_string()));
+        let now = now_iso();
+        let seq = guard.next_seq;
+        guard.next_seq = guard.next_seq.saturating_add(1);
+        guard.sync_events.push(ShareSyncEvent {
+            seq,
+            from: body.client_id,
+            update: normalize_share_sync_update(&body.update),
+            participant_id: participant_id.to_string(),
+            username: participant_name.clone(),
+            action: action.clone(),
+            created_at: now.clone(),
+        });
+        guard.last_sync_at = Some(now);
         upsert_participant(
             &mut guard,
             participant_id,
             &participant_name,
-            body.action.as_deref().or(Some("editing")),
+            action.as_deref(),
         );
         if guard.sync_events.len() > 4_000 {
             let drop_count = guard.sync_events.len().saturating_sub(3_200);

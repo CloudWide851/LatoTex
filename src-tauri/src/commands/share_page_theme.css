@@ -32,6 +32,7 @@
 
 html,
 body {
+  height: 100%;
   min-height: 100%;
 }
 
@@ -79,16 +80,20 @@ input::placeholder {
 }
 
 .share-page-shell {
+  height: 100dvh;
   min-height: 100dvh;
   width: 100%;
   padding: clamp(12px, 2vw, 24px);
+  overflow: hidden;
 }
 
 .share-layout {
   display: grid;
   gap: 14px;
   min-height: calc(100dvh - clamp(24px, 4vw, 48px));
-  height: 100%;
+  height: calc(100dvh - clamp(24px, 4vw, 48px));
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .shell-panel,
@@ -421,5 +426,19 @@ button.secondary {
 @media (max-width: 1220px) {
   body {
     overflow: auto;
+  }
+
+  .share-page-shell {
+    height: auto;
+    overflow: visible;
+  }
+
+  body[data-view="pdf"][data-share-layout="desktop"] {
+    overflow: hidden;
+  }
+
+  body[data-view="pdf"][data-share-layout="desktop"] .share-page-shell {
+    height: 100dvh;
+    overflow: hidden;
   }
 }

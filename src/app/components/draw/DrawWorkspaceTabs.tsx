@@ -35,6 +35,11 @@ export function DrawWorkspaceTabs(props: {
     onCreateNewTab,
     t,
   } = props;
+  const showStatus = Boolean(
+    status
+      && status !== t("draw.waiting")
+      && status !== t("draw.hostReady"),
+  );
 
   return (
     <header className="panel-topbar flex min-w-0 items-center gap-1 border-b border-slate-200 px-2">
@@ -110,7 +115,9 @@ export function DrawWorkspaceTabs(props: {
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="panel-topbar-text max-w-[40%] truncate text-[11px] text-slate-500">{status || t("draw.waiting")}</div>
+      {showStatus ? (
+        <div className="panel-topbar-text max-w-[40%] truncate text-[11px] text-slate-500">{status}</div>
+      ) : null}
     </header>
   );
 }
