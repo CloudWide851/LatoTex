@@ -7,7 +7,7 @@ type LiveCardEntry = AnalysisTimelineCard & {
 
 export type LiveProjection = {
   runKey: string;
-  processedCount: number;
+  lastSeq: number;
   cards: Map<string, LiveCardEntry>;
   liveOutput: string;
   stage: string;
@@ -32,7 +32,7 @@ function toCardKind(kind: string): string {
 export function createEmptyLiveProjection(): LiveProjection {
   return {
     runKey: "",
-    processedCount: 0,
+    lastSeq: 0,
     cards: new Map(),
     liveOutput: "",
     stage: "",
@@ -104,12 +104,15 @@ export function projectAnalysisLiveEvents(
   liveRunIds: string[],
 ): LiveProjection {
   const runKey = liveRunIds.join("::");
-  const needsReset = projection.runKey !== runKey || events.length < projection.processedCount;
+  const maxIncomingSeq = events.reduce((max, event) => Math.max(max, event.seq), 0);
+  const needsReset = projection.runKey !== runKey || maxIncomingSeq < projection.lastSeq;
   const nextProjection = needsReset ? createEmptyLiveProjection() : projection;
   nextProjection.runKey = runKey;
   const runSet = new Set(liveRunIds);
   const liveOutputRunId = liveRunIds[liveRunIds.length - 1] ?? "";
-  const pendingEvents = needsReset ? events : events.slice(nextProjection.processedCount);
+  const pendingEvents = needsReset
+    ? events
+    : events.filter((event) => event.seq > nextProjection.lastSeq);
 
   for (const event of pendingEvents) {
     if (!runSet.has(event.runId)) {
@@ -136,6 +139,6 @@ export function projectAnalysisLiveEvents(
     }
   }
 
-  nextProjection.processedCount = events.length;
+  nextProjection.lastSeq = Math.max(nextProjection.lastSeq, maxIncomingSeq);
   return nextProjection;
 }

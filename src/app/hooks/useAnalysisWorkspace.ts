@@ -46,6 +46,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const runInFlightRef = useRef(false);
   const liveTaskIdRef = useRef<string | null>(null);
   const liveTaskRunIdRef = useRef<string | null>(null);
+  const runGenerationRef = useRef(0);
   const candidateFiles = useMemo(() => listCandidateDataFiles(fileList), [fileList]);
   const csvCandidateFiles = useMemo(
     () => candidateFiles.filter((path) => /\.(csv|tsv)$/i.test(path)),
@@ -229,6 +230,10 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     };
   }, [activeTaskId, projectId, setToast, tasks]);
   const canRun = useMemo(() => Boolean(!suspended && projectId && activeTask && prompt.trim()), [activeTask, projectId, prompt, suspended]);
+  const canContinue = useMemo(
+    () => Boolean(!suspended && projectId && activeTask && activeRun?.prompt?.trim() && !running),
+    [activeRun?.prompt, activeTask, projectId, running, suspended],
+  );
   useEffect(() => {
     if (!suspended || liveRunIds.length === 0) {
       return;
@@ -241,6 +246,35 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const updateTaskById = useCallback((taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => {
     setTasks((prev) => updateTaskListById(prev, taskId, updater));
   }, []);
+  const cancelAnalysis = useCallback(async () => {
+    const runIds = Array.from(new Set(liveRunIds));
+    runGenerationRef.current += 1;
+    runInFlightRef.current = false;
+    setRunning(false);
+    setLiveRunIds([]);
+    setLiveStageLabel("");
+    const taskId = liveTaskIdRef.current;
+    const runId = liveTaskRunIdRef.current;
+    liveTaskIdRef.current = null;
+    liveTaskRunIdRef.current = null;
+    if (taskId && runId) {
+      updateTaskById(taskId, (task) => {
+        const existing = task.runs.find((item) => item.id === runId);
+        if (!existing) {
+          return task;
+        }
+        return upsertRun(task, {
+          ...existing,
+          status: "cancelled",
+          draftOutputText: liveOutput || existing.draftOutputText || "",
+          liveStageLabel: liveStage || existing.liveStageLabel || "",
+          failureMessage: undefined,
+          updatedAt: nowIso(),
+        });
+      });
+    }
+    await Promise.all(runIds.map((runId) => executeWorkflowCancel(runId).catch(() => undefined)));
+  }, [liveOutput, liveRunIds, liveStage, updateTaskById]);
   useEffect(() => {
     const taskId = liveTaskIdRef.current;
     const runId = liveTaskRunIdRef.current;
@@ -361,6 +395,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       teamMode?: AgentTeamMode;
     },
   ) => {
+    const runGeneration = runGenerationRef.current + 1;
+    runGenerationRef.current = runGeneration;
     await runAnalysisWorkspacePrompt({
       inputPrompt,
       options,
@@ -379,6 +415,8 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       runInFlightRef,
       liveTaskIdRef,
       liveTaskRunIdRef,
+      runGeneration,
+      isRunGenerationCurrent: (generation) => runGenerationRef.current === generation,
       ensureStageCache,
       persistStageCacheEntry,
       updateTaskById,
@@ -408,8 +446,29 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     updateTaskById,
   ]);
   const runAnalysis = useCallback(async (teamMode: AgentTeamMode = "auto") => {
+    if (running) {
+      await cancelAnalysis();
+      return;
+    }
     await runAnalysisForPrompt(prompt, { teamMode });
-  }, [prompt, runAnalysisForPrompt]);
+  }, [cancelAnalysis, prompt, runAnalysisForPrompt, running]);
+  const continueAnalysis = useCallback(async (teamMode: AgentTeamMode = "auto") => {
+    if (running) {
+      await cancelAnalysis();
+      return;
+    }
+    const retryPrompt = activeRun?.prompt?.trim();
+    if (!retryPrompt) {
+      setToast({ type: "error", message: t("analysis.error.emptyPrompt") });
+      return;
+    }
+    await runAnalysisForPrompt(retryPrompt, {
+      forcedTaskId: activeTaskId ?? undefined,
+      taskSnapshot: activeTask ?? undefined,
+      savePrompt: false,
+      teamMode,
+    });
+  }, [activeRun?.prompt, activeTask, activeTaskId, cancelAnalysis, runAnalysisForPrompt, running, setToast, t]);
   const runAnalysisWithPrompt = useCallback(
     async (inputPrompt: string) => {
       setPrompt(inputPrompt);
@@ -445,5 +504,5 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-  return { prompt, setPrompt, onDropPromptPaths, running, canRun, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
+  return { prompt, setPrompt, onDropPromptPaths, running, canRun, canContinue, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, continueAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }

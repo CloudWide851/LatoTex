@@ -1,4 +1,4 @@
-import type { HTMLAttributes, MutableRefObject } from "react";
+import { Component, useMemo, type HTMLAttributes, type MutableRefObject, type ReactNode } from "react";
 import { Document } from "react-pdf";
 import {
   createWorkspacePreviewDocumentData,
@@ -9,6 +9,35 @@ import { LibraryPdfLensOverlay } from "./LibraryPdfLensOverlay";
 import { LibraryPdfScrollViewerPage } from "./LibraryPdfScrollViewerPage";
 import { LibraryPdfViewerErrorState } from "./libraryPdfScrollViewerShell";
 import type { LensPendingPoint, ToolMode, TranslationFn } from "./libraryPdfScrollViewerConfig";
+
+class LibraryPdfRenderBoundary extends Component<{
+  resetKey: string;
+  onRenderError: (error: unknown) => void;
+  children: ReactNode;
+}, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    this.props.onRenderError(error);
+  }
+
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null;
+    }
+    return this.props.children;
+  }
+}
 
 export function LibraryPdfDocumentSurface(props: {
   rootProps: HTMLAttributes<HTMLDivElement>;
@@ -90,7 +119,10 @@ export function LibraryPdfDocumentSurface(props: {
     onTextBoxesChange,
     t,
   } = props;
-  const documentFile = pdfSource ? createWorkspacePreviewDocumentData(pdfSource) : pdfUrl;
+  const documentFile = useMemo(
+    () => (pdfSource ? createWorkspacePreviewDocumentData(pdfSource) : pdfUrl),
+    [pdfSource?.bytes, pdfSource?.relativePath, pdfUrl],
+  );
 
   if (documentLoadError) {
     return (
@@ -104,44 +136,46 @@ export function LibraryPdfDocumentSurface(props: {
 
   return (
     <div ref={scrollRef} {...rootProps}>
-      <Document
-        key={pdfUrl}
-        file={documentFile}
-        loading={<div className="py-6 text-center text-xs text-slate-500">{t("library.viewer.loading")}</div>}
-        onLoadSuccess={({ numPages }) => onDocumentLoadSuccess(numPages)}
-        onLoadError={onDocumentLoadError}
-        className={documentClassName}
-      >
-        {pages.map((page) => (
-          <LibraryPdfScrollViewerPage
-            key={page}
-            page={page}
-            frameWidth={frameWidth}
-            annotationScale={annotationScale}
-            lensEnabled={lensEnabled}
-            lensActive={lensActive}
-            readOnly={readOnly}
-            mode={mode}
-            highlightColor={highlightColor}
-            highlightWidth={highlightWidth}
-            highlightOpacity={highlightOpacity}
-            textColor={textColor}
-            textBoxStylePreset={textBoxStylePreset}
-            strokes={strokes}
-            textBoxes={textBoxes}
-            pageRefs={pageRefs}
-            scrollRef={scrollRef}
-            pendingLensPointRef={pendingLensPointRef}
-            onMoveLens={onMoveLens}
-            onHideLens={onHideLens}
-            onLayoutChange={onPageLayoutChange}
-            onRenderSuccess={() => onPageRenderSuccess(page)}
-            onStrokesChange={onStrokesChange}
-            onTextBoxesChange={onTextBoxesChange}
-            t={t}
-          />
-        ))}
-      </Document>
+      <LibraryPdfRenderBoundary resetKey={pdfUrl} onRenderError={onDocumentLoadError}>
+        <Document
+          key={pdfUrl}
+          file={documentFile}
+          loading={<div className="py-6 text-center text-xs text-slate-500">{t("library.viewer.loading")}</div>}
+          onLoadSuccess={({ numPages }) => onDocumentLoadSuccess(numPages)}
+          onLoadError={onDocumentLoadError}
+          className={documentClassName}
+        >
+          {pages.map((page) => (
+            <LibraryPdfScrollViewerPage
+              key={page}
+              page={page}
+              frameWidth={frameWidth}
+              annotationScale={annotationScale}
+              lensEnabled={lensEnabled}
+              lensActive={lensActive}
+              readOnly={readOnly}
+              mode={mode}
+              highlightColor={highlightColor}
+              highlightWidth={highlightWidth}
+              highlightOpacity={highlightOpacity}
+              textColor={textColor}
+              textBoxStylePreset={textBoxStylePreset}
+              strokes={strokes}
+              textBoxes={textBoxes}
+              pageRefs={pageRefs}
+              scrollRef={scrollRef}
+              pendingLensPointRef={pendingLensPointRef}
+              onMoveLens={onMoveLens}
+              onHideLens={onHideLens}
+              onLayoutChange={onPageLayoutChange}
+              onRenderSuccess={() => onPageRenderSuccess(page)}
+              onStrokesChange={onStrokesChange}
+              onTextBoxesChange={onTextBoxesChange}
+              t={t}
+            />
+          ))}
+        </Document>
+      </LibraryPdfRenderBoundary>
       <LibraryPdfLensOverlay
         active={lensEnabled && lensActive}
         visible={lensVisible}

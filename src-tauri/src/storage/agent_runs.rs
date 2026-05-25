@@ -56,11 +56,75 @@ pub fn update_agent_run_status(
              updated_at = ?4,
              started_at = CASE WHEN started_at IS NULL AND ?2 = 'running' THEN ?4 ELSE started_at END,
              finished_at = CASE WHEN ?5 THEN ?4 ELSE finished_at END
-         WHERE run_id = ?1",
+         WHERE run_id = ?1
+           AND status NOT IN ('completed', 'failed', 'cancelled')",
         params![run_id, status, lease_id, now, terminal],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+pub fn get_agent_run_record(
+    db_path: &Path,
+    run_id: &str,
+) -> Result<Option<AgentRunRecord>, String> {
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    conn.query_row(
+        "SELECT run_id, project_id, workflow_id, callsite, request_json, status, recovered_count
+         FROM agent_runs
+         WHERE run_id = ?1
+         LIMIT 1",
+        params![run_id],
+        |row| {
+            Ok(AgentRunRecord {
+                run_id: row.get(0)?,
+                project_id: row.get(1)?,
+                workflow_id: row.get(2)?,
+                callsite: row.get(3)?,
+                request_json: row.get(4)?,
+                status: row.get(5)?,
+                recovered_count: row.get(6)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+pub fn agent_run_status_is_terminal(db_path: &Path, run_id: &str) -> Result<bool, String> {
+    let Some(record) = get_agent_run_record(db_path, run_id)? else {
+        return Ok(false);
+    };
+    Ok(matches!(
+        record.status.as_str(),
+        "completed" | "failed" | "cancelled"
+    ))
+}
+
+pub fn terminalize_agent_run_if_open(
+    db_path: &Path,
+    run_id: &str,
+    status: &str,
+    lease_id: Option<&str>,
+) -> Result<bool, String> {
+    if !matches!(status, "completed" | "failed" | "cancelled") {
+        return Err(format!("agent.run.invalid_terminal_status: {status}"));
+    }
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let now = now_iso();
+    let changed = conn
+        .execute(
+            "UPDATE agent_runs
+             SET status = ?2,
+                 lease_id = ?3,
+                 updated_at = ?4,
+                 finished_at = ?4
+             WHERE run_id = ?1
+               AND status NOT IN ('completed', 'failed', 'cancelled')",
+            params![run_id, status, lease_id, now],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(changed > 0)
 }
 
 pub fn mark_agent_run_recovering(
@@ -81,6 +145,64 @@ pub fn mark_agent_run_recovering(
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod agent_runs_tests {
+    use super::*;
+    use crate::models::AgentExecuteRequest;
+
+    fn temp_db_path(name: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "latotex-agent-runs-{name}-{}.sqlite3",
+            uuid::Uuid::new_v4()
+        ));
+        path
+    }
+
+    fn sample_request(project_id: &str) -> AgentExecuteRequest {
+        AgentExecuteRequest {
+            project_id: project_id.to_string(),
+            workflow_id: "analysis.synthesize".to_string(),
+            callsite: "analysis.workspace".to_string(),
+            prompt: "Analyze".to_string(),
+            context_refs: vec![],
+            model_override: None,
+            bypass_cache: false,
+            team_mode: None,
+        }
+    }
+
+    #[test]
+    fn terminalize_agent_run_if_open_does_not_overwrite_terminal_status() {
+        let db_path = temp_db_path("terminalize");
+        initialize_database(&db_path).unwrap();
+        insert_agent_run(&db_path, "run-1", &sample_request("project-1")).unwrap();
+
+        assert!(terminalize_agent_run_if_open(&db_path, "run-1", "cancelled", None).unwrap());
+        let record = get_agent_run_record(&db_path, "run-1").unwrap().unwrap();
+        assert_eq!(record.status, "cancelled");
+
+        assert!(!terminalize_agent_run_if_open(&db_path, "run-1", "completed", None).unwrap());
+        let record = get_agent_run_record(&db_path, "run-1").unwrap().unwrap();
+        assert_eq!(record.status, "cancelled");
+
+        let _ = std::fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn agent_run_status_is_terminal_reads_cancelled_runs() {
+        let db_path = temp_db_path("terminal-status");
+        initialize_database(&db_path).unwrap();
+        insert_agent_run(&db_path, "run-2", &sample_request("project-1")).unwrap();
+        assert!(!agent_run_status_is_terminal(&db_path, "run-2").unwrap());
+
+        terminalize_agent_run_if_open(&db_path, "run-2", "cancelled", None).unwrap();
+        assert!(agent_run_status_is_terminal(&db_path, "run-2").unwrap());
+
+        let _ = std::fs::remove_file(db_path);
+    }
 }
 
 pub fn list_recoverable_agent_runs(

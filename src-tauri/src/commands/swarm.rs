@@ -38,6 +38,8 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use tauri::State;
+use swarm_events::append_protocol_event;
+use swarm_executor::build_run_terminal_payload;
 
 #[tauri::command]
 pub fn latex_compile_record(
@@ -81,6 +83,42 @@ pub fn agent_runs_recover(
     let mut recovered_run_ids = Vec::new();
     for record in records {
         if storage::agent_run_has_terminal_event(&state.db_path, &record.run_id)? {
+            let _ = storage::terminalize_agent_run_if_open(
+                &state.db_path,
+                &record.run_id,
+                "cancelled",
+                None,
+            );
+            continue;
+        }
+        if record.recovered_count >= 2 {
+            storage::terminalize_agent_run_if_open(
+                &state.db_path,
+                &record.run_id,
+                "cancelled",
+                None,
+            )?;
+            append_protocol_event(
+                &state.db_path,
+                &record.run_id,
+                &record.project_id,
+                &record.workflow_id,
+                "agent.run.cancelled",
+                build_run_terminal_payload(
+                    &record.run_id,
+                    &record.workflow_id,
+                    &record.callsite,
+                    "agent.run.cancelled",
+                    "Recovered Agent run was stopped after repeated recovery attempts.",
+                ),
+            )?;
+            state.log(
+                "WARN",
+                &format!(
+                    "agent_runs_recover.stale_cancelled: run={}, project={}, status={}, recovered_count={}",
+                    record.run_id, record.project_id, record.status, record.recovered_count
+                ),
+            );
             continue;
         }
         {
@@ -124,17 +162,48 @@ pub fn agent_execute_cancel(
     state: State<'_, AppState>,
     input: AgentExecuteCancelInput,
 ) -> Result<Ack, String> {
-    let flags = state
-        .agent_cancel_flags
-        .lock()
-        .map_err(|_| "failed to lock agent cancel flags".to_string())?;
-    let flag = flags
-        .get(&input.run_id)
+    let record = storage::get_agent_run_record(&state.db_path, &input.run_id)?
         .ok_or_else(|| "agent run not found".to_string())?;
-    flag.store(true, Ordering::Relaxed);
+    let active_flag = {
+        let flags = state
+            .agent_cancel_flags
+            .lock()
+            .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+        flags.get(&input.run_id).cloned()
+    };
+    if let Some(flag) = &active_flag {
+        flag.store(true, Ordering::Relaxed);
+    }
+    let terminalized = storage::terminalize_agent_run_if_open(
+        &state.db_path,
+        &input.run_id,
+        "cancelled",
+        None,
+    )?;
+    if terminalized && !storage::agent_run_has_terminal_event(&state.db_path, &input.run_id)? {
+        append_protocol_event(
+            &state.db_path,
+            &input.run_id,
+            &record.project_id,
+            &record.workflow_id,
+            "agent.run.cancelled",
+            build_run_terminal_payload(
+                &input.run_id,
+                &record.workflow_id,
+                &record.callsite,
+                "agent.run.cancelled",
+                "",
+            ),
+        )?;
+    }
     state.log(
         "INFO",
-        &format!("agent_execute_cancel requested: {}", input.run_id),
+        &format!(
+            "agent_execute_cancel requested: {}, active_flag={}, terminalized={}",
+            input.run_id,
+            active_flag.is_some(),
+            terminalized
+        ),
     );
     Ok(Ack {
         ok: true,

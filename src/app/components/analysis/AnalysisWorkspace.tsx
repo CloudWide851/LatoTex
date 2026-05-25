@@ -42,11 +42,13 @@ export function AnalysisWorkspace(props: {
   liveTimelineCards: AnalysisTimelineCard[];
   liveStageLabel: string;
   liveOutput: string;
+  canContinue: boolean;
   candidateFiles: string[];
   onPromptChange: (value: string) => void;
   onDropPaths: (paths: string[]) => void;
   onRun: () => void;
   onRunTeams: () => void;
+  onContinue: () => void;
   onSelectTask: (taskId: string) => void;
   onCreateTask: () => void;
   onRenameTask: (taskId: string, name: string) => void;
@@ -70,11 +72,13 @@ export function AnalysisWorkspace(props: {
     liveTimelineCards,
     liveStageLabel,
     liveOutput,
+    canContinue,
     candidateFiles,
     onPromptChange,
     onDropPaths,
     onRun,
     onRunTeams,
+    onContinue,
     onSelectTask,
     onCreateTask,
     onRenameTask,
@@ -289,11 +293,13 @@ export function AnalysisWorkspace(props: {
               canRun={canRun}
               running={running}
               busy={busy}
+              canContinue={canContinue}
               candidateFiles={candidateFiles}
               onPromptChange={onPromptChange}
               onDropPaths={onDropPaths}
               onRun={onRun}
               onRunTeams={onRunTeams}
+              onContinue={onContinue}
               t={t}
             />
           </div>

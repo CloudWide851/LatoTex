@@ -1,7 +1,6 @@
-import { Play, UsersRound } from "lucide-react";
+import { Play, Square, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { cn } from "../../../lib/utils";
-import { SvgSpinner } from "../../../components/ui/svg-spinner";
 import { applyPromptRefSuggestion, suggestPromptRefs } from "../../hooks/analysisPromptRefs";
 
 type TranslationFn = (key: any) => string;
@@ -26,15 +25,31 @@ export function AnalysisPromptOverlay(props: {
   canRun: boolean;
   running: boolean;
   busy: boolean;
+  canContinue?: boolean;
   candidateFiles: string[];
   embedded?: boolean;
   onPromptChange: (value: string) => void;
   onDropPaths: (paths: string[]) => void;
   onRun: () => void;
   onRunTeams: () => void;
+  onContinue?: () => void;
   t: TranslationFn;
 }) {
-  const { prompt, canRun, running, busy, candidateFiles, embedded = false, onPromptChange, onDropPaths, onRun, onRunTeams, t } = props;
+  const {
+    prompt,
+    canRun,
+    running,
+    busy,
+    canContinue = false,
+    candidateFiles,
+    embedded = false,
+    onPromptChange,
+    onDropPaths,
+    onRun,
+    onRunTeams,
+    onContinue,
+    t,
+  } = props;
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [suggestionPlacement, setSuggestionPlacement] = useState<"above" | "below">("above");
@@ -144,7 +159,7 @@ export function AnalysisPromptOverlay(props: {
               }
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                if (!busy && canRun && !running) {
+                if (!busy && (running || canRun)) {
                   onRun();
                 }
               }
@@ -193,14 +208,25 @@ export function AnalysisPromptOverlay(props: {
                 <UsersRound className="h-4 w-4" />
               </button>
             ) : null}
+            {!running && canContinue ? (
+              <button
+                className="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+                title={t("analysis.continueRun")}
+                aria-label={t("analysis.continueRun")}
+                onClick={onContinue}
+                disabled={busy}
+              >
+                {t("analysis.continueRun")}
+              </button>
+            ) : null}
             <button
               className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-primary-600 bg-primary-600 text-white transition hover:bg-primary-700 disabled:opacity-40"
-              title={running ? t("analysis.running") : t("analysis.run")}
-              aria-label={running ? t("analysis.running") : t("analysis.run")}
+              title={running ? t("analysis.cancelRun") : t("analysis.run")}
+              aria-label={running ? t("analysis.cancelRun") : t("analysis.run")}
               onClick={onRun}
-              disabled={!canRun || running || busy}
+              disabled={busy || (!running && !canRun)}
             >
-              {running ? <SvgSpinner className="h-4 w-4 text-white" /> : <Play className="h-4 w-4" />}
+              {running ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             </button>
           </div>
         </div>

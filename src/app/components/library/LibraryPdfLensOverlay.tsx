@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react";
+import { useMemo, type MutableRefObject } from "react";
 import { Document, Page } from "react-pdf";
 import {
   createWorkspacePreviewDocumentData,
@@ -32,10 +32,14 @@ export function LibraryPdfLensOverlay(props: LibraryPdfLensOverlayProps) {
     lensContentRef,
   } = props;
 
+  const documentFile = useMemo(
+    () => (pdfSource ? createWorkspacePreviewDocumentData(pdfSource) : pdfUrl),
+    [pdfSource?.bytes, pdfSource?.relativePath, pdfUrl],
+  );
+
   if (!active) {
     return null;
   }
-  const documentFile = pdfSource ? createWorkspacePreviewDocumentData(pdfSource) : pdfUrl;
 
   return (
     <div

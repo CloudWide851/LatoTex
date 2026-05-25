@@ -2,6 +2,8 @@ export const enUS_analysis = {
   "analysis.promptPlaceholder": "Describe what to analyze... use @file.csv or drag files from Explorer.",
   "analysis.run": "Analyze",
   "analysis.running": "Analyzing...",
+  "analysis.cancelRun": "Interrupt analysis",
+  "analysis.continueRun": "Continue analysis",
   "analysis.refresh": "Refresh",
   "analysis.pickFiles": "Pick Files",
   "analysis.blankHint": "Start analysis to generate an interactive report.",

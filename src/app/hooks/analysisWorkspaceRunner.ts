@@ -74,6 +74,8 @@ export type RunAnalysisWorkspacePromptParams = {
   runInFlightRef: MutableRefObject<boolean>;
   liveTaskIdRef: MutableRefObject<string | null>;
   liveTaskRunIdRef: MutableRefObject<string | null>;
+  runGeneration: number;
+  isRunGenerationCurrent: (generation: number) => boolean;
   ensureStageCache: () => Promise<AnalysisStageCacheStore>;
   persistStageCacheEntry: (key: string, value: unknown) => Promise<void>;
   updateTaskById: (taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => void;
@@ -105,6 +107,8 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
     runInFlightRef,
     liveTaskIdRef,
     liveTaskRunIdRef,
+    runGeneration,
+    isRunGenerationCurrent,
     ensureStageCache,
     persistStageCacheEntry,
     updateTaskById,
@@ -117,6 +121,11 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
     t,
   } = params;
   const ensureTasksReady = async () => ensureAnalysisTasksLoaded(loadedRef);
+  const ensureRunCurrent = () => {
+    if (!isRunGenerationCurrent(runGeneration)) {
+      throw new Error("agent.run.cancelled");
+    }
+  };
     const normalizedPrompt = inputPrompt.trim();
     if (suspended) {
       setToast({ type: "info", message: t("sleep.title") });
@@ -161,6 +170,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
     let pendingRunId = "";
     try {
       const setStage = (label: string) => {
+        ensureRunCurrent();
         currentStage = label;
         setLiveStageLabel(label);
       };
@@ -207,16 +217,21 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
         promptText: string,
         contextRefs: string[],
         bypassCache = false,
-      ) => runRolePromptWithAgent({
-        projectId,
-        workflowId,
-        promptText,
-        contextRefs,
-        modelOverride: analysisModelOverride ?? undefined,
-        bypassCache,
-        teamMode: options?.teamMode ?? "auto",
-        onAcceptedRunId: appendAcceptedRun,
-      });
+      ) => {
+        ensureRunCurrent();
+        const result = await runRolePromptWithAgent({
+          projectId,
+          workflowId,
+          promptText,
+          contextRefs,
+          modelOverride: analysisModelOverride ?? undefined,
+          bypassCache,
+          teamMode: options?.teamMode ?? "auto",
+          onAcceptedRunId: appendAcceptedRun,
+        });
+        ensureRunCurrent();
+        return result;
+      };
       const promptSignature = buildAnalysisPromptSignature(normalizedPrompt, outputLanguageLabel);
       const contextRefs: string[] = [];
       if (selectedFile) {
@@ -231,6 +246,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
         setStage(t("analysis.step.paperExtract"));
         steps.push(currentStage);
         const paperContext = await buildPaperAnalysisContext(projectId, task.sourcePath);
+        ensureRunCurrent();
         const paperContextSignature = buildPaperContextSignature(paperContext);
         const chunkCacheKey = buildPaperChunkSummariesCacheKey(
           task.sourcePath,
@@ -330,6 +346,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
         setStage(t("analysis.step.loadData"));
         steps.push(currentStage);
         snapshots = await loadDataSnapshots(projectId, chosenFiles);
+        ensureRunCurrent();
         const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
         setStage(t("analysis.step.profileEachFile"));
         steps.push(currentStage);
@@ -354,6 +371,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
             ).catch(() => undefined);
           } else {
             const envStatus = await analysisEnvPrepare(projectId);
+            ensureRunCurrent();
             pythonProfile = trimCachedPythonProfile(await analysisRunPython({
               projectId,
               taskId: task.id,
@@ -361,6 +379,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
               outputLanguage: outputLanguageLabel,
               snapshots,
             }));
+            ensureRunCurrent();
             await runtimeLogWrite(
               "INFO",
               `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`,
@@ -440,6 +459,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
         reportHtml: completed.reportHtml,
         assets: [{ fileName: "chart.svg", dataUrl: completed.chartDataUrl }],
       });
+      ensureRunCurrent();
       const runRecord: AnalysisTaskRun = {
         ...completed.runRecord,
         reportRelativePath: saved.reportRelativePath,
@@ -461,7 +481,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
       const rawMessage = String(error);
-      if (rawMessage === "agent.run.cancelled" && suspended) {
+      if (rawMessage === "agent.run.cancelled") {
         updateTaskById(task.id, (item) => ({
           ...(() => {
             const fallbackRun = item.runs.find((candidate) => candidate.id === pendingRunId) ?? pendingRunFallback;
@@ -508,12 +528,14 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       setToast({ type: "error", message });
       await runtimeLogWrite("ERROR", `analysis run failed: stage=${currentStage}; reason=${rawMessage}`).catch(() => undefined);
     } finally {
-      runInFlightRef.current = false;
-      setRunning(false);
-      setLiveRunIds([]);
-      setLiveStageLabel("");
-      liveTaskIdRef.current = null;
-      liveTaskRunIdRef.current = null;
+      if (isRunGenerationCurrent(runGeneration)) {
+        runInFlightRef.current = false;
+        setRunning(false);
+        setLiveRunIds([]);
+        setLiveStageLabel("");
+        liveTaskIdRef.current = null;
+        liveTaskRunIdRef.current = null;
+      }
     }
 }
 

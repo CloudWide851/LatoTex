@@ -184,6 +184,15 @@ pub(super) fn agent_execute_start_with_run_id(
             input,
             workflow,
         );
+        let already_terminal =
+            storage::agent_run_status_is_terminal(&db_path, &run_id_for_worker).unwrap_or(false)
+                || storage::agent_run_has_terminal_event(&db_path, &run_id_for_worker).unwrap_or(false);
+        if already_terminal {
+            if let Ok(mut flags) = cancel_flags.lock() {
+                flags.remove(&run_id_for_worker);
+            }
+            return;
+        }
         match run_output {
             Ok(output) => {
                 let _ = storage::update_agent_run_status(

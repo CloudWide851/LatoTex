@@ -75,4 +75,24 @@ describe("projectAnalysisLiveEvents", () => {
     expect(projection.stage).toBe("analysis.synthesize");
     expect(Array.from(projection.cards.values())).toHaveLength(2);
   });
+
+  it("processes new higher-sequence events even when the merged event list length is unchanged", () => {
+    const first = projectAnalysisLiveEvents(createEmptyLiveProjection(), [
+      makeEvent({
+        seq: 10,
+        id: "evt-10",
+        payload: { content: "first " },
+      }),
+    ], ["run-1"]);
+
+    const next = projectAnalysisLiveEvents(first, [
+      makeEvent({
+        seq: 11,
+        id: "evt-11",
+        payload: { content: "second" },
+      }),
+    ], ["run-1"]);
+
+    expect(next.liveOutput).toBe("first second");
+  });
 });

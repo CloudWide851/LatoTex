@@ -244,6 +244,7 @@ export function useAppPanelNodes(params: any) {
       liveTimelineCards={analysisWorkspace.liveTimelineCards}
       liveStageLabel={analysisWorkspace.liveStage}
       liveOutput={analysisWorkspace.liveOutput}
+      canContinue={analysisWorkspace.canContinue}
       candidateFiles={analysisWorkspace.candidateFiles}
       onPromptChange={analysisWorkspace.setPrompt}
       onDropPaths={analysisWorkspace.onDropPromptPaths}
@@ -252,6 +253,9 @@ export function useAppPanelNodes(params: any) {
       }}
       onRunTeams={() => {
         void analysisWorkspace.runAnalysis("force");
+      }}
+      onContinue={() => {
+        void analysisWorkspace.continueAnalysis();
       }}
       onSelectTask={analysisWorkspace.setActiveTaskId}
       onCreateTask={() => analysisWorkspace.createTask("data")}

@@ -2,6 +2,8 @@ export const zhCN_analysis = {
   "analysis.promptPlaceholder": "描述要分析的数据目标，可用 @文件名 或从资源管理器拖拽文件引用。",
   "analysis.run": "开始分析",
   "analysis.running": "分析中...",
+  "analysis.cancelRun": "中断分析",
+  "analysis.continueRun": "继续分析",
   "analysis.refresh": "刷新",
   "analysis.pickFiles": "选择文件",
   "analysis.blankHint": "开始分析后会生成可交互报告页面。",

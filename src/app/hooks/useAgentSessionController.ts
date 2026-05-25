@@ -48,6 +48,7 @@ export function useAgentSessionController(params: {
   const [agentRollback, setAgentRollback] = useState<AgentRunRollback | null>(null);
   const [agentRollbackVisible, setAgentRollbackVisible] = useState(false);
   const runLaunchLockRef = useRef(false);
+  const runGenerationRef = useRef(0);
 
   useEffect(() => {
     setAgentSessions([]);
@@ -100,9 +101,17 @@ export function useAgentSessionController(params: {
       return;
     }
     if (agentPhase === "running" && agentRunId) {
+      const cancelGeneration = runGenerationRef.current + 1;
+      runGenerationRef.current = cancelGeneration;
       try {
         await executeWorkflowCancel(agentRunId);
-        setAgentRollbackVisible(true);
+        if (runGenerationRef.current === cancelGeneration) {
+          setAgentRunId(null);
+          setAgentPhase("done");
+          setAgentStatusKey("agent.statusDone");
+          setAgentRollbackVisible(true);
+        }
+        runLaunchLockRef.current = false;
       } catch (error) {
         setToast({ type: "error", message: String(error) });
       }
@@ -111,6 +120,8 @@ export function useAgentSessionController(params: {
     if (runLaunchLockRef.current) {
       return;
     }
+    const launchGeneration = runGenerationRef.current + 1;
+    runGenerationRef.current = launchGeneration;
     runLaunchLockRef.current = true;
     try {
       const rawPrompt = (promptOverride ?? agentPrompt).trim();
@@ -140,7 +151,9 @@ export function useAgentSessionController(params: {
       setAgentRollbackVisible(false);
       await runTaskAgent(rawPrompt, options);
     } finally {
-      runLaunchLockRef.current = false;
+      if (runGenerationRef.current === launchGeneration) {
+        runLaunchLockRef.current = false;
+      }
     }
   }, [
     activeProjectId,
@@ -150,7 +163,10 @@ export function useAgentSessionController(params: {
     agentRunId,
     runTaskAgent,
     setAgentMessages,
+    setAgentPhase,
     setAgentPrompt,
+    setAgentRunId,
+    setAgentStatusKey,
     setToast,
     suspended,
     t,
