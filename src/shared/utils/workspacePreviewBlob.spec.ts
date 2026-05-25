@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileBinary } from "../api/workspace";
 import {
   buildWorkspacePreviewBlobUrl,
+  buildWorkspacePreviewBinarySource,
+  createWorkspacePreviewDocumentData,
   revokeObjectUrl,
 } from "./workspacePreviewBlob";
 
@@ -75,6 +77,28 @@ describe("workspacePreviewBlob", () => {
     expect(await buildWorkspacePreviewBlobUrl("project-1", null)).toBeNull();
     expect(readFileBinaryMock).not.toHaveBeenCalled();
     expect(createObjectUrlSpy).not.toHaveBeenCalled();
+  });
+
+  it("creates fresh pdf document data for each pdfjs worker consumer", async () => {
+    readFileBinaryMock.mockResolvedValue({
+      relativePath: ".latotex/papers/demo.pdf",
+      bytes: [0x25, 0x50, 0x44, 0x46],
+    });
+    createObjectUrlSpy.mockReturnValue("blob:workspace-preview");
+
+    const source = await buildWorkspacePreviewBinarySource("project-1", ".latotex/papers/demo.pdf");
+    if (!source) {
+      throw new Error("expected binary source");
+    }
+
+    const first = createWorkspacePreviewDocumentData(source);
+    const second = createWorkspacePreviewDocumentData(source);
+
+    expect(first.data).not.toBe(source.bytes);
+    expect(second.data).not.toBe(source.bytes);
+    expect(first.data).not.toBe(second.data);
+    expect(Array.from(first.data)).toEqual([0x25, 0x50, 0x44, 0x46]);
+    expect(Array.from(second.data)).toEqual([0x25, 0x50, 0x44, 0x46]);
   });
 
   it("revokes only blob urls", () => {

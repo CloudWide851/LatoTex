@@ -11,15 +11,13 @@ type TranslationFn = (key: any) => string;
 
 function resolveActiveBackgroundPath(settings: AppSettings | null): string {
   const preferred = String(settings?.uiPrefs?.backgroundImagePath ?? "").trim();
-  if (preferred) {
-    return preferred;
-  }
   const fromList = Array.isArray(settings?.uiPrefs?.backgroundImagePaths)
     ? settings?.uiPrefs?.backgroundImagePaths ?? []
     : [];
-  return fromList
+  const normalized = fromList
     .map((item) => String(item ?? "").trim())
-    .find((item) => item.length > 0) ?? "";
+    .filter((item) => item.length > 0);
+  return preferred && normalized.includes(preferred) ? preferred : "";
 }
 
 export function ChannelsSettingsSection(props: {

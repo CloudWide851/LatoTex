@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { pdfjs } from "react-pdf";
 import { ensureReactPdfWorker } from "../pdf/reactPdfSetup";
-import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
+import {
+  createWorkspacePreviewDocumentData,
+  type WorkspacePreviewBinarySource,
+} from "../../../shared/utils/workspacePreviewBlob";
 
 export type PaperPreview = {
   title?: string | null;
@@ -62,7 +65,9 @@ export async function buildPdfJsPaperPreview(
   fallbackTitle?: string | null,
 ): Promise<PaperPreview> {
   ensureReactPdfWorker();
-  const loadingTask = pdfjs.getDocument(typeof pdfInput === "string" ? pdfInput : pdfInput.documentData);
+  const loadingTask = pdfjs.getDocument(
+    typeof pdfInput === "string" ? pdfInput : createWorkspacePreviewDocumentData(pdfInput),
+  );
   const document = await withTimeout(loadingTask.promise, PDF_PREVIEW_TIMEOUT_MS);
   let combinedText = "";
   try {

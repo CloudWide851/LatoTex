@@ -23,8 +23,11 @@ export type WorkspacePreviewBinarySource = {
   relativePath: string;
   objectUrl: string;
   bytes: Uint8Array;
-  documentData: { data: Uint8Array };
 };
+
+export function createWorkspacePreviewDocumentData(source: WorkspacePreviewBinarySource): { data: Uint8Array } {
+  return { data: new Uint8Array(source.bytes) };
+}
 
 export async function buildWorkspacePreviewBinarySource(
   projectId: string | null,
@@ -40,7 +43,6 @@ export async function buildWorkspacePreviewBinarySource(
     relativePath: file.relativePath,
     objectUrl: URL.createObjectURL(blob),
     bytes,
-    documentData: { data: bytes },
   };
 }
 

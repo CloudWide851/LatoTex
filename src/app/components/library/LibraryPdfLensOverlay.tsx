@@ -1,6 +1,9 @@
 import type { MutableRefObject } from "react";
 import { Document, Page } from "react-pdf";
-import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
+import {
+  createWorkspacePreviewDocumentData,
+  type WorkspacePreviewBinarySource,
+} from "../../../shared/utils/workspacePreviewBlob";
 
 type LibraryPdfLensOverlayProps = {
   active: boolean;
@@ -32,6 +35,7 @@ export function LibraryPdfLensOverlay(props: LibraryPdfLensOverlayProps) {
   if (!active) {
     return null;
   }
+  const documentFile = pdfSource ? createWorkspacePreviewDocumentData(pdfSource) : pdfUrl;
 
   return (
     <div
@@ -61,7 +65,7 @@ export function LibraryPdfLensOverlay(props: LibraryPdfLensOverlayProps) {
           transform: "translate3d(0, 0, 0)",
         }}
       >
-        <Document key={`lens-${pdfUrl}`} file={pdfSource?.documentData ?? pdfUrl} loading={null} error={null}>
+        <Document key={`lens-${pdfUrl}`} file={documentFile} loading={null} error={null}>
           <Page
             pageNumber={Math.max(1, Math.min(documentPages, lensPage))}
             width={lensPageWidth}

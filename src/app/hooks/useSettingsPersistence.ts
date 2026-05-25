@@ -86,7 +86,9 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
         ),
       );
       const preferredBackgroundPath = String(nextSettings.uiPrefs?.backgroundImagePath ?? "").trim();
-      const normalizedBackgroundPath = preferredBackgroundPath || normalizedBackgroundPaths[0] || "";
+      const normalizedBackgroundPath = preferredBackgroundPath && normalizedBackgroundPaths.includes(preferredBackgroundPath)
+        ? preferredBackgroundPath
+        : "";
       const rawBackgroundBlur = Number(nextSettings.uiPrefs?.backgroundBlurPx ?? 18);
       const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
         ? Math.max(4, Math.min(32, rawBackgroundBlur))

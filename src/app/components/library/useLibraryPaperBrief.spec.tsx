@@ -64,7 +64,6 @@ function createPdfSource(relativePath = ".latotex/papers/demo.pdf"): WorkspacePr
     relativePath,
     objectUrl: "blob:hidden-pdf",
     bytes,
-    documentData: { data: bytes },
   };
 }
 

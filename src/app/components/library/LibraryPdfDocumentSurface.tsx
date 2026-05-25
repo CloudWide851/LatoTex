@@ -1,6 +1,9 @@
 import type { HTMLAttributes, MutableRefObject } from "react";
 import { Document } from "react-pdf";
-import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
+import {
+  createWorkspacePreviewDocumentData,
+  type WorkspacePreviewBinarySource,
+} from "../../../shared/utils/workspacePreviewBlob";
 import type { AnnotationStroke, AnnotationTextBox, AnnotationTextStylePreset } from "./annotationModel";
 import { LibraryPdfLensOverlay } from "./LibraryPdfLensOverlay";
 import { LibraryPdfScrollViewerPage } from "./LibraryPdfScrollViewerPage";
@@ -87,6 +90,7 @@ export function LibraryPdfDocumentSurface(props: {
     onTextBoxesChange,
     t,
   } = props;
+  const documentFile = pdfSource ? createWorkspacePreviewDocumentData(pdfSource) : pdfUrl;
 
   if (documentLoadError) {
     return (
@@ -102,7 +106,7 @@ export function LibraryPdfDocumentSurface(props: {
     <div ref={scrollRef} {...rootProps}>
       <Document
         key={pdfUrl}
-        file={pdfSource?.documentData ?? pdfUrl}
+        file={documentFile}
         loading={<div className="py-6 text-center text-xs text-slate-500">{t("library.viewer.loading")}</div>}
         onLoadSuccess={({ numPages }) => onDocumentLoadSuccess(numPages)}
         onLoadError={onDocumentLoadError}

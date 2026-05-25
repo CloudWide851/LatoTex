@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { usePdfPaperPreview } from "./usePdfPaperPreview";
+import type { WorkspacePreviewBinarySource } from "../../../shared/utils/workspacePreviewBlob";
 
 const mocks = vi.hoisted(() => ({
   getDocument: vi.fn(),
@@ -21,12 +22,20 @@ vi.mock("../pdf/reactPdfSetup", () => ({
   ensureReactPdfWorker: mocks.ensureReactPdfWorker,
 }));
 
-function HookProbe(props: { pdfUrl: string | null; fallbackTitle?: string | null }) {
+function HookProbe(props: {
+  pdfUrl: string | null;
+  pdfSource?: WorkspacePreviewBinarySource | null;
+  fallbackTitle?: string | null;
+}) {
   const state = usePdfPaperPreview(props);
   return <pre data-testid="hook-state">{JSON.stringify(state)}</pre>;
 }
 
-async function renderProbe(props: { pdfUrl: string | null; fallbackTitle?: string | null }) {
+async function renderProbe(props: {
+  pdfUrl: string | null;
+  pdfSource?: WorkspacePreviewBinarySource | null;
+  fallbackTitle?: string | null;
+}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -125,6 +134,49 @@ describe("usePdfPaperPreview", () => {
       loading: false,
       paperPreview: null,
       error: "Error: pdf failed",
+    });
+
+    await unmountProbe(view.root, view.container);
+  });
+
+  it("clones source bytes before passing them to pdfjs", async () => {
+    const sourceBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+    const destroyMock = vi.fn().mockResolvedValue(undefined);
+    mocks.getDocument.mockReturnValue({
+      promise: Promise.resolve({
+        numPages: 1,
+        getPage: vi.fn(async () => ({
+          getTextContent: vi.fn(async () => ({
+            items: [{ str: "Abstract Cloned preview text is readable." }],
+          })),
+        })),
+      }),
+      destroy: destroyMock,
+    });
+
+    const view = await renderProbe({
+      pdfUrl: "blob:demo-paper",
+      pdfSource: {
+        relativePath: ".latotex/papers/demo.pdf",
+        objectUrl: "blob:demo-paper",
+        bytes: sourceBytes,
+      },
+      fallbackTitle: "Demo Paper",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const input = mocks.getDocument.mock.calls[0]?.[0] as { data?: Uint8Array };
+    expect(input.data).toBeInstanceOf(Uint8Array);
+    expect(input.data).not.toBe(sourceBytes);
+    expect(Array.from(input.data ?? [])).toEqual([0x25, 0x50, 0x44, 0x46]);
+    expect(readProbeState(view.container)).toMatchObject({
+      loading: false,
+      error: null,
     });
 
     await unmountProbe(view.root, view.container);

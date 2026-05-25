@@ -250,7 +250,9 @@ export function AppContainerView(props: any) {
     ),
   );
   const selectedBackgroundPath = String(settings?.uiPrefs?.backgroundImagePath ?? "").trim();
-  const backgroundPath = selectedBackgroundPath || normalizedBackgroundPaths[0] || "";
+  const backgroundPath = selectedBackgroundPath && normalizedBackgroundPaths.includes(selectedBackgroundPath)
+    ? selectedBackgroundPath
+    : "";
   const backgroundUrl = useBackgroundImageObjectUrl(backgroundPath);
   const rawBlur = Number(settings?.uiPrefs?.backgroundBlurPx ?? 18);
   const backgroundBlurPx = Number.isFinite(rawBlur) ? Math.max(4, Math.min(32, rawBlur)) : 18;

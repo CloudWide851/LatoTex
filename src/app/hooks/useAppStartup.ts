@@ -29,7 +29,9 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
   if (legacyBackground && !backgroundList.includes(legacyBackground)) {
     backgroundList.unshift(legacyBackground);
   }
-  const activeBackgroundPath = legacyBackground || backgroundList[0] || "";
+  const activeBackgroundPath = legacyBackground && backgroundList.includes(legacyBackground)
+    ? legacyBackground
+    : "";
   const rawBackgroundBlur = Number(appSettings.uiPrefs?.backgroundBlurPx ?? 18);
   const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
     ? Math.max(4, Math.min(32, rawBackgroundBlur))
