@@ -28,7 +28,6 @@ import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
 import { PluginMarketplace } from "./plugins/PluginMarketplace";
 import { DocxWorkspace } from "./docx/DocxWorkspace";
 import { LatexWorkspaceModeShell } from "./workspace/LatexWorkspaceModeShell";
-import { isDocxPath } from "../../shared/utils/fileKind";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -76,7 +75,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     events,
     explorerGitDecorations,
     shellMin,
-    settings,
     settingsPanel,
     gitPanel,
     analysisPanel,
@@ -162,7 +160,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [latexMode, setLatexMode] = useState<"tex" | "docx">("tex");
-  const selectedIsDocx = isDocxPath(selectedFile);
 
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
 
@@ -179,10 +176,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedFileContent: editorContent,
     }));
   }, [activeProjectId, completionModelId, editorContent, fileList, selectedFile]);
-
-  useEffect(() => {
-    setLatexMode(selectedIsDocx ? "docx" : "tex");
-  }, [selectedIsDocx]);
 
   useEffect(() => {
     if (!compileErrorLine) {
@@ -222,7 +215,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     selectedIsExcel,
     selectedIsImage,
     selectedIsMarkdown,
-    selectedIsHtml,
     selectedIsSvg,
     selectedIsCsv,
     selectedIsTabular,
@@ -347,7 +339,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedFile={previewSelectedPath}
       selectedIsCsv={selectedIsCsv}
       selectedIsMarkdown={selectedIsMarkdown}
-      selectedIsHtml={selectedIsHtml}
       selectedIsImage={selectedIsImage}
       selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}
@@ -385,7 +376,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             selectedPath={selectedFile}
             onSelectPath={onSelectFile}
             onRunFsAction={onRunFsAction}
-            onOpenPlugins={() => onPageChange("plugins")}
             t={t}
           />
         </Suspense>
@@ -401,7 +391,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return settingsPanel;
     }
     if (page === "plugins") {
-      return <PluginMarketplace settings={settings} t={t} />;
+      return <PluginMarketplace t={t} />;
     }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
@@ -504,10 +494,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         docxWorkspace={
             <DocxWorkspace
               projectId={activeProjectId}
-              selectedPath={selectedIsDocx ? selectedFile : null}
-              busy={busy}
               tree={tree}
-              autoSaveEnabled={settings?.uiPrefs?.docxAutoSaveEnabled ?? false}
+              busy={busy}
               onRescan={onWorkspaceRescan}
               t={t}
             />

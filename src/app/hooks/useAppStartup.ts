@@ -36,27 +36,6 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
   const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
     ? Math.max(4, Math.min(32, rawBackgroundBlur))
     : 18;
-  const backgroundCropByPath = Object.fromEntries(
-    Object.entries(appSettings.uiPrefs?.backgroundCropByPath ?? {})
-      .map(([path, rect]) => {
-        const key = String(path ?? "").trim();
-        const x = Math.max(0, Math.min(1, Number(rect?.x ?? 0)));
-        const y = Math.max(0, Math.min(1, Number(rect?.y ?? 0)));
-        const width = Math.max(0.05, Math.min(1 - x, Number(rect?.width ?? 1)));
-        const height = Math.max(0.05, Math.min(1 - y, Number(rect?.height ?? 1)));
-        return [key, { x, y, width, height }];
-      })
-      .filter(([path]) => String(path).length > 0 && backgroundList.includes(String(path))),
-  );
-  const editorBackgroundColor = String(appSettings.uiPrefs?.editorBackgroundColor ?? "").trim();
-  const pluginCatalogSources = (appSettings.uiPrefs?.pluginCatalogSources ?? [])
-    .map((source, index) => ({
-      id: String(source.id || `catalog-${index + 1}`).trim(),
-      name: String(source.name || source.id || `Catalog ${index + 1}`).trim(),
-      url: String(source.url ?? "").trim(),
-      enabled: source.enabled ?? true,
-    }))
-    .filter((source) => source.id.length > 0 && source.url.length > 0);
   return {
     ...appSettings,
     agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
@@ -91,16 +70,12 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
         mcpServerModes: appSettings.uiPrefs?.agentPermissionPrefs?.mcpServerModes ?? {},
         pluginModes: appSettings.uiPrefs?.agentPermissionPrefs?.pluginModes ?? {},
       },
-      pluginCatalogSources,
-      docxAutoSaveEnabled: appSettings.uiPrefs?.docxAutoSaveEnabled ?? false,
       mcpServers: appSettings.uiPrefs?.mcpServers ?? [],
       enabledSkills: appSettings.uiPrefs?.enabledSkills ?? [],
       hiddenSkills: appSettings.uiPrefs?.hiddenSkills ?? [],
       backgroundImagePath: activeBackgroundPath,
       backgroundImagePaths: backgroundList,
       backgroundBlurPx: normalizedBackgroundBlur,
-      backgroundCropByPath,
-      editorBackgroundColor: /^#[0-9a-f]{6}$/i.test(editorBackgroundColor) ? editorBackgroundColor : "",
       accentColor: appSettings.uiPrefs?.accentColor ?? "emerald",
       accentCustomColor: appSettings.uiPrefs?.accentCustomColor ?? "",
       scrollbarWidthPx: appSettings.uiPrefs?.scrollbarWidthPx ?? 14,

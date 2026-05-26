@@ -1,4 +1,6 @@
-export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "settings";
+import type { CodeLanguageInfo } from "../utils/codeLanguage";
+
+export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings";
 
 export type EditorTab = {
   id: string;
@@ -6,6 +8,8 @@ export type EditorTab = {
   title: string;
   pinned: boolean;
   preview: boolean;
+  language: CodeLanguageInfo;
+  languageTag: string;
   lastAccessed: number;
 };
 
@@ -39,6 +43,7 @@ export type ResourceNode = {
   name: string;
   relativePath: string;
   kind: "file" | "directory";
+  directoryRole?: "pythonVenv";
   children: ResourceNode[];
 };
 
@@ -63,6 +68,33 @@ export type WorkspaceExportPdfResponse = {
   fileName: string;
 };
 
+export type WorkspaceExportAssetResponse = {
+  savedPath: string;
+  fileName: string;
+};
+
+export type TerminalStartResponse = {
+  sessionId: string;
+  cwd: string;
+  shell: string;
+  venvPath?: string | null;
+  envSource?: string | null;
+  status: string;
+};
+
+export type TerminalOutputChunk = {
+  seq: number;
+  stream: "stdout" | "stderr" | string;
+  text: string;
+};
+
+export type TerminalReadResponse = {
+  cursor: number;
+  chunks: TerminalOutputChunk[];
+  exitCode?: number | null;
+  status: "running" | "exited" | string;
+};
+
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;
@@ -82,6 +114,9 @@ export type ShareSessionInfo = {
   status?: "starting" | "ready" | "failed" | "stopping" | string | null;
   pdfState?: "empty" | "ready" | "uploading" | "error" | string | null;
   pdfUpdatedAt?: string | null;
+  syncSeq?: number | null;
+  syncEventCount?: number | null;
+  lastSyncAt?: string | null;
   tunnelState?: "pending" | "ready" | "failed" | string | null;
   tunnelError?: string | null;
   participants?: ShareParticipantInfo[];
@@ -127,6 +162,12 @@ export type EventBatch = {
 export type AgentExecuteStartAccepted = {
   runId: string;
   status: string;
+};
+
+export type AgentTeamMode = "auto" | "force" | "off";
+
+export type AgentRunsRecoverResponse = {
+  recoveredRunIds: string[];
 };
 
 export type AgentModelBinding = {
@@ -205,9 +246,10 @@ export type AppSettings = {
     skipDeleteConfirm?: boolean;
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";
-    busytexCachePolicy?: "install-first" | "appdata-only";
-    busytexCacheDir?: string;
+    themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
     previewDefaultZoom?: number;
+    paperBriefEngine?: "auto" | "pdfjs" | "python";
+    terminalShell?: "powershell" | "cmd" | "system";
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: FeatureModelBindings;
     channels?: ChannelPrefs;
@@ -216,12 +258,134 @@ export type AppSettings = {
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
+    interfaceDensity?: "compact" | "comfortable" | "spacious";
+    accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
+    accentCustomColor?: string;
+    scrollbarColorMode?: "accent" | "custom";
+    scrollbarWidthPx?: number;
+    scrollbarThumbColor?: string;
+    scrollbarTrackColor?: string;
+    glassOpacity?: number;
+    glassBlurPx?: number;
+    motionLevel?: "full" | "reduced" | "none";
+    fontScale?: number;
+    pdfPageGapPx?: number;
+    logFontSizePx?: number;
+    panelRadiusPx?: number;
+    panelBorderContrast?: "soft" | "normal" | "strong";
+    memoryGuardPrefs?: MemoryGuardPrefs;
+    analysisEnvRootsByProject?: Record<string, string>;
+    librarySelectedPathByProject?: Record<string, string>;
+    libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
+    workspaceExplorerDefaultExpanded?: boolean;
+    libraryExplorerDefaultExpanded?: boolean;
+    workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
+    libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
+    sidebarPageOrder?: WorkspacePage[];
+    agentToolPrefs?: AgentToolPrefs;
+    agentPermissionPrefs?: AgentPermissionPrefs;
+    agentTeamPrefs?: AgentTeamPrefs;
+    mcpServers?: McpServerConfig[];
+    enabledSkills?: string[];
+    hiddenSkills?: string[];
   };
+};
+
+export type AgentTeamRolePrefs = {
+  id: string;
+  name: string;
+  description?: string;
+  identityPrompt?: string;
+  modelId?: string;
+  phase?: "plan" | "research" | "edit" | "review" | "final";
+  canWrite?: boolean;
+  toolAccess?: string[];
+  mcpServerIds?: string[];
+  skillIds?: string[];
+  color?: string;
+  enabled?: boolean;
+};
+
+export type AgentTeamConfig = {
+  id: string;
+  name: string;
+  enabled?: boolean;
+  callsites?: string[];
+  parallelism?: number;
+  requirePlanApproval?: boolean;
+  roles?: AgentTeamRolePrefs[];
+};
+
+export type AgentTeamPrefs = {
+  enabled?: boolean;
+  defaultTeamId?: string;
+  teams?: AgentTeamConfig[];
+};
+
+export type AgentToolPrefs = {
+  webSearchEnabled?: boolean;
+  workspaceReadEnabled?: boolean;
+  pythonEnabled?: boolean;
+  mcpEnabled?: boolean;
+  writeRequiresConfirmation?: boolean;
+};
+
+export type PermissionMode = "allow" | "ask" | "deny";
+
+export type AgentPermissionPrefs = {
+  webSearch?: PermissionMode;
+  workspaceRead?: PermissionMode;
+  python?: PermissionMode;
+  mcp?: PermissionMode;
+  skills?: PermissionMode;
+  pluginCommands?: PermissionMode;
+  nonLatexWrites?: PermissionMode;
+  mcpServerModes?: Record<string, PermissionMode>;
+  pluginModes?: Record<string, PermissionMode>;
+};
+
+export type MemoryGuardPrefs = {
+  enabled?: boolean;
+  highWatermarkMb?: number;
+  criticalWatermarkMb?: number;
+  sampleIntervalSec?: number;
+  criticalAction?: "release" | "sleep";
+};
+
+export type McpServerConfig = {
+  id: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  enabled?: boolean;
+};
+
+export type McpValidationResult = {
+  ok: boolean;
+  message: string;
+  tools: string[];
+};
+
+export type SkillValidationResult = {
+  ok: boolean;
+  skillId: string;
+  message: string;
+  source: "builtIn" | "configured" | "custom" | string;
+  manifestPath?: string | null;
+  details?: string[];
+};
+
+export type TelegramTestInput = {
+  token: string;
+  chatId: string;
+  text: string;
 };
 
 export type FeatureModelBindings = {
   latexAgentModelId?: string;
   analysisAgentModelId?: string;
+  gitSummaryModelId?: string;
+  chatAgentModelId?: string;
   translationModelId?: string;
   completionModelId?: string;
 };
@@ -254,8 +418,10 @@ export type TelegramPollResult = {
 export type PanelLayoutPrefs = {
   shell?: number[];
   latex?: number[];
+  latexTerminal?: number[];
   analysis?: number[];
   library?: number[];
+  libraryBib?: number[];
   git?: number[];
   settings?: number[];
 };
@@ -319,296 +485,5 @@ export type AppBackgroundImagePayload = {
   bytes: number[];
 };
 
-export type RuntimeLogReadFilters = {
-  limit?: number;
-  level?: string;
-  keyword?: string;
-  fromTime?: string;
-  toTime?: string;
-  logFileName?: string;
-};
-
-export type LibraryCitationSummary = {
-  sourcePath: string;
-  bibPath?: string | null;
-  citationKey?: string | null;
-  title?: string | null;
-  authors: string[];
-  publishedAt?: string | null;
-  doi?: string | null;
-  arxivId?: string | null;
-  source?: string | null;
-  urls: string[];
-};
-
-export type LibraryPdfPreview = {
-  relativePath?: string | null;
-  sourceUrl?: string | null;
-  cached: boolean;
-  translatedRelativePath?: string | null;
-};
-
-export type LibraryZoteroSyncResult = {
-  relativePath: string;
-  entryCount: number;
-  totalResults?: number | null;
-};
-
-export type LibraryTranslateStartResult = {
-  taskId: string;
-};
-
-export type LibraryTranslateStatus = {
-  taskId: string;
-  status: string;
-  currentPage: number;
-  totalPages: number;
-  message?: string | null;
-  error?: string | null;
-  result?: LibraryTranslateResult | null;
-};
-export type LibraryTranslateResult = {
-  relativePath: string;
-  sourceKind: string;
-  engine: string;
-  artifactPaths?: string[];
-  detectedLanguage?: string | null;
-  extractionEngine?: string | null;
-  refinedBySearch?: boolean;
-  glossaryCount?: number;
-  translatedPdfRelativePath: string;
-  sourcePdfRelativePath: string;
-};
-
-export type CompileRecord = {
-  id: string;
-  projectId: string;
-  mainFile: string;
-  status: string;
-  diagnostics: string[];
-  durationMs: number;
-  createdAt: string;
-};
-
-export type ReferenceEvidence = {
-  title: string;
-  url: string;
-  snippet: string;
-};
-
-export type ReferenceCheckItem = {
-  query: string;
-  ok: boolean;
-  message: string;
-  results: ReferenceEvidence[];
-};
-
-export type ReferenceCheckResponse = {
-  items: ReferenceCheckItem[];
-};
-
-export type AnalysisAssetInput = {
-  fileName: string;
-  dataUrl: string;
-};
-
-export type AnalysisSaveReportResponse = {
-  runId: string;
-  runDir: string;
-  reportRelativePath: string;
-  assetRelativePaths: string[];
-};
-
-export type AnalysisReportItem = {
-  runId: string;
-  reportRelativePath: string;
-  assetRelativePaths: string[];
-  updatedAtUnixMs: number;
-};
-
-export type AnalysisListReportsResponse = {
-  reports: AnalysisReportItem[];
-};
-
-export type AnalysisExportArtifactResponse = {
-  savedPath: string;
-};
-
-export type ModelProtocolInput = {
-  id: string;
-  displayName: string;
-  baseUrl: string;
-  apiKey?: string;
-};
-
-export type ModelCatalogItemInput = {
-  id: string;
-  protocolId: string;
-  displayName: string;
-  requestName: string;
-  capabilities?: {
-    apiMode?: string;
-    reasoningMode?: string;
-    autoRepair?: boolean;
-  };
-};
-
-export type FsScope = "workspace" | "library";
-export type FsAction = "create_file" | "create_folder" | "rename" | "copy" | "move" | "delete";
-
-export type FsOperationInput = {
-  projectId: string;
-  scope: FsScope;
-  action: FsAction;
-  path: string;
-  targetPath?: string;
-  content?: string;
-};
-
-export type FsOperationResult = {
-  ok: boolean;
-  message: string;
-};
-
-export type ProjectSearchHit = {
-  relativePath: string;
-  lineNumber: number;
-  snippet: string;
-};
-
-export type ProjectIntegrityStatus = {
-  projectId: string;
-  missingRequired: string[];
-};
-
-export type GitStatusEntry = {
-  path: string;
-  indexStatus: string;
-  worktreeStatus: string;
-  addedLines: number;
-  removedLines: number;
-  ignored: boolean;
-};
-
-export type GitStatus = {
-  isRepo: boolean;
-  branch: string;
-  upstream?: string;
-  ahead: number;
-  behind: number;
-  changes: GitStatusEntry[];
-};
-
-export type GitBranchInfo = {
-  name: string;
-  current: boolean;
-};
-
-export type GitCommitInfo = {
-  hash: string;
-  shortHash: string;
-  author: string;
-  date: string;
-  subject: string;
-};
-
-export type GitCommitFileEntry = {
-  path: string;
-  status: string;
-  addedLines: number;
-  removedLines: number;
-};
-
-export type GitAvailability = {
-  installed: boolean;
-  version?: string;
-};
-
-export type GitDownloadStart = {
-  taskId: string;
-  fileName: string;
-  downloadUrl: string;
-};
-
-export type GitDownloadStatus = {
-  taskId: string;
-  status: string;
-  fileName: string;
-  downloadedBytes: number;
-  totalBytes: number;
-  speedBps: number;
-  progressPercent: number;
-  installerPath: string;
-  error?: string;
-};
-
-export type GitDiffLine = {
-  kind: "added" | "removed" | "context" | "meta";
-  oldLine?: number;
-  newLine?: number;
-  text: string;
-};
-
-export type GitDiffHunk = {
-  header: string;
-  lines: GitDiffLine[];
-};
-
-export type GitDiffResponse = {
-  path: string;
-  staged: boolean;
-  addedLines: number;
-  removedLines: number;
-  hunks: GitDiffHunk[];
-};
-
-export type AnalysisPyodideCacheInfo = {
-  policy: string;
-  requestedDir: string;
-  actualDir: string;
-  installDirWritable: boolean;
-  usingFallback: boolean;
-};
-
-export type BusyTexCacheInfo = {
-  policy: string;
-  requestedDir: string;
-  actualDir: string;
-  installDirWritable: boolean;
-  usingFallback: boolean;
-};
-
-export type BusyTexInstalledOverlayFile = {
-  path: string;
-  content: string;
-};
-
-export type BusyTexInstallPackageResult = {
-  styleFile: string;
-  packageName: string;
-  installed: boolean;
-  fromCache: boolean;
-  sourceUrl: string | null;
-  cacheDir: string;
-  overlayFiles: BusyTexInstalledOverlayFile[];
-};
-
-export type DrawioCacheInfo = {
-  policy: string;
-  requestedDir: string;
-  actualDir: string;
-  installDirWritable: boolean;
-  usingFallback: boolean;
-};
-
-export type Ack = {
-  ok: boolean;
-  message: string;
-};
-
-export type GitInitProgress = {
-  phase: "idle" | "checking" | "initializing" | "refreshing" | "done" | "error";
-  message: string;
-};
-
+export * from "./app-extended";
 

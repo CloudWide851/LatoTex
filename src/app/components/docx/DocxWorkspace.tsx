@@ -1,67 +1,68 @@
-import { FileText, Image, Minus, Plus, RefreshCw, Save, ZoomIn } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bold,
+  FileText,
+  Heading1,
+  Heading2,
+  Italic,
+  List,
+  ListOrdered,
+  RefreshCw,
+  Save,
+  Underline,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import { readDocx, writeDocx } from "../../../shared/api/docx";
 import type { ResourceNode } from "../../../shared/types/app";
-import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
-import { DocxRibbonPopup, type RibbonTab } from "./DocxRibbonPopup";
-import {
-  countMatches,
-  countWords,
-  currentResourceQuery,
-  execFormat,
-  flattenResources,
-  mapDocxStatus,
-  replaceResourceTriggerWithHtml,
-  sanitizeDocxHtml,
-  stripHtml,
-  type ResourceSuggestion,
-  type TranslationFn,
-} from "./docxUtils";
+import { ExplorerTree } from "../ExplorerTree";
 
-type MarkState = {
-  bold: boolean;
-  italic: boolean;
-  underline: boolean;
-  strikeThrough: boolean;
-  subscript: boolean;
-  superscript: boolean;
-};
+type TranslationFn = (key: any) => string;
 
-const DEFAULT_MARKS: MarkState = {
-  bold: false,
-  italic: false,
-  underline: false,
-  strikeThrough: false,
-  subscript: false,
-  superscript: false,
-};
-
-const RIBBON_TABS: RibbonTab[] = ["file", "text", "paragraph", "insert", "find"];
-
-function storageKey(projectId: string, selectedPath: string | null) {
-  return `latotex.docx.zoom.${projectId}.${selectedPath ?? "-"}`;
+function filterDocxNodes(nodes: ResourceNode[]): ResourceNode[] {
+  const walk = (node: ResourceNode): ResourceNode | null => {
+    if (node.kind === "file") {
+      return /\.docx$/i.test(node.relativePath) ? node : null;
+    }
+    const children = node.children
+      .map((child) => walk(child))
+      .filter((child): child is ResourceNode => Boolean(child));
+    return children.length > 0 ? { ...node, children } : null;
+  };
+  return nodes.map((node) => walk(node)).filter((node): node is ResourceNode => Boolean(node));
 }
 
-function clampZoom(value: number) {
-  return Math.max(0.5, Math.min(2.2, Number(value.toFixed(2))));
+function collectDocxPaths(nodes: ResourceNode[]): string[] {
+  const out: string[] = [];
+  const walk = (items: ResourceNode[]) => {
+    for (const item of items) {
+      if (item.kind === "file" && /\.docx$/i.test(item.relativePath)) {
+        out.push(item.relativePath);
+      } else if (item.kind === "directory") {
+        walk(item.children);
+      }
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+function execFormat(command: string, value?: string) {
+  document.execCommand(command, false, value);
 }
 
 export function DocxWorkspace(props: {
   projectId: string;
-  selectedPath: string | null;
+  tree: ResourceNode[];
   busy: boolean;
-  tree?: ResourceNode[];
-  autoSaveEnabled?: boolean;
   onRescan: () => void | Promise<void>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, busy, tree = [], autoSaveEnabled = false, onRescan, t } = props;
+  const { projectId, tree, busy, onRescan, t } = props;
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const syncTimerRef = useRef<number | null>(null);
-  const autoSaveTimerRef = useRef<number | null>(null);
-  const chromeRef = useRef<HTMLDivElement | null>(null);
+  const filteredTree = useMemo(() => filterDocxNodes(tree), [tree]);
+  const docxPaths = useMemo(() => collectDocxPaths(filteredTree), [filteredTree]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [html, setHtml] = useState("<p><br></p>");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -69,60 +70,36 @@ export function DocxWorkspace(props: {
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  const [findText, setFindText] = useState("");
-  const [replaceText, setReplaceText] = useState("");
-  const [fontFamily, setFontFamily] = useState("Microsoft YaHei");
-  const [fontSize, setFontSize] = useState("3");
-  const [fontColor, setFontColor] = useState("#0f172a");
-  const [highlightColor, setHighlightColor] = useState("#fef3c7");
-  const [activeMarks, setActiveMarks] = useState<MarkState>(DEFAULT_MARKS);
-  const [activeRibbonTab, setActiveRibbonTab] = useState<RibbonTab | null>(null);
-  const [resourceQuery, setResourceQuery] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
-  const resources = useMemo(() => flattenResources(tree), [tree]);
 
   useEffect(() => {
-    if (!selectedPath) {
-      setZoom(1);
+    if (selectedPath && docxPaths.includes(selectedPath)) {
       return;
     }
-    const stored = Number(window.localStorage.getItem(storageKey(projectId, selectedPath)) ?? 1);
-    setZoom(clampZoom(Number.isFinite(stored) ? stored : 1));
-  }, [projectId, selectedPath]);
-
-  useEffect(() => {
-    if (selectedPath) {
-      window.localStorage.setItem(storageKey(projectId, selectedPath), String(zoom));
-    }
-  }, [projectId, selectedPath, zoom]);
+    setSelectedPath(docxPaths[0] ?? null);
+  }, [docxPaths, selectedPath]);
 
   useEffect(() => {
     if (!selectedPath) {
       setHtml("<p><br></p>");
       setWarnings([]);
       setDirty(false);
-      setStatus(null);
       return;
     }
     let disposed = false;
-    const loadPath = selectedPath;
     setLoading(true);
     setStatus(null);
-    setWarnings([]);
-    readDocx(projectId, loadPath)
+    readDocx(projectId, selectedPath)
       .then((result) => {
-        if (disposed || result.relativePath !== loadPath) {
+        if (disposed) {
           return;
         }
         setHtml(result.html || "<p><br></p>");
         setWarnings(result.warnings);
         setDirty(false);
-        setStatus(null);
       })
       .catch((error) => {
         if (!disposed) {
-          setStatus(mapDocxStatus(String(error), t));
-          setWarnings([]);
+          setStatus(String(error));
         }
       })
       .finally(() => {
@@ -133,340 +110,131 @@ export function DocxWorkspace(props: {
     return () => {
       disposed = true;
     };
-  }, [projectId, reloadToken, selectedPath, t]);
+  }, [projectId, reloadToken, selectedPath]);
 
-  useEffect(() => () => {
-    if (syncTimerRef.current !== null) {
-      window.clearTimeout(syncTimerRef.current);
-    }
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!chromeRef.current?.contains(event.target as Node)) {
-        setActiveRibbonTab(null);
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setActiveRibbonTab(null);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
-
-  const syncHtmlFromDom = useCallback(() => {
-    setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
+  const syncHtmlFromDom = () => {
+    setHtml(editorRef.current?.innerHTML || "<p><br></p>");
     setDirty(true);
-  }, []);
+  };
 
-  const syncHtmlFromDomDebounced = useCallback(() => {
-    setDirty(true);
-    if (syncTimerRef.current !== null) {
-      window.clearTimeout(syncTimerRef.current);
-    }
-    syncTimerRef.current = window.setTimeout(() => {
-      setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
-      syncTimerRef.current = null;
-    }, 180);
-  }, []);
-
-  const refreshActiveMarks = useCallback(() => {
-    setActiveMarks({
-      bold: document.queryCommandState("bold"),
-      italic: document.queryCommandState("italic"),
-      underline: document.queryCommandState("underline"),
-      strikeThrough: document.queryCommandState("strikeThrough"),
-      subscript: document.queryCommandState("subscript"),
-      superscript: document.queryCommandState("superscript"),
-    });
-  }, []);
-
-  const applyFormat = useCallback((command: string, value?: string) => {
+  const applyFormat = (command: string, value?: string) => {
     editorRef.current?.focus();
     execFormat(command, value);
     syncHtmlFromDom();
-    refreshActiveMarks();
-  }, [refreshActiveMarks, syncHtmlFromDom]);
+  };
 
-  const save = useCallback(async (options: { rescan?: boolean; auto?: boolean } = {}) => {
-    if (!selectedPath || saving) {
+  const save = async () => {
+    if (!selectedPath) {
       return;
     }
-    const nextHtml = sanitizeDocxHtml(editorRef.current?.innerHTML || html);
+    const nextHtml = editorRef.current?.innerHTML || html;
     setSaving(true);
     setStatus(null);
     try {
       await writeDocx(projectId, selectedPath, nextHtml);
       setHtml(nextHtml);
       setDirty(false);
-      setStatus(t(options.auto ? "docx.autoSaved" : "docx.saved"));
-      if (options.rescan ?? true) {
-        await onRescan();
-      }
+      setStatus(t("docx.saved"));
+      await onRescan();
     } catch (error) {
-      setStatus(mapDocxStatus(String(error), t));
+      setStatus(String(error));
     } finally {
       setSaving(false);
     }
-  }, [html, onRescan, projectId, saving, selectedPath, t]);
-
-  useEffect(() => {
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-    if (!autoSaveEnabled || !dirty || loading || saving || !selectedPath) {
-      return;
-    }
-    autoSaveTimerRef.current = window.setTimeout(() => {
-      void save({ auto: true, rescan: false });
-      autoSaveTimerRef.current = null;
-    }, 1200);
-  }, [autoSaveEnabled, dirty, loading, save, saving, selectedPath, html]);
-
-  const insertLink = () => {
-    const url = window.prompt(t("docx.linkPrompt"));
-    if (url) {
-      applyFormat("createLink", url);
-    }
   };
 
-  const insertTable = () => {
-    editorRef.current?.focus();
-    execFormat("insertHTML", `<table><tbody><tr><td>${t("docx.tableCell")}</td><td>${t("docx.tableCell")}</td></tr><tr><td>${t("docx.tableCell")}</td><td>${t("docx.tableCell")}</td></tr></tbody></table><p><br></p>`);
-    syncHtmlFromDom();
-  };
-
-  const insertPageBreak = () => {
-    editorRef.current?.focus();
-    execFormat("insertHTML", `<p data-docx-page-break="true"><br></p>`);
-    syncHtmlFromDom();
-  };
-
-  const insertResource = (resource: ResourceSuggestion) => {
-    editorRef.current?.focus();
-    const safeName = resource.name.replace(/[<>&"]/g, "");
-    const safePath = resource.path.replace(/"/g, "&quot;");
-    const htmlSnippet = resource.image
-      ? `<img data-docx-resource="${safePath}" src="${buildWorkspacePreviewUrl(projectId, resource.path)}" alt="${safeName}" /><p><br></p>`
-      : `<a href="#${safePath}" data-docx-resource="${safePath}">${safeName}</a>`;
-    if (!replaceResourceTriggerWithHtml(htmlSnippet)) {
-      execFormat("insertHTML", htmlSnippet);
-    }
-    setResourceQuery(null);
-    syncHtmlFromDom();
-  };
-
-  const updateResourceQuery = () => setResourceQuery(currentResourceQuery());
-
-  const replaceAll = () => {
-    if (!findText) {
-      return;
-    }
-    const current = editorRef.current?.innerHTML || html;
-    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const nextHtml = sanitizeDocxHtml(current.replace(new RegExp(escaped, "gi"), replaceText));
-    if (editorRef.current) {
-      editorRef.current.innerHTML = nextHtml;
-    }
-    setHtml(nextHtml);
-    setDirty(true);
-    setStatus(t("docx.replaceDone"));
-  };
-
-  const findNext = () => {
-    if (!findText || !editorRef.current) {
-      return;
-    }
-    editorRef.current.focus();
-    const findInPage = (window as Window & { find?: (...args: unknown[]) => boolean }).find;
-    const found = typeof findInPage === "function"
-      ? findInPage(findText, false, false, true, false, false, false)
-      : false;
-    setStatus(found ? t("docx.findFound") : t("docx.findNone"));
-  };
-
-  const handleWorkspaceKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (event.altKey) {
-      const index = Number(event.key) - 1;
-      if (index >= 0 && index < RIBBON_TABS.length) {
-        event.preventDefault();
-        setActiveRibbonTab(RIBBON_TABS[index]);
-        return;
-      }
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-      event.preventDefault();
-      setActiveRibbonTab("find");
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      void save();
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
-      event.preventDefault();
-      applyFormat("bold");
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "i") {
-      event.preventDefault();
-      applyFormat("italic");
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "u") {
-      event.preventDefault();
-      applyFormat("underline");
-    }
-  };
-
-  const findCount = useMemo(() => countMatches(stripHtml(html), findText), [findText, html]);
-  const wordCount = useMemo(() => countWords(html), [html]);
-  const ribbonDisabled = !selectedPath || loading || saving || busy;
-  const matchingResources = useMemo(() => {
-    if (resourceQuery === null) {
-      return [];
-    }
-    return resources
-      .filter((item) => !resourceQuery || item.name.toLowerCase().includes(resourceQuery))
-      .slice(0, 8);
-  }, [resourceQuery, resources]);
-
-  const zoomOut = () => setZoom((prev) => clampZoom(prev - 0.1));
-  const zoomIn = () => setZoom((prev) => clampZoom(prev + 0.1));
-  const resetZoom = () => setZoom(1);
+  const toolbar = [
+    { key: "bold", icon: Bold, command: "bold", label: t("docx.format.bold") },
+    { key: "italic", icon: Italic, command: "italic", label: t("docx.format.italic") },
+    { key: "underline", icon: Underline, command: "underline", label: t("docx.format.underline") },
+    { key: "h1", icon: Heading1, command: "formatBlock", value: "h1", label: t("docx.format.h1") },
+    { key: "h2", icon: Heading2, command: "formatBlock", value: "h2", label: t("docx.format.h2") },
+    { key: "bullet", icon: List, command: "insertUnorderedList", label: t("docx.format.bullet") },
+    { key: "numbered", icon: ListOrdered, command: "insertOrderedList", label: t("docx.format.numbered") },
+  ];
 
   return (
-    <section
-      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-paper-bg)] shadow-soft"
-      onKeyDown={handleWorkspaceKeyDown}
-    >
-      <header ref={chromeRef} className="relative z-30 border-b border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)]">
-        <div className="flex min-h-10 items-center justify-between gap-3 px-3 py-2">
+    <section className="grid h-full min-h-0 grid-cols-[minmax(160px,0.35fr)_minmax(0,1fr)] gap-px rounded-lg border border-slate-200 bg-slate-200 shadow-soft">
+      <aside className="min-h-0 bg-white p-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <FileText className="h-3.5 w-3.5" />
+            {t("docx.title")}
+          </h2>
+          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={busy} onClick={() => void onRescan()}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <ExplorerTree
+          tree={filteredTree}
+          selectedPath={selectedPath}
+          busy={busy}
+          onSelect={setSelectedPath}
+          defaultExpanded
+          t={t}
+        />
+      </aside>
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-[color:var(--editor-paper-bg)]">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-3 py-2">
           <div className="min-w-0">
-            <h2 className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-800">
-              <FileText className="h-4 w-4" />
+            <div className="truncate text-sm font-semibold text-slate-800">
               {selectedPath ?? t("docx.select")}
               {dirty ? " *" : ""}
-            </h2>
+            </div>
             {warnings.length > 0 ? (
-              <p className="truncate text-[11px] text-amber-700">{warnings.map((key) => t(key)).join(" ")}</p>
+              <div className="truncate text-[11px] text-amber-700">
+                {warnings.map((key) => t(key)).join(" ")}
+              </div>
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button size="icon" variant="secondary" className="h-8 w-8" disabled={ribbonDisabled} onClick={() => setReloadToken((prev) => prev + 1)} title={t("docx.reload")} aria-label={t("docx.reload")}>
-              <RefreshCw className="h-3.5 w-3.5" />
+          <div className="flex flex-wrap items-center gap-1">
+            {toolbar.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Button
+                  key={item.key}
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  title={item.label}
+                  aria-label={item.label}
+                  disabled={!selectedPath || loading}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => applyFormat(item.command, item.value)}
+                >
+                  <Icon className="h-4 w-4" />
+                </Button>
+              );
+            })}
+            <Button size="sm" variant="secondary" disabled={!selectedPath || loading} onClick={() => setReloadToken((prev) => prev + 1)}>
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              {t("docx.reload")}
             </Button>
-            <Button size="icon" className="h-8 w-8" disabled={ribbonDisabled} onClick={() => void save()} title={saving ? t("common.loading") : t("docx.save")} aria-label={saving ? t("common.loading") : t("docx.save")}>
-              <Save className="h-3.5 w-3.5" />
+            <Button size="sm" disabled={!selectedPath || loading || saving} onClick={() => void save()}>
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {saving ? t("common.loading") : t("docx.save")}
             </Button>
           </div>
-        </div>
-        <div className="border-t border-[color:var(--editor-widget-border)] px-3 py-2">
-          <div className="flex flex-wrap gap-1">
-            {RIBBON_TABS.map((tab, index) => (
-              <Button
-                key={tab}
-                size="sm"
-                variant={activeRibbonTab === tab ? "secondary" : "ghost"}
-                className="h-8"
-                title={`Alt+${index + 1}`}
-                onClick={() => setActiveRibbonTab((prev) => (prev === tab ? null : tab))}
-              >
-                {t(`docx.ribbon.${tab}`)}
-              </Button>
-            ))}
-          </div>
-          {activeRibbonTab ? (
-            <div className="absolute left-3 top-[calc(100%-2px)] z-40">
-              <DocxRibbonPopup
-                activeTab={activeRibbonTab}
-                disabled={ribbonDisabled}
-                activeMarks={activeMarks}
-                fontFamily={fontFamily}
-                fontSize={fontSize}
-                fontColor={fontColor}
-                highlightColor={highlightColor}
-                findText={findText}
-                replaceText={replaceText}
-                imageDisabled={resources.filter((item) => item.image).length === 0}
-                onFontFamilyChange={(value) => {
-                  setFontFamily(value);
-                  applyFormat("fontName", value);
-                }}
-                onFontSizeChange={(value) => {
-                  setFontSize(value);
-                  applyFormat("fontSize", value);
-                }}
-                onFontColorChange={(value) => {
-                  setFontColor(value);
-                  applyFormat("foreColor", value);
-                }}
-                onHighlightColorChange={(value) => {
-                  setHighlightColor(value);
-                  applyFormat("hiliteColor", value);
-                }}
-                onFindTextChange={setFindText}
-                onReplaceTextChange={setReplaceText}
-                onFormat={applyFormat}
-                onInsertLink={insertLink}
-                onInsertTable={insertTable}
-                onInsertPageBreak={insertPageBreak}
-                onInsertImage={() => setResourceQuery("")}
-                onFindNext={findNext}
-                onReplaceAll={replaceAll}
-                t={t}
-              />
+        </header>
+        <div className="min-h-0 overflow-auto p-4">
+          {!selectedPath ? (
+            <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-xs text-slate-500">
+              {docxPaths.length === 0 ? t("docx.empty") : t("docx.select")}
             </div>
-          ) : null}
-        </div>
-      </header>
-      <div
-        className="docx-page-wrap min-h-0 overflow-auto bg-[color:var(--editor-paper-bg)] px-3 py-4"
-        style={{ ["--docx-zoom" as string]: String(zoom) }}
-        onWheel={(event) => {
-          if (event.ctrlKey && selectedPath) {
-            event.preventDefault();
-            setZoom((prev) => clampZoom(prev + (event.deltaY < 0 ? 0.1 : -0.1)));
-          }
-        }}
-      >
-        {!selectedPath ? (
-          <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-white/70 text-xs text-slate-500">
-            {t("docx.select")}
-          </div>
-        ) : loading ? (
-          <div className="flex h-full items-center justify-center gap-2 text-xs text-slate-500">
-            <ZoomIn className="h-4 w-4 animate-pulse" />
-            {t("docx.loading")}
-          </div>
-        ) : (
-          <div className="docx-page-frame relative mx-auto">
-            <div className="mb-1 h-5 rounded-t border-x border-t border-slate-200 bg-[repeating-linear-gradient(90deg,#e2e8f0_0,#e2e8f0_1px,transparent_1px,transparent_48px)]" />
+          ) : loading ? (
+            <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("docx.loading")}</div>
+          ) : (
             <div
               key={selectedPath}
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning
               className={cn(
-                "docx-page-surface mx-auto w-full bg-white text-slate-900 shadow-[0_22px_56px_rgba(15,23,42,0.16)] outline-none",
-                "prose prose-slate prose-sm max-w-none focus:ring-2 focus:ring-[color:var(--app-accent)]",
+                "mx-auto min-h-full w-full max-w-3xl rounded-md border border-slate-200 bg-white px-8 py-7 text-sm leading-7 text-slate-900 shadow-sm outline-none",
+                "prose prose-slate prose-sm max-w-3xl focus:border-[color:var(--app-accent)]",
               )}
               dangerouslySetInnerHTML={{ __html: html }}
-              onInput={syncHtmlFromDomDebounced}
-              onMouseUp={refreshActiveMarks}
-              onKeyUp={refreshActiveMarks}
-              onKeyUpCapture={updateResourceQuery}
+              onInput={syncHtmlFromDom}
               onPaste={(event) => {
                 event.preventDefault();
                 const text = event.clipboardData.getData("text/plain");
@@ -474,43 +242,12 @@ export function DocxWorkspace(props: {
                 syncHtmlFromDom();
               }}
             />
-            {resourceQuery !== null ? (
-              <div className="absolute left-6 top-16 z-20 w-72 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
-                {matchingResources.length > 0 ? matchingResources.map((resource) => (
-                  <button
-                    key={resource.path}
-                    type="button"
-                    className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => insertResource(resource)}
-                  >
-                    {resource.image ? <Image className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
-                    <span className="min-w-0 flex-1 truncate">{resource.name}</span>
-                    <span className="max-w-32 truncate text-[10px] text-slate-400">{resource.path}</span>
-                  </button>
-                )) : (
-                  <div className="px-2 py-2 text-xs text-slate-500">{t("docx.resource.none")}</div>
-                )}
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-      <footer className="flex min-h-8 items-center justify-between gap-3 border-t border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-3 py-1.5 text-[11px] text-slate-500">
-        <span className="truncate">{status || t("docx.wordCount").replace("{count}", String(wordCount))}</span>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={!selectedPath} onClick={zoomOut} title={t("docx.zoomOut")} aria-label={t("docx.zoomOut")}>
-            <Minus className="h-3.5 w-3.5" />
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7 min-w-14 px-2 text-[11px]" disabled={!selectedPath} onClick={resetZoom} title={t("docx.zoomReset")} aria-label={t("docx.zoomReset")}>
-            {Math.round(zoom * 100)}%
-          </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={!selectedPath} onClick={zoomIn} title={t("docx.zoomIn")} aria-label={t("docx.zoomIn")}>
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
+          )}
         </div>
-        <span className="min-w-0 shrink truncate text-right">{findText ? t("docx.findCount").replace("{count}", String(findCount)) : selectedPath || ""}</span>
-      </footer>
+        <footer className="min-h-8 border-t border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-3 py-1.5 text-[11px] text-slate-500">
+          {status}
+        </footer>
+      </div>
     </section>
   );
 }

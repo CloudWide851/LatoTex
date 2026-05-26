@@ -9,7 +9,6 @@ import {
   Network,
   Palette,
   PenTool,
-  Plug,
   UsersRound,
   SearchCode,
   Settings2,
@@ -35,7 +34,6 @@ export type SettingsSection =
   | "agent-teams"
   | "agent-tools"
   | "agent-permissions"
-  | "plugin-sources"
   | "mcp"
   | "skills"
   | "channels"
@@ -93,7 +91,6 @@ export const SETTINGS_SECTIONS: Array<{
     | "settings.section.agentTeams"
     | "settings.section.agentTools"
     | "settings.section.agentPermissions"
-    | "settings.section.pluginSources"
     | "settings.section.mcp"
     | "settings.section.skills"
     | "settings.section.channels"
@@ -108,7 +105,6 @@ export const SETTINGS_SECTIONS: Array<{
   { id: "agent-teams", key: "settings.section.agentTeams", icon: UsersRound },
   { id: "agent-tools", key: "settings.section.agentTools", icon: Wrench },
   { id: "agent-permissions", key: "settings.section.agentPermissions", icon: Wrench },
-  { id: "plugin-sources", key: "settings.section.pluginSources", icon: Plug },
   { id: "mcp", key: "settings.section.mcp", icon: Network },
   { id: "skills", key: "settings.section.skills", icon: BrainCircuit },
   { id: "channels", key: "settings.section.channels", icon: Globe },
