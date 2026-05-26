@@ -202,6 +202,17 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
             mcpEnabled: nextSettings.uiPrefs?.agentToolPrefs?.mcpEnabled ?? true,
             writeRequiresConfirmation: nextSettings.uiPrefs?.agentToolPrefs?.writeRequiresConfirmation ?? true,
           },
+          agentPermissionPrefs: {
+            webSearch: nextSettings.uiPrefs?.agentPermissionPrefs?.webSearch ?? "allow",
+            workspaceRead: nextSettings.uiPrefs?.agentPermissionPrefs?.workspaceRead ?? "allow",
+            python: nextSettings.uiPrefs?.agentPermissionPrefs?.python ?? "ask",
+            mcp: nextSettings.uiPrefs?.agentPermissionPrefs?.mcp ?? "ask",
+            skills: nextSettings.uiPrefs?.agentPermissionPrefs?.skills ?? "allow",
+            pluginCommands: nextSettings.uiPrefs?.agentPermissionPrefs?.pluginCommands ?? "ask",
+            nonLatexWrites: nextSettings.uiPrefs?.agentPermissionPrefs?.nonLatexWrites ?? "ask",
+            mcpServerModes: nextSettings.uiPrefs?.agentPermissionPrefs?.mcpServerModes ?? {},
+            pluginModes: nextSettings.uiPrefs?.agentPermissionPrefs?.pluginModes ?? {},
+          },
           agentTeamPrefs: normalizedAgentTeamPrefs,
           mcpServers: (nextSettings.uiPrefs?.mcpServers ?? [])
             .map((server) => ({
@@ -221,6 +232,11 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
             ),
           enabledSkills: Array.from(new Set(
             (nextSettings.uiPrefs?.enabledSkills ?? [])
+              .map((skill) => String(skill ?? "").trim())
+              .filter((skill) => skill.length > 0),
+          )),
+          hiddenSkills: Array.from(new Set(
+            (nextSettings.uiPrefs?.hiddenSkills ?? [])
               .map((skill) => String(skill ?? "").trim())
               .filter((skill) => skill.length > 0),
           )),

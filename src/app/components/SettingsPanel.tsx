@@ -23,6 +23,7 @@ import { SettingsDoctorSection } from "./settings/SettingsDoctorSection";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
 import { AgentToolsSettingsSection, McpSettingsSection, SkillsSettingsSection } from "./settings/AgentToolsSettingsSection";
+import { AgentPermissionsSettingsSection } from "./settings/AgentPermissionsSettingsSection";
 import { AgentTeamsSettingsSection } from "./settings/AgentTeamsSettingsSection";
 import { AgentRoutingSettingsSection } from "./settings/AgentRoutingSettingsSection";
 import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
@@ -393,6 +394,10 @@ export function SettingsPanel(props: {
 
         {settingsSection === "agent-tools" && (
           <AgentToolsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+        )}
+
+        {settingsSection === "agent-permissions" && (
+          <AgentPermissionsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
         )}
 
         {settingsSection === "mcp" && (

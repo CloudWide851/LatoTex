@@ -33,6 +33,7 @@ export type SettingsSection =
   | "agents"
   | "agent-teams"
   | "agent-tools"
+  | "agent-permissions"
   | "mcp"
   | "skills"
   | "channels"
@@ -89,6 +90,7 @@ export const SETTINGS_SECTIONS: Array<{
     | "settings.section.agents"
     | "settings.section.agentTeams"
     | "settings.section.agentTools"
+    | "settings.section.agentPermissions"
     | "settings.section.mcp"
     | "settings.section.skills"
     | "settings.section.channels"
@@ -102,6 +104,7 @@ export const SETTINGS_SECTIONS: Array<{
   { id: "agents", key: "settings.section.agents", icon: Bot },
   { id: "agent-teams", key: "settings.section.agentTeams", icon: UsersRound },
   { id: "agent-tools", key: "settings.section.agentTools", icon: Wrench },
+  { id: "agent-permissions", key: "settings.section.agentPermissions", icon: Wrench },
   { id: "mcp", key: "settings.section.mcp", icon: Network },
   { id: "skills", key: "settings.section.skills", icon: BrainCircuit },
   { id: "channels", key: "settings.section.channels", icon: Globe },

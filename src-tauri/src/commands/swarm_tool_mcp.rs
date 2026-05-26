@@ -39,6 +39,20 @@ fn configured_server(
     if prefs.and_then(|prefs| prefs.mcp_enabled).unwrap_or(true) == false {
         return Err("mcp.disabled_by_settings".to_string());
     }
+    let permission_prefs = settings
+        .ui_prefs
+        .as_ref()
+        .and_then(|prefs| prefs.agent_permission_prefs.as_ref());
+    if permission_prefs
+        .and_then(|prefs| prefs.mcp.as_deref())
+        .is_some_and(|mode| mode == "deny")
+        || permission_prefs
+            .and_then(|prefs| prefs.mcp_server_modes.as_ref())
+            .and_then(|modes| modes.get(server_id))
+            .is_some_and(|mode| mode == "deny")
+    {
+        return Err("mcp.disabled_by_settings".to_string());
+    }
     let servers = settings
         .ui_prefs
         .and_then(|prefs| prefs.mcp_servers)

@@ -14,6 +14,7 @@ import { NoProjectPanel } from "./workspace/NoProjectPanel";
 import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import {
   LazyDrawWorkspace,
+  useDrawWorkspacePreload,
   WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
@@ -24,6 +25,9 @@ import {
   type WorkspacePreviewMode,
 } from "./workspace/workspacePreviewMode";
 import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
+import { PluginMarketplace } from "./plugins/PluginMarketplace";
+import { DocxWorkspace } from "./docx/DocxWorkspace";
+import { LatexWorkspaceModeShell } from "./workspace/LatexWorkspaceModeShell";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -155,6 +159,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   >(null);
   const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
+  const [latexMode, setLatexMode] = useState<"tex" | "docx">("tex");
 
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
 
@@ -201,6 +206,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   useEffect(() => {
     emitWorkspaceLayoutRefresh(page, "page-change");
   }, [page]);
+  useDrawWorkspacePreload(Boolean(activeProjectId));
 
   const previewSelectedPath = previewOverridePath || selectedFile;
   const previewFlags = useMemo(() => resolveWorkspacePreviewFlags(previewSelectedPath), [previewSelectedPath]);
@@ -385,19 +391,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return settingsPanel;
     }
     if (page === "plugins") {
-      return (
-        <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/85 p-6 text-center">
-          <div className="max-w-md">
-            <h2 className="text-base font-semibold text-slate-900">{t("plugins.placeholderTitle")}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{t("plugins.placeholderHint")}</p>
-          </div>
-        </section>
-      );
+      return <PluginMarketplace t={t} />;
     }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
-    return (
+    const renderTexWorkspace = () => (
       <LatexWorkspaceEditorPanel
         activeProjectId={activeProjectId}
         busy={busy}
@@ -484,6 +483,23 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onAgentRollback={onAgentRollback}
         onAgentPendingActionResolve={onAgentPendingActionResolve}
         chatAgentModelId={chatAgentModelId}
+        t={t}
+      />
+    );
+    return (
+      <LatexWorkspaceModeShell
+        mode={latexMode}
+        onModeChange={setLatexMode}
+        texWorkspace={renderTexWorkspace()}
+        docxWorkspace={
+            <DocxWorkspace
+              projectId={activeProjectId}
+              tree={tree}
+              busy={busy}
+              onRescan={onWorkspaceRescan}
+              t={t}
+            />
+        }
         t={t}
       />
     );

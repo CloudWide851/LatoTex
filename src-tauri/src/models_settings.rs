@@ -10,6 +10,20 @@ pub struct AgentToolPrefs {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentPermissionPrefs {
+    pub web_search: Option<String>,
+    pub workspace_read: Option<String>,
+    pub python: Option<String>,
+    pub mcp: Option<String>,
+    pub skills: Option<String>,
+    pub plugin_commands: Option<String>,
+    pub non_latex_writes: Option<String>,
+    pub mcp_server_modes: Option<std::collections::HashMap<String, String>>,
+    pub plugin_modes: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentTeamRolePrefs {
     pub id: String,
     pub name: String,

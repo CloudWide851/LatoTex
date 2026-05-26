@@ -139,8 +139,20 @@ pub(super) fn run_stage_workspace_search(
     let settings = storage::load_settings(db_path, runtime_root).ok();
     let enabled = settings
         .and_then(|settings| settings.ui_prefs)
-        .and_then(|prefs| prefs.agent_tool_prefs)
-        .and_then(|prefs| prefs.workspace_read_enabled)
+        .map(|prefs| {
+            let legacy_enabled = prefs
+                .agent_tool_prefs
+                .as_ref()
+                .and_then(|prefs| prefs.workspace_read_enabled)
+                .unwrap_or(true);
+            let permission_enabled = prefs
+                .agent_permission_prefs
+                .as_ref()
+                .and_then(|prefs| prefs.workspace_read.as_deref())
+                .map(|mode| mode != "deny")
+                .unwrap_or(true);
+            legacy_enabled && permission_enabled
+        })
         .unwrap_or(true);
     if !enabled {
         return Ok("[workspace_search.compact.v1]\nworkspace_read=disabled_by_settings".to_string());

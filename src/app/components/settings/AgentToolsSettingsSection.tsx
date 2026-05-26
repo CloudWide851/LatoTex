@@ -2,7 +2,9 @@ import { AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult, SkillValidationResult, SwarmEvent } from "../../../shared/types/app";
 import { executeWorkflowStart, getEvents } from "../../../shared/api/agent";
+import { getPluginCatalog, listInstalledPlugins } from "../../../shared/api/plugins";
 import { validateAgentSkill, validateMcpServer } from "../../../shared/api/settings";
+import type { PluginManifest } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
@@ -11,14 +13,6 @@ import { AgentTraceCards } from "../agent/AgentTraceCards";
 import { extractEventCards } from "../../hooks/analysisWorkspaceHelpers";
 
 type TranslationFn = (key: any) => string;
-
-const STITCH_SERVER: McpServerConfig = {
-  id: "stitch",
-  command: "pnpm",
-  args: ["exec", "stitch-mcp", "proxy"],
-  env: { STITCH_USE_SYSTEM_GCLOUD: "1" },
-  enabled: true,
-};
 
 const BUILT_IN_SKILLS = ["stitch", "frontend-design", "optimize", "polish"] as const;
 
@@ -153,8 +147,10 @@ export function McpSettingsSection(props: {
 }) {
   const { settings, setSettings, t } = props;
   const servers = settings.uiPrefs?.mcpServers ?? [];
+  const [installablePlugins, setInstallablePlugins] = useState<PluginManifest[]>([]);
   const [validationByKey, setValidationByKey] = useState<Record<string, McpValidationResult | undefined>>({});
   const [validatingKey, setValidatingKey] = useState<string | null>(null);
+  const [installingMcp, setInstallingMcp] = useState(false);
 
   const updateUiPrefs = (patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -172,6 +168,37 @@ export function McpSettingsSection(props: {
       return;
     }
     updateServers([...servers, server]);
+  };
+  const loadInstallableMcp = async () => {
+    setInstallingMcp(true);
+    try {
+      const [installed, catalog] = await Promise.all([
+        listInstalledPlugins().catch(() => []),
+        getPluginCatalog().catch(() => ({ items: [], warnings: [], schema: "latotex.marketplace.v1" })),
+      ]);
+      const installedIds = new Set(installed.filter((item) => item.enabled).map((item) => item.manifest.id));
+      const candidates = [
+        ...installed.filter((item) => item.enabled).map((item) => item.manifest),
+        ...catalog.items.filter((item) => !installedIds.has(item.id)),
+      ].filter((item) => item.contributions.some((contribution) => contribution.kind === "mcpServer" && contribution.mcpServer));
+      setInstallablePlugins(candidates);
+    } finally {
+      setInstallingMcp(false);
+    }
+  };
+  const installMcpTemplate = (manifest: PluginManifest, contributionId: string) => {
+    const contribution = manifest.contributions.find((item) => item.id === contributionId);
+    const template = contribution?.mcpServer;
+    if (!template) {
+      return;
+    }
+    addServer({
+      id: template.id,
+      command: template.command,
+      args: template.args ?? [],
+      env: template.env ?? {},
+      enabled: true,
+    });
   };
   const validateServer = async (server: McpServerConfig, key: string) => {
     setValidatingKey(key);
@@ -193,9 +220,9 @@ export function McpSettingsSection(props: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">{t("settings.mcpServersHint")}</p>
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" onClick={() => addServer(STITCH_SERVER)}>
+          <Button size="sm" variant="secondary" disabled={installingMcp} onClick={() => void loadInstallableMcp()}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
-            {t("settings.mcpAddStitch")}
+            {installingMcp ? t("common.loading") : t("settings.mcpInstall")}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => addServer(createMcpServer(servers))}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -203,6 +230,28 @@ export function McpSettingsSection(props: {
           </Button>
         </div>
       </div>
+
+      {installablePlugins.length > 0 ? (
+        <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+          <div className="text-[11px] font-semibold text-slate-600">{t("settings.mcpInstallTemplates")}</div>
+          <div className="flex flex-wrap gap-2">
+            {installablePlugins.flatMap((plugin) =>
+              plugin.contributions
+                .filter((contribution) => contribution.kind === "mcpServer" && contribution.mcpServer)
+                .map((contribution) => (
+                  <Button
+                    key={`${plugin.id}:${contribution.id}`}
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => installMcpTemplate(plugin, contribution.id)}
+                  >
+                    {contribution.title}
+                  </Button>
+                )),
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {servers.length === 0 ? (
         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">
@@ -266,6 +315,7 @@ export function SkillsSettingsSection(props: {
 }) {
   const { settings, activeProjectId, setSettings, t } = props;
   const enabledSkills = settings.uiPrefs?.enabledSkills ?? [];
+  const hiddenSkills = settings.uiPrefs?.hiddenSkills ?? [];
   const [customSkill, setCustomSkill] = useState("");
   const [validationBySkill, setValidationBySkill] = useState<Record<string, SkillValidationResult | undefined>>({});
   const [validatingSkill, setValidatingSkill] = useState<string | null>(null);
@@ -312,6 +362,7 @@ export function SkillsSettingsSection(props: {
     });
   };
   const setSkills = (skills: string[]) => updateUiPrefs({ enabledSkills: Array.from(new Set(skills.map((item) => item.trim()).filter(Boolean))) });
+  const setHiddenSkills = (skills: string[]) => updateUiPrefs({ hiddenSkills: Array.from(new Set(skills.map((item) => item.trim()).filter(Boolean))) });
   const toggleSkill = (skill: string, enabled: boolean) => {
     setSkills(enabled ? [...enabledSkills, skill] : enabledSkills.filter((item) => item !== skill));
   };
@@ -371,7 +422,8 @@ export function SkillsSettingsSection(props: {
       setRunningSkill(null);
     }
   };
-  const visibleSkills = Array.from(new Set([...BUILT_IN_SKILLS, ...enabledSkills]));
+  const visibleSkills = Array.from(new Set([...BUILT_IN_SKILLS, ...enabledSkills]))
+    .filter((skill) => !hiddenSkills.includes(skill));
 
   return (
     <div className="grid gap-3">
@@ -382,6 +434,11 @@ export function SkillsSettingsSection(props: {
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           {t("settings.skillAdd")}
         </Button>
+        {hiddenSkills.length > 0 ? (
+          <Button size="sm" variant="ghost" onClick={() => setHiddenSkills([])}>
+            {t("settings.skillRestoreBuiltIns")}
+          </Button>
+        ) : null}
       </div>
       <div className="grid gap-2">
         {visibleSkills.map((skill) => {
@@ -404,11 +461,14 @@ export function SkillsSettingsSection(props: {
                   <Button size="sm" variant="secondary" disabled={runningSkill === skill} onClick={() => void runSkillAgent(skill)}>
                     {runningSkill === skill ? t("common.loading") : t("settings.skillRunAgent")}
                   </Button>
-                  {!BUILT_IN_SKILLS.includes(skill as typeof BUILT_IN_SKILLS[number]) ? (
-                    <Button size="sm" variant="ghost" onClick={() => setSkills(enabledSkills.filter((item) => item !== skill))}>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    setSkills(enabledSkills.filter((item) => item !== skill));
+                    if (BUILT_IN_SKILLS.includes(skill as typeof BUILT_IN_SKILLS[number])) {
+                      setHiddenSkills([...hiddenSkills, skill]);
+                    }
+                  }}>
                       <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : null}
+                  </Button>
                 </div>
               </div>
               {validation ? (

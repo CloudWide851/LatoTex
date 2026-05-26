@@ -196,12 +196,20 @@ pub(super) fn run_stage_tool_search(
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
     let settings = crate::storage::load_settings(db_path, runtime_root)?;
-    let web_enabled = settings
-        .ui_prefs
-        .as_ref()
-        .and_then(|prefs| prefs.agent_tool_prefs.as_ref())
-        .and_then(|prefs| prefs.web_search_enabled)
-        .unwrap_or(true);
+    let web_enabled = settings.ui_prefs.as_ref().map(|prefs| {
+        let legacy_enabled = prefs
+            .agent_tool_prefs
+            .as_ref()
+            .and_then(|prefs| prefs.web_search_enabled)
+            .unwrap_or(true);
+        let permission_enabled = prefs
+            .agent_permission_prefs
+            .as_ref()
+            .and_then(|prefs| prefs.web_search.as_deref())
+            .map(|mode| mode != "deny")
+            .unwrap_or(true);
+        legacy_enabled && permission_enabled
+    }).unwrap_or(true);
     if !web_enabled {
         return Ok("[tool_search.compact.v1]\nweb_search=disabled_by_settings".to_string());
     }

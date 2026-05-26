@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, useEffect } from "react";
 
 export const LazyAgentChatOverlay = lazy(async () => {
   const module = await import("../AgentChatOverlay");
@@ -19,6 +19,33 @@ export const LazyDrawWorkspace = lazy(async () => {
   const module = await import("../draw/DrawWorkspace");
   return { default: module.DrawWorkspace };
 });
+
+export function preloadDrawWorkspace() {
+  void import("../draw/DrawWorkspace");
+}
+
+export function useDrawWorkspacePreload(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const hasIdleCallback = "requestIdleCallback" in window && "cancelIdleCallback" in window;
+    const handle = hasIdleCallback
+      ? idleWindow.requestIdleCallback(preloadDrawWorkspace, { timeout: 4_000 })
+      : window.setTimeout(preloadDrawWorkspace, 2_000);
+    return () => {
+      if (hasIdleCallback && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(handle);
+      } else {
+        window.clearTimeout(handle);
+      }
+    };
+  }, [enabled]);
+}
 
 export function WorkspacePanelFallback(props: { label: string }) {
   return (

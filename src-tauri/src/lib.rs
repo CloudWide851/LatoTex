@@ -25,6 +25,7 @@ use commands::health::{
     app_exit, app_smoke_config, app_smoke_finish, app_smoke_progress, health_check, tray_set_labels,
     window_sync_icon,
 };
+use commands::docx::{docx_read, docx_write};
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
 use commands::native_runtime::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
@@ -45,6 +46,10 @@ use commands::projects::{
 use commands::projects_translation::{
     library_extract_paper_context, library_translate_document, library_translate_start,
     library_translate_status,
+};
+use commands::plugins::{
+    plugin_install, plugin_installed_list, plugin_marketplace_catalog, plugin_set_enabled,
+    plugin_uninstall,
 };
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test,
@@ -355,6 +360,8 @@ pub fn run() {
             file_read_binary,
             file_write,
             file_write_binary,
+            docx_read,
+            docx_write,
             draw_export_asset,
             workspace_export_asset,
             workspace_export_pdf,
@@ -446,6 +453,11 @@ pub fn run() {
             terminal_read,
             terminal_resize,
             terminal_stop,
+            plugin_marketplace_catalog,
+            plugin_installed_list,
+            plugin_install,
+            plugin_uninstall,
+            plugin_set_enabled,
         ])
         .run(context)
         .expect("error while running tauri application");

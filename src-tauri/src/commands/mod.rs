@@ -6,6 +6,8 @@ pub mod git;
 pub mod health;
 pub mod local_resources;
 pub mod native_runtime;
+pub mod docx;
+pub mod plugins;
 pub mod projects;
 pub mod projects_translation;
 pub mod settings;

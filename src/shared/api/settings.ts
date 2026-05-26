@@ -6,6 +6,7 @@ import type {
   AppBackgroundImagePayload,
   AppSettings,
   AgentToolPrefs,
+  AgentPermissionPrefs,
   CredentialSaveResult,
   McpValidationResult,
   McpServerConfig,
@@ -88,9 +89,11 @@ export function updateSettings(input: {
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
     agentToolPrefs?: AgentToolPrefs;
+    agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
+    hiddenSkills?: string[];
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });

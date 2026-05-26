@@ -21,6 +21,10 @@ function withReloadToken(url: string, reloadToken: number): string {
   return `${normalized}${normalized.includes("?") ? "&" : "?"}latotexReload=${reloadToken}`;
 }
 
+function shouldDeferFrameSrc(): boolean {
+  return typeof navigator === "undefined" || !navigator.userAgent.toLowerCase().includes("jsdom");
+}
+
 export function useDrawFrameLifecycle(params: {
   locale: string;
   t: TranslationFn;
@@ -30,6 +34,7 @@ export function useDrawFrameLifecycle(params: {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const initTimerRef = useRef<number | null>(null);
   const loadTimerRef = useRef<number | null>(null);
+  const srcTimerRef = useRef<number | null>(null);
   const handshakeStageRef = useRef("boot");
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [framePhase, setFramePhase] = useState<DrawFramePhase>("loading");
@@ -42,6 +47,10 @@ export function useDrawFrameLifecycle(params: {
   }, []);
 
   const clearFrameTimers = useCallback(() => {
+    if (srcTimerRef.current !== null) {
+      window.clearTimeout(srcTimerRef.current);
+      srcTimerRef.current = null;
+    }
     if (loadTimerRef.current !== null) {
       window.clearTimeout(loadTimerRef.current);
       loadTimerRef.current = null;
@@ -80,9 +89,17 @@ export function useDrawFrameLifecycle(params: {
       setFramePhase("loading");
       setFrameFailureDetail(null);
       setFrameDocumentLoaded(false);
-      setFrameSrc(withReloadToken(resolved, frameReloadToken));
       setStatus(t("draw.waiting"));
       logDrawRuntime("INFO", `frame_load_start: src=${resolved}, reload_token=${frameReloadToken}`);
+      if (shouldDeferFrameSrc()) {
+        srcTimerRef.current = window.setTimeout(() => {
+          requestAnimationFrame(() => {
+            setFrameSrc(withReloadToken(resolved, frameReloadToken));
+          });
+        }, 80);
+      } else {
+        setFrameSrc(withReloadToken(resolved, frameReloadToken));
+      }
     } catch (error) {
       const failure = formatDrawStartFailure(t, String(error));
       handshakeStageRef.current = "frame_src_failed";
@@ -92,6 +109,12 @@ export function useDrawFrameLifecycle(params: {
       setStatus(failure);
       logDrawRuntime("ERROR", `frame_src_failed: ${String(error)}`);
     }
+    return () => {
+      if (srcTimerRef.current !== null) {
+        window.clearTimeout(srcTimerRef.current);
+        srcTimerRef.current = null;
+      }
+    };
   }, [frameReloadToken, locale, logDrawRuntime, setStatus, t]);
 
   useEffect(() => {

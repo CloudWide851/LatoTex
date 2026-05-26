@@ -297,9 +297,11 @@ pub struct UiPrefs {
         Option<std::collections::HashMap<String, Vec<String>>>,
     pub sidebar_page_order: Option<Vec<String>>,
     pub agent_tool_prefs: Option<AgentToolPrefs>,
+    pub agent_permission_prefs: Option<AgentPermissionPrefs>,
     pub agent_team_prefs: Option<AgentTeamPrefs>,
     pub mcp_servers: Option<Vec<McpServerConfig>>,
     pub enabled_skills: Option<Vec<String>>,
+    pub hidden_skills: Option<Vec<String>>,
 }
 
 include!("models_settings.rs");
@@ -418,3 +420,5 @@ include!("models_agent_workflows.rs");
 include!("models_native_runtime.rs");
 include!("models_resource_warmup.rs");
 include!("models_terminal.rs");
+include!("models_plugins.rs");
+include!("models_docx.rs");

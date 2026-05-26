@@ -283,9 +283,11 @@ export type AppSettings = {
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
     sidebarPageOrder?: WorkspacePage[];
     agentToolPrefs?: AgentToolPrefs;
+    agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
+    hiddenSkills?: string[];
   };
 };
 
@@ -326,6 +328,20 @@ export type AgentToolPrefs = {
   pythonEnabled?: boolean;
   mcpEnabled?: boolean;
   writeRequiresConfirmation?: boolean;
+};
+
+export type PermissionMode = "allow" | "ask" | "deny";
+
+export type AgentPermissionPrefs = {
+  webSearch?: PermissionMode;
+  workspaceRead?: PermissionMode;
+  python?: PermissionMode;
+  mcp?: PermissionMode;
+  skills?: PermissionMode;
+  pluginCommands?: PermissionMode;
+  nonLatexWrites?: PermissionMode;
+  mcpServerModes?: Record<string, PermissionMode>;
+  pluginModes?: Record<string, PermissionMode>;
 };
 
 export type MemoryGuardPrefs = {

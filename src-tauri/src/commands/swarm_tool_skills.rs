@@ -22,13 +22,23 @@ pub(super) fn normalize_skill_id(raw: &str) -> Option<String> {
 
 pub(super) fn enabled_skill_ids(db_path: &Path, runtime_root: &Path) -> Vec<String> {
     let settings = storage::load_settings(db_path, runtime_root).ok();
-    let skills = settings
-        .and_then(|settings| settings.ui_prefs)
-        .and_then(|prefs| prefs.enabled_skills)
-        .unwrap_or_default();
+    let Some(ui_prefs) = settings.and_then(|settings| settings.ui_prefs) else {
+        return Vec::new();
+    };
+    if ui_prefs
+        .agent_permission_prefs
+        .as_ref()
+        .and_then(|prefs| prefs.skills.as_deref())
+        .is_some_and(|mode| mode == "deny")
+    {
+        return Vec::new();
+    }
+    let hidden = ui_prefs.hidden_skills.unwrap_or_default();
+    let skills = ui_prefs.enabled_skills.unwrap_or_default();
     skills
         .into_iter()
         .filter_map(|item| normalize_skill_id(&item))
+        .filter(|item| !hidden.iter().any(|hidden_id| hidden_id == item))
         .filter(|item| validate_normalized_skill(db_path, runtime_root, item).ok)
         .collect::<BTreeSet<_>>()
         .into_iter()

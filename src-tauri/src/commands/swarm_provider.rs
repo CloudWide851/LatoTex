@@ -24,7 +24,7 @@ use swarm_provider_core::{consumer_error, StreamAttempt};
 use swarm_provider_gemini::call_gemini;
 use swarm_provider_openai::{call_openai_compatible, call_openai_compatible_streaming};
 
-const AGENT_RETRY_MAX: u32 = 4;
+const AGENT_RETRY_MAX: u32 = 1;
 const AGENT_AUTO_REPAIR_MAX: u32 = 3;
 fn cache_key(protocol_id: &str, base_url: &str, model_name: &str, prompt: &str) -> String {
     let mut hasher = DefaultHasher::new();
@@ -52,6 +52,7 @@ pub(crate) fn call_provider_with_retry(
         }
     }
     let client = Client::builder()
+        .connect_timeout(Duration::from_secs(8))
         .timeout(Duration::from_secs(35))
         .build()
         .map_err(|e| e.to_string())?;
@@ -87,7 +88,7 @@ pub(crate) fn call_provider_with_retry(
                     thread::sleep(Duration::from_millis(delay_ms.min(1_600)));
                     continue;
                 }
-                if attempt >= AGENT_RETRY_MAX {
+                if attempt >= AGENT_RETRY_MAX || !error.retryable {
                     break;
                 }
                 let delay_ms = if error.retryable {
@@ -127,7 +128,8 @@ where
         }
     }
     let client = Client::builder()
-        .timeout(Duration::from_secs(120))
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(60))
         .build()
         .map_err(|e| e.to_string())?;
     let mut last_error = String::new();
