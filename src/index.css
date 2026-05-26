@@ -820,6 +820,33 @@ body::before {
   background: var(--editor-paper-bg) !important;
 }
 
+.docx-ribbon-group {
+  display: grid;
+  min-height: 58px;
+  align-content: start;
+  gap: 4px;
+  border-inline-end: 1px solid var(--editor-widget-border);
+  padding-inline-end: 10px;
+}
+
+.docx-ribbon-group > span {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--editor-tab-muted);
+  text-transform: uppercase;
+}
+
+.docx-page-surface table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.docx-page-surface td,
+.docx-page-surface th {
+  border: 1px solid #cbd5e1;
+  padding: 6px 8px;
+}
+
 .editor-content-stage .monaco-editor .margin,
 .editor-content-stage .monaco-editor .margin-view-overlays {
   background: color-mix(in srgb, var(--editor-paper-bg) 94%, #dbeafe) !important;

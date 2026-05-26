@@ -31,6 +31,13 @@ const translations: Record<string, string> = {
   "settings.backgroundRightClickDelete": "Right-click to delete immediately",
   "settings.backgroundBlurTitle": "Glass Blur",
   "settings.backgroundBlurHint": "Current blur strength: {value}px",
+  "settings.backgroundCropTitle": "Crop visible area",
+  "settings.backgroundCropReset": "Reset crop",
+  "settings.backgroundCropX": "Left",
+  "settings.backgroundCropY": "Top",
+  "settings.backgroundCropWidth": "Width",
+  "settings.backgroundCropHeight": "Height",
+  "settings.backgroundCropHint": "Drag the crop box.",
 };
 
 function createSettings(patch: Partial<NonNullable<AppSettings["uiPrefs"]>> = {}): AppSettings {
@@ -138,6 +145,7 @@ describe("BackgroundImageCard", () => {
       backgroundImagePath: "",
       backgroundImagePaths: ["C:/wallpapers/other.png"],
     });
+    expect(readSettings(view.container).uiPrefs?.backgroundCropByPath?.["C:/wallpapers/demo.png"]).toBeUndefined();
     expect(view.container.textContent).not.toContain("Delete background");
 
     await act(async () => {
@@ -163,6 +171,38 @@ describe("BackgroundImageCard", () => {
       backgroundImagePaths: ["C:/wallpapers/new.png"],
     });
     expect(view.container.textContent).toContain("Default Background");
+
+    await act(async () => {
+      view.root.unmount();
+    });
+    view.container.remove();
+  });
+
+  it("stores crop settings for the active uploaded image and can reset them", async () => {
+    const view = await renderHarness(createSettings({
+      backgroundImagePath: "C:/wallpapers/demo.png",
+      backgroundImagePaths: ["C:/wallpapers/demo.png"],
+    }));
+
+    const sliders = view.container.querySelectorAll("input[type='range']");
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      valueSetter?.call(sliders[1], "0.25");
+      sliders[1]?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    expect(readSettings(view.container).uiPrefs?.backgroundCropByPath?.["C:/wallpapers/demo.png"]).toMatchObject({
+      x: 0.25,
+    });
+
+    const resetButton = Array.from(view.container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Reset crop"),
+    );
+    await act(async () => {
+      resetButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(readSettings(view.container).uiPrefs?.backgroundCropByPath?.["C:/wallpapers/demo.png"]).toBeUndefined();
 
     await act(async () => {
       view.root.unmount();

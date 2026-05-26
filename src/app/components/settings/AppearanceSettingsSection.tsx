@@ -281,6 +281,25 @@ export function AppearanceSettingsSection(props: {
           </div>
         </label>
         <label className="grid gap-1 text-xs text-slate-600">
+          <span className="flex items-center justify-between gap-2">
+            <span>{t("settings.editorBackgroundColor")}</span>
+            <button
+              type="button"
+              className="text-[11px] font-medium text-[var(--app-accent)] hover:underline"
+              onClick={() => updateUiPrefs({ editorBackgroundColor: "" })}
+            >
+              {t("settings.editorBackgroundReset")}
+            </button>
+          </span>
+          <input
+            type="color"
+            value={/^#[0-9a-f]{6}$/i.test(String(prefs.editorBackgroundColor ?? "")) ? prefs.editorBackgroundColor : "#fffdf8"}
+            className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
+            onChange={(event) => updateUiPrefs({ editorBackgroundColor: event.target.value })}
+          />
+          <span className="text-[11px] text-slate-500">{t("settings.editorBackgroundHint")}</span>
+        </label>
+        <label className="grid gap-1 text-xs text-slate-600">
           <span>{t("settings.pdfPageGap")}</span>
           <input
             type="range"

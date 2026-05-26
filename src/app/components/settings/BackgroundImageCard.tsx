@@ -1,9 +1,9 @@
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import { useMemo } from "react";
-import { ImageOff, Plus, Trash2 } from "lucide-react";
+import { ImageOff, Plus, RotateCcw, Scissors, Trash2 } from "lucide-react";
 import { removeBackgroundImage, pickBackgroundImage } from "../../../shared/api/settings";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
-import type { AppSettings } from "../../../shared/types/app";
+import type { AppSettings, BackgroundCropRect } from "../../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
 
@@ -23,6 +23,14 @@ function clampBlur(value: number): number {
     return 18;
   }
   return Math.max(4, Math.min(32, Math.round(value)));
+}
+
+function clampCrop(value: Partial<BackgroundCropRect> | null | undefined): BackgroundCropRect {
+  const x = Math.max(0, Math.min(0.95, Number(value?.x ?? 0)));
+  const y = Math.max(0, Math.min(0.95, Number(value?.y ?? 0)));
+  const width = Math.max(0.05, Math.min(1 - x, Number(value?.width ?? 1)));
+  const height = Math.max(0.05, Math.min(1 - y, Number(value?.height ?? 1)));
+  return { x, y, width, height };
 }
 
 function BackgroundThumb(props: {
@@ -110,6 +118,91 @@ function AddBackgroundCard(props: { onUpload: () => void; t: TranslationFn }) {
   );
 }
 
+function BackgroundCropEditor(props: {
+  path: string;
+  crop: BackgroundCropRect;
+  onCropChange: (crop: BackgroundCropRect) => void;
+  onReset: () => void;
+  t: TranslationFn;
+}) {
+  const { path, crop, onCropChange, onReset, t } = props;
+  const previewUrl = useBackgroundImageObjectUrl(path);
+  const updateCrop = (patch: Partial<BackgroundCropRect>) => {
+    onCropChange(clampCrop({ ...crop, ...patch }));
+  };
+  const cropStyle = {
+    left: `${crop.x * 100}%`,
+    top: `${crop.y * 100}%`,
+    width: `${crop.width * 100}%`,
+    height: `${crop.height * 100}%`,
+  };
+  const updatePositionFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const nextX = (event.clientX - rect.left) / Math.max(1, rect.width) - crop.width / 2;
+    const nextY = (event.clientY - rect.top) / Math.max(1, rect.height) - crop.height / 2;
+    updateCrop({ x: nextX, y: nextY });
+  };
+
+  return (
+    <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+          <Scissors className="h-3.5 w-3.5" />
+          {t("settings.backgroundCropTitle")}
+        </span>
+        <button
+          type="button"
+          className="inline-flex h-7 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-[11px] text-slate-600 hover:bg-slate-100"
+          onClick={onReset}
+        >
+          <RotateCcw className="h-3 w-3" />
+          {t("settings.backgroundCropReset")}
+        </button>
+      </div>
+      <div
+        className="relative aspect-video overflow-hidden rounded border border-slate-200 bg-slate-100"
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          updatePositionFromPointer(event);
+        }}
+        onPointerMove={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            updatePositionFromPointer(event);
+          }
+        }}
+      >
+        {previewUrl ? (
+          <img src={previewUrl} alt={t("settings.backgroundPreviewAlt")} className="h-full w-full object-contain" />
+        ) : null}
+        <div className="absolute inset-0 bg-slate-950/35" />
+        <div
+          className="absolute rounded-sm border-2 border-white bg-white/10 shadow-[0_0_0_999px_rgba(15,23,42,0.35)]"
+          style={cropStyle}
+        />
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="grid gap-1 text-[11px] text-slate-600">
+          <span>{t("settings.backgroundCropX")}</span>
+          <input type="range" min={0} max={0.95} step={0.01} value={crop.x} onChange={(event) => updateCrop({ x: Number(event.target.value) })} />
+        </label>
+        <label className="grid gap-1 text-[11px] text-slate-600">
+          <span>{t("settings.backgroundCropY")}</span>
+          <input type="range" min={0} max={0.95} step={0.01} value={crop.y} onChange={(event) => updateCrop({ y: Number(event.target.value) })} />
+        </label>
+        <label className="grid gap-1 text-[11px] text-slate-600">
+          <span>{t("settings.backgroundCropWidth")}</span>
+          <input type="range" min={0.1} max={1} step={0.01} value={crop.width} onChange={(event) => updateCrop({ width: Number(event.target.value) })} />
+        </label>
+        <label className="grid gap-1 text-[11px] text-slate-600">
+          <span>{t("settings.backgroundCropHeight")}</span>
+          <input type="range" min={0.1} max={1} step={0.01} value={crop.height} onChange={(event) => updateCrop({ height: Number(event.target.value) })} />
+        </label>
+      </div>
+      <p className="text-[11px] text-slate-500">{t("settings.backgroundCropHint")}</p>
+    </div>
+  );
+}
+
 export function BackgroundImageCard(props: {
   settings: AppSettings;
   setSettings: Dispatch<SetStateAction<AppSettings | null>>;
@@ -119,6 +212,7 @@ export function BackgroundImageCard(props: {
   const paths = useMemo(() => normalizeBackgroundPaths(settings), [settings]);
   const activePath = String(settings.uiPrefs?.backgroundImagePath ?? "").trim();
   const currentBlur = clampBlur(Number(settings.uiPrefs?.backgroundBlurPx ?? 18));
+  const activeCrop = clampCrop(settings.uiPrefs?.backgroundCropByPath?.[activePath]);
 
   const setBackgroundState = (updater: (prev: AppSettings) => AppSettings) => {
     setSettings((prev) => (prev ? updater(prev) : prev));
@@ -163,12 +257,15 @@ export function BackgroundImageCard(props: {
         const nextPaths = existing.filter((item) => item !== normalizedPath);
         const current = String(prev.uiPrefs?.backgroundImagePath ?? "").trim();
         const nextCurrent = current === normalizedPath ? "" : current;
+        const nextCropByPath = { ...(prev.uiPrefs?.backgroundCropByPath ?? {}) };
+        delete nextCropByPath[normalizedPath];
         return {
           ...prev,
           uiPrefs: {
             ...(prev.uiPrefs ?? {}),
             backgroundImagePaths: nextPaths,
             backgroundImagePath: nextCurrent,
+            backgroundCropByPath: nextCropByPath,
           },
         };
       });
@@ -268,6 +365,38 @@ export function BackgroundImageCard(props: {
             </div>
           ) : null}
         </div>
+        {activePath ? (
+          <BackgroundCropEditor
+            path={activePath}
+            crop={activeCrop}
+            onCropChange={(crop) =>
+              setBackgroundState((prev) => ({
+                ...prev,
+                uiPrefs: {
+                  ...(prev.uiPrefs ?? {}),
+                  backgroundCropByPath: {
+                    ...(prev.uiPrefs?.backgroundCropByPath ?? {}),
+                    [activePath]: crop,
+                  },
+                },
+              }))
+            }
+            onReset={() =>
+              setBackgroundState((prev) => {
+                const nextCropByPath = { ...(prev.uiPrefs?.backgroundCropByPath ?? {}) };
+                delete nextCropByPath[activePath];
+                return {
+                  ...prev,
+                  uiPrefs: {
+                    ...(prev.uiPrefs ?? {}),
+                    backgroundCropByPath: nextCropByPath,
+                  },
+                };
+              })
+            }
+            t={t}
+          />
+        ) : null}
       </div>
     </div>
   );

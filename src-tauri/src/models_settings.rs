@@ -10,6 +10,15 @@ pub struct AgentToolPrefs {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct BackgroundCropRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentPermissionPrefs {
     pub web_search: Option<String>,
     pub workspace_read: Option<String>,

@@ -259,6 +259,8 @@ export type AppSettings = {
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
+    backgroundCropByPath?: Record<string, BackgroundCropRect>;
+    editorBackgroundColor?: string;
     interfaceDensity?: "compact" | "comfortable" | "spacious";
     accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
     accentCustomColor?: string;
@@ -291,6 +293,13 @@ export type AppSettings = {
     enabledSkills?: string[];
     hiddenSkills?: string[];
   };
+};
+
+export type BackgroundCropRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 export type AgentTeamRolePrefs = {

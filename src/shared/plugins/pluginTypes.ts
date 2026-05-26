@@ -12,11 +12,32 @@ export type PluginCommandTemplate = {
   args?: string[];
 };
 
+export type PluginCommandRef = {
+  id: string;
+  title?: string | null;
+};
+
 export type PluginContribution = {
-  kind: "workspacePage" | "settingsSection" | "command" | "mcpServer" | "skill" | "docxTool" | string;
+  kind:
+    | "workspacePage"
+    | "settingsSection"
+    | "command"
+    | "mcpServer"
+    | "skill"
+    | "docxTool"
+    | "toolbarButton"
+    | "menuItem"
+    | "statusItem"
+    | "workspaceCommand"
+    | "docxCommand"
+    | string;
   id: string;
   title: string;
   description?: string | null;
+  commandRef?: PluginCommandRef | null;
+  location?: string | null;
+  group?: string | null;
+  when?: string | null;
   mcpServer?: PluginMcpServerTemplate | null;
   command?: PluginCommandTemplate | null;
   skillId?: string | null;

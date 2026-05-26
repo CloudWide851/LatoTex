@@ -37,6 +37,10 @@ export function isExcelPath(path: string | null | undefined): boolean {
   return EXCEL_EXTENSIONS.has(extensionOf(path ?? ""));
 }
 
+export function isDocxPath(path: string | null | undefined): boolean {
+  return extensionOf(path ?? "") === "docx";
+}
+
 export function isImagePath(path: string | null | undefined): boolean {
   return IMAGE_EXTENSIONS.has(extensionOf(path ?? ""));
 }
@@ -50,6 +54,7 @@ export function isCodePath(path: string | null | undefined): boolean {
   return Boolean(ext)
     && !isPdfPath(path)
     && !isImagePath(path)
+    && !isDocxPath(path)
     && !isMarkdownPath(path)
     && !isSvgPath(path)
     && !isTabularPath(path);

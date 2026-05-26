@@ -30,4 +30,10 @@ describe("workspacePreviewMode", () => {
     expect(modeFor("figure.png", { selectedImagePreviewUrl: "blob:figure" })).toBe("image");
     expect(modeFor("main.tex", { compiledPdfUrl: "blob:pdf" })).toBe("pdf");
   });
+
+  it("routes DOCX away from text preview without treating it as unsupported", () => {
+    expect(resolveWorkspacePreviewFlags("notes/chapter.docx").selectedIsDocx).toBe(true);
+    expect(modeFor("notes/chapter.docx")).toBe("empty");
+    expect(isWorkspaceUnsupportedPreviewPath("notes/chapter.docx")).toBe(false);
+  });
 });

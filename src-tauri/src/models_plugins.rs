@@ -26,6 +26,15 @@ pub struct PluginCommandTemplate {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginCommandRef {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginContribution {
     #[serde(default)]
     pub kind: String,
@@ -35,6 +44,14 @@ pub struct PluginContribution {
     pub title: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub command_ref: Option<PluginCommandRef>,
+    #[serde(default)]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub when: Option<String>,
     #[serde(default)]
     pub mcp_server: Option<PluginMcpServerTemplate>,
     #[serde(default)]

@@ -93,6 +93,22 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
         ? Math.max(4, Math.min(32, rawBackgroundBlur))
         : 18;
+      const normalizedBackgroundCropByPath = Object.fromEntries(
+        Object.entries(nextSettings.uiPrefs?.backgroundCropByPath ?? {})
+          .map(([path, rect]) => {
+            const key = String(path ?? "").trim();
+            const x = Math.max(0, Math.min(1, Number(rect?.x ?? 0)));
+            const y = Math.max(0, Math.min(1, Number(rect?.y ?? 0)));
+            const width = Math.max(0.05, Math.min(1 - x, Number(rect?.width ?? 1)));
+            const height = Math.max(0.05, Math.min(1 - y, Number(rect?.height ?? 1)));
+            return [key, { x, y, width, height }];
+          })
+          .filter(([path]) => String(path).length > 0),
+      );
+      const editorBackgroundColor = String(nextSettings.uiPrefs?.editorBackgroundColor ?? "").trim();
+      const normalizedEditorBackgroundColor = /^#[0-9a-f]{6}$/i.test(editorBackgroundColor)
+        ? editorBackgroundColor
+        : "";
       const normalizedAnalysisEnvRootsByProject = Object.fromEntries(
         Object.entries(nextSettings.uiPrefs?.analysisEnvRootsByProject ?? {})
           .map(([projectId, rootPath]) => [String(projectId).trim(), String(rootPath ?? "").trim()])
@@ -175,6 +191,8 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           backgroundImagePath: normalizedBackgroundPath,
           backgroundImagePaths: normalizedBackgroundPaths,
           backgroundBlurPx: normalizedBackgroundBlur,
+          backgroundCropByPath: normalizedBackgroundCropByPath,
+          editorBackgroundColor: normalizedEditorBackgroundColor,
           accentColor: nextSettings.uiPrefs?.accentColor ?? "emerald",
           accentCustomColor: nextSettings.uiPrefs?.accentCustomColor ?? "",
           scrollbarColorMode,

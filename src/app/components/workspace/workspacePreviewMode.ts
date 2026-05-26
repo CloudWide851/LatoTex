@@ -1,5 +1,6 @@
 import {
   isCsvPath,
+  isDocxPath,
   isExcelPath,
   isImagePath,
   isMarkdownPath,
@@ -21,6 +22,7 @@ export type WorkspacePreviewFlags = {
   selectedIsTabular: boolean;
   selectedIsPlainText: boolean;
   selectedIsTex: boolean;
+  selectedIsDocx: boolean;
 };
 
 export function resolveWorkspacePreviewFlags(path: string | null): WorkspacePreviewFlags {
@@ -34,6 +36,7 @@ export function resolveWorkspacePreviewFlags(path: string | null): WorkspacePrev
     selectedIsTabular: isTabularPath(path),
     selectedIsPlainText: isPlainTextPath(path),
     selectedIsTex: Boolean(path && /\.tex$/i.test(path)),
+    selectedIsDocx: isDocxPath(path),
   };
 }
 
@@ -85,5 +88,6 @@ export function isWorkspaceUnsupportedPreviewPath(path: string | null): boolean 
     && !flags.selectedIsSvg
     && !flags.selectedIsTabular
     && !flags.selectedIsTex
-    && !flags.selectedIsPlainText;
+    && !flags.selectedIsPlainText
+    && !flags.selectedIsDocx;
 }

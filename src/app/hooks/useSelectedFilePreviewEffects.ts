@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
-import { isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
+import { isDocxPath, isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 import { buildWorkspaceResourceUrl, buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
@@ -65,7 +65,7 @@ export function useSelectedFilePreviewEffects(params: {
       setEditorContent("");
       return;
     }
-    if (isPdfPath(selectedFile) || isExcelPath(selectedFile) || isImagePath(selectedFile)) {
+    if (isPdfPath(selectedFile) || isExcelPath(selectedFile) || isImagePath(selectedFile) || isDocxPath(selectedFile)) {
       setSelectedTextFileReadyPath(null);
       setEditorContent("");
       return;
