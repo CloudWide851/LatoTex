@@ -493,6 +493,7 @@ pub struct UiPrefs {
     pub agent_tool_prefs: Option<AgentToolPrefs>,
     pub agent_permission_prefs: Option<AgentPermissionPrefs>,
     pub agent_team_prefs: Option<AgentTeamPrefs>,
+    pub plugin_catalog_sources: Option<Vec<PluginCatalogSource>>,
     pub mcp_servers: Option<Vec<McpServerConfig>>,
     pub enabled_skills: Option<Vec<String>>,
     pub hidden_skills: Option<Vec<String>>,

@@ -1,4 +1,5 @@
 import type { CodeLanguageInfo } from "../utils/codeLanguage";
+import type { PluginCatalogSource } from "../plugins/pluginTypes";
 
 export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings";
 
@@ -285,6 +286,7 @@ export type AppSettings = {
     agentToolPrefs?: AgentToolPrefs;
     agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
+    pluginCatalogSources?: PluginCatalogSource[];
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
     hiddenSkills?: string[];

@@ -75,6 +75,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     events,
     explorerGitDecorations,
     shellMin,
+    settings,
     settingsPanel,
     gitPanel,
     analysisPanel,
@@ -391,7 +392,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return settingsPanel;
     }
     if (page === "plugins") {
-      return <PluginMarketplace t={t} />;
+      return <PluginMarketplace settings={settings} t={t} />;
     }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;

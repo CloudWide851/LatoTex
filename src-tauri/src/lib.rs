@@ -47,7 +47,7 @@ use commands::projects_translation::{
 };
 use commands::plugins::{
     plugin_install, plugin_installed_list, plugin_marketplace_catalog, plugin_set_enabled,
-    plugin_uninstall,
+    plugin_uninstall, plugin_validate_manifest,
 };
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test,
@@ -432,6 +432,7 @@ pub fn run() {
             plugin_install,
             plugin_uninstall,
             plugin_set_enabled,
+            plugin_validate_manifest,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

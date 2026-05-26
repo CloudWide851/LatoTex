@@ -54,17 +54,12 @@ export function updateSettings(input: {
       telegramEnabled?: boolean;
       telegramBotToken?: string;
       telegramChatId?: string;
-      dingtalkEnabled?: boolean;
-      dingtalkClientId?: string;
-      dingtalkClientSecret?: string;
     };
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
-    backgroundCropByPath?: Record<string, { x: number; y: number; width: number; height: number }>;
-    editorBackgroundColor?: string;
     interfaceDensity?: "compact" | "comfortable" | "spacious";
     accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
     accentCustomColor?: string;
@@ -99,7 +94,6 @@ export function updateSettings(input: {
     agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
     pluginCatalogSources?: PluginCatalogSource[];
-    docxAutoSaveEnabled?: boolean;
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
     hiddenSkills?: string[];

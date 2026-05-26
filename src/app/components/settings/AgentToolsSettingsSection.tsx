@@ -174,12 +174,12 @@ export function McpSettingsSection(props: {
     try {
       const [installed, catalog] = await Promise.all([
         listInstalledPlugins().catch(() => []),
-        getPluginCatalog().catch(() => ({ items: [], warnings: [], schema: "latotex.marketplace.v1" })),
+        getPluginCatalog(settings.uiPrefs?.pluginCatalogSources ?? []).catch(() => ({ items: [], warnings: [], schema: "latotex.marketplace.v1" })),
       ]);
       const installedIds = new Set(installed.filter((item) => item.enabled).map((item) => item.manifest.id));
       const candidates = [
         ...installed.filter((item) => item.enabled).map((item) => item.manifest),
-        ...catalog.items.filter((item) => !installedIds.has(item.id)),
+        ...catalog.items.map((item) => item.manifest).filter((item) => !installedIds.has(item.id)),
       ].filter((item) => item.contributions.some((contribution) => contribution.kind === "mcpServer" && contribution.mcpServer));
       setInstallablePlugins(candidates);
     } finally {
