@@ -36,6 +36,14 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
   const normalizedBackgroundBlur = Number.isFinite(rawBackgroundBlur)
     ? Math.max(4, Math.min(32, rawBackgroundBlur))
     : 18;
+  const pluginCatalogSources = (appSettings.uiPrefs?.pluginCatalogSources ?? [])
+    .map((source, index) => ({
+      id: String(source.id || `catalog-${index + 1}`).trim(),
+      name: String(source.name || source.id || `Catalog ${index + 1}`).trim(),
+      url: String(source.url ?? "").trim(),
+      enabled: source.enabled ?? true,
+    }))
+    .filter((source) => source.id.length > 0 && source.url.length > 0);
   return {
     ...appSettings,
     agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
@@ -70,6 +78,7 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
         mcpServerModes: appSettings.uiPrefs?.agentPermissionPrefs?.mcpServerModes ?? {},
         pluginModes: appSettings.uiPrefs?.agentPermissionPrefs?.pluginModes ?? {},
       },
+      pluginCatalogSources,
       mcpServers: appSettings.uiPrefs?.mcpServers ?? [],
       enabledSkills: appSettings.uiPrefs?.enabledSkills ?? [],
       hiddenSkills: appSettings.uiPrefs?.hiddenSkills ?? [],

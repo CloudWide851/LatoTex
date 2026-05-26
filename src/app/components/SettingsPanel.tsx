@@ -32,6 +32,7 @@ import { MemoryGuardSettingsSection } from "./settings/MemoryGuardSettingsSectio
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { SettingsSelectRow } from "./settings/SettingsSelectRow";
 import { SidebarPageOrderSettingsSection } from "./settings/SidebarPageOrderSettingsSection";
+import { PluginSourcesSettingsSection } from "./settings/PluginSourcesSettingsSection";
 import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
 
 type TranslationFn = (key: any) => string;
@@ -398,6 +399,10 @@ export function SettingsPanel(props: {
 
         {settingsSection === "agent-permissions" && (
           <AgentPermissionsSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
+        )}
+
+        {settingsSection === "plugin-sources" && (
+          <PluginSourcesSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
         )}
 
         {settingsSection === "mcp" && (

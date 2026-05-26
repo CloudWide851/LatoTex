@@ -20,6 +20,7 @@ import type {
   ProtocolHealth,
   ProtocolTestInput,
 } from "../types/app";
+import type { PluginCatalogSource } from "../plugins/pluginTypes";
 import { invokeCommand } from "./core";
 
 export function getSettings(): Promise<AppSettings> {
@@ -88,9 +89,11 @@ export function updateSettings(input: {
     libraryExplorerDefaultExpanded?: boolean;
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
+    sidebarPageOrder?: Array<"latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings">;
     agentToolPrefs?: AgentToolPrefs;
     agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
+    pluginCatalogSources?: PluginCatalogSource[];
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
     hiddenSkills?: string[];

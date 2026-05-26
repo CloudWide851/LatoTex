@@ -135,6 +135,14 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const scrollbarColorMode = nextSettings.uiPrefs?.scrollbarColorMode
         ?? (hasCustomScrollbarColors ? "custom" : "accent");
       const normalizedAgentTeamPrefs = normalizeAgentTeamPrefs(nextSettings.uiPrefs?.agentTeamPrefs);
+      const normalizedPluginCatalogSources = (nextSettings.uiPrefs?.pluginCatalogSources ?? [])
+        .map((source, index) => ({
+          id: String(source.id || `catalog-${index + 1}`).trim(),
+          name: String(source.name || source.id || `Catalog ${index + 1}`).trim(),
+          url: String(source.url ?? "").trim(),
+          enabled: source.enabled ?? true,
+        }))
+        .filter((source) => source.id.length > 0 && source.url.length > 0);
       const updated = await updateSettings({
         activeProjectId: nextSettings.activeProjectId ?? activeProjectIdRef.current,
         modelProtocols: nextSettings.modelProtocols.map((protocol) => ({
@@ -195,6 +203,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           libraryExplorerDefaultExpanded: nextSettings.uiPrefs?.libraryExplorerDefaultExpanded ?? true,
           workspaceExplorerExpandedPathsByProject: normalizedWorkspaceExplorerExpandedPathsByProject,
           libraryExplorerExpandedPathsByProject: normalizedLibraryExplorerExpandedPathsByProject,
+          sidebarPageOrder: nextSettings.uiPrefs?.sidebarPageOrder,
           agentToolPrefs: {
             webSearchEnabled: nextSettings.uiPrefs?.agentToolPrefs?.webSearchEnabled ?? true,
             workspaceReadEnabled: nextSettings.uiPrefs?.agentToolPrefs?.workspaceReadEnabled ?? true,
@@ -214,6 +223,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
             pluginModes: nextSettings.uiPrefs?.agentPermissionPrefs?.pluginModes ?? {},
           },
           agentTeamPrefs: normalizedAgentTeamPrefs,
+          pluginCatalogSources: normalizedPluginCatalogSources,
           mcpServers: (nextSettings.uiPrefs?.mcpServers ?? [])
             .map((server) => ({
               id: String(server.id ?? "").trim(),

@@ -1,6 +1,7 @@
 import type {
   CloseTabsAction,
   ChannelPrefs,
+  AppSettings,
   EditorTab,
   FsAction,
   FsScope,
@@ -72,6 +73,7 @@ export type AppWorkspaceShellProps = {
     { code: string; ignored: boolean; staged: boolean; unstaged: boolean; untracked: boolean }
   >;
   shellMin: readonly [number, number];
+  settings: AppSettings | null;
   settingsPanel: React.ReactNode;
   gitPanel: React.ReactNode;
   analysisPanel: React.ReactNode;

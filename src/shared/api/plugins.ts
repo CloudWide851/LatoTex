@@ -1,10 +1,16 @@
 import type { Ack } from "../types/app";
-import type { InstalledPlugin, PluginCatalogResponse, PluginManifest } from "../plugins/pluginTypes";
+import type {
+  InstalledPlugin,
+  PluginCatalogResponse,
+  PluginCatalogSource,
+  PluginManifest,
+  PluginValidationResult,
+} from "../plugins/pluginTypes";
 import { invokeCommand } from "./core";
 
-export function getPluginCatalog(catalogUrl?: string): Promise<PluginCatalogResponse> {
+export function getPluginCatalog(catalogSources?: PluginCatalogSource[], catalogUrl?: string): Promise<PluginCatalogResponse> {
   return invokeCommand<PluginCatalogResponse>("plugin_marketplace_catalog", {
-    input: { catalogUrl },
+    input: { catalogSources, catalogUrl },
   });
 }
 
@@ -14,6 +20,10 @@ export function listInstalledPlugins(): Promise<InstalledPlugin[]> {
 
 export function installPlugin(manifest: PluginManifest): Promise<InstalledPlugin> {
   return invokeCommand<InstalledPlugin>("plugin_install", { input: { manifest } });
+}
+
+export function validatePluginManifest(manifest: PluginManifest): Promise<PluginValidationResult> {
+  return invokeCommand<PluginValidationResult>("plugin_validate_manifest", { input: { manifest } });
 }
 
 export function uninstallPlugin(pluginId: string): Promise<Ack> {

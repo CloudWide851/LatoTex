@@ -1,17 +1,19 @@
 import {
   Bold,
   FileText,
-  Heading1,
-  Heading2,
   Italic,
+  Link,
   List,
   ListOrdered,
   RefreshCw,
+  Replace,
   Save,
+  Table2,
   Underline,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
 import { readDocx, writeDocx } from "../../../shared/api/docx";
 import type { ResourceNode } from "../../../shared/types/app";
@@ -51,6 +53,46 @@ function execFormat(command: string, value?: string) {
   document.execCommand(command, false, value);
 }
 
+function sanitizeDocxHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const allowedTags = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "H1", "H2", "H3", "UL", "OL", "LI", "A", "TABLE", "TBODY", "TR", "TD", "TH", "SPAN"]);
+  const walk = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const element = child as HTMLElement;
+        if (!allowedTags.has(element.tagName)) {
+          element.replaceWith(...Array.from(element.childNodes));
+          continue;
+        }
+        for (const attr of Array.from(element.attributes)) {
+          const name = attr.name.toLowerCase();
+          const value = attr.value.trim();
+          const safeHref = name === "href" && /^(https?:|mailto:|#)/i.test(value);
+          const safeImageMarker = name === "data-docx-image";
+          const safeEditable = name === "contenteditable" && element.hasAttribute("data-docx-image");
+          if (!safeHref && !safeImageMarker && !safeEditable) {
+            element.removeAttribute(attr.name);
+          }
+        }
+      }
+      walk(child);
+    }
+  };
+  walk(template.content);
+  return template.innerHTML || "<p><br></p>";
+}
+
+function countWords(html: string): number {
+  return stripHtml(html).split(/\s+/).filter(Boolean).length;
+}
+
+function stripHtml(html: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  return template.content.textContent ?? "";
+}
+
 export function DocxWorkspace(props: {
   projectId: string;
   tree: ResourceNode[];
@@ -70,6 +112,8 @@ export function DocxWorkspace(props: {
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [findText, setFindText] = useState("");
+  const [replaceText, setReplaceText] = useState("");
 
   useEffect(() => {
     if (selectedPath && docxPaths.includes(selectedPath)) {
@@ -113,7 +157,7 @@ export function DocxWorkspace(props: {
   }, [projectId, reloadToken, selectedPath]);
 
   const syncHtmlFromDom = () => {
-    setHtml(editorRef.current?.innerHTML || "<p><br></p>");
+    setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
     setDirty(true);
   };
 
@@ -127,7 +171,7 @@ export function DocxWorkspace(props: {
     if (!selectedPath) {
       return;
     }
-    const nextHtml = editorRef.current?.innerHTML || html;
+    const nextHtml = sanitizeDocxHtml(editorRef.current?.innerHTML || html);
     setSaving(true);
     setStatus(null);
     try {
@@ -143,15 +187,47 @@ export function DocxWorkspace(props: {
     }
   };
 
+  const setBlock = (tag: string) => {
+    applyFormat("formatBlock", tag);
+  };
+
+  const insertLink = () => {
+    const url = window.prompt(t("docx.linkPrompt"));
+    if (!url) {
+      return;
+    }
+    applyFormat("createLink", url);
+  };
+
+  const insertTable = () => {
+    editorRef.current?.focus();
+    execFormat("insertHTML", "<table><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table><p><br></p>");
+    syncHtmlFromDom();
+  };
+
+  const replaceAll = () => {
+    if (!findText) {
+      return;
+    }
+    const current = editorRef.current?.innerHTML || html;
+    const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const nextHtml = sanitizeDocxHtml(current.replace(new RegExp(escaped, "gi"), replaceText));
+    if (editorRef.current) {
+      editorRef.current.innerHTML = nextHtml;
+    }
+    setHtml(nextHtml);
+    setDirty(true);
+    setStatus(t("docx.replaceDone"));
+  };
+
   const toolbar = [
     { key: "bold", icon: Bold, command: "bold", label: t("docx.format.bold") },
     { key: "italic", icon: Italic, command: "italic", label: t("docx.format.italic") },
     { key: "underline", icon: Underline, command: "underline", label: t("docx.format.underline") },
-    { key: "h1", icon: Heading1, command: "formatBlock", value: "h1", label: t("docx.format.h1") },
-    { key: "h2", icon: Heading2, command: "formatBlock", value: "h2", label: t("docx.format.h2") },
     { key: "bullet", icon: List, command: "insertUnorderedList", label: t("docx.format.bullet") },
     { key: "numbered", icon: ListOrdered, command: "insertOrderedList", label: t("docx.format.numbered") },
   ];
+  const wordCount = useMemo(() => countWords(html), [html]);
 
   return (
     <section className="grid h-full min-h-0 grid-cols-[minmax(160px,0.35fr)_minmax(0,1fr)] gap-px rounded-lg border border-slate-200 bg-slate-200 shadow-soft">
@@ -188,6 +264,17 @@ export function DocxWorkspace(props: {
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-1">
+            <select
+              className="h-8 rounded border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none focus:border-[color:var(--app-accent)]"
+              disabled={!selectedPath || loading}
+              aria-label={t("docx.format.block")}
+              defaultValue="p"
+              onChange={(event) => setBlock(event.target.value)}
+            >
+              <option value="p">{t("docx.format.paragraph")}</option>
+              <option value="h1">{t("docx.format.h1")}</option>
+              <option value="h2">{t("docx.format.h2")}</option>
+            </select>
             {toolbar.map((item) => {
               const Icon = item.icon;
               return (
@@ -200,12 +287,18 @@ export function DocxWorkspace(props: {
                   aria-label={item.label}
                   disabled={!selectedPath || loading}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => applyFormat(item.command, item.value)}
+                  onClick={() => applyFormat(item.command)}
                 >
                   <Icon className="h-4 w-4" />
                 </Button>
               );
             })}
+            <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.link")} aria-label={t("docx.format.link")} disabled={!selectedPath || loading} onMouseDown={(event) => event.preventDefault()} onClick={insertLink}>
+              <Link className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.table")} aria-label={t("docx.format.table")} disabled={!selectedPath || loading} onMouseDown={(event) => event.preventDefault()} onClick={insertTable}>
+              <Table2 className="h-4 w-4" />
+            </Button>
             <Button size="sm" variant="secondary" disabled={!selectedPath || loading} onClick={() => setReloadToken((prev) => prev + 1)}>
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
               {t("docx.reload")}
@@ -217,6 +310,16 @@ export function DocxWorkspace(props: {
           </div>
         </header>
         <div className="min-h-0 overflow-auto p-4">
+          {selectedPath && !loading ? (
+            <div className="mx-auto mb-2 grid max-w-3xl gap-2 rounded-md border border-slate-200 bg-white/80 p-2 md:grid-cols-[minmax(120px,1fr)_minmax(120px,1fr)_auto]">
+              <Input className="h-8 text-xs" value={findText} onChange={(event) => setFindText(event.target.value)} placeholder={t("docx.find")} />
+              <Input className="h-8 text-xs" value={replaceText} onChange={(event) => setReplaceText(event.target.value)} placeholder={t("docx.replace")} />
+              <Button size="sm" variant="secondary" disabled={!findText} onClick={replaceAll}>
+                <Replace className="mr-1.5 h-3.5 w-3.5" />
+                {t("docx.replaceAll")}
+              </Button>
+            </div>
+          ) : null}
           {!selectedPath ? (
             <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-xs text-slate-500">
               {docxPaths.length === 0 ? t("docx.empty") : t("docx.select")}
@@ -245,7 +348,7 @@ export function DocxWorkspace(props: {
           )}
         </div>
         <footer className="min-h-8 border-t border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-3 py-1.5 text-[11px] text-slate-500">
-          {status}
+          {status || t("docx.wordCount").replace("{count}", String(wordCount))}
         </footer>
       </div>
     </section>

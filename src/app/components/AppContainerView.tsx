@@ -437,6 +437,7 @@ export function AppContainerView(props: any) {
                 events={events}
                 explorerGitDecorations={explorerGitDecorations}
                 shellMin={SHELL_MIN}
+                settings={settings}
                 settingsPanel={settingsPanel}
                 gitPanel={gitPanel}
                 analysisPanel={analysisPanel}

@@ -1,4 +1,17 @@
-import { Download, Power, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  FileText,
+  Info,
+  Network,
+  Package,
+  Power,
+  Puzzle,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   getPluginCatalog,
@@ -7,7 +20,8 @@ import {
   setPluginEnabled,
   uninstallPlugin,
 } from "../../../shared/api/plugins";
-import type { InstalledPlugin, PluginManifest } from "../../../shared/plugins/pluginTypes";
+import type { AppSettings } from "../../../shared/types/app";
+import type { InstalledPlugin, PluginCatalogEntry, PluginManifest } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
@@ -15,18 +29,53 @@ import { cn } from "../../../lib/utils";
 type TranslationFn = (key: any) => string;
 
 function contributionSummary(plugin: PluginManifest): string {
-  return plugin.contributions.map((item) => item.title).join(", ");
+  return plugin.contributions.map((item) => item.title).filter(Boolean).join(", ");
 }
 
-export function PluginMarketplace(props: { t: TranslationFn }) {
-  const { t } = props;
-  const [catalogUrl, setCatalogUrl] = useState("");
+function iconFor(plugin: PluginManifest) {
+  const categories = plugin.categories.join(" ").toLowerCase();
+  const kinds = plugin.contributions.map((item) => item.kind).join(" ").toLowerCase();
+  if (categories.includes("office") || kinds.includes("docx")) {
+    return FileText;
+  }
+  if (kinds.includes("mcp") || categories.includes("mcp")) {
+    return Network;
+  }
+  if (plugin.permissions.some((item) => item.includes("write") || item.includes("shell"))) {
+    return ShieldAlert;
+  }
+  if (kinds.includes("command")) {
+    return Puzzle;
+  }
+  return Package;
+}
+
+function issueTone(severity: string): string {
+  if (severity === "error") {
+    return "border-rose-200 bg-rose-50 text-rose-700";
+  }
+  if (severity === "warning") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+export function PluginMarketplace(props: {
+  settings: AppSettings | null;
+  t: TranslationFn;
+}) {
+  const { settings, t } = props;
   const [query, setQuery] = useState("");
-  const [catalog, setCatalog] = useState<PluginManifest[]>([]);
+  const [catalog, setCatalog] = useState<PluginCatalogEntry[]>([]);
   const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const catalogSources = useMemo(
+    () => (settings?.uiPrefs?.pluginCatalogSources ?? []).filter((source) => source.enabled ?? true),
+    [settings?.uiPrefs?.pluginCatalogSources],
+  );
 
   const installedById = useMemo(
     () => new Map(installed.map((item) => [item.manifest.id, item])),
@@ -37,8 +86,16 @@ export function PluginMarketplace(props: { t: TranslationFn }) {
     if (!needle) {
       return catalog;
     }
-    return catalog.filter((item) =>
-      [item.name, item.publisher, item.description, item.id, item.categories.join(" ")]
+    return catalog.filter(({ manifest, sourceName }) =>
+      [
+        manifest.name,
+        manifest.displayName ?? "",
+        manifest.publisher,
+        manifest.description,
+        manifest.id,
+        sourceName,
+        manifest.categories.join(" "),
+      ]
         .join(" ")
         .toLowerCase()
         .includes(needle),
@@ -50,7 +107,7 @@ export function PluginMarketplace(props: { t: TranslationFn }) {
     setStatus(null);
     try {
       const [nextCatalog, nextInstalled] = await Promise.all([
-        getPluginCatalog(catalogUrl.trim() || undefined),
+        getPluginCatalog(catalogSources),
         listInstalledPlugins(),
       ]);
       setCatalog(nextCatalog.items);
@@ -65,13 +122,17 @@ export function PluginMarketplace(props: { t: TranslationFn }) {
 
   useEffect(() => {
     void reload();
-  }, []);
+  }, [catalogSources]);
 
-  const install = async (plugin: PluginManifest) => {
+  const install = async (entry: PluginCatalogEntry) => {
+    if (!entry.validation.ok) {
+      setStatus(t("plugins.installBlocked"));
+      return;
+    }
     setBusy(true);
     try {
-      const next = await installPlugin(plugin);
-      setInstalled((prev) => [next, ...prev.filter((item) => item.manifest.id !== plugin.id)]);
+      const next = await installPlugin(entry.manifest);
+      setInstalled((prev) => [next, ...prev.filter((item) => item.manifest.id !== entry.manifest.id)]);
       setStatus(t("plugins.installDone"));
     } catch (error) {
       setStatus(String(error));
@@ -118,29 +179,41 @@ export function PluginMarketplace(props: { t: TranslationFn }) {
             {busy ? t("common.loading") : t("plugins.refresh")}
           </Button>
         </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-[minmax(160px,1fr)_minmax(220px,1.4fr)]">
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
-            <Input className="h-9 pl-8 text-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("plugins.search")} />
-          </label>
-          <Input className="h-9 text-xs" value={catalogUrl} onChange={(event) => setCatalogUrl(event.target.value)} placeholder={t("plugins.catalogUrl")} />
-        </div>
+        <label className="relative mt-3 block max-w-xl">
+          <Search className="pointer-events-none absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <Input className="h-9 pl-8 text-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("plugins.search")} />
+        </label>
+        <p className="mt-2 text-[11px] text-slate-500">
+          {t("plugins.sourcesSummary").replace("{count}", String(catalogSources.length + 1))}
+        </p>
         {status ? <p className="mt-2 text-[11px] text-slate-600">{status}</p> : null}
         {warnings.length > 0 ? <p className="mt-2 text-[11px] text-amber-700">{warnings.join("; ")}</p> : null}
       </div>
       <div className="settings-scrollbar-hidden min-h-0 overflow-auto p-3">
-        <div className="grid gap-3 xl:grid-cols-2">
-          {filtered.map((plugin) => {
+        <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+          {filtered.map((entry) => {
+            const plugin = entry.manifest;
             const installedPlugin = installedById.get(plugin.id);
+            const Icon = iconFor(plugin);
+            const errorCount = entry.validation.issues.filter((item) => item.severity === "error").length;
+            const warningCount = entry.validation.issues.filter((item) => item.severity === "warning").length;
+            const expanded = expandedId === plugin.id;
             return (
-              <article key={plugin.id} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-sm font-semibold text-slate-900">{plugin.name}</h3>
-                    <p className="text-[11px] text-slate-500">{plugin.publisher} / {plugin.version}</p>
+              <article key={`${entry.sourceId}:${plugin.id}`} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50/80 p-2.5">
+                <div className="flex min-w-0 items-start gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">
+                    {plugin.icon ? (
+                      <img src={plugin.icon} alt="" className="h-5 w-5 rounded object-contain" />
+                    ) : (
+                      <Icon className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-semibold text-slate-900">{plugin.displayName || plugin.name}</h3>
+                    <p className="truncate text-[11px] text-slate-500">{plugin.publisher} / {plugin.version} / {entry.sourceName}</p>
                   </div>
                   <span className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px]",
+                    "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
                     installedPlugin?.enabled
                       ? "bg-emerald-50 text-emerald-700"
                       : installedPlugin
@@ -150,14 +223,48 @@ export function PluginMarketplace(props: { t: TranslationFn }) {
                     {installedPlugin?.enabled ? t("plugins.enabled") : installedPlugin ? t("plugins.disabled") : t("plugins.notInstalled")}
                   </span>
                 </div>
-                <p className="line-clamp-2 text-xs leading-5 text-slate-600">{plugin.description}</p>
+                <p className="line-clamp-2 min-h-9 text-xs leading-[18px] text-slate-600">{plugin.description}</p>
                 <div className="flex flex-wrap gap-1">
-                  {plugin.categories.map((category) => (
-                    <span key={category} className="rounded bg-white px-2 py-0.5 text-[11px] text-slate-600">{category}</span>
+                  {plugin.categories.slice(0, 3).map((category) => (
+                    <span key={category} className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-600">{category}</span>
                   ))}
+                  {plugin.permissions.length > 0 ? (
+                    <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-600">
+                      {t("plugins.permissionsCount").replace("{count}", String(plugin.permissions.length))}
+                    </span>
+                  ) : null}
+                  {errorCount > 0 || warningCount > 0 ? (
+                    <button
+                      type="button"
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
+                        errorCount > 0 ? issueTone("error") : issueTone("warning"),
+                      )}
+                      onClick={() => setExpandedId(expanded ? null : plugin.id)}
+                      title={t("plugins.validationDetails")}
+                    >
+                      {errorCount > 0 ? <AlertTriangle className="h-3 w-3" /> : <Info className="h-3 w-3" />}
+                      {errorCount > 0
+                        ? t("plugins.validationErrors").replace("{count}", String(errorCount))
+                        : t("plugins.validationWarnings").replace("{count}", String(warningCount))}
+                    </button>
+                  ) : (
+                    <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] text-emerald-700">
+                      {t("plugins.validationOk")}
+                    </span>
+                  )}
                 </div>
-                <p className="truncate text-[11px] text-slate-500">{contributionSummary(plugin)}</p>
-                <div className="flex flex-wrap justify-end gap-2">
+                <p className="truncate text-[11px] text-slate-500">{contributionSummary(plugin) || plugin.id}</p>
+                {expanded ? (
+                  <div className="settings-scrollbar-hidden max-h-24 overflow-auto rounded border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
+                    {entry.validation.issues.map((item) => (
+                      <div key={`${item.code}-${item.message}`} className={cn("mb-1 rounded border px-1.5 py-1", issueTone(item.severity))}>
+                        {item.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap justify-end gap-1">
                   {installedPlugin ? (
                     <>
                       <Button size="sm" variant="secondary" disabled={busy} onClick={() => void toggle(installedPlugin)}>
@@ -165,12 +272,11 @@ export function PluginMarketplace(props: { t: TranslationFn }) {
                         {installedPlugin.enabled ? t("plugins.disable") : t("plugins.enable")}
                       </Button>
                       <Button size="sm" variant="ghost" disabled={busy} onClick={() => void remove(plugin.id)}>
-                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                        {t("plugins.uninstall")}
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" disabled={busy} onClick={() => void install(plugin)}>
+                    <Button size="sm" disabled={busy || !entry.validation.ok} onClick={() => void install(entry)}>
                       <Download className="mr-1.5 h-3.5 w-3.5" />
                       {t("plugins.install")}
                     </Button>
