@@ -60,6 +60,8 @@ export function updateSettings(input: {
     backgroundImagePath?: string;
     backgroundImagePaths?: string[];
     backgroundBlurPx?: number;
+    backgroundCropByPath?: Record<string, { x: number; y: number; width: number; height: number }>;
+    editorBackgroundColor?: string;
     interfaceDensity?: "compact" | "comfortable" | "spacious";
     accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
     accentCustomColor?: string;

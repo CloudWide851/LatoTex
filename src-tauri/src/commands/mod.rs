@@ -8,6 +8,8 @@ pub mod local_resources;
 pub mod native_runtime;
 pub mod docx;
 pub mod plugins;
+#[cfg(test)]
+mod plugins_validation_tests;
 pub mod projects;
 pub mod projects_translation;
 pub mod settings;

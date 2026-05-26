@@ -836,50 +836,9 @@ body::before {
   text-transform: uppercase;
 }
 
-.docx-page-wrap {
-  container-type: inline-size;
-}
-
-.docx-page-frame {
-  width: min(100%, calc(820px * var(--docx-zoom, 1)));
-}
-
-.docx-page-surface {
-  min-height: min(960px, calc(100vh - 292px));
-  padding: calc(clamp(28px, 7cqw, 64px) * var(--docx-zoom, 1));
-  font-size: calc(15px * var(--docx-zoom, 1));
-  line-height: 1.7;
-}
-
-.docx-ribbon-popover .docx-ribbon-group {
-  min-height: 46px;
-}
-
-@container (max-width: 680px) {
-  .docx-page-frame {
-    width: 100%;
-  }
-
-  .docx-page-surface {
-    min-height: min(760px, calc(100vh - 260px));
-    padding: calc(24px * var(--docx-zoom, 1));
-    font-size: calc(14px * var(--docx-zoom, 1));
-    line-height: 1.65;
-  }
-}
-
 .docx-page-surface table {
   width: 100%;
   border-collapse: collapse;
-}
-
-.docx-page-surface img[data-docx-resource] {
-  display: block;
-  max-width: 100%;
-  max-height: 360px;
-  margin: 0.75rem 0;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
 }
 
 .docx-page-surface td,

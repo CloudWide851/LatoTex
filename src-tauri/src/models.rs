@@ -466,6 +466,8 @@ pub struct UiPrefs {
     pub background_image_path: Option<String>,
     pub background_image_paths: Option<Vec<String>>,
     pub background_blur_px: Option<f64>,
+    pub background_crop_by_path: Option<std::collections::HashMap<String, BackgroundCropRect>>,
+    pub editor_background_color: Option<String>,
     pub interface_density: Option<String>,
     pub accent_color: Option<String>,
     pub accent_custom_color: Option<String>,

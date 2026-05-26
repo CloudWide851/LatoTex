@@ -44,7 +44,7 @@ fn is_http_url(value: &Option<String>) -> bool {
         .unwrap_or(true)
 }
 
-fn validate_manifest(manifest: &PluginManifest) -> PluginValidationResult {
+pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationResult {
     let mut issues = Vec::new();
     if manifest.schema != PLUGIN_SCHEMA {
         issues.push(issue(
@@ -150,6 +150,31 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "mcpServer",
         "skill",
         "docxTool",
+        "toolbarButton",
+        "menuItem",
+        "statusItem",
+        "workspaceCommand",
+        "docxCommand",
+    ]);
+    let safe_commands = HashSet::from([
+        "app.openPage",
+        "settings.openSection",
+        "workspace.rescan",
+        "workspace.openTerminal",
+        "workspace.revealInSystem",
+        "docx.save",
+        "docx.reload",
+        "docx.find",
+        "docx.replaceAll",
+        "docx.insertTable",
+        "docx.insertLink",
+    ]);
+    let declarative_command_kinds = HashSet::from([
+        "toolbarButton",
+        "menuItem",
+        "statusItem",
+        "workspaceCommand",
+        "docxCommand",
     ]);
     for contribution in &manifest.contributions {
         if !validate_identifier(&contribution.id, 96) || contribution.title.trim().is_empty() {
@@ -162,9 +187,36 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         if !allowed.contains(contribution.kind.as_str()) {
             issues.push(issue(
                 "plugin.contribution.unknown_kind",
-                "warning",
+                "error",
                 &format!("Unknown contribution kind: {}.", contribution.kind),
             ));
+        }
+        if declarative_command_kinds.contains(contribution.kind.as_str()) {
+            let Some(command_ref) = contribution.command_ref.as_ref() else {
+                issues.push(issue(
+                    "plugin.contribution.command_ref_missing",
+                    "error",
+                    "Declarative command contributions must declare commandRef.",
+                ));
+                continue;
+            };
+            let command_id = command_ref.id.trim();
+            if !safe_commands.contains(command_id) {
+                issues.push(issue(
+                    "plugin.contribution.command_ref_unsafe",
+                    "error",
+                    &format!("Command reference is not in the safe allowlist: {command_id}."),
+                ));
+            }
+            if matches!(contribution.kind.as_str(), "toolbarButton" | "menuItem" | "statusItem")
+                && contribution.location.as_deref().map(str::trim).unwrap_or("").is_empty()
+            {
+                issues.push(issue(
+                    "plugin.contribution.location_missing",
+                    "error",
+                    "UI command contributions must declare a location.",
+                ));
+            }
         }
         if contribution.kind == "mcpServer" {
             let Some(server) = contribution.mcp_server.as_ref() else {
@@ -235,6 +287,10 @@ fn built_in_catalog() -> Vec<PluginCatalogEntry> {
                 id: "docx".to_string(),
                 title: "DOCX".to_string(),
                 description: Some("DOCX editor under the LaTeX workspace.".to_string()),
+                command_ref: None,
+                location: None,
+                group: None,
+                when: None,
                 mcp_server: None,
                 command: None,
                 skill_id: None,
@@ -244,6 +300,10 @@ fn built_in_catalog() -> Vec<PluginCatalogEntry> {
                 id: "docx.richText.v1".to_string(),
                 title: "DOCX rich text bridge".to_string(),
                 description: Some("Reads and writes common DOCX text structures.".to_string()),
+                command_ref: None,
+                location: None,
+                group: None,
+                when: None,
                 mcp_server: None,
                 command: None,
                 skill_id: None,

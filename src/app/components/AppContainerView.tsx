@@ -35,6 +35,26 @@ const THEME_PRESETS: Record<string, {
   highContrast: { accent: "#0f172a", background: "#f8fafc", surface: "#ffffff", scrollbarTrack: "#94a3b8" },
 };
 
+function clampCropRect(value: unknown) {
+  const rect = value && typeof value === "object" ? value as { x?: unknown; y?: unknown; width?: unknown; height?: unknown } : {};
+  const x = Math.max(0, Math.min(0.95, Number(rect.x ?? 0)));
+  const y = Math.max(0, Math.min(0.95, Number(rect.y ?? 0)));
+  const width = Math.max(0.05, Math.min(1 - x, Number(rect.width ?? 1)));
+  const height = Math.max(0.05, Math.min(1 - y, Number(rect.height ?? 1)));
+  return { x, y, width, height };
+}
+
+function cropBackgroundStyle(path: string, cropByPath: unknown) {
+  const map = cropByPath && typeof cropByPath === "object" ? cropByPath as Record<string, unknown> : {};
+  const crop = clampCropRect(map[path]);
+  const xDenominator = Math.max(0.0001, 1 - crop.width);
+  const yDenominator = Math.max(0.0001, 1 - crop.height);
+  return {
+    backgroundSize: `${(100 / crop.width).toFixed(3)}% ${(100 / crop.height).toFixed(3)}%`,
+    backgroundPosition: `${((crop.x / xDenominator) * 100).toFixed(3)}% ${((crop.y / yDenominator) * 100).toFixed(3)}%`,
+  };
+}
+
 export function AppContainerView(props: any) {
   const {
     status,
@@ -255,6 +275,9 @@ export function AppContainerView(props: any) {
     ? selectedBackgroundPath
     : "";
   const backgroundUrl = useBackgroundImageObjectUrl(backgroundPath);
+  const backgroundCropStyle = backgroundPath
+    ? cropBackgroundStyle(backgroundPath, settings?.uiPrefs?.backgroundCropByPath)
+    : null;
   const rawBlur = Number(settings?.uiPrefs?.backgroundBlurPx ?? 18);
   const backgroundBlurPx = Number.isFinite(rawBlur) ? Math.max(4, Math.min(32, rawBlur)) : 18;
   const themePreset = THEME_PRESETS[String(settings?.uiPrefs?.themePreset ?? "default")] ?? THEME_PRESETS.default;
@@ -277,6 +300,8 @@ export function AppContainerView(props: any) {
     : "";
   const scrollbarWidth = Math.max(8, Math.min(18, Number(settings?.uiPrefs?.scrollbarWidthPx ?? 14)));
   const fontScale = Math.max(0.85, Math.min(1.25, Number(settings?.uiPrefs?.fontScale ?? 1)));
+  const editorBackgroundColor = String(settings?.uiPrefs?.editorBackgroundColor ?? "").trim();
+  const customEditorBackground = /^#[0-9a-f]{6}$/i.test(editorBackgroundColor) ? editorBackgroundColor : "";
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
@@ -291,8 +316,8 @@ export function AppContainerView(props: any) {
     ...(backgroundUrl
       ? {
           backgroundImage: `url("${backgroundUrl}")`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
+          backgroundSize: backgroundCropStyle?.backgroundSize ?? "cover",
+          backgroundPosition: backgroundCropStyle?.backgroundPosition ?? "center",
           backgroundRepeat: "no-repeat",
           ["--wallpaper-blur" as string]: `${backgroundBlurPx}px`,
         }
@@ -314,6 +339,7 @@ export function AppContainerView(props: any) {
     ["--app-pdf-page-gap" as string]: `${Math.max(4, Math.min(28, Number(settings?.uiPrefs?.pdfPageGapPx ?? 12)))}px`,
     ["--app-font-scale" as string]: String(fontScale),
     ["--app-log-font-size" as string]: `${Math.max(10, Math.min(16, Number(settings?.uiPrefs?.logFontSizePx ?? 12)))}px`,
+    ...(customEditorBackground ? { ["--editor-paper-bg" as string]: customEditorBackground } : {}),
     backgroundColor: themePreset.background,
   } as CSSProperties;
   const motionClass = `app-motion-${settings?.uiPrefs?.motionLevel ?? "full"}`;

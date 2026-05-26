@@ -1,5 +1,5 @@
 use super::plugins::validate_manifest;
-use crate::models::{PluginCommandRef, PluginContribution, PluginManifest, PluginToolchainInstaller, PluginToolchainProbe};
+use crate::models::{PluginCommandRef, PluginContribution, PluginManifest};
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
     PluginManifest {
@@ -39,9 +39,6 @@ fn base_contribution(kind: &str) -> PluginContribution {
         mcp_server: None,
         command: None,
         skill_id: None,
-        toolchain_installer: None,
-        toolchain_probe: None,
-        runtime_asset: None,
     }
 }
 
@@ -62,89 +59,6 @@ fn declarative_plugin_command_requires_safe_command_ref() {
 }
 
 #[test]
-fn markdown_plugin_command_accepts_allowlisted_runner() {
-    let mut contribution = base_contribution("markdownCommand");
-    contribution.command_ref = Some(PluginCommandRef {
-        id: "markdown.runFence".to_string(),
-        title: Some("Run code block".to_string()),
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(validation.ok, "{:?}", validation.issues);
-}
-
-#[test]
-fn toolchain_installer_requires_https_and_hash() {
-    let mut contribution = base_contribution("toolchainInstaller");
-    contribution.toolchain_installer = Some(PluginToolchainInstaller {
-        id: "cpp".to_string(),
-        kind: "cpp".to_string(),
-        platform: "windows-x64".to_string(),
-        download_url: "http://example.com/compiler.zip".to_string(),
-        download_url_cn: None,
-        sha256: "missing".to_string(),
-        archive_format: "zip".to_string(),
-        executable: "bin/clang++.exe".to_string(),
-        version_arg: Some("--version".to_string()),
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(!validation.ok);
-    assert!(validation
-        .issues
-        .iter()
-        .any(|issue| issue.code == "plugin.contribution.toolchain_integrity"));
-}
-
-#[test]
-fn go_toolchain_installer_is_allowed_when_integrity_is_declared() {
-    let mut contribution = base_contribution("toolchainInstaller");
-    contribution.toolchain_installer = Some(PluginToolchainInstaller {
-        id: "go".to_string(),
-        kind: "go".to_string(),
-        platform: "windows-x64".to_string(),
-        download_url: "https://example.com/go.zip".to_string(),
-        download_url_cn: None,
-        sha256: "a".repeat(64),
-        archive_format: "zip".to_string(),
-        executable: "go/bin/go.exe".to_string(),
-        version_arg: Some("version".to_string()),
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(validation.ok, "{:?}", validation.issues);
-}
-
-#[test]
-fn rust_toolchain_probe_is_allowed_without_installer() {
-    let mut contribution = base_contribution("toolchainProbe");
-    contribution.toolchain_probe = Some(PluginToolchainProbe {
-        id: "rust".to_string(),
-        kind: "rust".to_string(),
-        platform: "windows-x64".to_string(),
-        executables: vec!["rustc.exe".to_string(), "cargo.exe".to_string()],
-        version_arg: Some("--version".to_string()),
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(validation.ok, "{:?}", validation.issues);
-}
-
-#[test]
-fn toolchain_probe_rejects_paths() {
-    let mut contribution = base_contribution("toolchainProbe");
-    contribution.toolchain_probe = Some(PluginToolchainProbe {
-        id: "rust".to_string(),
-        kind: "rust".to_string(),
-        platform: "windows-x64".to_string(),
-        executables: vec!["bin/rustc.exe".to_string()],
-        version_arg: Some("--version".to_string()),
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(!validation.ok);
-    assert!(validation
-        .issues
-        .iter()
-        .any(|issue| issue.code == "plugin.contribution.toolchain_probe_invalid"));
-}
-
-#[test]
 fn declarative_plugin_command_accepts_allowlisted_command_ref() {
     let mut contribution = base_contribution("docxCommand");
     contribution.command_ref = Some(PluginCommandRef {
@@ -153,30 +67,4 @@ fn declarative_plugin_command_accepts_allowlisted_command_ref() {
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(validation.ok, "{:?}", validation.issues);
-}
-
-#[test]
-fn analysis_plugin_command_accepts_allowlisted_command_ref() {
-    let mut contribution = base_contribution("analysisCommand");
-    contribution.command_ref = Some(PluginCommandRef {
-        id: "analysis.run".to_string(),
-        title: Some("Run analysis".to_string()),
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(validation.ok, "{:?}", validation.issues);
-}
-
-#[test]
-fn library_plugin_command_rejects_unsafe_command_ref() {
-    let mut contribution = base_contribution("libraryCommand");
-    contribution.command_ref = Some(PluginCommandRef {
-        id: "network.fetch".to_string(),
-        title: None,
-    });
-    let validation = validate_manifest(&manifest_with_contribution(contribution));
-    assert!(!validation.ok);
-    assert!(validation
-        .issues
-        .iter()
-        .any(|issue| issue.code == "plugin.contribution.command_ref_unsafe"));
 }

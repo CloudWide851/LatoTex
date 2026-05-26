@@ -28,6 +28,7 @@ import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
 import { PluginMarketplace } from "./plugins/PluginMarketplace";
 import { DocxWorkspace } from "./docx/DocxWorkspace";
 import { LatexWorkspaceModeShell } from "./workspace/LatexWorkspaceModeShell";
+import { isDocxPath } from "../../shared/utils/fileKind";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -161,6 +162,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [latexMode, setLatexMode] = useState<"tex" | "docx">("tex");
+  const selectedIsDocx = isDocxPath(selectedFile);
 
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
 
@@ -177,6 +179,10 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedFileContent: editorContent,
     }));
   }, [activeProjectId, completionModelId, editorContent, fileList, selectedFile]);
+
+  useEffect(() => {
+    setLatexMode(selectedIsDocx ? "docx" : "tex");
+  }, [selectedIsDocx]);
 
   useEffect(() => {
     if (!compileErrorLine) {
@@ -495,7 +501,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         docxWorkspace={
             <DocxWorkspace
               projectId={activeProjectId}
-              tree={tree}
+              selectedPath={selectedIsDocx ? selectedFile : null}
               busy={busy}
               onRescan={onWorkspaceRescan}
               t={t}
