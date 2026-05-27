@@ -96,6 +96,17 @@ export type TerminalReadResponse = {
   status: "running" | "exited" | string;
 };
 
+export type MarkdownRunCodeResponse = {
+  language: string;
+  status: "completed" | "failed" | string;
+  stdout: string;
+  stderr: string;
+  exitCode?: number | null;
+  durationMs: number;
+  truncated: boolean;
+  runner: string;
+};
+
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;

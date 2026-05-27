@@ -26,6 +26,27 @@ pub struct PluginCommandTemplate {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginToolchainInstaller {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub platform: String,
+    #[serde(default)]
+    pub download_url: String,
+    #[serde(default)]
+    pub sha256: String,
+    #[serde(default)]
+    pub archive_format: String,
+    #[serde(default)]
+    pub executable: String,
+    #[serde(default)]
+    pub version_arg: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginCommandRef {
     #[serde(default)]
     pub id: String,
@@ -58,6 +79,8 @@ pub struct PluginContribution {
     pub command: Option<PluginCommandTemplate>,
     #[serde(default)]
     pub skill_id: Option<String>,
+    #[serde(default)]
+    pub toolchain_installer: Option<PluginToolchainInstaller>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

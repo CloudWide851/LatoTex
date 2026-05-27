@@ -5,6 +5,9 @@ import {
   Bold,
   Highlighter,
   FileText,
+  Heading1,
+  Heading2,
+  Image,
   Italic,
   Link,
   List,
@@ -24,8 +27,12 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
 import { readDocx, writeDocx } from "../../../shared/api/docx";
+import type { ResourceNode } from "../../../shared/types/app";
+import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
 
 type TranslationFn = (key: any) => string;
+type RibbonTab = "file" | "text" | "paragraph" | "insert" | "find";
+type ResourceSuggestion = { name: string; path: string; image: boolean };
 
 function execFormat(command: string, value?: string) {
   document.execCommand(command, false, value);
@@ -41,7 +48,7 @@ function mapDocxStatus(raw: string, t: TranslationFn): string {
 function sanitizeDocxHtml(html: string): string {
   const template = document.createElement("template");
   template.innerHTML = html;
-  const allowedTags = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "H1", "H2", "H3", "UL", "OL", "LI", "A", "TABLE", "TBODY", "TR", "TD", "TH", "SPAN"]);
+  const allowedTags = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "H1", "H2", "H3", "UL", "OL", "LI", "A", "TABLE", "TBODY", "TR", "TD", "TH", "SPAN", "IMG"]);
   const walk = (node: Node) => {
     for (const child of Array.from(node.childNodes)) {
       if (child.nodeType === Node.ELEMENT_NODE) {
@@ -55,8 +62,11 @@ function sanitizeDocxHtml(html: string): string {
           const value = attr.value.trim();
           const safeHref = name === "href" && /^(https?:|mailto:|#)/i.test(value);
           const safeImageMarker = name === "data-docx-image";
+          const safeImageResource = element.tagName === "IMG" && name === "data-docx-resource" && !value.includes("..");
+          const safeImageSrc = element.tagName === "IMG" && name === "src" && /^(latotex-resource:|https?:\/\/latotex-resource\.localhost|blob:)/i.test(value);
+          const safeAlt = element.tagName === "IMG" && name === "alt";
           const safeEditable = name === "contenteditable" && element.hasAttribute("data-docx-image");
-          if (!safeHref && !safeImageMarker && !safeEditable) {
+          if (!safeHref && !safeImageMarker && !safeImageResource && !safeImageSrc && !safeAlt && !safeEditable) {
             element.removeAttribute(attr.name);
           }
         }
@@ -86,14 +96,32 @@ function countMatches(text: string, needle: string): number {
   return Array.from(text.matchAll(new RegExp(escaped, "gi"))).length;
 }
 
+function flattenResources(nodes: ResourceNode[]): ResourceSuggestion[] {
+  const imageExts = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+  const out: ResourceSuggestion[] = [];
+  const visit = (items: ResourceNode[]) => {
+    items.forEach((node) => {
+      if (node.kind === "file") {
+        const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
+        out.push({ name: node.name, path: node.relativePath, image: imageExts.has(ext) });
+      } else {
+        visit(node.children ?? []);
+      }
+    });
+  };
+  visit(nodes);
+  return out;
+}
+
 export function DocxWorkspace(props: {
   projectId: string;
   selectedPath: string | null;
   busy: boolean;
+  tree?: ResourceNode[];
   onRescan: () => void | Promise<void>;
   t: TranslationFn;
 }) {
-  const { projectId, selectedPath, busy, onRescan, t } = props;
+  const { projectId, selectedPath, busy, tree = [], onRescan, t } = props;
   const editorRef = useRef<HTMLDivElement | null>(null);
   const syncTimerRef = useRef<number | null>(null);
   const [html, setHtml] = useState("<p><br></p>");
@@ -110,6 +138,9 @@ export function DocxWorkspace(props: {
   const [fontColor, setFontColor] = useState("#0f172a");
   const [highlightColor, setHighlightColor] = useState("#fef3c7");
   const [activeMarks, setActiveMarks] = useState({ bold: false, italic: false, underline: false });
+  const [activeRibbonTab, setActiveRibbonTab] = useState<RibbonTab>("text");
+  const [resourceQuery, setResourceQuery] = useState<string | null>(null);
+  const resources = useMemo(() => flattenResources(tree), [tree]);
 
   useEffect(() => {
     if (!selectedPath) {
@@ -216,6 +247,33 @@ export function DocxWorkspace(props: {
     syncHtmlFromDom();
   };
 
+  const insertPageBreak = () => {
+    editorRef.current?.focus();
+    execFormat("insertHTML", `<p data-docx-page-break="true"><br></p>`);
+    syncHtmlFromDom();
+  };
+
+  const insertResource = (resource: ResourceSuggestion) => {
+    editorRef.current?.focus();
+    const safeName = resource.name.replace(/[<>&"]/g, "");
+    const safePath = resource.path.replace(/"/g, "&quot;");
+    if (resource.image) {
+      const src = buildWorkspacePreviewUrl(projectId, resource.path);
+      execFormat("insertHTML", `<img data-docx-resource="${safePath}" src="${src}" alt="${safeName}" /><p><br></p>`);
+    } else {
+      execFormat("insertHTML", `<a href="#${safePath}" data-docx-resource="${safePath}">${safeName}</a>`);
+    }
+    setResourceQuery(null);
+    syncHtmlFromDom();
+  };
+
+  const updateResourceQuery = () => {
+    const selection = window.getSelection();
+    const text = selection?.anchorNode?.textContent ?? "";
+    const match = text.match(/@@\s+([^@\n\r]{0,80})$/);
+    setResourceQuery(match ? match[1].trim().toLowerCase() : null);
+  };
+
   const replaceAll = () => {
     if (!findText) {
       return;
@@ -246,6 +304,14 @@ export function DocxWorkspace(props: {
   const findCount = useMemo(() => countMatches(stripHtml(html), findText), [findText, html]);
   const wordCount = useMemo(() => countWords(html), [html]);
   const ribbonDisabled = !selectedPath || loading || saving;
+  const matchingResources = useMemo(() => {
+    if (resourceQuery === null) {
+      return [];
+    }
+    return resources
+      .filter((item) => !resourceQuery || item.name.toLowerCase().includes(resourceQuery))
+      .slice(0, 8);
+  }, [resourceQuery, resources]);
 
   const formatButtons = [
     { key: "bold", icon: Bold, command: "bold", label: t("docx.format.bold") },
@@ -260,6 +326,13 @@ export function DocxWorkspace(props: {
     { key: "numbered", icon: ListOrdered, command: "insertOrderedList", label: t("docx.format.numbered") },
     { key: "outdent", icon: Undo2, command: "outdent", label: t("docx.format.outdent") },
     { key: "indent", icon: Redo2, command: "indent", label: t("docx.format.indent") },
+  ];
+  const ribbonTabs: Array<{ key: RibbonTab; label: string }> = [
+    { key: "file", label: t("docx.ribbon.file") },
+    { key: "text", label: t("docx.ribbon.text") },
+    { key: "paragraph", label: t("docx.ribbon.paragraph") },
+    { key: "insert", label: t("docx.ribbon.insert") },
+    { key: "find", label: t("docx.ribbon.find") },
   ];
 
   return (
@@ -287,10 +360,23 @@ export function DocxWorkspace(props: {
             </Button>
           </div>
         </div>
-        <div className="settings-scrollbar-hidden flex flex-wrap gap-2 overflow-x-auto border-t border-[color:var(--editor-widget-border)] px-3 py-2">
-          <div className="docx-ribbon-group">
-            <span>{t("docx.ribbon.file")}</span>
-            <div className="flex gap-1">
+        <div className="border-t border-[color:var(--editor-widget-border)] px-3 py-2">
+          <div className="mb-2 flex flex-wrap gap-1">
+            {ribbonTabs.map((tab) => (
+              <Button
+                key={tab.key}
+                size="sm"
+                variant={activeRibbonTab === tab.key ? "secondary" : "ghost"}
+                className="h-8"
+                onClick={() => setActiveRibbonTab(tab.key)}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+          <div className="settings-scrollbar-hidden flex min-h-10 gap-2 overflow-x-auto">
+          {activeRibbonTab === "file" ? (
+            <div className="docx-ribbon-group">
               <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.undo")} aria-label={t("docx.format.undo")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("undo")}>
                 <Undo2 className="h-4 w-4" />
               </Button>
@@ -298,13 +384,16 @@ export function DocxWorkspace(props: {
                 <Redo2 className="h-4 w-4" />
               </Button>
             </div>
-          </div>
+          ) : null}
+          {activeRibbonTab === "text" ? (
+          <>
           <div className="docx-ribbon-group">
             <span>{t("docx.ribbon.style")}</span>
             <select className="h-8 rounded border border-slate-200 bg-white px-2 text-xs" disabled={ribbonDisabled} defaultValue="p" onChange={(event) => applyFormat("formatBlock", event.target.value)}>
               <option value="p">{t("docx.format.paragraph")}</option>
               <option value="h1">{t("docx.format.h1")}</option>
               <option value="h2">{t("docx.format.h2")}</option>
+              <option value="h3">{t("docx.format.h3")}</option>
             </select>
           </div>
           <div className="docx-ribbon-group">
@@ -352,6 +441,9 @@ export function DocxWorkspace(props: {
               </label>
             </div>
           </div>
+          </>
+          ) : null}
+          {activeRibbonTab === "paragraph" ? (
           <div className="docx-ribbon-group">
             <span>{t("docx.ribbon.paragraph")}</span>
             <div className="flex gap-1">
@@ -365,17 +457,33 @@ export function DocxWorkspace(props: {
               })}
             </div>
           </div>
+          ) : null}
+          {activeRibbonTab === "insert" ? (
           <div className="docx-ribbon-group">
             <span>{t("docx.ribbon.insert")}</span>
             <div className="flex gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.h1")} aria-label={t("docx.format.h1")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("formatBlock", "h1")}>
+                <Heading1 className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.h2")} aria-label={t("docx.format.h2")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("formatBlock", "h2")}>
+                <Heading2 className="h-4 w-4" />
+              </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.link")} aria-label={t("docx.format.link")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={insertLink}>
                 <Link className="h-4 w-4" />
               </Button>
               <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.table")} aria-label={t("docx.format.table")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={insertTable}>
                 <Table2 className="h-4 w-4" />
               </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.pageBreak")} aria-label={t("docx.format.pageBreak")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={insertPageBreak}>
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.image")} aria-label={t("docx.format.image")} disabled={ribbonDisabled || resources.filter((item) => item.image).length === 0} onMouseDown={(event) => event.preventDefault()} onClick={() => setResourceQuery("")}>
+                <Image className="h-4 w-4" />
+              </Button>
             </div>
           </div>
+          ) : null}
+          {activeRibbonTab === "find" ? (
           <div className="docx-ribbon-group min-w-[330px]">
             <span>{t("docx.ribbon.find")}</span>
             <div className="grid grid-cols-[minmax(90px,1fr)_minmax(90px,1fr)_auto_auto] gap-1">
@@ -388,6 +496,8 @@ export function DocxWorkspace(props: {
                 <Replace className="h-3.5 w-3.5" />
               </Button>
             </div>
+          </div>
+          ) : null}
           </div>
         </div>
       </header>
@@ -414,6 +524,7 @@ export function DocxWorkspace(props: {
               onInput={syncHtmlFromDomDebounced}
               onMouseUp={refreshActiveMarks}
               onKeyUp={refreshActiveMarks}
+              onKeyUpCapture={updateResourceQuery}
               onPaste={(event) => {
                 event.preventDefault();
                 const text = event.clipboardData.getData("text/plain");
@@ -439,6 +550,25 @@ export function DocxWorkspace(props: {
                 }
               }}
             />
+            {resourceQuery !== null ? (
+              <div className="absolute left-6 top-16 z-20 w-72 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+                {matchingResources.length > 0 ? matchingResources.map((resource) => (
+                  <button
+                    key={resource.path}
+                    type="button"
+                    className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertResource(resource)}
+                  >
+                    {resource.image ? <Image className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
+                    <span className="min-w-0 flex-1 truncate">{resource.name}</span>
+                    <span className="max-w-32 truncate text-[10px] text-slate-400">{resource.path}</span>
+                  </button>
+                )) : (
+                  <div className="px-2 py-2 text-xs text-slate-500">{t("docx.resource.none")}</div>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

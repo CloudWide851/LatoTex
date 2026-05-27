@@ -1,8 +1,8 @@
 use crate::models::{
-    Ack, InstalledPlugin, PluginCapabilities, PluginCatalogEntry, PluginCatalogInput,
-    PluginCatalogResponse, PluginCatalogSource, PluginContribution, PluginEngines,
+    Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput,
+    PluginCatalogResponse, PluginCatalogSource,
     PluginInstallInput, PluginManifest, PluginRefInput, PluginSetEnabledInput,
-    PluginValidationIssue, PluginValidationResult,
+    PluginToolchainInstaller, PluginValidationIssue, PluginValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -10,6 +10,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
+use super::plugins_builtin::built_in_catalog;
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
 const CATALOG_SCHEMA: &str = "latotex.marketplace.v1";
@@ -42,6 +43,14 @@ fn is_http_url(value: &Option<String>) -> bool {
         .filter(|item| !item.is_empty())
         .map(|item| item.starts_with("https://") || item.starts_with("http://"))
         .unwrap_or(true)
+}
+
+fn is_https_url(value: &str) -> bool {
+    value.trim().starts_with("https://")
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
 pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationResult {
@@ -158,6 +167,10 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "editorCommand",
         "analysisCommand",
         "libraryCommand",
+        "markdownCommand",
+        "terminalCommand",
+        "resourceCommand",
+        "toolchainInstaller",
     ]);
     let safe_commands = HashSet::from([
         "app.openPage",
@@ -182,6 +195,15 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "docx.replaceAll",
         "docx.insertTable",
         "docx.insertLink",
+        "docx.insertResource",
+        "docx.insertImage",
+        "markdown.runFence",
+        "markdown.clearOutput",
+        "terminal.restoreHistory",
+        "terminal.clearTabHistory",
+        "toolchain.install",
+        "toolchain.verify",
+        "toolchain.remove",
     ]);
     let declarative_command_kinds = HashSet::from([
         "toolbarButton",
@@ -192,6 +214,9 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "editorCommand",
         "analysisCommand",
         "libraryCommand",
+        "markdownCommand",
+        "terminalCommand",
+        "resourceCommand",
     ]);
     for contribution in &manifest.contributions {
         if !validate_identifier(&contribution.id, 96) || contribution.title.trim().is_empty() {
@@ -269,71 +294,45 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
                 ));
             }
         }
+        if contribution.kind == "toolchainInstaller" {
+            validate_toolchain_installer(contribution.toolchain_installer.as_ref(), issues);
+        }
     }
 }
 
-fn built_in_catalog() -> Vec<PluginCatalogEntry> {
-    let manifest = PluginManifest {
-        schema: PLUGIN_SCHEMA.to_string(),
-        id: "latotex.docx-workspace".to_string(),
-        name: "DOCX Workspace".to_string(),
-        display_name: Some("DOCX Workspace".to_string()),
-        publisher: "LatoTex".to_string(),
-        version: "1.1.0".to_string(),
-        description: "Adds DOCX reading, rich text editing, package-preserving save, and document tools.".to_string(),
-        categories: vec!["Editor".to_string(), "Office".to_string()],
-        icon: None,
-        download_url: None,
-        sha256: None,
-        homepage: None,
-        repository: None,
-        license: Some("Bundled".to_string()),
-        keywords: vec!["docx".to_string(), "word".to_string(), "office".to_string()],
-        engines: Some(PluginEngines {
-            latotex: Some(">=0.1.0".to_string()),
-        }),
-        activation_events: vec!["onWorkspaceContains:**/*.docx".to_string()],
-        capabilities: Some(PluginCapabilities {
-            untrusted_workspaces: Some("limited".to_string()),
-            virtual_workspaces: Some(false),
-        }),
-        permissions: vec!["workspace.read".to_string(), "workspace.write".to_string()],
-        contributions: vec![
-            PluginContribution {
-                kind: "workspacePage".to_string(),
-                id: "docx".to_string(),
-                title: "DOCX".to_string(),
-                description: Some("DOCX editor under the LaTeX workspace.".to_string()),
-                command_ref: None,
-                location: None,
-                group: None,
-                when: None,
-                mcp_server: None,
-                command: None,
-                skill_id: None,
-            },
-            PluginContribution {
-                kind: "docxTool".to_string(),
-                id: "docx.richText.v1".to_string(),
-                title: "DOCX rich text bridge".to_string(),
-                description: Some("Reads and writes common DOCX text structures.".to_string()),
-                command_ref: None,
-                location: None,
-                group: None,
-                when: None,
-                mcp_server: None,
-                command: None,
-                skill_id: None,
-            },
-        ],
+fn validate_toolchain_installer(
+    installer: Option<&PluginToolchainInstaller>,
+    issues: &mut Vec<PluginValidationIssue>,
+) {
+    let Some(installer) = installer else {
+        issues.push(issue(
+            "plugin.contribution.toolchain_missing",
+            "error",
+            "Toolchain installer contributions must declare toolchainInstaller.",
+        ));
+        return;
     };
-    let validation = validate_manifest(&manifest);
-    vec![PluginCatalogEntry {
-        manifest,
-        source_id: "builtin".to_string(),
-        source_name: "Built-in".to_string(),
-        validation,
-    }]
+    let allowed_kinds = HashSet::from(["git", "python", "node", "c", "cpp"]);
+    let allowed_archives = HashSet::from(["zip", "exe"]);
+    if !validate_identifier(&installer.id, 96)
+        || !allowed_kinds.contains(installer.kind.as_str())
+        || installer.platform != "windows-x64"
+        || !allowed_archives.contains(installer.archive_format.as_str())
+        || installer.executable.trim().is_empty()
+    {
+        issues.push(issue(
+            "plugin.contribution.toolchain_invalid",
+            "error",
+            "Toolchain installer must target a supported Windows x64 portable toolchain.",
+        ));
+    }
+    if !is_https_url(&installer.download_url) || !is_sha256(&installer.sha256) {
+        issues.push(issue(
+            "plugin.contribution.toolchain_integrity",
+            "error",
+            "Toolchain installer downloads require HTTPS and a SHA-256 hash.",
+        ));
+    }
 }
 
 fn read_registry(runtime_root: &Path) -> Result<Vec<InstalledPlugin>, String> {

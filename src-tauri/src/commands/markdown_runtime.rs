@@ -1,5 +1,4 @@
 use crate::commands::native_runtime::{configure_hidden_process, ensure_analysis_env_blocking};
-use crate::commands::toolchains::find_managed_toolchain_executable;
 use crate::models::{MarkdownRunCodeInput, MarkdownRunCodeResponse};
 use crate::state::AppState;
 use crate::storage;
@@ -94,18 +93,11 @@ fn run_python(state: &AppState, input: &MarkdownRunCodeInput, run_dir: &Path) ->
     Ok((stdout, stderr, exit_code, python_path.to_string_lossy().to_string()))
 }
 
-fn run_c_family(
-    input: &MarkdownRunCodeInput,
-    language: &str,
-    run_dir: &Path,
-    runtime_root: &Path,
-) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
+fn run_c_family(input: &MarkdownRunCodeInput, language: &str, run_dir: &Path) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
     let compiler = if language == "c" {
-        find_managed_toolchain_executable(&["c"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe", "bin/clang.exe"], runtime_root)
-            .or_else(|| find_executable(&["clang.exe", "gcc.exe", "cl.exe"]))
+        find_executable(&["clang.exe", "gcc.exe", "cl.exe"])
     } else {
-        find_managed_toolchain_executable(&["cpp"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe", "bin/clang++.exe"], runtime_root)
-            .or_else(|| find_executable(&["clang++.exe", "g++.exe", "cl.exe"]))
+        find_executable(&["clang++.exe", "g++.exe", "cl.exe"])
     }
     .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let source = run_dir.join(if language == "c" { "snippet.c" } else { "snippet.cpp" });
@@ -159,7 +151,7 @@ pub async fn markdown_run_code(
         let result = if language == "python" {
             run_python(&state_snapshot, &input, &run_dir)
         } else {
-            run_c_family(&input, &language, &run_dir, &state_snapshot.runtime_root)
+            run_c_family(&input, &language, &run_dir)
         };
         let _ = fs::remove_dir_all(&run_dir);
         let (stdout_raw, stderr_raw, exit_code, runner) = result?;

@@ -1,5 +1,5 @@
 use super::plugins::validate_manifest;
-use crate::models::{PluginCommandRef, PluginContribution, PluginManifest};
+use crate::models::{PluginCommandRef, PluginContribution, PluginManifest, PluginToolchainInstaller};
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
     PluginManifest {
@@ -39,6 +39,7 @@ fn base_contribution(kind: &str) -> PluginContribution {
         mcp_server: None,
         command: None,
         skill_id: None,
+        toolchain_installer: None,
     }
 }
 
@@ -56,6 +57,38 @@ fn declarative_plugin_command_requires_safe_command_ref() {
         .issues
         .iter()
         .any(|issue| issue.code == "plugin.contribution.command_ref_unsafe"));
+}
+
+#[test]
+fn markdown_plugin_command_accepts_allowlisted_runner() {
+    let mut contribution = base_contribution("markdownCommand");
+    contribution.command_ref = Some(PluginCommandRef {
+        id: "markdown.runFence".to_string(),
+        title: Some("Run code block".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn toolchain_installer_requires_https_and_hash() {
+    let mut contribution = base_contribution("toolchainInstaller");
+    contribution.toolchain_installer = Some(PluginToolchainInstaller {
+        id: "cpp".to_string(),
+        kind: "cpp".to_string(),
+        platform: "windows-x64".to_string(),
+        download_url: "http://example.com/compiler.zip".to_string(),
+        sha256: "missing".to_string(),
+        archive_format: "zip".to_string(),
+        executable: "bin/clang++.exe".to_string(),
+        version_arg: Some("--version".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.toolchain_integrity"));
 }
 
 #[test]

@@ -6,9 +6,11 @@ pub mod channels_dingtalk;
 pub mod git;
 pub mod health;
 pub mod local_resources;
+pub mod markdown_runtime;
 pub mod native_runtime;
 pub mod docx;
 pub mod plugins;
+mod plugins_builtin;
 #[cfg(test)]
 mod plugins_validation_tests;
 pub mod projects;

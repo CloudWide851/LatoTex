@@ -619,3 +619,4 @@ include!("models_resource_warmup.rs");
 include!("models_terminal.rs");
 include!("models_plugins.rs");
 include!("models_docx.rs");
+include!("models_markdown_runtime.rs");
