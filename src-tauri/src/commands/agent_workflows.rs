@@ -243,13 +243,24 @@ fn start_workflow(
     bypass_cache: bool,
     team_mode: Option<String>,
 ) -> Result<AgentExecuteStartAccepted, String> {
+    let runtime_prompt = [
+        "[LatoTex Agent Runtime]",
+        "Act like a senior research IDE agent: inspect context first, keep reasoning compact, and prefer precise file-aware actions.",
+        "When tool or permission context is present, use it before guessing. If evidence is missing, state the uncertainty and the smallest next verification step.",
+        "For UI/analysis/document work, return actionable outputs with file paths, affected scope, and acceptance criteria.",
+        &format!("Callsite: {callsite}"),
+        &format!("Context refs: {}", if context_refs.is_empty() { "(none)".to_string() } else { context_refs.join(", ") }),
+        "",
+        &prompt,
+    ]
+    .join("\n");
     start_agent_execution(
         state,
         AgentExecuteRequest {
             project_id,
             workflow_id: workflow_id.to_string(),
             callsite: callsite.to_string(),
-            prompt,
+            prompt: runtime_prompt,
             context_refs,
             model_override,
             bypass_cache,

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { cn } from "../../../lib/utils";
 
 type TranslationFn = (key: any) => string;
@@ -77,6 +78,7 @@ export function AnalysisRunTimeline(props: {
 }) {
   const { cards, t, compact = false, maxCards } = props;
   const displayCards = typeof maxCards === "number" ? cards.slice(-maxCards) : cards;
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
 
   return (
     <section className={cn(
@@ -90,44 +92,52 @@ export function AnalysisRunTimeline(props: {
         </div>
       ) : (
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden pr-1">
-          {displayCards.map((card) => (
-            <article
-              key={`${card.runId}:${card.id}`}
-              className={cn(
-                "rounded border px-2 py-1.5 text-xs",
-                statusTone(card.status),
-                compact ? "motion-hover-rise" : "",
-              )}
-            >
-              <div className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="truncate font-semibold">{card.title}</span>
-                <span className="max-w-[45%] truncate uppercase">{card.stage}</span>
-              </div>
-              {(card.phase || card.decision || card.riskLevel || card.requiresApproval) ? (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {card.phase ? metaBadge(card.phase, "phase") : null}
-                  {card.decision ? metaBadge(card.decision, "decision") : null}
-                  {card.riskLevel ? metaBadge(card.riskLevel, "risk") : null}
-                  {card.requiresApproval ? metaBadge("approval", "approval") : null}
-                </div>
-              ) : null}
-              {card.content ? (
-                <p className={cn(
-                  "mt-1 whitespace-pre-wrap break-words text-[11px]",
-                  compact ? "line-clamp-3 leading-4" : "leading-5",
-                )}>
-                  {card.content}
-                </p>
-              ) : (
-                <p className="mt-1 text-[11px] opacity-80">{card.source}</p>
-              )}
-              {Array.isArray(card.artifactRefs) && card.artifactRefs.length > 0 ? (
-                <p className="mt-1 truncate text-[10px] text-slate-500">
-                  {card.artifactRefs.slice(0, 3).join(" · ")}
-                </p>
-              ) : null}
-            </article>
-          ))}
+          {displayCards.map((card) => {
+            const cardKey = `${card.runId}:${card.id}`;
+            const expanded = expandedCardId === cardKey;
+            const summary = card.content?.trim() || card.source || card.status;
+            return (
+              <article
+                key={cardKey}
+                className={cn(
+                  "rounded border px-2 py-1.5 text-xs",
+                  statusTone(card.status),
+                  compact ? "motion-hover-rise" : "",
+                )}
+              >
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 text-left text-[11px]"
+                  onClick={() => setExpandedCardId((prev) => (prev === cardKey ? null : cardKey))}
+                >
+                  <span className="truncate font-semibold">{card.title}</span>
+                  <span className="max-w-[45%] truncate uppercase">{card.stage}</span>
+                </button>
+                <p className="mt-1 truncate text-[11px] opacity-80">{summary}</p>
+                {(card.phase || card.decision || card.riskLevel || card.requiresApproval) ? (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {card.phase ? metaBadge(card.phase, "phase") : null}
+                    {card.decision ? metaBadge(card.decision, "decision") : null}
+                    {card.riskLevel ? metaBadge(card.riskLevel, "risk") : null}
+                    {card.requiresApproval ? metaBadge("approval", "approval") : null}
+                  </div>
+                ) : null}
+                {expanded && card.content ? (
+                  <p className={cn(
+                    "mt-1 whitespace-pre-wrap break-words text-[11px]",
+                    compact ? "line-clamp-3 leading-4" : "leading-5",
+                  )}>
+                    {card.content}
+                  </p>
+                ) : null}
+                {Array.isArray(card.artifactRefs) && card.artifactRefs.length > 0 ? (
+                  <p className="mt-1 truncate text-[10px] text-slate-500">
+                    {card.artifactRefs.slice(0, 3).join(" · ")}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

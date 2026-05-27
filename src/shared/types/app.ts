@@ -388,7 +388,7 @@ export type SkillValidationResult = {
 
 export type TelegramTestInput = {
   token: string;
-  chatId: string;
+  chatId?: string;
   text: string;
 };
 
@@ -405,6 +405,9 @@ export type ChannelPrefs = {
   telegramEnabled?: boolean;
   telegramBotToken?: string;
   telegramChatId?: string;
+  dingtalkEnabled?: boolean;
+  dingtalkClientId?: string;
+  dingtalkClientSecret?: string;
 };
 
 export type TelegramPollInput = {
@@ -424,6 +427,34 @@ export type TelegramUpdateItem = {
 export type TelegramPollResult = {
   nextOffset: number;
   updates: TelegramUpdateItem[];
+};
+
+export type DingTalkPollInput = {
+  limit?: number;
+};
+
+export type DingTalkUpdateItem = {
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  replyToken?: string | null;
+};
+
+export type DingTalkPollResult = {
+  updates: DingTalkUpdateItem[];
+  status: string;
+};
+
+export type DingTalkSendInput = {
+  replyToken?: string | null;
+  webhook?: string | null;
+  text: string;
+};
+
+export type DingTalkTestInput = {
+  clientId: string;
+  clientSecret: string;
 };
 
 export type PanelLayoutPrefs = {

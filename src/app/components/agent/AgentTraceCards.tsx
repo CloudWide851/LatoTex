@@ -1,3 +1,5 @@
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
 import { cn } from "../../../lib/utils";
 import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
@@ -163,6 +165,7 @@ export function AgentTraceCards(props: {
   t: (key: any) => string;
   className?: string;
   bodyClassName?: string;
+  compact?: boolean;
 }) {
   const {
     cards,
@@ -176,94 +179,165 @@ export function AgentTraceCards(props: {
     t,
     className,
     bodyClassName,
+    compact = false,
   } = props;
-  const groups = buildTaskGroups(cards, t);
+  const groups = useMemo(() => buildTaskGroups(cards, t), [cards, t]);
+  const [expanded, setExpanded] = useState(false);
   if (groups.length === 0 && !pendingAction) {
     return null;
+  }
+  const latestGroup = groups[groups.length - 1];
+  const latestStep = latestGroup?.steps[latestGroup.steps.length - 1];
+
+  if (compact) {
+    return (
+      <section className={cn("flex min-h-0 flex-col border-b border-slate-200 px-3 py-2", className)}>
+        <button
+          type="button"
+          className="flex min-w-0 items-center justify-between gap-2 rounded-md px-1 py-1 text-left text-[11px] text-slate-600 hover:bg-slate-50"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            {expanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+            <span className="shrink-0 font-semibold uppercase tracking-wide">{title}</span>
+            <span className="truncate">
+              {latestStep
+                ? `${latestStep.title || latestStep.stage} · ${latestStep.content || latestStep.source || latestStep.status}`
+                : pendingActionTitle}
+            </span>
+          </span>
+          <span className="shrink-0 tabular-nums text-slate-400">{groups.length}</span>
+        </button>
+        {expanded ? (
+          <div className={cn("mt-1 min-h-0 overflow-auto space-y-2", bodyClassName)}>
+            {groups.map((group) => (
+              <TraceGroup key={group.key} group={group} t={t} />
+            ))}
+            <PendingActionCard
+              pendingAction={pendingAction}
+              pendingActionTitle={pendingActionTitle}
+              pendingActionDescription={pendingActionDescription}
+              pendingActionYesLabel={pendingActionYesLabel}
+              pendingActionNoLabel={pendingActionNoLabel}
+              onPendingActionResolve={onPendingActionResolve}
+            />
+          </div>
+        ) : null}
+      </section>
+    );
   }
 
   return (
     <section className={cn("flex min-h-0 flex-col border-b border-slate-200 px-3 py-2", className)}>
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
       <div className={cn("min-h-0 overflow-auto space-y-2", bodyClassName)}>
-        {groups.map((group) => (
-          <article key={group.key} className={cn("rounded border px-2 py-2 text-[11px]", tone(group.status))}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate font-semibold">{group.teamRoleName ?? group.label}</span>
-              <span className="max-w-[40%] truncate uppercase opacity-80">{group.steps[group.steps.length - 1]?.status || group.status}</span>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {group.steps[group.steps.length - 1]?.phase ? badge(group.steps[group.steps.length - 1]?.phase ?? "", "phase") : null}
-              {group.steps[group.steps.length - 1]?.decision ? badge(group.steps[group.steps.length - 1]?.decision ?? "", "decision") : null}
-              {group.steps[group.steps.length - 1]?.riskLevel ? badge(group.steps[group.steps.length - 1]?.riskLevel ?? "", "risk") : null}
-              {group.requiresApproval ? badge(t("agent.task.approvalBadge"), "approval") : null}
-            </div>
-            {group.inputRefs.length > 0 ? (
-              <div className="mt-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.inputs")}</div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {group.inputRefs.slice(0, 6).map((item) => (
-                    <span key={`${group.key}:in:${item}`} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {group.outputRefs.length > 0 ? (
-              <div className="mt-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.outputs")}</div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {group.outputRefs.slice(0, 6).map((item) => (
-                    <span key={`${group.key}:out:${item}`} className="rounded border border-emerald-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-emerald-700">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="mt-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.steps")}</div>
-              <div className="mt-1 space-y-1">
-                {group.steps.slice(-5).map((card) => (
-                  <div key={`${card.runId}:${card.cardKey}`} className="rounded border border-slate-200 bg-white/70 px-2 py-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-medium text-slate-700">{card.title}</span>
-                      <span className="truncate text-[10px] uppercase text-slate-500">{card.stage}</span>
-                    </div>
-                    {card.content ? (
-                      <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
-                        {card.content}
-                      </p>
-                    ) : null}
-                    <AgentActionRenderer actions={card.actions ?? []} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </article>
-        ))}
-        {pendingAction?.kind === "autoCommit" && onPendingActionResolve ? (
-          <article className="rounded border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800">
-            <div className="font-semibold">{pendingActionTitle}</div>
-            <div className="mt-1">{pendingActionDescription}</div>
-            <div className="mt-2 flex gap-2">
-              <button
-                className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white"
-                onClick={() => onPendingActionResolve(true)}
-              >
-                {pendingActionYesLabel}
-              </button>
-              <button
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-                onClick={() => onPendingActionResolve(false)}
-              >
-                {pendingActionNoLabel}
-              </button>
-            </div>
-          </article>
-        ) : null}
+        {groups.map((group) => <TraceGroup key={group.key} group={group} t={t} />)}
+        <PendingActionCard
+          pendingAction={pendingAction}
+          pendingActionTitle={pendingActionTitle}
+          pendingActionDescription={pendingActionDescription}
+          pendingActionYesLabel={pendingActionYesLabel}
+          pendingActionNoLabel={pendingActionNoLabel}
+          onPendingActionResolve={onPendingActionResolve}
+        />
       </div>
     </section>
+  );
+}
+
+function TraceGroup(props: { group: TaskGroup; t: (key: any) => string }) {
+  const { group, t } = props;
+  const latest = group.steps[group.steps.length - 1];
+  return (
+    <article className={cn("rounded border px-2 py-2 text-[11px]", tone(group.status))}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-semibold">{group.teamRoleName ?? group.label}</span>
+        <span className="max-w-[40%] truncate uppercase opacity-80">{latest?.status || group.status}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {latest?.phase ? badge(latest.phase, "phase") : null}
+        {latest?.decision ? badge(latest.decision, "decision") : null}
+        {latest?.riskLevel ? badge(latest.riskLevel, "risk") : null}
+        {group.requiresApproval ? badge(t("agent.task.approvalBadge"), "approval") : null}
+      </div>
+      {group.inputRefs.length > 0 ? (
+        <div className="mt-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.inputs")}</div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {group.inputRefs.slice(0, 6).map((item) => (
+              <span key={`${group.key}:in:${item}`} className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {group.outputRefs.length > 0 ? (
+        <div className="mt-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.outputs")}</div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {group.outputRefs.slice(0, 6).map((item) => (
+              <span key={`${group.key}:out:${item}`} className="rounded border border-emerald-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-emerald-700">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div className="mt-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.steps")}</div>
+        <div className="mt-1 space-y-1">
+          {group.steps.slice(-5).map((card) => (
+            <div key={`${card.runId}:${card.cardKey}`} className="rounded border border-slate-200 bg-white/70 px-2 py-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-medium text-slate-700">{card.title}</span>
+                <span className="truncate text-[10px] uppercase text-slate-500">{card.stage}</span>
+              </div>
+              {card.content ? (
+                <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-700">
+                  {card.content}
+                </p>
+              ) : null}
+              <AgentActionRenderer actions={card.actions ?? []} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function PendingActionCard(props: {
+  pendingAction?: AgentPendingAction;
+  pendingActionTitle?: string;
+  pendingActionDescription?: string;
+  pendingActionYesLabel?: string;
+  pendingActionNoLabel?: string;
+  onPendingActionResolve?: (accept: boolean) => void;
+}) {
+  const {
+    pendingAction,
+    pendingActionTitle,
+    pendingActionDescription,
+    pendingActionYesLabel,
+    pendingActionNoLabel,
+    onPendingActionResolve,
+  } = props;
+  if (pendingAction?.kind !== "autoCommit" || !onPendingActionResolve) {
+    return null;
+  }
+  return (
+    <article className="rounded border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-800">
+      <div className="font-semibold">{pendingActionTitle}</div>
+      <div className="mt-1">{pendingActionDescription}</div>
+      <div className="mt-2 flex gap-2">
+        <button className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => onPendingActionResolve(true)}>
+          {pendingActionYesLabel}
+        </button>
+        <button className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700" onClick={() => onPendingActionResolve(false)}>
+          {pendingActionNoLabel}
+        </button>
+      </div>
+    </article>
   );
 }

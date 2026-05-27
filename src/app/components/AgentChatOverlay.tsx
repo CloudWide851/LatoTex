@@ -283,6 +283,7 @@ export function AgentChatOverlay(props: {
               onPendingActionResolve={onPendingActionResolve}
               t={t}
               bodyClassName="max-h-[calc(42vh-2.75rem)] pr-1"
+              compact
             />
           </div>
         ) : null}

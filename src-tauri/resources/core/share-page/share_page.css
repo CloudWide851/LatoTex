@@ -1242,9 +1242,6 @@ video {
 .min-h-\[16px\] {
   min-height: 16px;
 }
-.min-h-\[960px\] {
-  min-height: 960px;
-}
 .min-h-full {
   min-height: 100%;
 }
@@ -1428,6 +1425,9 @@ video {
 .max-w-2xl {
   max-width: 42rem;
 }
+.max-w-32 {
+  max-width: 8rem;
+}
 .max-w-3xl {
   max-width: 48rem;
 }
@@ -1460,9 +1460,6 @@ video {
 }
 .max-w-\[80vw\] {
   max-width: 80vw;
-}
-.max-w-\[840px\] {
-  max-width: 840px;
 }
 .max-w-\[85\%\] {
   max-width: 85%;
@@ -2149,6 +2146,9 @@ video {
   --tw-bg-opacity: 1;
   background-color: rgb(5 8 15 / var(--tw-bg-opacity, 1));
 }
+.bg-\[\#1677ff\]\/10 {
+  background-color: rgb(22 119 255 / 0.1);
+}
 .bg-\[color\:var\(--app-accent\)\] {
   background-color: var(--app-accent);
 }
@@ -2380,6 +2380,9 @@ video {
 .bg-\[linear-gradient\(180deg\2c rgba\(255\2c 255\2c 255\2c 0\.74\)\2c rgba\(248\2c 250\2c 252\2c 0\.92\)\)\] {
   background-image: linear-gradient(180deg,rgba(255,255,255,0.74),rgba(248,250,252,0.92));
 }
+.bg-\[linear-gradient\(180deg\2c rgba\(255\2c 255\2c 255\2c 0\.78\)\2c rgba\(248\2c 250\2c 252\2c 0\.94\)\)\] {
+  background-image: linear-gradient(180deg,rgba(255,255,255,0.78),rgba(248,250,252,0.94));
+}
 .bg-\[radial-gradient\(circle_at_18\%_22\%\2c rgba\(59\2c 130\2c 246\2c 0\.26\)\2c transparent_42\%\)\2c radial-gradient\(circle_at_82\%_78\%\2c rgba\(16\2c 185\2c 129\2c 0\.2\)\2c transparent_44\%\)\2c linear-gradient\(135deg\2c \#020617_0\%\2c \#0f172a_100\%\)\] {
   background-image: radial-gradient(circle at 18% 22%,rgba(59,130,246,0.26),transparent 42%),radial-gradient(circle at 82% 78%,rgba(16,185,129,0.2),transparent 44%),linear-gradient(135deg,#020617 0%,#0f172a 100%);
 }
@@ -2478,10 +2481,6 @@ video {
   padding-left: 0.375rem;
   padding-right: 0.375rem;
 }
-.px-16 {
-  padding-left: 4rem;
-  padding-right: 4rem;
-}
 .px-2 {
   padding-left: 0.5rem;
   padding-right: 0.5rem;
@@ -2533,10 +2532,6 @@ video {
 .py-10 {
   padding-top: 2.5rem;
   padding-bottom: 2.5rem;
-}
-.py-14 {
-  padding-top: 3.5rem;
-  padding-bottom: 3.5rem;
 }
 .py-2 {
   padding-top: 0.5rem;
@@ -2740,6 +2735,10 @@ video {
 }
 .tracking-wide {
   letter-spacing: 0.025em;
+}
+.text-\[\#1677ff\] {
+  --tw-text-opacity: 1;
+  color: rgb(22 119 255 / var(--tw-text-opacity, 1));
 }
 .text-\[color\:var\(--app-accent\)\] {
   color: var(--app-accent);
@@ -2947,6 +2946,9 @@ video {
 }
 .opacity-80 {
   opacity: 0.8;
+}
+.opacity-\[0\.24\] {
+  opacity: 0.24;
 }
 .shadow {
   --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);

@@ -836,6 +836,32 @@ body::before {
   text-transform: uppercase;
 }
 
+.docx-page-wrap {
+  container-type: inline-size;
+}
+
+.docx-page-frame {
+  width: min(100%, 820px);
+}
+
+.docx-page-surface {
+  min-height: min(960px, calc(100vh - 292px));
+  padding: clamp(28px, 7cqw, 64px);
+}
+
+@container (max-width: 680px) {
+  .docx-page-frame {
+    width: 100%;
+  }
+
+  .docx-page-surface {
+    min-height: min(760px, calc(100vh - 260px));
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+}
+
 .docx-page-surface table {
   width: 100%;
   border-collapse: collapse;

@@ -1,5 +1,9 @@
 import type {
   Ack,
+  DingTalkPollInput,
+  DingTalkPollResult,
+  DingTalkSendInput,
+  DingTalkTestInput,
   ShareSessionInfo,
   TelegramPollInput,
   TelegramPollResult,
@@ -40,4 +44,16 @@ export function channelsTelegramSend(input: {
 
 export function channelsTelegramTest(input: TelegramTestInput): Promise<Ack> {
   return invokeCommand<Ack>("channels_telegram_test", { input });
+}
+
+export function channelsDingTalkPoll(input: DingTalkPollInput = {}): Promise<DingTalkPollResult> {
+  return invokeCommand<DingTalkPollResult>("channels_dingtalk_poll", { input });
+}
+
+export function channelsDingTalkSend(input: DingTalkSendInput): Promise<Ack> {
+  return invokeCommand<Ack>("channels_dingtalk_send", { input });
+}
+
+export function channelsDingTalkTest(input: DingTalkTestInput): Promise<Ack> {
+  return invokeCommand<Ack>("channels_dingtalk_test", { input });
 }

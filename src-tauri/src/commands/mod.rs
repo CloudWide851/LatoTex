@@ -2,6 +2,7 @@ pub mod agent_workflows;
 mod agent_workflows_context;
 pub mod analysis;
 pub mod channels;
+pub mod channels_dingtalk;
 pub mod git;
 pub mod health;
 pub mod local_resources;

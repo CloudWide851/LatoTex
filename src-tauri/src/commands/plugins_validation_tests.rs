@@ -68,3 +68,29 @@ fn declarative_plugin_command_accepts_allowlisted_command_ref() {
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(validation.ok, "{:?}", validation.issues);
 }
+
+#[test]
+fn analysis_plugin_command_accepts_allowlisted_command_ref() {
+    let mut contribution = base_contribution("analysisCommand");
+    contribution.command_ref = Some(PluginCommandRef {
+        id: "analysis.run".to_string(),
+        title: Some("Run analysis".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn library_plugin_command_rejects_unsafe_command_ref() {
+    let mut contribution = base_contribution("libraryCommand");
+    contribution.command_ref = Some(PluginCommandRef {
+        id: "network.fetch".to_string(),
+        title: None,
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.command_ref_unsafe"));
+}

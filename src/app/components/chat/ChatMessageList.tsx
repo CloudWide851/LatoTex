@@ -88,6 +88,7 @@ export function ChatMessageList(props: {
                   t={t}
                   className="border-0 px-2 py-2"
                   bodyClassName="max-h-56 pr-1"
+                  compact
                 />
               </div>
             ) : null}

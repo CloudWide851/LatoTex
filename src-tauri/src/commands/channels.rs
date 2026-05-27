@@ -114,6 +114,41 @@ async fn send_telegram_message(
     })
 }
 
+async fn test_telegram_token(token: &str) -> Result<Ack, String> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Err("channels.telegram.token_missing".to_string());
+    }
+    let client = Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let response = client
+        .get(format!("https://api.telegram.org/bot{}/getMe", token))
+        .send()
+        .await
+        .map_err(|e| format!("channels.telegram.transport: {e}"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let payload = response.text().await.unwrap_or_default();
+        return Err(format!("channels.telegram.http_{status}: {payload}"));
+    }
+    let payload: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("channels.telegram.parse: {e}"))?;
+    if payload.get("ok").and_then(Value::as_bool) != Some(true) {
+        return Err(extract_telegram_error(
+            &payload,
+            "channels.telegram.verify_failed",
+        ));
+    }
+    Ok(Ack {
+        ok: true,
+        message: "verified".to_string(),
+    })
+}
+
 #[tauri::command]
 pub async fn channels_telegram_poll(
     state: State<'_, AppState>,
@@ -243,5 +278,9 @@ pub async fn channels_telegram_send(
 
 #[tauri::command]
 pub async fn channels_telegram_test(input: TelegramTestInput) -> Result<Ack, String> {
-    send_telegram_message(&input.token, &input.chat_id, &input.text, None).await
+    let chat_id = input.chat_id.unwrap_or_default();
+    if chat_id.trim().is_empty() {
+        return test_telegram_token(&input.token).await;
+    }
+    send_telegram_message(&input.token, &chat_id, &input.text, None).await
 }
