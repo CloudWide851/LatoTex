@@ -12,6 +12,17 @@ export type PluginCommandTemplate = {
   args?: string[];
 };
 
+export type PluginToolchainInstaller = {
+  id: string;
+  kind: "git" | "python" | "node" | "c" | "cpp" | string;
+  platform: "windows-x64" | string;
+  downloadUrl: string;
+  sha256: string;
+  archiveFormat: "zip" | "exe" | string;
+  executable: string;
+  versionArg?: string | null;
+};
+
 export type PluginCommandRef = {
   id: string;
   title?: string | null;
@@ -33,6 +44,10 @@ export type PluginContribution = {
     | "editorCommand"
     | "analysisCommand"
     | "libraryCommand"
+    | "markdownCommand"
+    | "terminalCommand"
+    | "resourceCommand"
+    | "toolchainInstaller"
     | string;
   id: string;
   title: string;
@@ -44,6 +59,7 @@ export type PluginContribution = {
   mcpServer?: PluginMcpServerTemplate | null;
   command?: PluginCommandTemplate | null;
   skillId?: string | null;
+  toolchainInstaller?: PluginToolchainInstaller | null;
 };
 
 export type PluginManifest = {

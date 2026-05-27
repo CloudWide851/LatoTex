@@ -15,5 +15,11 @@ export const enUS_preview = {
   "preview.zoomOut": "Zoom Out",
   "preview.zoomReset": "Reset Zoom",
   "preview.none": "None",
+  "preview.codeRun": "Run",
+  "preview.codeStop": "Stop",
+  "preview.codeRunning": "Running...",
+  "preview.codeOutput": "Output",
+  "preview.codeOutputTruncated": "Output truncated.",
+  "preview.codeRunCancelled": "Run cancelled.",
 } as const;
 

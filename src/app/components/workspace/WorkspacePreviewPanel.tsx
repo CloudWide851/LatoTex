@@ -172,6 +172,7 @@ export function WorkspacePreviewPanel(props: {
             mode={previewMode}
             pdfUrl={previewPdfUrl ?? null}
             imageUrl={imagePreviewUrl ?? null}
+            activeProjectId={activeProjectId}
             markdownContent={selectedIsMarkdown ? editorContent : ""}
             svgContent={selectedIsSvg ? editorContent : ""}
             selectedPath={selectedFile}

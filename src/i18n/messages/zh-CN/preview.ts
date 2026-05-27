@@ -15,5 +15,11 @@ export const zhCN_preview = {
   "preview.zoomOut": "缩小预览",
   "preview.zoomReset": "恢复默认缩放",
   "preview.none": "无",
+  "preview.codeRun": "运行",
+  "preview.codeStop": "停止",
+  "preview.codeRunning": "正在运行...",
+  "preview.codeOutput": "输出",
+  "preview.codeOutputTruncated": "输出已截断。",
+  "preview.codeRunCancelled": "运行已取消。",
 } as const;
 

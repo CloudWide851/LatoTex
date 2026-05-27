@@ -5,6 +5,7 @@ import type {
   FileReadResponse,
   FsOperationInput,
   FsOperationResult,
+  MarkdownRunCodeResponse,
   ResourceNode,
   TerminalReadResponse,
   TerminalStartResponse,
@@ -61,6 +62,15 @@ export function terminalStop(sessionId: string): Promise<Ack> {
   return invokeCommand<Ack>("terminal_stop", {
     input: { sessionId },
   });
+}
+
+export function markdownRunCode(input: {
+  projectId: string;
+  relativePath?: string | null;
+  language: string;
+  code: string;
+}): Promise<MarkdownRunCodeResponse> {
+  return invokeCommand<MarkdownRunCodeResponse>("markdown_run_code", { input });
 }
 
 export function readFile(projectId: string, relativePath: string): Promise<FileReadResponse> {

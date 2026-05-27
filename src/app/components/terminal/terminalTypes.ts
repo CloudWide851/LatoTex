@@ -9,6 +9,7 @@ export type TerminalTab = {
   status: string;
   cursor: number;
   buffer: string;
+  history?: string[];
   error: string | null;
 };
 

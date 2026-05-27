@@ -503,6 +503,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               projectId={activeProjectId}
               selectedPath={selectedIsDocx ? selectedFile : null}
               busy={busy}
+              tree={tree}
               onRescan={onWorkspaceRescan}
               t={t}
             />

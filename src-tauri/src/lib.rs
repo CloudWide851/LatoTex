@@ -30,6 +30,7 @@ use commands::health::{
 };
 use commands::docx::{docx_read, docx_write};
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
+use commands::markdown_runtime::markdown_run_code;
 use commands::native_runtime::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
     analysis_env_prepare_status, analysis_env_status, analysis_run_python, latex_compile_native,
@@ -459,6 +460,7 @@ pub fn run() {
             terminal_read,
             terminal_resize,
             terminal_stop,
+            markdown_run_code,
             plugin_marketplace_catalog,
             plugin_installed_list,
             plugin_install,

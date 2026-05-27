@@ -1,9 +1,5 @@
 import { useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
-import rehypeKatex from "rehype-katex";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
+import { MarkdownPreviewPane } from "./markdown/MarkdownPreviewPane";
 import { WorkspacePdfViewport } from "./pdf/WorkspacePdfViewport";
 import "katex/dist/katex.min.css";
 import "highlight.js/styles/github.css";
@@ -62,6 +58,7 @@ export function FilePreviewPane(props: {
   mode: "pdf" | "image" | "markdown" | "svg" | "empty";
   pdfUrl: string | null;
   imageUrl: string | null;
+  activeProjectId?: string | null;
   markdownContent: string;
   svgContent: string;
   selectedPath: string | null;
@@ -78,6 +75,7 @@ export function FilePreviewPane(props: {
     mode,
     pdfUrl,
     imageUrl,
+    activeProjectId,
     markdownContent,
     svgContent,
     selectedPath,
@@ -132,41 +130,13 @@ export function FilePreviewPane(props: {
   if (mode === "markdown") {
     return (
       <div className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-        {sanitizedMarkdown.trim().length === 0 ? (
-          <p className="text-xs text-slate-500">{emptyText}</p>
-        ) : (
-          <article className="markdown-preview space-y-3 text-sm leading-6 text-slate-700">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex, rehypeHighlight]}
-              components={{
-                a: ({ ...anchorProps }) => (
-                  <a
-                    {...anchorProps}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-primary-700 underline decoration-primary-400 underline-offset-2"
-                  />
-                ),
-                code: ({ inline, className, children, ...codeProps }: any) =>
-                  inline ? (
-                    <code
-                      {...codeProps}
-                      className={`rounded bg-slate-100 px-1 py-0.5 font-mono text-[12px] ${className ?? ""}`}
-                    >
-                      {children}
-                    </code>
-                  ) : (
-                    <code {...codeProps} className={`font-mono text-[12px] ${className ?? ""}`}>
-                      {children}
-                    </code>
-                  ),
-              }}
-            >
-              {sanitizedMarkdown}
-            </ReactMarkdown>
-          </article>
-        )}
+        <MarkdownPreviewPane
+          activeProjectId={activeProjectId ?? null}
+          selectedPath={selectedPath}
+          markdown={sanitizedMarkdown}
+          emptyText={emptyText}
+          t={t}
+        />
       </div>
     );
   }

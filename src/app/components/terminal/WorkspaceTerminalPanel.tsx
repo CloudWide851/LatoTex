@@ -13,6 +13,7 @@ import {
 import type { TerminalOutputChunk } from "../../../shared/types/app";
 import { TerminalSessionRail } from "./TerminalSessionRail";
 import { TerminalSuggestionOverlay } from "./TerminalSuggestionOverlay";
+import { loadTerminalState, saveTerminalState } from "./terminalPersistence";
 import { buildTerminalSuggestions, nextTerminalInputLine } from "./terminalSuggestions";
 import { reorderTerminalTabs } from "./terminalTabOrder";
 import type { ProjectTerminalState, TerminalTab, TranslationFn } from "./terminalTypes";
@@ -67,6 +68,7 @@ function createTab(relativePath: string | null, count: number): TerminalTab {
     status: "idle",
     cursor: 0,
     buffer: "",
+    history: [],
     error: null,
   };
 }
@@ -80,6 +82,17 @@ function snapshotState(projectId: string | null, selectedFile: string | null): P
     return {
       tabs: existing.tabs.map((tab) => ({ ...tab })),
       activeTabId: existing.activeTabId ?? existing.tabs[0]?.id ?? null,
+    };
+  }
+  const persisted = loadTerminalState(projectId);
+  if (persisted?.tabs.length) {
+    terminalStates.set(projectId, {
+      tabs: persisted.tabs.map((tab) => ({ ...tab })),
+      activeTabId: persisted.activeTabId ?? persisted.tabs[0]?.id ?? null,
+    });
+    return {
+      tabs: persisted.tabs.map((tab) => ({ ...tab })),
+      activeTabId: persisted.activeTabId ?? persisted.tabs[0]?.id ?? null,
     };
   }
   const first = createTab(selectedFile, 1);
@@ -99,6 +112,7 @@ function persistState(projectId: string | null, tabs: TerminalTab[], activeTabId
     tabs: tabs.map((tab) => ({ ...tab })),
     activeTabId,
   });
+  saveTerminalState(projectId, tabs, activeTabId);
 }
 
 function xtermTheme() {
@@ -134,7 +148,6 @@ export function WorkspaceTerminalPanel(props: {
   const [activeTabId, setActiveTabId] = useState<string | null>(initialState.activeTabId);
   const [busyTabId, setBusyTabId] = useState<string | null>(null);
   const [inputLine, setInputLine] = useState("");
-  const [terminalHistory, setTerminalHistory] = useState<string[]>([]);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -143,7 +156,6 @@ export function WorkspaceTerminalPanel(props: {
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
   const inputLineRef = useRef(inputLine);
-  const terminalHistoryRef = useRef(terminalHistory);
 
   useEffect(() => {
     tabsRef.current = tabs;
@@ -159,19 +171,16 @@ export function WorkspaceTerminalPanel(props: {
   }, [inputLine]);
 
   useEffect(() => {
-    terminalHistoryRef.current = terminalHistory;
-  }, [terminalHistory]);
-
-  useEffect(() => {
     const next = snapshotState(activeProjectId, selectedFile);
     setTabs(next.tabs);
     setActiveTabId(next.activeTabId);
   }, [activeProjectId, selectedFile]);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null;
+  const activeHistory = activeTab?.history ?? [];
   const suggestions = useMemo(
-    () => buildTerminalSuggestions(inputLine, { tab: activeTab, selectedFile, history: terminalHistory }),
-    [activeTab, inputLine, selectedFile, terminalHistory],
+    () => buildTerminalSuggestions(inputLine, { tab: activeTab, selectedFile, history: activeHistory }),
+    [activeHistory, activeTab, inputLine, selectedFile],
   );
   const suggestionsRef = useRef(suggestions);
   const suggestionIndexRef = useRef(suggestionIndex);
@@ -268,7 +277,6 @@ export function WorkspaceTerminalPanel(props: {
                 envSource: response.envSource ?? null,
                 status: response.status,
                 cursor: 0,
-                buffer: "",
                 error: null,
               }
             : item,
@@ -294,7 +302,7 @@ export function WorkspaceTerminalPanel(props: {
     updateTabs((prev) =>
       prev.map((item) =>
         item.id === tabId
-          ? { ...item, sessionId: null, status: "idle", cursor: 0, buffer: "", error: null }
+          ? { ...item, sessionId: null, status: "idle", cursor: 0, error: null }
           : item,
       ),
     );
@@ -385,7 +393,13 @@ export function WorkspaceTerminalPanel(props: {
       if (data === "\r") {
         const command = inputLineRef.current.trim();
         if (command) {
-          setTerminalHistory((prev) => [command, ...prev.filter((item) => item !== command)].slice(0, 40));
+          updateTabs((prev) =>
+            prev.map((item) =>
+              item.id === activeTabIdRef.current
+                ? { ...item, history: [command, ...(item.history ?? []).filter((historyItem) => historyItem !== command)].slice(0, 80) }
+                : item,
+            ),
+          );
         }
       }
       writeToActiveSession(data);
