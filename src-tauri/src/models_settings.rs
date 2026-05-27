@@ -130,6 +130,9 @@ pub struct ChannelPrefs {
     pub telegram_enabled: Option<bool>,
     pub telegram_bot_token: Option<String>,
     pub telegram_chat_id: Option<String>,
+    pub dingtalk_enabled: Option<bool>,
+    pub dingtalk_client_id: Option<String>,
+    pub dingtalk_client_secret: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -169,6 +172,44 @@ pub struct TelegramSendInput {
 #[serde(rename_all = "camelCase")]
 pub struct TelegramTestInput {
     pub token: String,
-    pub chat_id: String,
+    pub chat_id: Option<String>,
     pub text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkPollInput {
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkUpdateItem {
+    pub conversation_id: String,
+    pub sender_id: String,
+    pub sender_name: String,
+    pub text: String,
+    pub reply_token: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkPollResult {
+    pub updates: Vec<DingTalkUpdateItem>,
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkSendInput {
+    pub reply_token: Option<String>,
+    pub webhook: Option<String>,
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DingTalkTestInput {
+    pub client_id: String,
+    pub client_secret: String,
 }

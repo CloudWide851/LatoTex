@@ -54,6 +54,9 @@ export function updateSettings(input: {
       telegramEnabled?: boolean;
       telegramBotToken?: string;
       telegramChatId?: string;
+      dingtalkEnabled?: boolean;
+      dingtalkClientId?: string;
+      dingtalkClientSecret?: string;
     };
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;

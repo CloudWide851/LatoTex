@@ -30,6 +30,9 @@ export type PluginContribution = {
     | "statusItem"
     | "workspaceCommand"
     | "docxCommand"
+    | "editorCommand"
+    | "analysisCommand"
+    | "libraryCommand"
     | string;
   id: string;
   title: string;

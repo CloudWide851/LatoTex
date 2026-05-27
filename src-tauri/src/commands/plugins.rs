@@ -155,6 +155,9 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "statusItem",
         "workspaceCommand",
         "docxCommand",
+        "editorCommand",
+        "analysisCommand",
+        "libraryCommand",
     ]);
     let safe_commands = HashSet::from([
         "app.openPage",
@@ -162,6 +165,17 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "workspace.rescan",
         "workspace.openTerminal",
         "workspace.revealInSystem",
+        "editor.save",
+        "editor.reload",
+        "editor.find",
+        "editor.formatDocument",
+        "analysis.createTask",
+        "analysis.run",
+        "analysis.continue",
+        "analysis.exportReport",
+        "library.rescan",
+        "library.importPdf",
+        "library.resolvePreview",
         "docx.save",
         "docx.reload",
         "docx.find",
@@ -175,6 +189,9 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "statusItem",
         "workspaceCommand",
         "docxCommand",
+        "editorCommand",
+        "analysisCommand",
+        "libraryCommand",
     ]);
     for contribution in &manifest.contributions {
         if !validate_identifier(&contribution.id, 96) || contribution.title.trim().is_empty() {

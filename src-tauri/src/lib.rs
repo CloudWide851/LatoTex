@@ -14,6 +14,9 @@ use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
 use commands::channels::{channels_telegram_poll, channels_telegram_send, channels_telegram_test};
+use commands::channels_dingtalk::{
+    channels_dingtalk_poll, channels_dingtalk_send, channels_dingtalk_test,
+};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_commit_files, git_diff_file,
     git_download_cancel, git_download_installer_start, git_download_status, git_fetch,
@@ -361,6 +364,9 @@ pub fn run() {
             channels_telegram_poll,
             channels_telegram_send,
             channels_telegram_test,
+            channels_dingtalk_poll,
+            channels_dingtalk_send,
+            channels_dingtalk_test,
             fs_operation,
             latex_compile_record,
             agent_execute_start,

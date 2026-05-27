@@ -496,6 +496,7 @@ export function SkillsSettingsSection(props: {
                   t={t}
                   className="mt-2 rounded border border-slate-200 bg-white px-2 py-2"
                   bodyClassName="max-h-72"
+                  compact
                 />
               ) : null}
             </div>

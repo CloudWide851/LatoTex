@@ -3,17 +3,21 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
+  Highlighter,
   FileText,
   Italic,
   Link,
   List,
   ListOrdered,
+  Paintbrush,
+  Redo2,
   RefreshCw,
   Replace,
   Save,
   Search,
   Table2,
   Underline,
+  Undo2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../components/ui/button";
@@ -25,6 +29,13 @@ type TranslationFn = (key: any) => string;
 
 function execFormat(command: string, value?: string) {
   document.execCommand(command, false, value);
+}
+
+function mapDocxStatus(raw: string, t: TranslationFn): string {
+  if (raw.includes("invalid Zip archive") || raw.includes("docx.document_missing")) {
+    return t("docx.error.invalidArchive");
+  }
+  return raw;
 }
 
 function sanitizeDocxHtml(html: string): string {
@@ -84,6 +95,7 @@ export function DocxWorkspace(props: {
 }) {
   const { projectId, selectedPath, busy, onRescan, t } = props;
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const syncTimerRef = useRef<number | null>(null);
   const [html, setHtml] = useState("<p><br></p>");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,6 +105,11 @@ export function DocxWorkspace(props: {
   const [reloadToken, setReloadToken] = useState(0);
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
+  const [fontFamily, setFontFamily] = useState("Microsoft YaHei");
+  const [fontSize, setFontSize] = useState("3");
+  const [fontColor, setFontColor] = useState("#0f172a");
+  const [highlightColor, setHighlightColor] = useState("#fef3c7");
+  const [activeMarks, setActiveMarks] = useState({ bold: false, italic: false, underline: false });
 
   useEffect(() => {
     if (!selectedPath) {
@@ -116,7 +133,7 @@ export function DocxWorkspace(props: {
       })
       .catch((error) => {
         if (!disposed) {
-          setStatus(String(error));
+          setStatus(mapDocxStatus(String(error), t));
         }
       })
       .finally(() => {
@@ -127,17 +144,43 @@ export function DocxWorkspace(props: {
     return () => {
       disposed = true;
     };
-  }, [projectId, reloadToken, selectedPath]);
+  }, [projectId, reloadToken, selectedPath, t]);
+
+  useEffect(() => () => {
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+    }
+  }, []);
 
   const syncHtmlFromDom = () => {
     setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
     setDirty(true);
   };
 
+  const syncHtmlFromDomDebounced = () => {
+    setDirty(true);
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+    }
+    syncTimerRef.current = window.setTimeout(() => {
+      setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
+      syncTimerRef.current = null;
+    }, 180);
+  };
+
+  const refreshActiveMarks = () => {
+    setActiveMarks({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+    });
+  };
+
   const applyFormat = (command: string, value?: string) => {
     editorRef.current?.focus();
     execFormat(command, value);
     syncHtmlFromDom();
+    refreshActiveMarks();
   };
 
   const save = async () => {
@@ -154,7 +197,7 @@ export function DocxWorkspace(props: {
       setStatus(t("docx.saved"));
       await onRescan();
     } catch (error) {
-      setStatus(String(error));
+      setStatus(mapDocxStatus(String(error), t));
     } finally {
       setSaving(false);
     }
@@ -169,7 +212,7 @@ export function DocxWorkspace(props: {
 
   const insertTable = () => {
     editorRef.current?.focus();
-    execFormat("insertHTML", "<table><tbody><tr><td>Cell</td><td>Cell</td></tr><tr><td>Cell</td><td>Cell</td></tr></tbody></table><p><br></p>");
+    execFormat("insertHTML", `<table><tbody><tr><td>${t("docx.tableCell")}</td><td>${t("docx.tableCell")}</td></tr><tr><td>${t("docx.tableCell")}</td><td>${t("docx.tableCell")}</td></tr></tbody></table><p><br></p>`);
     syncHtmlFromDom();
   };
 
@@ -215,6 +258,8 @@ export function DocxWorkspace(props: {
     { key: "right", icon: AlignRight, command: "justifyRight", label: t("docx.format.alignRight") },
     { key: "bullet", icon: List, command: "insertUnorderedList", label: t("docx.format.bullet") },
     { key: "numbered", icon: ListOrdered, command: "insertOrderedList", label: t("docx.format.numbered") },
+    { key: "outdent", icon: Undo2, command: "outdent", label: t("docx.format.outdent") },
+    { key: "indent", icon: Redo2, command: "indent", label: t("docx.format.indent") },
   ];
 
   return (
@@ -242,7 +287,18 @@ export function DocxWorkspace(props: {
             </Button>
           </div>
         </div>
-        <div className="settings-scrollbar-hidden flex gap-2 overflow-x-auto border-t border-[color:var(--editor-widget-border)] px-3 py-2">
+        <div className="settings-scrollbar-hidden flex flex-wrap gap-2 overflow-x-auto border-t border-[color:var(--editor-widget-border)] px-3 py-2">
+          <div className="docx-ribbon-group">
+            <span>{t("docx.ribbon.file")}</span>
+            <div className="flex gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.undo")} aria-label={t("docx.format.undo")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("undo")}>
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" title={t("docx.format.redo")} aria-label={t("docx.format.redo")} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat("redo")}>
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
           <div className="docx-ribbon-group">
             <span>{t("docx.ribbon.style")}</span>
             <select className="h-8 rounded border border-slate-200 bg-white px-2 text-xs" disabled={ribbonDisabled} defaultValue="p" onChange={(event) => applyFormat("formatBlock", event.target.value)}>
@@ -253,15 +309,47 @@ export function DocxWorkspace(props: {
           </div>
           <div className="docx-ribbon-group">
             <span>{t("docx.ribbon.font")}</span>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
+              <select className="h-8 max-w-32 rounded border border-slate-200 bg-white px-2 text-xs" disabled={ribbonDisabled} value={fontFamily} onChange={(event) => {
+                setFontFamily(event.target.value);
+                applyFormat("fontName", event.target.value);
+              }}>
+                <option value="Microsoft YaHei">{t("docx.font.sans")}</option>
+                <option value="SimSun">{t("docx.font.serif")}</option>
+                <option value="Consolas">{t("docx.font.mono")}</option>
+              </select>
+              <select className="h-8 w-16 rounded border border-slate-200 bg-white px-2 text-xs" disabled={ribbonDisabled} value={fontSize} onChange={(event) => {
+                setFontSize(event.target.value);
+                applyFormat("fontSize", event.target.value);
+              }}>
+                <option value="2">10</option>
+                <option value="3">12</option>
+                <option value="4">14</option>
+                <option value="5">18</option>
+                <option value="6">24</option>
+              </select>
               {formatButtons.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Button key={item.key} size="icon" variant="ghost" className="h-8 w-8" title={item.label} aria-label={item.label} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat(item.command)}>
+                  <Button key={item.key} size="icon" variant={activeMarks[item.key as keyof typeof activeMarks] ? "secondary" : "ghost"} className="h-8 w-8" title={item.label} aria-label={item.label} disabled={ribbonDisabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyFormat(item.command)}>
                     <Icon className="h-4 w-4" />
                   </Button>
                 );
               })}
+              <label className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600" title={t("docx.format.color")}>
+                <Paintbrush className="h-4 w-4" />
+                <input className="absolute inset-0 opacity-0" type="color" value={fontColor} disabled={ribbonDisabled} onChange={(event) => {
+                  setFontColor(event.target.value);
+                  applyFormat("foreColor", event.target.value);
+                }} />
+              </label>
+              <label className="relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600" title={t("docx.format.highlight")}>
+                <Highlighter className="h-4 w-4" />
+                <input className="absolute inset-0 opacity-0" type="color" value={highlightColor} disabled={ribbonDisabled} onChange={(event) => {
+                  setHighlightColor(event.target.value);
+                  applyFormat("hiliteColor", event.target.value);
+                }} />
+              </label>
             </div>
           </div>
           <div className="docx-ribbon-group">
@@ -303,7 +391,7 @@ export function DocxWorkspace(props: {
           </div>
         </div>
       </header>
-      <div className="min-h-0 overflow-auto bg-[color:var(--editor-paper-bg)] p-5">
+      <div className="docx-page-wrap min-h-0 overflow-auto bg-[color:var(--editor-paper-bg)] px-3 py-4">
         {!selectedPath ? (
           <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-white/70 text-xs text-slate-500">
             {t("docx.select")}
@@ -311,7 +399,7 @@ export function DocxWorkspace(props: {
         ) : loading ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-500">{t("docx.loading")}</div>
         ) : (
-          <div className="mx-auto max-w-[840px]">
+          <div className="docx-page-frame mx-auto">
             <div className="mb-1 h-5 rounded-t border-x border-t border-slate-200 bg-[repeating-linear-gradient(90deg,#e2e8f0_0,#e2e8f0_1px,transparent_1px,transparent_48px)]" />
             <div
               key={selectedPath}
@@ -319,11 +407,13 @@ export function DocxWorkspace(props: {
               contentEditable
               suppressContentEditableWarning
               className={cn(
-                "docx-page-surface mx-auto min-h-[960px] w-full bg-white px-16 py-14 text-[15px] leading-7 text-slate-900 shadow-[0_22px_56px_rgba(15,23,42,0.16)] outline-none",
+                "docx-page-surface mx-auto w-full bg-white text-[15px] leading-7 text-slate-900 shadow-[0_22px_56px_rgba(15,23,42,0.16)] outline-none",
                 "prose prose-slate prose-sm max-w-none focus:ring-2 focus:ring-[color:var(--app-accent)]",
               )}
               dangerouslySetInnerHTML={{ __html: html }}
-              onInput={syncHtmlFromDom}
+              onInput={syncHtmlFromDomDebounced}
+              onMouseUp={refreshActiveMarks}
+              onKeyUp={refreshActiveMarks}
               onPaste={(event) => {
                 event.preventDefault();
                 const text = event.clipboardData.getData("text/plain");
@@ -334,6 +424,18 @@ export function DocxWorkspace(props: {
                 if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
                   event.preventDefault();
                   void save();
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+                  event.preventDefault();
+                  applyFormat("bold");
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "i") {
+                  event.preventDefault();
+                  applyFormat("italic");
+                }
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "u") {
+                  event.preventDefault();
+                  applyFormat("underline");
                 }
               }}
             />
