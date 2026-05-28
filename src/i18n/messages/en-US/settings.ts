@@ -289,6 +289,7 @@ export const enUS_settings = {
   "settings.pluginSourcesUrl": "Catalog URL",
   "settings.pluginSourcesTest": "Check source",
   "settings.pluginSourcesTestResult": "Loaded {count} catalog entries.",
+  "settings.docxAutoSave": "Auto-save DOCX documents",
   "settings.memoryGuardTitle": "Renderer Memory Guard",
   "settings.memoryGuardEnabled": "Enable renderer memory guard",
   "settings.memoryGuardHigh": "High watermark (MB)",

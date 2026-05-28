@@ -41,6 +41,9 @@ mod share_pdf;
 mod share_runtime_auth;
 #[path = "share_tunnel.rs"]
 mod share_tunnel;
+#[cfg(test)]
+#[path = "share_tests.rs"]
+mod share_tests;
 use share_http_response::with_share_headers;
 use share_limits::*;
 use share_payloads::*;
@@ -580,27 +583,4 @@ pub fn share_session_stop(state: State<'_, AppState>) -> Result<Ack, String> {
         ok: true,
         message: "stopped".to_string(),
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn share_sync_event_serializes_participant_metadata() {
-        let event = ShareSyncEvent {
-            seq: 7,
-            from: "web-1".to_string(),
-            update: "abc".to_string(),
-            participant_id: "p-web-1".to_string(),
-            username: "Alice".to_string(),
-            action: Some("editing".to_string()),
-            created_at: "2026-05-25T10:00:00Z".to_string(),
-        };
-        let value = serde_json::to_value(event).expect("event serializes");
-        assert_eq!(value["participantId"], "p-web-1");
-        assert_eq!(value["username"], "Alice");
-        assert_eq!(value["action"], "editing");
-        assert_eq!(value["from"], "web-1");
-    }
 }

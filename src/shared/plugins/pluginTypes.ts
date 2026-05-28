@@ -14,7 +14,7 @@ export type PluginCommandTemplate = {
 
 export type PluginToolchainInstaller = {
   id: string;
-  kind: "git" | "python" | "node" | "c" | "cpp" | string;
+  kind: "git" | "go" | "python" | "node" | "c" | "cpp" | string;
   platform: "windows-x64" | string;
   downloadUrl: string;
   sha256: string;
@@ -119,6 +119,17 @@ export type InstalledPlugin = {
   installedAt: string;
   source: string;
   validationIssues?: PluginValidationIssue[];
+};
+
+export type ToolchainStatus = {
+  pluginId: string;
+  contributionId: string;
+  kind: string;
+  installed: boolean;
+  installPath?: string | null;
+  executablePath?: string | null;
+  version?: string | null;
+  message: string;
 };
 
 export type PluginCatalogResponse = {

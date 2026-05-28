@@ -71,6 +71,7 @@ use commands::swarm::{
 use commands::terminal::{
     terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
 };
+use commands::toolchains::{toolchain_install, toolchain_list, toolchain_remove, toolchain_verify};
 use tauri::{
     menu::MenuBuilder,
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -467,6 +468,10 @@ pub fn run() {
             plugin_uninstall,
             plugin_set_enabled,
             plugin_validate_manifest,
+            toolchain_list,
+            toolchain_install,
+            toolchain_verify,
+            toolchain_remove,
         ])
         .run(context)
         .expect("error while running tauri application");

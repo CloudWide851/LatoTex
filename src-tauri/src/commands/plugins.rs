@@ -197,6 +197,14 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "docx.insertLink",
         "docx.insertResource",
         "docx.insertImage",
+        "docx.zoomIn",
+        "docx.zoomOut",
+        "docx.zoomReset",
+        "docx.toggleAutoSave",
+        "docx.clearFormatting",
+        "docx.strikeThrough",
+        "docx.subscript",
+        "docx.superscript",
         "markdown.runFence",
         "markdown.clearOutput",
         "terminal.restoreHistory",
@@ -204,6 +212,18 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         "toolchain.install",
         "toolchain.verify",
         "toolchain.remove",
+        "toolchain.install.c",
+        "toolchain.install.cpp",
+        "toolchain.install.go",
+        "toolchain.install.git",
+        "toolchain.verify.c",
+        "toolchain.verify.cpp",
+        "toolchain.verify.go",
+        "toolchain.verify.git",
+        "toolchain.remove.c",
+        "toolchain.remove.cpp",
+        "toolchain.remove.go",
+        "toolchain.remove.git",
     ]);
     let declarative_command_kinds = HashSet::from([
         "toolbarButton",
@@ -312,7 +332,7 @@ fn validate_toolchain_installer(
         ));
         return;
     };
-    let allowed_kinds = HashSet::from(["git", "python", "node", "c", "cpp"]);
+    let allowed_kinds = HashSet::from(["git", "go", "python", "node", "c", "cpp"]);
     let allowed_archives = HashSet::from(["zip", "exe"]);
     if !validate_identifier(&installer.id, 96)
         || !allowed_kinds.contains(installer.kind.as_str())
@@ -335,7 +355,7 @@ fn validate_toolchain_installer(
     }
 }
 
-fn read_registry(runtime_root: &Path) -> Result<Vec<InstalledPlugin>, String> {
+pub(crate) fn read_registry(runtime_root: &Path) -> Result<Vec<InstalledPlugin>, String> {
     let path = registry_path(runtime_root);
     if !path.is_file() {
         return Ok(Vec::new());

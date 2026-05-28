@@ -99,6 +99,7 @@ export function updateSettings(input: {
     agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;
     pluginCatalogSources?: PluginCatalogSource[];
+    docxAutoSaveEnabled?: boolean;
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
     hiddenSkills?: string[];

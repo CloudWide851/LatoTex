@@ -861,6 +861,9 @@ video {
 .top-\[calc\(100\%\+8px\)\] {
   top: calc(100% + 8px);
 }
+.top-\[calc\(100\%-2px\)\] {
+  top: calc(100% - 2px);
+}
 .top-\[calc\(var\(--topbar-height\2c 48px\)\+12px\)\] {
   top: calc(var(--topbar-height,48px) + 12px);
 }
@@ -1397,6 +1400,9 @@ video {
 .min-w-0 {
   min-width: 0px;
 }
+.min-w-16 {
+  min-width: 4rem;
+}
 .min-w-40 {
   min-width: 10rem;
 }
@@ -1478,6 +1484,9 @@ video {
 }
 .max-w-\[min\(620px\2c calc\(100\%-24px\)\)\] {
   max-width: min(620px, calc(100% - 24px));
+}
+.max-w-\[min\(760px\2c calc\(100vw-120px\)\)\] {
+  max-width: min(760px, calc(100vw - 120px));
 }
 .max-w-full {
   max-width: 100%;
@@ -2659,9 +2668,6 @@ video {
 .text-\[13px\] {
   font-size: 13px;
 }
-.text-\[15px\] {
-  font-size: 15px;
-}
 .text-\[9px\] {
   font-size: 9px;
 }
@@ -3031,6 +3037,10 @@ video {
   --tw-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+.shadow-\[var\(--editor-widget-shadow\)\] {
+  --tw-shadow-color: var(--editor-widget-shadow);
+  --tw-shadow: var(--tw-shadow-colored);
 }
 .shadow-slate-900\/5 {
   --tw-shadow-color: rgb(15 23 42 / 0.05);

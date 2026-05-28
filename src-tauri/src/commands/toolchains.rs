@@ -1,0 +1,349 @@
+use super::native_runtime::configure_hidden_process;
+use super::plugins::read_registry;
+use super::plugins_builtin::built_in_catalog;
+use crate::models::{
+    PluginContribution, PluginManifest, PluginToolchainInstaller, ToolchainActionInput,
+    ToolchainInstallRecord, ToolchainStatus,
+};
+use crate::state::AppState;
+use crate::storage;
+use ring::digest::{digest, SHA256};
+use std::fs;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use tauri::{async_runtime::spawn_blocking, State};
+use zip::ZipArchive;
+
+fn toolchain_root(runtime_root: &Path) -> PathBuf {
+    runtime_root.join("toolchains")
+}
+
+fn registry_path(runtime_root: &Path) -> PathBuf {
+    toolchain_root(runtime_root).join("registry.json")
+}
+
+fn safe_segment(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+fn hex_digest(bytes: &[u8]) -> String {
+    bytes.iter().map(|value| format!("{value:02x}")).collect()
+}
+
+fn read_toolchain_registry(runtime_root: &Path) -> Result<Vec<ToolchainInstallRecord>, String> {
+    let path = registry_path(runtime_root);
+    if !path.is_file() {
+        return Ok(Vec::new());
+    }
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    serde_json::from_str::<Vec<ToolchainInstallRecord>>(&content).map_err(|e| e.to_string())
+}
+
+fn write_toolchain_registry(runtime_root: &Path, records: &[ToolchainInstallRecord]) -> Result<(), String> {
+    let path = registry_path(runtime_root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(path, serde_json::to_string_pretty(records).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
+}
+
+fn status_from_record(record: &ToolchainInstallRecord) -> ToolchainStatus {
+    let executable = PathBuf::from(&record.executable_path);
+    ToolchainStatus {
+        plugin_id: record.plugin_id.clone(),
+        contribution_id: record.contribution_id.clone(),
+        kind: record.installer.kind.clone(),
+        installed: executable.is_file(),
+        install_path: Some(record.root_dir.clone()),
+        executable_path: Some(record.executable_path.clone()),
+        version: record.version.clone(),
+        message: if executable.is_file() {
+            "toolchain.ready".to_string()
+        } else {
+            "toolchain.missing".to_string()
+        },
+    }
+}
+
+fn manifest_contributions(
+    manifest: &PluginManifest,
+) -> impl Iterator<Item = (&PluginManifest, &PluginContribution)> {
+    manifest.contributions.iter().map(move |item| (manifest, item))
+}
+
+fn toolchain_catalog(runtime_root: &Path) -> Result<Vec<(PluginManifest, PluginContribution)>, String> {
+    let mut items = Vec::new();
+    for entry in built_in_catalog() {
+        for (_, contribution) in manifest_contributions(&entry.manifest) {
+            if contribution.kind == "toolchainInstaller" {
+                items.push((entry.manifest.clone(), contribution.clone()));
+            }
+        }
+    }
+    for installed in read_registry(runtime_root)?.into_iter().filter(|item| item.enabled) {
+        for contribution in installed.manifest.contributions.iter() {
+            if contribution.kind == "toolchainInstaller" {
+                items.push((installed.manifest.clone(), contribution.clone()));
+            }
+        }
+    }
+    Ok(items)
+}
+
+fn find_installer(
+    runtime_root: &Path,
+    plugin_id: &str,
+    contribution_id: &str,
+) -> Result<(PluginManifest, PluginContribution, PluginToolchainInstaller), String> {
+    for (manifest, contribution) in toolchain_catalog(runtime_root)? {
+        if manifest.id == plugin_id && contribution.id == contribution_id {
+            let installer = contribution
+                .toolchain_installer
+                .clone()
+                .ok_or_else(|| "toolchain.installer_missing".to_string())?;
+            if installer.platform != "windows-x64"
+                || installer.archive_format != "zip"
+                || !installer.download_url.starts_with("https://")
+                || installer.sha256.len() != 64
+                || !installer.sha256.chars().all(|ch| ch.is_ascii_hexdigit())
+            {
+                return Err("toolchain.installer_unsafe".to_string());
+            }
+            return Ok((manifest, contribution, installer));
+        }
+    }
+    Err("toolchain.not_found".to_string())
+}
+
+fn version_of(executable: &Path, arg: Option<&str>) -> Option<String> {
+    let mut command = Command::new(executable);
+    configure_hidden_process(&mut command);
+    command.arg(arg.unwrap_or("--version"));
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text.lines().next().unwrap_or("").to_string())
+    }
+}
+
+fn download_archive(installer: &PluginToolchainInstaller) -> Result<Vec<u8>, String> {
+    let response = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| e.to_string())?
+        .get(installer.download_url.trim())
+        .send()
+        .map_err(|e| format!("toolchain.download_failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!("toolchain.download_http: {}", response.status()));
+    }
+    let bytes = response.bytes().map_err(|e| e.to_string())?.to_vec();
+    let actual = hex_digest(digest(&SHA256, &bytes).as_ref());
+    if !actual.eq_ignore_ascii_case(&installer.sha256) {
+        return Err("toolchain.sha256_mismatch".to_string());
+    }
+    Ok(bytes)
+}
+
+fn extract_zip(bytes: &[u8], target_root: &Path) -> Result<(), String> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    fs::create_dir_all(target_root).map_err(|e| e.to_string())?;
+    let canonical_root = target_root.canonicalize().map_err(|e| e.to_string())?;
+    for index in 0..archive.len() {
+        let mut file = archive.by_index(index).map_err(|e| e.to_string())?;
+        let Some(enclosed) = file.enclosed_name().map(|path| path.to_path_buf()) else {
+            return Err("toolchain.archive_path_unsafe".to_string());
+        };
+        let out_path = canonical_root.join(enclosed);
+        if !out_path.starts_with(&canonical_root) {
+            return Err("toolchain.archive_path_unsafe".to_string());
+        }
+        if file.is_dir() {
+            fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = out_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut out = fs::File::create(&out_path).map_err(|e| e.to_string())?;
+        std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn install_blocking(
+    runtime_root: &Path,
+    input: ToolchainActionInput,
+) -> Result<ToolchainStatus, String> {
+    let (_manifest, contribution, installer) =
+        find_installer(runtime_root, &input.plugin_id, &input.contribution_id)?;
+    let root = toolchain_root(runtime_root).join(safe_segment(&format!(
+        "{}-{}",
+        input.plugin_id, contribution.id
+    )));
+    let executable = root.join(&installer.executable);
+    let bytes = download_archive(&installer)?;
+    if root.exists() {
+        fs::remove_dir_all(&root).map_err(|e| e.to_string())?;
+    }
+    extract_zip(&bytes, &root)?;
+    if !executable.is_file() {
+        return Err("toolchain.executable_missing".to_string());
+    }
+    let version = version_of(&executable, installer.version_arg.as_deref());
+    let mut records = read_toolchain_registry(runtime_root)?;
+    records.retain(|item| {
+        item.plugin_id != input.plugin_id || item.contribution_id != input.contribution_id
+    });
+    let record = ToolchainInstallRecord {
+        plugin_id: input.plugin_id,
+        contribution_id: contribution.id,
+        installer,
+        installed_at: storage::now_iso(),
+        root_dir: root.to_string_lossy().to_string(),
+        executable_path: executable.to_string_lossy().to_string(),
+        version,
+    };
+    records.push(record.clone());
+    write_toolchain_registry(runtime_root, &records)?;
+    Ok(status_from_record(&record))
+}
+
+fn verify_blocking(
+    runtime_root: &Path,
+    input: ToolchainActionInput,
+) -> Result<ToolchainStatus, String> {
+    let records = read_toolchain_registry(runtime_root)?;
+    let Some(record) = records
+        .iter()
+        .find(|item| item.plugin_id == input.plugin_id && item.contribution_id == input.contribution_id)
+    else {
+        let (_manifest, contribution, installer) =
+            find_installer(runtime_root, &input.plugin_id, &input.contribution_id)?;
+        return Ok(ToolchainStatus {
+            plugin_id: input.plugin_id,
+            contribution_id: contribution.id,
+            kind: installer.kind,
+            installed: false,
+            install_path: None,
+            executable_path: None,
+            version: None,
+            message: "toolchain.not_installed".to_string(),
+        });
+    };
+    Ok(status_from_record(record))
+}
+
+fn remove_blocking(
+    runtime_root: &Path,
+    input: ToolchainActionInput,
+) -> Result<ToolchainStatus, String> {
+    let mut records = read_toolchain_registry(runtime_root)?;
+    let Some(index) = records
+        .iter()
+        .position(|item| item.plugin_id == input.plugin_id && item.contribution_id == input.contribution_id)
+    else {
+        return verify_blocking(runtime_root, input);
+    };
+    let record = records.remove(index);
+    let root = PathBuf::from(&record.root_dir);
+    if root.starts_with(toolchain_root(runtime_root)) && root.exists() {
+        fs::remove_dir_all(root).map_err(|e| e.to_string())?;
+    }
+    write_toolchain_registry(runtime_root, &records)?;
+    Ok(ToolchainStatus {
+        plugin_id: record.plugin_id,
+        contribution_id: record.contribution_id,
+        kind: record.installer.kind,
+        installed: false,
+        install_path: None,
+        executable_path: None,
+        version: None,
+        message: "toolchain.removed".to_string(),
+    })
+}
+
+pub(crate) fn find_managed_toolchain_executable(kinds: &[&str], names: &[&str], runtime_root: &Path) -> Option<PathBuf> {
+    let records = read_toolchain_registry(runtime_root).ok()?;
+    for record in records {
+        if !kinds.iter().any(|kind| *kind == record.installer.kind) {
+            continue;
+        }
+        let executable = PathBuf::from(&record.executable_path);
+        if executable.is_file() {
+            return Some(executable);
+        }
+        let root = PathBuf::from(&record.root_dir);
+        for name in names {
+            let candidate = root.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn toolchain_list(state: State<'_, AppState>) -> Result<Vec<ToolchainStatus>, String> {
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || {
+        Ok(read_toolchain_registry(&runtime_root)?
+            .iter()
+            .map(status_from_record)
+            .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn toolchain_install(
+    state: State<'_, AppState>,
+    input: ToolchainActionInput,
+) -> Result<ToolchainStatus, String> {
+    state.log("INFO", &format!("toolchain_install: {}:{}", input.plugin_id, input.contribution_id));
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || install_blocking(&runtime_root, input))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn toolchain_verify(
+    state: State<'_, AppState>,
+    input: ToolchainActionInput,
+) -> Result<ToolchainStatus, String> {
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || verify_blocking(&runtime_root, input))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn toolchain_remove(
+    state: State<'_, AppState>,
+    input: ToolchainActionInput,
+) -> Result<ToolchainStatus, String> {
+    state.log("INFO", &format!("toolchain_remove: {}:{}", input.plugin_id, input.contribution_id));
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || remove_blocking(&runtime_root, input))
+        .await
+        .map_err(|e| e.to_string())?
+}

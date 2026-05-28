@@ -1,10 +1,12 @@
 use crate::models::{Ack, DocxReadInput, DocxReadResponse, DocxWriteInput};
 use crate::state::AppState;
 use crate::storage;
+use super::docx_images::{
+    append_image_relationships, extract_image_assets, patch_content_types, DocxImageAsset,
+};
 use regex::Regex;
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Write};
-use std::path::Path;
 use tauri::{async_runtime::spawn_blocking, State};
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
@@ -33,31 +35,11 @@ fn html_unescape(value: &str) -> String {
         .replace("&quot;", "\"")
 }
 
-#[derive(Clone)]
-struct DocxImageAsset {
-    resource_path: String,
-    rel_id: String,
-    media_name: String,
-    content_type: String,
-    bytes: Vec<u8>,
-}
-
 fn attr_value(tag: &str, name: &str) -> Option<String> {
     let re = Regex::new(&format!(r#"(?is)\b{}\s*=\s*["']([^"']+)["']"#, regex::escape(name))).ok()?;
     re.captures(tag)
         .and_then(|capture| capture.get(1))
         .map(|item| html_unescape(item.as_str()))
-}
-
-fn image_content_type(path: &str) -> Option<&'static str> {
-    match path.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
-        "png" => Some("image/png"),
-        "jpg" | "jpeg" => Some("image/jpeg"),
-        "gif" => Some("image/gif"),
-        "webp" => Some("image/webp"),
-        "svg" => Some("image/svg+xml"),
-        _ => None,
-    }
 }
 
 fn strip_tags(value: &str) -> String {
@@ -233,6 +215,9 @@ struct InlineStyle {
     bold: bool,
     italic: bool,
     underline: bool,
+    strike: bool,
+    subscript: bool,
+    superscript: bool,
     heading: u8,
 }
 
@@ -246,6 +231,14 @@ fn run_props(style: InlineStyle) -> String {
     }
     if style.underline {
         props.push_str(r#"<w:u w:val="single"/>"#);
+    }
+    if style.strike {
+        props.push_str("<w:strike/>");
+    }
+    if style.subscript {
+        props.push_str(r#"<w:vertAlign w:val="subscript"/>"#);
+    } else if style.superscript {
+        props.push_str(r#"<w:vertAlign w:val="superscript"/>"#);
     }
     if style.heading == 1 {
         props.push_str(r#"<w:sz w:val="32"/>"#);
@@ -321,6 +314,20 @@ fn inline_html_to_runs(
             style.underline = true;
         } else if lower.starts_with("</u") {
             style.underline = false;
+        } else if lower.starts_with("<s") {
+            style.strike = true;
+        } else if lower.starts_with("</s") {
+            style.strike = false;
+        } else if lower.starts_with("<sub") {
+            style.subscript = true;
+            style.superscript = false;
+        } else if lower.starts_with("</sub") {
+            style.subscript = false;
+        } else if lower.starts_with("<sup") {
+            style.superscript = true;
+            style.subscript = false;
+        } else if lower.starts_with("</sup") {
+            style.superscript = false;
         } else if lower.starts_with("<a") {
             if let Some(url) = href_re.captures(tag.as_str()).and_then(|capture| capture.get(1)) {
                 runs.push_str(&format!(
@@ -391,6 +398,10 @@ fn blocks_from_html(html: &str, images: &HashMap<String, String>) -> Vec<String>
         }
         let tag = block.get(1).map(|item| item.as_str().to_ascii_lowercase()).unwrap_or_default();
         let body = block.get(2).map(|item| item.as_str()).unwrap_or("");
+        if full.to_ascii_lowercase().contains("data-docx-page-break=\"true\"") {
+            out.push("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>".to_string());
+            continue;
+        }
         if strip_tags(body).trim().is_empty() {
             continue;
         }
@@ -433,72 +444,6 @@ fn minimal_docx_bytes(document_xml: &str) -> Result<Vec<u8>, String> {
     writer.start_file("word/document.xml", options).map_err(|e| e.to_string())?;
     writer.write_all(document_xml.as_bytes()).map_err(|e| e.to_string())?;
     writer.finish().map_err(|e| e.to_string()).map(|cursor| cursor.into_inner())
-}
-
-fn extract_image_assets(
-    db_path: &Path,
-    project_id: &str,
-    html: &str,
-) -> (Vec<DocxImageAsset>, HashMap<String, String>) {
-    let img_re = Regex::new(r#"(?is)<img\b[^>]*data-docx-resource=["']([^"']+)["'][^>]*>"#).unwrap();
-    let mut assets = Vec::new();
-    let mut rels = HashMap::new();
-    for capture in img_re.captures_iter(html) {
-        let Some(path_match) = capture.get(1) else { continue };
-        let resource_path = html_unescape(path_match.as_str());
-        if rels.contains_key(&resource_path) || resource_path.contains("..") {
-            continue;
-        }
-        let Some(content_type) = image_content_type(&resource_path) else { continue };
-        let Ok(file) = storage::read_project_file_binary(db_path, project_id, &resource_path) else {
-            continue;
-        };
-        let extension = resource_path.rsplit('.').next().unwrap_or("bin").to_ascii_lowercase();
-        let rel_id = format!("rIdLatotexImage{}", assets.len() + 1);
-        let media_name = format!("latotex-image-{}.{}", assets.len() + 1, extension);
-        rels.insert(resource_path.clone(), rel_id.clone());
-        assets.push(DocxImageAsset { resource_path, rel_id, media_name, content_type: content_type.to_string(), bytes: file.bytes });
-    }
-    (assets, rels)
-}
-
-fn append_image_relationships(existing: Option<String>, images: &[DocxImageAsset]) -> String {
-    let mut rels = existing.unwrap_or_else(|| {
-        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>"#.to_string()
-    });
-    let insert = images
-        .iter()
-        .map(|image| {
-            format!(
-                r#"<Relationship Id="{}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/{}"/>"#,
-                xml_escape(&image.rel_id),
-                xml_escape(&image.media_name)
-            )
-        })
-        .collect::<String>();
-    if let Some(index) = rels.rfind("</Relationships>") {
-        rels.insert_str(index, &insert);
-    }
-    rels
-}
-
-fn patch_content_types(existing: String, images: &[DocxImageAsset]) -> String {
-    let mut next = existing;
-    for image in images {
-        let ext = image.media_name.rsplit('.').next().unwrap_or("");
-        if ext.is_empty() || next.contains(&format!(r#"Extension="{ext}""#)) {
-            continue;
-        }
-        let default = format!(
-            r#"<Default Extension="{}" ContentType="{}"/>"#,
-            xml_escape(ext),
-            xml_escape(&image.content_type)
-        );
-        if let Some(index) = next.rfind("</Types>") {
-            next.insert_str(index, &default);
-        }
-    }
-    next
 }
 
 fn replace_document_xml(original: &[u8], document_xml: &str, images: &[DocxImageAsset]) -> Result<Vec<u8>, String> {

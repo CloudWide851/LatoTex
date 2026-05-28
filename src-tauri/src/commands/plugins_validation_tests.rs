@@ -92,6 +92,23 @@ fn toolchain_installer_requires_https_and_hash() {
 }
 
 #[test]
+fn go_toolchain_installer_is_allowed_when_integrity_is_declared() {
+    let mut contribution = base_contribution("toolchainInstaller");
+    contribution.toolchain_installer = Some(PluginToolchainInstaller {
+        id: "go".to_string(),
+        kind: "go".to_string(),
+        platform: "windows-x64".to_string(),
+        download_url: "https://example.com/go.zip".to_string(),
+        sha256: "a".repeat(64),
+        archive_format: "zip".to_string(),
+        executable: "go/bin/go.exe".to_string(),
+        version_arg: Some("version".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
 fn declarative_plugin_command_accepts_allowlisted_command_ref() {
     let mut contribution = base_contribution("docxCommand");
     contribution.command_ref = Some(PluginCommandRef {
