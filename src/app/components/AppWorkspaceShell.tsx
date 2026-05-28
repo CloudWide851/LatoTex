@@ -504,6 +504,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
               selectedPath={selectedIsDocx ? selectedFile : null}
               busy={busy}
               tree={tree}
+              autoSaveEnabled={settings?.uiPrefs?.docxAutoSaveEnabled ?? false}
               onRescan={onWorkspaceRescan}
               t={t}
             />

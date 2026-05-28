@@ -19,6 +19,7 @@ import {
   type ThemeMode,
 } from "../app-config";
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
+import { DocxSettingsSection } from "./settings/DocxSettingsSection";
 import { SettingsDoctorSection } from "./settings/SettingsDoctorSection";
 import { CloseBehaviorCard } from "./settings/CloseBehaviorCard";
 import { ChannelsSettingsSection } from "./settings/ChannelsSettingsSection";
@@ -270,6 +271,7 @@ export function SettingsPanel(props: {
               t={t}
             />
             <ExplorerDefaultsSection settings={localSettings} setSettings={setSettings} t={t} />
+            <DocxSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
             <SidebarPageOrderSettingsSection settings={localSettings} setSettings={setSettings} t={t} />
             <CloseBehaviorCard settings={localSettings} setSettings={setSettings} t={t} />
           </div>

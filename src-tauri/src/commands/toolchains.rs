@@ -2,7 +2,7 @@ use super::native_runtime::configure_hidden_process;
 use super::plugins::read_registry;
 use super::plugins_builtin::built_in_catalog;
 use crate::models::{
-    PluginContribution, PluginManifest, PluginToolchainInstaller, PluginToolchainProbe, ToolchainActionInput,
+    PluginContribution, PluginManifest, PluginToolchainInstaller, ToolchainActionInput,
     ToolchainInstallRecord, ToolchainStatus,
 };
 use crate::state::AppState;
@@ -88,8 +88,6 @@ fn toolchain_catalog(runtime_root: &Path) -> Result<Vec<(PluginManifest, PluginC
         for (_, contribution) in manifest_contributions(&entry.manifest) {
             if contribution.kind == "toolchainInstaller" {
                 items.push((entry.manifest.clone(), contribution.clone()));
-            } else if contribution.kind == "toolchainProbe" {
-                items.push((entry.manifest.clone(), contribution.clone()));
             }
         }
     }
@@ -97,40 +95,10 @@ fn toolchain_catalog(runtime_root: &Path) -> Result<Vec<(PluginManifest, PluginC
         for contribution in installed.manifest.contributions.iter() {
             if contribution.kind == "toolchainInstaller" {
                 items.push((installed.manifest.clone(), contribution.clone()));
-            } else if contribution.kind == "toolchainProbe" {
-                items.push((installed.manifest.clone(), contribution.clone()));
             }
         }
     }
     Ok(items)
-}
-
-fn find_probe(
-    runtime_root: &Path,
-    plugin_id: &str,
-    contribution_id: &str,
-) -> Result<(PluginManifest, PluginContribution, PluginToolchainProbe), String> {
-    for (manifest, contribution) in toolchain_catalog(runtime_root)? {
-        if manifest.id == plugin_id && contribution.id == contribution_id {
-            let probe = contribution
-                .toolchain_probe
-                .clone()
-                .ok_or_else(|| "toolchain.probe_missing".to_string())?;
-            if probe.platform != "windows-x64"
-                || probe.executables.is_empty()
-                || probe.executables.iter().any(|item| {
-                    let trimmed = item.trim();
-                    trimmed.is_empty()
-                        || !trimmed.ends_with(".exe")
-                        || !trimmed.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-                })
-            {
-                return Err("toolchain.probe_unsafe".to_string());
-            }
-            return Ok((manifest, contribution, probe));
-        }
-    }
-    Err("toolchain.not_found".to_string())
 }
 
 fn find_installer(
@@ -174,64 +142,12 @@ fn version_of(executable: &Path, arg: Option<&str>) -> Option<String> {
     }
 }
 
-fn find_executable_on_path(name: &str) -> Option<PathBuf> {
-    let path_var = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(name);
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-fn verify_probe_blocking(
-    runtime_root: &Path,
-    input: ToolchainActionInput,
-) -> Result<ToolchainStatus, String> {
-    let (_manifest, contribution, probe) =
-        find_probe(runtime_root, &input.plugin_id, &input.contribution_id)?;
-    let resolved: Vec<PathBuf> = probe
-        .executables
-        .iter()
-        .filter_map(|name| find_executable_on_path(name))
-        .collect();
-    let installed = resolved.len() == probe.executables.len();
-    let version = resolved
-        .first()
-        .and_then(|path| version_of(path, probe.version_arg.as_deref()));
-    Ok(ToolchainStatus {
-        plugin_id: input.plugin_id,
-        contribution_id: contribution.id,
-        kind: probe.kind,
-        installed,
-        install_path: None,
-        executable_path: resolved.first().map(|path| path.to_string_lossy().to_string()),
-        version,
-        message: if installed {
-            "toolchain.detected".to_string()
-        } else {
-            "toolchain.not_found_on_path".to_string()
-        },
-    })
-}
-
 fn download_archive(installer: &PluginToolchainInstaller) -> Result<Vec<u8>, String> {
-    let preferred_url = if prefer_cn_source() {
-        installer
-            .download_url_cn
-            .as_deref()
-            .map(str::trim)
-            .filter(|item| !item.is_empty())
-            .unwrap_or_else(|| installer.download_url.trim())
-    } else {
-        installer.download_url.trim()
-    };
     let response = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| e.to_string())?
-        .get(preferred_url)
+        .get(installer.download_url.trim())
         .send()
         .map_err(|e| format!("toolchain.download_failed: {e}"))?;
     if !response.status().is_success() {
@@ -243,14 +159,6 @@ fn download_archive(installer: &PluginToolchainInstaller) -> Result<Vec<u8>, Str
         return Err("toolchain.sha256_mismatch".to_string());
     }
     Ok(bytes)
-}
-
-fn prefer_cn_source() -> bool {
-    std::env::var("LANG")
-        .or_else(|_| std::env::var("LC_ALL"))
-        .unwrap_or_default()
-        .to_ascii_lowercase()
-        .starts_with("zh")
 }
 
 fn extract_zip(bytes: &[u8], target_root: &Path) -> Result<(), String> {
@@ -326,12 +234,6 @@ fn verify_blocking(
         .iter()
         .find(|item| item.plugin_id == input.plugin_id && item.contribution_id == input.contribution_id)
     else {
-        if let Ok(status) = verify_probe_blocking(runtime_root, ToolchainActionInput {
-            plugin_id: input.plugin_id.clone(),
-            contribution_id: input.contribution_id.clone(),
-        }) {
-            return Ok(status);
-        }
         let (_manifest, contribution, installer) =
             find_installer(runtime_root, &input.plugin_id, &input.contribution_id)?;
         return Ok(ToolchainStatus {

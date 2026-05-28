@@ -496,6 +496,7 @@ pub struct UiPrefs {
     pub agent_permission_prefs: Option<AgentPermissionPrefs>,
     pub agent_team_prefs: Option<AgentTeamPrefs>,
     pub plugin_catalog_sources: Option<Vec<PluginCatalogSource>>,
+    pub docx_auto_save_enabled: Option<bool>,
     pub mcp_servers: Option<Vec<McpServerConfig>>,
     pub enabled_skills: Option<Vec<String>>,
     pub hidden_skills: Option<Vec<String>>,

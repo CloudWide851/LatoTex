@@ -841,12 +841,18 @@ body::before {
 }
 
 .docx-page-frame {
-  width: min(100%, 820px);
+  width: min(100%, calc(820px * var(--docx-zoom, 1)));
 }
 
 .docx-page-surface {
   min-height: min(960px, calc(100vh - 292px));
-  padding: clamp(28px, 7cqw, 64px);
+  padding: calc(clamp(28px, 7cqw, 64px) * var(--docx-zoom, 1));
+  font-size: calc(15px * var(--docx-zoom, 1));
+  line-height: 1.7;
+}
+
+.docx-ribbon-popover .docx-ribbon-group {
+  min-height: 46px;
 }
 
 @container (max-width: 680px) {
@@ -856,8 +862,8 @@ body::before {
 
   .docx-page-surface {
     min-height: min(760px, calc(100vh - 260px));
-    padding: 24px;
-    font-size: 14px;
+    padding: calc(24px * var(--docx-zoom, 1));
+    font-size: calc(14px * var(--docx-zoom, 1));
     line-height: 1.65;
   }
 }

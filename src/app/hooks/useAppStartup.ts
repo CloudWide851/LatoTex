@@ -92,6 +92,7 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
         pluginModes: appSettings.uiPrefs?.agentPermissionPrefs?.pluginModes ?? {},
       },
       pluginCatalogSources,
+      docxAutoSaveEnabled: appSettings.uiPrefs?.docxAutoSaveEnabled ?? false,
       mcpServers: appSettings.uiPrefs?.mcpServers ?? [],
       enabledSkills: appSettings.uiPrefs?.enabledSkills ?? [],
       hiddenSkills: appSettings.uiPrefs?.hiddenSkills ?? [],

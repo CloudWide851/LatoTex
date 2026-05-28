@@ -27,4 +27,12 @@ export const enUS_nav = {
   "plugins.validationDetails": "Validation details",
   "plugins.validationErrors": "{count} error(s)",
   "plugins.validationWarnings": "{count} warning(s)",
+  "plugins.toolchain.install": "Install tool",
+  "plugins.toolchain.verify": "Verify",
+  "plugins.toolchain.remove": "Remove tool",
+  "plugins.toolchain.installDone": "Toolchain installed.",
+  "plugins.toolchain.verifyDone": "Toolchain checked.",
+  "plugins.toolchain.removeDone": "Toolchain removed.",
+  "plugins.toolchain.ready": "Ready: {version}",
+  "plugins.toolchain.notInstalled": "Portable toolchain is not installed.",
 } as const;

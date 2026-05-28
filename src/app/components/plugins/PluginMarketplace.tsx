@@ -20,8 +20,14 @@ import {
   setPluginEnabled,
   uninstallPlugin,
 } from "../../../shared/api/plugins";
+import {
+  installToolchain,
+  listToolchains,
+  removeToolchain,
+  verifyToolchain,
+} from "../../../shared/api/toolchains";
 import type { AppSettings } from "../../../shared/types/app";
-import type { InstalledPlugin, PluginCatalogEntry, PluginManifest } from "../../../shared/plugins/pluginTypes";
+import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
@@ -69,6 +75,7 @@ export function PluginMarketplace(props: {
   const [catalog, setCatalog] = useState<PluginCatalogEntry[]>([]);
   const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [toolchains, setToolchains] = useState<ToolchainStatus[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -110,9 +117,11 @@ export function PluginMarketplace(props: {
         getPluginCatalog(catalogSources),
         listInstalledPlugins(),
       ]);
+      const nextToolchains = await listToolchains().catch(() => []);
       setCatalog(nextCatalog.items);
       setWarnings(nextCatalog.warnings);
       setInstalled(nextInstalled);
+      setToolchains(nextToolchains);
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -166,6 +175,31 @@ export function PluginMarketplace(props: {
     }
   };
 
+  const toolchainFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "toolchainInstaller");
+  const toolchainStatusFor = (pluginId: string, contributionId: string) =>
+    toolchains.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
+
+  const runToolchainAction = async (
+    pluginId: string,
+    contributionId: string,
+    action: "install" | "verify" | "remove",
+  ) => {
+    setBusy(true);
+    try {
+      const next = action === "install"
+        ? await installToolchain(pluginId, contributionId)
+        : action === "verify"
+          ? await verifyToolchain(pluginId, contributionId)
+          : await removeToolchain(pluginId, contributionId);
+      setToolchains((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
+      setStatus(t(`plugins.toolchain.${action}Done`));
+    } catch (error) {
+      setStatus(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft">
       <div className="border-b border-slate-200 p-3">
@@ -198,6 +232,9 @@ export function PluginMarketplace(props: {
             const errorCount = entry.validation.issues.filter((item) => item.severity === "error").length;
             const warningCount = entry.validation.issues.filter((item) => item.severity === "warning").length;
             const expanded = expandedId === plugin.id;
+            const toolchain = toolchainFor(plugin);
+            const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
+            const canUseToolchain = entry.sourceId === "builtin" || Boolean(installedPlugin);
             return (
               <article key={`${entry.sourceId}:${plugin.id}`} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50/80 p-2.5">
                 <div className="flex min-w-0 items-start gap-2">
@@ -255,6 +292,13 @@ export function PluginMarketplace(props: {
                   )}
                 </div>
                 <p className="truncate text-[11px] text-slate-500">{contributionSummary(plugin) || plugin.id}</p>
+                {toolchain ? (
+                  <div className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                    {toolchainStatus?.installed
+                      ? t("plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
+                      : t("plugins.toolchain.notInstalled")}
+                  </div>
+                ) : null}
                 {expanded ? (
                   <div className="settings-scrollbar-hidden max-h-24 overflow-auto rounded border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
                     {entry.validation.issues.map((item) => (
@@ -265,6 +309,22 @@ export function PluginMarketplace(props: {
                   </div>
                 ) : null}
                 <div className="flex flex-wrap justify-end gap-1">
+                  {toolchain ? (
+                    <>
+                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "verify")}>
+                        {t("plugins.toolchain.verify")}
+                      </Button>
+                      {toolchainStatus?.installed ? (
+                        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "remove")}>
+                          {t("plugins.toolchain.remove")}
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "install")}>
+                          {t("plugins.toolchain.install")}
+                        </Button>
+                      )}
+                    </>
+                  ) : null}
                   {installedPlugin ? (
                     <>
                       <Button size="sm" variant="secondary" disabled={busy} onClick={() => void toggle(installedPlugin)}>

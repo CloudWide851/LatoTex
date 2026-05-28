@@ -289,6 +289,7 @@ export const zhCN_settings = {
   "settings.pluginSourcesUrl": "目录 URL",
   "settings.pluginSourcesTest": "检查源",
   "settings.pluginSourcesTestResult": "已加载 {count} 个目录条目。",
+  "settings.docxAutoSave": "自动保存 DOCX 文档",
   "settings.memoryGuardTitle": "渲染器内存保护",
   "settings.memoryGuardEnabled": "启用渲染器内存保护",
   "settings.memoryGuardHigh": "高水位（MB）",

@@ -229,3 +229,35 @@ pub struct PluginSetEnabledInput {
     pub plugin_id: String,
     pub enabled: bool,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolchainInstallRecord {
+    pub plugin_id: String,
+    pub contribution_id: String,
+    pub installer: PluginToolchainInstaller,
+    pub installed_at: String,
+    pub root_dir: String,
+    pub executable_path: String,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolchainActionInput {
+    pub plugin_id: String,
+    pub contribution_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolchainStatus {
+    pub plugin_id: String,
+    pub contribution_id: String,
+    pub kind: String,
+    pub installed: bool,
+    pub install_path: Option<String>,
+    pub executable_path: Option<String>,
+    pub version: Option<String>,
+    pub message: String,
+}

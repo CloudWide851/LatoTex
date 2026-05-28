@@ -242,6 +242,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           },
           agentTeamPrefs: normalizedAgentTeamPrefs,
           pluginCatalogSources: normalizedPluginCatalogSources,
+          docxAutoSaveEnabled: nextSettings.uiPrefs?.docxAutoSaveEnabled ?? false,
           mcpServers: (nextSettings.uiPrefs?.mcpServers ?? [])
             .map((server) => ({
               id: String(server.id ?? "").trim(),

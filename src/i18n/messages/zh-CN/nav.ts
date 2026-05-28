@@ -27,4 +27,12 @@ export const zhCN_nav = {
   "plugins.validationDetails": "校验详情",
   "plugins.validationErrors": "{count} 个错误",
   "plugins.validationWarnings": "{count} 个警告",
+  "plugins.toolchain.install": "安装工具",
+  "plugins.toolchain.verify": "检查",
+  "plugins.toolchain.remove": "移除工具",
+  "plugins.toolchain.installDone": "工具链已安装。",
+  "plugins.toolchain.verifyDone": "工具链已检查。",
+  "plugins.toolchain.removeDone": "工具链已移除。",
+  "plugins.toolchain.ready": "已就绪：{version}",
+  "plugins.toolchain.notInstalled": "便携工具链尚未安装。",
 } as const;
