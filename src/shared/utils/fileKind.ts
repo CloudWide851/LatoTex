@@ -4,6 +4,7 @@ const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
 const CSV_EXTENSIONS = new Set(["csv", "tsv"]);
 const EXCEL_EXTENSIONS = new Set(["xlsx", "xlsm", "xls"]);
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp"]);
+const HTML_EXTENSIONS = new Set(["html", "htm"]);
 
 function extensionOf(path: string): string {
   return extensionOfPath(path ?? "");
@@ -27,6 +28,10 @@ export function isPlainTextPath(path: string | null | undefined): boolean {
 
 export function isMarkdownPath(path: string | null | undefined): boolean {
   return MARKDOWN_EXTENSIONS.has(extensionOf(path ?? ""));
+}
+
+export function isHtmlPath(path: string | null | undefined): boolean {
+  return HTML_EXTENSIONS.has(extensionOf(path ?? ""));
 }
 
 export function isCsvPath(path: string | null | undefined): boolean {
@@ -56,6 +61,7 @@ export function isCodePath(path: string | null | undefined): boolean {
     && !isImagePath(path)
     && !isDocxPath(path)
     && !isMarkdownPath(path)
+    && !isHtmlPath(path)
     && !isSvgPath(path)
     && !isTabularPath(path);
 }

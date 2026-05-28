@@ -246,6 +246,7 @@ export function useAppPanelNodes(params: any) {
       liveOutput={analysisWorkspace.liveOutput}
       canContinue={analysisWorkspace.canContinue}
       candidateFiles={analysisWorkspace.candidateFiles}
+      preflight={analysisWorkspace.preflight}
       onPromptChange={analysisWorkspace.setPrompt}
       onDropPaths={analysisWorkspace.onDropPromptPaths}
       onRun={() => {
@@ -257,6 +258,11 @@ export function useAppPanelNodes(params: any) {
       onContinue={() => {
         void analysisWorkspace.continueAnalysis();
       }}
+      onPreflightAnswerChange={analysisWorkspace.updatePreflightAnswers}
+      onPreflightSubmit={() => {
+        void analysisWorkspace.submitPreflight();
+      }}
+      onPreflightCancel={analysisWorkspace.cancelPreflight}
       onSelectTask={analysisWorkspace.setActiveTaskId}
       onCreateTask={() => analysisWorkspace.createTask("data")}
       onRenameTask={analysisWorkspace.renameTask}

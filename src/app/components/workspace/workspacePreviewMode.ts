@@ -2,6 +2,7 @@ import {
   isCsvPath,
   isDocxPath,
   isExcelPath,
+  isHtmlPath,
   isImagePath,
   isMarkdownPath,
   isPdfPath,
@@ -10,13 +11,14 @@ import {
   isTabularPath,
 } from "../../../shared/utils/fileKind";
 
-export type WorkspacePreviewMode = "pdf" | "image" | "markdown" | "svg" | "empty";
+export type WorkspacePreviewMode = "pdf" | "image" | "markdown" | "html" | "svg" | "empty";
 
 export type WorkspacePreviewFlags = {
   selectedIsPdf: boolean;
   selectedIsExcel: boolean;
   selectedIsImage: boolean;
   selectedIsMarkdown: boolean;
+  selectedIsHtml: boolean;
   selectedIsSvg: boolean;
   selectedIsCsv: boolean;
   selectedIsTabular: boolean;
@@ -31,6 +33,7 @@ export function resolveWorkspacePreviewFlags(path: string | null): WorkspacePrev
     selectedIsExcel: isExcelPath(path),
     selectedIsImage: isImagePath(path),
     selectedIsMarkdown: isMarkdownPath(path),
+    selectedIsHtml: isHtmlPath(path),
     selectedIsSvg: isSvgPath(path),
     selectedIsCsv: isCsvPath(path),
     selectedIsTabular: isTabularPath(path),
@@ -71,6 +74,9 @@ export function resolveWorkspacePreviewMode(input: {
   if (flags.selectedIsMarkdown) {
     return "markdown";
   }
+  if (flags.selectedIsHtml) {
+    return "html";
+  }
   if (compiledPdfUrl && (!previewSelectedPath || flags.selectedIsTex || preferCompiledPreview)) {
     return "pdf";
   }
@@ -85,6 +91,7 @@ export function isWorkspaceUnsupportedPreviewPath(path: string | null): boolean 
   return !flags.selectedIsPdf
     && !flags.selectedIsImage
     && !flags.selectedIsMarkdown
+    && !flags.selectedIsHtml
     && !flags.selectedIsSvg
     && !flags.selectedIsTabular
     && !flags.selectedIsTex

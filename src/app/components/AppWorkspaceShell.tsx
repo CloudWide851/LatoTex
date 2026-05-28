@@ -222,6 +222,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     selectedIsExcel,
     selectedIsImage,
     selectedIsMarkdown,
+    selectedIsHtml,
     selectedIsSvg,
     selectedIsCsv,
     selectedIsTabular,
@@ -346,6 +347,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       selectedFile={previewSelectedPath}
       selectedIsCsv={selectedIsCsv}
       selectedIsMarkdown={selectedIsMarkdown}
+      selectedIsHtml={selectedIsHtml}
       selectedIsImage={selectedIsImage}
       selectedIsSvg={selectedIsSvg}
       selectedIsTabular={selectedIsTabular}

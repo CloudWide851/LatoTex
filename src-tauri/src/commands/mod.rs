@@ -12,6 +12,7 @@ pub mod docx;
 mod docx_images;
 pub mod plugins;
 mod plugins_builtin;
+mod plugins_policy;
 #[cfg(test)]
 mod plugins_validation_tests;
 pub mod projects;

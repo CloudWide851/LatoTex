@@ -13,6 +13,14 @@ describe("docxUtils", () => {
     expect(html).not.toContain("<script>");
   });
 
+  it("keeps embedded DOCX image data URLs while removing unsafe image attributes", () => {
+    const html = sanitizeDocxHtml('<p><img data-docx-embedded="rId1" data-docx-media="word/media/image1.png" src="data:image/png;base64,AAAA" onerror="x" /><img src="data:text/html;base64,PHNjcmlwdA==" /></p>');
+    expect(html).toContain('data-docx-embedded="rId1"');
+    expect(html).toContain("data:image/png;base64,AAAA");
+    expect(html).not.toContain("onerror");
+    expect(html).not.toContain("data:text/html");
+  });
+
   it("replaces the exact resource trigger before inserting resource html", () => {
     const editor = document.createElement("div");
     editor.contentEditable = "true";

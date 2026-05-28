@@ -49,6 +49,20 @@ export type AnalysisTaskState = {
   tasks: AnalysisTask[];
 };
 
+export type AnalysisPreflightQuestion = {
+  id: string;
+  title: string;
+  description: string;
+  multiple?: boolean;
+  options: Array<{ id: string; label: string; detail?: string }>;
+};
+
+export type AnalysisPreflightState = {
+  prompt: string;
+  questions: AnalysisPreflightQuestion[];
+  answers: Record<string, string[]>;
+};
+
 export function nowIso(): string {
   return new Date().toISOString();
 }

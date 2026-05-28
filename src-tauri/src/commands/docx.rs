@@ -2,7 +2,8 @@ use crate::models::{Ack, DocxReadInput, DocxReadResponse, DocxWriteInput};
 use crate::state::AppState;
 use crate::storage;
 use super::docx_images::{
-    append_image_relationships, extract_image_assets, patch_content_types, DocxImageAsset,
+    append_image_relationships, embedded_image_sources, extract_image_assets, patch_content_types,
+    DocxImageAsset,
 };
 use regex::Regex;
 use std::collections::HashMap;
@@ -68,28 +69,28 @@ fn rel_targets(archive: &mut ZipArchive<Cursor<&[u8]>>) -> HashMap<String, Strin
         .collect()
 }
 
-fn runs_to_html(body: &str, rels: &HashMap<String, String>) -> String {
+fn runs_to_html(body: &str, rels: &HashMap<String, String>, images: &HashMap<String, String>) -> String {
     let hyperlink_re = Regex::new(r#"(?is)<w:hyperlink\b[^>]*r:id="([^"]+)"[^>]*>(.*?)</w:hyperlink>"#).unwrap();
     let mut output = String::new();
     let mut last = 0;
     for link in hyperlink_re.captures_iter(body) {
         let Some(full) = link.get(0) else { continue };
-        output.push_str(&plain_runs_to_html(&body[last..full.start()]));
+        output.push_str(&plain_runs_to_html(&body[last..full.start()], images));
         let id = link.get(1).map(|item| item.as_str()).unwrap_or("");
         let link_body = link.get(2).map(|item| item.as_str()).unwrap_or("");
         let href = rels.get(id).cloned().unwrap_or_default();
         output.push_str(&format!(
             r#"<a href="{}">{}</a>"#,
             html_escape(&href),
-            plain_runs_to_html(link_body)
+            plain_runs_to_html(link_body, images)
         ));
         last = full.end();
     }
-    output.push_str(&plain_runs_to_html(&body[last..]));
+    output.push_str(&plain_runs_to_html(&body[last..], images));
     output
 }
 
-fn plain_runs_to_html(body: &str) -> String {
+fn plain_runs_to_html(body: &str, images: &HashMap<String, String>) -> String {
     let run_re = Regex::new(r"(?is)<w:r\b[^>]*>(.*?)</w:r>").unwrap();
     let text_re = Regex::new(r"(?is)<w:t\b[^>]*>(.*?)</w:t>").unwrap();
     let blip_re = Regex::new(r#"(?is)<a:blip\b[^>]*(?:r:embed|r:link)="([^"]+)""#).unwrap();
@@ -98,11 +99,21 @@ fn plain_runs_to_html(body: &str) -> String {
         let run_xml = run.get(1).map(|item| item.as_str()).unwrap_or("");
         if let Some(blip) = blip_re.captures(run_xml) {
             let image_id = blip.get(1).map(|item| item.as_str()).unwrap_or("image");
-            line.push_str(&format!(
-                r#"<span data-docx-image="{}" contenteditable="false">[image: {}]</span>"#,
-                html_escape(image_id),
-                html_escape(image_id)
-            ));
+            if let Some(src) = images.get(image_id) {
+                line.push_str(&format!(
+                    r#"<img data-docx-embedded="{}" data-docx-image="{}" src="{}" alt="{}" />"#,
+                    html_escape(image_id),
+                    html_escape(image_id),
+                    html_escape(src),
+                    html_escape(image_id)
+                ));
+            } else {
+                line.push_str(&format!(
+                    r#"<span data-docx-image="{}" contenteditable="false">[image: {}]</span>"#,
+                    html_escape(image_id),
+                    html_escape(image_id)
+                ));
+            }
             continue;
         }
         let mut text = String::new();
@@ -133,14 +144,14 @@ fn plain_runs_to_html(body: &str) -> String {
     line
 }
 
-fn paragraph_to_html(paragraph: &str, rels: &HashMap<String, String>) -> String {
+fn paragraph_to_html(paragraph: &str, rels: &HashMap<String, String>, images: &HashMap<String, String>) -> String {
     let style_re = Regex::new(r#"(?is)<w:pStyle\b[^>]*w:val="([^"]+)""#).unwrap();
     let style = style_re
         .captures(paragraph)
         .and_then(|capture| capture.get(1))
         .map(|item| item.as_str().to_ascii_lowercase())
         .unwrap_or_default();
-    let line = runs_to_html(paragraph, rels);
+    let line = runs_to_html(paragraph, rels, images);
     let body = if line.trim().is_empty() { "<br>".to_string() } else { line };
     if paragraph.contains("<w:numPr") {
         return format!("<ul><li>{body}</li></ul>");
@@ -154,7 +165,7 @@ fn paragraph_to_html(paragraph: &str, rels: &HashMap<String, String>) -> String 
     }
 }
 
-fn table_to_html(table: &str, rels: &HashMap<String, String>) -> String {
+fn table_to_html(table: &str, rels: &HashMap<String, String>, images: &HashMap<String, String>) -> String {
     let row_re = Regex::new(r"(?is)<w:tr\b[^>]*>(.*?)</w:tr>").unwrap();
     let cell_re = Regex::new(r"(?is)<w:tc\b[^>]*>(.*?)</w:tc>").unwrap();
     let para_re = Regex::new(r"(?is)<w:p\b[^>]*>(.*?)</w:p>").unwrap();
@@ -166,7 +177,7 @@ fn table_to_html(table: &str, rels: &HashMap<String, String>) -> String {
             let cell_xml = cell.get(1).map(|item| item.as_str()).unwrap_or("");
             let mut cell_html = String::new();
             for paragraph in para_re.captures_iter(cell_xml) {
-                cell_html.push_str(&runs_to_html(paragraph.get(1).map(|item| item.as_str()).unwrap_or(""), rels));
+                cell_html.push_str(&runs_to_html(paragraph.get(1).map(|item| item.as_str()).unwrap_or(""), rels, images));
                 cell_html.push_str("<br>");
             }
             html.push_str("<td>");
@@ -182,6 +193,7 @@ fn table_to_html(table: &str, rels: &HashMap<String, String>) -> String {
 fn docx_bytes_to_html(bytes: &[u8]) -> Result<(String, Vec<String>), String> {
     let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let rels = rel_targets(&mut archive);
+    let images = embedded_image_sources(&mut archive, &rels);
     let mut document = String::new();
     archive
         .by_name("word/document.xml")
@@ -199,9 +211,9 @@ fn docx_bytes_to_html(bytes: &[u8]) -> Result<(String, Vec<String>), String> {
     for item in item_re.find_iter(body) {
         let xml = item.as_str();
         if xml.starts_with("<w:tbl") {
-            html.push_str(&table_to_html(xml, &rels));
+            html.push_str(&table_to_html(xml, &rels, &images));
         } else {
-            html.push_str(&paragraph_to_html(xml, &rels));
+            html.push_str(&paragraph_to_html(xml, &rels, &images));
         }
     }
     if html.trim().is_empty() {
@@ -295,7 +307,10 @@ fn inline_html_to_runs(
         }
         let lower = tag.as_str().to_ascii_lowercase();
         if lower.starts_with("<img") {
-            if let Some(path) = attr_value(tag.as_str(), "data-docx-resource") {
+            let image_key = attr_value(tag.as_str(), "data-docx-resource")
+                .or_else(|| attr_value(tag.as_str(), "data-docx-embedded"))
+                .or_else(|| attr_value(tag.as_str(), "data-docx-media"));
+            if let Some(path) = image_key {
                 if let Some(rel_id) = images.get(&path) {
                     runs.push_str(&image_drawing_xml(rel_id));
                 } else {
@@ -434,15 +449,23 @@ fn document_xml_from_html(html: &str, images: &HashMap<String, String>) -> Strin
     )
 }
 
-fn minimal_docx_bytes(document_xml: &str) -> Result<Vec<u8>, String> {
+fn minimal_docx_bytes(document_xml: &str, images: &[DocxImageAsset]) -> Result<Vec<u8>, String> {
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
     writer.start_file("[Content_Types].xml", options).map_err(|e| e.to_string())?;
-    writer.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#).map_err(|e| e.to_string())?;
+    writer.write_all(patch_content_types(String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#), images).as_bytes()).map_err(|e| e.to_string())?;
     writer.start_file("_rels/.rels", options).map_err(|e| e.to_string())?;
     writer.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#).map_err(|e| e.to_string())?;
     writer.start_file("word/document.xml", options).map_err(|e| e.to_string())?;
     writer.write_all(document_xml.as_bytes()).map_err(|e| e.to_string())?;
+    if !images.is_empty() {
+        writer.start_file("word/_rels/document.xml.rels", options).map_err(|e| e.to_string())?;
+        writer.write_all(append_image_relationships(None, images).as_bytes()).map_err(|e| e.to_string())?;
+        for image in images {
+            writer.start_file(format!("word/media/{}", image.media_name), options).map_err(|e| e.to_string())?;
+            writer.write_all(&image.bytes).map_err(|e| e.to_string())?;
+        }
+    }
     writer.finish().map_err(|e| e.to_string()).map(|cursor| cursor.into_inner())
 }
 
@@ -458,6 +481,9 @@ fn replace_document_xml(original: &[u8], document_xml: &str, images: &[DocxImage
         let name = file.name().to_string();
         if name.ends_with('/') {
             writer.add_directory(name, options).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if images.iter().any(|image| name == format!("word/media/{}", image.media_name)) {
             continue;
         }
         writer.start_file(name.clone(), options).map_err(|e| e.to_string())?;
@@ -529,8 +555,8 @@ pub async fn docx_write(state: State<'_, AppState>, input: DocxWriteInput) -> Re
         let document_xml = document_xml_from_html(&input.html, &image_rels);
         let bytes = match storage::read_project_file_binary(&db_path, &input.project_id, &input.relative_path) {
             Ok(existing) => replace_document_xml(&existing.bytes, &document_xml, &images)
-                .or_else(|_| minimal_docx_bytes(&document_xml))?,
-            Err(_) => minimal_docx_bytes(&document_xml)?,
+                .or_else(|_| minimal_docx_bytes(&document_xml, &images))?,
+            Err(_) => minimal_docx_bytes(&document_xml, &images)?,
         };
         storage::write_project_file_binary(&db_path, &input.project_id, &input.relative_path, &bytes)
     })

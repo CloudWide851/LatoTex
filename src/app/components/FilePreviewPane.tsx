@@ -41,6 +41,39 @@ function sanitizeSvgForPreview(input: string): string {
     .replace(/javascript:/gi, "");
 }
 
+function sanitizeHtmlForPreview(input: string): string {
+  if (typeof document === "undefined") {
+    return "";
+  }
+  const template = document.createElement("template");
+  template.innerHTML = input;
+  const blockedTags = new Set(["SCRIPT", "IFRAME", "OBJECT", "EMBED", "FORM", "INPUT", "BUTTON", "META"]);
+  const walk = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        continue;
+      }
+      const element = child as HTMLElement;
+      if (blockedTags.has(element.tagName)) {
+        element.remove();
+        continue;
+      }
+      for (const attr of Array.from(element.attributes)) {
+        const name = attr.name.toLowerCase();
+        const value = attr.value.trim();
+        const unsafeUrl = /^(javascript:|data:text\/html)/i.test(value);
+        const remoteFrame = element.tagName === "IFRAME";
+        if (name.startsWith("on") || unsafeUrl || remoteFrame) {
+          element.removeAttribute(attr.name);
+        }
+      }
+      walk(element);
+    }
+  };
+  walk(template.content);
+  return template.innerHTML;
+}
+
 function buildSvgPreviewDocument(svgContent: string): string {
   const safe = sanitizeSvgForPreview(svgContent);
   return [
@@ -54,12 +87,27 @@ function buildSvgPreviewDocument(svgContent: string): string {
   ].join("");
 }
 
+function buildHtmlPreviewDocument(htmlContent: string): string {
+  const safe = sanitizeHtmlForPreview(sanitizePreviewText(htmlContent));
+  return [
+    "<!doctype html>",
+    "<html><head><meta charset=\"utf-8\" />",
+    "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />",
+    "<base target=\"_blank\" />",
+    "<style>html,body{margin:0;min-height:100%;background:#fff;color:#0f172a;font-family:Segoe UI,Arial,sans-serif;}body{padding:18px;}img,video,canvas,svg{max-width:100%;height:auto;}table{border-collapse:collapse;}td,th{border:1px solid #cbd5e1;padding:4px 6px;}</style>",
+    "</head><body>",
+    safe,
+    "</body></html>",
+  ].join("");
+}
+
 export function FilePreviewPane(props: {
-  mode: "pdf" | "image" | "markdown" | "svg" | "empty";
+  mode: "pdf" | "image" | "markdown" | "html" | "svg" | "empty";
   pdfUrl: string | null;
   imageUrl: string | null;
   activeProjectId?: string | null;
   markdownContent: string;
+  htmlContent: string;
   svgContent: string;
   selectedPath: string | null;
   title: string;
@@ -77,6 +125,7 @@ export function FilePreviewPane(props: {
     imageUrl,
     activeProjectId,
     markdownContent,
+    htmlContent,
     svgContent,
     selectedPath,
     title,
@@ -95,6 +144,7 @@ export function FilePreviewPane(props: {
   );
   const sanitizedSvg = useMemo(() => sanitizeSvgForPreview(svgContent ?? ""), [svgContent]);
   const svgDoc = useMemo(() => buildSvgPreviewDocument(sanitizedSvg), [sanitizedSvg]);
+  const htmlDoc = useMemo(() => buildHtmlPreviewDocument(htmlContent ?? ""), [htmlContent]);
 
   if (mode === "pdf") {
     return (
@@ -152,6 +202,23 @@ export function FilePreviewPane(props: {
           title={title}
           sandbox="allow-same-origin"
           srcDoc={svgDoc}
+          className="h-full w-full border-0"
+        />
+      </div>
+    );
+  }
+
+  if (mode === "html") {
+    return htmlContent.trim().length === 0 ? (
+      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+        {emptyText}
+      </div>
+    ) : (
+      <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <iframe
+          title={title}
+          sandbox=""
+          srcDoc={htmlDoc}
           className="h-full w-full border-0"
         />
       </div>

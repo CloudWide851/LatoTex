@@ -3,8 +3,10 @@ import { useMemo, useState, type DragEvent } from "react";
 import type { AnalysisTask, AnalysisTaskRun } from "../../hooks/analysisTypes";
 import { AnalysisLiveRail } from "./AnalysisLiveRail";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
+import { AnalysisPreflightPanel } from "./AnalysisPreflightPanel";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
 import { AnalysisTaskTabs } from "./AnalysisTaskTabs";
+import type { AnalysisPreflightState } from "../../hooks/analysisTypes";
 
 type TranslationFn = (key: any) => string;
 
@@ -44,11 +46,15 @@ export function AnalysisWorkspace(props: {
   liveOutput: string;
   canContinue: boolean;
   candidateFiles: string[];
+  preflight: AnalysisPreflightState | null;
   onPromptChange: (value: string) => void;
   onDropPaths: (paths: string[]) => void;
   onRun: () => void;
   onRunTeams: () => void;
   onContinue: () => void;
+  onPreflightAnswerChange: (questionId: string, values: string[]) => void;
+  onPreflightSubmit: () => void;
+  onPreflightCancel: () => void;
   onSelectTask: (taskId: string) => void;
   onCreateTask: () => void;
   onRenameTask: (taskId: string, name: string) => void;
@@ -74,11 +80,15 @@ export function AnalysisWorkspace(props: {
     liveOutput,
     canContinue,
     candidateFiles,
+    preflight,
     onPromptChange,
     onDropPaths,
     onRun,
     onRunTeams,
     onContinue,
+    onPreflightAnswerChange,
+    onPreflightSubmit,
+    onPreflightCancel,
     onSelectTask,
     onCreateTask,
     onRenameTask,
@@ -154,7 +164,15 @@ export function AnalysisWorkspace(props: {
             </div>
           ) : null}
 
-          {tasks.length === 0 ? (
+          {preflight ? (
+            <AnalysisPreflightPanel
+              preflight={preflight}
+              onAnswerChange={onPreflightAnswerChange}
+              onSubmit={onPreflightSubmit}
+              onCancel={onPreflightCancel}
+              t={t}
+            />
+          ) : tasks.length === 0 ? (
             <button
               className="flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 transition motion-hover-rise hover:border-primary-300 hover:bg-primary-50/40 hover:text-primary-700"
               onClick={onCreateTask}

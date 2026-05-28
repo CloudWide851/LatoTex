@@ -26,6 +26,7 @@ describe("workspacePreviewMode", () => {
 
   it("allows explicit preview types without hijacking the preview for terminal", () => {
     expect(modeFor("paper.md")).toBe("markdown");
+    expect(modeFor("site/index.html")).toBe("html");
     expect(modeFor("figure.svg")).toBe("svg");
     expect(modeFor("figure.png", { selectedImagePreviewUrl: "blob:figure" })).toBe("image");
     expect(modeFor("main.tex", { compiledPdfUrl: "blob:pdf" })).toBe("pdf");

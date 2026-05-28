@@ -13,6 +13,7 @@ export function WorkspacePreviewPanel(props: {
   selectedFile: string | null;
   selectedIsCsv: boolean;
   selectedIsMarkdown: boolean;
+  selectedIsHtml: boolean;
   selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
@@ -41,6 +42,7 @@ export function WorkspacePreviewPanel(props: {
     selectedFile,
     selectedIsCsv,
     selectedIsMarkdown,
+    selectedIsHtml,
     selectedIsImage,
     selectedIsSvg,
     selectedIsTabular,
@@ -174,10 +176,11 @@ export function WorkspacePreviewPanel(props: {
             imageUrl={imagePreviewUrl ?? null}
             activeProjectId={activeProjectId}
             markdownContent={selectedIsMarkdown ? editorContent : ""}
+            htmlContent={selectedIsHtml ? editorContent : ""}
             svgContent={selectedIsSvg ? editorContent : ""}
             selectedPath={selectedFile}
             title={t("preview.title")}
-            emptyText={selectedIsMarkdown || selectedIsSvg || selectedIsImage ? t("preview.textEmpty") : t("preview.unsupported")}
+            emptyText={selectedIsMarkdown || selectedIsHtml || selectedIsSvg || selectedIsImage ? t("preview.textEmpty") : t("preview.unsupported")}
             pdfZoom={previewZoom}
             onPdfZoomChange={onPreviewZoomChange}
             pdfFallbackProjectId={activeProjectId}

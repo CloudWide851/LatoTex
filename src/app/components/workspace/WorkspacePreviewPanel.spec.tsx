@@ -37,6 +37,7 @@ describe("WorkspacePreviewPanel", () => {
           selectedFile="main.tex"
           selectedIsCsv={false}
           selectedIsMarkdown={false}
+          selectedIsHtml={false}
           selectedIsImage={false}
           selectedIsSvg={false}
           selectedIsTabular={false}

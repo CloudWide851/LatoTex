@@ -175,7 +175,7 @@ export function PluginMarketplace(props: {
     }
   };
 
-  const toolchainFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "toolchainInstaller");
+  const toolchainFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "toolchainInstaller" || item.kind === "toolchainProbe");
   const toolchainStatusFor = (pluginId: string, contributionId: string) =>
     toolchains.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
 
@@ -233,6 +233,7 @@ export function PluginMarketplace(props: {
             const warningCount = entry.validation.issues.filter((item) => item.severity === "warning").length;
             const expanded = expandedId === plugin.id;
             const toolchain = toolchainFor(plugin);
+            const toolchainIsProbe = toolchain?.kind === "toolchainProbe";
             const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
             const canUseToolchain = entry.sourceId === "builtin" || Boolean(installedPlugin);
             return (
@@ -294,9 +295,11 @@ export function PluginMarketplace(props: {
                 <p className="truncate text-[11px] text-slate-500">{contributionSummary(plugin) || plugin.id}</p>
                 {toolchain ? (
                   <div className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-600">
-                    {toolchainStatus?.installed
-                      ? t("plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
-                      : t("plugins.toolchain.notInstalled")}
+                      {toolchainStatus?.installed
+                        ? t("plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
+                        : toolchainIsProbe
+                          ? t("plugins.toolchain.notDetected")
+                          : t("plugins.toolchain.notInstalled")}
                   </div>
                 ) : null}
                 {expanded ? (
@@ -314,7 +317,7 @@ export function PluginMarketplace(props: {
                       <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "verify")}>
                         {t("plugins.toolchain.verify")}
                       </Button>
-                      {toolchainStatus?.installed ? (
+                      {toolchainIsProbe ? null : toolchainStatus?.installed ? (
                         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "remove")}>
                           {t("plugins.toolchain.remove")}
                         </Button>

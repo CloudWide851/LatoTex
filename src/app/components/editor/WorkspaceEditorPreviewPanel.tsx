@@ -9,6 +9,7 @@ export function WorkspaceEditorPreviewPanel(props: {
   selectedFile: string | null;
   selectedIsCsv: boolean;
   selectedIsMarkdown: boolean;
+  selectedIsHtml: boolean;
   selectedIsImage: boolean;
   selectedIsSvg: boolean;
   selectedIsTabular: boolean;
@@ -38,6 +39,7 @@ export function WorkspaceEditorPreviewPanel(props: {
       selectedFile={props.selectedFile}
       selectedIsCsv={props.selectedIsCsv}
       selectedIsMarkdown={props.selectedIsMarkdown}
+      selectedIsHtml={props.selectedIsHtml}
       selectedIsImage={props.selectedIsImage}
       selectedIsSvg={props.selectedIsSvg}
       selectedIsTabular={props.selectedIsTabular}

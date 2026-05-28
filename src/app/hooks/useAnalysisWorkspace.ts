@@ -9,7 +9,7 @@ import { applyPromptRefSuggestion } from "./analysisPromptRefs";
 import { loadAnalysisTaskState, saveAnalysisTaskState } from "./analysisTaskStore";
 import { createAnalysisTask, deleteTaskFromList, renameTaskList, updateTaskListById } from "./analysisTaskActions";
 import { ensureAnalysisTasksLoaded } from "./analysisRunHelpers";
-import type { AnalysisSourceType, AnalysisTask } from "./analysisTypes";
+import type { AnalysisPreflightState, AnalysisSourceType, AnalysisTask } from "./analysisTypes";
 import { nowIso } from "./analysisTypes";
 import { loadAnalysisStageCache, saveAnalysisStageCache, writeCachedAnalysisStageValue, type AnalysisStageCacheStore } from "./analysisStageCache";
 import { upsertRun } from "./analysisWorkspaceHelpers";
@@ -17,6 +17,7 @@ import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } 
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
 import { useAnalysisLiveState } from "./useAnalysisLiveState";
 import { runAnalysisWorkspacePrompt } from "./analysisWorkspaceRunner";
+import { applyAnalysisPreflightAnswers, buildAnalysisPreflight } from "./analysisPreflight";
 
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const {
@@ -38,6 +39,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   const [historicalEvents, setHistoricalEvents] = useState<typeof events>([]);
   const [liveRunIds, setLiveRunIds] = useState<string[]>([]);
   const [liveStageLabel, setLiveStageLabel] = useState("");
+  const [preflight, setPreflight] = useState<AnalysisPreflightState | null>(null);
   const loadedRef = useRef(false);
   const tasksRef = useRef<AnalysisTask[]>([]);
   const stageCacheRef = useRef<AnalysisStageCacheStore | null>(null);
@@ -393,12 +395,65 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       taskSnapshot?: AnalysisTask;
       savePrompt?: boolean;
       teamMode?: AgentTeamMode;
+      skipPreflight?: boolean;
     },
   ) => {
+    const normalizedPrompt = inputPrompt.trim();
+    if (suspended) {
+      setToast({ type: "info", message: t("sleep.title") });
+      return;
+    }
+    if (runInFlightRef.current) {
+      setToast({ type: "info", message: t("analysis.running") });
+      return;
+    }
+    if (!projectId) {
+      setToast({ type: "error", message: t("analysis.error.noProject") });
+      return;
+    }
+    await ensureTasksReady();
+    const targetTaskId = options?.forcedTaskId ?? activeTaskId;
+    const task = options?.taskSnapshot ?? tasksRef.current.find((item) => item.id === targetTaskId) ?? null;
+    if (!task) {
+      setToast({ type: "error", message: t("analysis.error.noTask") });
+      return;
+    }
+    if (!normalizedPrompt) {
+      updateTaskById(task.id, (item) => ({
+        ...item,
+        lastError: t("analysis.error.emptyPrompt"),
+        updatedAt: nowIso(),
+      }));
+      return;
+    }
+    if (!options?.skipPreflight && task.sourceType !== "paper") {
+      try {
+        const result = await buildAnalysisPreflight({
+          projectId,
+          prompt: normalizedPrompt,
+          candidateFiles,
+          csvCandidateFiles,
+          t,
+        });
+        if (result.questions.length > 0) {
+          const answers = Object.fromEntries(result.questions.map((question) => [
+            question.id,
+            question.multiple
+              ? question.options.map((option) => option.id)
+              : question.options.slice(0, 1).map((option) => option.id),
+          ]));
+          setPreflight({ prompt: normalizedPrompt, questions: result.questions, answers });
+          return;
+        }
+      } catch (error) {
+        await runtimeLogWrite("WARN", `analysis preflight skipped: ${String(error)}`).catch(() => undefined);
+      }
+    }
+    setPreflight(null);
     const runGeneration = runGenerationRef.current + 1;
     runGenerationRef.current = runGeneration;
     await runAnalysisWorkspacePrompt({
-      inputPrompt,
+      inputPrompt: normalizedPrompt,
       options,
       suspended,
       projectId,
@@ -434,6 +489,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     candidateFiles,
     csvCandidateFiles,
     editorContent,
+    ensureTasksReady,
     ensureStageCache,
     locale,
     liveOutput,
@@ -452,6 +508,26 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     }
     await runAnalysisForPrompt(prompt, { teamMode });
   }, [cancelAnalysis, prompt, runAnalysisForPrompt, running]);
+  const updatePreflightAnswers = useCallback((questionId: string, values: string[]) => {
+    setPreflight((prev) => prev ? {
+      ...prev,
+      answers: {
+        ...prev.answers,
+        [questionId]: values,
+      },
+    } : prev);
+  }, []);
+  const submitPreflight = useCallback(async () => {
+    if (!preflight) {
+      return;
+    }
+    const nextPrompt = applyAnalysisPreflightAnswers(preflight);
+    setPreflight(null);
+    await runAnalysisForPrompt(nextPrompt, { skipPreflight: true });
+  }, [preflight, runAnalysisForPrompt]);
+  const cancelPreflight = useCallback(() => {
+    setPreflight(null);
+  }, []);
   const continueAnalysis = useCallback(async (teamMode: AgentTeamMode = "auto") => {
     if (running) {
       await cancelAnalysis();
@@ -504,5 +580,5 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       setToast({ type: "error", message: String(error) });
     }
   }, [projectId, setToast]);
-  return { prompt, setPrompt, onDropPromptPaths, running, canRun, canContinue, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, continueAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
+  return { prompt, setPrompt, onDropPromptPaths, running, canRun, canContinue, analysisError, tasks, activeTaskId, activeTask, activeRun, activeRunHtml, timelineCards, liveTimelineCards, liveOutput, liveStage, candidateFiles, preflight, updatePreflightAnswers, submitPreflight, cancelPreflight, setActiveTaskId, setActiveRunForTask, createTask, renameTask, deleteTask, runAnalysis, continueAnalysis, runAnalysisWithPrompt, runPaperAnalysisFromLibrary, exportArtifact, revealArtifact };
 }

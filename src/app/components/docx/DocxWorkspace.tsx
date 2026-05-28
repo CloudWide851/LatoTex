@@ -364,22 +364,11 @@ export function DocxWorkspace(props: {
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!selectedPath} onClick={zoomOut} title={t("docx.zoomOut")} aria-label={t("docx.zoomOut")}>
-              <Minus className="h-3.5 w-3.5" />
+            <Button size="icon" variant="secondary" className="h-8 w-8" disabled={ribbonDisabled} onClick={() => setReloadToken((prev) => prev + 1)} title={t("docx.reload")} aria-label={t("docx.reload")}>
+              <RefreshCw className="h-3.5 w-3.5" />
             </Button>
-            <Button size="sm" variant="ghost" className="h-8 min-w-16 px-2 text-xs" disabled={!selectedPath} onClick={resetZoom}>
-              {Math.round(zoom * 100)}%
-            </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!selectedPath} onClick={zoomIn} title={t("docx.zoomIn")} aria-label={t("docx.zoomIn")}>
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-            <Button size="sm" variant="secondary" disabled={ribbonDisabled} onClick={() => setReloadToken((prev) => prev + 1)}>
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-              {t("docx.reload")}
-            </Button>
-            <Button size="sm" disabled={ribbonDisabled} onClick={() => void save()}>
-              <Save className="mr-1.5 h-3.5 w-3.5" />
-              {saving ? t("common.loading") : t("docx.save")}
+            <Button size="icon" className="h-8 w-8" disabled={ribbonDisabled} onClick={() => void save()} title={saving ? t("common.loading") : t("docx.save")} aria-label={saving ? t("common.loading") : t("docx.save")}>
+              <Save className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
@@ -509,7 +498,18 @@ export function DocxWorkspace(props: {
       </div>
       <footer className="flex min-h-8 items-center justify-between gap-3 border-t border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-3 py-1.5 text-[11px] text-slate-500">
         <span className="truncate">{status || t("docx.wordCount").replace("{count}", String(wordCount))}</span>
-        <span className="shrink-0">{findText ? t("docx.findCount").replace("{count}", String(findCount)) : selectedPath || ""}</span>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={!selectedPath} onClick={zoomOut} title={t("docx.zoomOut")} aria-label={t("docx.zoomOut")}>
+            <Minus className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 min-w-14 px-2 text-[11px]" disabled={!selectedPath} onClick={resetZoom} title={t("docx.zoomReset")} aria-label={t("docx.zoomReset")}>
+            {Math.round(zoom * 100)}%
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={!selectedPath} onClick={zoomIn} title={t("docx.zoomIn")} aria-label={t("docx.zoomIn")}>
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <span className="min-w-0 shrink truncate text-right">{findText ? t("docx.findCount").replace("{count}", String(findCount)) : selectedPath || ""}</span>
       </footer>
     </section>
   );
