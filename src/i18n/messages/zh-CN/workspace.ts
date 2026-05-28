@@ -72,6 +72,7 @@ export const zhCN_workspace = {
   "docx.resource.none": "没有匹配的资源。",
   "docx.zoomIn": "放大",
   "docx.zoomOut": "缩小",
+  "docx.zoomReset": "重置缩放",
   "workspace.compileAssist.title": "检测到编译错误",
   "workspace.compileAssist.description": "是否使用当前诊断信息进行手动修复？",
   "workspace.compileAssist.autoFix": "自动修复",

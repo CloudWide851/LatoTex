@@ -18,7 +18,6 @@ pub(crate) const ALLOWED_CONTRIBUTION_KINDS: &[&str] = &[
     "resourceCommand",
     "toolchainInstaller",
     "toolchainProbe",
-    "runtimeAsset",
 ];
 
 pub(crate) const DECLARATIVE_COMMAND_KINDS: &[&str] = &[
@@ -95,4 +94,3 @@ pub(crate) const SAFE_COMMAND_REFS: &[&str] = &[
 
 pub(crate) const INSTALLER_TOOLCHAIN_KINDS: &[&str] = &["git", "go", "python", "node", "c", "cpp", "zig"];
 pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] = &["git", "go", "python", "node", "c", "cpp", "zig", "rust"];
-pub(crate) const RUNTIME_ASSET_KINDS: &[&str] = &["drawio", "tectonic", "poppler", "cloudflared", "uv", "python"];

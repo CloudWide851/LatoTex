@@ -57,12 +57,14 @@ export function sanitizeDocxHtml(html: string): string {
           const value = attr.value.trim();
           const safeHref = name === "href" && /^(https?:|mailto:|#)/i.test(value);
           const safeImageMarker = name === "data-docx-image";
+          const safeEmbeddedMarker = element.tagName === "IMG" && name === "data-docx-embedded";
+          const safeMediaMarker = element.tagName === "IMG" && name === "data-docx-media" && !value.includes("..");
           const safeImageResource = element.tagName === "IMG" && name === "data-docx-resource" && !value.includes("..");
-          const safeImageSrc = element.tagName === "IMG" && name === "src" && /^(latotex-resource:|https?:\/\/latotex-resource\.localhost|blob:)/i.test(value);
+          const safeImageSrc = element.tagName === "IMG" && name === "src" && /^(latotex-resource:|https?:\/\/latotex-resource\.localhost|blob:|data:image\/(?:png|jpeg|gif|webp|svg\+xml);base64,)/i.test(value);
           const safeAlt = element.tagName === "IMG" && name === "alt";
           const safeEditable = name === "contenteditable" && element.hasAttribute("data-docx-image");
           const safePageBreak = name === "data-docx-page-break" && value === "true";
-          if (!safeHref && !safeImageMarker && !safeImageResource && !safeImageSrc && !safeAlt && !safeEditable && !safePageBreak) {
+          if (!safeHref && !safeImageMarker && !safeEmbeddedMarker && !safeMediaMarker && !safeImageResource && !safeImageSrc && !safeAlt && !safeEditable && !safePageBreak) {
             element.removeAttribute(attr.name);
           }
         }

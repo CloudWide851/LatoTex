@@ -35,4 +35,5 @@ export const zhCN_nav = {
   "plugins.toolchain.removeDone": "工具链已移除。",
   "plugins.toolchain.ready": "已就绪：{version}",
   "plugins.toolchain.notInstalled": "便携工具链尚未安装。",
+  "plugins.toolchain.notDetected": "未在 PATH 中检测到该工具链。",
 } as const;

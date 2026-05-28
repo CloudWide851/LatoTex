@@ -14,12 +14,20 @@ export type PluginCommandTemplate = {
 
 export type PluginToolchainInstaller = {
   id: string;
-  kind: "git" | "go" | "python" | "node" | "c" | "cpp" | string;
+  kind: "git" | "go" | "python" | "node" | "c" | "cpp" | "zig" | "rust" | string;
   platform: "windows-x64" | string;
   downloadUrl: string;
   sha256: string;
   archiveFormat: "zip" | "exe" | string;
   executable: string;
+  versionArg?: string | null;
+};
+
+export type PluginToolchainProbe = {
+  id: string;
+  kind: "zig" | "rust" | "git" | "go" | "python" | "node" | "c" | "cpp" | string;
+  platform: "windows-x64" | string;
+  executables: string[];
   versionArg?: string | null;
 };
 
@@ -48,6 +56,7 @@ export type PluginContribution = {
     | "terminalCommand"
     | "resourceCommand"
     | "toolchainInstaller"
+    | "toolchainProbe"
     | string;
   id: string;
   title: string;
@@ -60,6 +69,7 @@ export type PluginContribution = {
   command?: PluginCommandTemplate | null;
   skillId?: string | null;
   toolchainInstaller?: PluginToolchainInstaller | null;
+  toolchainProbe?: PluginToolchainProbe | null;
 };
 
 export type PluginManifest = {

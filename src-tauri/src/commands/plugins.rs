@@ -2,7 +2,7 @@ use crate::models::{
     Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput,
     PluginCatalogResponse, PluginCatalogSource,
     PluginInstallInput, PluginManifest, PluginRefInput, PluginSetEnabledInput,
-    PluginToolchainInstaller, PluginValidationIssue, PluginValidationResult,
+    PluginToolchainInstaller, PluginToolchainProbe, PluginValidationIssue, PluginValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -11,6 +11,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 use super::plugins_builtin::built_in_catalog;
+use super::plugins_policy::{
+    ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, INSTALLER_TOOLCHAIN_KINDS,
+    PROBE_TOOLCHAIN_KINDS, SAFE_COMMAND_REFS,
+};
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
 const CATALOG_SCHEMA: &str = "latotex.marketplace.v1";
@@ -152,92 +156,6 @@ fn validate_permissions(manifest: &PluginManifest, issues: &mut Vec<PluginValida
 }
 
 fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginValidationIssue>) {
-    let allowed = HashSet::from([
-        "workspacePage",
-        "settingsSection",
-        "command",
-        "mcpServer",
-        "skill",
-        "docxTool",
-        "toolbarButton",
-        "menuItem",
-        "statusItem",
-        "workspaceCommand",
-        "docxCommand",
-        "editorCommand",
-        "analysisCommand",
-        "libraryCommand",
-        "markdownCommand",
-        "terminalCommand",
-        "resourceCommand",
-        "toolchainInstaller",
-    ]);
-    let safe_commands = HashSet::from([
-        "app.openPage",
-        "settings.openSection",
-        "workspace.rescan",
-        "workspace.openTerminal",
-        "workspace.revealInSystem",
-        "editor.save",
-        "editor.reload",
-        "editor.find",
-        "editor.formatDocument",
-        "analysis.createTask",
-        "analysis.run",
-        "analysis.continue",
-        "analysis.exportReport",
-        "library.rescan",
-        "library.importPdf",
-        "library.resolvePreview",
-        "docx.save",
-        "docx.reload",
-        "docx.find",
-        "docx.replaceAll",
-        "docx.insertTable",
-        "docx.insertLink",
-        "docx.insertResource",
-        "docx.insertImage",
-        "docx.zoomIn",
-        "docx.zoomOut",
-        "docx.zoomReset",
-        "docx.toggleAutoSave",
-        "docx.clearFormatting",
-        "docx.strikeThrough",
-        "docx.subscript",
-        "docx.superscript",
-        "markdown.runFence",
-        "markdown.clearOutput",
-        "terminal.restoreHistory",
-        "terminal.clearTabHistory",
-        "toolchain.install",
-        "toolchain.verify",
-        "toolchain.remove",
-        "toolchain.install.c",
-        "toolchain.install.cpp",
-        "toolchain.install.go",
-        "toolchain.install.git",
-        "toolchain.verify.c",
-        "toolchain.verify.cpp",
-        "toolchain.verify.go",
-        "toolchain.verify.git",
-        "toolchain.remove.c",
-        "toolchain.remove.cpp",
-        "toolchain.remove.go",
-        "toolchain.remove.git",
-    ]);
-    let declarative_command_kinds = HashSet::from([
-        "toolbarButton",
-        "menuItem",
-        "statusItem",
-        "workspaceCommand",
-        "docxCommand",
-        "editorCommand",
-        "analysisCommand",
-        "libraryCommand",
-        "markdownCommand",
-        "terminalCommand",
-        "resourceCommand",
-    ]);
     for contribution in &manifest.contributions {
         if !validate_identifier(&contribution.id, 96) || contribution.title.trim().is_empty() {
             issues.push(issue(
@@ -246,14 +164,14 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
                 "Contribution id and title are required.",
             ));
         }
-        if !allowed.contains(contribution.kind.as_str()) {
+        if !ALLOWED_CONTRIBUTION_KINDS.contains(&contribution.kind.as_str()) {
             issues.push(issue(
                 "plugin.contribution.unknown_kind",
                 "error",
                 &format!("Unknown contribution kind: {}.", contribution.kind),
             ));
         }
-        if declarative_command_kinds.contains(contribution.kind.as_str()) {
+        if DECLARATIVE_COMMAND_KINDS.contains(&contribution.kind.as_str()) {
             let Some(command_ref) = contribution.command_ref.as_ref() else {
                 issues.push(issue(
                     "plugin.contribution.command_ref_missing",
@@ -263,7 +181,7 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
                 continue;
             };
             let command_id = command_ref.id.trim();
-            if !safe_commands.contains(command_id) {
+            if !SAFE_COMMAND_REFS.contains(&command_id) {
                 issues.push(issue(
                     "plugin.contribution.command_ref_unsafe",
                     "error",
@@ -317,6 +235,9 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         if contribution.kind == "toolchainInstaller" {
             validate_toolchain_installer(contribution.toolchain_installer.as_ref(), issues);
         }
+        if contribution.kind == "toolchainProbe" {
+            validate_toolchain_probe(contribution.toolchain_probe.as_ref(), issues);
+        }
     }
 }
 
@@ -332,10 +253,9 @@ fn validate_toolchain_installer(
         ));
         return;
     };
-    let allowed_kinds = HashSet::from(["git", "go", "python", "node", "c", "cpp"]);
     let allowed_archives = HashSet::from(["zip", "exe"]);
     if !validate_identifier(&installer.id, 96)
-        || !allowed_kinds.contains(installer.kind.as_str())
+        || !INSTALLER_TOOLCHAIN_KINDS.contains(&installer.kind.as_str())
         || installer.platform != "windows-x64"
         || !allowed_archives.contains(installer.archive_format.as_str())
         || installer.executable.trim().is_empty()
@@ -351,6 +271,38 @@ fn validate_toolchain_installer(
             "plugin.contribution.toolchain_integrity",
             "error",
             "Toolchain installer downloads require HTTPS and a SHA-256 hash.",
+        ));
+    }
+}
+
+fn validate_toolchain_probe(
+    probe: Option<&PluginToolchainProbe>,
+    issues: &mut Vec<PluginValidationIssue>,
+) {
+    let Some(probe) = probe else {
+        issues.push(issue(
+            "plugin.contribution.toolchain_probe_missing",
+            "error",
+            "Toolchain probe contributions must declare toolchainProbe.",
+        ));
+        return;
+    };
+    if !validate_identifier(&probe.id, 96)
+        || !PROBE_TOOLCHAIN_KINDS.contains(&probe.kind.as_str())
+        || probe.platform != "windows-x64"
+        || probe.executables.is_empty()
+        || probe.executables.len() > 4
+        || probe.executables.iter().any(|item| {
+            let trimmed = item.trim();
+            trimmed.is_empty()
+                || !trimmed.ends_with(".exe")
+                || !trimmed.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        })
+    {
+        issues.push(issue(
+            "plugin.contribution.toolchain_probe_invalid",
+            "error",
+            "Toolchain probe must target supported Windows x64 executables by filename only.",
         ));
     }
 }

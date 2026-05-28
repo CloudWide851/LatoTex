@@ -1,7 +1,7 @@
 use super::plugins::validate_manifest;
 use crate::models::{
     PluginCapabilities, PluginCatalogEntry, PluginContribution, PluginEngines, PluginManifest,
-    PluginToolchainInstaller,
+    PluginToolchainInstaller, PluginToolchainProbe,
 };
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
@@ -20,7 +20,29 @@ fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
         command: None,
         skill_id: None,
         toolchain_installer: None,
+        toolchain_probe: None,
     }
+}
+
+fn toolchain_probe_manifest(
+    id: &str,
+    name: &str,
+    description: &str,
+    contribution_id: &str,
+    title: &str,
+    probe: PluginToolchainProbe,
+    activation_events: Vec<&str>,
+    keywords: Vec<&str>,
+) -> PluginManifest {
+    let mut contribution = empty_contribution("toolchainProbe", contribution_id, title);
+    contribution.description = Some(description.to_string());
+    contribution.toolchain_probe = Some(probe);
+    let mut manifest = base_manifest(id, name, description, vec!["Toolchains", "Runtime"]);
+    manifest.activation_events = activation_events.into_iter().map(str::to_string).collect();
+    manifest.keywords = keywords.into_iter().map(str::to_string).collect();
+    manifest.permissions = vec!["process.spawn".to_string()];
+    manifest.contributions = vec![contribution];
+    manifest
 }
 
 fn entry(manifest: PluginManifest) -> PluginCatalogEntry {
@@ -198,6 +220,38 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
             },
             vec!["onCommand:toolchain.install.git"],
             vec!["git", "mingit"],
+        )),
+        entry(toolchain_probe_manifest(
+            "latotex.toolchain.zig",
+            "Zig Toolchain",
+            "Detects a configured Windows x64 Zig compiler for Markdown and project tooling.",
+            "zig.windows-x64",
+            "Zig Windows x64",
+            PluginToolchainProbe {
+                id: "zig".to_string(),
+                kind: "zig".to_string(),
+                platform: "windows-x64".to_string(),
+                executables: vec!["zig.exe".to_string()],
+                version_arg: Some("version".to_string()),
+            },
+            vec!["onCommand:toolchain.verify.zig"],
+            vec!["zig", "compiler"],
+        )),
+        entry(toolchain_probe_manifest(
+            "latotex.toolchain.rust",
+            "Rust Toolchain",
+            "Detects configured rustc and Cargo without running rustup or global installers.",
+            "rust.windows-x64",
+            "Rust Windows x64",
+            PluginToolchainProbe {
+                id: "rust".to_string(),
+                kind: "rust".to_string(),
+                platform: "windows-x64".to_string(),
+                executables: vec!["rustc.exe".to_string(), "cargo.exe".to_string()],
+                version_arg: Some("--version".to_string()),
+            },
+            vec!["onCommand:toolchain.verify.rust"],
+            vec!["rust", "cargo", "rustc"],
         )),
     ]
 }

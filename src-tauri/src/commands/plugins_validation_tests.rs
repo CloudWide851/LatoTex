@@ -1,5 +1,5 @@
 use super::plugins::validate_manifest;
-use crate::models::{PluginCommandRef, PluginContribution, PluginManifest, PluginToolchainInstaller};
+use crate::models::{PluginCommandRef, PluginContribution, PluginManifest, PluginToolchainInstaller, PluginToolchainProbe};
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
     PluginManifest {
@@ -40,6 +40,7 @@ fn base_contribution(kind: &str) -> PluginContribution {
         command: None,
         skill_id: None,
         toolchain_installer: None,
+        toolchain_probe: None,
     }
 }
 
@@ -106,6 +107,38 @@ fn go_toolchain_installer_is_allowed_when_integrity_is_declared() {
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn rust_toolchain_probe_is_allowed_without_installer() {
+    let mut contribution = base_contribution("toolchainProbe");
+    contribution.toolchain_probe = Some(PluginToolchainProbe {
+        id: "rust".to_string(),
+        kind: "rust".to_string(),
+        platform: "windows-x64".to_string(),
+        executables: vec!["rustc.exe".to_string(), "cargo.exe".to_string()],
+        version_arg: Some("--version".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn toolchain_probe_rejects_paths() {
+    let mut contribution = base_contribution("toolchainProbe");
+    contribution.toolchain_probe = Some(PluginToolchainProbe {
+        id: "rust".to_string(),
+        kind: "rust".to_string(),
+        platform: "windows-x64".to_string(),
+        executables: vec!["bin/rustc.exe".to_string()],
+        version_arg: Some("--version".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.toolchain_probe_invalid"));
 }
 
 #[test]

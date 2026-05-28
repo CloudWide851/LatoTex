@@ -35,4 +35,5 @@ export const enUS_nav = {
   "plugins.toolchain.removeDone": "Toolchain removed.",
   "plugins.toolchain.ready": "Ready: {version}",
   "plugins.toolchain.notInstalled": "Portable toolchain is not installed.",
+  "plugins.toolchain.notDetected": "Toolchain was not detected on PATH.",
 } as const;

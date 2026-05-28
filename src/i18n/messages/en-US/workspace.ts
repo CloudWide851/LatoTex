@@ -72,6 +72,7 @@ export const enUS_workspace = {
   "docx.resource.none": "No matching resource.",
   "docx.zoomIn": "Zoom in",
   "docx.zoomOut": "Zoom out",
+  "docx.zoomReset": "Reset zoom",
   "workspace.compileAssist.title": "Compile errors detected",
   "workspace.compileAssist.description": "Use diagnostics and apply fixes manually.",
   "workspace.compileAssist.autoFix": "Auto Fix",
