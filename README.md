@@ -14,7 +14,7 @@ LatoTex is a desktop-first LaTeX and paper-analysis workspace built with Tauri v
   - The bundled Python runtime installs `pdf2zh` / PDFMathTranslate into the project-local virtual environment.
 - Paper analysis and paper translation now share the same hidden-window Python bridge.
   - This removes the old Rust-side OCR/translation pipeline and avoids transient `cmd`/PowerShell windows on Windows.
-- diagrams.net / draw.io remains bundled for the drawing workspace through local packaged assets.
+- diagrams.net / draw.io is provided through the plugin marketplace as a managed runtime asset instead of bundled repository assets.
 
 ## Tech Stack
 
@@ -58,4 +58,5 @@ LatoTex is distributed under `AGPL-3.0-only`.
 
 Reason:
 - The packaged paper-translation runtime now depends on PDFMathTranslate / `pdf2zh`, whose upstream project is licensed under AGPL v3.
-- Bundled diagrams.net assets keep their upstream license and notice requirements; see `THIRD_PARTY_NOTICES.md`.
+- DrawIO support is installed from the plugin marketplace/runtime asset flow. Redistribution of DrawIO runtime assets must preserve the upstream diagrams.net / draw.io license notices supplied by that plugin or runtime package.
+- Additional third-party runtime assets must keep their upstream license notices with the plugin or packaged runtime that provides them.

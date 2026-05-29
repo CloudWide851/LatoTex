@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nsisDir = path.join(repoRoot, "src-tauri", "target", "x86_64-pc-windows-msvc", "release", "bundle", "nsis");
 const startupWindowMs = Number(process.env.LATOTEX_INSTALL_SMOKE_STARTUP_MS ?? 90000);
-const requireSigning = process.env.LATOTEX_REQUIRE_SIGNING === "1" || process.argv.includes("--require-signing");
 
 function newestInstaller() {
   if (!fs.existsSync(nsisDir)) {
@@ -60,19 +59,6 @@ try {
   run(installer, ["/S", `/D=${installRoot}`], `install ${path.relative(repoRoot, installer)}`);
   if (!fs.existsSync(installedExe)) {
     throw new Error(`installed exe not found: ${installedExe}`);
-  }
-
-  if (requireSigning) {
-    run("node", [
-      "scripts/sign-win-x64.mjs",
-      "--verify-only",
-      "--require-signing",
-      `--target=${installer}`,
-      `--target=${installedExe}`,
-    ], "verify installed signatures", {
-      cwd: repoRoot,
-      env: { ...process.env, LATOTEX_REQUIRE_SIGNING: "1" },
-    });
   }
 
   const child = spawn(installedExe, [

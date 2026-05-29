@@ -8,8 +8,10 @@ import {
   executeWorkflowCancel,
   executeWorkflowStart,
 } from "../../../shared/api/desktop";
-import { cn } from "../../../lib/utils";
-import type { ChannelPrefs } from "../../../shared/types/app";
+import type { ChannelPrefs, SwarmEvent } from "../../../shared/types/app";
+import type { AgentPhase } from "../AgentChatOverlay";
+import type { AgentFileProposal } from "../../hooks/agentTypes";
+import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 import {
   loadChatStore,
   newChatSession,
@@ -19,6 +21,8 @@ import {
   type ChatSession,
 } from "../../hooks/chatSessionStore";
 import { parseAgentPrompt } from "../../hooks/agentCommands";
+import { ChatMessageList } from "./ChatMessageList";
+import { useChatRunEventHydration } from "./useChatRunEventHydration";
 
 type TranslationFn = (key: any) => string;
 
@@ -32,6 +36,24 @@ type ChatAutoFixRequest = {
   source?: string;
   requestId?: string;
 };
+
+function chatStoreMatchesCurrent(
+  current: ChatSession[],
+  currentActiveSessionId: string | null,
+  nextSessions: ChatSession[],
+  nextActiveSessionId: string | null,
+): boolean {
+  if (currentActiveSessionId !== nextActiveSessionId || current.length !== nextSessions.length) {
+    return false;
+  }
+  return current.every((session, index) => {
+    const next = nextSessions[index];
+    return Boolean(next)
+      && session.id === next.id
+      && session.updatedAt === next.updatedAt
+      && session.messages.length === next.messages.length;
+  });
+}
 
 function renderRunFailureMessage(t: TranslationFn, error: unknown): string {
   const detail = String(error ?? "").trim();
@@ -76,6 +98,19 @@ export function ChatWorkspace(props: {
   projectId: string | null;
   modelOverride?: string | null;
   channelPrefs?: ChannelPrefs | null;
+  suspended?: boolean;
+  chatAgentModelId?: string | null;
+  agentPhase?: AgentPhase;
+  agentRunId?: string | null;
+  agentMessages?: unknown[];
+  agentProposal?: AgentFileProposal | null;
+  agentPendingAction?: AgentPendingAction;
+  events?: unknown[];
+  onRunWorkspaceAgent?: (prompt: string, options?: { forceNewSession?: boolean }) => void | Promise<void>;
+  onAcceptWorkspaceAgentProposal?: (withAnalysis: boolean) => void | Promise<void>;
+  onRejectWorkspaceAgentProposal?: () => void | Promise<void>;
+  onResolveWorkspaceAgentPendingAction?: (accept: boolean) => void | Promise<void>;
+  onRequestAgentReview?: (prompt: string) => void;
   t: TranslationFn;
 }) {
   const { projectId, modelOverride, channelPrefs, t } = props;
@@ -84,9 +119,11 @@ export function ChatWorkspace(props: {
   const [draft, setDraft] = useState("");
   const [running, setRunning] = useState(false);
   const [pendingRunId, setPendingRunId] = useState<string | null>(null);
+  const [runningAssistantMessageId, setRunningAssistantMessageId] = useState<string | null>(null);
   const [lastError, setLastError] = useState("");
   const listRef = useRef<HTMLDivElement | null>(null);
   const sessionsRef = useRef<ChatSession[]>([]);
+  const activeSessionIdRef = useRef<string | null>(null);
   const telegramOffsetRef = useRef(0);
   const telegramQueueRef = useRef<Array<{ chatId: string; username: string; text: string; messageId: number }>>([]);
   const telegramProcessingRef = useRef(false);
@@ -120,6 +157,16 @@ export function ChatWorkspace(props: {
       if (!custom.detail || custom.detail.projectId !== projectId) {
         return;
       }
+      if (
+        chatStoreMatchesCurrent(
+          sessionsRef.current,
+          activeSessionIdRef.current,
+          custom.detail.sessions,
+          custom.detail.activeSessionId,
+        )
+      ) {
+        return;
+      }
       setSessions(custom.detail.sessions);
       setActiveSessionId(custom.detail.activeSessionId);
     };
@@ -140,10 +187,24 @@ export function ChatWorkspace(props: {
     sessionsRef.current = sessions;
   }, [sessions]);
 
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
+
   const activeSession = useMemo(
     () => sessions.find((item) => item.id === activeSessionId) ?? null,
     [activeSessionId, sessions],
   );
+  const activeMessages = activeSession?.messages ?? [];
+  const incomingEvents = useMemo(
+    () => (Array.isArray(props.events) ? (props.events as SwarmEvent[]) : []),
+    [props.events],
+  );
+  const hydratedEvents = useChatRunEventHydration({
+    messages: activeMessages,
+    events: incomingEvents,
+    suspended: Boolean(props.suspended),
+  });
 
   const ensureSession = useCallback(() => {
     if (activeSessionId && sessions.some((item) => item.id === activeSessionId)) {
@@ -171,6 +232,16 @@ export function ChatWorkspace(props: {
         ...session,
         updatedAt: new Date().toISOString(),
         messages: session.messages.map((item) => (item.id === messageId ? { ...item, text } : item)),
+      })),
+    );
+  };
+
+  const updateMessageRunId = (sessionId: string, messageId: string, runId: string | null) => {
+    setSessions((prev) =>
+      updateSession(prev, sessionId, (session) => ({
+        ...session,
+        updatedAt: new Date().toISOString(),
+        messages: session.messages.map((item) => (item.id === messageId ? { ...item, runId } : item)),
       })),
     );
   };
@@ -281,6 +352,7 @@ export function ChatWorkspace(props: {
       createdAt: new Date().toISOString(),
     });
     setRunning(true);
+    setRunningAssistantMessageId(assistantMessageId);
     try {
       const accepted = await executeWorkflowStart({
         projectId,
@@ -291,6 +363,7 @@ export function ChatWorkspace(props: {
         modelOverride: modelOverride ?? undefined,
       });
       setPendingRunId(accepted.runId);
+      updateMessageRunId(sessionId, assistantMessageId, accepted.runId);
       let cursor = 0;
       let output = "";
       const startedAt = Date.now();
@@ -356,6 +429,7 @@ export function ChatWorkspace(props: {
     } finally {
       setRunning(false);
       setPendingRunId(null);
+      setRunningAssistantMessageId(null);
     }
   }, [appendMessage, ensureSession, loadProjectMemoryText, modelOverride, projectId, running, t, updateMessageText]);
 
@@ -559,24 +633,15 @@ export function ChatWorkspace(props: {
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
         ) : (
-          <div className="space-y-2">
-            {activeSession.messages.map((item) => (
-              <div
-                key={item.id}
-                className={cn(
-                  "max-w-[85%] rounded border px-3 py-2 text-sm",
-                  item.role === "user"
-                    ? "ml-auto border-primary-200 bg-primary-50 text-primary-900"
-                    : "border-slate-200 bg-slate-50 text-slate-800",
-                )}
-              >
-                <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">
-                  {item.role === "user" ? t("chat.roleUser") : t("chat.roleAssistant")}
-                </div>
-                <div className="whitespace-pre-wrap break-words">{item.text || (running ? "..." : "")}</div>
-              </div>
-            ))}
-          </div>
+          <ChatMessageList
+            messages={activeSession.messages}
+            events={hydratedEvents}
+            running={running}
+            latestRunningAssistantMessageId={runningAssistantMessageId}
+            agentPendingAction={props.agentPendingAction ?? null}
+            onResolveWorkspaceAgentPendingAction={props.onResolveWorkspaceAgentPendingAction}
+            t={t}
+          />
         )}
       </div>
 

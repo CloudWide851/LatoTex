@@ -21,6 +21,11 @@ pub(crate) const ALLOWED_CONTRIBUTION_KINDS: &[&str] = &[
     "resourceBadge",
     "settingsQuickAction",
     "runtimeAssetDetector",
+    "settingsSchema",
+    "fileTemplate",
+    "snippetProvider",
+    "agentContextPack",
+    "runtimeAsset",
     "toolchainInstaller",
     "toolchainProbe",
 ];
@@ -97,5 +102,10 @@ pub(crate) const SAFE_COMMAND_REFS: &[&str] = &[
     "toolchain.configure.rust",
 ];
 
-pub(crate) const INSTALLER_TOOLCHAIN_KINDS: &[&str] = &["git", "go", "python", "node", "c", "cpp", "zig"];
-pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] = &["git", "go", "python", "node", "c", "cpp", "zig", "rust"];
+pub(crate) const INSTALLER_TOOLCHAIN_KINDS: &[&str] =
+    &["git", "go", "python", "node", "c", "cpp", "zig"];
+pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] =
+    &["git", "go", "python", "node", "c", "cpp", "zig", "rust"];
+
+pub(crate) const RUNTIME_ASSET_KINDS: &[&str] =
+    &["drawio", "uv", "tectonic", "cloudflared"];

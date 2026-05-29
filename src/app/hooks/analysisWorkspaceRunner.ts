@@ -69,6 +69,8 @@ export type RunAnalysisWorkspacePromptParams = {
   locale: Locale;
   analysisModelOverride: string | null | undefined;
   liveOutput: string;
+  runGeneration?: number;
+  isRunGenerationCurrent?: (generation: number) => boolean;
   tasksRef: MutableRefObject<AnalysisTask[]>;
   loadedRef: MutableRefObject<boolean>;
   runInFlightRef: MutableRefObject<boolean>;

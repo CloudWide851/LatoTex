@@ -199,6 +199,32 @@ pub struct Ack {
     pub message: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TauriSmokeConfig {
+    pub enabled: bool,
+    pub report_path: Option<String>,
+    pub progress_path: Option<String>,
+    pub scenario: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TauriSmokeFinishInput {
+    pub ok: bool,
+    pub status: String,
+    pub steps: Vec<Value>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TauriSmokeProgressInput {
+    pub stage: String,
+    pub status: String,
+    pub detail: Option<Value>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeLogWriteInput {
@@ -459,6 +485,7 @@ pub struct UiPrefs {
     pub theme_preset: Option<String>,
     pub preview_default_zoom: Option<f64>,
     pub paper_brief_engine: Option<String>,
+    pub busytex_cache_policy: Option<String>,
     pub terminal_shell: Option<String>,
     pub panel_layout: Option<Value>,
     pub feature_model_bindings: Option<FeatureModelBindings>,

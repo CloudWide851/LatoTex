@@ -1,18 +1,16 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
-import { getLibraryTree } from "../../shared/api/library";
-import { initProjectFromFolder, projectPrepareSearchIndex, projectSearchContent } from "../../shared/api/projects";
+import { initProjectFromFolder, projectPrepareSearchIndex } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
-  fsOperation,
   getWorkspaceTree,
   workspaceOpenTerminal,
   workspaceRevealInSystem,
   writeFile,
 } from "../../shared/api/workspace";
 import { isExcelPath } from "../../shared/utils/fileKind";
-import type { AppSettings, FsAction, FsScope, ProjectSearchHit } from "../../shared/types/app";
+import type { AppSettings } from "../../shared/types/app";
 import { normalizeAgentBindings, type ThemeMode } from "../app-config";
 import { handleProtocolPingAction, handleThemeModeChangeAction } from "./settingsUiActions";
 import {
@@ -23,11 +21,10 @@ import {
 import { useCompileActions } from "./useCompileActions";
 import { useAgentWorkflowHandlers } from "./useAgentWorkflowHandlers";
 import { useGitHandlers } from "./useGitHandlers";
-import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 import type { UseAppHandlersParams } from "./useAppHandlers.types";
 import { signalWindowTransition } from "./windowTransitionSignal";
 import { useProjectSearchHandlers } from "./useProjectSearchHandlers";
-import { applyOptimisticFsAction } from "./fsTreeOptimistic";
+import { useFsActionHandlers } from "./useFsActionHandlers";
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -37,7 +34,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     selectedFile,
     fileList,
     editorContent,
-    resolveSelectedFileContent,
+    resolveSelectedFileContent = async () => editorContent,
     pdfUrl,
     compiledPdfRelativePath,
     agentPrompt,
@@ -47,9 +44,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     gitInstallerLaunched,
     deleteIntent,
     deleteDontAskAgain,
-    requestCloseBehaviorDecision,
-    requestNativeWindowClose,
-    setCloseDecisionBusy,
+    requestCloseBehaviorDecision = () => false,
+    requestNativeWindowClose = async () => false,
+    setCloseDecisionBusy = () => undefined,
     setBusy,
     setTree,
     setLibraryTree,
@@ -410,6 +407,19 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setThemeTransition,
     });
   }, [locale, setSettings, setThemeTransition, settings?.uiPrefs?.theme]);
+  const handleBusyTexCachePolicyChange = useCallback((policy: "install-first" | "appdata-only") => {
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            uiPrefs: {
+              ...(prev.uiPrefs ?? {}),
+              busytexCachePolicy: policy,
+            },
+          }
+        : prev,
+    );
+  }, [setSettings]);
   const handleWorkspaceRevealInSystem = useCallback(async (relativePath?: string) => {
     if (!activeProjectId) {
       return;
@@ -460,104 +470,24 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       t,
     });
   }, [setToast, t]);
-  const runFsAction = useCallback(async (
-    scope: FsScope,
-    action: FsAction,
-    path: string,
-    targetPath?: string,
-    content?: string,
-  ): Promise<boolean> => {
-    if (!activeProjectId) {
-      return false;
-    }
-    try {
-      await fsOperation({
-        projectId: activeProjectId,
-        scope,
-        action,
-        path,
-        targetPath,
-        content,
-      });
-      if (scope === "workspace") {
-        setTree((current) => applyOptimisticFsAction({ tree: current, action, path, targetPath }));
-        setSelectedFile((current) => rewriteSelectionAfterFsAction({
-          selectedPath: current,
-          action,
-          path,
-          targetPath,
-        }));
-        void getWorkspaceTree(activeProjectId)
-          .then(setTree)
-          .catch((error) => void runtimeLogWrite("WARN", `workspace tree refresh after fs action failed: ${String(error)}`).catch(() => undefined));
-        void refreshGitWorkspace(activeProjectId).catch(() => undefined);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("latotex.workspace.fs", {
-            detail: { scope, action, path, targetPath },
-          }));
-        }
-      } else {
-        setLibraryTree((current) => applyOptimisticFsAction({ tree: current, action, path, targetPath }));
-        setSelectedLibraryPath((current) => rewriteSelectionAfterFsAction({
-          selectedPath: current,
-          action,
-          path,
-          targetPath,
-        }));
-        void getLibraryTree(activeProjectId)
-          .then(setLibraryTree)
-          .catch((error) => void runtimeLogWrite("WARN", `library tree refresh after fs action failed: ${String(error)}`).catch(() => undefined));
-      }
-      setToast({ type: "info", message: t("toast.fsUpdated") });
-      return true;
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-      return false;
-    }
-  }, [activeProjectId, refreshGitWorkspace, setLibraryTree, setSelectedFile, setSelectedLibraryPath, setToast, setTree, t]);
-  const requestFsAction = useCallback(async (
-    scope: FsScope,
-    action: FsAction,
-    path: string,
-    targetPath?: string,
-    content?: string,
-  ) => {
-    const normalizedPath = path.trim();
-    if (!normalizedPath) {
-      return;
-    }
-    if (action !== "delete") {
-      await runFsAction(scope, action, normalizedPath, targetPath, content);
-      return;
-    }
-    const skipConfirm = settings?.uiPrefs?.skipDeleteConfirm ?? false;
-    if (skipConfirm) {
-      await runFsAction(scope, "delete", normalizedPath);
-      return;
-    }
-    setDeleteIntent({ scope, path: normalizedPath });
-    setDeleteDontAskAgain(false);
-  }, [runFsAction, setDeleteDontAskAgain, setDeleteIntent, settings?.uiPrefs?.skipDeleteConfirm]);
-  const confirmDelete = useCallback(async () => {
-    if (!deleteIntent) {
-      return;
-    }
-    if (deleteDontAskAgain && settings) {
-      const nextSettings: AppSettings = {
-        ...settings,
-        uiPrefs: {
-          ...(settings.uiPrefs ?? {}),
-          language: settings.uiPrefs?.language ?? locale,
-          skipDeleteConfirm: true,
-          panelLayout: settings.uiPrefs?.panelLayout,
-        },
-      };
-      await persistSettings(nextSettings);
-      setSettings(nextSettings);
-    }
-    await runFsAction(deleteIntent.scope, "delete", deleteIntent.path);
-    setDeleteIntent(null);
-  }, [deleteDontAskAgain, deleteIntent, locale, persistSettings, runFsAction, setDeleteIntent, setSettings, settings]);
+  const { confirmDelete, requestFsAction, runFsAction } = useFsActionHandlers({
+    activeProjectId,
+    deleteDontAskAgain,
+    deleteIntent,
+    locale,
+    persistSettings,
+    refreshGitWorkspace,
+    setDeleteDontAskAgain,
+    setDeleteIntent,
+    setLibraryTree,
+    setSelectedFile,
+    setSelectedLibraryPath,
+    setSettings,
+    setToast,
+    setTree,
+    settings,
+    t,
+  });
   return {
     handleWindowControl,
     handleWindowCloseDecision,
@@ -575,6 +505,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleSaveSettings,
     handleLocaleChange,
     handleThemeModeChange,
+    handleBusyTexCachePolicyChange,
     handleProjectSearch,
     handleProjectSearchSelect,
     handleProtocolPing,

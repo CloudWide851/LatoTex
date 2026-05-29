@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { executeWorkflowCancel } from "../../shared/api/desktop";
+import { executeWorkflowCancel } from "../../shared/api/agent";
 import type { AgentStatusKey } from "../app-config";
 import { parseAgentPrompt } from "./agentCommands";
 import type { AgentChatMessage, AgentRunRollback, AgentSessionSummary } from "./agentTypes";
@@ -84,6 +84,9 @@ export function useAgentSessionController(params: {
     if (agentPhase === "running" && agentRunId) {
       try {
         await executeWorkflowCancel(agentRunId);
+        setAgentRunId(null);
+        setAgentPhase("done");
+        setAgentStatusKey("agent.statusDone");
         setAgentRollbackVisible(true);
       } catch (error) {
         setToast({ type: "error", message: String(error) });
@@ -132,6 +135,9 @@ export function useAgentSessionController(params: {
     runTaskAgent,
     setAgentMessages,
     setAgentPrompt,
+    setAgentPhase,
+    setAgentRunId,
+    setAgentStatusKey,
     setToast,
     t,
   ]);

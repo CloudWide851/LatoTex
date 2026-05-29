@@ -1,8 +1,9 @@
 use super::plugins::validate_manifest;
 use crate::models::{
-    PluginCommandRef, PluginContribution, PluginFileOpenHandler, PluginManifest,
-    PluginPreviewProvider, PluginRuntimeAssetDetector, PluginToolchainInstaller,
-    PluginToolchainProbe,
+    PluginAgentContextPack, PluginCommandRef, PluginContribution, PluginFileOpenHandler,
+    PluginFileTemplate, PluginManifest, PluginPreviewProvider, PluginRuntimeAssetDetector,
+    PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet, PluginSnippetProvider,
+    PluginToolchainInstaller, PluginToolchainProbe,
 };
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
@@ -52,6 +53,10 @@ fn base_contribution(kind: &str) -> PluginContribution {
         resource_badge: None,
         settings_quick_action: None,
         runtime_asset_detector: None,
+        settings_schema: None,
+        file_template: None,
+        snippet_provider: None,
+        agent_context_pack: None,
         localized: None,
     }
 }
@@ -242,4 +247,75 @@ fn runtime_asset_detector_rejects_paths() {
         .issues
         .iter()
         .any(|issue| issue.code == "plugin.contribution.runtime_asset_detector_invalid"));
+}
+
+#[test]
+fn settings_schema_accepts_bounded_fields() {
+    let mut contribution = base_contribution("settingsSchema");
+    contribution.settings_schema = Some(PluginSettingsSchema {
+        section: "editor".to_string(),
+        fields: vec![PluginSettingsSchemaField {
+            key: "my-plugin.option".to_string(),
+            field_kind: "boolean".to_string(),
+            label: "Enable option".to_string(),
+            required: Some(false),
+            options: Vec::new(),
+        }],
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn file_template_rejects_path_traversal_name() {
+    let mut contribution = base_contribution("fileTemplate");
+    contribution.file_template = Some(PluginFileTemplate {
+        extensions: vec!["tex".to_string()],
+        default_name: "..\\unsafe.tex".to_string(),
+        template_kind: "latex".to_string(),
+        content: "\\documentclass{article}".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.file_template_invalid"));
+}
+
+#[test]
+fn snippet_provider_rejects_unknown_language() {
+    let mut contribution = base_contribution("snippetProvider");
+    contribution.snippet_provider = Some(PluginSnippetProvider {
+        languages: vec!["powershell".to_string()],
+        snippets: vec![PluginSnippet {
+            label: "Run".to_string(),
+            prefix: "run".to_string(),
+            body: "Start-Process calc".to_string(),
+        }],
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.snippet_provider_invalid"));
+}
+
+#[test]
+fn agent_context_pack_rejects_absolute_patterns() {
+    let mut contribution = base_contribution("agentContextPack");
+    contribution.agent_context_pack = Some(PluginAgentContextPack {
+        scopes: vec!["selectedFile".to_string()],
+        include_patterns: vec!["C:/Users/secrets/*".to_string()],
+        exclude_patterns: Vec::new(),
+        max_files: Some(8),
+        max_bytes: Some(8192),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.agent_context_pack_invalid"));
 }

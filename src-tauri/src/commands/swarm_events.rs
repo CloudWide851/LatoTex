@@ -7,6 +7,18 @@ pub(super) struct EventMetadata<'a> {
     pub workflow_id: &'a str,
     pub step_id: &'a str,
     pub callsite: &'a str,
+    pub actions: Option<&'a serde_json::Value>,
+}
+
+impl<'a> EventMetadata<'a> {
+    pub(super) fn base(workflow_id: &'a str, step_id: &'a str, callsite: &'a str) -> Self {
+        Self {
+            workflow_id,
+            step_id,
+            callsite,
+            actions: None,
+        }
+    }
 }
 
 fn envelope(
@@ -36,6 +48,9 @@ fn apply_metadata(payload: &mut serde_json::Value, metadata: EventMetadata<'_>) 
         object.insert("workflowId".to_string(), json!(metadata.workflow_id));
         object.insert("stepId".to_string(), json!(metadata.step_id));
         object.insert("callsite".to_string(), json!(metadata.callsite));
+        if let Some(actions) = metadata.actions {
+            object.insert("actions".to_string(), actions.clone());
+        }
     }
 }
 

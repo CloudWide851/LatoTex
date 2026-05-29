@@ -1,5 +1,6 @@
 import { executeWorkflowStart } from "../../shared/api/desktop";
 import type { MutableRefObject } from "react";
+import type { AgentTeamMode } from "../../shared/types/app";
 import { waitForRunOutput } from "./analysisWorkspaceHelpers";
 import { extractPromptRefValues } from "./analysisPromptRefs";
 
@@ -23,6 +24,8 @@ export async function runRolePromptWithAgent(params: {
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
+  teamMode?: AgentTeamMode;
+  onAcceptedRunId?: (runId: string) => void;
 }): Promise<{ runId: string; output: string }> {
   const {
     projectId,
@@ -57,7 +60,9 @@ export async function runRolePromptWithAgent(params: {
         contextRefs: mergedContextRefs,
         modelOverride,
         bypassCache: runBypassCache,
+        teamMode: params.teamMode,
       });
+      params.onAcceptedRunId?.(accepted.runId);
       return {
         runId: accepted.runId,
         output: await waitForRunOutput(accepted.runId),
@@ -74,4 +79,16 @@ export async function runRolePromptWithAgent(params: {
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError ?? "analysis.run.failed"));
+}
+
+export function isRetryableAnalysisProviderError(error: unknown): boolean {
+  const message = String(error ?? "");
+  return message.includes("provider.empty_body")
+    || message.includes("provider.parse_eof")
+    || message.includes("provider.parse_invalid_json")
+    || message.includes("provider.empty_output")
+    || message.includes("provider.transport_error")
+    || message.includes("provider.server_error")
+    || message.includes("provider.rate_limited")
+    || message.includes("provider.endpoint_mismatch");
 }

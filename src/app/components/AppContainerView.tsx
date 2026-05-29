@@ -26,6 +26,7 @@ export function AppContainerView(props: any) {
     activeProjectId,
     busy,
     isTauriRuntime,
+    windowActionBusy,
     isMaximized,
     projectSearchQuery,
     projectSearchBusy,
@@ -325,6 +326,7 @@ export function AppContainerView(props: any) {
           activeProjectId={activeProjectId}
           busy={busy}
           isTauriRuntime={isTauriRuntime}
+          windowActionBusy={windowActionBusy}
           isMaximized={isMaximized}
           projectSearchQuery={projectSearchQuery}
           projectSearchBusy={projectSearchBusy}
@@ -345,6 +347,13 @@ export function AppContainerView(props: any) {
           }}
           onOpenFolder={handleInitProjectFromFolderWithGuard}
           onWindowControl={handleWindowControlWithGuard}
+          selectedFile={selectedFile}
+          shareSession={shareSession}
+          shareBusy={shareBusy}
+          shareSyncing={shareSyncing}
+          onShareStart={handleShareStart}
+          onShareStop={handleShareStop}
+          onShareRefresh={handleShareRefresh}
           t={t}
         />
 

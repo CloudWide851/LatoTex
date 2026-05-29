@@ -69,6 +69,45 @@ export type PluginRuntimeAssetDetector = {
   filenames: string[];
 };
 
+export type PluginSettingsSchemaField = {
+  key: string;
+  fieldKind: "string" | "boolean" | "number" | "select" | "url" | string;
+  label: string;
+  required?: boolean | null;
+  options?: string[];
+};
+
+export type PluginSettingsSchema = {
+  section: "plugins" | "agentPermissions" | "appearance" | "runtime" | "channels" | "editor" | "toolchains" | string;
+  fields: PluginSettingsSchemaField[];
+};
+
+export type PluginFileTemplate = {
+  extensions: string[];
+  defaultName: string;
+  templateKind: "empty" | "latex" | "markdown" | "docx" | "text" | string;
+  content: string;
+};
+
+export type PluginSnippet = {
+  label: string;
+  prefix: string;
+  body: string;
+};
+
+export type PluginSnippetProvider = {
+  languages: string[];
+  snippets: PluginSnippet[];
+};
+
+export type PluginAgentContextPack = {
+  scopes: string[];
+  includePatterns: string[];
+  excludePatterns?: string[];
+  maxFiles?: number | null;
+  maxBytes?: number | null;
+};
+
 export type PluginCommandRef = {
   id: string;
   title?: string | null;
@@ -111,6 +150,10 @@ export type PluginContribution = {
     | "resourceBadge"
     | "settingsQuickAction"
     | "runtimeAssetDetector"
+    | "settingsSchema"
+    | "fileTemplate"
+    | "snippetProvider"
+    | "agentContextPack"
     | "toolchainInstaller"
     | "toolchainProbe"
     | "runtimeAsset"
@@ -133,6 +176,10 @@ export type PluginContribution = {
   resourceBadge?: PluginResourceBadge | null;
   settingsQuickAction?: PluginSettingsQuickAction | null;
   runtimeAssetDetector?: PluginRuntimeAssetDetector | null;
+  settingsSchema?: PluginSettingsSchema | null;
+  fileTemplate?: PluginFileTemplate | null;
+  snippetProvider?: PluginSnippetProvider | null;
+  agentContextPack?: PluginAgentContextPack | null;
   localized?: Record<string, PluginLocalizedContribution> | null;
 };
 

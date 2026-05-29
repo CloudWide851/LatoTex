@@ -6,6 +6,7 @@ import type {
   AnalysisListReportsResponse,
   AnalysisSaveReportResponse,
   AgentExecuteStartAccepted,
+  AgentTeamMode,
   AgentModelBinding,
   AppBackgroundImage,
   AppBackgroundImagePayload,
@@ -345,6 +346,7 @@ export function executeWorkflowStart(input: {
   contextRefs: string[];
   modelOverride?: string;
   bypassCache?: boolean;
+  teamMode?: AgentTeamMode;
 }): Promise<AgentExecuteStartAccepted> {
   return invoke<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -355,6 +357,7 @@ export function executeWorkflowStart(input: {
       contextRefs: input.contextRefs,
       modelOverride: input.modelOverride,
       bypassCache: input.bypassCache ?? false,
+      teamMode: input.teamMode ?? "auto",
     },
   });
 }

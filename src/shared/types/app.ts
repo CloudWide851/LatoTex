@@ -261,6 +261,7 @@ export type AppSettings = {
     themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
     previewDefaultZoom?: number;
     paperBriefEngine?: "auto" | "pdfjs" | "python";
+    busytexCachePolicy?: "install-first" | "appdata-only";
     terminalShell?: "powershell" | "cmd" | "system";
     panelLayout?: PanelLayoutPrefs;
     featureModelBindings?: FeatureModelBindings;

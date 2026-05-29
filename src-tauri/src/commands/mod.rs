@@ -12,6 +12,7 @@ pub mod local_resources;
 pub mod markdown_runtime;
 pub mod native_runtime;
 pub mod plugins;
+pub mod runtime_assets;
 mod plugins_builtin;
 mod plugins_declarative_validation;
 mod plugins_install_validation;

@@ -34,7 +34,7 @@ export async function executePaperLinkFlow(params: {
   action: PaperLinkFlowAction;
   instruction?: string;
   t: (key: any) => string;
-  withMemoryContext: (basePrompt: string) => string;
+  withMemoryContext?: (basePrompt: string) => string;
   setAgentRunId: (value: string | null) => void;
   modelOverride?: string;
   pushAgentMessage: (text: string, format?: "plain" | "markdown") => void;
@@ -107,7 +107,7 @@ export async function executePaperLinkFlow(params: {
     activeProjectId,
     workflowId: "latex.paper_analyze",
     callsite: "latex.overlay",
-    prompt: withMemoryContext(analysisPrompt),
+    prompt: (withMemoryContext ?? ((value: string) => value))(analysisPrompt),
     contextRefs: [`paper:${imported.sourcePath}`],
     setAgentRunId,
     modelOverride,

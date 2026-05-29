@@ -6,13 +6,18 @@ mod swarm_events;
 mod swarm_tool_search;
 #[path = "swarm_provider.rs"]
 mod swarm_provider;
+#[path = "swarm_tool_mcp.rs"]
+mod swarm_tool_mcp;
 #[path = "swarm_workflows.rs"]
 mod swarm_workflows;
+#[path = "swarm_tool_skills.rs"]
+mod swarm_tool_skills;
 pub(crate) use swarm_provider::call_provider_with_retry;
 
 use crate::models::{
-    Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted, CompileRecord,
-    CompileRecordInput, EventBatch, EventQuery,
+    Ack, AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted,
+    AgentRunsRecoverInput, AgentRunsRecoverResponse, CompileRecord, CompileRecordInput, EventBatch,
+    EventQuery, McpServerConfig, McpValidationResult, SkillValidationInput, SkillValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -44,6 +49,13 @@ pub fn agent_execute_start(
     swarm_pipeline::agent_execute_start(&state, input)
 }
 
+pub(crate) fn start_agent_execution(
+    state: &AppState,
+    input: AgentExecuteRequest,
+) -> Result<AgentExecuteStartAccepted, String> {
+    swarm_pipeline::agent_execute_start(state, input)
+}
+
 #[tauri::command]
 pub fn agent_execute_cancel(
     state: State<'_, AppState>,
@@ -62,6 +74,40 @@ pub fn agent_execute_cancel(
         ok: true,
         message: "cancelling".to_string(),
     })
+}
+
+#[tauri::command]
+pub fn agent_runs_recover(
+    state: State<'_, AppState>,
+    input: AgentRunsRecoverInput,
+) -> Result<AgentRunsRecoverResponse, String> {
+    let flags = state
+        .agent_cancel_flags
+        .lock()
+        .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+    let recovered_run_ids = flags.keys().cloned().collect::<Vec<_>>();
+    state.log(
+        "INFO",
+        &format!(
+            "agent_runs_recover: project={}, recovered={}",
+            input.project_id.as_deref().unwrap_or(""),
+            recovered_run_ids.len()
+        ),
+    );
+    Ok(AgentRunsRecoverResponse { recovered_run_ids })
+}
+
+#[tauri::command]
+pub fn agent_mcp_validate(input: McpServerConfig) -> Result<McpValidationResult, String> {
+    swarm_tool_mcp::validate_mcp_server(input)
+}
+
+#[tauri::command]
+pub fn agent_skill_validate(
+    state: State<'_, AppState>,
+    input: SkillValidationInput,
+) -> Result<SkillValidationResult, String> {
+    swarm_tool_skills::validate_skill(&state.db_path, &state.runtime_root, &input.skill_id)
 }
 
 #[tauri::command]

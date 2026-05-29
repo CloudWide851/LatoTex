@@ -283,11 +283,7 @@ fn run_execute_pipeline_async(
         if Instant::now() >= deadline {
             return Err("agent.run.timeout.total".to_string());
         }
-        let metadata = EventMetadata {
-            workflow_id: &workflow.id,
-            step_id: &step.id,
-            callsite: &input.callsite,
-        };
+        let metadata = EventMetadata::base(&workflow.id, &step.id, &input.callsite);
         output = match step.kind.as_str() {
             "provider.generate" => run_provider_step(
                 &db_path,
@@ -304,6 +300,7 @@ fn run_execute_pipeline_async(
             )?,
             "tool.search" => swarm_tool_search::run_stage_tool_search(
                 &db_path,
+                &runtime_root,
                 &run_id,
                 &input.project_id,
                 &workflow.id,
@@ -367,11 +364,7 @@ pub fn agent_execute_start(
             "Run Accepted",
             "",
             &format!("{run_id}:run:accepted"),
-            EventMetadata {
-                workflow_id: &workflow.id,
-                step_id: "run",
-                callsite: &input.callsite,
-            },
+            EventMetadata::base(&workflow.id, "run", &input.callsite),
         ),
     )?;
 
@@ -409,11 +402,7 @@ pub fn agent_execute_start(
                     "Run Failed",
                     &message,
                     &format!("{run_id_for_worker}:run:failed"),
-                    EventMetadata {
-                        workflow_id: &worker_workflow_id,
-                        step_id: "run",
-                        callsite: &worker_callsite,
-                    },
+                    EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
                 ),
             );
             if let Ok(mut flags) = cancel_flags.lock() {
@@ -438,11 +427,7 @@ pub fn agent_execute_start(
                     "Run Completed",
                     "",
                     &format!("{run_id_for_worker}:run:completed"),
-                    EventMetadata {
-                        workflow_id: &worker_workflow_id,
-                        step_id: "run",
-                        callsite: &worker_callsite,
-                    },
+                    EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
                 );
                 if let Some(object) = payload.as_object_mut() {
                     object.insert("output".to_string(), json!(output));
@@ -470,11 +455,7 @@ pub fn agent_execute_start(
                             "Run Cancelled",
                             "",
                             &format!("{run_id_for_worker}:run:cancelled"),
-                            EventMetadata {
-                                workflow_id: &worker_workflow_id,
-                                step_id: "run",
-                                callsite: &worker_callsite,
-                            },
+                            EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
                         ),
                     );
                     if let Ok(mut flags) = cancel_flags.lock() {
@@ -494,11 +475,7 @@ pub fn agent_execute_start(
                         "Run Failed",
                         &error,
                         &format!("{run_id_for_worker}:run:failed"),
-                        EventMetadata {
-                            workflow_id: &worker_workflow_id,
-                            step_id: "run",
-                            callsite: &worker_callsite,
-                        },
+                        EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
                     ),
                 );
             }

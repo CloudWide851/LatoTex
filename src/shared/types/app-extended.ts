@@ -158,6 +158,33 @@ export type NativeLatexCompileResponse = {
   recoveredPackages: string[];
 };
 
+export type BusyTexCacheInfo = {
+  policy: "install-first" | "appdata-only" | string;
+  actualDir: string;
+  ready?: boolean;
+  message?: string | null;
+};
+
+export type BusyTexInstallPackageResult = {
+  styleFile: string;
+  overlayFiles: { path: string; content: string }[];
+  sourceUrl?: string | null;
+};
+
+export type AnalysisPyodideCacheInfo = {
+  policy: "install-first" | "appdata-only" | string;
+  actualDir: string;
+  ready?: boolean;
+  message?: string | null;
+};
+
+export type DrawioCacheInfo = {
+  policy: "install-first" | "appdata-only" | string;
+  actualDir: string;
+  ready?: boolean;
+  message?: string | null;
+};
+
 export type NativeTaskStartResponse = {
   taskId: string;
 };

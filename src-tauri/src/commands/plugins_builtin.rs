@@ -29,6 +29,10 @@ fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
         resource_badge: None,
         settings_quick_action: None,
         runtime_asset_detector: None,
+        settings_schema: None,
+        file_template: None,
+        snippet_provider: None,
+        agent_context_pack: None,
         localized: None,
     }
 }

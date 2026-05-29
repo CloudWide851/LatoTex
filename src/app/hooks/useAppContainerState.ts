@@ -127,6 +127,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [compileInstallProgress, setCompileInstallProgress] = useState<CompileInstallProgress | null>(null);
   const [lastCompileFailed, setLastCompileFailed] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [compiledPdfBytes, setCompiledPdfBytes] = useState<Uint8Array | null>(null);
   const [compiledPdfRelativePath, setCompiledPdfRelativePath] = useState<string | null>(null);
   const [preferCompiledPreview, setPreferCompiledPreview] = useState(false);
   const [selectedFilePdfUrl, setSelectedFilePdfUrl] = useState<string | null>(null);
@@ -141,6 +142,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const [projectSearchBusy, setProjectSearchBusy] = useState(false);
   const [projectSearchSearched, setProjectSearchSearched] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [windowActionBusy, setWindowActionBusy] = useState(false);
+  const [busytexCacheInfo, setBusytexCacheInfo] = useState<any>(null);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeLogInfo | null>(null);
   const [runtimeLogs, setRuntimeLogs] = useState<RuntimeLogEntry[]>([]);
   const [runtimeLogLoading, setRuntimeLogLoading] = useState(false);
@@ -186,6 +189,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
   const dirtyByPathRef = useRef<Record<string, boolean>>({});
   const savedContentByPathRef = useRef<Record<string, string>>({});
   const workingContentByPathRef = useRef<Record<string, string>>({});
+  const closeGuardUnlockedRef = useRef(false);
 
   const fileList = useMemo(() => flattenFiles(tree), [tree]);
   const pageRailItems = useMemo(
@@ -401,6 +405,8 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setLastCompileFailed,
     pdfUrl,
     setPdfUrl,
+    compiledPdfBytes,
+    setCompiledPdfBytes,
     compiledPdfRelativePath,
     setCompiledPdfRelativePath,
     preferCompiledPreview,
@@ -429,6 +435,10 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     setProjectSearchSearched,
     busy,
     setBusy,
+    windowActionBusy,
+    setWindowActionBusy,
+    busytexCacheInfo,
+    setBusytexCacheInfo,
     runtimeInfo,
     setRuntimeInfo,
     runtimeLogs,
@@ -495,6 +505,7 @@ export function useAppContainerState(t: (...args: any[]) => string) {
     dirtyByPathRef,
     savedContentByPathRef,
     workingContentByPathRef,
+    closeGuardUnlockedRef,
     fileList,
     pageRailItems,
     fileSet,

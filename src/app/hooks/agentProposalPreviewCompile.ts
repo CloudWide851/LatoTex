@@ -5,7 +5,7 @@ export async function compileProposalPreviewWithAutoFix(params: {
   activeProjectId: string;
   targetPath: string;
   candidateContent: string;
-  withMemoryContext: (prompt: string) => string;
+  withMemoryContext?: (prompt: string) => string;
   setAgentRunId: (value: string | null) => void;
   runCompilePass: (params: {
     projectId: string;
@@ -52,7 +52,7 @@ export async function compileProposalPreviewWithAutoFix(params: {
     activeProjectId,
     workflowId: "latex.review_fix",
     callsite: "latex.overlay",
-    prompt: withMemoryContext(repairPrompt),
+    prompt: (withMemoryContext ?? ((value: string) => value))(repairPrompt),
     contextRefs: [`file:${targetPath}`],
     setAgentRunId,
     bypassCache: true,

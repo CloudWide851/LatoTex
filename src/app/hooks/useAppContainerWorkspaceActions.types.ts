@@ -23,7 +23,7 @@ export type UseAppContainerWorkspaceActionsParams = {
   resetEditorSession: () => void;
   handleEditorUndo: () => void;
   handleEditorRedo: () => void;
-  handleCompile: () => Promise<CompileActionResult | null>;
+  handleCompile: () => Promise<CompileActionResult | null> | Promise<void>;
   handleExportCompiledPdf: () => Promise<void>;
   isTauriRuntime: boolean;
   collectDirtyPaths: (candidatePaths: string[]) => string[];

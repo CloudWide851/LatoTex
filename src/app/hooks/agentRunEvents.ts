@@ -1,12 +1,14 @@
 import { executeWorkflowStart } from "../../shared/api/desktop";
+import type { AgentExecuteStartAccepted } from "../../shared/types/app";
 import { waitForRunOutputWithPolicy } from "./runEventWait";
 
 export async function runAgentThroughEvents(params: {
-  activeProjectId: string;
-  workflowId: string;
-  callsite: string;
-  prompt: string;
-  contextRefs: string[];
+  activeProjectId?: string;
+  workflowId?: string;
+  callsite?: string;
+  prompt?: string;
+  contextRefs?: string[];
+  startRun?: () => Promise<AgentExecuteStartAccepted>;
   setAgentRunId: (value: string | null) => void;
   modelOverride?: string;
   bypassCache?: boolean;
@@ -26,15 +28,17 @@ export async function runAgentThroughEvents(params: {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const retryAttempt = attempt > 0;
     try {
-      const accepted = await executeWorkflowStart({
-        projectId: params.activeProjectId,
-        workflowId: params.workflowId,
-        callsite: params.callsite,
-        prompt: params.prompt,
-        contextRefs: params.contextRefs,
-        modelOverride: params.modelOverride,
-        bypassCache: retryAttempt || (params.bypassCache ?? false),
-      });
+      const accepted = params.startRun
+        ? await params.startRun()
+        : await executeWorkflowStart({
+            projectId: params.activeProjectId ?? "",
+            workflowId: params.workflowId ?? "",
+            callsite: params.callsite ?? "agent.workflow",
+            prompt: params.prompt ?? "",
+            contextRefs: params.contextRefs ?? [],
+            modelOverride: params.modelOverride,
+            bypassCache: retryAttempt || (params.bypassCache ?? false),
+          });
       params.setAgentRunId(accepted.runId);
       const output = await waitForRunOutputWithPolicy({
         runId: accepted.runId,

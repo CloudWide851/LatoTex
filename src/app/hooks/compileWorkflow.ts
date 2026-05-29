@@ -1,10 +1,12 @@
-import { compileWithBusyTeX } from "../../features/latex/compiler/busytex";
+import { recordCompile } from "../../shared/api/desktop";
+import { readFile } from "../../shared/api/workspace";
 import {
-  busytexInstallMissingPackage,
-  readFile,
-  recordCompile,
-  runtimeLogWrite,
-} from "../../shared/api/desktop";
+  compileWithNativeLatex,
+  compileWithNativeLatexTask,
+} from "../../features/latex/compiler/native";
+import type { CompileInstallProgress } from "./compileWorkflowShared";
+
+export type { CompileInstallProgress } from "./compileWorkflowShared";
 
 const COMPILE_SKIP_EXTENSIONS = new Set([
   "pdf",
@@ -31,8 +33,20 @@ const COMPILE_SKIP_EXTENSIONS = new Set([
   "bin",
 ]);
 
-const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/i;
-const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/i;
+const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/gi;
+const PACKAGE_ERROR_RE = /Package\s+([A-Za-z0-9._-]+)\s+Error:/gi;
+const FONTSPEC_ERROR_RE = /Package\s+fontspec\s+Error/i;
+const FONT_QUOTED_RE = /font\s+["“]([^"”]+)["”]\s+cannot be found/gi;
+const FONT_PLAIN_RE = /font\s+([A-Za-z][A-Za-z0-9 _.-]{2,})\s+not found/gi;
+
+const FONT_REPLACEMENTS = [
+  { pattern: /\\setmainfont\s*\{[^}]+\}/g, replacement: "\\setmainfont{Latin Modern Roman}" },
+  { pattern: /\\setsansfont\s*\{[^}]+\}/g, replacement: "\\setsansfont{Latin Modern Sans}" },
+  { pattern: /\\setCJKmainfont\s*\{[^}]+\}/g, replacement: "\\setCJKmainfont{FandolSong-Regular}" },
+  { pattern: /\\setCJKfamilyfont(\s*\{[^}]+\})\s*\{[^}]+\}/g, replacement: "\\setCJKfamilyfont$1{FandolSong-Regular}" },
+  { pattern: /\\newfontfamily(\\[A-Za-z@]+)\s*\{[^}]+\}/g, replacement: "\\newfontfamily$1{Latin Modern Sans}" },
+  { pattern: /\\newCJKfontfamily(\\[A-Za-z@]+)\s*\{[^}]+\}/g, replacement: "\\newCJKfontfamily$1{FandolSong-Regular}" },
+];
 
 function shouldIncludeCompileFile(path: string): boolean {
   const normalized = path.trim().toLowerCase();
@@ -43,75 +57,140 @@ function shouldIncludeCompileFile(path: string): boolean {
   if (dot < 0 || dot === normalized.length - 1) {
     return true;
   }
-  const extension = normalized.slice(dot + 1);
-  return !COMPILE_SKIP_EXTENSIONS.has(extension);
+  return !COMPILE_SKIP_EXTENSIONS.has(normalized.slice(dot + 1));
+}
+
+function collectRegexMatches(source: string, regex: RegExp): string[] {
+  const out: string[] = [];
+  for (const match of source.matchAll(regex)) {
+    const value = String(match[1] || "").trim();
+    if (value.length > 1) {
+      out.push(value);
+    }
+  }
+  return out;
+}
+
+function unique(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
 }
 
 export function extractMissingStyleCandidatesFromDiagnostics(diagnostics: string[]): string[] {
   const candidates: string[] = [];
-  const seen = new Set<string>();
   for (const line of diagnostics) {
-    const text = String(line || "").trim();
-    if (!text) {
-      continue;
+    const text = String(line || "");
+    for (const match of text.matchAll(MISSING_STYLE_RE)) {
+      candidates.push(match[1].trim());
     }
-    const missingMatch = text.match(MISSING_STYLE_RE);
-    if (missingMatch?.[1]) {
-      const style = missingMatch[1].trim();
-      const key = style.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        candidates.push(style);
-      }
-    }
-    const packageErrorMatch = text.match(PACKAGE_ERROR_RE);
-    if (packageErrorMatch?.[1]) {
-      const packageName = packageErrorMatch[1].trim().replace(/[^A-Za-z0-9._-]/g, "");
-      if (packageName) {
-        const style = `${packageName}.sty`;
-        const key = style.toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          candidates.push(style);
-        }
+    for (const match of text.matchAll(PACKAGE_ERROR_RE)) {
+      const packageName = match[1].trim();
+      if (packageName.toLowerCase() !== "fontspec") {
+        candidates.push(`${packageName}.sty`);
       }
     }
   }
-  return candidates;
+  return unique(candidates);
 }
 
-function getBusyTexCachePolicy(): "install-first" | "appdata-only" {
-  if (typeof window === "undefined") {
-    return "install-first";
+export function extractMissingSystemFontsFromDiagnostics(diagnostics: string[]): string[] {
+  const fonts: string[] = [];
+  for (const line of diagnostics) {
+    const text = String(line || "");
+    fonts.push(...collectRegexMatches(text, FONT_QUOTED_RE));
+    fonts.push(...collectRegexMatches(text, FONT_PLAIN_RE));
   }
-  const raw = window.localStorage.getItem("latotex.busytex.cachePolicy");
-  return raw === "appdata-only" ? "appdata-only" : "install-first";
+  return unique(fonts.filter((font) => font.length > 1));
 }
 
-function mergeDiagnostics(base: string[], extra: string[]): string[] {
-  const seen = new Set<string>();
-  const merged: string[] = [];
-  for (const value of [...base, ...extra]) {
-    const line = String(value || "").trim();
-    if (!line || seen.has(line)) {
+export function hasFontspecErrorDiagnostics(diagnostics: string[]): boolean {
+  return diagnostics.some((line) => FONTSPEC_ERROR_RE.test(String(line || "")));
+}
+
+export function extractConfiguredSystemFontsFromSource(source: string): string[] {
+  return unique([
+    ...collectRegexMatches(source, /\\(?:setmainfont|setsansfont|setmonofont|setCJKmainfont)\s*\{([^}]+)\}/g),
+    ...collectRegexMatches(source, /\\setCJKfamilyfont\s*\{[^}]+\}\s*\{([^}]+)\}/g),
+    ...collectRegexMatches(source, /\\(?:newfontfamily|newCJKfontfamily)\\[A-Za-z@]+\s*\{([^}]+)\}/g),
+  ]);
+}
+
+export function collectConfiguredSystemFontsFromFileMap(fileMap: Record<string, string>): string[] {
+  const fonts: string[] = [];
+  for (const [path, source] of Object.entries(fileMap)) {
+    if (/\.(tex|sty|cls)$/i.test(path)) {
+      fonts.push(...extractConfiguredSystemFontsFromSource(source));
+    }
+  }
+  return unique(fonts);
+}
+
+export function resolveFontFallbackCandidates(input: {
+  extractedFonts: string[];
+  configuredFonts: string[];
+  probeMissingFonts: string[];
+}): string[] {
+  return unique([...input.extractedFonts, ...input.configuredFonts, ...input.probeMissingFonts]);
+}
+
+export function applySystemFontFallbackToSource(source: string, fonts: string[]) {
+  let patchedSource = source;
+  const replacements: string[] = [];
+  if (fonts.length === 0) {
+    return { patchedSource, replacements };
+  }
+  for (const item of FONT_REPLACEMENTS) {
+    patchedSource = patchedSource.replace(item.pattern, (match, firstGroup) => {
+      const replacement = item.replacement.replace("$1", String(firstGroup ?? ""));
+      if (match !== replacement) {
+        replacements.push(match);
+      }
+      return replacement;
+    });
+  }
+  return { patchedSource, replacements };
+}
+
+export function applySystemFontFallbackToFileMap(
+  fileMap: Record<string, string>,
+  mainPath: string,
+  fonts: string[],
+) {
+  const overlays: Record<string, string> = {};
+  let mainSource = fileMap[mainPath] ?? "";
+  const replacements: string[] = [];
+  for (const [path, source] of Object.entries(fileMap)) {
+    if (!/\.(tex|sty|cls)$/i.test(path)) {
       continue;
     }
-    seen.add(line);
-    merged.push(line);
+    const patched = applySystemFontFallbackToSource(source, fonts);
+    if (patched.replacements.length === 0) {
+      continue;
+    }
+    replacements.push(...patched.replacements);
+    if (path === mainPath) {
+      mainSource = patched.patchedSource;
+    } else {
+      overlays[path] = patched.patchedSource;
+    }
   }
-  return merged.slice(0, 16);
+  return { changed: replacements.length > 0, mainSource, overlays, replacements };
 }
 
-function formatMessage(
-  t: (key: any) => string,
-  key: string,
-  replacements: Record<string, string>,
-): string {
-  let template = String(t(key));
-  for (const [token, value] of Object.entries(replacements)) {
-    template = template.replace(new RegExp(`\\{${token}\\}`, "g"), value);
+export function shouldDisplayCompileProgress(progress: CompileInstallProgress | null): boolean {
+  if (!progress?.active) {
+    return false;
   }
-  return template;
+  return String(progress.stage || "").trim().toLowerCase() !== "queued";
 }
 
 async function buildCompileFileMap(
@@ -140,140 +219,70 @@ export async function runCompilePass(params: {
   mainPath: string;
   mainContent: string;
   fileList: string[];
-  currentPdfUrl: string | null;
   updatePreview: boolean;
   emitToast: boolean;
+  compileMode?: "sync" | "task";
   t: (key: any) => string;
   setLastCompileFailed: (value: boolean) => void;
   setCompileDiagnostics: (value: string[]) => void;
   setPdfUrl: (value: string | null) => void;
-  setCompiledPdfBytes: (value: Uint8Array | null) => void;
+  setCompiledPdfRelativePath: (value: string | null) => void;
   setPreferCompiledPreview: (value: boolean) => void;
+  setCompileInstallProgress: (value: CompileInstallProgress | null) => void;
   setToast: (value: { type: "info" | "error"; message: string }) => void;
 }) {
-  const {
-    projectId,
-    mainPath,
-    mainContent,
-    fileList,
-    currentPdfUrl,
-    updatePreview,
-    emitToast,
-    t,
-    setLastCompileFailed,
-    setCompileDiagnostics,
-    setPdfUrl,
-    setCompiledPdfBytes,
-    setPreferCompiledPreview,
-    setToast,
-  } = params;
-
-  const baseFileMap = await buildCompileFileMap(projectId, mainPath, mainContent, fileList);
-  const overlayFileMap: Record<string, string> = {};
-  const installNotes: string[] = [];
-  const attemptedPackages = new Set<string>();
-  let result = await compileWithBusyTeX(mainContent, baseFileMap, mainPath);
-
-  const emitInstallProgress = (line: string) => {
-    installNotes.push(line);
-    setCompileDiagnostics(mergeDiagnostics(result.diagnostics, installNotes));
-  };
-
-  for (let round = 0; round < 4 && result.status !== "success"; round += 1) {
-    const missingStyles = extractMissingStyleCandidatesFromDiagnostics(result.diagnostics).filter(
-      (style) => !attemptedPackages.has(style.toLowerCase()),
-    );
-    if (missingStyles.length === 0) {
-      break;
-    }
-
-    let installedAny = false;
-    for (const missingStyle of missingStyles) {
-      attemptedPackages.add(missingStyle.toLowerCase());
-      emitInstallProgress(
-        formatMessage(t, "workspace.compileAssist.busytexDownloadStart", {
-          package: missingStyle,
-        }),
-      );
-      try {
-        const install = await busytexInstallMissingPackage({
-          styleFile: missingStyle,
-          policy: getBusyTexCachePolicy(),
-        });
-        if (!Array.isArray(install.overlayFiles) || install.overlayFiles.length === 0) {
-          emitInstallProgress(
-            formatMessage(t, "workspace.compileAssist.busytexDownloadNoFiles", {
-              package: missingStyle,
-            }),
-          );
-          continue;
-        }
-        for (const file of install.overlayFiles) {
-          const relativePath = String(file.path || "").trim();
-          if (!relativePath) {
-            continue;
-          }
-          overlayFileMap[relativePath] = String(file.content || "");
-        }
-        installedAny = true;
-        emitInstallProgress(
-          formatMessage(t, "workspace.compileAssist.busytexDownloadSuccess", {
-            package: missingStyle,
-            source: install.sourceUrl || "cache",
-          }),
-        );
-      } catch (error) {
-        emitInstallProgress(
-          formatMessage(t, "workspace.compileAssist.busytexDownloadFailed", {
-            package: missingStyle,
-            reason: String(error),
-          }),
-        );
-      }
-    }
-
-    if (!installedAny) {
-      break;
-    }
-
-    const mergedFileMap = { ...baseFileMap, ...overlayFileMap };
-    result = await compileWithBusyTeX(mainContent, mergedFileMap, mainPath);
-  }
-
-  if (installNotes.length > 0) {
-    result = {
-      ...result,
-      diagnostics: mergeDiagnostics(result.diagnostics, installNotes),
-    };
-  }
-
-  setLastCompileFailed(result.status !== "success");
-  setCompileDiagnostics(result.diagnostics);
-  await runtimeLogWrite(
-    result.status === "success" ? "INFO" : "ERROR",
-    `${t("log.compileDone")}, file=${mainPath}, status=${result.status}, durationMs=${result.durationMs}`,
+  const fileMap = await buildCompileFileMap(
+    params.projectId,
+    params.mainPath,
+    params.mainContent,
+    params.fileList,
   );
+  const compileInput = {
+    projectId: params.projectId,
+    mainPath: params.mainPath,
+    mainSource: params.mainContent,
+    fileMap,
+    reason: params.compileMode === "task" ? "manual" : "agent",
+  };
+  const result = params.compileMode === "task"
+    ? await compileWithNativeLatexTask({
+        ...compileInput,
+        onProgress: (status) => {
+          const progress: CompileInstallProgress = {
+            active: status.status === "running",
+            percent: Number(status.percent ?? 0),
+            stage: String(status.stage ?? "running"),
+            currentPackage: status.currentItem ?? params.mainPath,
+            completed: Math.round(Number(status.percent ?? 0)),
+            total: 100,
+            message: status.message ?? status.latestLogLine ?? "",
+          };
+          params.setCompileInstallProgress(
+            shouldDisplayCompileProgress(progress) ? progress : null,
+          );
+        },
+      })
+    : await compileWithNativeLatex(compileInput);
+
+  params.setCompileInstallProgress(null);
+  params.setLastCompileFailed(result.status !== "success");
+  params.setCompileDiagnostics(result.diagnostics);
   await recordCompile({
-    projectId,
-    mainFile: mainPath,
+    projectId: params.projectId,
+    mainFile: params.mainPath,
     status: result.status,
     diagnostics: result.diagnostics,
     durationMs: result.durationMs,
   });
-  if (result.status === "success" && result.pdfBytes && updatePreview) {
-    if (currentPdfUrl) {
-      URL.revokeObjectURL(currentPdfUrl);
-    }
-    const normalizedBytes = Uint8Array.from(result.pdfBytes);
-    const url = URL.createObjectURL(new Blob([normalizedBytes], { type: "application/pdf" }));
-    setPdfUrl(url);
-    setCompiledPdfBytes(normalizedBytes);
-    setPreferCompiledPreview(true);
+  if (result.status === "success" && result.pdfRelativePath && params.updatePreview) {
+    params.setPdfUrl(null);
+    params.setCompiledPdfRelativePath(result.pdfRelativePath);
+    params.setPreferCompiledPreview(true);
   }
-  if (emitToast) {
-    setToast({
+  if (params.emitToast) {
+    params.setToast({
       type: result.status === "success" ? "info" : "error",
-      message: result.status === "success" ? t("toast.compileSuccess") : t("toast.compileFailed"),
+      message: result.status === "success" ? params.t("toast.compileSuccess") : params.t("toast.compileFailed"),
     });
   }
   return result;

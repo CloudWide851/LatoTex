@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-cloudflared-assets.mjs && vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-tectonic-assets.mjs && node scripts/ensure-pdf-tools.mjs && node scripts/ensure-cloudflared-assets.mjs && node scripts/ensure-uv-assets.mjs && tsc && vite build && node scripts/copy-public-assets.mjs",
+    "dev": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && vite --host 0.0.0.0 --port 1420",
+    "build": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && tsc && vite build && node scripts/copy-public-assets.mjs",
     "build:share-page": "node scripts/build-share-page.mjs",
     "typecheck": "tsc --noEmit",
     "stitch:init": "pnpm exec stitch-mcp init --client codex --transport stdio",
@@ -15,7 +15,7 @@
     "stitch:view": "pnpm exec stitch-mcp view",
     "stitch:serve": "pnpm exec stitch-mcp serve",
     "stitch:site": "pnpm exec stitch-mcp site",
-    "arch:check": "node scripts/check-architecture.mjs && node scripts/check-source-size.mjs",
+    "arch:check": "node scripts/check-architecture.mjs && node scripts/check-source-size.mjs && node scripts/check-package-scripts.mjs",
     "test:unit": "vitest run",
     "test:e2e": "pnpm build && playwright test",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
@@ -23,13 +23,9 @@
     "security:scan": "node scripts/release-security-scan.mjs",
     "sbom:generate": "node scripts/generate-sbom.mjs",
     "release:hash:win-x64": "node scripts/hash-windows-installer.mjs",
-    "release:sign:preview": "node scripts/sign-preview-win-x64.mjs",
-    "release:sign:win-x64": "node scripts/sign-win-x64.mjs",
-    "release:verify-signature:win-x64": "node scripts/sign-win-x64.mjs --verify-only",
     "release:install-smoke:win-x64": "node scripts/install-smoke-win-x64.mjs",
     "release:validate:win-x64": "node scripts/release-check-win-x64.mjs --mode=validate",
     "release:package:win-x64": "node scripts/release-check-win-x64.mjs --mode=package",
-    "release:package:win-x64:signed": "node scripts/release-check-win-x64.mjs --mode=package --require-signing",
     "release:check:win-x64": "node scripts/release-check-win-x64.mjs --mode=check",
     "preview": "vite preview",
     "brand:sync": "node scripts/sync-brand-assets.mjs",
@@ -40,8 +36,7 @@
     "audit:debt": "node scripts/audit-historical-debt.mjs",
     "tauri": "node scripts/ensure-brand-icons.mjs && tauri",
     "tauri:build:win-x64": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
-    "tauri:smoke:win-x64": "node scripts/tauri-smoke-win-x64.mjs",
-    "pdf-tools:assets": "node scripts/ensure-pdf-tools.mjs"
+    "tauri:smoke:win-x64": "node scripts/tauri-smoke-win-x64.mjs"
   },
   "packageManager": "pnpm@10.29.2",
   "dependencies": {

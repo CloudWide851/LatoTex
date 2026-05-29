@@ -73,33 +73,38 @@ export function useDrawFrameLifecycle(params: {
   }, [clearFrameTimers, logDrawRuntime, setStatus, t]);
 
   useEffect(() => {
+    let cancelled = false;
     try {
-      const resolved = resolveDrawioHostFrameSrc(undefined, locale);
-      if (!resolved) {
-        const failure = formatDrawStartFailure(t, "drawio entry url is missing");
-        handshakeStageRef.current = "missing_entry_url";
-        setFramePhase("error");
-        setFrameSrc(null);
-        setFrameFailureDetail(failure);
-        setStatus(failure);
-        logDrawRuntime("ERROR", "entry_url_missing");
-        return;
-      }
-      handshakeStageRef.current = "frame_src_resolved";
-      setFramePhase("loading");
-      setFrameFailureDetail(null);
-      setFrameDocumentLoaded(false);
-      setStatus(t("draw.waiting"));
-      logDrawRuntime("INFO", `frame_load_start: src=${resolved}, reload_token=${frameReloadToken}`);
-      if (shouldDeferFrameSrc()) {
-        srcTimerRef.current = window.setTimeout(() => {
-          requestAnimationFrame(() => {
-            setFrameSrc(withReloadToken(resolved, frameReloadToken));
-          });
-        }, 80);
-      } else {
-        setFrameSrc(withReloadToken(resolved, frameReloadToken));
-      }
+      void resolveDrawioHostFrameSrc().then((resolved) => {
+        if (cancelled) {
+          return;
+        }
+        if (!resolved) {
+          const failure = formatDrawStartFailure(t, "drawio entry url is missing");
+          handshakeStageRef.current = "missing_entry_url";
+          setFramePhase("error");
+          setFrameSrc(null);
+          setFrameFailureDetail(failure);
+          setStatus(failure);
+          logDrawRuntime("ERROR", "entry_url_missing");
+          return;
+        }
+        handshakeStageRef.current = "frame_src_resolved";
+        setFramePhase("loading");
+        setFrameFailureDetail(null);
+        setFrameDocumentLoaded(false);
+        setStatus(t("draw.waiting"));
+        logDrawRuntime("INFO", `frame_load_start: src=${resolved}, reload_token=${frameReloadToken}`);
+        if (shouldDeferFrameSrc()) {
+          srcTimerRef.current = window.setTimeout(() => {
+            requestAnimationFrame(() => {
+              setFrameSrc(withReloadToken(resolved, frameReloadToken));
+            });
+          }, 80);
+        } else {
+          setFrameSrc(withReloadToken(resolved, frameReloadToken));
+        }
+      });
     } catch (error) {
       const failure = formatDrawStartFailure(t, String(error));
       handshakeStageRef.current = "frame_src_failed";
@@ -110,6 +115,7 @@ export function useDrawFrameLifecycle(params: {
       logDrawRuntime("ERROR", `frame_src_failed: ${String(error)}`);
     }
     return () => {
+      cancelled = true;
       if (srcTimerRef.current !== null) {
         window.clearTimeout(srcTimerRef.current);
         srcTimerRef.current = null;

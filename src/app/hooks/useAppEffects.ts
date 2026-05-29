@@ -22,6 +22,7 @@ export function isBenignResizeObserverMessage(value: string): boolean {
 }
 
 export function useAppEffects(params: {
+  [key: string]: any;
   t: TranslationFn;
   isTauriRuntime: boolean;
   activeProjectId: string | null;

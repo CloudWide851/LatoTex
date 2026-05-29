@@ -141,6 +141,78 @@ pub struct PluginRuntimeAssetDetector {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginSettingsSchemaField {
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub field_kind: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub required: Option<bool>,
+    #[serde(default)]
+    pub options: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettingsSchema {
+    #[serde(default)]
+    pub section: String,
+    #[serde(default)]
+    pub fields: Vec<PluginSettingsSchemaField>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginFileTemplate {
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub default_name: String,
+    #[serde(default)]
+    pub template_kind: String,
+    #[serde(default)]
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSnippet {
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
+    pub body: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSnippetProvider {
+    #[serde(default)]
+    pub languages: Vec<String>,
+    #[serde(default)]
+    pub snippets: Vec<PluginSnippet>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginAgentContextPack {
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    #[serde(default)]
+    pub include_patterns: Vec<String>,
+    #[serde(default)]
+    pub exclude_patterns: Vec<String>,
+    #[serde(default)]
+    pub max_files: Option<u16>,
+    #[serde(default)]
+    pub max_bytes: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginLocalizedContribution {
     #[serde(default)]
     pub title: Option<String>,
@@ -204,6 +276,14 @@ pub struct PluginContribution {
     pub settings_quick_action: Option<PluginSettingsQuickAction>,
     #[serde(default)]
     pub runtime_asset_detector: Option<PluginRuntimeAssetDetector>,
+    #[serde(default)]
+    pub settings_schema: Option<PluginSettingsSchema>,
+    #[serde(default)]
+    pub file_template: Option<PluginFileTemplate>,
+    #[serde(default)]
+    pub snippet_provider: Option<PluginSnippetProvider>,
+    #[serde(default)]
+    pub agent_context_pack: Option<PluginAgentContextPack>,
     #[serde(default)]
     pub localized: Option<std::collections::HashMap<String, PluginLocalizedContribution>>,
 }

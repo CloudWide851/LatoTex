@@ -23,6 +23,25 @@ type PersistedDrawTabs = {
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
 const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
 export const DRAWIO_HOST_URL = "/drawio/index.html";
+export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
+  action: "configure",
+  config: { compressXml: false, autosave: 1 },
+});
+
+export type PendingDrawExportRequest = {
+  filename?: string;
+  format?: string;
+  scale?: number;
+  border?: number;
+  dpi?: number;
+  grid?: boolean;
+  background?: string | null;
+  pageId?: string;
+  currentPage?: boolean;
+  allPages?: boolean;
+  embedImages?: boolean;
+  shadow?: boolean;
+};
 
 function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
@@ -166,6 +185,31 @@ export function parseDrawMessage(payload: unknown): DrawMessage | null {
   return null;
 }
 
+export function buildDrawLoadPayload(xml: string): Record<string, unknown> {
+  return { action: "load", xml, autosave: 1 };
+}
+
+export function interpretDrawHandshakeMessage(message: DrawMessage):
+  | { kind: "hostLoaded" }
+  | { kind: "configure" }
+  | { kind: "init" }
+  | { kind: "error"; detail: string }
+  | { kind: "none" } {
+  if (message.event === "host_loaded" || message.source === "drawio_host") {
+    return { kind: "hostLoaded" };
+  }
+  if (message.event === "configure") {
+    return { kind: "configure" };
+  }
+  if (message.event === "init") {
+    return { kind: "init" };
+  }
+  if (message.event === "error" || message.error) {
+    return { kind: "error", detail: String(message.error || "draw.runtimeAsset.required") };
+  }
+  return { kind: "none" };
+}
+
 export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } {
   const [prefix, payload] = dataUrl.split(",", 2);
   const mime = /^data:([^;]+);base64$/i.exec(prefix || "")?.[1] || "application/octet-stream";
@@ -175,6 +219,26 @@ export function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Arra
     bytes[index] = raw.charCodeAt(index);
   }
   return { mime, bytes };
+}
+
+export function decodeDrawExportPayload(message: DrawMessage): { mime: string; bytes: Uint8Array } {
+  const data = String(message.data || "");
+  if (data.startsWith("data:")) {
+    return decodeDataUrl(data);
+  }
+  const mime = String(message.mime || "application/octet-stream");
+  if (message.base64 || (message.base64 !== false && !mime.startsWith("text/"))) {
+    const raw = atob(data);
+    const bytes = new Uint8Array(raw.length);
+    for (let index = 0; index < raw.length; index += 1) {
+      bytes[index] = raw.charCodeAt(index);
+    }
+    return { mime, bytes };
+  }
+  return {
+    mime,
+    bytes: new TextEncoder().encode(data),
+  };
 }
 
 function mimeSubtype(mime: string): string {
@@ -199,6 +263,12 @@ export function inferExportExtension(message: DrawMessage, dataMime?: string): s
     return mimeSubtype(mime);
   }
   return "bin";
+}
+
+export function isDrawImageExportFormat(format: string | null | undefined): boolean {
+  return ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(
+    String(format || "").trim().toLowerCase(),
+  );
 }
 
 export function toTextIfPossible(ext: string, bytes: Uint8Array): string | null {
@@ -230,11 +300,67 @@ export function toDrawExportTarget(activePath: string, extension: string, filena
 
   const hintedBase = sanitizeExportFileName(filenameHint ?? "");
   const normalizedExtension = String(extension || "bin").replace(/[^a-z0-9.+-]/gi, "") || "bin";
-  const fileName = hintedBase
+  const usableHint = hintedBase && !hintedBase.startsWith(".") ? hintedBase : "";
+  const fileName = usableHint
     ? (/\.[a-z0-9.+-]+$/i.test(hintedBase) ? hintedBase : `${hintedBase}.${normalizedExtension}`)
     : `${safeStem}.${normalizedExtension}`;
 
   return `drawings/${fileName}`;
+}
+
+export function toDrawExportDialogDefaults(activePath: string, extension: string, filenameHint?: string): {
+  defaultRelativeDir: string;
+  defaultFileName: string;
+} {
+  const target = toDrawExportTarget(activePath, extension, filenameHint);
+  const activeDir = normalizePath(activePath).split("/").slice(0, -1).join("/");
+  const targetWithActiveDir = activeDir.startsWith("drawings/")
+    ? `${activeDir}/${target.split("/").pop() || "diagram.bin"}`
+    : target;
+  const slash = targetWithActiveDir.lastIndexOf("/");
+  return {
+    defaultRelativeDir: slash >= 0 ? targetWithActiveDir.slice(0, slash) : "drawings",
+    defaultFileName: slash >= 0 ? targetWithActiveDir.slice(slash + 1) : targetWithActiveDir,
+  };
+}
+
+export function buildDrawExportAction(request: PendingDrawExportRequest | null | undefined): Record<string, unknown> {
+  return {
+    action: "export",
+    format: String(request?.format || "png").toLowerCase(),
+    spinKey: "exporting",
+    scale: request?.scale,
+    border: request?.border,
+    dpi: request?.dpi,
+    grid: request?.grid,
+    background: request?.background === null ? "none" : request?.background,
+    pageId: request?.pageId,
+    currentPage: request?.currentPage,
+    allPages: request?.allPages,
+    embedImages: request?.embedImages,
+    shadow: request?.shadow,
+  };
+}
+
+export function mergeDrawExportRequest(
+  message: DrawMessage,
+  request: PendingDrawExportRequest | null | undefined,
+): DrawMessage {
+  if (!request) {
+    return message;
+  }
+  return {
+    ...message,
+    format: message.format ?? request.format,
+    filename: message.filename ?? request.filename,
+  };
+}
+
+export function shouldClearPendingDrawExport(
+  request: PendingDrawExportRequest | null | undefined,
+  message: DrawMessage,
+): boolean {
+  return Boolean(request && (message.event === "error" || message.error));
 }
 
 export function buildRenamedDrawPath(currentPath: string, nextInput: string): string {
@@ -269,11 +395,12 @@ export function withExportRetrySuffix(path: string): string {
 export async function persistDrawExportToWorkspace(params: {
   activePath: string;
   message: DrawMessage;
-  writeText: (path: string, content: string) => Promise<unknown>;
-  writeBinary: (path: string, bytes: Uint8Array) => Promise<unknown>;
+  saveAsset?: (path: string, bytes: Uint8Array) => Promise<unknown>;
+  writeText?: (path: string, content: string) => Promise<unknown>;
+  writeBinary?: (path: string, bytes: Uint8Array) => Promise<unknown>;
   onAfterSave?: (savedPath: string) => Promise<void> | void;
 }): Promise<string> {
-  const { activePath, message, writeText, writeBinary, onAfterSave } = params;
+  const { activePath, message, saveAsset, writeText, writeBinary, onAfterSave } = params;
   const exportData = String(message.data || "");
   if (!exportData) {
     throw new Error("draw.export.empty_payload");
@@ -308,13 +435,27 @@ export async function persistDrawExportToWorkspace(params: {
   }
 
   const writePayload = async (path: string) => {
+    if (saveAsset) {
+      const payload = binaryPayload ?? new TextEncoder().encode(textPayload ?? exportData);
+      await saveAsset(path, payload);
+      return;
+    }
     if (textPayload !== null) {
+      if (!writeText) {
+        throw new Error("draw.export.write_text_missing");
+      }
       await writeText(path, textPayload);
       return;
     }
     if (binaryPayload) {
+      if (!writeBinary) {
+        throw new Error("draw.export.write_binary_missing");
+      }
       await writeBinary(path, binaryPayload);
       return;
+    }
+    if (!writeText) {
+      throw new Error("draw.export.write_text_missing");
     }
     await writeText(path, exportData);
   };
