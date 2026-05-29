@@ -15,7 +15,6 @@ const ignoredPathParts = [
   "src-tauri/resources/core/drawio/vendor/",
   "src-tauri/resources/core/share-vendor/",
   "src-tauri/target/",
-  "docs/AGENTS.archive.md",
 ];
 const ignoredFiles = new Set([
   "pnpm-lock.yaml",

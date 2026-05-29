@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const REPORT_ROOT = path.resolve(process.cwd(), ".latotex", "reports", "debt");
-const SCAN_DIRS = ["src", "src-tauri/src", "docs"];
+const SCAN_DIRS = ["src", "src-tauri/src"];
 
 function nowStamp() {
   const d = new Date();
@@ -72,7 +72,7 @@ function scanMarkers(files) {
 }
 
 function scanMemoryOpenItems() {
-  const candidates = ["MEMORY.md", "docs/MEMORY.archive.md"];
+  const candidates = ["MEMORY.md"];
   const hits = [];
   for (const file of candidates) {
     const abs = path.resolve(process.cwd(), file);

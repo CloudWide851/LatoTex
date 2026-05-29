@@ -1,8 +1,15 @@
+use super::plugins_builtin::built_in_catalog;
+use super::plugins_declarative_validation::validate_safe_contribution_details;
+use super::plugins_install_validation::{
+    validate_runtime_asset, validate_toolchain_installer, validate_toolchain_probe,
+};
+use super::plugins_policy::{
+    ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, SAFE_COMMAND_REFS,
+};
 use crate::models::{
-    Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput,
-    PluginCatalogResponse, PluginCatalogSource,
-    PluginInstallInput, PluginManifest, PluginRefInput, PluginSetEnabledInput,
-    PluginToolchainInstaller, PluginToolchainProbe, PluginValidationIssue, PluginValidationResult,
+    Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput, PluginCatalogResponse,
+    PluginCatalogSource, PluginInstallInput, PluginManifest, PluginRefInput,
+    PluginSetEnabledInput, PluginValidationIssue, PluginValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -10,19 +17,12 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
-use super::plugins_builtin::built_in_catalog;
-use super::plugins_policy::{
-    ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, INSTALLER_TOOLCHAIN_KINDS,
-    PROBE_TOOLCHAIN_KINDS, SAFE_COMMAND_REFS,
-};
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
 const CATALOG_SCHEMA: &str = "latotex.marketplace.v1";
-
 fn registry_path(runtime_root: &Path) -> PathBuf {
     runtime_root.join("plugins").join("registry.json")
 }
-
 fn issue(code: &str, severity: &str, message: &str) -> PluginValidationIssue {
     PluginValidationIssue {
         code: code.to_string(),
@@ -30,7 +30,6 @@ fn issue(code: &str, severity: &str, message: &str) -> PluginValidationIssue {
         message: message.to_string(),
     }
 }
-
 fn validate_identifier(value: &str, max_len: usize) -> bool {
     let trimmed = value.trim();
     !trimmed.is_empty()
@@ -47,14 +46,6 @@ fn is_http_url(value: &Option<String>) -> bool {
         .filter(|item| !item.is_empty())
         .map(|item| item.starts_with("https://") || item.starts_with("http://"))
         .unwrap_or(true)
-}
-
-fn is_https_url(value: &str) -> bool {
-    value.trim().starts_with("https://")
-}
-
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64 && value.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
 pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationResult {
@@ -94,14 +85,26 @@ pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationRe
             "Plugin URLs must use http or https.",
         ));
     }
-    if manifest.license.as_deref().map(str::trim).unwrap_or("").is_empty() {
+    if manifest
+        .license
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
+    {
         issues.push(issue(
             "plugin.manifest.license_missing",
             "warning",
             "A plugin should declare a license.",
         ));
     }
-    if manifest.repository.as_deref().map(str::trim).unwrap_or("").is_empty() {
+    if manifest
+        .repository
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("")
+        .is_empty()
+    {
         issues.push(issue(
             "plugin.manifest.repository_missing",
             "warning",
@@ -188,8 +191,15 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
                     &format!("Command reference is not in the safe allowlist: {command_id}."),
                 ));
             }
-            if matches!(contribution.kind.as_str(), "toolbarButton" | "menuItem" | "statusItem")
-                && contribution.location.as_deref().map(str::trim).unwrap_or("").is_empty()
+            if matches!(
+                contribution.kind.as_str(),
+                "toolbarButton" | "menuItem" | "statusItem"
+            ) && contribution
+                .location
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
             {
                 issues.push(issue(
                     "plugin.contribution.location_missing",
@@ -238,72 +248,10 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         if contribution.kind == "toolchainProbe" {
             validate_toolchain_probe(contribution.toolchain_probe.as_ref(), issues);
         }
-    }
-}
-
-fn validate_toolchain_installer(
-    installer: Option<&PluginToolchainInstaller>,
-    issues: &mut Vec<PluginValidationIssue>,
-) {
-    let Some(installer) = installer else {
-        issues.push(issue(
-            "plugin.contribution.toolchain_missing",
-            "error",
-            "Toolchain installer contributions must declare toolchainInstaller.",
-        ));
-        return;
-    };
-    let allowed_archives = HashSet::from(["zip", "exe"]);
-    if !validate_identifier(&installer.id, 96)
-        || !INSTALLER_TOOLCHAIN_KINDS.contains(&installer.kind.as_str())
-        || installer.platform != "windows-x64"
-        || !allowed_archives.contains(installer.archive_format.as_str())
-        || installer.executable.trim().is_empty()
-    {
-        issues.push(issue(
-            "plugin.contribution.toolchain_invalid",
-            "error",
-            "Toolchain installer must target a supported Windows x64 portable toolchain.",
-        ));
-    }
-    if !is_https_url(&installer.download_url) || !is_sha256(&installer.sha256) {
-        issues.push(issue(
-            "plugin.contribution.toolchain_integrity",
-            "error",
-            "Toolchain installer downloads require HTTPS and a SHA-256 hash.",
-        ));
-    }
-}
-
-fn validate_toolchain_probe(
-    probe: Option<&PluginToolchainProbe>,
-    issues: &mut Vec<PluginValidationIssue>,
-) {
-    let Some(probe) = probe else {
-        issues.push(issue(
-            "plugin.contribution.toolchain_probe_missing",
-            "error",
-            "Toolchain probe contributions must declare toolchainProbe.",
-        ));
-        return;
-    };
-    if !validate_identifier(&probe.id, 96)
-        || !PROBE_TOOLCHAIN_KINDS.contains(&probe.kind.as_str())
-        || probe.platform != "windows-x64"
-        || probe.executables.is_empty()
-        || probe.executables.len() > 4
-        || probe.executables.iter().any(|item| {
-            let trimmed = item.trim();
-            trimmed.is_empty()
-                || !trimmed.ends_with(".exe")
-                || !trimmed.chars().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-        })
-    {
-        issues.push(issue(
-            "plugin.contribution.toolchain_probe_invalid",
-            "error",
-            "Toolchain probe must target supported Windows x64 executables by filename only.",
-        ));
+        if contribution.kind == "runtimeAsset" {
+            validate_runtime_asset(contribution.runtime_asset.as_ref(), issues);
+        }
+        validate_safe_contribution_details(contribution, issues);
     }
 }
 
@@ -350,7 +298,11 @@ fn load_remote_catalog(source: &PluginCatalogSource) -> Result<Vec<PluginCatalog
         .send()
         .map_err(|e| format!("plugin.catalog.fetch_failed:{}:{e}", source.id))?;
     if !response.status().is_success() {
-        return Err(format!("plugin.catalog.http:{}:{}", source.id, response.status()));
+        return Err(format!(
+            "plugin.catalog.http:{}:{}",
+            source.id,
+            response.status()
+        ));
     }
     let value: serde_json::Value = response.json().map_err(|e| e.to_string())?;
     let mut entries = Vec::new();
@@ -410,7 +362,12 @@ fn load_remote_catalog(source: &PluginCatalogSource) -> Result<Vec<PluginCatalog
 
 fn normalize_sources(input: &PluginCatalogInput) -> Vec<PluginCatalogSource> {
     let mut sources = input.catalog_sources.clone().unwrap_or_default();
-    if let Some(url) = input.catalog_url.as_deref().map(str::trim).filter(|item| !item.is_empty()) {
+    if let Some(url) = input
+        .catalog_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+    {
         sources.push(PluginCatalogSource {
             id: "custom".to_string(),
             name: "Custom".to_string(),
@@ -430,7 +387,10 @@ fn normalize_sources(input: &PluginCatalogInput) -> Vec<PluginCatalogSource> {
         .collect()
 }
 
-fn merge_catalog(entries: Vec<PluginCatalogEntry>, warnings: &mut Vec<String>) -> Vec<PluginCatalogEntry> {
+fn merge_catalog(
+    entries: Vec<PluginCatalogEntry>,
+    warnings: &mut Vec<String>,
+) -> Vec<PluginCatalogEntry> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     for entry in entries {
@@ -450,7 +410,9 @@ fn merge_catalog(entries: Vec<PluginCatalogEntry>, warnings: &mut Vec<String>) -
 }
 
 #[tauri::command]
-pub fn plugin_validate_manifest(input: PluginInstallInput) -> Result<PluginValidationResult, String> {
+pub fn plugin_validate_manifest(
+    input: PluginInstallInput,
+) -> Result<PluginValidationResult, String> {
     Ok(validate_manifest(&input.manifest))
 }
 

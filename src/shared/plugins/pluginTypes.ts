@@ -43,6 +43,32 @@ export type PluginToolchainProbe = {
   versionArg?: string | null;
 };
 
+export type PluginFileOpenHandler = {
+  extensions: string[];
+  openWith: "text" | "monaco" | "docx" | "markdown" | "html" | "image" | "pdf" | "binary" | string;
+};
+
+export type PluginPreviewProvider = {
+  extensions: string[];
+  previewMode: "text" | "code" | "markdown" | "html" | "image" | "pdf" | "csv" | "excel" | string;
+};
+
+export type PluginResourceBadge = {
+  extensions: string[];
+  label: string;
+  color?: "neutral" | "blue" | "green" | "amber" | "rose" | "purple" | string | null;
+};
+
+export type PluginSettingsQuickAction = {
+  section: "plugins" | "agentPermissions" | "appearance" | "runtime" | "channels" | "editor" | "toolchains" | string;
+  commandRef?: PluginCommandRef | null;
+};
+
+export type PluginRuntimeAssetDetector = {
+  kind: "drawio" | "tectonic" | "poppler" | "cloudflared" | "uv" | "python" | string;
+  filenames: string[];
+};
+
 export type PluginCommandRef = {
   id: string;
   title?: string | null;
@@ -102,6 +128,11 @@ export type PluginContribution = {
   toolchainInstaller?: PluginToolchainInstaller | null;
   toolchainProbe?: PluginToolchainProbe | null;
   runtimeAsset?: PluginRuntimeAsset | null;
+  fileOpenHandler?: PluginFileOpenHandler | null;
+  previewProvider?: PluginPreviewProvider | null;
+  resourceBadge?: PluginResourceBadge | null;
+  settingsQuickAction?: PluginSettingsQuickAction | null;
+  runtimeAssetDetector?: PluginRuntimeAssetDetector | null;
   localized?: Record<string, PluginLocalizedContribution> | null;
 };
 

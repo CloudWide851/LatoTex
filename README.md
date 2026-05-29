@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src/assets/branding/logo.svg" alt="LatoTex" width="180" />
+</p>
+
 # LatoTex
 
 LatoTex is a desktop-first LaTeX and paper-analysis workspace built with Tauri v2, React, TypeScript, and Rust.

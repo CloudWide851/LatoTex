@@ -94,6 +94,53 @@ pub struct PluginCommandRef {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginFileOpenHandler {
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub open_with: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPreviewProvider {
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub preview_mode: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginResourceBadge {
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSettingsQuickAction {
+    #[serde(default)]
+    pub section: String,
+    #[serde(default)]
+    pub command_ref: Option<PluginCommandRef>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRuntimeAssetDetector {
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub filenames: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginLocalizedContribution {
     #[serde(default)]
     pub title: Option<String>,
@@ -147,6 +194,16 @@ pub struct PluginContribution {
     pub toolchain_probe: Option<PluginToolchainProbe>,
     #[serde(default)]
     pub runtime_asset: Option<PluginRuntimeAsset>,
+    #[serde(default)]
+    pub file_open_handler: Option<PluginFileOpenHandler>,
+    #[serde(default)]
+    pub preview_provider: Option<PluginPreviewProvider>,
+    #[serde(default)]
+    pub resource_badge: Option<PluginResourceBadge>,
+    #[serde(default)]
+    pub settings_quick_action: Option<PluginSettingsQuickAction>,
+    #[serde(default)]
+    pub runtime_asset_detector: Option<PluginRuntimeAssetDetector>,
     #[serde(default)]
     pub localized: Option<std::collections::HashMap<String, PluginLocalizedContribution>>,
 }

@@ -1,7 +1,8 @@
 use super::plugins::validate_manifest;
 use crate::models::{
-    PluginCapabilities, PluginCatalogEntry, PluginContribution, PluginEngines, PluginManifest,
-    PluginLocalizedManifest, PluginRuntimeAsset, PluginToolchainInstaller, PluginToolchainProbe,
+    PluginCapabilities, PluginCatalogEntry, PluginContribution, PluginEngines,
+    PluginLocalizedManifest, PluginManifest, PluginRuntimeAsset, PluginToolchainInstaller,
+    PluginToolchainProbe,
 };
 use std::collections::HashMap;
 
@@ -23,6 +24,11 @@ fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
         toolchain_installer: None,
         toolchain_probe: None,
         runtime_asset: None,
+        file_open_handler: None,
+        preview_provider: None,
+        resource_badge: None,
+        settings_quick_action: None,
+        runtime_asset_detector: None,
         localized: None,
     }
 }
@@ -36,20 +42,26 @@ fn localized_manifest(
     zh_categories: Vec<&str>,
 ) -> HashMap<String, PluginLocalizedManifest> {
     HashMap::from([
-        ("en-US".to_string(), PluginLocalizedManifest {
-            name: Some(en_name.to_string()),
-            display_name: Some(en_name.to_string()),
-            description: Some(en_description.to_string()),
-            categories: en_categories.into_iter().map(str::to_string).collect(),
-            keywords: Vec::new(),
-        }),
-        ("zh-CN".to_string(), PluginLocalizedManifest {
-            name: Some(zh_name.to_string()),
-            display_name: Some(zh_name.to_string()),
-            description: Some(zh_description.to_string()),
-            categories: zh_categories.into_iter().map(str::to_string).collect(),
-            keywords: Vec::new(),
-        }),
+        (
+            "en-US".to_string(),
+            PluginLocalizedManifest {
+                name: Some(en_name.to_string()),
+                display_name: Some(en_name.to_string()),
+                description: Some(en_description.to_string()),
+                categories: en_categories.into_iter().map(str::to_string).collect(),
+                keywords: Vec::new(),
+            },
+        ),
+        (
+            "zh-CN".to_string(),
+            PluginLocalizedManifest {
+                name: Some(zh_name.to_string()),
+                display_name: Some(zh_name.to_string()),
+                description: Some(zh_description.to_string()),
+                categories: zh_categories.into_iter().map(str::to_string).collect(),
+                keywords: Vec::new(),
+            },
+        ),
     ])
 }
 
@@ -97,23 +109,67 @@ fn toolchain_probe_manifest(
 
 fn builtin_zh_text(id: &str) -> Option<(&'static str, &'static str, Vec<&'static str>)> {
     match id {
-        "latotex.drawio-runtime" => Some(("DrawIO 运行资源", "按需下载绘图工作区需要的 DrawIO Web 运行资源。", vec!["运行资源", "绘图"])),
-        "latotex.runtime.uv" => Some(("uv 运行时", "为托管 Python 环境按需下载 uv。", vec!["运行资源", "Python"])),
-        "latotex.runtime.tectonic" => Some(("Tectonic 运行时", "为 LaTeX 编译按需下载 Windows x64 Tectonic 编译器。", vec!["运行资源", "LaTeX"])),
-        "latotex.runtime.cloudflared" => Some(("Cloudflare Tunnel 运行时", "为公开共享隧道按需下载 cloudflared。", vec!["运行资源", "共享"])),
-        "latotex.toolchain.c" => Some(("C 编译器", "由 LLVM-MinGW 提供的 Windows x64 便携 C 编译器。", vec!["工具链", "编译器"])),
-        "latotex.toolchain.cpp" => Some(("C++ 编译器", "由 LLVM-MinGW 提供的 Windows x64 便携 C++ 编译器。", vec!["工具链", "编译器"])),
-        "latotex.toolchain.go" => Some(("Go 编译器", "用于 Markdown 代码运行和项目工具的 Windows x64 便携 Go 工具链。", vec!["工具链", "编译器"])),
-        "latotex.toolchain.git" => Some(("Git 工具", "系统 Git 不可用时用于工作区 Git 命令的便携 MinGit。", vec!["工具链", "Git"])),
-        "latotex.toolchain.zig" => Some(("Zig 工具链", "检测已配置的 Windows x64 Zig 编译器，用于 Markdown 和项目工具。", vec!["工具链", "编译器"])),
-        "latotex.toolchain.rust" => Some(("Rust 工具链", "检测已配置的 rustc 和 Cargo，不运行 rustup 或全局安装器。", vec!["工具链", "编译器"])),
+        "latotex.drawio-runtime" => Some((
+            "DrawIO 运行资源",
+            "按需下载绘图工作区需要的 DrawIO Web 运行资源。",
+            vec!["运行资源", "绘图"],
+        )),
+        "latotex.runtime.uv" => Some((
+            "uv 运行时",
+            "为托管 Python 环境按需下载 uv。",
+            vec!["运行资源", "Python"],
+        )),
+        "latotex.runtime.tectonic" => Some((
+            "Tectonic 运行时",
+            "为 LaTeX 编译按需下载 Windows x64 Tectonic 编译器。",
+            vec!["运行资源", "LaTeX"],
+        )),
+        "latotex.runtime.cloudflared" => Some((
+            "Cloudflare Tunnel 运行时",
+            "为公开共享隧道按需下载 cloudflared。",
+            vec!["运行资源", "共享"],
+        )),
+        "latotex.toolchain.c" => Some((
+            "C 编译器",
+            "由 LLVM-MinGW 提供的 Windows x64 便携 C 编译器。",
+            vec!["工具链", "编译器"],
+        )),
+        "latotex.toolchain.cpp" => Some((
+            "C++ 编译器",
+            "由 LLVM-MinGW 提供的 Windows x64 便携 C++ 编译器。",
+            vec!["工具链", "编译器"],
+        )),
+        "latotex.toolchain.go" => Some((
+            "Go 编译器",
+            "用于 Markdown 代码运行和项目工具的 Windows x64 便携 Go 工具链。",
+            vec!["工具链", "编译器"],
+        )),
+        "latotex.toolchain.git" => Some((
+            "Git 工具",
+            "系统 Git 不可用时用于工作区 Git 命令的便携 MinGit。",
+            vec!["工具链", "Git"],
+        )),
+        "latotex.toolchain.zig" => Some((
+            "Zig 工具链",
+            "检测已配置的 Windows x64 Zig 编译器，用于 Markdown 和项目工具。",
+            vec!["工具链", "编译器"],
+        )),
+        "latotex.toolchain.rust" => Some((
+            "Rust 工具链",
+            "检测已配置的 rustc 和 Cargo，不运行 rustup 或全局安装器。",
+            vec!["工具链", "编译器"],
+        )),
         _ => None,
     }
 }
 
 fn apply_builtin_localization(mut manifest: PluginManifest) -> PluginManifest {
     if let Some((zh_name, zh_description, zh_categories)) = builtin_zh_text(&manifest.id) {
-        let en_categories = manifest.categories.iter().map(String::as_str).collect::<Vec<_>>();
+        let en_categories = manifest
+            .categories
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
         manifest.localized = Some(localized_manifest(
             manifest.display_name.as_deref().unwrap_or(&manifest.name),
             &manifest.description,
@@ -138,7 +194,14 @@ fn entry(manifest: PluginManifest) -> PluginCatalogEntry {
 }
 
 fn base_manifest(id: &str, name: &str, description: &str, categories: Vec<&str>) -> PluginManifest {
-    let localized = localized_manifest(name, description, categories.clone(), name, description, categories.clone());
+    let localized = localized_manifest(
+        name,
+        description,
+        categories.clone(),
+        name,
+        description,
+        categories.clone(),
+    );
     PluginManifest {
         schema: PLUGIN_SCHEMA.to_string(),
         id: id.to_string(),
@@ -155,7 +218,9 @@ fn base_manifest(id: &str, name: &str, description: &str, categories: Vec<&str>)
         repository: Some("https://github.com".to_string()),
         license: Some("Bundled template".to_string()),
         keywords: Vec::new(),
-        engines: Some(PluginEngines { latotex: Some(">=0.1.0".to_string()) }),
+        engines: Some(PluginEngines {
+            latotex: Some(">=0.1.0".to_string()),
+        }),
         activation_events: Vec::new(),
         capabilities: Some(PluginCapabilities {
             untrusted_workspaces: Some("limited".to_string()),
@@ -199,7 +264,9 @@ fn docx_manifest() -> PluginManifest {
         display_name: Some("DOCX Workspace".to_string()),
         publisher: "LatoTex".to_string(),
         version: "1.3.0".to_string(),
-        description: "Adds DOCX reading, rich text editing, package-preserving save, and document tools.".to_string(),
+        description:
+            "Adds DOCX reading, rich text editing, package-preserving save, and document tools."
+                .to_string(),
         categories: vec!["Editor".to_string(), "Office".to_string()],
         icon: None,
         download_url: None,
@@ -208,7 +275,9 @@ fn docx_manifest() -> PluginManifest {
         repository: Some("https://github.com".to_string()),
         license: Some("Bundled".to_string()),
         keywords: vec!["docx".to_string(), "word".to_string(), "office".to_string()],
-        engines: Some(PluginEngines { latotex: Some(">=0.1.0".to_string()) }),
+        engines: Some(PluginEngines {
+            latotex: Some(">=0.1.0".to_string()),
+        }),
         activation_events: vec!["onWorkspaceContains:**/*.docx".to_string()],
         capabilities: Some(PluginCapabilities {
             untrusted_workspaces: Some("limited".to_string()),

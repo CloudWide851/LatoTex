@@ -1,5 +1,9 @@
 use super::plugins::validate_manifest;
-use crate::models::{PluginCommandRef, PluginContribution, PluginManifest, PluginToolchainInstaller, PluginToolchainProbe};
+use crate::models::{
+    PluginCommandRef, PluginContribution, PluginFileOpenHandler, PluginManifest,
+    PluginPreviewProvider, PluginRuntimeAssetDetector, PluginToolchainInstaller,
+    PluginToolchainProbe,
+};
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
     PluginManifest {
@@ -43,6 +47,11 @@ fn base_contribution(kind: &str) -> PluginContribution {
         toolchain_installer: None,
         toolchain_probe: None,
         runtime_asset: None,
+        file_open_handler: None,
+        preview_provider: None,
+        resource_badge: None,
+        settings_quick_action: None,
+        runtime_asset_detector: None,
         localized: None,
     }
 }
@@ -170,7 +179,11 @@ fn analysis_plugin_command_accepts_allowlisted_command_ref() {
 
 #[test]
 fn preview_provider_contribution_is_declarative_and_allowed() {
-    let contribution = base_contribution("previewProvider");
+    let mut contribution = base_contribution("previewProvider");
+    contribution.preview_provider = Some(PluginPreviewProvider {
+        extensions: vec!["md".to_string()],
+        preview_mode: "markdown".to_string(),
+    });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(validation.ok, "{:?}", validation.issues);
 }
@@ -188,4 +201,45 @@ fn library_plugin_command_rejects_unsafe_command_ref() {
         .issues
         .iter()
         .any(|issue| issue.code == "plugin.contribution.command_ref_unsafe"));
+}
+
+#[test]
+fn file_open_handler_accepts_safe_extensions_and_targets() {
+    let mut contribution = base_contribution("fileOpenHandler");
+    contribution.file_open_handler = Some(PluginFileOpenHandler {
+        extensions: vec!["toml".to_string(), ".json".to_string()],
+        open_with: "text".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn preview_provider_rejects_script_like_modes() {
+    let mut contribution = base_contribution("previewProvider");
+    contribution.preview_provider = Some(PluginPreviewProvider {
+        extensions: vec!["abc".to_string()],
+        preview_mode: "javascript".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.preview_provider_invalid"));
+}
+
+#[test]
+fn runtime_asset_detector_rejects_paths() {
+    let mut contribution = base_contribution("runtimeAssetDetector");
+    contribution.runtime_asset_detector = Some(PluginRuntimeAssetDetector {
+        kind: "uv".to_string(),
+        filenames: vec!["bin/uv.exe".to_string()],
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.runtime_asset_detector_invalid"));
 }
