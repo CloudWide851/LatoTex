@@ -287,6 +287,7 @@ mod workspace_files_search_tests {
         fs::create_dir_all(&drawings_dir).unwrap();
         fs::write(drawings_dir.join(".drawio.png"), b"png").unwrap();
         fs::write(drawings_dir.join(".hidden.txt"), b"secret").unwrap();
+        fs::write(root.join(".env.local"), b"KEY=value").unwrap();
 
         let tree = list_workspace_tree(&root).unwrap();
         let drawings_node = tree
@@ -298,10 +299,13 @@ mod workspace_files_search_tests {
             .children
             .iter()
             .any(|node| node.relative_path == "drawings/.drawio.png"));
-        assert!(!drawings_node
+        assert!(drawings_node
             .children
             .iter()
             .any(|node| node.relative_path == "drawings/.hidden.txt"));
+        assert!(tree
+            .iter()
+            .any(|node| node.relative_path == ".env.local"));
 
         let _ = fs::remove_dir_all(root);
     }

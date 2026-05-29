@@ -23,6 +23,7 @@ fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifes
         capabilities: None,
         permissions: Vec::new(),
         contributions: vec![contribution],
+        localized: None,
     }
 }
 
@@ -41,6 +42,8 @@ fn base_contribution(kind: &str) -> PluginContribution {
         skill_id: None,
         toolchain_installer: None,
         toolchain_probe: None,
+        runtime_asset: None,
+        localized: None,
     }
 }
 
@@ -79,6 +82,7 @@ fn toolchain_installer_requires_https_and_hash() {
         kind: "cpp".to_string(),
         platform: "windows-x64".to_string(),
         download_url: "http://example.com/compiler.zip".to_string(),
+        download_url_cn: None,
         sha256: "missing".to_string(),
         archive_format: "zip".to_string(),
         executable: "bin/clang++.exe".to_string(),
@@ -100,6 +104,7 @@ fn go_toolchain_installer_is_allowed_when_integrity_is_declared() {
         kind: "go".to_string(),
         platform: "windows-x64".to_string(),
         download_url: "https://example.com/go.zip".to_string(),
+        download_url_cn: None,
         sha256: "a".repeat(64),
         archive_format: "zip".to_string(),
         executable: "go/bin/go.exe".to_string(),
@@ -159,6 +164,13 @@ fn analysis_plugin_command_accepts_allowlisted_command_ref() {
         id: "analysis.run".to_string(),
         title: Some("Run analysis".to_string()),
     });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn preview_provider_contribution_is_declarative_and_allowed() {
+    let contribution = base_contribution("previewProvider");
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(validation.ok, "{:?}", validation.issues);
 }

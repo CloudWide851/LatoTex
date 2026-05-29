@@ -2092,6 +2092,10 @@ video {
 .border-rose-400\/45 {
   border-color: rgb(251 113 133 / 0.45);
 }
+.border-rose-500 {
+  --tw-border-opacity: 1;
+  border-color: rgb(244 63 94 / var(--tw-border-opacity, 1));
+}
 .border-rose-500\/40 {
   border-color: rgb(244 63 94 / 0.4);
 }
@@ -2861,6 +2865,10 @@ video {
 .text-rose-200 {
   --tw-text-opacity: 1;
   color: rgb(254 205 211 / var(--tw-text-opacity, 1));
+}
+.text-rose-500 {
+  --tw-text-opacity: 1;
+  color: rgb(244 63 94 / var(--tw-text-opacity, 1));
 }
 .text-rose-600 {
   --tw-text-opacity: 1;

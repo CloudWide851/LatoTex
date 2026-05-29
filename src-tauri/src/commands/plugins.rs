@@ -387,6 +387,7 @@ fn load_remote_catalog(source: &PluginCatalogSource) -> Result<Vec<PluginCatalog
                     capabilities: None,
                     permissions: Vec::new(),
                     contributions: Vec::new(),
+                    localized: None,
                 };
                 entries.push(PluginCatalogEntry {
                     manifest,

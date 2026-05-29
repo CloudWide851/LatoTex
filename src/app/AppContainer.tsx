@@ -478,6 +478,7 @@ export function AppContainer() {
     handleGitInstallerCancel: handlers.handleGitInstallerCancel,
     handleGitRunInstaller: handlers.handleGitRunInstaller,
     openWorkspaceFile: workspaceActions.openWorkspaceFile,
+    resetEditorSession: unsaved.resetEditorSession,
     compileDiagnostics: s.compileDiagnostics,
     lastCompileFailed: s.lastCompileFailed,
   });

@@ -1,8 +1,11 @@
-use crate::models::{Ack, HealthCheckResponse, TauriSmokeConfig, TauriSmokeFinishInput, TrayLabelsInput};
+use crate::models::{
+    Ack, HealthCheckResponse, TauriSmokeConfig, TauriSmokeFinishInput, TauriSmokeProgressInput,
+    TrayLabelsInput,
+};
+use crate::smoke;
 use crate::state::AppState;
 use serde_json::json;
 use std::fs;
-use std::path::PathBuf;
 use tauri::{menu::MenuBuilder, AppHandle, Manager, State};
 
 const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
@@ -44,32 +47,73 @@ pub fn app_exit(app: AppHandle, state: State<'_, AppState>) -> Result<Ack, Strin
     })
 }
 
-fn smoke_enabled() -> bool {
-    std::env::var("LATOTEX_SMOKE").ok().as_deref() == Some("1")
-        || std::env::args().any(|arg| arg == "--latotex-smoke")
-}
-
-fn smoke_arg_value(name: &str) -> Option<String> {
-    let prefix = format!("{name}=");
-    std::env::args()
-        .find_map(|arg| arg.strip_prefix(&prefix).map(|value| value.to_string()))
-}
-
-fn smoke_report_path(state: &AppState) -> PathBuf {
-    smoke_arg_value("--latotex-smoke-report")
-        .or_else(|| std::env::var("LATOTEX_SMOKE_REPORT_PATH").ok())
-        .filter(|value| !value.trim().is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| state.runtime_root.join("tauri-smoke-report.json"))
+#[tauri::command]
+pub fn runtime_clear_volatile_cache_and_restart(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Ack, String> {
+    state.log("WARN", "runtime_clear_volatile_cache_and_restart requested");
+    let targets = [
+        state.runtime_root.join("cache"),
+        state.runtime_root.join("downloads"),
+    ];
+    for target in targets {
+        if target.exists() {
+            fs::remove_dir_all(&target).map_err(|error| {
+                format!("runtime.cache_clear_failed:{}:{error}", target.to_string_lossy())
+            })?;
+        }
+        fs::create_dir_all(&target).map_err(|error| {
+            format!("runtime.cache_recreate_failed:{}:{error}", target.to_string_lossy())
+        })?;
+    }
+    state.log("WARN", "runtime volatile cache cleared; restart requested");
+    app.request_restart();
+    Ok(Ack {
+        ok: true,
+        message: "runtime volatile cache cleared; restart requested".to_string(),
+    })
 }
 
 #[tauri::command]
 pub fn app_smoke_config(state: State<'_, AppState>) -> TauriSmokeConfig {
-    let enabled = smoke_enabled();
+    let enabled = smoke::enabled();
     TauriSmokeConfig {
         enabled,
-        report_path: enabled.then(|| smoke_report_path(&state).to_string_lossy().to_string()),
+        report_path: enabled.then(|| {
+            smoke::report_path(Some(&state.runtime_root))
+                .unwrap_or_else(|| state.runtime_root.join("tauri-smoke-report.json"))
+                .to_string_lossy()
+                .to_string()
+        }),
+        progress_path: enabled.then(|| {
+            smoke::progress_path(Some(&state.runtime_root))
+                .unwrap_or_else(|| state.runtime_root.join("tauri-smoke-progress.ndjson"))
+                .to_string_lossy()
+                .to_string()
+        }),
+        scenario: smoke::scenario(),
     }
+}
+
+#[tauri::command]
+pub fn app_smoke_progress(
+    state: State<'_, AppState>,
+    input: TauriSmokeProgressInput,
+) -> Result<Ack, String> {
+    if !smoke::enabled() {
+        return Err("tauri_smoke.disabled".to_string());
+    }
+    let detail = input.detail.or_else(|| {
+        Some(json!({
+            "runtimeRoot": state.runtime_root.to_string_lossy(),
+        }))
+    });
+    smoke::write_progress(&input.stage, &input.status, detail);
+    Ok(Ack {
+        ok: true,
+        message: "tauri smoke progress written".to_string(),
+    })
 }
 
 #[tauri::command]
@@ -78,10 +122,11 @@ pub fn app_smoke_finish(
     state: State<'_, AppState>,
     input: TauriSmokeFinishInput,
 ) -> Result<Ack, String> {
-    if !smoke_enabled() {
+    if !smoke::enabled() {
         return Err("tauri_smoke.disabled".to_string());
     }
-    let report_path = smoke_report_path(&state);
+    let report_path = smoke::report_path(Some(&state.runtime_root))
+        .unwrap_or_else(|| state.runtime_root.join("tauri-smoke-report.json"));
     if let Some(parent) = report_path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -108,6 +153,14 @@ pub fn app_smoke_finish(
             input.ok,
             report_path.to_string_lossy()
         ),
+    );
+    smoke::write_progress(
+        "smoke.finished",
+        if input.ok { "ok" } else { "error" },
+        Some(json!({
+            "status": input.status,
+            "reportPath": report_path.to_string_lossy(),
+        })),
     );
     app.exit(if input.ok { 0 } else { 1 });
     Ok(Ack {

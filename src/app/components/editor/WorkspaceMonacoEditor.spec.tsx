@@ -5,10 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   loaderConfig: vi.fn(),
   monacoModule: { KeyCode: { Tab: 2 }, editor: {}, languages: {} },
+  monacoEditorProps: [] as any[],
 }));
 
 vi.mock("@monaco-editor/react", () => ({
-  default: () => <div data-testid="monaco-editor" />,
+  default: (props: any) => {
+    mocks.monacoEditorProps.push(props);
+    return <div data-testid="monaco-editor" />;
+  },
   loader: {
     config: mocks.loaderConfig,
   },
@@ -37,5 +41,25 @@ describe("WorkspaceMonacoEditor", () => {
         KeyCode: mocks.monacoModule.KeyCode,
       }),
     });
+  });
+
+  it("normalizes dotfile paths into absolute Monaco model paths", async () => {
+    const { WorkspaceMonacoEditor, toMonacoModelPath } = await import("./WorkspaceMonacoEditor");
+
+    expect(toMonacoModelPath(".gitignore")).toBe("/.gitignore");
+    expect(toMonacoModelPath("docs\\README")).toBe("/docs/README");
+
+    const element = WorkspaceMonacoEditor({
+      path: ".env.local",
+      language: "plaintext",
+      theme: "vs",
+      value: "",
+      options: {},
+      editorInstanceRef: { current: null },
+      onChange: vi.fn(),
+      onMount: vi.fn(),
+    }) as any;
+
+    expect(element.props.path).toBe("/.env.local");
   });
 });

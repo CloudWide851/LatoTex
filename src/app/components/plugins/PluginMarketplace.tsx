@@ -26,16 +26,41 @@ import {
   removeToolchain,
   verifyToolchain,
 } from "../../../shared/api/toolchains";
+import {
+  installRuntimeAsset,
+  listRuntimeAssets,
+  removeRuntimeAsset,
+  verifyRuntimeAsset,
+} from "../../../shared/api/runtimeAssets";
 import type { AppSettings } from "../../../shared/types/app";
-import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
+import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
 
 type TranslationFn = (key: any) => string;
 
-function contributionSummary(plugin: PluginManifest): string {
-  return plugin.contributions.map((item) => item.title).filter(Boolean).join(", ");
+function localeOf(settings: AppSettings | null): string {
+  return settings?.uiPrefs?.language === "zh-CN" ? "zh-CN" : "en-US";
+}
+
+function localizedPlugin(plugin: PluginManifest, locale: string) {
+  const localized = plugin.localized?.[locale] ?? plugin.localized?.["en-US"] ?? null;
+  return {
+    name: localized?.displayName || localized?.name || plugin.displayName || plugin.name,
+    description: localized?.description || plugin.description,
+    categories: localized?.categories?.length ? localized.categories : plugin.categories,
+    keywords: localized?.keywords?.length ? localized.keywords : (plugin.keywords ?? []),
+  };
+}
+
+function localizedContributionTitle(contribution: PluginManifest["contributions"][number], locale: string): string {
+  const localized = contribution.localized?.[locale] ?? contribution.localized?.["en-US"] ?? null;
+  return localized?.title || contribution.title;
+}
+
+function contributionSummary(plugin: PluginManifest, locale: string): string {
+  return plugin.contributions.map((item) => localizedContributionTitle(item, locale)).filter(Boolean).join(", ");
 }
 
 function iconFor(plugin: PluginManifest) {
@@ -71,11 +96,13 @@ export function PluginMarketplace(props: {
   t: TranslationFn;
 }) {
   const { settings, t } = props;
+  const locale = localeOf(settings);
   const [query, setQuery] = useState("");
   const [catalog, setCatalog] = useState<PluginCatalogEntry[]>([]);
   const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [toolchains, setToolchains] = useState<ToolchainStatus[]>([]);
+  const [runtimeAssets, setRuntimeAssets] = useState<RuntimeAssetStatus[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -93,8 +120,13 @@ export function PluginMarketplace(props: {
     if (!needle) {
       return catalog;
     }
-    return catalog.filter(({ manifest, sourceName }) =>
-      [
+    return catalog.filter(({ manifest, sourceName }) => {
+      const localized = localizedPlugin(manifest, locale);
+      return [
+        localized.name,
+        localized.description,
+        localized.categories.join(" "),
+        localized.keywords.join(" "),
         manifest.name,
         manifest.displayName ?? "",
         manifest.publisher,
@@ -102,12 +134,13 @@ export function PluginMarketplace(props: {
         manifest.id,
         sourceName,
         manifest.categories.join(" "),
+        (manifest.keywords ?? []).join(" "),
       ]
         .join(" ")
         .toLowerCase()
-        .includes(needle),
-    );
-  }, [catalog, query]);
+        .includes(needle);
+    });
+  }, [catalog, locale, query]);
 
   const reload = async () => {
     setBusy(true);
@@ -117,11 +150,15 @@ export function PluginMarketplace(props: {
         getPluginCatalog(catalogSources),
         listInstalledPlugins(),
       ]);
-      const nextToolchains = await listToolchains().catch(() => []);
+      const [nextToolchains, nextRuntimeAssets] = await Promise.all([
+        listToolchains().catch(() => []),
+        listRuntimeAssets().catch(() => []),
+      ]);
       setCatalog(nextCatalog.items);
       setWarnings(nextCatalog.warnings);
       setInstalled(nextInstalled);
       setToolchains(nextToolchains);
+      setRuntimeAssets(nextRuntimeAssets);
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -176,8 +213,11 @@ export function PluginMarketplace(props: {
   };
 
   const toolchainFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "toolchainInstaller" || item.kind === "toolchainProbe");
+  const runtimeAssetFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "runtimeAsset");
   const toolchainStatusFor = (pluginId: string, contributionId: string) =>
     toolchains.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
+  const runtimeAssetStatusFor = (pluginId: string, contributionId: string) =>
+    runtimeAssets.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
 
   const runToolchainAction = async (
     pluginId: string,
@@ -193,6 +233,27 @@ export function PluginMarketplace(props: {
           : await removeToolchain(pluginId, contributionId);
       setToolchains((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
       setStatus(t(`plugins.toolchain.${action}Done`));
+    } catch (error) {
+      setStatus(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runRuntimeAssetAction = async (
+    pluginId: string,
+    contributionId: string,
+    action: "install" | "verify" | "remove",
+  ) => {
+    setBusy(true);
+    try {
+      const next = action === "install"
+        ? await installRuntimeAsset(pluginId, contributionId)
+        : action === "verify"
+          ? await verifyRuntimeAsset(pluginId, contributionId)
+          : await removeRuntimeAsset(pluginId, contributionId);
+      setRuntimeAssets((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
+      setStatus(t(`plugins.runtimeAsset.${action}Done`));
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -233,9 +294,18 @@ export function PluginMarketplace(props: {
             const warningCount = entry.validation.issues.filter((item) => item.severity === "warning").length;
             const expanded = expandedId === plugin.id;
             const toolchain = toolchainFor(plugin);
+            const runtimeAsset = runtimeAssetFor(plugin);
             const toolchainIsProbe = toolchain?.kind === "toolchainProbe";
             const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
-            const canUseToolchain = entry.sourceId === "builtin" || Boolean(installedPlugin);
+            const runtimeAssetStatus = runtimeAsset ? runtimeAssetStatusFor(plugin.id, runtimeAsset.id) : null;
+            const localized = localizedPlugin(plugin, locale);
+            const contributionInstalled = Boolean(toolchainStatus?.installed || runtimeAssetStatus?.installed);
+            const installedLabel = toolchainStatus?.source === "local" || runtimeAssetStatus?.source === "local"
+              ? t("plugins.detectedLocal")
+              : runtimeAssetStatus?.source === "bundled"
+                ? t("plugins.detectedBundled")
+                : t("plugins.enabled");
+            const canUseRuntime = entry.sourceId === "builtin" || Boolean(installedPlugin);
             return (
               <article key={`${entry.sourceId}:${plugin.id}`} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50/80 p-2.5">
                 <div className="flex min-w-0 items-start gap-2">
@@ -247,23 +317,23 @@ export function PluginMarketplace(props: {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-semibold text-slate-900">{plugin.displayName || plugin.name}</h3>
+                    <h3 className="truncate text-sm font-semibold text-slate-900">{localized.name}</h3>
                     <p className="truncate text-[11px] text-slate-500">{plugin.publisher} / {plugin.version} / {entry.sourceName}</p>
                   </div>
                   <span className={cn(
                     "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
                     installedPlugin?.enabled
                       ? "bg-emerald-50 text-emerald-700"
-                      : installedPlugin
+                      : installedPlugin || contributionInstalled
                         ? "bg-slate-200 text-slate-600"
                         : "bg-white text-slate-500",
                   )}>
-                    {installedPlugin?.enabled ? t("plugins.enabled") : installedPlugin ? t("plugins.disabled") : t("plugins.notInstalled")}
+                    {installedPlugin?.enabled ? installedLabel : installedPlugin ? t("plugins.disabled") : contributionInstalled ? installedLabel : t("plugins.notInstalled")}
                   </span>
                 </div>
-                <p className="line-clamp-2 min-h-9 text-xs leading-[18px] text-slate-600">{plugin.description}</p>
+                <p className="line-clamp-2 min-h-9 text-xs leading-[18px] text-slate-600">{localized.description}</p>
                 <div className="flex flex-wrap gap-1">
-                  {plugin.categories.slice(0, 3).map((category) => (
+                  {localized.categories.slice(0, 3).map((category) => (
                     <span key={category} className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-600">{category}</span>
                   ))}
                   {plugin.permissions.length > 0 ? (
@@ -292,14 +362,25 @@ export function PluginMarketplace(props: {
                     </span>
                   )}
                 </div>
-                <p className="truncate text-[11px] text-slate-500">{contributionSummary(plugin) || plugin.id}</p>
+                <p className="truncate text-[11px] text-slate-500">{contributionSummary(plugin, locale) || plugin.id}</p>
                 {toolchain ? (
                   <div className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-600">
                       {toolchainStatus?.installed
-                        ? t("plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
+                        ? t(toolchainStatus.source === "local" ? "plugins.toolchain.detected" : "plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
                         : toolchainIsProbe
                           ? t("plugins.toolchain.notDetected")
                           : t("plugins.toolchain.notInstalled")}
+                  </div>
+                ) : null}
+                {runtimeAsset ? (
+                  <div className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                    {runtimeAssetStatus?.installed
+                      ? t(runtimeAssetStatus.source === "bundled"
+                        ? "plugins.runtimeAsset.bundled"
+                        : runtimeAssetStatus.source === "local"
+                          ? "plugins.runtimeAsset.detected"
+                          : "plugins.runtimeAsset.ready").replace("{path}", runtimeAssetStatus.entryPath || "-")
+                      : t("plugins.runtimeAsset.notInstalled")}
                   </div>
                 ) : null}
                 {expanded ? (
@@ -314,19 +395,30 @@ export function PluginMarketplace(props: {
                 <div className="flex flex-wrap justify-end gap-1">
                   {toolchain ? (
                     <>
-                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "verify")}>
+                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "verify")}>
                         {t("plugins.toolchain.verify")}
                       </Button>
-                      {toolchainIsProbe ? null : toolchainStatus?.installed ? (
+                      {toolchainIsProbe ? null : toolchainStatus?.installed && toolchainStatus.source === "managed" ? (
                         <Button size="sm" variant="ghost" disabled={busy} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "remove")}>
                           {t("plugins.toolchain.remove")}
                         </Button>
-                      ) : (
-                        <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "install")}>
+                      ) : !toolchainStatus?.installed ? (
+                        <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "install")}>
                           {t("plugins.toolchain.install")}
                         </Button>
-                      )}
+                      ) : null}
                     </>
+                  ) : null}
+                  {runtimeAsset ? (
+                    runtimeAssetStatus?.installed && runtimeAssetStatus.source === "managed" ? (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void runRuntimeAssetAction(plugin.id, runtimeAsset.id, "remove")}>
+                        {t("plugins.runtimeAsset.remove")}
+                      </Button>
+                    ) : !runtimeAssetStatus?.installed ? (
+                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => void runRuntimeAssetAction(plugin.id, runtimeAsset.id, "install")}>
+                        {t("plugins.runtimeAsset.install")}
+                      </Button>
+                    ) : null
                   ) : null}
                   {installedPlugin ? (
                     <>
@@ -338,12 +430,12 @@ export function PluginMarketplace(props: {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </>
-                  ) : (
+                  ) : entry.sourceId !== "builtin" ? (
                     <Button size="sm" disabled={busy || !entry.validation.ok} onClick={() => void install(entry)}>
                       <Download className="mr-1.5 h-3.5 w-3.5" />
                       {t("plugins.install")}
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </article>
             );

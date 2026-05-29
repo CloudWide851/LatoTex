@@ -50,6 +50,7 @@ export function useUnsavedChangesGuard(params: UnsavedGuardParams) {
   const pendingUnsavedPathsRef = useRef<string[]>([]);
 
   const resetEditorSession = useCallback(() => {
+    setSelectedFile(null);
     setEditorTabs([]);
     setActiveTabId(null);
     setPreviewTabId(null);
@@ -69,6 +70,7 @@ export function useUnsavedChangesGuard(params: UnsavedGuardParams) {
     setEditorContent,
     setEditorTabs,
     setPreviewTabId,
+    setSelectedFile,
     workingContentByPathRef,
   ]);
 

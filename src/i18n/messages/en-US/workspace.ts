@@ -7,6 +7,8 @@ export const enUS_workspace = {
   "workspace.crashedTitle": "Workspace Render Error",
   "workspace.crashedHint": "Panel layout was reset to recover from a rendering crash.",
   "workspace.crashedRetry": "Recover Workspace",
+  "workspace.circuitBreakerHint": "Repeated render failures can be recovered by clearing volatile UI/cache state and restarting LatoTex.",
+  "workspace.circuitBreakerRestart": "Clear Cache and Restart",
   "workspace.save": "Save",
   "workspace.compile": "Compile",
   "workspace.mode.tex": "TeX",

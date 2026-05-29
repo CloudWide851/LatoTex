@@ -3,22 +3,27 @@ import { runtimeLogWrite } from "../../shared/api/runtime";
 
 type Props = {
   onRecover?: () => void;
+  onCircuitBreak?: () => void;
   fallbackTitle: string;
   fallbackHint: string;
   retryLabel: string;
+  circuitBreakerLabel?: string;
+  circuitBreakerHint?: string;
   children: ReactNode;
 };
 
 type State = {
   hasError: boolean;
+  crashCount: number;
 };
 
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = {
     hasError: false,
+    crashCount: 0,
   };
 
-  static getDerivedStateFromError(): State {
+  static getDerivedStateFromError(): Partial<State> {
     return { hasError: true };
   }
 
@@ -26,11 +31,17 @@ export class AppErrorBoundary extends Component<Props, State> {
     const message = error?.message || String(error || "unknown error");
     const stack = String(info?.componentStack ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
     void runtimeLogWrite("ERROR", `react.render_error: ${message}; componentStack=${stack}`).catch(() => undefined);
+    this.setState((prev) => ({ crashCount: prev.crashCount + 1 }));
   }
 
   private handleRetry = () => {
     this.setState({ hasError: false });
     this.props.onRecover?.();
+  };
+
+  private handleCircuitBreak = () => {
+    this.props.onRecover?.();
+    this.props.onCircuitBreak?.();
   };
 
   render() {
@@ -48,6 +59,19 @@ export class AppErrorBoundary extends Component<Props, State> {
           >
             {this.props.retryLabel}
           </button>
+          {this.props.onCircuitBreak && this.state.crashCount >= 2 ? (
+            <>
+              {this.props.circuitBreakerHint ? (
+                <p className="mt-3 text-xs text-rose-500">{this.props.circuitBreakerHint}</p>
+              ) : null}
+              <button
+                className="mt-2 rounded border border-rose-500 bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-700"
+                onClick={this.handleCircuitBreak}
+              >
+                {this.props.circuitBreakerLabel ?? this.props.retryLabel}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
     );

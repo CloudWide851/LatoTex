@@ -36,6 +36,8 @@ pub struct PluginToolchainInstaller {
     #[serde(default)]
     pub download_url: String,
     #[serde(default)]
+    pub download_url_cn: Option<String>,
+    #[serde(default)]
     pub sha256: String,
     #[serde(default)]
     pub archive_format: String,
@@ -43,6 +45,27 @@ pub struct PluginToolchainInstaller {
     pub executable: String,
     #[serde(default)]
     pub version_arg: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRuntimeAsset {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub platform: String,
+    #[serde(default)]
+    pub download_url: String,
+    #[serde(default)]
+    pub download_url_cn: Option<String>,
+    #[serde(default)]
+    pub sha256: String,
+    #[serde(default)]
+    pub archive_format: String,
+    #[serde(default)]
+    pub entry_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -67,6 +90,30 @@ pub struct PluginCommandRef {
     pub id: String,
     #[serde(default)]
     pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginLocalizedContribution {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginLocalizedManifest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
+    pub keywords: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -98,6 +145,10 @@ pub struct PluginContribution {
     pub toolchain_installer: Option<PluginToolchainInstaller>,
     #[serde(default)]
     pub toolchain_probe: Option<PluginToolchainProbe>,
+    #[serde(default)]
+    pub runtime_asset: Option<PluginRuntimeAsset>,
+    #[serde(default)]
+    pub localized: Option<std::collections::HashMap<String, PluginLocalizedContribution>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -159,6 +210,8 @@ pub struct PluginManifest {
     pub permissions: Vec<String>,
     #[serde(default)]
     pub contributions: Vec<PluginContribution>,
+    #[serde(default)]
+    pub localized: Option<std::collections::HashMap<String, PluginLocalizedManifest>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -277,4 +330,36 @@ pub struct ToolchainStatus {
     pub executable_path: Option<String>,
     pub version: Option<String>,
     pub message: String,
+    pub source: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeAssetInstallRecord {
+    pub plugin_id: String,
+    pub contribution_id: String,
+    pub asset: PluginRuntimeAsset,
+    pub installed_at: String,
+    pub root_dir: String,
+    pub entry_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeAssetActionInput {
+    pub plugin_id: String,
+    pub contribution_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeAssetStatus {
+    pub plugin_id: String,
+    pub contribution_id: String,
+    pub kind: String,
+    pub installed: bool,
+    pub install_path: Option<String>,
+    pub entry_path: Option<String>,
+    pub message: String,
+    pub source: String,
 }

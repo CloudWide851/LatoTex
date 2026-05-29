@@ -38,3 +38,7 @@ export function runtimeLogClearCurrentSession(confirmToken = "CLEAR_CURRENT_SESS
     input: { confirmToken },
   });
 }
+
+export function runtimeClearVolatileCacheAndRestart(): Promise<Ack> {
+  return invokeCommand<Ack>("runtime_clear_volatile_cache_and_restart");
+}

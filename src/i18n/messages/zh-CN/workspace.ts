@@ -7,6 +7,8 @@ export const zhCN_workspace = {
   "workspace.crashedTitle": "工作区渲染异常",
   "workspace.crashedHint": "已将面板布局恢复为默认值以避免白屏崩溃。",
   "workspace.crashedRetry": "恢复工作区",
+  "workspace.circuitBreakerHint": "连续渲染失败时，可以清理易重建的界面/缓存状态并重启 LatoTex。",
+  "workspace.circuitBreakerRestart": "清理缓存并重启",
   "workspace.save": "保存",
   "workspace.compile": "编译",
   "workspace.mode.tex": "TeX",

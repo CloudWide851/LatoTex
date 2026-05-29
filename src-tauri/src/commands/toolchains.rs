@@ -73,6 +73,7 @@ fn status_from_record(record: &ToolchainInstallRecord) -> ToolchainStatus {
         } else {
             "toolchain.missing".to_string()
         },
+        source: if executable.is_file() { "managed" } else { "missing" }.to_string(),
     }
 }
 
@@ -185,6 +186,45 @@ fn find_executable_on_path(name: &str) -> Option<PathBuf> {
     None
 }
 
+fn local_toolchain_candidates(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "git" => &["git.exe"],
+        "go" => &["go.exe"],
+        "python" => &["python.exe", "py.exe"],
+        "node" => &["node.exe"],
+        "c" => &["clang.exe", "gcc.exe", "cl.exe"],
+        "cpp" => &["clang++.exe", "g++.exe", "cl.exe"],
+        "zig" => &["zig.exe"],
+        "rust" => &["rustc.exe", "cargo.exe"],
+        _ => &[],
+    }
+}
+
+fn verify_local_toolchain(
+    plugin_id: String,
+    contribution_id: String,
+    kind: String,
+    version_arg: Option<&str>,
+) -> Option<ToolchainStatus> {
+    let candidates = local_toolchain_candidates(&kind);
+    if candidates.is_empty() {
+        return None;
+    }
+    let resolved = candidates.iter().find_map(|name| find_executable_on_path(name))?;
+    let version = version_of(&resolved, version_arg);
+    Some(ToolchainStatus {
+        plugin_id,
+        contribution_id,
+        kind,
+        installed: true,
+        install_path: None,
+        executable_path: Some(resolved.to_string_lossy().to_string()),
+        version,
+        message: "toolchain.detected".to_string(),
+        source: "local".to_string(),
+    })
+}
+
 fn verify_probe_blocking(
     runtime_root: &Path,
     input: ToolchainActionInput,
@@ -213,6 +253,7 @@ fn verify_probe_blocking(
         } else {
             "toolchain.not_found_on_path".to_string()
         },
+        source: if installed { "local" } else { "missing" }.to_string(),
     })
 }
 
@@ -316,6 +357,14 @@ fn verify_blocking(
         }
         let (_manifest, contribution, installer) =
             find_installer(runtime_root, &input.plugin_id, &input.contribution_id)?;
+        if let Some(status) = verify_local_toolchain(
+            input.plugin_id.clone(),
+            contribution.id.clone(),
+            installer.kind.clone(),
+            installer.version_arg.as_deref(),
+        ) {
+            return Ok(status);
+        }
         return Ok(ToolchainStatus {
             plugin_id: input.plugin_id,
             contribution_id: contribution.id,
@@ -325,6 +374,7 @@ fn verify_blocking(
             executable_path: None,
             version: None,
             message: "toolchain.not_installed".to_string(),
+            source: "missing".to_string(),
         });
     };
     Ok(status_from_record(record))
@@ -356,6 +406,7 @@ fn remove_blocking(
         executable_path: None,
         version: None,
         message: "toolchain.removed".to_string(),
+        source: "missing".to_string(),
     })
 }
 
@@ -384,10 +435,24 @@ pub(crate) fn find_managed_toolchain_executable(kinds: &[&str], names: &[&str], 
 pub async fn toolchain_list(state: State<'_, AppState>) -> Result<Vec<ToolchainStatus>, String> {
     let runtime_root = state.runtime_root.clone();
     spawn_blocking(move || {
-        Ok(read_toolchain_registry(&runtime_root)?
-            .iter()
-            .map(status_from_record)
-            .collect())
+        let records = read_toolchain_registry(&runtime_root)?;
+        let mut output = Vec::new();
+        for record in &records {
+            output.push(status_from_record(record));
+        }
+        for (manifest, contribution) in toolchain_catalog(&runtime_root)? {
+            if output.iter().any(|item: &ToolchainStatus| item.plugin_id == manifest.id && item.contribution_id == contribution.id) {
+                continue;
+            }
+            let input = ToolchainActionInput {
+                plugin_id: manifest.id,
+                contribution_id: contribution.id,
+            };
+            if let Ok(status) = verify_blocking(&runtime_root, input) {
+                output.push(status);
+            }
+        }
+        Ok(output)
     })
     .await
     .map_err(|e| e.to_string())?

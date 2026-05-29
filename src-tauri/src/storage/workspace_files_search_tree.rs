@@ -41,6 +41,9 @@ fn should_show_workspace_entry(path: &Path, name: &str, is_dir: bool) -> bool {
     if is_legacy_draw_export_hidden_asset(path, name, is_dir) {
         return true;
     }
+    if !is_dir && name.starts_with('.') {
+        return true;
+    }
     if !name.starts_with('.') {
         return true;
     }

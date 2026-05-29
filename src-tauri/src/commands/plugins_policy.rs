@@ -16,6 +16,11 @@ pub(crate) const ALLOWED_CONTRIBUTION_KINDS: &[&str] = &[
     "markdownCommand",
     "terminalCommand",
     "resourceCommand",
+    "fileOpenHandler",
+    "previewProvider",
+    "resourceBadge",
+    "settingsQuickAction",
+    "runtimeAssetDetector",
     "toolchainInstaller",
     "toolchainProbe",
 ];

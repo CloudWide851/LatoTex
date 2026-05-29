@@ -7,6 +7,11 @@ import { ensureLatexCompletionProvider } from "./latexCompletion";
 
 loader.config({ monaco: monacoEditor });
 
+export function toMonacoModelPath(path?: string): string | undefined {
+  const normalized = String(path ?? "").trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  return normalized ? `/${normalized}` : undefined;
+}
+
 export function WorkspaceMonacoEditor(props: {
   path?: string;
   language: string;
@@ -30,7 +35,7 @@ export function WorkspaceMonacoEditor(props: {
 
   return (
     <MonacoEditor
-      path={path}
+      path={toMonacoModelPath(path)}
       language={language}
       theme={theme}
       value={value}

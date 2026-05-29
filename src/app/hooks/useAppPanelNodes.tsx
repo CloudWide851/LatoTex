@@ -19,6 +19,7 @@ import {
 } from "../../shared/api/runtime";
 import { clampLayout, DEFAULT_PANEL_LAYOUT } from "../app-config";
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
+import { clearLatexWorkspaceSession } from "../components/workspace/latexWorkspaceSession";
 import { WorkspacePanelFallback } from "../components/workspace/workspaceShellLazy";
 const LazyGitWorkspace = lazy(async () => {
   const module = await import("../components/GitWorkspace");
@@ -78,6 +79,7 @@ export function useAppPanelNodes(params: any) {
     handleGitInstallerCancel,
     handleGitRunInstaller,
     openWorkspaceFile,
+    resetEditorSession,
   } = params;
 
   const sessionLogName = useMemo(() => {
@@ -280,6 +282,10 @@ export function useAppPanelNodes(params: any) {
   );
 
   const recoverWorkspaceLayout = useCallback(() => {
+    if (activeProjectId) {
+      clearLatexWorkspaceSession(activeProjectId);
+    }
+    resetEditorSession?.();
     setSettings((prev: any) => {
       if (!prev) {
         return prev;
@@ -307,7 +313,7 @@ export function useAppPanelNodes(params: any) {
       };
     });
     setToast({ type: "error", message: t("workspace.layoutRecovered") });
-  }, [locale, page, setSettings, setToast, t]);
+  }, [activeProjectId, locale, page, resetEditorSession, setSettings, setToast, t]);
 
   const settingsPanel = (
     <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>

@@ -17,10 +17,22 @@ export type PluginToolchainInstaller = {
   kind: "git" | "go" | "python" | "node" | "c" | "cpp" | "zig" | "rust" | string;
   platform: "windows-x64" | string;
   downloadUrl: string;
+  downloadUrlCn?: string | null;
   sha256: string;
   archiveFormat: "zip" | "exe" | string;
   executable: string;
   versionArg?: string | null;
+};
+
+export type PluginRuntimeAsset = {
+  id: string;
+  kind: "drawio" | "tectonic" | "poppler" | "cloudflared" | "uv" | "python" | string;
+  platform: "windows-x64" | string;
+  downloadUrl: string;
+  downloadUrlCn?: string | null;
+  sha256: string;
+  archiveFormat: "zip" | "exe" | string;
+  entryPath: string;
 };
 
 export type PluginToolchainProbe = {
@@ -34,6 +46,19 @@ export type PluginToolchainProbe = {
 export type PluginCommandRef = {
   id: string;
   title?: string | null;
+};
+
+export type PluginLocalizedContribution = {
+  title?: string | null;
+  description?: string | null;
+};
+
+export type PluginLocalizedManifest = {
+  name?: string | null;
+  displayName?: string | null;
+  description?: string | null;
+  categories?: string[];
+  keywords?: string[];
 };
 
 export type PluginContribution = {
@@ -55,8 +80,14 @@ export type PluginContribution = {
     | "markdownCommand"
     | "terminalCommand"
     | "resourceCommand"
+    | "fileOpenHandler"
+    | "previewProvider"
+    | "resourceBadge"
+    | "settingsQuickAction"
+    | "runtimeAssetDetector"
     | "toolchainInstaller"
     | "toolchainProbe"
+    | "runtimeAsset"
     | string;
   id: string;
   title: string;
@@ -70,6 +101,8 @@ export type PluginContribution = {
   skillId?: string | null;
   toolchainInstaller?: PluginToolchainInstaller | null;
   toolchainProbe?: PluginToolchainProbe | null;
+  runtimeAsset?: PluginRuntimeAsset | null;
+  localized?: Record<string, PluginLocalizedContribution> | null;
 };
 
 export type PluginManifest = {
@@ -96,6 +129,7 @@ export type PluginManifest = {
   } | null;
   permissions: string[];
   contributions: PluginContribution[];
+  localized?: Record<string, PluginLocalizedManifest> | null;
 };
 
 export type PluginCatalogSource = {
@@ -140,6 +174,18 @@ export type ToolchainStatus = {
   executablePath?: string | null;
   version?: string | null;
   message: string;
+  source?: "managed" | "local" | "bundled" | "missing" | string;
+};
+
+export type RuntimeAssetStatus = {
+  pluginId: string;
+  contributionId: string;
+  kind: string;
+  installed: boolean;
+  installPath?: string | null;
+  entryPath?: string | null;
+  message: string;
+  source?: "managed" | "local" | "bundled" | "missing" | string;
 };
 
 export type PluginCatalogResponse = {

@@ -5,7 +5,9 @@ import { AppTopbar } from "./AppTopbar";
 import { SleepWakeScreen } from "./SleepWakeScreen";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
 import { useBackgroundImageObjectUrl } from "../hooks/useBackgroundImageObjectUrl";
+import { runtimeClearVolatileCacheAndRestart } from "../../shared/api/runtime";
 import { ACCENT_COLORS, THEME_PRESETS, cropBackgroundStyle } from "./AppContainerTheme";
+import { clearRecoverableClientState } from "../utils/recoverableClientState";
 
 const AppWorkspaceShell = lazy(async () => {
   const module = await import("./AppWorkspaceShell");
@@ -173,6 +175,10 @@ export function AppContainerView(props: any) {
     handleCloseBehaviorDialogCancel,
     handleCloseBehaviorDialogResolve,
   } = props;
+  const handleCircuitBreak = () => {
+    clearRecoverableClientState();
+    void runtimeClearVolatileCacheAndRestart().catch(() => undefined);
+  };
   const completionModelId =
     settings?.uiPrefs?.featureModelBindings?.completionModelId
     || null;
@@ -346,7 +352,10 @@ export function AppContainerView(props: any) {
           fallbackTitle={t("workspace.crashedTitle")}
           fallbackHint={t("workspace.crashedHint")}
           retryLabel={t("workspace.crashedRetry")}
+          circuitBreakerLabel={t("workspace.circuitBreakerRestart")}
+          circuitBreakerHint={t("workspace.circuitBreakerHint")}
           onRecover={recoverWorkspaceLayout}
+          onCircuitBreak={handleCircuitBreak}
         >
           {!startupReady ? (
             <section className="flex h-full min-h-0 items-center justify-center bg-[color:var(--editor-paper-bg)] text-sm text-[color:var(--editor-tab-muted)]">
