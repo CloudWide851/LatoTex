@@ -67,6 +67,7 @@ errors.txt
 src-tauri/resources/core/share-vendor/
 src-tauri/resources/core/drawio/
 public/core/drawio/
+src-tauri/resources/core/pyodide/
+public/core/pyodide/
 src-tauri/resources/tools/
 src-tauri/resources/python/vendor/
-
