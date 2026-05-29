@@ -1,30 +1,16 @@
 use super::native_runtime_common::{
     command_from_path_or_name, configure_hidden_process, try_version_command,
 };
+use crate::commands::runtime_assets::find_runtime_asset_entry;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub(crate) const MANAGED_PYTHON_VERSION: &str = "3.12";
 
-fn analysis_resource_candidates(relative_path: &str) -> Vec<PathBuf> {
-    let mut candidates = vec![
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(relative_path),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../src-tauri/{relative_path}")),
-    ];
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            candidates.push(exe_dir.join(relative_path));
-            candidates.push(exe_dir.join(format!("resources/{relative_path}")));
-            candidates.push(exe_dir.join(format!("../resources/{relative_path}")));
-        }
-    }
-    candidates
-}
-
-pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
-    for candidate in analysis_resource_candidates("resources/tools/uv/windows-x64/uv.exe") {
-        if candidate.exists() {
-            return Some(candidate);
+pub(crate) fn resolve_uv_path(runtime_root: Option<&Path>) -> Option<PathBuf> {
+    if let Some(runtime_root) = runtime_root {
+        if let Some(path) = find_runtime_asset_entry(runtime_root, "uv") {
+            return Some(path);
         }
     }
     if let Some(version) = try_version_command(&command_from_path_or_name("uv"), &["--version"]) {
@@ -33,6 +19,14 @@ pub(crate) fn resolve_uv_path() -> Option<PathBuf> {
         }
     }
     None
+}
+
+fn prefer_cn_source() -> bool {
+    std::env::var("LANG")
+        .or_else(|_| std::env::var("LC_ALL"))
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .starts_with("zh")
 }
 
 pub(crate) fn configure_uv_command(command: &mut Command, runtime_root: &Path) {
@@ -44,6 +38,12 @@ pub(crate) fn configure_uv_command(command: &mut Command, runtime_root: &Path) {
         .env("UV_CACHE_DIR", uv_cache_dir)
         .env("UV_PYTHON_INSTALL_DIR", python_install_dir)
         .env("UV_LINK_MODE", "copy");
+    if prefer_cn_source() {
+        command
+            .env("UV_DEFAULT_INDEX", "https://pypi.tuna.tsinghua.edu.cn/simple")
+            .env("UV_PYTHON_INSTALL_MIRROR", "https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download")
+            .env("UV_ASTRAL_MIRROR_URL", "https://gh-proxy.com/https://github.com/astral-sh");
+    }
 }
 
 pub(crate) fn ensure_managed_python(
@@ -96,7 +96,7 @@ mod tests {
 
     #[test]
     fn uv_path_resolution_has_a_fallback_candidate() {
-        let resolved = resolve_uv_path();
+        let resolved = resolve_uv_path(None);
         if let Some(path) = resolved {
             assert!(!path.as_os_str().is_empty());
         }

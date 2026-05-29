@@ -1,7 +1,7 @@
 use super::plugins::validate_manifest;
 use crate::models::{
     PluginCapabilities, PluginCatalogEntry, PluginContribution, PluginEngines, PluginManifest,
-    PluginToolchainInstaller, PluginToolchainProbe,
+    PluginRuntimeAsset, PluginToolchainInstaller, PluginToolchainProbe,
 };
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
@@ -21,7 +21,29 @@ fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
         skill_id: None,
         toolchain_installer: None,
         toolchain_probe: None,
+        runtime_asset: None,
     }
+}
+
+fn runtime_asset_manifest(
+    id: &str,
+    name: &str,
+    description: &str,
+    contribution_id: &str,
+    title: &str,
+    asset: PluginRuntimeAsset,
+    activation_events: Vec<&str>,
+    keywords: Vec<&str>,
+) -> PluginManifest {
+    let mut contribution = empty_contribution("runtimeAsset", contribution_id, title);
+    contribution.description = Some(description.to_string());
+    contribution.runtime_asset = Some(asset);
+    let mut manifest = base_manifest(id, name, description, vec!["Runtime", "Assets"]);
+    manifest.activation_events = activation_events.into_iter().map(str::to_string).collect();
+    manifest.keywords = keywords.into_iter().map(str::to_string).collect();
+    manifest.permissions = vec!["network.fetch".to_string()];
+    manifest.contributions = vec![contribution];
+    manifest
 }
 
 fn toolchain_probe_manifest(
@@ -142,8 +164,86 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
     let go_sha = "20d2ceafb4ed41b96b879010927b28bc92a5be57a7c1801ce365a9ca51d3224a";
     let git_url = "https://github.com/git-for-windows/git/releases/download/v2.54.0.windows.1/MinGit-2.54.0-64-bit.zip";
     let git_sha = "04f937e1f0918b17b9be6f2294cb2bb66e96e1d9832d1c298e2de088a1d0e668";
+    let tectonic_url = "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.16.9/tectonic-0.16.9-x86_64-pc-windows-msvc.zip";
+    let cloudflared_url = "https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-windows-amd64.exe";
 
     vec![
+        entry(runtime_asset_manifest(
+            "latotex.drawio-runtime",
+            "DrawIO Runtime",
+            "Downloads the DrawIO web runtime when the drawing workspace is first needed.",
+            "drawio.webapp.windows-x64",
+            "DrawIO Webapp",
+            PluginRuntimeAsset {
+                id: "drawio".to_string(),
+                kind: "drawio".to_string(),
+                platform: "windows-x64".to_string(),
+                download_url: "https://github.com/jgraph/drawio/archive/refs/tags/v29.6.6.zip".to_string(),
+                download_url_cn: Some("https://gh-proxy.com/https://github.com/jgraph/drawio/archive/refs/tags/v29.6.6.zip".to_string()),
+                sha256: "f22ea8ecb61badeb58799e7eddb523aa786558210c488714deb1c2b6fe39ea25".to_string(),
+                archive_format: "zip".to_string(),
+                entry_path: "drawio-29.6.6/src/main/webapp/index.html".to_string(),
+            },
+            vec!["onPage:draw"],
+            vec!["drawio", "diagram", "drawing"],
+        )),
+        entry(runtime_asset_manifest(
+            "latotex.runtime.uv",
+            "uv Runtime",
+            "Downloads uv on demand for managed Python environments.",
+            "uv.windows-x64",
+            "uv Windows x64",
+            PluginRuntimeAsset {
+                id: "uv".to_string(),
+                kind: "uv".to_string(),
+                platform: "windows-x64".to_string(),
+                download_url: "https://github.com/astral-sh/uv/releases/download/0.11.16/uv-x86_64-pc-windows-msvc.zip".to_string(),
+                download_url_cn: Some("https://gh-proxy.com/https://github.com/astral-sh/uv/releases/download/0.11.16/uv-x86_64-pc-windows-msvc.zip".to_string()),
+                sha256: "dd9d6d6554bfab265bfa98aa8e8a406c5c3a7b97582f93de1f4d48d9154a0395".to_string(),
+                archive_format: "zip".to_string(),
+                entry_path: "uv.exe".to_string(),
+            },
+            vec!["onCommand:analysis.prepareEnv"],
+            vec!["uv", "python"],
+        )),
+        entry(runtime_asset_manifest(
+            "latotex.runtime.tectonic",
+            "Tectonic Runtime",
+            "Downloads the Windows x64 Tectonic compiler on demand for LaTeX builds.",
+            "tectonic.windows-x64",
+            "Tectonic Windows x64",
+            PluginRuntimeAsset {
+                id: "tectonic".to_string(),
+                kind: "tectonic".to_string(),
+                platform: "windows-x64".to_string(),
+                download_url: tectonic_url.to_string(),
+                download_url_cn: Some(format!("https://gh-proxy.com/{tectonic_url}")),
+                sha256: "131a24604785a9600989a3d91225f597df52ac06f00aeffe86fd529f99ee5cdd".to_string(),
+                archive_format: "zip".to_string(),
+                entry_path: "tectonic.exe".to_string(),
+            },
+            vec!["onCommand:latex.compile"],
+            vec!["tectonic", "latex", "tex"],
+        )),
+        entry(runtime_asset_manifest(
+            "latotex.runtime.cloudflared",
+            "Cloudflare Tunnel Runtime",
+            "Downloads cloudflared on demand for public share tunnels.",
+            "cloudflared.windows-x64",
+            "cloudflared Windows x64",
+            PluginRuntimeAsset {
+                id: "cloudflared".to_string(),
+                kind: "cloudflared".to_string(),
+                platform: "windows-x64".to_string(),
+                download_url: cloudflared_url.to_string(),
+                download_url_cn: Some(format!("https://gh-proxy.com/{cloudflared_url}")),
+                sha256: "413f9b24dc6e61a455564651524f167b8ce29ac4ccd40703dea7af93cd37ed39".to_string(),
+                archive_format: "exe".to_string(),
+                entry_path: "cloudflared.exe".to_string(),
+            },
+            vec!["onCommand:share.startCloudTunnel"],
+            vec!["cloudflared", "share", "tunnel"],
+        )),
         entry(docx_manifest()),
         entry(toolchain_manifest(
             "latotex.toolchain.c",
@@ -156,6 +256,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
                 kind: "c".to_string(),
                 platform: "windows-x64".to_string(),
                 download_url: llvm_url.to_string(),
+                download_url_cn: Some(format!("https://gh-proxy.com/{llvm_url}")),
                 sha256: llvm_sha.to_string(),
                 archive_format: "zip".to_string(),
                 executable: "llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe".to_string(),
@@ -175,6 +276,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
                 kind: "cpp".to_string(),
                 platform: "windows-x64".to_string(),
                 download_url: llvm_url.to_string(),
+                download_url_cn: Some(format!("https://gh-proxy.com/{llvm_url}")),
                 sha256: llvm_sha.to_string(),
                 archive_format: "zip".to_string(),
                 executable: "llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe".to_string(),
@@ -194,6 +296,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
                 kind: "go".to_string(),
                 platform: "windows-x64".to_string(),
                 download_url: go_url.to_string(),
+                download_url_cn: Some("https://golang.google.cn/dl/go1.26.3.windows-amd64.zip".to_string()),
                 sha256: go_sha.to_string(),
                 archive_format: "zip".to_string(),
                 executable: "go/bin/go.exe".to_string(),
@@ -213,6 +316,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
                 kind: "git".to_string(),
                 platform: "windows-x64".to_string(),
                 download_url: git_url.to_string(),
+                download_url_cn: Some(format!("https://gh-proxy.com/{git_url}")),
                 sha256: git_sha.to_string(),
                 archive_format: "zip".to_string(),
                 executable: "cmd/git.exe".to_string(),

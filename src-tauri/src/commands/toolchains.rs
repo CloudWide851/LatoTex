@@ -217,11 +217,21 @@ fn verify_probe_blocking(
 }
 
 fn download_archive(installer: &PluginToolchainInstaller) -> Result<Vec<u8>, String> {
+    let preferred_url = if prefer_cn_source() {
+        installer
+            .download_url_cn
+            .as_deref()
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .unwrap_or_else(|| installer.download_url.trim())
+    } else {
+        installer.download_url.trim()
+    };
     let response = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| e.to_string())?
-        .get(installer.download_url.trim())
+        .get(preferred_url)
         .send()
         .map_err(|e| format!("toolchain.download_failed: {e}"))?;
     if !response.status().is_success() {
@@ -233,6 +243,14 @@ fn download_archive(installer: &PluginToolchainInstaller) -> Result<Vec<u8>, Str
         return Err("toolchain.sha256_mismatch".to_string());
     }
     Ok(bytes)
+}
+
+fn prefer_cn_source() -> bool {
+    std::env::var("LANG")
+        .or_else(|_| std::env::var("LC_ALL"))
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .starts_with("zh")
 }
 
 fn extract_zip(bytes: &[u8], target_root: &Path) -> Result<(), String> {

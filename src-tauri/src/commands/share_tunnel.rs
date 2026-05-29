@@ -1,5 +1,5 @@
 use super::*;
-use serde::Deserialize;
+use crate::commands::runtime_assets::find_runtime_asset_entry;
 use std::io::{BufRead, BufReader};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -11,16 +11,8 @@ use std::time::Instant;
 const SHARE_TUNNEL_READY_TIMEOUT_SECS: u64 = 45;
 const SHARE_TUNNEL_RESTART_MAX: u32 = 4;
 const CLOUDFLARED_TARGET_NAME: &str = "cloudflared.exe";
-const CLOUDFLARED_RELEASE_NAME: &str = "cloudflared-windows-amd64.exe";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-const CLOUDFLARED_MANIFEST_NAME: &str = "cloudflared-version.json";
-
-#[derive(Debug, Deserialize)]
-struct CloudflaredManifest {
-    version: Option<String>,
-    file: String,
-}
 
 #[cfg(target_os = "windows")]
 fn cloudflared_runtime_binary(runtime_root: &Path) -> PathBuf {
@@ -28,95 +20,15 @@ fn cloudflared_runtime_binary(runtime_root: &Path) -> PathBuf {
 }
 
 #[cfg(target_os = "windows")]
-fn cloudflared_candidate_sources(runtime_root: &Path) -> Vec<PathBuf> {
-    let mut candidates = Vec::<PathBuf>::new();
-    candidates.push(runtime_root.join("tools").join(CLOUDFLARED_RELEASE_NAME));
-    candidates.push(runtime_root.join("tools").join(CLOUDFLARED_TARGET_NAME));
-    candidates.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("resources/tools/cloudflared-windows-amd64.exe"),
-    );
-    candidates
-        .push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/tools/cloudflared.exe"));
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            candidates.push(exe_dir.join("resources/tools/cloudflared-windows-amd64.exe"));
-            candidates.push(exe_dir.join("resources/tools/cloudflared.exe"));
-            candidates.push(exe_dir.join("tools/cloudflared-windows-amd64.exe"));
-            candidates.push(exe_dir.join("tools/cloudflared.exe"));
-            candidates.push(exe_dir.join("../resources/tools/cloudflared-windows-amd64.exe"));
-            candidates.push(exe_dir.join("../resources/tools/cloudflared.exe"));
-        }
-    }
-    candidates
-}
-
-#[cfg(target_os = "windows")]
-fn cloudflared_manifest_candidate_paths() -> Vec<PathBuf> {
-    let mut candidates =
-        vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/tools/{CLOUDFLARED_MANIFEST_NAME}"))];
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            candidates.push(exe_dir.join(format!("resources/tools/{CLOUDFLARED_MANIFEST_NAME}")));
-            candidates.push(exe_dir.join(format!("tools/{CLOUDFLARED_MANIFEST_NAME}")));
-            candidates.push(exe_dir.join(format!("../resources/tools/{CLOUDFLARED_MANIFEST_NAME}")));
-        }
-    }
-    candidates
-}
-
-#[cfg(target_os = "windows")]
-fn load_cloudflared_manifest() -> Result<CloudflaredManifest, String> {
-    for candidate in cloudflared_manifest_candidate_paths() {
-        let Ok(text) = fs::read_to_string(&candidate) else {
-            continue;
-        };
-        let manifest: CloudflaredManifest = serde_json::from_str(&text)
-            .map_err(|error| format!("invalid cloudflared manifest at {}: {error}", candidate.display()))?;
-        if manifest.file.trim().is_empty() {
-            return Err(format!("invalid cloudflared manifest at {}: empty file", candidate.display()));
-        }
-        return Ok(manifest);
-    }
-    Err(format!(
-        "bundled cloudflared manifest missing; expected {CLOUDFLARED_MANIFEST_NAME} under resources/tools"
-    ))
-}
-
-#[cfg(target_os = "windows")]
-fn copy_first_existing_cloudflared(runtime_root: &Path) -> Result<Option<PathBuf>, String> {
-    let target_binary = cloudflared_runtime_binary(runtime_root);
-    let target_parent = target_binary
-        .parent()
-        .ok_or_else(|| "invalid cloudflared target path".to_string())?;
-    fs::create_dir_all(target_parent).map_err(|e| e.to_string())?;
-    if target_binary.exists() {
-        return Ok(Some(target_binary));
-    }
-    for source in cloudflared_candidate_sources(runtime_root) {
-        if !source.exists() {
-            continue;
-        }
-        if source == target_binary {
-            return Ok(Some(target_binary));
-        }
-        fs::copy(&source, &target_binary).map_err(|e| e.to_string())?;
-        return Ok(Some(target_binary));
-    }
-    Ok(None)
-}
-
-#[cfg(target_os = "windows")]
 fn ensure_cloudflared_binary(runtime_root: &Path) -> Result<PathBuf, String> {
-    if let Some(binary) = copy_first_existing_cloudflared(runtime_root)? {
+    if let Some(binary) = find_runtime_asset_entry(runtime_root, "cloudflared") {
         return Ok(binary);
     }
-    let manifest = load_cloudflared_manifest()?;
-    Err(format!(
-        "bundled cloudflared binary missing; expected resources/tools/{} (version {})",
-        manifest.file,
-        manifest.version.unwrap_or_else(|| "unknown".to_string())
-    ))
+    let binary = cloudflared_runtime_binary(runtime_root);
+    if binary.is_file() {
+        return Ok(binary);
+    }
+    Err("cloudflared.runtimeAsset.required".to_string())
 }
 
 fn mark_share_failed(runtime: &Arc<Mutex<ShareRuntime>>, message: &str) {

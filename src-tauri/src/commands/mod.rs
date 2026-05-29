@@ -17,6 +17,7 @@ mod plugins_policy;
 mod plugins_validation_tests;
 pub mod projects;
 pub mod projects_translation;
+pub mod runtime_assets;
 pub mod settings;
 pub mod share;
 pub mod swarm;

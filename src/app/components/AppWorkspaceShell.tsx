@@ -385,6 +385,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             selectedPath={selectedFile}
             onSelectPath={onSelectFile}
             onRunFsAction={onRunFsAction}
+            onOpenPlugins={() => onPageChange("plugins")}
             t={t}
           />
         </Suspense>

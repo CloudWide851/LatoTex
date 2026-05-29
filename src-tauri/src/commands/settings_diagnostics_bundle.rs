@@ -1,4 +1,5 @@
 use crate::models::RuntimeDiagnosticsBundleExport;
+use crate::commands::runtime_assets::find_runtime_asset_entry;
 use crate::state::AppState;
 use chrono::Utc;
 use serde::Serialize;
@@ -50,11 +51,11 @@ struct RuntimeDoctorSnapshot {
 #[serde(rename_all = "camelCase")]
 struct ResourceStatus {
     current_exe: String,
-    drawio_packaged: bool,
+    drawio_runtime_asset: bool,
     share_page_packaged: bool,
-    cloudflared_packaged: bool,
-    uv_packaged: bool,
-    tectonic_packaged: bool,
+    cloudflared_runtime_asset: bool,
+    uv_runtime_asset: bool,
+    tectonic_runtime_asset: bool,
 }
 
 fn sanitize_log_line(line: &str) -> String {
@@ -123,21 +124,17 @@ fn write_json_entry<T: Serialize>(
     zip.write_all(&payload).map_err(|e| e.to_string())
 }
 
-fn resource_status() -> ResourceStatus {
+fn resource_status(runtime_root: &Path) -> ResourceStatus {
     let current_exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::new());
     let exe_dir = current_exe.parent().unwrap_or_else(|| Path::new(""));
     let resources_root = exe_dir.join("resources");
     ResourceStatus {
         current_exe: current_exe.to_string_lossy().to_string(),
-        drawio_packaged: resources_root.join("core/drawio/index.html").exists(),
+        drawio_runtime_asset: find_runtime_asset_entry(runtime_root, "drawio").is_some(),
         share_page_packaged: resources_root.join("core/share-page/index.html").exists(),
-        cloudflared_packaged: resources_root
-            .join("tools/cloudflared-windows-amd64.exe")
-            .exists(),
-        uv_packaged: resources_root.join("tools/uv/windows-x64/uv.exe").exists(),
-        tectonic_packaged: resources_root
-            .join("tools/tectonic/windows-x64/tectonic.exe")
-            .exists(),
+        cloudflared_runtime_asset: find_runtime_asset_entry(runtime_root, "cloudflared").is_some(),
+        uv_runtime_asset: find_runtime_asset_entry(runtime_root, "uv").is_some(),
+        tectonic_runtime_asset: find_runtime_asset_entry(runtime_root, "tectonic").is_some(),
     }
 }
 
@@ -197,7 +194,7 @@ pub fn runtime_diagnostics_bundle_export(
     write_json_entry(
         &mut zip,
         "resource-status.json",
-        &resource_status(),
+        &resource_status(&state.runtime_root),
         options,
     )?;
 

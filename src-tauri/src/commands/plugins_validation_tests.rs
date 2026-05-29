@@ -41,6 +41,7 @@ fn base_contribution(kind: &str) -> PluginContribution {
         skill_id: None,
         toolchain_installer: None,
         toolchain_probe: None,
+        runtime_asset: None,
     }
 }
 
@@ -79,6 +80,7 @@ fn toolchain_installer_requires_https_and_hash() {
         kind: "cpp".to_string(),
         platform: "windows-x64".to_string(),
         download_url: "http://example.com/compiler.zip".to_string(),
+        download_url_cn: None,
         sha256: "missing".to_string(),
         archive_format: "zip".to_string(),
         executable: "bin/clang++.exe".to_string(),
@@ -100,6 +102,7 @@ fn go_toolchain_installer_is_allowed_when_integrity_is_declared() {
         kind: "go".to_string(),
         platform: "windows-x64".to_string(),
         download_url: "https://example.com/go.zip".to_string(),
+        download_url_cn: None,
         sha256: "a".repeat(64),
         archive_format: "zip".to_string(),
         executable: "go/bin/go.exe".to_string(),

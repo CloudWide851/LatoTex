@@ -36,4 +36,11 @@ export const enUS_nav = {
   "plugins.toolchain.ready": "Ready: {version}",
   "plugins.toolchain.notInstalled": "Portable toolchain is not installed.",
   "plugins.toolchain.notDetected": "Toolchain was not detected on PATH.",
+  "plugins.runtimeAsset.install": "Download runtime",
+  "plugins.runtimeAsset.remove": "Remove runtime",
+  "plugins.runtimeAsset.installDone": "Runtime asset installed.",
+  "plugins.runtimeAsset.verifyDone": "Runtime asset checked.",
+  "plugins.runtimeAsset.removeDone": "Runtime asset removed.",
+  "plugins.runtimeAsset.ready": "Runtime ready: {path}",
+  "plugins.runtimeAsset.notInstalled": "Runtime asset is not installed.",
 } as const;

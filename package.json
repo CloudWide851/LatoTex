@@ -5,8 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-cloudflared-assets.mjs && vite --host 0.0.0.0 --port 1420",
-    "build": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && node scripts/ensure-drawio-assets.mjs && node scripts/ensure-tectonic-assets.mjs && node scripts/ensure-pdf-tools.mjs && node scripts/ensure-cloudflared-assets.mjs && node scripts/ensure-uv-assets.mjs && tsc && vite build && node scripts/copy-public-assets.mjs",
+    "dev": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && vite --host 0.0.0.0 --port 1420",
+    "build": "node scripts/build-share-page.mjs && node scripts/ensure-share-web-assets.mjs && tsc && vite build && node scripts/copy-public-assets.mjs",
     "build:share-page": "node scripts/build-share-page.mjs",
     "typecheck": "tsc --noEmit",
     "stitch:init": "pnpm exec stitch-mcp init --client codex --transport stdio",
@@ -38,8 +38,7 @@
     "audit:debt": "node scripts/audit-historical-debt.mjs",
     "tauri": "node scripts/ensure-brand-icons.mjs && tauri",
     "tauri:build:win-x64": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
-    "tauri:smoke:win-x64": "node scripts/tauri-smoke-win-x64.mjs",
-    "pdf-tools:assets": "node scripts/ensure-pdf-tools.mjs"
+    "tauri:smoke:win-x64": "node scripts/tauri-smoke-win-x64.mjs"
   },
   "packageManager": "pnpm@10.29.2",
   "dependencies": {

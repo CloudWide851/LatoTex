@@ -2,7 +2,8 @@ use crate::models::{
     Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput,
     PluginCatalogResponse, PluginCatalogSource,
     PluginInstallInput, PluginManifest, PluginRefInput, PluginSetEnabledInput,
-    PluginToolchainInstaller, PluginToolchainProbe, PluginValidationIssue, PluginValidationResult,
+    PluginRuntimeAsset, PluginToolchainInstaller, PluginToolchainProbe, PluginValidationIssue,
+    PluginValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -13,7 +14,7 @@ use tauri::State;
 use super::plugins_builtin::built_in_catalog;
 use super::plugins_policy::{
     ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, INSTALLER_TOOLCHAIN_KINDS,
-    PROBE_TOOLCHAIN_KINDS, SAFE_COMMAND_REFS,
+    PROBE_TOOLCHAIN_KINDS, RUNTIME_ASSET_KINDS, SAFE_COMMAND_REFS,
 };
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
@@ -238,6 +239,9 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         if contribution.kind == "toolchainProbe" {
             validate_toolchain_probe(contribution.toolchain_probe.as_ref(), issues);
         }
+        if contribution.kind == "runtimeAsset" {
+            validate_runtime_asset(contribution.runtime_asset.as_ref(), issues);
+        }
     }
 }
 
@@ -253,7 +257,7 @@ fn validate_toolchain_installer(
         ));
         return;
     };
-    let allowed_archives = HashSet::from(["zip", "exe"]);
+    let allowed_archives = HashSet::from(["zip"]);
     if !validate_identifier(&installer.id, 96)
         || !INSTALLER_TOOLCHAIN_KINDS.contains(&installer.kind.as_str())
         || installer.platform != "windows-x64"
@@ -272,6 +276,15 @@ fn validate_toolchain_installer(
             "error",
             "Toolchain installer downloads require HTTPS and a SHA-256 hash.",
         ));
+    }
+    if let Some(url) = installer.download_url_cn.as_deref().map(str::trim).filter(|item| !item.is_empty()) {
+        if !is_https_url(url) {
+            issues.push(issue(
+                "plugin.contribution.toolchain_cn_url",
+                "error",
+                "Domestic mirror URL must use HTTPS.",
+            ));
+        }
     }
 }
 
@@ -304,6 +317,49 @@ fn validate_toolchain_probe(
             "error",
             "Toolchain probe must target supported Windows x64 executables by filename only.",
         ));
+    }
+}
+
+fn validate_runtime_asset(
+    asset: Option<&PluginRuntimeAsset>,
+    issues: &mut Vec<PluginValidationIssue>,
+) {
+    let Some(asset) = asset else {
+        issues.push(issue(
+            "plugin.contribution.runtime_asset_missing",
+            "error",
+            "Runtime asset contributions must declare runtimeAsset.",
+        ));
+        return;
+    };
+    let allowed_archives = HashSet::from(["zip", "exe"]);
+    if !validate_identifier(&asset.id, 96)
+        || !RUNTIME_ASSET_KINDS.contains(&asset.kind.as_str())
+        || asset.platform != "windows-x64"
+        || !allowed_archives.contains(asset.archive_format.as_str())
+        || asset.entry_path.trim().is_empty()
+    {
+        issues.push(issue(
+            "plugin.contribution.runtime_asset_invalid",
+            "error",
+            "Runtime asset must target a supported Windows x64 resource package.",
+        ));
+    }
+    if !is_https_url(&asset.download_url) || !is_sha256(&asset.sha256) {
+        issues.push(issue(
+            "plugin.contribution.runtime_asset_integrity",
+            "error",
+            "Runtime asset downloads require HTTPS and a SHA-256 hash.",
+        ));
+    }
+    if let Some(url) = asset.download_url_cn.as_deref().map(str::trim).filter(|item| !item.is_empty()) {
+        if !is_https_url(url) {
+            issues.push(issue(
+                "plugin.contribution.runtime_asset_cn_url",
+                "error",
+                "Domestic runtime asset mirror URL must use HTTPS.",
+            ));
+        }
     }
 }
 

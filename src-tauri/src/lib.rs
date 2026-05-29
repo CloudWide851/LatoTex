@@ -64,6 +64,9 @@ use commands::settings::{
     settings_remove_background_image, settings_update,
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
+use commands::runtime_assets::{
+    runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
+};
 use commands::swarm::{
     agent_execute_cancel, agent_execute_start, agent_mcp_validate, agent_runs_recover,
     agent_skill_validate, events_subscribe, latex_compile_record,
@@ -472,6 +475,10 @@ pub fn run() {
             toolchain_install,
             toolchain_verify,
             toolchain_remove,
+            runtime_asset_list,
+            runtime_asset_install,
+            runtime_asset_verify,
+            runtime_asset_remove,
         ])
         .run(context)
         .expect("error while running tauri application");

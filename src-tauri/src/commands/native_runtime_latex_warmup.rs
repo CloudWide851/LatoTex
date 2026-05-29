@@ -2,6 +2,7 @@ use super::native_runtime_common::{
     command_from_path_or_name, configure_hidden_process, try_version_command,
 };
 use super::native_runtime_latex_tectonic::{ensure_runtime_bundle, write_fontconfig_config};
+use crate::commands::runtime_assets::{find_runtime_asset_entry, find_runtime_asset_root};
 use crate::models::TectonicWarmupInfo;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -95,6 +96,15 @@ fn choose_bundled_tectonic_source_root() -> Option<PathBuf> {
     candidate_tectonic_source_roots()
         .into_iter()
         .find(|root| bundled_tectonic_assets_exist(root))
+}
+
+fn choose_tectonic_source_root(runtime_root: &Path) -> Option<PathBuf> {
+    if let Some(root) = find_runtime_asset_root(runtime_root, "tectonic")
+        .filter(|root| bundled_tectonic_assets_exist(root))
+    {
+        return Some(root);
+    }
+    choose_bundled_tectonic_source_root()
 }
 
 fn managed_tectonic_tool_root(app_data_dir: &Path) -> PathBuf {
@@ -312,13 +322,14 @@ fn emit_tectonic_warmup_heartbeat<F>(
 }
 
 fn ensure_bundled_tectonic_runtime_with_progress<F>(
+    runtime_root: &Path,
     app_data_dir: &Path,
     mut on_progress: F,
 ) -> Result<Option<ResolvedTectonicPaths>, String>
 where
     F: FnMut(f64, &str, Option<&str>, Option<&str>),
 {
-    let Some(source_root) = choose_bundled_tectonic_source_root() else {
+    let Some(source_root) = choose_tectonic_source_root(runtime_root) else {
         return Ok(None);
     };
 
@@ -451,11 +462,27 @@ where
     F: FnMut(f64, &str, Option<&str>, Option<&str>),
 {
     if let Some(paths) =
-        ensure_bundled_tectonic_runtime_with_progress(app_data_dir, &mut on_progress)?
+        ensure_bundled_tectonic_runtime_with_progress(runtime_root, app_data_dir, &mut on_progress)?
     {
         return Ok(Some(paths));
     }
     emit_tectonic_warmup_progress(&mut on_progress, 12.0, "locating_assets", Some("tectonic"));
+    if let Some(engine_path) = find_runtime_asset_entry(runtime_root, "tectonic") {
+        let cache_dir = runtime_root
+            .join(TECTONIC_RESOURCE_SUBDIR)
+            .join(TECTONIC_MANAGED_CACHE_RELATIVE_PATH);
+        fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+        let ready_item = engine_path.to_string_lossy().to_string();
+        emit_tectonic_warmup_progress(&mut on_progress, 100.0, "ready", Some(ready_item.as_str()));
+        return Ok(Some(ResolvedTectonicPaths {
+            engine_path,
+            cache_dir,
+            search_paths: Vec::new(),
+            fontconfig_file: None,
+            fontconfig_path: None,
+            use_only_cached: false,
+        }));
+    }
     if latex_tool_exists("tectonic") {
         let cache_dir = runtime_root
             .join(TECTONIC_RESOURCE_SUBDIR)

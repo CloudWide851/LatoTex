@@ -11,6 +11,25 @@ export function DrawWorkspaceNoProject(props: { t: TranslationFn }) {
   );
 }
 
+export function DrawWorkspacePluginRequired(props: { onOpenPlugins: () => void; t: TranslationFn }) {
+  const { onOpenPlugins, t } = props;
+  return (
+    <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+      <div className="max-w-md">
+        <div className="text-sm font-semibold text-slate-900">{t("draw.pluginRequiredTitle")}</div>
+        <p className="mt-2 text-xs leading-5 text-slate-500">{t("draw.pluginRequiredBody")}</p>
+        <button
+          type="button"
+          className="mt-4 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+          onClick={onOpenPlugins}
+        >
+          {t("draw.openPlugins")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function DrawWorkspaceFrameSurface(props: {
   activePath: string | null;
   frameFailureDetail: string | null;

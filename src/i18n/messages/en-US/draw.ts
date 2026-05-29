@@ -20,4 +20,7 @@ export const enUS_draw = {
   "draw.renameExists": "A draw tab with this name already exists.",
   "draw.fileMissingRemoved": "Source file is missing. Removed stale draw tab.",
   "draw.frameTitle": "Draw editor",
+  "draw.pluginRequiredTitle": "DrawIO runtime required",
+  "draw.pluginRequiredBody": "Install the DrawIO Runtime from the plugin marketplace before opening diagrams.",
+  "draw.openPlugins": "Open plugin marketplace",
 } as const;

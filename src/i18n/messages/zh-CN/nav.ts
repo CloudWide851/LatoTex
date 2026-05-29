@@ -36,4 +36,11 @@ export const zhCN_nav = {
   "plugins.toolchain.ready": "已就绪：{version}",
   "plugins.toolchain.notInstalled": "便携工具链尚未安装。",
   "plugins.toolchain.notDetected": "未在 PATH 中检测到该工具链。",
+  "plugins.runtimeAsset.install": "下载运行资源",
+  "plugins.runtimeAsset.remove": "移除运行资源",
+  "plugins.runtimeAsset.installDone": "运行资源已安装。",
+  "plugins.runtimeAsset.verifyDone": "运行资源已检查。",
+  "plugins.runtimeAsset.removeDone": "运行资源已移除。",
+  "plugins.runtimeAsset.ready": "运行资源已就绪：{path}",
+  "plugins.runtimeAsset.notInstalled": "运行资源尚未安装。",
 } as const;

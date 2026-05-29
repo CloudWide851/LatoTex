@@ -25,9 +25,13 @@ pub(crate) fn analysis_resource_candidates(relative_path: &str) -> Vec<PathBuf> 
 }
 
 pub(crate) fn resolve_analysis_runtime_root() -> Option<PathBuf> {
-    analysis_resource_candidates("resources/python/analysis_runtime")
+    let bundled = analysis_resource_candidates("resources/python/analysis_runtime")
         .into_iter()
-        .find(|candidate| candidate.join("analysis_runner.py").exists())
+        .find(|candidate| candidate.join("analysis_runner.py").exists());
+    bundled.or_else(|| {
+        Some(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/python/analysis_runtime"))
+            .filter(|candidate| candidate.join("analysis_runner.py").exists())
+    })
 }
 
 pub(crate) fn resolve_pdfmathtranslate_vendor_root() -> Option<PathBuf> {
@@ -421,7 +425,7 @@ pub(crate) fn analysis_env_status_blocking(
     let analysis_runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
-    let uv_path = resolve_uv_path();
+    let uv_path = resolve_uv_path(Some(runtime_root));
     let env_paths = resolve_analysis_env_paths(
         db_path,
         runtime_root,
@@ -461,7 +465,7 @@ where
     let analysis_runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
-    let uv_path = resolve_uv_path().ok_or_else(|| "uv executable was not found".to_string())?;
+    let uv_path = resolve_uv_path(Some(runtime_root)).ok_or_else(|| "uv executable was not found".to_string())?;
     let env_paths = resolve_analysis_env_paths(
         db_path,
         runtime_root,

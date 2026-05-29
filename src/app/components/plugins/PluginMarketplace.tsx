@@ -26,8 +26,14 @@ import {
   removeToolchain,
   verifyToolchain,
 } from "../../../shared/api/toolchains";
+import {
+  installRuntimeAsset,
+  listRuntimeAssets,
+  removeRuntimeAsset,
+  verifyRuntimeAsset,
+} from "../../../shared/api/runtimeAssets";
 import type { AppSettings } from "../../../shared/types/app";
-import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
+import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
@@ -76,6 +82,7 @@ export function PluginMarketplace(props: {
   const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [toolchains, setToolchains] = useState<ToolchainStatus[]>([]);
+  const [runtimeAssets, setRuntimeAssets] = useState<RuntimeAssetStatus[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -117,11 +124,15 @@ export function PluginMarketplace(props: {
         getPluginCatalog(catalogSources),
         listInstalledPlugins(),
       ]);
-      const nextToolchains = await listToolchains().catch(() => []);
+      const [nextToolchains, nextRuntimeAssets] = await Promise.all([
+        listToolchains().catch(() => []),
+        listRuntimeAssets().catch(() => []),
+      ]);
       setCatalog(nextCatalog.items);
       setWarnings(nextCatalog.warnings);
       setInstalled(nextInstalled);
       setToolchains(nextToolchains);
+      setRuntimeAssets(nextRuntimeAssets);
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -176,8 +187,11 @@ export function PluginMarketplace(props: {
   };
 
   const toolchainFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "toolchainInstaller" || item.kind === "toolchainProbe");
+  const runtimeAssetFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "runtimeAsset");
   const toolchainStatusFor = (pluginId: string, contributionId: string) =>
     toolchains.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
+  const runtimeAssetStatusFor = (pluginId: string, contributionId: string) =>
+    runtimeAssets.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
 
   const runToolchainAction = async (
     pluginId: string,
@@ -193,6 +207,27 @@ export function PluginMarketplace(props: {
           : await removeToolchain(pluginId, contributionId);
       setToolchains((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
       setStatus(t(`plugins.toolchain.${action}Done`));
+    } catch (error) {
+      setStatus(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runRuntimeAssetAction = async (
+    pluginId: string,
+    contributionId: string,
+    action: "install" | "verify" | "remove",
+  ) => {
+    setBusy(true);
+    try {
+      const next = action === "install"
+        ? await installRuntimeAsset(pluginId, contributionId)
+        : action === "verify"
+          ? await verifyRuntimeAsset(pluginId, contributionId)
+          : await removeRuntimeAsset(pluginId, contributionId);
+      setRuntimeAssets((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
+      setStatus(t(`plugins.runtimeAsset.${action}Done`));
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -233,9 +268,11 @@ export function PluginMarketplace(props: {
             const warningCount = entry.validation.issues.filter((item) => item.severity === "warning").length;
             const expanded = expandedId === plugin.id;
             const toolchain = toolchainFor(plugin);
+            const runtimeAsset = runtimeAssetFor(plugin);
             const toolchainIsProbe = toolchain?.kind === "toolchainProbe";
             const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
-            const canUseToolchain = entry.sourceId === "builtin" || Boolean(installedPlugin);
+            const runtimeAssetStatus = runtimeAsset ? runtimeAssetStatusFor(plugin.id, runtimeAsset.id) : null;
+            const canUseRuntime = entry.sourceId === "builtin" || Boolean(installedPlugin);
             return (
               <article key={`${entry.sourceId}:${plugin.id}`} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50/80 p-2.5">
                 <div className="flex min-w-0 items-start gap-2">
@@ -302,6 +339,13 @@ export function PluginMarketplace(props: {
                           : t("plugins.toolchain.notInstalled")}
                   </div>
                 ) : null}
+                {runtimeAsset ? (
+                  <div className="rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+                    {runtimeAssetStatus?.installed
+                      ? t("plugins.runtimeAsset.ready").replace("{path}", runtimeAssetStatus.entryPath || "-")
+                      : t("plugins.runtimeAsset.notInstalled")}
+                  </div>
+                ) : null}
                 {expanded ? (
                   <div className="settings-scrollbar-hidden max-h-24 overflow-auto rounded border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
                     {entry.validation.issues.map((item) => (
@@ -314,7 +358,7 @@ export function PluginMarketplace(props: {
                 <div className="flex flex-wrap justify-end gap-1">
                   {toolchain ? (
                     <>
-                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "verify")}>
+                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "verify")}>
                         {t("plugins.toolchain.verify")}
                       </Button>
                       {toolchainIsProbe ? null : toolchainStatus?.installed ? (
@@ -322,11 +366,22 @@ export function PluginMarketplace(props: {
                           {t("plugins.toolchain.remove")}
                         </Button>
                       ) : (
-                        <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseToolchain} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "install")}>
+                        <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => void runToolchainAction(plugin.id, toolchain.id, "install")}>
                           {t("plugins.toolchain.install")}
                         </Button>
                       )}
                     </>
+                  ) : null}
+                  {runtimeAsset ? (
+                    runtimeAssetStatus?.installed ? (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void runRuntimeAssetAction(plugin.id, runtimeAsset.id, "remove")}>
+                        {t("plugins.runtimeAsset.remove")}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => void runRuntimeAssetAction(plugin.id, runtimeAsset.id, "install")}>
+                        {t("plugins.runtimeAsset.install")}
+                      </Button>
+                    )
                   ) : null}
                   {installedPlugin ? (
                     <>

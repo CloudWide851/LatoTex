@@ -1,3 +1,4 @@
+use super::runtime_assets::find_runtime_asset_entry;
 use crate::state::AppState;
 use crate::storage;
 use std::cell::RefCell;
@@ -67,9 +68,18 @@ fn choose_existing_source_dir(required_assets: &[&str], relative_subdir: &str) -
         .find(|dir| has_required_assets(dir, required_assets))
 }
 
-fn ensure_drawio_serving_dir() -> Result<PathBuf, String> {
+fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
+    if let Some(entry) = find_runtime_asset_entry(&state.runtime_root, "drawio") {
+        if let Some(parent) = entry.parent() {
+            if has_required_assets(parent, &["index.html", "vendor/index.html", "vendor/js/app.min.js"])
+                || has_required_assets(parent, &["index.html", "js/app.min.js", "js/bootstrap.js"])
+            {
+                return Ok(parent.to_path_buf());
+            }
+        }
+    }
     choose_existing_source_dir(&REQUIRED_DRAWIO_ASSETS, "drawio")
-        .ok_or_else(|| "Drawio source assets were not found in app resources".to_string())
+        .ok_or_else(|| "draw.runtimeAsset.required".to_string())
 }
 
 fn normalize_relative_asset_path(request_path: &str) -> Result<PathBuf, String> {
@@ -485,7 +495,7 @@ fn serve_drawio_asset(state: &AppState, request: &Request<Vec<u8>>) -> Response<
         }
     };
 
-    let root = match ensure_drawio_serving_dir() {
+    let root = match ensure_drawio_serving_dir(state) {
         Ok(dir) => dir,
         Err(error) => {
             log_local_resource(

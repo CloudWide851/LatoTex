@@ -116,7 +116,7 @@ try {
   if (!fs.existsSync(installedExe)) {
     throw new Error(`installed exe not found: ${installedExe}`);
   }
-  for (const requiredRelativePath of ["resources/core", "resources/tools", "resources/python"]) {
+  for (const requiredRelativePath of ["resources/core/share-page"]) {
     const requiredPath = path.join(installRoot, requiredRelativePath);
     if (!fs.existsSync(requiredPath)) {
       throw new Error(`installed resource missing: ${requiredPath}`);

@@ -17,10 +17,22 @@ export type PluginToolchainInstaller = {
   kind: "git" | "go" | "python" | "node" | "c" | "cpp" | "zig" | "rust" | string;
   platform: "windows-x64" | string;
   downloadUrl: string;
+  downloadUrlCn?: string | null;
   sha256: string;
   archiveFormat: "zip" | "exe" | string;
   executable: string;
   versionArg?: string | null;
+};
+
+export type PluginRuntimeAsset = {
+  id: string;
+  kind: "drawio" | "tectonic" | "poppler" | "cloudflared" | "uv" | "python" | string;
+  platform: "windows-x64" | string;
+  downloadUrl: string;
+  downloadUrlCn?: string | null;
+  sha256: string;
+  archiveFormat: "zip" | "exe" | string;
+  entryPath: string;
 };
 
 export type PluginToolchainProbe = {
@@ -57,6 +69,7 @@ export type PluginContribution = {
     | "resourceCommand"
     | "toolchainInstaller"
     | "toolchainProbe"
+    | "runtimeAsset"
     | string;
   id: string;
   title: string;
@@ -70,6 +83,7 @@ export type PluginContribution = {
   skillId?: string | null;
   toolchainInstaller?: PluginToolchainInstaller | null;
   toolchainProbe?: PluginToolchainProbe | null;
+  runtimeAsset?: PluginRuntimeAsset | null;
 };
 
 export type PluginManifest = {
@@ -139,6 +153,16 @@ export type ToolchainStatus = {
   installPath?: string | null;
   executablePath?: string | null;
   version?: string | null;
+  message: string;
+};
+
+export type RuntimeAssetStatus = {
+  pluginId: string;
+  contributionId: string;
+  kind: string;
+  installed: boolean;
+  installPath?: string | null;
+  entryPath?: string | null;
   message: string;
 };
 

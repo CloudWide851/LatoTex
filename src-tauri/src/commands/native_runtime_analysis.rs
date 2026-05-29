@@ -347,8 +347,8 @@ pub async fn analysis_env_status(
                         .as_ref()
                         .map(|paths| paths.managed_root.to_string_lossy().to_string())
                         .unwrap_or_default(),
-                    uv_path: resolve_uv_path().map(|path| path.to_string_lossy().to_string()),
-                    uv_version: resolve_uv_path()
+                    uv_path: resolve_uv_path(Some(&runtime_root)).map(|path| path.to_string_lossy().to_string()),
+                    uv_version: resolve_uv_path(Some(&runtime_root))
                         .and_then(|path| try_version_command(&path, &["--version"])),
                     python_path: None,
                     python_version: None,

@@ -31,6 +31,12 @@ release/
 *-setup.exe
 *.sig
 *.updater.zip
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.exe
+*.dll
 
 # IDE / OS
 .idea/
@@ -48,13 +54,19 @@ Thumbs.db
 .stitch/auth/
 AGENTS.md
 CLAUDE.md
+CHANGELOG.md
 .claude/
 .trae/
 .pnpm-store/
 MEMORY.md
 memory.md
+test-results/
 tool calling2.0.md
 errors.txt
 /logo.html
 src-tauri/resources/core/share-vendor/
+src-tauri/resources/core/drawio/
+public/core/drawio/
+src-tauri/resources/tools/
+src-tauri/resources/python/vendor/
 

@@ -6,7 +6,7 @@ import { buildDrawExportAction, buildDrawLoadPayload, buildRenamedDrawPath, deco
 import { isMissingFileReadError } from "./drawFileError";
 import { DrawWorkspaceHeader } from "./DrawWorkspaceHeader";
 import { formatDrawStartFailure, useDrawFrameLifecycle } from "./drawFrameLifecycle";
-import { DrawWorkspaceFrameSurface, DrawWorkspaceNoProject } from "./DrawWorkspaceFrameSurface";
+import { DrawWorkspaceFrameSurface, DrawWorkspaceNoProject, DrawWorkspacePluginRequired } from "./DrawWorkspaceFrameSurface";
 import { EMPTY_DIAGRAM, type WorkspaceFsEventDetail } from "./drawWorkspaceConstants";
 
 type TranslationFn = (key: any) => string;
@@ -22,8 +22,9 @@ export function DrawWorkspace(props: {
     content?: string,
   ) => Promise<boolean>;
   t: TranslationFn;
+  onOpenPlugins?: () => void;
 }) {
-  const { projectId, selectedPath, onSelectPath, onRunFsAction, t } = props;
+  const { projectId, selectedPath, onSelectPath, onRunFsAction, t, onOpenPlugins } = props;
   const { locale } = useI18n();
   const xmlByPathRef = useRef<Record<string, string>>({});
   const renameCommittingPathRef = useRef<string | null>(null);
@@ -482,6 +483,10 @@ export function DrawWorkspace(props: {
 
   if (!projectId) {
     return <DrawWorkspaceNoProject t={t} />;
+  }
+
+  if (frameFailureDetail?.includes("draw.runtimeAsset.required")) {
+    return <DrawWorkspacePluginRequired onOpenPlugins={onOpenPlugins ?? (() => undefined)} t={t} />;
   }
 
   return (
