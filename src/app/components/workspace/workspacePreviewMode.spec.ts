@@ -37,4 +37,13 @@ describe("workspacePreviewMode", () => {
     expect(modeFor("notes/chapter.docx")).toBe("empty");
     expect(isWorkspaceUnsupportedPreviewPath("notes/chapter.docx")).toBe(false);
   });
+
+  it("treats dotfiles and extensionless files as safe text editor targets", () => {
+    expect(resolveWorkspacePreviewFlags(".gitignore").selectedIsPlainText).toBe(true);
+    expect(resolveWorkspacePreviewFlags(".env.local").selectedIsPlainText).toBe(true);
+    expect(resolveWorkspacePreviewFlags("README").selectedIsPlainText).toBe(true);
+    expect(modeFor(".gitignore")).toBe("empty");
+    expect(isWorkspaceUnsupportedPreviewPath(".gitignore")).toBe(false);
+    expect(isWorkspaceUnsupportedPreviewPath("README")).toBe(false);
+  });
 });

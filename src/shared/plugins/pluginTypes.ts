@@ -45,16 +45,19 @@ export type PluginToolchainProbe = {
 
 export type PluginFileOpenHandler = {
   extensions: string[];
+  filenames?: string[];
   openWith: "text" | "monaco" | "docx" | "markdown" | "html" | "image" | "pdf" | "binary" | string;
 };
 
 export type PluginPreviewProvider = {
   extensions: string[];
+  filenames?: string[];
   previewMode: "text" | "code" | "markdown" | "html" | "image" | "pdf" | "csv" | "excel" | string;
 };
 
 export type PluginResourceBadge = {
   extensions: string[];
+  filenames?: string[];
   label: string;
   color?: "neutral" | "blue" | "green" | "amber" | "rose" | "purple" | string | null;
 };
@@ -108,6 +111,14 @@ export type PluginAgentContextPack = {
   maxBytes?: number | null;
 };
 
+export type PluginLanguageSupport = {
+  language: string;
+  extensions: string[];
+  filenames?: string[];
+  editorLanguage?: string | null;
+  previewMode?: "text" | "code" | "markdown" | "html" | "image" | "pdf" | "csv" | "excel" | string | null;
+};
+
 export type PluginCommandRef = {
   id: string;
   title?: string | null;
@@ -154,6 +165,7 @@ export type PluginContribution = {
     | "fileTemplate"
     | "snippetProvider"
     | "agentContextPack"
+    | "languageSupport"
     | "toolchainInstaller"
     | "toolchainProbe"
     | "runtimeAsset"
@@ -180,6 +192,7 @@ export type PluginContribution = {
   fileTemplate?: PluginFileTemplate | null;
   snippetProvider?: PluginSnippetProvider | null;
   agentContextPack?: PluginAgentContextPack | null;
+  languageSupport?: PluginLanguageSupport | null;
   localized?: Record<string, PluginLocalizedContribution> | null;
 };
 

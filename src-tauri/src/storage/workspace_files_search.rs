@@ -83,6 +83,7 @@ pub fn read_project_file_binary(
 fn map_workspace_read_error(error: io::Error) -> String {
     match error.kind() {
         io::ErrorKind::PermissionDenied => "workspace.file_read.access_denied".to_string(),
+        io::ErrorKind::InvalidData => "workspace.file_read.invalid_utf8".to_string(),
         _ => error.to_string(),
     }
 }
@@ -198,7 +199,7 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
 mod workspace_files_search_tests {
     use super::{
         is_python_venv_dir, list_workspace_tree, prepare_project_search_index,
-        read_project_file_binary, save_draw_export_asset, search_project_content,
+        read_project_file, read_project_file_binary, save_draw_export_asset, search_project_content,
         search_project_content_incremental,
     };
     use crate::models::ProjectSearchInput;
@@ -322,6 +323,18 @@ mod workspace_files_search_tests {
 
         assert_eq!(result.relative_path, relative_path);
         assert_eq!(result.bytes, b"%PDF-local-library");
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
+    fn read_project_file_reports_invalid_utf8_with_stable_code() {
+        let (temp_root, project_id, project_root, db_path) = create_project_fixture("invalid-utf8");
+        fs::write(project_root.join(".npmrc"), [0xff, 0xfe, 0xfd]).unwrap();
+
+        let error = read_project_file(&db_path, &project_id, ".npmrc").unwrap_err();
+
+        assert_eq!(error, "workspace.file_read.invalid_utf8");
 
         let _ = fs::remove_dir_all(temp_root);
     }

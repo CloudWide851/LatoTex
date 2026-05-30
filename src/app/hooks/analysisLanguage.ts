@@ -1,4 +1,5 @@
 import type { AnalysisOutputLanguage } from "./analysisTypes";
+import type { Locale } from "../../i18n";
 
 const EN_HINT_RE =
   /\b(in english|english output|respond in english|answer in english|use english)\b/i;
@@ -7,11 +8,12 @@ const ZH_HINT_RE =
 
 export function resolveAnalysisLanguage(
   prompt: string,
-  locale: "zh-CN" | "en-US",
+  locale: Locale,
 ): AnalysisOutputLanguage {
   const text = prompt.trim();
+  const defaultLanguage: AnalysisOutputLanguage = locale === "zh-CN" ? "zh-CN" : "en-US";
   if (!text) {
-    return locale;
+    return defaultLanguage;
   }
   if (EN_HINT_RE.test(text)) {
     return "en-US";
@@ -19,10 +21,9 @@ export function resolveAnalysisLanguage(
   if (ZH_HINT_RE.test(text)) {
     return "zh-CN";
   }
-  return locale;
+  return defaultLanguage;
 }
 
 export function languageLabel(language: AnalysisOutputLanguage): string {
   return language === "zh-CN" ? "Chinese" : "English";
 }
-

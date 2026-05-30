@@ -33,6 +33,7 @@ fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
         file_template: None,
         snippet_provider: None,
         agent_context_pack: None,
+        language_support: None,
         localized: None,
     }
 }
@@ -114,24 +115,24 @@ fn toolchain_probe_manifest(
 fn builtin_zh_text(id: &str) -> Option<(&'static str, &'static str, Vec<&'static str>)> {
     match id {
         "latotex.drawio-runtime" => Some((
-            "DrawIO 运行资源",
-            "按需下载绘图工作区需要的 DrawIO Web 运行资源。",
-            vec!["运行资源", "绘图"],
+            "DrawIO 绘图资源",
+            "按需下载绘图工作区需要的 DrawIO Web 资源。",
+            vec!["绘图资源", "绘图"],
         )),
         "latotex.runtime.uv" => Some((
-            "uv 运行时",
+            "uv Python 资源",
             "为托管 Python 环境按需下载 uv。",
-            vec!["运行资源", "Python"],
+            vec!["本地资源", "Python"],
         )),
         "latotex.runtime.tectonic" => Some((
-            "Tectonic 运行时",
+            "Tectonic 编译资源",
             "为 LaTeX 编译按需下载 Windows x64 Tectonic 编译器。",
-            vec!["运行资源", "LaTeX"],
+            vec!["编译资源", "LaTeX"],
         )),
         "latotex.runtime.cloudflared" => Some((
-            "Cloudflare Tunnel 运行时",
+            "Cloudflare Tunnel 隧道资源",
             "为公开共享隧道按需下载 cloudflared。",
-            vec!["运行资源", "共享"],
+            vec!["隧道资源", "共享"],
         )),
         "latotex.toolchain.c" => Some((
             "C 编译器",
@@ -307,9 +308,6 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
     let go_sha = "20d2ceafb4ed41b96b879010927b28bc92a5be57a7c1801ce365a9ca51d3224a";
     let git_url = "https://github.com/git-for-windows/git/releases/download/v2.54.0.windows.1/MinGit-2.54.0-64-bit.zip";
     let git_sha = "04f937e1f0918b17b9be6f2294cb2bb66e96e1d9832d1c298e2de088a1d0e668";
-    let tectonic_url = "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.16.9/tectonic-0.16.9-x86_64-pc-windows-msvc.zip";
-    let cloudflared_url = "https://github.com/cloudflare/cloudflared/releases/download/2025.11.1/cloudflared-windows-amd64.exe";
-
     vec![
         entry(runtime_asset_manifest(
             "latotex.drawio-runtime",
@@ -348,44 +346,6 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
             },
             vec!["onCommand:analysis.prepareEnv"],
             vec!["uv", "python"],
-        )),
-        entry(runtime_asset_manifest(
-            "latotex.runtime.tectonic",
-            "Tectonic Runtime",
-            "Downloads the Windows x64 Tectonic compiler on demand for LaTeX builds.",
-            "tectonic.windows-x64",
-            "Tectonic Windows x64",
-            PluginRuntimeAsset {
-                id: "tectonic".to_string(),
-                kind: "tectonic".to_string(),
-                platform: "windows-x64".to_string(),
-                download_url: tectonic_url.to_string(),
-                download_url_cn: Some(format!("https://gh-proxy.com/{tectonic_url}")),
-                sha256: "131a24604785a9600989a3d91225f597df52ac06f00aeffe86fd529f99ee5cdd".to_string(),
-                archive_format: "zip".to_string(),
-                entry_path: "tectonic.exe".to_string(),
-            },
-            vec!["onCommand:latex.compile"],
-            vec!["tectonic", "latex", "tex"],
-        )),
-        entry(runtime_asset_manifest(
-            "latotex.runtime.cloudflared",
-            "Cloudflare Tunnel Runtime",
-            "Downloads cloudflared on demand for public share tunnels.",
-            "cloudflared.windows-x64",
-            "cloudflared Windows x64",
-            PluginRuntimeAsset {
-                id: "cloudflared".to_string(),
-                kind: "cloudflared".to_string(),
-                platform: "windows-x64".to_string(),
-                download_url: cloudflared_url.to_string(),
-                download_url_cn: Some(format!("https://gh-proxy.com/{cloudflared_url}")),
-                sha256: "413f9b24dc6e61a455564651524f167b8ce29ac4ccd40703dea7af93cd37ed39".to_string(),
-                archive_format: "exe".to_string(),
-                entry_path: "cloudflared.exe".to_string(),
-            },
-            vec!["onCommand:share.startCloudTunnel"],
-            vec!["cloudflared", "share", "tunnel"],
         )),
         entry(docx_manifest()),
         entry(toolchain_manifest(

@@ -5,9 +5,43 @@ const CSV_EXTENSIONS = new Set(["csv", "tsv"]);
 const EXCEL_EXTENSIONS = new Set(["xlsx", "xlsm", "xls"]);
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp"]);
 const HTML_EXTENSIONS = new Set(["html", "htm"]);
+const TEXT_EXTENSIONS = new Set([
+  "txt",
+  "gitignore",
+  "dockerignore",
+  "editorconfig",
+  "env",
+  "npmrc",
+  "yarnrc",
+]);
+const TEXT_DOTFILE_NAMES = new Set([
+  ".gitignore",
+  ".dockerignore",
+  ".editorconfig",
+  ".env",
+  ".npmrc",
+  ".yarnrc",
+]);
 
 function extensionOf(path: string): string {
   return extensionOfPath(path ?? "");
+}
+
+function basenameOf(path: string | null | undefined): string {
+  return String(path ?? "").replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
+}
+
+export function isExtensionlessTextPath(path: string | null | undefined): boolean {
+  const basename = basenameOf(path);
+  if (!basename || basename === "." || basename === "..") {
+    return false;
+  }
+  return !basename.includes(".");
+}
+
+export function isDotfileTextPath(path: string | null | undefined): boolean {
+  const basename = basenameOf(path);
+  return TEXT_DOTFILE_NAMES.has(basename) || basename.startsWith(".env.");
 }
 
 export function isPdfPath(path: string | null | undefined): boolean {
@@ -23,7 +57,9 @@ export function isSvgPath(path: string | null | undefined): boolean {
 }
 
 export function isPlainTextPath(path: string | null | undefined): boolean {
-  return extensionOf(path ?? "") === "txt";
+  return TEXT_EXTENSIONS.has(extensionOf(path ?? ""))
+    || isDotfileTextPath(path)
+    || isExtensionlessTextPath(path);
 }
 
 export function isMarkdownPath(path: string | null | undefined): boolean {

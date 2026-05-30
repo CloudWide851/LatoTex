@@ -1,9 +1,10 @@
 use super::plugins::validate_manifest;
+use super::plugins_builtin::built_in_catalog;
 use crate::models::{
     PluginAgentContextPack, PluginCommandRef, PluginContribution, PluginFileOpenHandler,
-    PluginFileTemplate, PluginManifest, PluginPreviewProvider, PluginRuntimeAssetDetector,
-    PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet, PluginSnippetProvider,
-    PluginToolchainInstaller, PluginToolchainProbe,
+    PluginFileTemplate, PluginLanguageSupport, PluginManifest, PluginPreviewProvider,
+    PluginRuntimeAssetDetector, PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet,
+    PluginSnippetProvider, PluginToolchainInstaller, PluginToolchainProbe,
 };
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
@@ -57,6 +58,7 @@ fn base_contribution(kind: &str) -> PluginContribution {
         file_template: None,
         snippet_provider: None,
         agent_context_pack: None,
+        language_support: None,
         localized: None,
     }
 }
@@ -187,6 +189,7 @@ fn preview_provider_contribution_is_declarative_and_allowed() {
     let mut contribution = base_contribution("previewProvider");
     contribution.preview_provider = Some(PluginPreviewProvider {
         extensions: vec!["md".to_string()],
+        filenames: Vec::new(),
         preview_mode: "markdown".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
@@ -213,6 +216,7 @@ fn file_open_handler_accepts_safe_extensions_and_targets() {
     let mut contribution = base_contribution("fileOpenHandler");
     contribution.file_open_handler = Some(PluginFileOpenHandler {
         extensions: vec!["toml".to_string(), ".json".to_string()],
+        filenames: Vec::new(),
         open_with: "text".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
@@ -224,6 +228,7 @@ fn preview_provider_rejects_script_like_modes() {
     let mut contribution = base_contribution("previewProvider");
     contribution.preview_provider = Some(PluginPreviewProvider {
         extensions: vec!["abc".to_string()],
+        filenames: Vec::new(),
         preview_mode: "javascript".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
@@ -318,4 +323,59 @@ fn agent_context_pack_rejects_absolute_patterns() {
         .issues
         .iter()
         .any(|issue| issue.code == "plugin.contribution.agent_context_pack_invalid"));
+}
+
+#[test]
+fn file_open_handler_accepts_dotfile_filenames() {
+    let mut contribution = base_contribution("fileOpenHandler");
+    contribution.file_open_handler = Some(PluginFileOpenHandler {
+        extensions: Vec::new(),
+        filenames: vec![".gitignore".to_string(), ".npmrc".to_string()],
+        open_with: "text".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn language_support_rejects_custom_runtime_languages() {
+    let mut contribution = base_contribution("languageSupport");
+    contribution.language_support = Some(PluginLanguageSupport {
+        language: "custom-script".to_string(),
+        extensions: vec!["evil".to_string()],
+        filenames: Vec::new(),
+        editor_language: Some("javascript".to_string()),
+        preview_mode: Some("script".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.language_support_invalid"));
+}
+
+#[test]
+fn language_support_accepts_builtin_dotfile_binding() {
+    let mut contribution = base_contribution("languageSupport");
+    contribution.language_support = Some(PluginLanguageSupport {
+        language: "ignore".to_string(),
+        extensions: Vec::new(),
+        filenames: vec![".gitignore".to_string()],
+        editor_language: Some("ignore".to_string()),
+        preview_mode: Some("text".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn builtin_catalog_hides_bundled_tectonic_and_cloudflared_marketplace_cards() {
+    let ids = built_in_catalog()
+        .into_iter()
+        .map(|entry| entry.manifest.id)
+        .collect::<Vec<_>>();
+    assert!(!ids.iter().any(|id| id == "latotex.runtime.tectonic"));
+    assert!(!ids.iter().any(|id| id == "latotex.runtime.cloudflared"));
+    assert!(ids.iter().any(|id| id == "latotex.drawio-runtime"));
 }

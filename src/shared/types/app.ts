@@ -254,7 +254,7 @@ export type AppSettings = {
   modelCatalog: ModelCatalogItem[];
   agentBindings: AgentModelBinding[];
   uiPrefs?: {
-    language?: "en-US" | "zh-CN";
+    language?: "en-US" | "zh-CN" | "es-ES" | "ja-JP";
     skipDeleteConfirm?: boolean;
     closeToTrayNoticeEnabled?: boolean;
     theme?: "light" | "dark" | "system";

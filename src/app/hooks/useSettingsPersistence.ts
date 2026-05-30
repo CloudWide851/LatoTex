@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import type { Locale } from "../../i18n";
 import { setModelApiKey, updateSettings } from "../../shared/api/settings";
 import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
@@ -7,7 +8,7 @@ import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
 
 type SettingsPersistenceParams = {
   activeProjectId: string | null;
-  locale: "en-US" | "zh-CN";
+  locale: Locale;
   settings: AppSettings | null;
   draftModelApiKeys: Record<string, string>;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings | null>>;

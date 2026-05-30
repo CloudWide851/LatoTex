@@ -8,6 +8,8 @@ describe("codeLanguage", () => {
     expect(extensionOfPath("Dockerfile")).toBe("dockerfile");
     expect(extensionOfPath(".editorconfig")).toBe("editorconfig");
     expect(extensionOfPath(".gitignore")).toBe("gitignore");
+    expect(extensionOfPath(".env.local")).toBe("env");
+    expect(extensionOfPath(".npmrc")).toBe("npmrc");
   });
 
   it("resolves editor and preview languages for common source files", () => {
@@ -30,6 +32,10 @@ describe("codeLanguage", () => {
     expect(resolveCodeLanguage(".gitignore")).toEqual({
       monaco: "ignore",
       highlight: null,
+    });
+    expect(resolveCodeLanguage(".env.local")).toEqual({
+      monaco: "shell",
+      highlight: "bash",
     });
     expect(resolveCodeLanguage("papers/ref.bib")).toEqual({
       monaco: "bibtex",

@@ -80,6 +80,8 @@ const CODE_LANGUAGE_BY_EXTENSION: Record<string, CodeLanguageInfo> = {
   gitignore: { monaco: "ignore", highlight: null },
   editorconfig: { monaco: "editorconfig", highlight: "ini" },
   env: { monaco: "shell", highlight: "bash" },
+  npmrc: { monaco: "ini", highlight: "ini" },
+  yarnrc: { monaco: "ini", highlight: "ini" },
   log: { monaco: "plaintext", highlight: null },
 };
 
@@ -97,9 +99,15 @@ export function extensionOfPath(path: string | null | undefined): string {
     ".gitignore",
     ".dockerignore",
     ".editorconfig",
+    ".npmrc",
+    ".yarnrc",
+    ".env",
   ]);
   if (special.has(basename)) {
     return basename.replace(/^\./, "");
+  }
+  if (basename.startsWith(".env.")) {
+    return "env";
   }
   const dot = basename.lastIndexOf(".");
   if (dot < 0 || dot === basename.length - 1) {

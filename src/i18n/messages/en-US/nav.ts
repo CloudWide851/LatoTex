@@ -11,6 +11,7 @@ export const enUS_nav = {
   "plugins.subtitle": "Discover, install, and manage LatoTex plugins with explicit permissions.",
   "plugins.refresh": "Refresh",
   "plugins.search": "Search plugins",
+  "plugins.empty": "No plugins match the current filters.",
   "plugins.sourcesSummary": "Using {count} catalog source(s). Manage URLs in Settings.",
   "plugins.install": "Install",
   "plugins.uninstall": "Uninstall",

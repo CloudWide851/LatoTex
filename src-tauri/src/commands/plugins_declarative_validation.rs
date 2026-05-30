@@ -1,6 +1,6 @@
 use crate::models::{
     PluginAgentContextPack, PluginContribution, PluginFileOpenHandler, PluginFileTemplate,
-    PluginPreviewProvider, PluginResourceBadge, PluginRuntimeAssetDetector,
+    PluginLanguageSupport, PluginPreviewProvider, PluginResourceBadge, PluginRuntimeAssetDetector,
     PluginSettingsQuickAction, PluginSettingsSchema, PluginSnippetProvider, PluginValidationIssue,
 };
 use std::collections::HashSet;
@@ -46,19 +46,42 @@ pub(crate) fn validate_safe_contribution_details(
     if contribution.kind == "agentContextPack" {
         validate_agent_context_pack(contribution.agent_context_pack.as_ref(), issues);
     }
+    if contribution.kind == "languageSupport" {
+        validate_language_support(contribution.language_support.as_ref(), issues);
+    }
 }
 
 fn valid_extension_list(extensions: &[String]) -> bool {
-    !extensions.is_empty()
-        && extensions.len() <= 16
+    extensions.len() <= 16
         && extensions.iter().all(|item| {
             let trimmed = item.trim().trim_start_matches('.');
-            !trimmed.is_empty()
-                && trimmed.len() <= 32
+            trimmed.len() <= 32
+                && !trimmed.is_empty()
                 && trimmed
                     .chars()
                     .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
         })
+}
+
+fn valid_filename_list(filenames: &[String]) -> bool {
+    filenames.len() <= 32
+        && filenames.iter().all(|item| {
+            let trimmed = item.trim();
+            !trimmed.is_empty()
+                && trimmed.len() <= 32
+                && !trimmed.contains('/')
+                && !trimmed.contains('\\')
+                && !trimmed.contains("..")
+                && trimmed
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        })
+}
+
+fn valid_file_matchers(extensions: &[String], filenames: &[String]) -> bool {
+    (!extensions.is_empty() || !filenames.is_empty())
+        && valid_extension_list(extensions)
+        && valid_filename_list(filenames)
 }
 
 fn valid_safe_key(value: &str, max_len: usize) -> bool {
@@ -109,7 +132,7 @@ fn validate_file_open_handler(
     let allowed_targets = HashSet::from([
         "text", "monaco", "docx", "markdown", "html", "image", "pdf", "binary",
     ]);
-    if !valid_extension_list(&handler.extensions)
+    if !valid_file_matchers(&handler.extensions, &handler.filenames)
         || !allowed_targets.contains(handler.open_with.as_str())
     {
         issues.push(issue(
@@ -133,7 +156,7 @@ fn validate_preview_provider(
     let allowed_modes = HashSet::from([
         "text", "code", "markdown", "html", "image", "pdf", "csv", "excel",
     ]);
-    if !valid_extension_list(&provider.extensions)
+    if !valid_file_matchers(&provider.extensions, &provider.filenames)
         || !allowed_modes.contains(provider.preview_mode.as_str())
     {
         issues.push(issue(
@@ -162,7 +185,7 @@ fn validate_resource_badge(
         .filter(|item| !item.is_empty())
         .map(|item| allowed_colors.contains(item))
         .unwrap_or(true);
-    if !valid_extension_list(&badge.extensions)
+    if !valid_file_matchers(&badge.extensions, &badge.filenames)
         || badge.label.trim().is_empty()
         || badge.label.len() > 24
         || !color_ok
@@ -264,7 +287,8 @@ fn validate_file_template(
         return;
     };
     let allowed_template_kinds = HashSet::from(["empty", "latex", "markdown", "docx", "text"]);
-    if !valid_extension_list(&template.extensions)
+    if template.extensions.is_empty()
+        || !valid_extension_list(&template.extensions)
         || !valid_filename(&template.default_name)
         || !allowed_template_kinds.contains(template.template_kind.as_str())
         || template.content.len() > 64 * 1024
@@ -370,6 +394,69 @@ fn validate_agent_context_pack(
         issues.push(issue(
             "plugin.contribution.agent_context_pack_invalid",
             "Agent context packs must use allowlisted scopes, safe relative patterns, and bounded limits.",
+        ));
+    }
+}
+
+fn validate_language_support(
+    support: Option<&PluginLanguageSupport>,
+    issues: &mut Vec<PluginValidationIssue>,
+) {
+    let Some(support) = support else {
+        issues.push(issue(
+            "plugin.contribution.language_support_missing",
+            "Language support contributions must declare languageSupport.",
+        ));
+        return;
+    };
+    let allowed_languages = HashSet::from([
+        "plaintext",
+        "latex",
+        "bibtex",
+        "markdown",
+        "typescript",
+        "javascript",
+        "python",
+        "rust",
+        "go",
+        "zig",
+        "c",
+        "cpp",
+        "json",
+        "toml",
+        "yaml",
+        "html",
+        "css",
+        "ini",
+        "ignore",
+        "editorconfig",
+        "shell",
+        "powershell",
+    ]);
+    let allowed_preview_modes = HashSet::from([
+        "text", "code", "markdown", "html", "image", "pdf", "csv", "excel",
+    ]);
+    let editor_language = support
+        .editor_language
+        .as_deref()
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .unwrap_or(support.language.trim());
+    let preview_mode_ok = support
+        .preview_mode
+        .as_deref()
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| allowed_preview_modes.contains(item))
+        .unwrap_or(true);
+    if !allowed_languages.contains(support.language.trim())
+        || !allowed_languages.contains(editor_language)
+        || !valid_file_matchers(&support.extensions, &support.filenames)
+        || !preview_mode_ok
+    {
+        issues.push(issue(
+            "plugin.contribution.language_support_invalid",
+            "Language support must bind safe file matchers to built-in editor and preview modes.",
         ));
     }
 }

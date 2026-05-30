@@ -145,6 +145,7 @@ export function SettingsPanel(props: {
   const closeToTrayNoticeEnabled = localSettings.uiPrefs?.closeToTrayNoticeEnabled ?? true;
   const paperBriefEngine = localSettings.uiPrefs?.paperBriefEngine ?? "auto";
   const terminalShell = localSettings.uiPrefs?.terminalShell ?? "powershell";
+  const systemLocale = detectSystemLocale();
 
   const updateGeneralUiPrefs = useCallback((patch: Partial<NonNullable<AppSettings["uiPrefs"]>>) => {
     setSettings((prev) => {
@@ -209,14 +210,12 @@ export function SettingsPanel(props: {
             <SettingsSelectRow
               title={t("settings.languageTitle")}
               value={locale}
-              description={`${t("settings.languageAuto")}: ${
-                detectSystemLocale() === "zh-CN"
-                  ? t("settings.language.zh-CN")
-                  : t("settings.language.en-US")
-              }`}
+              description={`${t("settings.languageAuto")}: ${t(`settings.language.${systemLocale}`)}`}
               options={[
                 { value: "zh-CN", label: t("settings.language.zh-CN") },
                 { value: "en-US", label: t("settings.language.en-US") },
+                { value: "es-ES", label: t("settings.language.es-ES") },
+                { value: "ja-JP", label: t("settings.language.ja-JP") },
               ]}
               onChange={(value) => onLocaleChange(value as Locale)}
             />

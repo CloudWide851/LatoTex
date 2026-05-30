@@ -98,6 +98,8 @@ pub struct PluginFileOpenHandler {
     #[serde(default)]
     pub extensions: Vec<String>,
     #[serde(default)]
+    pub filenames: Vec<String>,
+    #[serde(default)]
     pub open_with: String,
 }
 
@@ -107,6 +109,8 @@ pub struct PluginPreviewProvider {
     #[serde(default)]
     pub extensions: Vec<String>,
     #[serde(default)]
+    pub filenames: Vec<String>,
+    #[serde(default)]
     pub preview_mode: String,
 }
 
@@ -115,6 +119,8 @@ pub struct PluginPreviewProvider {
 pub struct PluginResourceBadge {
     #[serde(default)]
     pub extensions: Vec<String>,
+    #[serde(default)]
+    pub filenames: Vec<String>,
     #[serde(default)]
     pub label: String,
     #[serde(default)]
@@ -213,6 +219,21 @@ pub struct PluginAgentContextPack {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginLanguageSupport {
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub filenames: Vec<String>,
+    #[serde(default)]
+    pub editor_language: Option<String>,
+    #[serde(default)]
+    pub preview_mode: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginLocalizedContribution {
     #[serde(default)]
     pub title: Option<String>,
@@ -284,6 +305,8 @@ pub struct PluginContribution {
     pub snippet_provider: Option<PluginSnippetProvider>,
     #[serde(default)]
     pub agent_context_pack: Option<PluginAgentContextPack>,
+    #[serde(default)]
+    pub language_support: Option<PluginLanguageSupport>,
     #[serde(default)]
     pub localized: Option<std::collections::HashMap<String, PluginLocalizedContribution>>,
 }

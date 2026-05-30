@@ -1,4 +1,5 @@
 import type { SwarmEvent } from "../../shared/types/app";
+import type { Locale } from "../../i18n";
 
 export type TranslationFn = (key: any) => string;
 
@@ -7,7 +8,7 @@ export type UseAnalysisWorkspaceParams = {
   selectedFile: string | null;
   editorContent: string;
   fileList: string[];
-  locale: "zh-CN" | "en-US";
+  locale: Locale;
   analysisModelOverride?: string | null;
   suspended?: boolean;
   events: SwarmEvent[];

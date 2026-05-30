@@ -49,6 +49,9 @@ export function useSelectedFilePreviewEffects(params: {
     if (message === "workspace.file_read.access_denied") {
       return t("toast.fileAccessDenied");
     }
+    if (message === "workspace.file_read.invalid_utf8") {
+      return t("toast.fileInvalidTextEncoding");
+    }
     return message;
   };
 

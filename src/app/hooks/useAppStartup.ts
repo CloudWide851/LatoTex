@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { resolveLocale } from "../../i18n";
+import type { Locale } from "../../i18n";
 import { getHealthCheck, windowSyncIcon } from "../../shared/api/app";
 import { resumeLibraryPdfDownloads } from "../../shared/api/library";
 import { listProjects } from "../../shared/api/projects";
@@ -15,7 +16,7 @@ import {
 
 type TranslationFn = (...args: any[]) => string;
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
-type SetLocale = (value: "en-US" | "zh-CN") => void;
+type SetLocale = (value: Locale) => void;
 
 function normalizeSettings(appSettings: AppSettings): AppSettings {
   const backgroundList = Array.from(

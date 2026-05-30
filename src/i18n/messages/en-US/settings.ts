@@ -198,6 +198,8 @@ export const enUS_settings = {
   "settings.editorBackgroundHint": "Applies to the editing canvas, DOCX page, terminal shell, and editor loading surfaces.",
   "settings.language.zh-CN": "Chinese",
   "settings.language.en-US": "English",
+  "settings.language.es-ES": "Spanish",
+  "settings.language.ja-JP": "Japanese",
   "settings.languageAuto": "Auto",
   "settings.deleteConfirm": "Ask before delete",
   "settings.closeToTrayNotice": "Show close-to-tray reminder",

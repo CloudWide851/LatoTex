@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { enUS, type MessageKey } from "./messages/en-US/index";
 import { zhCN } from "./messages/zh-CN/index";
+import { esES } from "./messages/es-ES/index";
+import { jaJP } from "./messages/ja-JP/index";
 
-export type Locale = "en-US" | "zh-CN";
+export type Locale = "en-US" | "zh-CN" | "es-ES" | "ja-JP";
 
 type I18nContextValue = {
   locale: Locale;
@@ -14,7 +16,9 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 const MESSAGE_MAP: Record<Locale, Record<MessageKey, string>> = {
   "en-US": enUS,
-  "zh-CN": zhCN
+  "zh-CN": zhCN,
+  "es-ES": esES,
+  "ja-JP": jaJP,
 };
 
 function normalizeLocale(input: string | null | undefined): Locale {
@@ -24,6 +28,12 @@ function normalizeLocale(input: string | null | undefined): Locale {
   if (input.toLowerCase().startsWith("zh")) {
     return "zh-CN";
   }
+  if (input.toLowerCase().startsWith("es")) {
+    return "es-ES";
+  }
+  if (input.toLowerCase().startsWith("ja")) {
+    return "ja-JP";
+  }
   return "en-US";
 }
 
@@ -32,7 +42,7 @@ export function detectSystemLocale(): Locale {
 }
 
 export function resolveLocale(preferred?: string | null): Locale {
-  if (preferred === "en-US" || preferred === "zh-CN") {
+  if (preferred === "en-US" || preferred === "zh-CN" || preferred === "es-ES" || preferred === "ja-JP") {
     return preferred;
   }
   return detectSystemLocale();

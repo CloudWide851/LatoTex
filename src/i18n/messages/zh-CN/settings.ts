@@ -198,6 +198,8 @@ export const zhCN_settings = {
   "settings.editorBackgroundHint": "应用到编辑画布、DOCX 页面、终端和编辑器加载表面。",
   "settings.language.zh-CN": "中文",
   "settings.language.en-US": "英文",
+  "settings.language.es-ES": "西班牙语",
+  "settings.language.ja-JP": "日语",
   "settings.languageAuto": "自动",
   "settings.deleteConfirm": "删除前确认",
   "settings.closeToTrayNotice": "显示关闭时最小化到托盘提示",

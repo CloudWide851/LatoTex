@@ -1,4 +1,5 @@
 import { type Dispatch, type SetStateAction, useEffect } from "react";
+import type { Locale } from "../../i18n";
 import { setTrayLabels } from "../../shared/api/app";
 import { buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
 
@@ -6,7 +7,7 @@ type TranslationFn = (key: any) => string;
 
 export function useTrayLabelSync(params: {
   isTauriRuntime: boolean;
-  locale: "zh-CN" | "en-US";
+  locale: Locale;
   t: TranslationFn;
 }) {
   const { isTauriRuntime, locale, t } = params;

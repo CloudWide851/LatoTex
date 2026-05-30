@@ -21,6 +21,6 @@ export const zhCN_draw = {
   "draw.fileMissingRemoved": "源文件不存在，已自动清理失效绘图标签。",
   "draw.frameTitle": "绘图编辑器",
   "draw.pluginRequiredTitle": "需要 DrawIO 运行资源",
-  "draw.pluginRequiredBody": "打开绘图前，请先在插件市场安装 DrawIO Runtime。",
+  "draw.pluginRequiredBody": "打开绘图前，请先在插件市场安装 DrawIO 绘图资源。",
   "draw.openPlugins": "打开插件市场",
 } as const;
