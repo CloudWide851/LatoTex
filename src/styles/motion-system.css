@@ -242,6 +242,93 @@
   }
 }
 
+@keyframes startup-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes startup-track {
+  0% {
+    transform: translateX(-72%) scaleX(0.32);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateX(18%) scaleX(0.7);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(138%) scaleX(0.32);
+    opacity: 0.55;
+  }
+}
+
+.startup-loading-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 18rem);
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #10b981) 18%, transparent);
+  border-radius: var(--app-panel-radius, 8px);
+  background: color-mix(in srgb, var(--editor-paper-bg, #fff) 92%, transparent);
+  box-shadow: var(--motion-panel-shadow);
+}
+
+.startup-loading-orbit {
+  position: relative;
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-items: center;
+}
+
+.startup-loading-orbit > span {
+  position: absolute;
+  inset: 0.125rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #10b981) 18%, transparent);
+}
+
+.startup-loading-orbit > span:nth-child(2) {
+  inset: 0.375rem;
+  border-top-color: var(--app-accent, #10b981);
+  animation: startup-orbit 1.8s linear infinite;
+}
+
+.startup-loading-orbit > span:nth-child(3) {
+  inset: 0.6875rem;
+  border-right-color: color-mix(in srgb, var(--app-accent, #10b981) 72%, white);
+  animation: startup-orbit 2.4s linear infinite reverse;
+}
+
+.startup-loading-orbit > img {
+  position: relative;
+  width: 1.45rem;
+  height: 1.45rem;
+  object-fit: contain;
+}
+
+.startup-loading-track {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-accent, #10b981) 13%, transparent);
+}
+
+.startup-loading-track > span {
+  display: block;
+  width: 58%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--app-accent, #10b981), transparent);
+  animation: startup-track 1.45s var(--motion-ease-soft) infinite;
+  transform-origin: center;
+}
+
 .analysis-live-rail {
   display: grid;
   grid-template-columns: auto minmax(120px, 0.8fr) minmax(0, 1fr) auto;
@@ -359,6 +446,10 @@
   .motion-overlay-enter,
   .motion-live-pulse,
   .motion-status-chip::after {
+    animation: none !important;
+  }
+  .startup-loading-orbit > span,
+  .startup-loading-track > span {
     animation: none !important;
   }
 

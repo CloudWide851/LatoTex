@@ -26,9 +26,11 @@ import {
 } from "./workspace/workspacePreviewMode";
 import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
 import { PluginMarketplace } from "./plugins/PluginMarketplace";
+import { usePluginFileInterface, usePluginFileManifests } from "./plugins/usePluginFileInterfaces";
 import { DocxWorkspace } from "./docx/DocxWorkspace";
 import { LatexWorkspaceModeShell } from "./workspace/LatexWorkspaceModeShell";
 import { isDocxPath } from "../../shared/utils/fileKind";
+import { textBackedPluginPreviewMode } from "../../shared/plugins/pluginFileInterfaces";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -216,7 +218,22 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   useDrawWorkspacePreload(Boolean(activeProjectId));
 
   const previewSelectedPath = previewOverridePath || selectedFile;
-  const previewFlags = useMemo(() => resolveWorkspacePreviewFlags(previewSelectedPath), [previewSelectedPath]);
+  const pluginFileManifests = usePluginFileManifests(Boolean(activeProjectId));
+  const pluginFileInterface = usePluginFileInterface(previewSelectedPath, pluginFileManifests);
+  const pluginPreviewMode = textBackedPluginPreviewMode(pluginFileInterface.previewMode);
+  const previewFlags = useMemo(() => {
+    const flags = resolveWorkspacePreviewFlags(previewSelectedPath);
+    if (pluginPreviewMode === "markdown") {
+      return { ...flags, selectedIsMarkdown: true, selectedIsPlainText: true };
+    }
+    if (pluginPreviewMode === "html") {
+      return { ...flags, selectedIsHtml: true, selectedIsPlainText: true };
+    }
+    if (pluginPreviewMode === "csv") {
+      return { ...flags, selectedIsCsv: true, selectedIsTabular: true, selectedIsPlainText: true };
+    }
+    return flags;
+  }, [pluginPreviewMode, previewSelectedPath]);
   const {
     selectedIsPdf,
     selectedIsExcel,
@@ -230,8 +247,19 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   } = previewFlags;
   const selectedIsDraw = Boolean(selectedFile && /\.drawio$/i.test(selectedFile));
   const selectedCodeLanguage = useMemo(
-    () => editorTabs.find((tab) => tab.path === previewSelectedPath)?.language ?? resolveCodeLanguage(previewSelectedPath),
-    [editorTabs, previewSelectedPath],
+    () => {
+      const baseLanguage = editorTabs.find((tab) => tab.path === previewSelectedPath)?.language
+        ?? resolveCodeLanguage(previewSelectedPath);
+      const pluginEditorLanguage = pluginFileInterface.editorLanguage?.trim();
+      if (!pluginEditorLanguage) {
+        return baseLanguage;
+      }
+      return {
+        ...baseLanguage,
+        monaco: pluginEditorLanguage,
+      };
+    },
+    [editorTabs, pluginFileInterface.editorLanguage, previewSelectedPath],
   );
   const previewMode: WorkspacePreviewMode = resolveWorkspacePreviewMode({
     flags: previewFlags,

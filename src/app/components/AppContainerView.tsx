@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, type CSSProperties } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
+import { StartupLoadingScreen } from "./StartupLoadingScreen";
 import { SleepWakeScreen } from "./SleepWakeScreen";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
 import { useBackgroundImageObjectUrl } from "../hooks/useBackgroundImageObjectUrl";
@@ -150,6 +151,8 @@ export function AppContainerView(props: any) {
     deleteIntent,
     deleteDontAskAgain,
     integrityIssue,
+    projectDeleteConfirmIntent,
+    projectDeleteConfirmBusy,
     themeTransition,
     toast,
     analysisEnvPrompt,
@@ -163,6 +166,8 @@ export function AppContainerView(props: any) {
     setDeleteDontAskAgain,
     handleIntegrityCancel,
     handleIntegrityRepair,
+    handleProjectDeleteConfirmCancel,
+    handleProjectDeleteConfirm,
     unsavedDialogOpen,
     unsavedDialogIntent,
     unsavedDialogItems,
@@ -371,15 +376,11 @@ export function AppContainerView(props: any) {
           onCircuitBreak={handleCircuitBreak}
         >
           {!startupReady ? (
-            <section className="flex h-full min-h-0 items-center justify-center bg-[color:var(--editor-paper-bg)] text-sm text-[color:var(--editor-tab-muted)]">
-              {t("common.loading")}
-            </section>
+            <StartupLoadingScreen logoMark={logoMark} t={t} />
           ) : (
             <Suspense
               fallback={
-                <section className="flex h-full min-h-0 items-center justify-center bg-[color:var(--editor-paper-bg)] text-sm text-[color:var(--editor-tab-muted)]">
-                  {t("common.loading")}
-                </section>
+                <StartupLoadingScreen logoMark={logoMark} t={t} />
               }
             >
               <AppWorkspaceShell
@@ -537,6 +538,8 @@ export function AppContainerView(props: any) {
         deleteIntent={deleteIntent}
         deleteDontAskAgain={deleteDontAskAgain}
         integrityIssue={integrityIssue}
+        projectDeleteConfirmIntent={projectDeleteConfirmIntent}
+        projectDeleteConfirmBusy={projectDeleteConfirmBusy}
         themeTransition={themeTransition}
         toast={toast}
         analysisEnvPrompt={safeAnalysisEnvPrompt}
@@ -554,6 +557,8 @@ export function AppContainerView(props: any) {
         onDeleteDontAskChange={setDeleteDontAskAgain}
         onIntegrityCancel={handleIntegrityCancel}
         onIntegrityRepair={handleIntegrityRepair}
+        onProjectDeleteConfirmCancel={handleProjectDeleteConfirmCancel}
+        onProjectDeleteConfirm={handleProjectDeleteConfirm}
         closeBehaviorDialogOpen={closeBehaviorDialogOpen}
         closeBehaviorRemember={closeBehaviorRememberChoice}
         closeBehaviorDialogBusy={closeBehaviorDialogBusy}

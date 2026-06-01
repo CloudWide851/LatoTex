@@ -19,6 +19,8 @@ export const enUS_topbar = {
   "topbar.share": "Share",
   "topbar.projectRemoveFromList": "Remove from list",
   "topbar.projectMoveToTrash": "Move project folder to Recycle Bin",
+  "topbar.projectRemoveFromListTitle": "Remove project from list",
+  "topbar.projectMoveToTrashTitle": "Move project folder to Recycle Bin",
   "topbar.projectRemoveFromListConfirm": "Remove {name} from the LatoTex project list? Files on disk will be kept.",
   "topbar.projectMoveToTrashConfirm": "Move {name} to the Recycle Bin and remove it from LatoTex?",
   "topbar.projectRemoveFromListDone": "Project removed from the list.",

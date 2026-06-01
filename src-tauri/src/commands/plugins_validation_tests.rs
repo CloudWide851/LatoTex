@@ -1,12 +1,12 @@
 use super::plugins::validate_manifest;
 use super::plugins_builtin::built_in_catalog;
 use crate::models::{
-    PluginAgentContextPack, PluginCommandRef, PluginContribution, PluginFileOpenHandler,
-    PluginCommandPaletteItem, PluginFileTemplate, PluginLanguageSupport, PluginManifest,
-    PluginPanel, PluginPreviewProvider, PluginProblemMatcher, PluginResourceClassifier,
-    PluginRuntimeAssetDetector, PluginSidebarView, PluginTreeDecoration,
-    PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet, PluginSnippetProvider,
-    PluginToolchainInstaller, PluginToolchainProbe,
+    PluginAgentContextPack, PluginCommandPaletteItem, PluginCommandRef, PluginContribution,
+    PluginFileOpenHandler, PluginFileTemplate, PluginLanguageSupport, PluginManifest, PluginPanel,
+    PluginPreviewProvider, PluginProblemMatcher, PluginResourceClassifier,
+    PluginRuntimeAssetDetector, PluginSettingsSchema, PluginSettingsSchemaField, PluginSidebarView,
+    PluginSnippet, PluginSnippetProvider, PluginToolchainInstaller, PluginToolchainProbe,
+    PluginTreeDecoration,
 };
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
@@ -198,6 +198,7 @@ fn preview_provider_contribution_is_declarative_and_allowed() {
     contribution.preview_provider = Some(PluginPreviewProvider {
         extensions: vec!["md".to_string()],
         filenames: Vec::new(),
+        patterns: Vec::new(),
         preview_mode: "markdown".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
@@ -225,6 +226,7 @@ fn file_open_handler_accepts_safe_extensions_and_targets() {
     contribution.file_open_handler = Some(PluginFileOpenHandler {
         extensions: vec!["toml".to_string(), ".json".to_string()],
         filenames: Vec::new(),
+        patterns: Vec::new(),
         open_with: "text".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
@@ -237,7 +239,38 @@ fn preview_provider_rejects_script_like_modes() {
     contribution.preview_provider = Some(PluginPreviewProvider {
         extensions: vec!["abc".to_string()],
         filenames: Vec::new(),
+        patterns: Vec::new(),
         preview_mode: "javascript".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.preview_provider_invalid"));
+}
+
+#[test]
+fn file_open_handler_accepts_safe_relative_patterns() {
+    let mut contribution = base_contribution("fileOpenHandler");
+    contribution.file_open_handler = Some(PluginFileOpenHandler {
+        extensions: Vec::new(),
+        filenames: Vec::new(),
+        patterns: vec!["notes/**/*.typ".to_string()],
+        open_with: "monaco".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn preview_provider_rejects_absolute_patterns() {
+    let mut contribution = base_contribution("previewProvider");
+    contribution.preview_provider = Some(PluginPreviewProvider {
+        extensions: Vec::new(),
+        filenames: Vec::new(),
+        patterns: vec!["C:/Users/private/*.md".to_string()],
+        preview_mode: "markdown".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(!validation.ok);
@@ -339,6 +372,7 @@ fn file_open_handler_accepts_dotfile_filenames() {
     contribution.file_open_handler = Some(PluginFileOpenHandler {
         extensions: Vec::new(),
         filenames: vec![".gitignore".to_string(), ".npmrc".to_string()],
+        patterns: Vec::new(),
         open_with: "text".to_string(),
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
@@ -352,6 +386,7 @@ fn language_support_rejects_custom_runtime_languages() {
         language: "custom-script".to_string(),
         extensions: vec!["evil".to_string()],
         filenames: Vec::new(),
+        patterns: Vec::new(),
         editor_language: Some("javascript".to_string()),
         preview_mode: Some("script".to_string()),
     });
@@ -370,6 +405,7 @@ fn language_support_accepts_builtin_dotfile_binding() {
         language: "ignore".to_string(),
         extensions: Vec::new(),
         filenames: vec![".gitignore".to_string()],
+        patterns: Vec::new(),
         editor_language: Some("ignore".to_string()),
         preview_mode: Some("text".to_string()),
     });

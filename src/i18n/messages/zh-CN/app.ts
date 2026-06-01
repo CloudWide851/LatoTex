@@ -7,6 +7,7 @@ export const zhCN_app = {
   "app.sleep.wake": "唤醒工作区",
   "app.startup.title": "启动预热",
   "app.startup.loadingHint": "LatoTex 正在预热本地运行时并准备工作区，完成后才会开放交互。",
+  "app.startup.lightHint": "正在准备桌面工作区。",
   "app.startup.actionRequiredHint": "启动被一个必要依赖阻塞，请先处理下面的待办项，然后继续。",
   "app.startup.failedHint": "启动未能完成，请检查下面失败的步骤并在处理后重试。",
   "app.startup.retry": "重新启动",

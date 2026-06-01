@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { listInstalledPlugins } from "../../../shared/api/plugins";
+import { getPluginCatalog, listInstalledPlugins } from "../../../shared/api/plugins";
 import type { AppSettings } from "../../../shared/types/app";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
 
@@ -15,10 +15,12 @@ export function DocxSettingsSection(props: {
 
   useEffect(() => {
     let disposed = false;
-    listInstalledPlugins()
-      .then((plugins) => {
+    Promise.all([listInstalledPlugins(), getPluginCatalog([])])
+      .then(([plugins, catalog]) => {
         if (!disposed) {
-          setVisible(plugins.some((plugin) => plugin.enabled && plugin.manifest.id === "latotex.docx-workspace"));
+          const installed = plugins.some((plugin) => plugin.enabled && plugin.manifest.id === "latotex.docx-workspace");
+          const builtIn = catalog.items.some((entry) => entry.sourceId === "builtin" && entry.manifest.id === "latotex.docx-workspace");
+          setVisible(installed || builtIn);
         }
       })
       .catch(() => {

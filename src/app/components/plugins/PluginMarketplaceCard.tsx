@@ -75,15 +75,18 @@ export function PluginMarketplaceCard(props: {
       : contributionInstalled
         ? installedLabel
         : t("plugins.notInstalled");
+  const runtimePath = runtimeAssetStatus?.source === "bundled"
+    ? runtimeAssetStatus.installPath || runtimeAssetStatus.entryPath || "-"
+    : runtimeAssetStatus?.entryPath || runtimeAssetStatus?.installPath || "-";
 
   return (
-    <article className="group grid min-h-[196px] grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
-      <div className="flex min-w-0 items-start gap-2.5 bg-gradient-to-br from-slate-50 to-white p-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-primary-700 shadow-sm">
+    <article className="group grid min-h-[164px] grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
+      <div className="flex min-w-0 items-start gap-2 bg-gradient-to-br from-slate-50 to-white p-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-primary-700 shadow-sm">
           {plugin.icon ? (
-            <img src={plugin.icon} alt="" className="h-6 w-6 rounded-md object-contain" />
+            <img src={plugin.icon} alt="" className="h-5 w-5 rounded object-contain" />
           ) : (
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4" />
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -106,10 +109,10 @@ export function PluginMarketplaceCard(props: {
         </span>
       </div>
 
-      <div className="space-y-2 px-3 pb-2">
+      <div className="space-y-1.5 px-2.5 pb-1.5">
         <p className="line-clamp-2 min-h-8 text-xs leading-4 text-slate-600">{localized.description}</p>
         <div className="flex flex-wrap gap-1">
-          {localized.categories.slice(0, 3).map((category) => (
+          {localized.categories.slice(0, 2).map((category) => (
             <span key={category} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
               {category}
             </span>
@@ -122,7 +125,7 @@ export function PluginMarketplaceCard(props: {
         </div>
       </div>
 
-      <div className="space-y-1.5 px-3 pb-2">
+      <div className="space-y-1 px-2.5 pb-1.5">
         <p className="line-clamp-1 text-[11px] text-slate-500">
           {contributionSummary(plugin, locale) || plugin.id}
         </p>
@@ -142,7 +145,7 @@ export function PluginMarketplaceCard(props: {
                 ? "plugins.runtimeAsset.bundled"
                 : runtimeAssetStatus.source === "local"
                   ? "plugins.runtimeAsset.detected"
-                  : "plugins.runtimeAsset.ready").replace("{path}", runtimeAssetStatus.entryPath || "-")
+                  : "plugins.runtimeAsset.ready").replace("{path}", runtimePath)
               : t("plugins.runtimeAsset.notInstalled")}
           </div>
         ) : null}
@@ -174,7 +177,7 @@ export function PluginMarketplaceCard(props: {
         ) : null}
       </div>
 
-      <div className="flex flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-3 py-2">
+      <div className="flex flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
         {toolchain ? (
           <>
             <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "verify")}>

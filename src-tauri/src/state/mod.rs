@@ -4,8 +4,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::io::Write;
 use std::io::ErrorKind;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Condvar, Mutex};
@@ -142,9 +142,12 @@ impl AppState {
     pub fn bootstrap(app: &AppHandle) -> Result<Self, String> {
         let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
         let previous_runtime_root = read_runtime_root_pointer(&app_data_dir);
+        let runtime_root_overridden = runtime_root_override_present();
         let runtime_root = resolve_runtime_root(previous_runtime_root.as_ref())?;
-        migrate_legacy_data_if_needed(&app_data_dir, &runtime_root)?;
-        migrate_previous_runtime_data_if_needed(previous_runtime_root.as_ref(), &runtime_root)?;
+        if should_migrate_runtime_data(crate::smoke::enabled(), runtime_root_overridden) {
+            migrate_legacy_data_if_needed(&app_data_dir, &runtime_root)?;
+            migrate_previous_runtime_data_if_needed(previous_runtime_root.as_ref(), &runtime_root)?;
+        }
 
         let projects_dir = runtime_root.join("projects");
         let db_path = runtime_root.join("latotex.db");
@@ -229,8 +232,8 @@ fn schedule_windows_shortcut_sync(state: &AppState) {
 }
 
 fn resolve_runtime_root(previous_runtime_root: Option<&PathBuf>) -> Result<PathBuf, String> {
-    if let Some(override_root) = runtime_root_arg_value()
-        .or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
+    if let Some(override_root) =
+        runtime_root_arg_value().or_else(|| std::env::var("LATOTEX_E2E_RUNTIME_ROOT").ok())
     {
         let runtime_root = PathBuf::from(override_root.trim());
         if !runtime_root.as_os_str().is_empty() {
@@ -266,8 +269,18 @@ fn resolve_runtime_root(previous_runtime_root: Option<&PathBuf>) -> Result<PathB
 
 fn runtime_root_arg_value() -> Option<String> {
     let prefix = "--latotex-runtime-root=";
-    std::env::args()
-        .find_map(|arg| arg.strip_prefix(prefix).map(|value| value.to_string()))
+    std::env::args().find_map(|arg| arg.strip_prefix(prefix).map(|value| value.to_string()))
+}
+
+fn runtime_root_override_present() -> bool {
+    runtime_root_arg_value().is_some()
+        || std::env::var("LATOTEX_E2E_RUNTIME_ROOT")
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+}
+
+fn should_migrate_runtime_data(smoke_mode: bool, runtime_root_overridden: bool) -> bool {
+    !smoke_mode && !runtime_root_overridden
 }
 
 #[cfg(target_os = "windows")]
@@ -531,5 +544,3 @@ fn write_install_state(path: &PathBuf, state: &InstallState) -> Result<(), Strin
 
 #[cfg(test)]
 mod tests;
-
-

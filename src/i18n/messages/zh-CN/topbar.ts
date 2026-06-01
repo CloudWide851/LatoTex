@@ -19,6 +19,8 @@ export const zhCN_topbar = {
   "topbar.share": "共享",
   "topbar.projectRemoveFromList": "从列表移除",
   "topbar.projectMoveToTrash": "移动项目文件夹到回收站",
+  "topbar.projectRemoveFromListTitle": "从项目列表移除",
+  "topbar.projectMoveToTrashTitle": "移动项目文件夹到回收站",
   "topbar.projectRemoveFromListConfirm": "要将 {name} 从 LatoTex 项目列表移除吗？磁盘上的文件会保留。",
   "topbar.projectMoveToTrashConfirm": "要将 {name} 移动到回收站，并从 LatoTex 移除吗？",
   "topbar.projectRemoveFromListDone": "已从列表移除项目。",

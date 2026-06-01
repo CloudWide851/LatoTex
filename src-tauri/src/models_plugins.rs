@@ -100,6 +100,8 @@ pub struct PluginFileOpenHandler {
     #[serde(default)]
     pub filenames: Vec<String>,
     #[serde(default)]
+    pub patterns: Vec<String>,
+    #[serde(default)]
     pub open_with: String,
 }
 
@@ -110,6 +112,8 @@ pub struct PluginPreviewProvider {
     pub extensions: Vec<String>,
     #[serde(default)]
     pub filenames: Vec<String>,
+    #[serde(default)]
+    pub patterns: Vec<String>,
     #[serde(default)]
     pub preview_mode: String,
 }
@@ -273,6 +277,8 @@ pub struct PluginLanguageSupport {
     pub extensions: Vec<String>,
     #[serde(default)]
     pub filenames: Vec<String>,
+    #[serde(default)]
+    pub patterns: Vec<String>,
     #[serde(default)]
     pub editor_language: Option<String>,
     #[serde(default)]

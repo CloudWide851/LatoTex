@@ -25,7 +25,9 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
+import { installedPluginForMarketplaceEntry } from "./pluginMarketplaceInstallState";
 import { localeOf, localizedPlugin, type TranslationFn } from "./pluginMarketplaceUtils";
+import { notifyPluginsChanged } from "./usePluginFileInterfaces";
 
 export function PluginMarketplace(props: {
   settings: AppSettings | null;
@@ -119,6 +121,7 @@ export function PluginMarketplace(props: {
     try {
       const next = await installPlugin(entry.manifest);
       setInstalled((prev) => [next, ...prev.filter((item) => item.manifest.id !== entry.manifest.id)]);
+      notifyPluginsChanged();
       setStatus(t("plugins.installDone"));
     } catch (error) {
       setStatus(String(error));
@@ -135,6 +138,7 @@ export function PluginMarketplace(props: {
     try {
       const next = await setPluginEnabled(plugin.manifest.id, !plugin.enabled);
       setInstalled((prev) => prev.map((item) => (item.manifest.id === next.manifest.id ? next : item)));
+      notifyPluginsChanged();
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -150,6 +154,7 @@ export function PluginMarketplace(props: {
     try {
       await uninstallPlugin(pluginId);
       setInstalled((prev) => prev.filter((item) => item.manifest.id !== pluginId));
+      notifyPluginsChanged();
       setStatus(t("plugins.uninstallDone"));
     } catch (error) {
       setStatus(String(error));
@@ -249,10 +254,10 @@ export function PluginMarketplace(props: {
             {t("plugins.empty")}
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((entry) => {
             const plugin = entry.manifest;
-            const installedPlugin = installedById.get(plugin.id);
+            const installedPlugin = installedPluginForMarketplaceEntry(entry, installedById);
             const expanded = expandedId === plugin.id;
             const toolchain = toolchainFor(plugin);
             const runtimeAsset = runtimeAssetFor(plugin);

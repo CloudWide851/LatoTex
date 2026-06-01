@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 import { ModelModal } from "./ModelModal";
+import { ProjectDeleteConfirmDialog, type ProjectDeleteConfirmIntent } from "./ProjectDeleteConfirmDialog";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { normalizeLogLevel, resolveLineTone } from "./logTone";
 import type {
@@ -60,6 +61,8 @@ export function AppOverlays(props: {
   deleteIntent: DeleteIntent;
   deleteDontAskAgain: boolean;
   integrityIssue: { projectId: string; missingRequired: string[] } | null;
+  projectDeleteConfirmIntent: ProjectDeleteConfirmIntent;
+  projectDeleteConfirmBusy: boolean;
   themeTransition: ThemeTransition | null;
   toast: Toast;
   analysisEnvPrompt: {
@@ -92,6 +95,8 @@ export function AppOverlays(props: {
   onDeleteDontAskChange: (value: boolean) => void;
   onIntegrityCancel: () => void;
   onIntegrityRepair: () => void;
+  onProjectDeleteConfirmCancel: () => void;
+  onProjectDeleteConfirm: () => void;
   closeBehaviorDialogOpen: boolean;
   closeBehaviorRemember: boolean;
   closeBehaviorDialogBusy: boolean;
@@ -112,6 +117,8 @@ export function AppOverlays(props: {
     deleteIntent,
     deleteDontAskAgain,
     integrityIssue,
+    projectDeleteConfirmIntent,
+    projectDeleteConfirmBusy,
     themeTransition,
     toast,
     analysisEnvPrompt,
@@ -125,6 +132,8 @@ export function AppOverlays(props: {
     onDeleteDontAskChange,
     onIntegrityCancel,
     onIntegrityRepair,
+    onProjectDeleteConfirmCancel,
+    onProjectDeleteConfirm,
     closeBehaviorDialogOpen,
     closeBehaviorRemember,
     closeBehaviorDialogBusy,
@@ -305,6 +314,14 @@ export function AppOverlays(props: {
           </div>
         </div>
       )}
+
+      <ProjectDeleteConfirmDialog
+        intent={projectDeleteConfirmIntent}
+        busy={projectDeleteConfirmBusy}
+        onCancel={onProjectDeleteConfirmCancel}
+        onConfirm={onProjectDeleteConfirm}
+        t={t}
+      />
 
       {integrityIssue && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">

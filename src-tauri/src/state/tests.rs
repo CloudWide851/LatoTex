@@ -1,4 +1,4 @@
-use super::{copy_runtime_candidates, resolve_runtime_root};
+use super::{copy_runtime_candidates, resolve_runtime_root, should_migrate_runtime_data};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -72,4 +72,11 @@ fn resolve_runtime_root_prefers_test_override() {
 
     let _ = fs::remove_dir_all(previous_root);
     let _ = fs::remove_dir_all(resolved);
+}
+
+#[test]
+fn runtime_migration_is_disabled_for_smoke_and_override_roots() {
+    assert!(!should_migrate_runtime_data(true, false));
+    assert!(!should_migrate_runtime_data(false, true));
+    assert!(should_migrate_runtime_data(false, false));
 }

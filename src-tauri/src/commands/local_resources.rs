@@ -46,12 +46,6 @@ fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
 
 fn candidate_source_dirs(relative_subdir: &str) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    candidates.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/core/{relative_subdir}")),
-    );
-    candidates.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../public/core/{relative_subdir}")),
-    );
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             candidates.push(exe_dir.join(format!("resources/core/{relative_subdir}")));
@@ -59,6 +53,12 @@ fn candidate_source_dirs(relative_subdir: &str) -> Vec<PathBuf> {
             candidates.push(exe_dir.join(format!("../resources/core/{relative_subdir}")));
         }
     }
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("resources/core/{relative_subdir}")),
+    );
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../public/core/{relative_subdir}")),
+    );
     candidates
 }
 
@@ -71,8 +71,10 @@ fn choose_existing_source_dir(required_assets: &[&str], relative_subdir: &str) -
 fn ensure_drawio_serving_dir(state: &AppState) -> Result<PathBuf, String> {
     if let Some(entry) = find_runtime_asset_entry(&state.runtime_root, "drawio") {
         if let Some(parent) = entry.parent() {
-            if has_required_assets(parent, &["index.html", "vendor/index.html", "vendor/js/app.min.js"])
-                || has_required_assets(parent, &["index.html", "js/app.min.js", "js/bootstrap.js"])
+            if has_required_assets(
+                parent,
+                &["index.html", "vendor/index.html", "vendor/js/app.min.js"],
+            ) || has_required_assets(parent, &["index.html", "js/app.min.js", "js/bootstrap.js"])
             {
                 return Ok(parent.to_path_buf());
             }
@@ -159,7 +161,9 @@ fn current_local_resource_origin() -> Option<String> {
     LOCAL_RESOURCE_ORIGIN.with(|slot| slot.borrow().clone())
 }
 
-fn apply_local_resource_headers(mut builder: tauri::http::response::Builder) -> tauri::http::response::Builder {
+fn apply_local_resource_headers(
+    mut builder: tauri::http::response::Builder,
+) -> tauri::http::response::Builder {
     builder = builder
         .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
         .header("Access-Control-Allow-Headers", "Range, Content-Type")

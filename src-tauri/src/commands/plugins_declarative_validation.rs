@@ -84,6 +84,18 @@ fn valid_file_matchers(extensions: &[String], filenames: &[String]) -> bool {
         && valid_filename_list(filenames)
 }
 
+fn valid_file_matchers_with_patterns(
+    extensions: &[String],
+    filenames: &[String],
+    patterns: &[String],
+) -> bool {
+    (!extensions.is_empty() || !filenames.is_empty() || !patterns.is_empty())
+        && valid_extension_list(extensions)
+        && valid_filename_list(filenames)
+        && patterns.len() <= 32
+        && patterns.iter().all(|pattern| valid_safe_pattern(pattern))
+}
+
 fn valid_safe_key(value: &str, max_len: usize) -> bool {
     let trimmed = value.trim();
     !trimmed.is_empty()
@@ -132,8 +144,11 @@ fn validate_file_open_handler(
     let allowed_targets = HashSet::from([
         "text", "monaco", "docx", "markdown", "html", "image", "pdf", "binary",
     ]);
-    if !valid_file_matchers(&handler.extensions, &handler.filenames)
-        || !allowed_targets.contains(handler.open_with.as_str())
+    if !valid_file_matchers_with_patterns(
+        &handler.extensions,
+        &handler.filenames,
+        &handler.patterns,
+    ) || !allowed_targets.contains(handler.open_with.as_str())
     {
         issues.push(issue(
             "plugin.contribution.file_open_handler_invalid",
@@ -156,8 +171,11 @@ fn validate_preview_provider(
     let allowed_modes = HashSet::from([
         "text", "code", "markdown", "html", "image", "pdf", "csv", "excel",
     ]);
-    if !valid_file_matchers(&provider.extensions, &provider.filenames)
-        || !allowed_modes.contains(provider.preview_mode.as_str())
+    if !valid_file_matchers_with_patterns(
+        &provider.extensions,
+        &provider.filenames,
+        &provider.patterns,
+    ) || !allowed_modes.contains(provider.preview_mode.as_str())
     {
         issues.push(issue(
             "plugin.contribution.preview_provider_invalid",
@@ -451,7 +469,11 @@ fn validate_language_support(
         .unwrap_or(true);
     if !allowed_languages.contains(support.language.trim())
         || !allowed_languages.contains(editor_language)
-        || !valid_file_matchers(&support.extensions, &support.filenames)
+        || !valid_file_matchers_with_patterns(
+            &support.extensions,
+            &support.filenames,
+            &support.patterns,
+        )
         || !preview_mode_ok
     {
         issues.push(issue(

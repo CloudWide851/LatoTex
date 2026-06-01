@@ -46,12 +46,14 @@ export type PluginToolchainProbe = {
 export type PluginFileOpenHandler = {
   extensions: string[];
   filenames?: string[];
+  patterns?: string[];
   openWith: "text" | "monaco" | "docx" | "markdown" | "html" | "image" | "pdf" | "binary" | string;
 };
 
 export type PluginPreviewProvider = {
   extensions: string[];
   filenames?: string[];
+  patterns?: string[];
   previewMode: "text" | "code" | "markdown" | "html" | "image" | "pdf" | "csv" | "excel" | string;
 };
 
@@ -140,6 +142,7 @@ export type PluginLanguageSupport = {
   language: string;
   extensions: string[];
   filenames?: string[];
+  patterns?: string[];
   editorLanguage?: string | null;
   previewMode?: "text" | "code" | "markdown" | "html" | "image" | "pdf" | "csv" | "excel" | string | null;
 };

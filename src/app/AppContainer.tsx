@@ -1,4 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContainerView } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
@@ -34,6 +35,7 @@ import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
+import type { ProjectDeleteConfirmIntent } from "./components/ProjectDeleteConfirmDialog";
 
 type IntegrityIssue = {
   projectId: string;
@@ -44,6 +46,12 @@ export function AppContainer() {
   const { locale, setLocale, t } = useI18n();
   const isTauriRuntime = isTauri();
   const [integrityIssue, setIntegrityIssue] = useState<IntegrityIssue | null>(null);
+  const [projectDeleteConfirmIntent, setProjectDeleteConfirmIntent] =
+    useState<ProjectDeleteConfirmIntent>(null);
+  const [projectDeleteConfirmBusy, setProjectDeleteConfirmBusy] = useState(false);
+  const [closeBehaviorDialogOpen, setCloseBehaviorDialogOpen] = useState(false);
+  const [closeBehaviorRememberChoice, setCloseBehaviorRememberChoice] = useState(false);
+  const [closeBehaviorDialogBusy, setCloseBehaviorDialogBusy] = useState(false);
   const s = useAppContainerState(t);
 
   const unsaved = useUnsavedChangesGuard({
@@ -170,6 +178,35 @@ export function AppContainer() {
     t,
   });
 
+  const requestCloseBehaviorDecision = useCallback(() => {
+    setCloseBehaviorRememberChoice(Boolean(s.settingsRef.current?.uiPrefs?.closeBehaviorRemember));
+    setCloseBehaviorDialogOpen(true);
+    return true;
+  }, [s.settingsRef]);
+
+  const requestNativeWindowClose = useCallback(async (bypassInterception = false) => {
+    if (!isTauriRuntime) {
+      return false;
+    }
+    if (bypassInterception) {
+      s.closeGuardUnlockedRef.current = true;
+    }
+    try {
+      await getCurrentWindow().close();
+      return true;
+    } catch (error) {
+      if (bypassInterception) {
+        s.closeGuardUnlockedRef.current = false;
+      }
+      throw error;
+    }
+  }, [isTauriRuntime, s.closeGuardUnlockedRef]);
+
+  const handleCloseBehaviorDialogCancel = useCallback(() => {
+    setCloseBehaviorDialogOpen(false);
+    setCloseBehaviorDialogBusy(false);
+  }, []);
+
   const analysisEnvPrompt = useAnalysisEnvPrompt({
     activeProjectId: s.activeProjectId,
     settings: s.settings,
@@ -231,6 +268,9 @@ export function AppContainer() {
     gitInstallerLaunched: s.gitInstallerLaunched,
     deleteIntent: s.deleteIntent,
     deleteDontAskAgain: s.deleteDontAskAgain,
+    requestCloseBehaviorDecision,
+    requestNativeWindowClose,
+    setCloseDecisionBusy: setCloseBehaviorDialogBusy,
     setBusy: s.setBusy,
     setTree: s.setTree,
     setLibraryTree: s.setLibraryTree,
@@ -281,6 +321,12 @@ export function AppContainer() {
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
   });
+
+  const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
+    void handlers.handleWindowCloseDecision(behavior, closeBehaviorRememberChoice).finally(() => {
+      setCloseBehaviorDialogOpen(false);
+    });
+  }, [closeBehaviorRememberChoice, handlers]);
 
   const activeAgentProposal = useMemo(
     () => (s.selectedFile ? s.agentProposalsByPath[s.selectedFile] ?? null : null),
@@ -446,15 +492,17 @@ export function AppContainer() {
   });
 
   const handleProjectDelete = useCallback((project: ProjectSummary, mode: "unregister" | "trashRoot") => {
-    const messageKey = mode === "trashRoot"
-      ? "topbar.projectMoveToTrashConfirm"
-      : "topbar.projectRemoveFromListConfirm";
-    const message = t(messageKey).replace("{name}", project.name);
-    if (typeof window !== "undefined" && !window.confirm(message)) {
+    setProjectDeleteConfirmIntent({ project, mode });
+  }, []);
+
+  const handleProjectDeleteConfirm = useCallback(() => {
+    const intent = projectDeleteConfirmIntent;
+    if (!intent) {
       return;
     }
-
+    const { project, mode } = intent;
     const proceed = async () => {
+      setProjectDeleteConfirmBusy(true);
       s.setBusy(true);
       try {
         const result = await deleteProject(project.id, mode);
@@ -485,6 +533,7 @@ export function AppContainer() {
           type: "info",
           message: t(mode === "trashRoot" ? "topbar.projectMoveToTrashDone" : "topbar.projectRemoveFromListDone"),
         });
+        setProjectDeleteConfirmIntent(null);
       } catch (error) {
         const message = String(error);
         s.setToast({
@@ -494,11 +543,13 @@ export function AppContainer() {
             : message,
         });
       } finally {
+        setProjectDeleteConfirmBusy(false);
         s.setBusy(false);
       }
     };
 
     if (project.id === s.activeProjectIdRef.current) {
+      setProjectDeleteConfirmIntent(null);
       unsaved.requestUnsavedGuard(
         "switchProject",
         s.editorTabsRef.current.map((tab) => tab.path),
@@ -507,7 +558,7 @@ export function AppContainer() {
       return;
     }
     void proceed();
-  }, [s, t, unsaved]);
+  }, [projectDeleteConfirmIntent, s, t, unsaved]);
 
   const agentSession = useAgentSessionController({
     activeProjectId: s.activeProjectId,
@@ -714,6 +765,8 @@ export function AppContainer() {
       deleteIntent={s.deleteIntent}
       deleteDontAskAgain={s.deleteDontAskAgain}
       integrityIssue={integrityIssue}
+      projectDeleteConfirmIntent={projectDeleteConfirmIntent}
+      projectDeleteConfirmBusy={projectDeleteConfirmBusy}
       themeTransition={s.themeTransition}
       toast={s.toast}
       setModelModalOpen={s.setModelModalOpen}
@@ -727,6 +780,14 @@ export function AppContainer() {
       setDeleteDontAskAgain={s.setDeleteDontAskAgain}
       handleIntegrityCancel={workspaceActions.handleIntegrityCancel}
       handleIntegrityRepair={workspaceActions.handleIntegrityRepair}
+      handleProjectDeleteConfirmCancel={() => setProjectDeleteConfirmIntent(null)}
+      handleProjectDeleteConfirm={handleProjectDeleteConfirm}
+      closeBehaviorDialogOpen={closeBehaviorDialogOpen}
+      closeBehaviorRememberChoice={closeBehaviorRememberChoice}
+      closeBehaviorDialogBusy={closeBehaviorDialogBusy}
+      setCloseBehaviorRememberChoice={setCloseBehaviorRememberChoice}
+      handleCloseBehaviorDialogCancel={handleCloseBehaviorDialogCancel}
+      handleCloseBehaviorDialogResolve={handleCloseBehaviorDialogResolve}
       unsavedDialogOpen={unsaved.unsavedDialogOpen}
       unsavedDialogIntent={unsaved.unsavedDialogIntent}
       unsavedDialogItems={unsaved.unsavedDialogItems}

@@ -7,6 +7,7 @@ export const enUS_app = {
   "app.sleep.wake": "Wake workspace",
   "app.startup.title": "Startup Warmup",
   "app.startup.loadingHint": "LatoTex is warming local runtime resources and preparing the workspace before it becomes interactive.",
+  "app.startup.lightHint": "Preparing the desktop workspace.",
   "app.startup.actionRequiredHint": "Startup is blocked by a required dependency. Resolve the pending item below, then continue.",
   "app.startup.failedHint": "Startup did not complete. Review the failing step below and retry after the issue is resolved.",
   "app.startup.retry": "Retry Startup",

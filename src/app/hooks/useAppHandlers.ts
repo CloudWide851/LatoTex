@@ -47,6 +47,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     requestCloseBehaviorDecision = () => false,
     requestNativeWindowClose = async () => false,
     setCloseDecisionBusy = () => undefined,
+    setWindowActionBusy = () => undefined,
     setBusy,
     setTree,
     setLibraryTree,
@@ -148,6 +149,9 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
     const closeBehavior = (settings?.uiPrefs?.closeBehavior ?? "ask") as CloseBehavior;
     const plan = resolveWindowControlPlan(action, closeBehavior);
+    if (plan.trackBusy) {
+      setWindowActionBusy(true);
+    }
     try {
       const appWindow = getCurrentWindow();
       if (plan.type === "minimize") {
@@ -171,11 +175,16 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       const message = error instanceof Error ? error.message : String(error);
       setToast({ type: "error", message: t("toast.windowActionFailed") });
       void runtimeLogWrite("ERROR", `window action failed: ${message}`).catch(() => undefined);
+    } finally {
+      if (plan.trackBusy) {
+        setWindowActionBusy(false);
+      }
     }
   }, [
     isTauriRuntime,
     requestCloseBehaviorDecision,
     runWindowCloseBehavior,
+    setWindowActionBusy,
     setToast,
     settings?.uiPrefs?.closeBehavior,
     t,

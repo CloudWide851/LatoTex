@@ -2,6 +2,7 @@ import { enUS, type MessageKey } from "../en-US/index";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "common.loading": "読み込み中",
+  "app.startup.lightHint": "デスクトップワークスペースを準備しています。",
   "nav.latex": "LaTeX",
   "nav.chat": "チャット",
   "nav.analysis": "データ分析",
@@ -54,6 +55,8 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "plugins.runtimeAsset.notInstalled": "リソースは未インストールです。",
   "topbar.projectRemoveFromList": "一覧から削除",
   "topbar.projectMoveToTrash": "プロジェクトフォルダーをゴミ箱へ移動",
+  "topbar.projectRemoveFromListTitle": "プロジェクトを一覧から削除",
+  "topbar.projectMoveToTrashTitle": "プロジェクトフォルダーをゴミ箱へ移動",
   "topbar.projectRemoveFromListConfirm": "{name} を LatoTex のプロジェクト一覧から削除しますか？ディスク上のファイルは残ります。",
   "topbar.projectMoveToTrashConfirm": "{name} をゴミ箱へ移動し、LatoTex から削除しますか？",
   "topbar.projectRemoveFromListDone": "プロジェクトを一覧から削除しました。",

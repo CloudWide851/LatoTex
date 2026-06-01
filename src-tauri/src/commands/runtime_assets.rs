@@ -101,10 +101,7 @@ fn has_required_assets(dir: &Path, required_assets: &[&str]) -> bool {
 }
 
 fn bundled_drawio_entry() -> Option<PathBuf> {
-    let mut candidates = vec![
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/drawio"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../public/core/drawio"),
-    ];
+    let mut candidates = Vec::new();
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             candidates.push(exe_dir.join("resources/core/drawio"));
@@ -112,6 +109,8 @@ fn bundled_drawio_entry() -> Option<PathBuf> {
             candidates.push(exe_dir.join("../resources/core/drawio"));
         }
     }
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/drawio"));
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../public/core/drawio"));
     candidates.into_iter().find_map(|dir| {
         if has_required_assets(
             &dir,

@@ -2,6 +2,7 @@ import { enUS, type MessageKey } from "../en-US/index";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   "common.loading": "Cargando",
+  "app.startup.lightHint": "Preparando el espacio de trabajo de escritorio.",
   "nav.latex": "LaTeX",
   "nav.chat": "Chat",
   "nav.analysis": "Análisis",
@@ -54,6 +55,8 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   "plugins.runtimeAsset.notInstalled": "El recurso no está instalado.",
   "topbar.projectRemoveFromList": "Quitar de la lista",
   "topbar.projectMoveToTrash": "Mover carpeta a la papelera",
+  "topbar.projectRemoveFromListTitle": "Quitar proyecto de la lista",
+  "topbar.projectMoveToTrashTitle": "Mover carpeta del proyecto a la papelera",
   "topbar.projectRemoveFromListConfirm": "¿Quitar {name} de la lista de proyectos de LatoTex? Los archivos se conservarán.",
   "topbar.projectMoveToTrashConfirm": "¿Mover {name} a la papelera y quitarlo de LatoTex?",
   "topbar.projectRemoveFromListDone": "Proyecto quitado de la lista.",
