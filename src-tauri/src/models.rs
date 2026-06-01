@@ -50,6 +50,22 @@ pub struct ProjectRefInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ProjectDeleteInput {
+    pub project_id: String,
+    pub mode: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDeleteResponse {
+    pub deleted_project_id: String,
+    pub root_path: String,
+    pub trashed_root: bool,
+    pub next_active_project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectPathActionInput {
     pub project_id: String,
     pub relative_path: Option<String>,

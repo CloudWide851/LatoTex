@@ -400,3 +400,48 @@ fn handle_local_resource_request_serves_required_drawio_support_assets() {
         );
     }
 }
+
+#[test]
+fn managed_drawio_detection_rejects_registry_paths_outside_runtime_assets() {
+    let fixture = create_test_fixture("drawio-registry-scope");
+    let external_root = fixture.temp_root.join("external-drawio");
+    fs::create_dir_all(external_root.join("vendor/js")).unwrap();
+    fs::write(external_root.join("index.html"), b"<html></html>").unwrap();
+    fs::write(external_root.join("vendor/index.html"), b"<html></html>").unwrap();
+    fs::write(external_root.join("vendor/js/app.min.js"), b"console.log('drawio')").unwrap();
+
+    let registry_path = fixture
+        .state
+        .runtime_root
+        .join("runtime-assets")
+        .join("registry.json");
+    fs::create_dir_all(registry_path.parent().unwrap()).unwrap();
+    fs::write(
+        &registry_path,
+        serde_json::json!([{
+            "pluginId": "latotex.drawio-runtime",
+            "contributionId": "drawio.webapp.windows-x64",
+            "asset": {
+                "id": "drawio",
+                "kind": "drawio",
+                "platform": "windows-x64",
+                "downloadUrl": "https://example.com/drawio.zip",
+                "downloadUrlCn": null,
+                "sha256": "a".repeat(64),
+                "archiveFormat": "zip",
+                "entryPath": "index.html"
+            },
+            "installedAt": "2026-06-01T00:00:00Z",
+            "rootDir": external_root.to_string_lossy(),
+            "entryPath": external_root.join("index.html").to_string_lossy()
+        }])
+        .to_string(),
+    )
+    .unwrap();
+
+    assert!(crate::commands::runtime_assets::find_runtime_asset_entry(
+        &fixture.state.runtime_root,
+        "drawio"
+    )
+    .is_none());
+}

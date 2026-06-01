@@ -37,6 +37,9 @@ fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
         snippet_provider: None,
         agent_context_pack: None,
         language_support: None,
+        sidebar_view: None,
+        tree_decoration: None,
+        command_palette_item: None,
         localized: None,
     }
 }

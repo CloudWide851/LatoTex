@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, Search, Trash2, XCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "../../lib/utils";
@@ -19,9 +19,10 @@ export function ProjectSwitcher(props: {
   activeProjectId: string | null;
   disabled?: boolean;
   onChange: (projectId: string | null) => void;
+  onDelete?: (project: ProjectSummary, mode: "unregister" | "trashRoot") => void;
   t: TranslationFn;
 }) {
-  const { projects, activeProjectId, disabled, onChange, t } = props;
+  const { projects, activeProjectId, disabled, onChange, onDelete, t } = props;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [panelStyle, setPanelStyle] = useState({});
@@ -99,21 +100,55 @@ export function ProjectSwitcher(props: {
           filtered.map((project) => {
             const selected = project.id === activeProjectId;
             return (
-              <button
+              <div
                 key={project.id}
-                className={dropdownItemClassName(cn(
-                  "mb-1 justify-between text-sm last:mb-0",
+                className={cn(
+                  "group mb-1 flex min-w-0 items-center gap-1 rounded-md last:mb-0",
                   selected && "control-menu-item--selected",
-                ))}
-                onClick={() => {
-                  setOpen(false);
-                  setQuery("");
-                  onChange(project.id);
-                }}
+                )}
               >
-                <span className="truncate">{project.name}</span>
-                <Check className={cn("h-4 w-4 shrink-0", !selected && "opacity-0")} />
-              </button>
+                <button
+                  className={dropdownItemClassName("min-w-0 flex-1 justify-between text-sm")}
+                  onClick={() => {
+                    setOpen(false);
+                    setQuery("");
+                    onChange(project.id);
+                  }}
+                >
+                  <span className="truncate">{project.name}</span>
+                  <Check className={cn("h-4 w-4 shrink-0", !selected && "opacity-0")} />
+                </button>
+                {onDelete ? (
+                  <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-70 transition group-hover:opacity-100 focus-within:opacity-100">
+                    <button
+                      type="button"
+                      className="rounded p-1 text-[color:var(--control-muted)] transition hover:bg-[color:var(--control-hover)] hover:text-[color:var(--control-text)]"
+                      title={t("topbar.projectRemoveFromList")}
+                      aria-label={t("topbar.projectRemoveFromList")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setOpen(false);
+                        onDelete(project, "unregister");
+                      }}
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded p-1 text-rose-600 transition hover:bg-rose-50 hover:text-rose-700"
+                      title={t("topbar.projectMoveToTrash")}
+                      aria-label={t("topbar.projectMoveToTrash")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setOpen(false);
+                        onDelete(project, "trashRoot");
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             );
           })
         )}

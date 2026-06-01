@@ -279,6 +279,8 @@ pub struct PluginLanguageSupport {
     pub preview_mode: Option<String>,
 }
 
+include!("models_plugins_ui.rs");
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginLocalizedContribution {
@@ -360,6 +362,12 @@ pub struct PluginContribution {
     pub agent_context_pack: Option<PluginAgentContextPack>,
     #[serde(default)]
     pub language_support: Option<PluginLanguageSupport>,
+    #[serde(default)]
+    pub sidebar_view: Option<PluginSidebarView>,
+    #[serde(default)]
+    pub tree_decoration: Option<PluginTreeDecoration>,
+    #[serde(default)]
+    pub command_palette_item: Option<PluginCommandPaletteItem>,
     #[serde(default)]
     pub localized: Option<std::collections::HashMap<String, PluginLocalizedContribution>>,
 }

@@ -41,7 +41,7 @@ use commands::projects::{
     library_citation_index_rebuild, library_citation_index_status, library_citation_resolve,
     library_citation_summary, library_citation_summary_remote, library_import_link,
     library_import_pdf, library_rescan, library_resolve_pdf_preview, library_resume_pdf_downloads,
-    library_tree, library_zotero_sync, open_external_link, project_create,
+    library_tree, library_zotero_sync, open_external_link, project_create, project_delete,
     project_init_from_folder, project_integrity_repair, project_integrity_status, project_list,
     project_open, project_prepare_search_index, project_search_content,
     project_search_content_incremental, workspace_export_asset, workspace_export_pdf,
@@ -321,11 +321,7 @@ pub fn run() {
             let _ = tray_builder.build(app)?;
             smoke::write_progress("tauri.setup.done", "ok", None);
             if smoke_mode {
-                let app_handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(1000));
-                    create_smoke_main_window(&app_handle);
-                });
+                create_smoke_main_window(app.handle());
             }
             Ok(())
         })
@@ -357,6 +353,7 @@ pub fn run() {
             tray_set_labels,
             project_list,
             project_create,
+            project_delete,
             project_init_from_folder,
             project_open,
             project_integrity_status,

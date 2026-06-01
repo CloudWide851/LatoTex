@@ -33,6 +33,7 @@ export function AppContainerView(props: any) {
     projectSearchSearched,
     projectSearchResults,
     handleProjectChange,
+    handleProjectDelete,
     setProjectSearchQuery,
     handleProjectSearch,
     handleProjectSearchSelect,
@@ -342,6 +343,7 @@ export function AppContainerView(props: any) {
           projectSearchSearched={projectSearchSearched}
           projectSearchResults={projectSearchResults}
           onProjectChange={handleProjectChange}
+          onProjectDelete={handleProjectDelete}
           onProjectSearchQueryChange={(nextQuery) => {
             setProjectSearchQuery(nextQuery);
             setProjectSearchSearched(false);
@@ -356,13 +358,6 @@ export function AppContainerView(props: any) {
           }}
           onOpenFolder={handleInitProjectFromFolderWithGuard}
           onWindowControl={handleWindowControlWithGuard}
-          selectedFile={selectedFile}
-          shareSession={shareSession}
-          shareBusy={shareBusy}
-          shareSyncing={shareSyncing}
-          onShareStart={handleShareStart}
-          onShareStop={handleShareStop}
-          onShareRefresh={handleShareRefresh}
           t={t}
         />
 

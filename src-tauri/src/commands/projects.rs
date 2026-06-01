@@ -10,7 +10,7 @@ mod projects_search;
 mod projects_system;
 
 pub use projects_core::{
-    file_read, project_create, project_init_from_folder, project_integrity_repair,
+    file_read, project_create, project_delete, project_init_from_folder, project_integrity_repair,
     project_integrity_status, project_list, project_open, workspace_tree,
 };
 pub use projects_files::{

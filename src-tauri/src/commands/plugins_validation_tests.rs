@@ -2,8 +2,9 @@ use super::plugins::validate_manifest;
 use super::plugins_builtin::built_in_catalog;
 use crate::models::{
     PluginAgentContextPack, PluginCommandRef, PluginContribution, PluginFileOpenHandler,
-    PluginFileTemplate, PluginLanguageSupport, PluginManifest, PluginPanel, PluginPreviewProvider,
-    PluginProblemMatcher, PluginResourceClassifier, PluginRuntimeAssetDetector,
+    PluginCommandPaletteItem, PluginFileTemplate, PluginLanguageSupport, PluginManifest,
+    PluginPanel, PluginPreviewProvider, PluginProblemMatcher, PluginResourceClassifier,
+    PluginRuntimeAssetDetector, PluginSidebarView, PluginTreeDecoration,
     PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet, PluginSnippetProvider,
     PluginToolchainInstaller, PluginToolchainProbe,
 };
@@ -63,6 +64,9 @@ fn base_contribution(kind: &str) -> PluginContribution {
         snippet_provider: None,
         agent_context_pack: None,
         language_support: None,
+        sidebar_view: None,
+        tree_decoration: None,
+        command_palette_item: None,
         localized: None,
     }
 }
@@ -422,6 +426,77 @@ fn plugin_panel_rejects_script_markdown() {
         .issues
         .iter()
         .any(|issue| issue.code == "plugin.contribution.plugin_panel_invalid"));
+}
+
+#[test]
+fn sidebar_view_accepts_static_markdown() {
+    let mut contribution = base_contribution("sidebarView");
+    contribution.sidebar_view = Some(PluginSidebarView {
+        location: "workspace.sidebar".to_string(),
+        title: "Reference".to_string(),
+        icon: Some("book".to_string()),
+        markdown: "### Reference\n\nSafe static content.".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn tree_decoration_rejects_unsafe_matcher() {
+    let mut contribution = base_contribution("treeDecoration");
+    contribution.tree_decoration = Some(PluginTreeDecoration {
+        extensions: Vec::new(),
+        filenames: Vec::new(),
+        patterns: vec!["C:/Users/*".to_string()],
+        badge: Some("CFG".to_string()),
+        color: Some("blue".to_string()),
+        icon: Some("settings".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.tree_decoration_invalid"));
+}
+
+#[test]
+fn command_palette_item_accepts_safe_command_ref() {
+    let mut contribution = base_contribution("commandPaletteItem");
+    contribution.command_ref = Some(PluginCommandRef {
+        id: "workspace.rescan".to_string(),
+        title: Some("Rescan".to_string()),
+    });
+    contribution.command_palette_item = Some(PluginCommandPaletteItem {
+        category: Some("workspace".to_string()),
+        keywords: vec!["rescan".to_string()],
+        command_ref: contribution.command_ref.clone(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn command_palette_item_rejects_mismatched_command_ref() {
+    let mut contribution = base_contribution("commandPaletteItem");
+    contribution.command_ref = Some(PluginCommandRef {
+        id: "workspace.rescan".to_string(),
+        title: Some("Rescan".to_string()),
+    });
+    contribution.command_palette_item = Some(PluginCommandPaletteItem {
+        category: Some("workspace".to_string()),
+        keywords: vec!["rescan".to_string()],
+        command_ref: Some(PluginCommandRef {
+            id: "docx.save".to_string(),
+            title: Some("Save".to_string()),
+        }),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.command_palette_item_invalid"));
 }
 
 #[test]

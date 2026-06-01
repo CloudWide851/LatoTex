@@ -5,6 +5,7 @@ import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
 import {
   getLibraryTree,
+  deleteProject,
   gitBranches,
   gitCheckInstalled,
   gitLog,
@@ -12,6 +13,7 @@ import {
   openProject,
   projectIntegrityStatus,
 } from "../shared/api/desktop";
+import type { ProjectSummary } from "../shared/types/app";
 import { SHELL_MIN, type ThemeMode, upsertProject } from "./app-config";
 import { useAppEffects } from "./hooks/useAppEffects";
 import { buildEditorTab } from "./hooks/useEditorTabs";
@@ -443,6 +445,70 @@ export function AppContainer() {
     setModelModalOpen: s.setModelModalOpen,
   });
 
+  const handleProjectDelete = useCallback((project: ProjectSummary, mode: "unregister" | "trashRoot") => {
+    const messageKey = mode === "trashRoot"
+      ? "topbar.projectMoveToTrashConfirm"
+      : "topbar.projectRemoveFromListConfirm";
+    const message = t(messageKey).replace("{name}", project.name);
+    if (typeof window !== "undefined" && !window.confirm(message)) {
+      return;
+    }
+
+    const proceed = async () => {
+      s.setBusy(true);
+      try {
+        const result = await deleteProject(project.id, mode);
+        s.setProjects((prev) => prev.filter((item) => item.id !== result.deletedProjectId));
+        s.integrityCheckedRef.current.delete(result.deletedProjectId);
+        if (s.activeProjectIdRef.current === result.deletedProjectId) {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("latotex.project.closed", {
+                detail: { projectId: result.deletedProjectId },
+              }),
+            );
+          }
+          unsaved.resetEditorSession();
+          s.setTree([]);
+          s.setLibraryTree([]);
+          s.setSelectedFile(null);
+          s.setSelectedLibraryPath(null);
+          s.setEditorContent("");
+          s.setPreviewOverridePath(null);
+          s.setProjectSearchQuery("");
+          s.setProjectSearchResults([]);
+          s.setProjectSearchSearched(false);
+          s.setActiveProjectId(result.nextActiveProjectId ?? null);
+          s.setSettings((prev) => prev ? { ...prev, activeProjectId: result.nextActiveProjectId ?? null } : prev);
+        }
+        s.setToast({
+          type: "info",
+          message: t(mode === "trashRoot" ? "topbar.projectMoveToTrashDone" : "topbar.projectRemoveFromListDone"),
+        });
+      } catch (error) {
+        const message = String(error);
+        s.setToast({
+          type: "error",
+          message: message.includes("project.delete.root_unsafe")
+            ? t("topbar.projectDeleteRootUnsafe")
+            : message,
+        });
+      } finally {
+        s.setBusy(false);
+      }
+    };
+
+    if (project.id === s.activeProjectIdRef.current) {
+      unsaved.requestUnsavedGuard(
+        "switchProject",
+        s.editorTabsRef.current.map((tab) => tab.path),
+        proceed,
+      );
+      return;
+    }
+    void proceed();
+  }, [s, t, unsaved]);
+
   const agentSession = useAgentSessionController({
     activeProjectId: s.activeProjectId,
     selectedFile: s.selectedFile,
@@ -551,6 +617,7 @@ export function AppContainer() {
       projectSearchSearched={s.projectSearchSearched}
       projectSearchResults={s.projectSearchResults}
       handleProjectChange={workspaceActions.handleProjectChange}
+      handleProjectDelete={handleProjectDelete}
       setProjectSearchQuery={s.setProjectSearchQuery}
       handleProjectSearch={handlers.handleProjectSearch}
       handleProjectSearchSelect={handlers.handleProjectSearchSelect}

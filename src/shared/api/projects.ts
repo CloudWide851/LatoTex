@@ -1,6 +1,7 @@
 import type {
   ProjectSearchBatch,
   ProjectIntegrityStatus,
+  ProjectDeleteResponse,
   ProjectSearchHit,
   ProjectSearchScope,
   ProjectSnapshot,
@@ -22,6 +23,13 @@ export function initProjectFromFolder(): Promise<ProjectSnapshot | null> {
 
 export function openProject(projectId: string): Promise<ProjectSnapshot> {
   return invokeCommand<ProjectSnapshot>("project_open", { input: { projectId } });
+}
+
+export function deleteProject(
+  projectId: string,
+  mode: "unregister" | "trashRoot",
+): Promise<ProjectDeleteResponse> {
+  return invokeCommand<ProjectDeleteResponse>("project_delete", { input: { projectId, mode } });
 }
 
 export function projectIntegrityStatus(projectId: string): Promise<ProjectIntegrityStatus> {

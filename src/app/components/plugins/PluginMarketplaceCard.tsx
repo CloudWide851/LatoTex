@@ -77,24 +77,24 @@ export function PluginMarketplaceCard(props: {
         : t("plugins.notInstalled");
 
   return (
-    <article className="group grid min-h-[258px] grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
-      <div className="flex min-w-0 items-start gap-3 bg-gradient-to-br from-slate-50 to-white p-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-primary-700 shadow-sm">
+    <article className="group grid min-h-[196px] grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
+      <div className="flex min-w-0 items-start gap-2.5 bg-gradient-to-br from-slate-50 to-white p-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-primary-700 shadow-sm">
           {plugin.icon ? (
-            <img src={plugin.icon} alt="" className="h-8 w-8 rounded-lg object-contain" />
+            <img src={plugin.icon} alt="" className="h-6 w-6 rounded-md object-contain" />
           ) : (
-            <Icon className="h-7 w-7" />
+            <Icon className="h-5 w-5" />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-semibold text-slate-950">{localized.name}</h3>
+          <h3 className="truncate text-sm font-semibold text-slate-950">{localized.name}</h3>
           <p className="mt-1 truncate text-[11px] text-slate-500">
             {plugin.publisher} / {plugin.version} / {entry.sourceName}
           </p>
         </div>
         <span
           className={cn(
-            "shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-medium",
+            "max-w-[6.5rem] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
             installedPlugin?.enabled || contributionInstalled
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : installedPlugin
@@ -106,10 +106,10 @@ export function PluginMarketplaceCard(props: {
         </span>
       </div>
 
-      <div className="space-y-3 px-4 pb-3">
-        <p className="line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{localized.description}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {localized.categories.slice(0, 4).map((category) => (
+      <div className="space-y-2 px-3 pb-2">
+        <p className="line-clamp-2 min-h-8 text-xs leading-4 text-slate-600">{localized.description}</p>
+        <div className="flex flex-wrap gap-1">
+          {localized.categories.slice(0, 3).map((category) => (
             <span key={category} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
               {category}
             </span>
@@ -122,12 +122,12 @@ export function PluginMarketplaceCard(props: {
         </div>
       </div>
 
-      <div className="space-y-2 px-4 pb-3">
+      <div className="space-y-1.5 px-3 pb-2">
         <p className="line-clamp-1 text-[11px] text-slate-500">
           {contributionSummary(plugin, locale) || plugin.id}
         </p>
         {toolchain ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+          <div className="truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-600">
             {toolchainStatus?.installed
               ? t(toolchainStatus.source === "local" ? "plugins.toolchain.detected" : "plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
               : toolchainIsProbe
@@ -136,7 +136,7 @@ export function PluginMarketplaceCard(props: {
           </div>
         ) : null}
         {runtimeAsset ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+          <div className="truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-600">
             {runtimeAssetStatus?.installed
               ? t(runtimeAssetStatus.source === "bundled"
                 ? "plugins.runtimeAsset.bundled"
@@ -174,7 +174,7 @@ export function PluginMarketplaceCard(props: {
         ) : null}
       </div>
 
-      <div className="flex flex-wrap justify-end gap-1.5 border-t border-slate-100 bg-slate-50/70 px-4 py-3">
+      <div className="flex flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-3 py-2">
         {toolchain ? (
           <>
             <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "verify")}>

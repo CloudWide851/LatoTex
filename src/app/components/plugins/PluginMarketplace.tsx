@@ -23,6 +23,7 @@ import type { AppSettings } from "../../../shared/types/app";
 import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
+import { cn } from "../../../lib/utils";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
 import { localeOf, localizedPlugin, type TranslationFn } from "./pluginMarketplaceUtils";
 
@@ -38,7 +39,8 @@ export function PluginMarketplace(props: {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [toolchains, setToolchains] = useState<ToolchainStatus[]>([]);
   const [runtimeAssets, setRuntimeAssets] = useState<RuntimeAssetStatus[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [busyActionId, setBusyActionId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const catalogSources = useMemo(
@@ -78,7 +80,7 @@ export function PluginMarketplace(props: {
   }, [catalog, locale, query]);
 
   const reload = async () => {
-    setBusy(true);
+    setRefreshing(true);
     setStatus(null);
     try {
       const [nextCatalog, nextInstalled] = await Promise.all([
@@ -97,7 +99,7 @@ export function PluginMarketplace(props: {
     } catch (error) {
       setStatus(String(error));
     } finally {
-      setBusy(false);
+      setRefreshing(false);
     }
   };
 
@@ -106,11 +108,14 @@ export function PluginMarketplace(props: {
   }, [catalogSources]);
 
   const install = async (entry: PluginCatalogEntry) => {
+    if (busyActionId) {
+      return;
+    }
     if (!entry.validation.ok) {
       setStatus(t("plugins.installBlocked"));
       return;
     }
-    setBusy(true);
+    setBusyActionId(`${entry.manifest.id}:install`);
     try {
       const next = await installPlugin(entry.manifest);
       setInstalled((prev) => [next, ...prev.filter((item) => item.manifest.id !== entry.manifest.id)]);
@@ -118,24 +123,30 @@ export function PluginMarketplace(props: {
     } catch (error) {
       setStatus(String(error));
     } finally {
-      setBusy(false);
+      setBusyActionId(null);
     }
   };
 
   const toggle = async (plugin: InstalledPlugin) => {
-    setBusy(true);
+    if (busyActionId) {
+      return;
+    }
+    setBusyActionId(`${plugin.manifest.id}:toggle`);
     try {
       const next = await setPluginEnabled(plugin.manifest.id, !plugin.enabled);
       setInstalled((prev) => prev.map((item) => (item.manifest.id === next.manifest.id ? next : item)));
     } catch (error) {
       setStatus(String(error));
     } finally {
-      setBusy(false);
+      setBusyActionId(null);
     }
   };
 
   const remove = async (pluginId: string) => {
-    setBusy(true);
+    if (busyActionId) {
+      return;
+    }
+    setBusyActionId(`${pluginId}:remove`);
     try {
       await uninstallPlugin(pluginId);
       setInstalled((prev) => prev.filter((item) => item.manifest.id !== pluginId));
@@ -143,7 +154,7 @@ export function PluginMarketplace(props: {
     } catch (error) {
       setStatus(String(error));
     } finally {
-      setBusy(false);
+      setBusyActionId(null);
     }
   };
 
@@ -159,7 +170,10 @@ export function PluginMarketplace(props: {
     contributionId: string,
     action: "install" | "verify" | "remove",
   ) => {
-    setBusy(true);
+    if (busyActionId) {
+      return;
+    }
+    setBusyActionId(`${pluginId}:toolchain:${contributionId}:${action}`);
     try {
       const next = action === "install"
         ? await installToolchain(pluginId, contributionId)
@@ -171,7 +185,7 @@ export function PluginMarketplace(props: {
     } catch (error) {
       setStatus(String(error));
     } finally {
-      setBusy(false);
+      setBusyActionId(null);
     }
   };
 
@@ -180,7 +194,10 @@ export function PluginMarketplace(props: {
     contributionId: string,
     action: "install" | "verify" | "remove",
   ) => {
-    setBusy(true);
+    if (busyActionId) {
+      return;
+    }
+    setBusyActionId(`${pluginId}:runtime:${contributionId}:${action}`);
     try {
       const next = action === "install"
         ? await installRuntimeAsset(pluginId, contributionId)
@@ -192,7 +209,7 @@ export function PluginMarketplace(props: {
     } catch (error) {
       setStatus(String(error));
     } finally {
-      setBusy(false);
+      setBusyActionId(null);
     }
   };
 
@@ -209,9 +226,9 @@ export function PluginMarketplace(props: {
               <p className="mt-1 max-w-2xl text-sm leading-5 text-slate-600">{t("plugins.subtitle")}</p>
             </div>
           </div>
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void reload()}>
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            {busy ? t("common.loading") : t("plugins.refresh")}
+          <Button size="sm" variant="secondary" disabled={refreshing || Boolean(busyActionId)} onClick={() => void reload()}>
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", refreshing && "animate-spin")} />
+            {t("plugins.refresh")}
           </Button>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -232,7 +249,7 @@ export function PluginMarketplace(props: {
             {t("plugins.empty")}
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {filtered.map((entry) => {
             const plugin = entry.manifest;
             const installedPlugin = installedById.get(plugin.id);
@@ -247,7 +264,7 @@ export function PluginMarketplace(props: {
                 entry={entry}
                 installedPlugin={installedPlugin}
                 locale={locale}
-                busy={busy}
+                busy={Boolean(busyActionId?.startsWith(`${plugin.id}:`))}
                 expanded={expanded}
                 toolchainStatus={toolchainStatus ?? null}
                 runtimeAssetStatus={runtimeAssetStatus ?? null}

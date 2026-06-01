@@ -361,6 +361,81 @@ pub fn list_projects(db_path: &Path) -> Result<Vec<ProjectSummary>, String> {
     Ok(projects)
 }
 
+fn next_project_id(conn: &Connection) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT id FROM projects ORDER BY updated_at DESC, created_at DESC LIMIT 1",
+        [],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+pub fn delete_project(
+    db_path: &Path,
+    project_id: &str,
+    mode: &str,
+) -> Result<ProjectDeleteResponse, String> {
+    let trimmed_id = project_id.trim();
+    if trimmed_id.is_empty() {
+        return Err("project.delete.invalid_id".to_string());
+    }
+    if !matches!(mode, "unregister" | "trashRoot") {
+        return Err("project.delete.invalid_mode".to_string());
+    }
+
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let root_path: String = conn
+        .query_row(
+            "SELECT root_path FROM projects WHERE id = ?1",
+            params![trimmed_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let mut trashed_root = false;
+    if mode == "trashRoot" {
+        let root = PathBuf::from(&root_path);
+        if root.exists() {
+            let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
+            if canonical_root.parent().is_none() || !canonical_root.join(".latotex").is_dir() {
+                return Err("project.delete.root_unsafe".to_string());
+            }
+            trash::delete(&root).map_err(|e| e.to_string())?;
+            trashed_root = true;
+        }
+    }
+
+    conn.execute("DELETE FROM projects WHERE id = ?1", params![trimmed_id])
+        .map_err(|e| e.to_string())?;
+    let active_project_id: Option<String> = conn
+        .query_row(
+            "SELECT active_project_id FROM app_settings WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .flatten();
+    let next_active_project_id = if active_project_id.as_deref() == Some(trimmed_id) {
+        let next = next_project_id(&conn)?;
+        conn.execute(
+            "UPDATE app_settings SET active_project_id = ?1 WHERE id = 1",
+            params![next],
+        )
+        .map_err(|e| e.to_string())?;
+        next
+    } else {
+        active_project_id
+    };
+
+    Ok(ProjectDeleteResponse {
+        deleted_project_id: trimmed_id.to_string(),
+        root_path,
+        trashed_root,
+        next_active_project_id,
+    })
+}
+
 pub fn project_snapshot(db_path: &Path, project_id: &str) -> Result<ProjectSnapshot, String> {
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let mut stmt = conn
@@ -404,6 +479,98 @@ pub fn list_workspace_tree(root_path: &Path) -> Result<Vec<ResourceNode>, String
     }
     entries.sort_by_key(node_sort_key);
     Ok(entries)
+}
+
+#[cfg(test)]
+mod project_delete_tests {
+    use super::*;
+
+    fn temp_root(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "latotex-project-delete-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn unregister_project_preserves_files_and_repoints_active_project() {
+        let root = temp_root("unregister");
+        let db_path = root.join("latotex.db");
+        let projects_dir = root.join("projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        initialize_database(&db_path).unwrap();
+        let first = create_project(&db_path, &projects_dir, "First").unwrap();
+        let second = create_project(&db_path, &projects_dir, "Second").unwrap();
+        let second_root = PathBuf::from(&second.summary.root_path);
+
+        let deleted = delete_project(&db_path, &second.summary.id, "unregister").unwrap();
+
+        assert_eq!(deleted.deleted_project_id, second.summary.id);
+        assert!(!deleted.trashed_root);
+        assert!(second_root.exists());
+        assert_eq!(deleted.next_active_project_id.as_deref(), Some(first.summary.id.as_str()));
+        let projects = list_projects(&db_path).unwrap();
+        assert!(!projects.iter().any(|project| project.id == second.summary.id));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn trash_missing_project_root_removes_registration_without_file_delete() {
+        let root = temp_root("missing-trash");
+        let db_path = root.join("latotex.db");
+        let projects_dir = root.join("projects");
+        let missing_root = root.join("already-gone");
+        fs::create_dir_all(&projects_dir).unwrap();
+        initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["missing-project", "Missing", missing_root.to_string_lossy().to_string(), now_iso(), now_iso()],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE app_settings SET active_project_id = ?1 WHERE id = 1",
+            params!["missing-project"],
+        )
+        .unwrap();
+
+        let deleted = delete_project(&db_path, "missing-project", "trashRoot").unwrap();
+
+        assert_eq!(deleted.deleted_project_id, "missing-project");
+        assert!(!deleted.trashed_root);
+        assert!(deleted.next_active_project_id.is_none());
+        let projects = list_projects(&db_path).unwrap();
+        assert!(projects.is_empty());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn trash_project_rejects_root_without_latotex_marker() {
+        let root = temp_root("unsafe-trash");
+        let db_path = root.join("latotex.db");
+        let unsafe_root = root.join("plain-folder");
+        fs::create_dir_all(&unsafe_root).unwrap();
+        initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params!["unsafe-project", "Unsafe", unsafe_root.to_string_lossy().to_string(), now_iso(), now_iso()],
+        )
+        .unwrap();
+
+        let error = delete_project(&db_path, "unsafe-project", "trashRoot").unwrap_err();
+
+        assert_eq!(error, "project.delete.root_unsafe");
+        assert!(unsafe_root.exists());
+        let projects = list_projects(&db_path).unwrap();
+        assert_eq!(projects.len(), 1);
+        let _ = fs::remove_dir_all(root);
+    }
 }
 
 

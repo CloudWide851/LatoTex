@@ -1,16 +1,33 @@
 import { describe, expect, it, vi } from "vitest";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   buildDrawExportAction,
   decodeDrawExportPayload,
+  DRAWIO_LOCAL_RESOURCE_HOST_URL,
   isDrawImageExportFormat,
   mergeDrawExportRequest,
   persistDrawExportToWorkspace,
+  resolveDrawioHostFrameSrc,
   shouldClearPendingDrawExport,
   toDrawExportDialogDefaults,
   toDrawExportTarget,
 } from "./drawWorkspaceUtils";
 
+vi.mock("@tauri-apps/api/core", () => ({
+  isTauri: vi.fn(() => true),
+}));
+
 describe("drawWorkspaceUtils", () => {
+  it("uses the canonical local-resource DrawIO host in desktop runtime", async () => {
+    vi.mocked(isTauri).mockReturnValue(true);
+    await expect(resolveDrawioHostFrameSrc()).resolves.toBe(DRAWIO_LOCAL_RESOURCE_HOST_URL);
+  });
+
+  it("uses the dev-host DrawIO URL outside desktop runtime", async () => {
+    vi.mocked(isTauri).mockReturnValue(false);
+    await expect(resolveDrawioHostFrameSrc()).resolves.toBe("/drawio/index.html");
+  });
+
   it("routes exported assets into the drawings folder", () => {
     expect(toDrawExportTarget("notes/demo.drawio", "png")).toBe("drawings/demo.png");
     expect(toDrawExportTarget("drawings/demo.drawio", "svg")).toBe("drawings/demo.svg");

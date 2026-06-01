@@ -54,6 +54,13 @@ export type ProjectSnapshot = {
   mainFile: string;
 };
 
+export type ProjectDeleteResponse = {
+  deletedProjectId: string;
+  rootPath: string;
+  trashedRoot: boolean;
+  nextActiveProjectId: string | null;
+};
+
 export type FileReadResponse = {
   relativePath: string;
   content: string;

@@ -380,13 +380,16 @@ fn remove_blocking(
 }
 
 pub(crate) fn find_runtime_asset_entry(runtime_root: &Path, kind: &str) -> Option<PathBuf> {
+    let managed_root = asset_root(runtime_root).canonicalize().ok()?;
     read_runtime_asset_registry(runtime_root)
         .ok()?
         .into_iter()
         .find_map(|record| {
             if record.asset.kind == kind {
+                let root = PathBuf::from(&record.root_dir).canonicalize().ok()?;
                 let path = PathBuf::from(record.entry_path);
-                if path.is_file() {
+                let entry = path.canonicalize().ok()?;
+                if root.starts_with(&managed_root) && entry.is_file() && entry.starts_with(&root) {
                     return Some(path);
                 }
             }
@@ -395,6 +398,7 @@ pub(crate) fn find_runtime_asset_entry(runtime_root: &Path, kind: &str) -> Optio
 }
 
 pub(crate) fn find_runtime_asset_root(runtime_root: &Path, kind: &str) -> Option<PathBuf> {
+    let managed_root = asset_root(runtime_root).canonicalize().ok()?;
     read_runtime_asset_registry(runtime_root)
         .ok()?
         .into_iter()
@@ -402,7 +406,13 @@ pub(crate) fn find_runtime_asset_root(runtime_root: &Path, kind: &str) -> Option
             if record.asset.kind == kind {
                 let root = PathBuf::from(record.root_dir);
                 let entry = PathBuf::from(record.entry_path);
-                if root.is_dir() && entry.is_file() && entry.starts_with(&root) {
+                let canonical_root = root.canonicalize().ok()?;
+                let canonical_entry = entry.canonicalize().ok()?;
+                if canonical_root.starts_with(&managed_root)
+                    && canonical_root.is_dir()
+                    && canonical_entry.is_file()
+                    && canonical_entry.starts_with(&canonical_root)
+                {
                     return Some(root);
                 }
             }

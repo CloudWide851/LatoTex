@@ -149,6 +149,28 @@ export type PluginCommandRef = {
   title?: string | null;
 };
 
+export type PluginSidebarView = {
+  location: "workspace.sidebar" | "settings.sidebar" | "plugins.sidebar" | string;
+  title: string;
+  icon?: "file" | "code" | "book" | "image" | "table" | "settings" | "tool" | string | null;
+  markdown: string;
+};
+
+export type PluginTreeDecoration = {
+  extensions: string[];
+  filenames?: string[];
+  patterns?: string[];
+  badge?: string | null;
+  color?: "neutral" | "blue" | "green" | "amber" | "rose" | "purple" | string | null;
+  icon?: "file" | "code" | "book" | "image" | "table" | "settings" | "tool" | string | null;
+};
+
+export type PluginCommandPaletteItem = {
+  category?: string | null;
+  keywords?: string[];
+  commandRef?: PluginCommandRef | null;
+};
+
 export type PluginLocalizedContribution = {
   title?: string | null;
   description?: string | null;
@@ -187,6 +209,9 @@ export type PluginContribution = {
     | "resourceClassifier"
     | "problemMatcher"
     | "pluginPanel"
+    | "sidebarView"
+    | "treeDecoration"
+    | "commandPaletteItem"
     | "settingsQuickAction"
     | "runtimeAssetDetector"
     | "settingsSchema"
@@ -217,6 +242,9 @@ export type PluginContribution = {
   resourceClassifier?: PluginResourceClassifier | null;
   problemMatcher?: PluginProblemMatcher | null;
   pluginPanel?: PluginPanel | null;
+  sidebarView?: PluginSidebarView | null;
+  treeDecoration?: PluginTreeDecoration | null;
+  commandPaletteItem?: PluginCommandPaletteItem | null;
   settingsQuickAction?: PluginSettingsQuickAction | null;
   runtimeAssetDetector?: PluginRuntimeAssetDetector | null;
   settingsSchema?: PluginSettingsSchema | null;

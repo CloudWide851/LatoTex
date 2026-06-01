@@ -5,7 +5,7 @@ use crate::models::{
     LibraryCitationDuplicateKey, LibraryCitationIndexIssue, LibraryCitationIndexStatus,
     LibraryCitationResolveResponse, LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
     LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
-    ModelProtocolInput, ProjectIntegrityStatus, ProjectSearchBatch, ProjectSearchHit,
+    ModelProtocolInput, ProjectDeleteResponse, ProjectIntegrityStatus, ProjectSearchBatch, ProjectSearchHit,
     ProjectSearchIncrementalInput, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
     ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
 };

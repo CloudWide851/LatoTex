@@ -17,4 +17,11 @@ export const enUS_topbar = {
   "topbar.searchFileNameMatch": "File name match",
   "topbar.searchSessionMatch": "Session title match",
   "topbar.share": "Share",
+  "topbar.projectRemoveFromList": "Remove from list",
+  "topbar.projectMoveToTrash": "Move project folder to Recycle Bin",
+  "topbar.projectRemoveFromListConfirm": "Remove {name} from the LatoTex project list? Files on disk will be kept.",
+  "topbar.projectMoveToTrashConfirm": "Move {name} to the Recycle Bin and remove it from LatoTex?",
+  "topbar.projectRemoveFromListDone": "Project removed from the list.",
+  "topbar.projectMoveToTrashDone": "Project moved to the Recycle Bin.",
+  "topbar.projectDeleteRootUnsafe": "This folder is not a verified LatoTex workspace, so it was not moved to the Recycle Bin.",
 } as const;

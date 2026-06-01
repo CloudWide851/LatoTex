@@ -1,6 +1,4 @@
-import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import { drawioCachePrepare } from "../../../shared/api/desktop";
-import { normalizeAssetBasePath } from "../../../shared/utils/assetPath";
+import { isTauri } from "@tauri-apps/api/core";
 
 export type DrawMessage = {
   event?: string;
@@ -21,8 +19,9 @@ type PersistedDrawTabs = {
 };
 
 const DRAW_TAB_KEY_PREFIX = "latotex.draw.tabs";
-const DRAWIO_CACHE_POLICY_KEY = "latotex.drawio.cachePolicy";
-export const DRAWIO_HOST_URL = "/drawio/index.html";
+export const DRAWIO_BROWSER_HOST_URL = "/drawio/index.html";
+export const DRAWIO_LOCAL_RESOURCE_HOST_URL =
+  "http://latotex-resource.localhost/tool/drawio/index.html?embed=1&proto=json&spin=0&configure=1&ui=min";
 export const DRAWIO_CONFIG_MESSAGE = JSON.stringify({
   action: "configure",
   config: { compressXml: false, autosave: 1 },
@@ -47,63 +46,11 @@ function drawTabsStorageKey(projectId: string): string {
   return `${DRAW_TAB_KEY_PREFIX}.${projectId}`;
 }
 
-function normalizeTrailingSlash(input: string): string {
-  return String(input || "").trim().replace(/\/+$/, "");
-}
-
-function uniqueValues(values: string[]): string[] {
-  return Array.from(new Set(values.map((item) => normalizeTrailingSlash(item)).filter((item) => item.length > 0)));
-}
-
-async function checkFrameSource(url: string): Promise<boolean> {
-  try {
-    const head = await fetch(url, { method: "HEAD", cache: "no-store" });
-    if (head.ok) {
-      return true;
-    }
-    if (head.status !== 405 && head.status !== 501) {
-      return false;
-    }
-  } catch {
-    // fallback to GET check below
-  }
-
-  try {
-    const get = await fetch(url, { method: "GET", cache: "no-store" });
-    if (!get.ok) {
-      return false;
-    }
-    await get.body?.cancel().catch(() => undefined);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function resolveDrawioHostFrameSrc(): Promise<string | null> {
   if (!isTauri()) {
-    return DRAWIO_HOST_URL;
+    return DRAWIO_BROWSER_HOST_URL;
   }
-
-  try {
-    const policy = typeof window !== "undefined"
-      ? (window.localStorage.getItem(DRAWIO_CACHE_POLICY_KEY) as "install-first" | "appdata-only" | null)
-      : null;
-    const info = await drawioCachePrepare(policy ?? "install-first");
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DRAWIO_CACHE_POLICY_KEY, info.policy);
-    }
-    const candidates = toDrawioHostCandidates(info.actualDir);
-    for (const candidate of candidates) {
-      if (await checkFrameSource(candidate)) {
-        return candidate;
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
+  return DRAWIO_LOCAL_RESOURCE_HOST_URL;
 }
 
 export function normalizePath(value: string | null | undefined): string {
@@ -152,20 +99,6 @@ export function savePersistedTabs(projectId: string, state: PersistedDrawTabs) {
   } catch {
     // ignore storage quota errors
   }
-}
-
-export function toDrawioHostCandidates(actualDir: string): string[] {
-  const originalDir = String(actualDir || "").trim();
-  const slashDir = originalDir.replace(/\\/g, "/").replace(/\/+$/, "");
-  const originalConverted = convertFileSrc(originalDir);
-  const slashConverted = convertFileSrc(slashDir);
-  const bases = uniqueValues([
-    normalizeAssetBasePath(originalConverted),
-    normalizeAssetBasePath(slashConverted),
-    originalConverted,
-    slashConverted,
-  ]);
-  return bases.map((base) => `${base}/index.html`);
 }
 
 export function parseDrawMessage(payload: unknown): DrawMessage | null {

@@ -22,6 +22,9 @@ pub(crate) const ALLOWED_CONTRIBUTION_KINDS: &[&str] = &[
     "resourceClassifier",
     "problemMatcher",
     "pluginPanel",
+    "sidebarView",
+    "treeDecoration",
+    "commandPaletteItem",
     "settingsQuickAction",
     "runtimeAssetDetector",
     "settingsSchema",
@@ -46,6 +49,7 @@ pub(crate) const DECLARATIVE_COMMAND_KINDS: &[&str] = &[
     "markdownCommand",
     "terminalCommand",
     "resourceCommand",
+    "commandPaletteItem",
 ];
 
 pub(crate) const SAFE_COMMAND_REFS: &[&str] = &[

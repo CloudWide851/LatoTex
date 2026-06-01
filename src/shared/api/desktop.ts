@@ -42,6 +42,7 @@ import type {
   ModelTestResult,
   ModelProtocolInput,
   PanelLayoutPrefs,
+  ProjectDeleteResponse,
   ProjectIntegrityStatus,
   ProjectSearchHit,
   ReferenceCheckResponse,
@@ -84,6 +85,13 @@ export function initProjectFromFolder(): Promise<ProjectSnapshot | null> {
 
 export function openProject(projectId: string): Promise<ProjectSnapshot> {
   return invoke<ProjectSnapshot>("project_open", { input: { projectId } });
+}
+
+export function deleteProject(
+  projectId: string,
+  mode: "unregister" | "trashRoot",
+): Promise<ProjectDeleteResponse> {
+  return invoke<ProjectDeleteResponse>("project_delete", { input: { projectId, mode } });
 }
 
 export function projectIntegrityStatus(projectId: string): Promise<ProjectIntegrityStatus> {
