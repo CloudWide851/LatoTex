@@ -15,6 +15,7 @@ pub mod plugins;
 pub mod runtime_assets;
 mod plugins_builtin;
 mod plugins_declarative_validation;
+mod plugins_declarative_validation_more;
 mod plugins_install_validation;
 mod plugins_policy;
 #[cfg(test)]

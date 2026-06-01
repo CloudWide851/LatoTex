@@ -62,6 +62,31 @@ export type PluginResourceBadge = {
   color?: "neutral" | "blue" | "green" | "amber" | "rose" | "purple" | string | null;
 };
 
+export type PluginResourceClassifier = {
+  extensions: string[];
+  filenames?: string[];
+  patterns?: string[];
+  category: "source" | "document" | "data" | "image" | "config" | "runtime" | string;
+  icon?: "file" | "code" | "book" | "image" | "table" | "settings" | "tool" | string | null;
+  color?: "neutral" | "blue" | "green" | "amber" | "rose" | "purple" | string | null;
+};
+
+export type PluginProblemMatcher = {
+  owner: string;
+  pattern: string;
+  fileGroup?: number | null;
+  lineGroup?: number | null;
+  columnGroup?: number | null;
+  messageGroup?: number | null;
+  severity?: "info" | "warning" | "error" | string | null;
+};
+
+export type PluginPanel = {
+  location: "plugins.details" | "settings.plugins" | "workspace.empty" | string;
+  title: string;
+  markdown: string;
+};
+
 export type PluginSettingsQuickAction = {
   section: "plugins" | "agentPermissions" | "appearance" | "runtime" | "channels" | "editor" | "toolchains" | string;
   commandRef?: PluginCommandRef | null;
@@ -159,6 +184,9 @@ export type PluginContribution = {
     | "fileOpenHandler"
     | "previewProvider"
     | "resourceBadge"
+    | "resourceClassifier"
+    | "problemMatcher"
+    | "pluginPanel"
     | "settingsQuickAction"
     | "runtimeAssetDetector"
     | "settingsSchema"
@@ -186,6 +214,9 @@ export type PluginContribution = {
   fileOpenHandler?: PluginFileOpenHandler | null;
   previewProvider?: PluginPreviewProvider | null;
   resourceBadge?: PluginResourceBadge | null;
+  resourceClassifier?: PluginResourceClassifier | null;
+  problemMatcher?: PluginProblemMatcher | null;
+  pluginPanel?: PluginPanel | null;
   settingsQuickAction?: PluginSettingsQuickAction | null;
   runtimeAssetDetector?: PluginRuntimeAssetDetector | null;
   settingsSchema?: PluginSettingsSchema | null;

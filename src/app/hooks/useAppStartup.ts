@@ -9,14 +9,62 @@ import { getSettings } from "../../shared/api/settings";
 import type { AppSettings, ProjectSummary } from "../../shared/types/app";
 import {
   applyTheme,
+  DEFAULT_BINDINGS,
+  DEFAULT_CATALOG,
   DEFAULT_PANEL_LAYOUT,
+  DEFAULT_PROTOCOLS,
   normalizeAgentBindings,
   type ThemeMode,
 } from "../app-config";
+import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 
 type TranslationFn = (...args: any[]) => string;
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 type SetLocale = (value: Locale) => void;
+
+const STARTUP_HEALTH_TIMEOUT_MS = 5000;
+const STARTUP_DATA_TIMEOUT_MS = 12000;
+
+function cloneDefaultSettings(locale: Locale): AppSettings {
+  return {
+    activeProjectId: null,
+    modelProtocols: DEFAULT_PROTOCOLS.map((item) => ({ ...item })),
+    modelCatalog: DEFAULT_CATALOG.map((item) => ({ ...item })),
+    agentBindings: DEFAULT_BINDINGS.map((item) => ({ ...item })),
+    uiPrefs: {
+      language: locale,
+      panelLayout: {
+        ...DEFAULT_PANEL_LAYOUT,
+      },
+    },
+  };
+}
+
+function startupTimeout<T>(label: string, promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = globalThis.setTimeout(() => {
+      reject(new Error(`${label}.timeout`));
+    }, timeoutMs);
+    promise.then(
+      (value) => {
+        globalThis.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        globalThis.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function safeStoredLocale(): string | null {
+  try {
+    return typeof window !== "undefined" ? window.localStorage.getItem("latotex.locale") : null;
+  } catch {
+    return null;
+  }
+}
 
 function normalizeSettings(appSettings: AppSettings): AppSettings {
   const backgroundList = Array.from(
@@ -187,23 +235,48 @@ export function useAppStartup(params: {
 
     const bootstrap = async () => {
       let targetProjectId: string | null = null;
+      const storedLocale = resolveLocale(safeStoredLocale());
       try {
         try {
-          await getHealthCheck();
+          writeTauriSmokeProgress("frontend.startup.health.start", "ok");
+          await startupTimeout("startup.health", getHealthCheck(), STARTUP_HEALTH_TIMEOUT_MS);
           if (mountedRef.current) {
             setStatus("ready");
           }
-        } catch {
+          writeTauriSmokeProgress("frontend.startup.health.done", "ok");
+        } catch (error) {
           if (mountedRef.current) {
             setStatus("offline");
           }
+          writeTauriSmokeProgress("frontend.startup.health.failed", "warning", { message: String(error) });
         }
-        const [projectList, appSettings] = await Promise.all([
-          listProjects(),
-          getSettings(),
+        writeTauriSmokeProgress("frontend.startup.settings_projects.start", "ok");
+        const [projectResult, settingsResult] = await Promise.allSettled([
+          startupTimeout("startup.projects", listProjects(), STARTUP_DATA_TIMEOUT_MS),
+          startupTimeout("startup.settings", getSettings(), STARTUP_DATA_TIMEOUT_MS),
         ]);
         if (!mountedRef.current) {
           return;
+        }
+
+        const projectList = projectResult.status === "fulfilled" ? projectResult.value : [];
+        const appSettings = settingsResult.status === "fulfilled"
+          ? settingsResult.value
+          : cloneDefaultSettings(storedLocale);
+        if (projectResult.status === "rejected" || settingsResult.status === "rejected") {
+          const projectMessage = projectResult.status === "rejected" ? String(projectResult.reason) : "ok";
+          const settingsMessage = settingsResult.status === "rejected" ? String(settingsResult.reason) : "ok";
+          const message = `startup degraded: projects=${projectMessage}; settings=${settingsMessage}`;
+          setToast({ type: "error", message });
+          await runtimeLogWrite("ERROR", `frontend bootstrap degraded: ${message}`).catch(() => undefined);
+          writeTauriSmokeProgress("frontend.startup.settings_projects.degraded", "warning", {
+            projects: projectMessage,
+            settings: settingsMessage,
+          });
+        } else {
+          writeTauriSmokeProgress("frontend.startup.settings_projects.done", "ok", {
+            projects: projectList.length,
+          });
         }
 
         setProjects(projectList);
@@ -213,11 +286,15 @@ export function useAppStartup(params: {
 
         const initialLocale = resolveLocale(
           normalizedSettings.uiPrefs?.language
-            ?? (typeof window !== "undefined" ? window.localStorage.getItem("latotex.locale") : null),
+            ?? safeStoredLocale(),
         );
         setLocale(initialLocale);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("latotex.locale", initialLocale);
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem("latotex.locale", initialLocale);
+          }
+        } catch (error) {
+          await runtimeLogWrite("ERROR", `frontend bootstrap locale persist failed: ${String(error)}`).catch(() => undefined);
         }
 
         applyTheme((normalizedSettings.uiPrefs?.theme as ThemeMode | undefined) ?? "system");

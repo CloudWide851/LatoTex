@@ -1,5 +1,6 @@
 use super::plugins_builtin::built_in_catalog;
 use super::plugins_declarative_validation::validate_safe_contribution_details;
+use super::plugins_declarative_validation_more::validate_more_safe_contribution_details;
 use super::plugins_install_validation::{
     validate_runtime_asset, validate_toolchain_installer, validate_toolchain_probe,
 };
@@ -252,6 +253,7 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
             validate_runtime_asset(contribution.runtime_asset.as_ref(), issues);
         }
         validate_safe_contribution_details(contribution, issues);
+        validate_more_safe_contribution_details(contribution, issues);
     }
 }
 

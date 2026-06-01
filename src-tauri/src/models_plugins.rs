@@ -129,6 +129,53 @@ pub struct PluginResourceBadge {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginResourceClassifier {
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    #[serde(default)]
+    pub filenames: Vec<String>,
+    #[serde(default)]
+    pub patterns: Vec<String>,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginProblemMatcher {
+    #[serde(default)]
+    pub owner: String,
+    #[serde(default)]
+    pub pattern: String,
+    #[serde(default)]
+    pub file_group: Option<u8>,
+    #[serde(default)]
+    pub line_group: Option<u8>,
+    #[serde(default)]
+    pub column_group: Option<u8>,
+    #[serde(default)]
+    pub message_group: Option<u8>,
+    #[serde(default)]
+    pub severity: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginPanel {
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub markdown: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginSettingsQuickAction {
     #[serde(default)]
     pub section: String,
@@ -293,6 +340,12 @@ pub struct PluginContribution {
     pub preview_provider: Option<PluginPreviewProvider>,
     #[serde(default)]
     pub resource_badge: Option<PluginResourceBadge>,
+    #[serde(default)]
+    pub resource_classifier: Option<PluginResourceClassifier>,
+    #[serde(default)]
+    pub problem_matcher: Option<PluginProblemMatcher>,
+    #[serde(default)]
+    pub plugin_panel: Option<PluginPanel>,
     #[serde(default)]
     pub settings_quick_action: Option<PluginSettingsQuickAction>,
     #[serde(default)]

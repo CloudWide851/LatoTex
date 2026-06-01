@@ -2,9 +2,10 @@ use super::plugins::validate_manifest;
 use super::plugins_builtin::built_in_catalog;
 use crate::models::{
     PluginAgentContextPack, PluginCommandRef, PluginContribution, PluginFileOpenHandler,
-    PluginFileTemplate, PluginLanguageSupport, PluginManifest, PluginPreviewProvider,
-    PluginRuntimeAssetDetector, PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet,
-    PluginSnippetProvider, PluginToolchainInstaller, PluginToolchainProbe,
+    PluginFileTemplate, PluginLanguageSupport, PluginManifest, PluginPanel, PluginPreviewProvider,
+    PluginProblemMatcher, PluginResourceClassifier, PluginRuntimeAssetDetector,
+    PluginSettingsSchema, PluginSettingsSchemaField, PluginSnippet, PluginSnippetProvider,
+    PluginToolchainInstaller, PluginToolchainProbe,
 };
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
@@ -52,6 +53,9 @@ fn base_contribution(kind: &str) -> PluginContribution {
         file_open_handler: None,
         preview_provider: None,
         resource_badge: None,
+        resource_classifier: None,
+        problem_matcher: None,
+        plugin_panel: None,
         settings_quick_action: None,
         runtime_asset_detector: None,
         settings_schema: None,
@@ -367,6 +371,57 @@ fn language_support_accepts_builtin_dotfile_binding() {
     });
     let validation = validate_manifest(&manifest_with_contribution(contribution));
     assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn resource_classifier_accepts_safe_declarative_metadata() {
+    let mut contribution = base_contribution("resourceClassifier");
+    contribution.resource_classifier = Some(PluginResourceClassifier {
+        extensions: vec!["typ".to_string()],
+        filenames: Vec::new(),
+        patterns: vec!["chapters/*.typ".to_string()],
+        category: "source".to_string(),
+        icon: Some("code".to_string()),
+        color: Some("blue".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(validation.ok, "{:?}", validation.issues);
+}
+
+#[test]
+fn problem_matcher_rejects_unbounded_groups() {
+    let mut contribution = base_contribution("problemMatcher");
+    contribution.problem_matcher = Some(PluginProblemMatcher {
+        owner: "typst".to_string(),
+        pattern: "^(.*):(\\d+):(.*)$".to_string(),
+        file_group: Some(1),
+        line_group: Some(99),
+        column_group: None,
+        message_group: Some(3),
+        severity: Some("error".to_string()),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.problem_matcher_invalid"));
+}
+
+#[test]
+fn plugin_panel_rejects_script_markdown() {
+    let mut contribution = base_contribution("pluginPanel");
+    contribution.plugin_panel = Some(PluginPanel {
+        location: "plugins.details".to_string(),
+        title: "Details".to_string(),
+        markdown: "<script>alert(1)</script>".to_string(),
+    });
+    let validation = validate_manifest(&manifest_with_contribution(contribution));
+    assert!(!validation.ok);
+    assert!(validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.contribution.plugin_panel_invalid"));
 }
 
 #[test]

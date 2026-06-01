@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { runtimeLogWrite } from "../../shared/api/runtime";
+import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 
 type Props = {
   onRecover?: () => void;
@@ -31,6 +32,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     const message = error?.message || String(error || "unknown error");
     const stack = String(info?.componentStack ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
     void runtimeLogWrite("ERROR", `react.render_error: ${message}; componentStack=${stack}`).catch(() => undefined);
+    writeTauriSmokeProgress("frontend.workspace_render_error", "error", { message, stack });
     this.setState((prev) => ({ crashCount: prev.crashCount + 1 }));
   }
 

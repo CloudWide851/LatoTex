@@ -10,6 +10,8 @@ const exePath = path.join(releaseDir, "latotex.exe");
 const startupWindowMs = Number(process.env.LATOTEX_SMOKE_STARTUP_MS ?? 60000);
 const allowNativeFallback = process.argv.includes("--allow-native-fallback")
   || process.env.LATOTEX_SMOKE_ALLOW_NATIVE_FALLBACK === "1";
+const scenarioArg = process.argv.find((arg) => arg.startsWith("--scenario="));
+const scenario = scenarioArg?.slice("--scenario=".length) || process.env.LATOTEX_SMOKE_SCENARIO || "";
 
 if (process.platform !== "win32") {
   console.log("[tauri-smoke-win-x64] skipped: Windows x64 smoke must run on Windows.");
@@ -29,6 +31,7 @@ const smokeArgs = [
   "--latotex-smoke",
   `--latotex-runtime-root=${runtimeRoot}`,
   `--latotex-smoke-report=${reportPath}`,
+  ...(scenario ? [`--latotex-smoke-scenario=${scenario}`] : []),
 ];
 console.log(`[tauri-smoke-win-x64] runtime root: ${runtimeRoot}`);
 const child = spawn(exePath, smokeArgs, {
@@ -40,6 +43,7 @@ const child = spawn(exePath, smokeArgs, {
     LATOTEX_E2E_RUNTIME_ROOT: runtimeRoot,
     LATOTEX_SMOKE: "1",
     LATOTEX_SMOKE_REPORT_PATH: reportPath,
+    ...(scenario ? { LATOTEX_SMOKE_SCENARIO: scenario } : {}),
   },
 });
 console.log(`[tauri-smoke-win-x64] launched pid=${child.pid}`);
@@ -132,6 +136,7 @@ const timeoutTimer = setTimeout(() => {
       LATOTEX_SMOKE: "1",
       LATOTEX_SMOKE_NATIVE_FALLBACK: "1",
       LATOTEX_SMOKE_REPORT_PATH: reportPath,
+      ...(scenario ? { LATOTEX_SMOKE_SCENARIO: scenario } : {}),
     },
   });
   if (!readReportIfReady()) {

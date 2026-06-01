@@ -2215,6 +2215,9 @@ video {
 .bg-\[color\:var\(--editor-paper-bg\)\] {
   background-color: var(--editor-paper-bg);
 }
+.bg-\[color\:var\(--editor-paper-bg\2c \#f8fafc\)\] {
+  background-color: var(--editor-paper-bg,#f8fafc);
+}
 .bg-\[color\:var\(--editor-paper-edge\)\] {
   background-color: var(--editor-paper-edge);
 }

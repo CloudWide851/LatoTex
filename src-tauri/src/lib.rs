@@ -210,7 +210,15 @@ fn show_main_window(app: &AppHandle) {
 
 fn create_smoke_main_window(app: &AppHandle) {
     smoke::write_progress("window.create.start", "ok", None);
-    match WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+    let entry = smoke::scenario()
+        .filter(|scenario| {
+            scenario
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+        })
+        .map(|scenario| format!("index.html?latotexSmokeScenario={scenario}"))
+        .unwrap_or_else(|| "index.html".to_string());
+    match WebviewWindowBuilder::new(app, "main", WebviewUrl::App(entry.into()))
         .title("LatoTex")
         .inner_size(1200.0, 760.0)
         .resizable(true)

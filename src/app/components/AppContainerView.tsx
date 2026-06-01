@@ -180,6 +180,15 @@ export function AppContainerView(props: any) {
     clearRecoverableClientState();
     void runtimeClearVolatileCacheAndRestart().catch(() => undefined);
   };
+  const safeAnalysisEnvPrompt = analysisEnvPrompt ?? {
+    envPromptOpen: false,
+    envPromptStatus: null,
+    envPromptTaskStatus: null,
+    envPromptBusy: false,
+    handleEnvPromptLater: () => undefined,
+    handleEnvPromptPickLocation: async () => undefined,
+    handleEnvPromptCreate: async () => undefined,
+  };
   const completionModelId =
     settings?.uiPrefs?.featureModelBindings?.completionModelId
     || null;
@@ -535,7 +544,7 @@ export function AppContainerView(props: any) {
         integrityIssue={integrityIssue}
         themeTransition={themeTransition}
         toast={toast}
-        analysisEnvPrompt={analysisEnvPrompt}
+        analysisEnvPrompt={safeAnalysisEnvPrompt}
         onOverlayClose={() => setOverlay(null)}
         onLogsTabChange={setLogsTab}
         onModelModalClose={() => {

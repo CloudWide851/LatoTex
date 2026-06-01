@@ -8,6 +8,7 @@ import {
 import { runtimeLogInfo } from "../../shared/api/runtime";
 import { getSettings } from "../../shared/api/settings";
 import { getWorkspaceTree, readFile, writeFile } from "../../shared/api/workspace";
+import { writeTauriSmokeProgress } from "./tauriSmokeProgress";
 
 type SmokeStep = {
   name: string;
@@ -18,6 +19,8 @@ type SmokeStep = {
 type SmokeConfig = {
   enabled: boolean;
   reportPath?: string | null;
+  progressPath?: string | null;
+  scenario?: string | null;
 };
 
 async function recordStep<T>(
@@ -116,6 +119,21 @@ async function runSmokePath() {
   }
 }
 
+function prepareSmokeScenario(scenario?: string | null) {
+  if (typeof window === "undefined" || !scenario) {
+    return;
+  }
+  if (scenario === "polluted-client-state") {
+    window.localStorage.setItem("latotex.workspace.page", "latex");
+    window.localStorage.setItem("latotex.latex.workspace.session.smoke", JSON.stringify({
+      selectedFile: ".gitignore",
+      activeTabId: ".gitignore",
+      editorTabs: [{ id: ".gitignore", path: ".gitignore" }],
+    }));
+    writeTauriSmokeProgress("frontend.smoke.scenario", "ok", { scenario });
+  }
+}
+
 export function startTauriSmokeRunner() {
   if (typeof window === "undefined") {
     return;
@@ -124,6 +142,7 @@ export function startTauriSmokeRunner() {
     void invokeCommand<SmokeConfig>("app_smoke_config")
       .then((config) => {
         if (config.enabled) {
+          prepareSmokeScenario(config.scenario);
           return runSmokePath();
         }
         return undefined;

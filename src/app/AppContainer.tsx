@@ -22,7 +22,9 @@ import { isPdfPath } from "../shared/utils/fileKind";
 import { useAppContainerState } from "./hooks/useAppContainerState";
 import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { useSettingsPersistence } from "./hooks/useSettingsPersistence";
+import { useAppStartup } from "./hooks/useAppStartup";
 import { useAppPanelNodes } from "./hooks/useAppPanelNodes";
+import { useAnalysisEnvPrompt } from "./hooks/useAnalysisEnvPrompt";
 import { useAgentSessionController } from "./hooks/useAgentSessionController";
 import { useAgentProposalDecorations } from "./hooks/useAgentProposalDecorations";
 import { useExplorerGitDecorations } from "./hooks/useExplorerGitDecorations";
@@ -151,6 +153,28 @@ export function AppContainer() {
     autoSaveTimerRef: s.autoSaveTimerRef,
     autoSaveReadyRef: s.autoSaveReadyRef,
     lastAutoSavedHashRef: s.lastAutoSavedHashRef,
+  });
+
+  const { startupReady } = useAppStartup({
+    isTauriRuntime,
+    settingsRef: s.settingsRef,
+    setStatus: s.setStatus,
+    setProjects: s.setProjects,
+    setSettings: s.setSettings,
+    setRuntimeInfo: s.setRuntimeInfo,
+    setLocale,
+    setActiveProjectId: s.setActiveProjectId,
+    setToast: s.setToast,
+    t,
+  });
+
+  const analysisEnvPrompt = useAnalysisEnvPrompt({
+    activeProjectId: s.activeProjectId,
+    settings: s.settings,
+    persistSettings,
+    enabled: startupReady,
+    t,
+    setToast: s.setToast,
   });
 
   useEffect(
@@ -512,6 +536,10 @@ export function AppContainer() {
     <AppContainerView
       windowActionBusy={s.windowActionBusy}
       status={s.status}
+      startupReady={startupReady}
+      sleeping={false}
+      suspended={false}
+      onWakeFromSleep={() => undefined}
       logoMark={logoMark}
       projects={s.projects}
       activeProjectId={s.activeProjectId}
@@ -604,6 +632,7 @@ export function AppContainer() {
       handleLibraryImportPdf={handlers.handleLibraryImportPdf}
       handleLibraryImportLink={handlers.handleLibraryImportLink}
       handleLibraryAnalyzePaper={handleLibraryAnalyzePaper}
+      analysisEnvPrompt={analysisEnvPrompt}
       analysisRunning={analysisWorkspace.running}
       handleWorkspaceRevealInSystem={handlers.handleWorkspaceRevealInSystem}
       handleWorkspaceOpenTerminal={handlers.handleWorkspaceOpenTerminal}
