@@ -27,6 +27,7 @@ export const enUS_nav = {
   "plugins.installBlocked": "This plugin has manifest errors and cannot be installed.",
   "plugins.permissionsCount": "{count} permission(s)",
   "plugins.validationOk": "Checked",
+  "plugins.details": "Details",
   "plugins.validationDetails": "Validation details",
   "plugins.validationErrors": "{count} error(s)",
   "plugins.validationWarnings": "{count} warning(s)",

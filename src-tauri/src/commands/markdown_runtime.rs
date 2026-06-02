@@ -1,11 +1,14 @@
-use crate::commands::native_runtime::{configure_hidden_process, ensure_analysis_env_blocking};
-use crate::commands::toolchains::find_managed_toolchain_executable;
-use crate::models::{MarkdownRunCodeInput, MarkdownRunCodeResponse};
+use crate::commands::native_runtime::configure_hidden_process;
+use crate::commands::toolchains::{
+    find_local_toolchain_executable, find_local_toolchain_executable_from_names,
+    find_managed_toolchain_executable,
+};
+use crate::models::{MarkdownRunCodeCapability, MarkdownRunCodeInput, MarkdownRunCodeResponse};
 use crate::state::AppState;
 use crate::storage;
 use std::fs;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use tauri::{async_runtime::spawn_blocking, State};
@@ -20,6 +23,8 @@ fn normalize_language(language: &str) -> String {
         "py" | "python3" => "python".to_string(),
         "c++" | "cc" | "cxx" => "cpp".to_string(),
         "c" => "c".to_string(),
+        "golang" => "go".to_string(),
+        "rs" => "rust".to_string(),
         other => other.to_string(),
     }
 }
@@ -59,33 +64,11 @@ fn command_output_with_timeout(mut command: Command) -> Result<(Vec<u8>, Vec<u8>
     }
 }
 
-fn find_executable(names: &[&str]) -> Option<PathBuf> {
-    let path_var = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path_var) {
-        for name in names {
-            let candidate = dir.join(name);
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-        }
-    }
-    None
-}
-
 fn run_python(state: &AppState, input: &MarkdownRunCodeInput, run_dir: &Path) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
     let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let env_status = ensure_analysis_env_blocking(
-        &state.db_path,
-        &state.runtime_root,
-        &state.app_data_dir,
-        &input.project_id,
-        &project_root,
-    )?;
-    let python_path = PathBuf::from(
-        env_status
-            .python_path
-            .ok_or_else(|| "python.env.python_missing".to_string())?,
-    );
+    let python_path = find_managed_toolchain_executable(&["python"], &["python.exe", "Scripts/python.exe", "bin/python.exe"], &state.runtime_root)
+        .or_else(|| find_local_toolchain_executable("python"))
+        .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let script = run_dir.join("snippet.py");
     fs::write(&script, &input.code).map_err(|e| e.to_string())?;
     let mut command = Command::new(&python_path);
@@ -102,10 +85,10 @@ fn run_c_family(
 ) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
     let compiler = if language == "c" {
         find_managed_toolchain_executable(&["c"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe", "bin/clang.exe"], runtime_root)
-            .or_else(|| find_executable(&["clang.exe", "gcc.exe", "cl.exe"]))
+            .or_else(|| find_local_toolchain_executable("c"))
     } else {
         find_managed_toolchain_executable(&["cpp"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe", "bin/clang++.exe"], runtime_root)
-            .or_else(|| find_executable(&["clang++.exe", "g++.exe", "cl.exe"]))
+            .or_else(|| find_local_toolchain_executable("cpp"))
     }
     .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let source = run_dir.join(if language == "c" { "snippet.c" } else { "snippet.cpp" });
@@ -125,6 +108,104 @@ fn run_c_family(
     run.current_dir(run_dir);
     let (stdout, stderr, exit_code) = command_output_with_timeout(run)?;
     Ok((stdout, stderr, exit_code, compiler.to_string_lossy().to_string()))
+}
+
+fn run_go(
+    input: &MarkdownRunCodeInput,
+    run_dir: &Path,
+    runtime_root: &Path,
+) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
+    let runner = find_managed_toolchain_executable(&["go"], &["go/bin/go.exe", "bin/go.exe", "go.exe"], runtime_root)
+        .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"]))
+        .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
+    let source = run_dir.join("snippet.go");
+    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    let mut command = Command::new(&runner);
+    command.current_dir(run_dir).arg("run").arg(&source);
+    let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
+    Ok((stdout, stderr, exit_code, runner.to_string_lossy().to_string()))
+}
+
+fn run_rust(
+    input: &MarkdownRunCodeInput,
+    run_dir: &Path,
+) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
+    let compiler = find_local_toolchain_executable_from_names(&["rustc.exe"])
+        .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
+    let source = run_dir.join("snippet.rs");
+    let binary = run_dir.join("snippet.exe");
+    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    let mut compile = Command::new(&compiler);
+    compile.current_dir(run_dir).arg(&source).arg("-o").arg(&binary);
+    let (compile_out, compile_err, compile_code) = command_output_with_timeout(compile)?;
+    if compile_code != Some(0) {
+        return Ok((compile_out, compile_err, compile_code, compiler.to_string_lossy().to_string()));
+    }
+    let mut run = Command::new(&binary);
+    run.current_dir(run_dir);
+    let (stdout, stderr, exit_code) = command_output_with_timeout(run)?;
+    Ok((stdout, stderr, exit_code, compiler.to_string_lossy().to_string()))
+}
+
+fn run_zig(
+    input: &MarkdownRunCodeInput,
+    run_dir: &Path,
+) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
+    let runner = find_local_toolchain_executable_from_names(&["zig.exe"])
+        .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
+    let source = run_dir.join("snippet.zig");
+    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    let mut command = Command::new(&runner);
+    command.current_dir(run_dir).arg("run").arg(&source);
+    let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
+    Ok((stdout, stderr, exit_code, runner.to_string_lossy().to_string()))
+}
+
+fn capability_for_language(runtime_root: &Path, language: &str) -> MarkdownRunCodeCapability {
+    let executable = match language {
+        "python" => find_managed_toolchain_executable(&["python"], &["python.exe", "Scripts/python.exe", "bin/python.exe"], runtime_root)
+            .or_else(|| find_local_toolchain_executable("python")),
+        "c" => find_managed_toolchain_executable(&["c"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe", "bin/clang.exe"], runtime_root)
+            .or_else(|| find_local_toolchain_executable("c")),
+        "cpp" => find_managed_toolchain_executable(&["cpp"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe", "bin/clang++.exe"], runtime_root)
+            .or_else(|| find_local_toolchain_executable("cpp")),
+        "go" => find_managed_toolchain_executable(&["go"], &["go/bin/go.exe", "bin/go.exe", "go.exe"], runtime_root)
+            .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"])),
+        "rust" => find_managed_toolchain_executable(&["rust"], &["rustc.exe", "bin/rustc.exe"], runtime_root)
+            .or_else(|| find_local_toolchain_executable_from_names(&["rustc.exe"])),
+        "zig" => find_managed_toolchain_executable(&["zig"], &["zig.exe", "bin/zig.exe"], runtime_root)
+            .or_else(|| find_local_toolchain_executable_from_names(&["zig.exe"])),
+        _ => None,
+    };
+    MarkdownRunCodeCapability {
+        language: language.to_string(),
+        available: executable.is_some(),
+        runner: executable.as_ref().map(|path| path.to_string_lossy().to_string()),
+        message: if executable.is_some() {
+            "markdown.run.toolchain_ready".to_string()
+        } else {
+            "markdown.run.toolchain_missing".to_string()
+        },
+    }
+}
+
+#[tauri::command]
+pub async fn markdown_run_code_capabilities(
+    state: State<'_, AppState>,
+) -> Result<Vec<MarkdownRunCodeCapability>, String> {
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || {
+        Ok(vec![
+            capability_for_language(&runtime_root, "python"),
+            capability_for_language(&runtime_root, "c"),
+            capability_for_language(&runtime_root, "cpp"),
+            capability_for_language(&runtime_root, "go"),
+            capability_for_language(&runtime_root, "rust"),
+            capability_for_language(&runtime_root, "zig"),
+        ])
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -147,7 +228,7 @@ pub async fn markdown_run_code(
     let state_snapshot = state.inner().clone();
     spawn_blocking(move || {
         let language = normalize_language(&input.language);
-        if !matches!(language.as_str(), "python" | "c" | "cpp") {
+        if !matches!(language.as_str(), "python" | "c" | "cpp" | "go" | "rust" | "zig") {
             return Err("markdown.run.language_unsupported".to_string());
         }
         let run_dir = state_snapshot
@@ -156,10 +237,13 @@ pub async fn markdown_run_code(
             .join(Uuid::new_v4().to_string());
         fs::create_dir_all(&run_dir).map_err(|e| e.to_string())?;
         let started = Instant::now();
-        let result = if language == "python" {
-            run_python(&state_snapshot, &input, &run_dir)
-        } else {
-            run_c_family(&input, &language, &run_dir, &state_snapshot.runtime_root)
+        let result = match language.as_str() {
+            "python" => run_python(&state_snapshot, &input, &run_dir),
+            "c" | "cpp" => run_c_family(&input, &language, &run_dir, &state_snapshot.runtime_root),
+            "go" => run_go(&input, &run_dir, &state_snapshot.runtime_root),
+            "rust" => run_rust(&input, &run_dir),
+            "zig" => run_zig(&input, &run_dir),
+            _ => Err("markdown.run.language_unsupported".to_string()),
         };
         let _ = fs::remove_dir_all(&run_dir);
         let (stdout_raw, stderr_raw, exit_code, runner) = result?;
@@ -178,4 +262,27 @@ pub async fn markdown_run_code(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_markdown_runner_languages() {
+        assert_eq!(normalize_language("py"), "python");
+        assert_eq!(normalize_language("c++"), "cpp");
+        assert_eq!(normalize_language("golang"), "go");
+        assert_eq!(normalize_language("rs"), "rust");
+    }
+
+    #[test]
+    fn capability_probe_reports_requested_language_without_preparing_env() {
+        let capability = capability_for_language(Path::new("target/nonexistent-runtime-root"), "python");
+        assert_eq!(capability.language, "python");
+        assert!(matches!(
+            capability.message.as_str(),
+            "markdown.run.toolchain_ready" | "markdown.run.toolchain_missing"
+        ));
+    }
 }

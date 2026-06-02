@@ -6,6 +6,7 @@ import type {
   FsOperationInput,
   FsOperationResult,
   MarkdownRunCodeResponse,
+  MarkdownRunCodeCapability,
   ResourceNode,
   TerminalReadResponse,
   TerminalStartResponse,
@@ -71,6 +72,10 @@ export function markdownRunCode(input: {
   code: string;
 }): Promise<MarkdownRunCodeResponse> {
   return invokeCommand<MarkdownRunCodeResponse>("markdown_run_code", { input });
+}
+
+export function markdownRunCodeCapabilities(): Promise<MarkdownRunCodeCapability[]> {
+  return invokeCommand<MarkdownRunCodeCapability[]>("markdown_run_code_capabilities");
 }
 
 export function readFile(projectId: string, relativePath: string): Promise<FileReadResponse> {

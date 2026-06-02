@@ -19,3 +19,12 @@ pub struct MarkdownRunCodeResponse {
     pub truncated: bool,
     pub runner: String,
 }
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownRunCodeCapability {
+    pub language: String,
+    pub available: bool,
+    pub runner: Option<String>,
+    pub message: String,
+}

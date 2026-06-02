@@ -114,6 +114,13 @@ export type MarkdownRunCodeResponse = {
   runner: string;
 };
 
+export type MarkdownRunCodeCapability = {
+  language: string;
+  available: boolean;
+  runner?: string | null;
+  message: string;
+};
+
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;

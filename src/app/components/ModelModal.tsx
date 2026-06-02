@@ -10,7 +10,7 @@ type TranslationFn = (key: any) => string;
 
 export function ModelModal(props: {
   open: boolean;
-  mode?: "create" | "edit";
+  mode?: "create" | "edit" | "duplicate";
   initialModel?: ModelCatalogItem | null;
   protocols: ModelProtocol[];
   onClose: () => void;
@@ -94,7 +94,11 @@ export function ModelModal(props: {
     setNewProtocolBaseUrl("");
     const linked = protocols.find((item) => item.id === nextProtocolId);
     setExistingProtocolBaseUrl(linked?.baseUrl ?? "");
-    setModelDisplayName(initialModel?.displayName ?? "");
+    setModelDisplayName(
+      dialogMode === "duplicate" && initialModel?.displayName
+        ? `${initialModel.displayName} ${t("settings.modelCopySuffix")}`
+        : initialModel?.displayName ?? "",
+    );
     setModelRequestName(initialModel?.requestName ?? "");
     setModelApiKey("");
     setInitialApiKey("");
@@ -102,10 +106,10 @@ export function ModelModal(props: {
     setLoadingApiKey(false);
     setSaving(false);
     setSaveMessage("");
-  }, [dialogMode, initialModel?.id, open]);
+  }, [dialogMode, initialModel?.id, open, t]);
 
   useEffect(() => {
-    if (!open || dialogMode !== "edit" || !initialModel?.id) {
+    if (!open || !["edit", "duplicate"].includes(dialogMode) || !initialModel?.id) {
       return;
     }
     let active = true;
@@ -161,9 +165,13 @@ export function ModelModal(props: {
     setSaving(true);
     setSaveMessage("");
     const requestName = modelRequestName.trim();
+    const normalizedModelApiKey = modelApiKey.trim();
+    const modelIdBase = `${resolvedProtocol.id}-${requestName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
     const modelId = dialogMode === "edit" && initialModel?.id
       ? initialModel.id
-      : `${resolvedProtocol.id}-${requestName.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`;
+      : dialogMode === "duplicate"
+        ? `${modelIdBase}-${Date.now().toString(36)}`
+        : modelIdBase;
 
     try {
       const response = await onSubmit({
@@ -175,8 +183,8 @@ export function ModelModal(props: {
           requestName,
           capabilities: initialModel?.capabilities,
         },
-        modelApiKey: modelApiKey.trim(),
-        modelApiKeyChanged: apiKeyChanged,
+        modelApiKey: normalizedModelApiKey,
+        modelApiKeyChanged: dialogMode === "duplicate" ? normalizedModelApiKey.length > 0 : apiKeyChanged,
       });
 
       if (!response.ok) {
@@ -196,7 +204,11 @@ export function ModelModal(props: {
       <div className="grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">
-            {dialogMode === "edit" ? t("settings.modal.editTitle") : t("settings.modal.createTitle")}
+            {dialogMode === "edit"
+              ? t("settings.modal.editTitle")
+              : dialogMode === "duplicate"
+                ? t("settings.modal.duplicateTitle")
+                : t("settings.modal.createTitle")}
           </h3>
           <button
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"

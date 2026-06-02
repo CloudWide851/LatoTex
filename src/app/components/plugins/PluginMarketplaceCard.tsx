@@ -1,4 +1,4 @@
-import { AlertTriangle, Download, Info, Power, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, Download, Info, Power, Trash2 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import type {
@@ -79,10 +79,24 @@ export function PluginMarketplaceCard(props: {
     ? runtimeAssetStatus.installPath || runtimeAssetStatus.entryPath || "-"
     : runtimeAssetStatus?.entryPath || runtimeAssetStatus?.installPath || "-";
 
+  const runtimeDetail = runtimeAssetStatus?.installed
+    ? t(runtimeAssetStatus.source === "bundled"
+      ? "plugins.runtimeAsset.bundled"
+      : runtimeAssetStatus.source === "local"
+        ? "plugins.runtimeAsset.detected"
+        : "plugins.runtimeAsset.ready").replace("{path}", runtimePath)
+    : t("plugins.runtimeAsset.notInstalled");
+  const toolchainDetail = toolchainStatus?.installed
+    ? t(toolchainStatus.source === "local" ? "plugins.toolchain.detected" : "plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
+    : toolchainIsProbe
+      ? t("plugins.toolchain.notDetected")
+      : t("plugins.toolchain.notInstalled");
+  const hasDetails = Boolean(toolchain || runtimeAsset || errorCount > 0 || warningCount > 0);
+
   return (
-    <article className="group grid min-h-[164px] grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
+    <article className="group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
       <div className="flex min-w-0 items-start gap-2 bg-gradient-to-br from-slate-50 to-white p-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-primary-700 shadow-sm">
+        <div className="flex h-8 w-8 max-w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white text-primary-700 shadow-sm">
           {plugin.icon ? (
             <img src={plugin.icon} alt="" className="h-5 w-5 rounded object-contain" />
           ) : (
@@ -90,20 +104,21 @@ export function PluginMarketplaceCard(props: {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-slate-950">{localized.name}</h3>
+          <h3 className="truncate text-sm font-semibold text-slate-950" title={localized.name}>{localized.name}</h3>
           <p className="mt-1 truncate text-[11px] text-slate-500">
             {plugin.publisher} / {plugin.version} / {entry.sourceName}
           </p>
         </div>
         <span
           className={cn(
-            "max-w-[6.5rem] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
+            "max-w-[5.8rem] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
             installedPlugin?.enabled || contributionInstalled
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : installedPlugin
                 ? "border-slate-200 bg-slate-100 text-slate-600"
                 : "border-slate-200 bg-white text-slate-500",
           )}
+          title={statusLabel}
         >
           {statusLabel}
         </span>
@@ -129,47 +144,54 @@ export function PluginMarketplaceCard(props: {
         <p className="line-clamp-1 text-[11px] text-slate-500">
           {contributionSummary(plugin, locale) || plugin.id}
         </p>
-        {toolchain ? (
-          <div className="truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-600">
-            {toolchainStatus?.installed
-              ? t(toolchainStatus.source === "local" ? "plugins.toolchain.detected" : "plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
-              : toolchainIsProbe
-                ? t("plugins.toolchain.notDetected")
-                : t("plugins.toolchain.notInstalled")}
-          </div>
-        ) : null}
-        {runtimeAsset ? (
-          <div className="truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-600">
-            {runtimeAssetStatus?.installed
-              ? t(runtimeAssetStatus.source === "bundled"
-                ? "plugins.runtimeAsset.bundled"
-                : runtimeAssetStatus.source === "local"
-                  ? "plugins.runtimeAsset.detected"
-                  : "plugins.runtimeAsset.ready").replace("{path}", runtimePath)
-              : t("plugins.runtimeAsset.notInstalled")}
-          </div>
-        ) : null}
+        <div className="flex min-w-0 items-center gap-1">
+          {toolchain ? (
+            <span className="min-w-0 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600" title={toolchainDetail}>
+              {toolchainStatus?.installed ? statusLabel : toolchainIsProbe ? t("plugins.toolchain.notDetected") : t("plugins.toolchain.notInstalled")}
+            </span>
+          ) : null}
+          {runtimeAsset ? (
+            <span className="min-w-0 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600" title={runtimeDetail}>
+              {runtimeAssetStatus?.installed ? statusLabel : t("plugins.runtimeAsset.notInstalled")}
+            </span>
+          ) : null}
+        </div>
         {errorCount > 0 || warningCount > 0 ? (
           <button
             type="button"
-            className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px]", errorCount > 0 ? issueTone("error") : issueTone("warning"))}
+            className={cn("inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-[10px]", errorCount > 0 ? issueTone("error") : issueTone("warning"))}
             onClick={onExpandToggle}
             title={t("plugins.validationDetails")}
           >
             {errorCount > 0 ? <AlertTriangle className="h-3 w-3" /> : <Info className="h-3 w-3" />}
-            {errorCount > 0
-              ? t("plugins.validationErrors").replace("{count}", String(errorCount))
-              : t("plugins.validationWarnings").replace("{count}", String(warningCount))}
+            <span className="truncate">
+              {errorCount > 0
+                ? t("plugins.validationErrors").replace("{count}", String(errorCount))
+                : t("plugins.validationWarnings").replace("{count}", String(warningCount))}
+            </span>
           </button>
         ) : (
-          <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
+          <span className="inline-flex max-w-full truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
             {t("plugins.validationOk")}
           </span>
         )}
+        {hasDetails ? (
+          <button
+            type="button"
+            className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 hover:border-primary-200 hover:text-primary-700"
+            onClick={onExpandToggle}
+            title={t("plugins.details")}
+          >
+            <ChevronDown className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")} />
+            <span className="truncate">{t("plugins.details")}</span>
+          </button>
+        ) : null}
         {expanded ? (
-          <div className="settings-scrollbar-hidden max-h-24 overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
+          <div className="settings-scrollbar-hidden max-h-28 overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
+            {toolchain ? <div className="mb-1 break-all rounded border border-slate-200 bg-slate-50 px-1.5 py-1">{toolchainDetail}</div> : null}
+            {runtimeAsset ? <div className="mb-1 break-all rounded border border-slate-200 bg-slate-50 px-1.5 py-1">{runtimeDetail}</div> : null}
             {entry.validation.issues.map((item) => (
-              <div key={`${item.code}-${item.message}`} className={cn("mb-1 rounded border px-1.5 py-1", issueTone(item.severity))}>
+              <div key={`${item.code}-${item.message}`} className={cn("mb-1 break-words rounded border px-1.5 py-1", issueTone(item.severity))}>
                 {item.message}
               </div>
             ))}
@@ -177,7 +199,7 @@ export function PluginMarketplaceCard(props: {
         ) : null}
       </div>
 
-      <div className="flex flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
+      <div className="flex min-w-0 flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
         {toolchain ? (
           <>
             <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "verify")}>

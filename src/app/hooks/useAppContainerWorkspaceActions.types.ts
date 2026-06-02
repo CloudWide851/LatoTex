@@ -58,7 +58,7 @@ export type UseAppContainerWorkspaceActionsParams = {
   cancelPendingAutoSave?: (() => void) | undefined;
   setSettings: Dispatch<SetStateAction<AppSettings | null>>;
   setDraftModelApiKeys: Dispatch<SetStateAction<Record<string, string>>>;
-  setModelModalMode: (value: "create" | "edit") => void;
+  setModelModalMode: (value: "create" | "edit" | "duplicate") => void;
   setModelModalInitial: (value: ModelCatalogItem | null) => void;
   setModelModalOpen: (value: boolean) => void;
 };
@@ -79,7 +79,7 @@ export type AppContainerWorkspaceActionsResult = {
   handleTestModel: (modelId: string) => Promise<void>;
   handleTestAllModels: () => Promise<void>;
   handleGetModelApiKey: (modelId: string) => Promise<string>;
-  openModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
+  openModelModal: (mode?: "create" | "edit" | "duplicate", model?: ModelCatalogItem | null) => void;
   handleGenerateGitSummary: (includedPaths: string[]) => Promise<string>;
   handleModelModalSubmit: (payload: {
     protocol: {

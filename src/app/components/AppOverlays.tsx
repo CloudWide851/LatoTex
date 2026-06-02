@@ -55,7 +55,7 @@ export function AppOverlays(props: {
   events: SwarmEvent[];
   compileDiagnostics: string[];
   modelModalOpen: boolean;
-  modelModalMode: "create" | "edit";
+  modelModalMode: "create" | "edit" | "duplicate";
   modelModalInitial: ModelCatalogItem | null;
   settings: AppSettings | null;
   deleteIntent: DeleteIntent;

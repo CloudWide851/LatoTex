@@ -96,7 +96,7 @@ export function useModelSettingsActions(params: ModelActionParams) {
     }
   }, [setModelTestActiveId, setModelTestBusy, setModelTestById, settings?.modelCatalog]);
 
-  const openModelModal = useCallback((mode: "create" | "edit" = "create", model: ModelCatalogItem | null = null) => {
+  const openModelModal = useCallback((mode: "create" | "edit" | "duplicate" = "create", model: ModelCatalogItem | null = null) => {
     params.setModelModalMode(mode);
     params.setModelModalInitial(model);
     params.setModelModalOpen(true);

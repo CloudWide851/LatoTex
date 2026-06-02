@@ -27,6 +27,7 @@ export const zhCN_nav = {
   "plugins.installBlocked": "该插件清单存在错误，不能安装。",
   "plugins.permissionsCount": "{count} 项权限",
   "plugins.validationOk": "已检查",
+  "plugins.details": "详情",
   "plugins.validationDetails": "校验详情",
   "plugins.validationErrors": "{count} 个错误",
   "plugins.validationWarnings": "{count} 个警告",

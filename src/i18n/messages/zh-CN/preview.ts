@@ -19,6 +19,9 @@ export const zhCN_preview = {
   "preview.codeStop": "停止",
   "preview.codeRunning": "正在运行...",
   "preview.codeOutput": "输出",
+  "preview.codeRunSummary": "退出码 {exitCode} / {duration}ms / {runner}",
+  "preview.codeNoOutput": "无输出。",
+  "preview.codeToolchainMissing": "未检测到本地工具链。",
   "preview.codeOutputTruncated": "输出已截断。",
   "preview.codeRunCancelled": "运行已取消。",
 } as const;

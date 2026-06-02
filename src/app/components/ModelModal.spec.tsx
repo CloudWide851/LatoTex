@@ -93,4 +93,69 @@ describe("ModelModal", () => {
     });
     container.remove();
   });
+
+  it("duplicates a model with a new id and copies the loaded api key", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const submittedPayloads: any[] = [];
+    const onSubmit = vi.fn(async (payload: any) => {
+      submittedPayloads.push(payload);
+      return { ok: true };
+    });
+
+    await act(async () => {
+      root.render(
+        <ModelModal
+          open
+          mode="duplicate"
+          initialModel={{
+            id: "openai-compatible-gpt-4",
+            protocolId: "openai-compatible",
+            displayName: "GPT-4",
+            requestName: "gpt-4",
+          }}
+          protocols={[
+            {
+              id: "openai-compatible",
+              displayName: "OpenAI-Compatible",
+              baseUrl: "https://api.openai.com/v1",
+              apiKeySet: true,
+            },
+          ]}
+          onClose={() => undefined}
+          onGetModelApiKey={async () => "secret-key"}
+          onSubmit={onSubmit}
+          t={(key) => {
+            if (key === "settings.modelCopySuffix") {
+              return "Copy";
+            }
+            return String(key);
+          }}
+        />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const saveButton = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent?.includes("settings.saveSettings"));
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const payload = submittedPayloads[0];
+    expect(payload.model.id).not.toBe("openai-compatible-gpt-4");
+    expect(payload.model.id).toMatch(/^openai-compatible-gpt-4-/);
+    expect(payload.model.displayName).toBe("GPT-4 Copy");
+    expect(payload.modelApiKey).toBe("secret-key");
+    expect(payload.modelApiKeyChanged).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

@@ -101,6 +101,13 @@ function buildHtmlPreviewDocument(htmlContent: string): string {
   ].join("");
 }
 
+function looksLikeStandaloneHtml(input: string): boolean {
+  const trimmed = input.trimStart().slice(0, 256).toLowerCase();
+  return trimmed.startsWith("<!doctype html")
+    || trimmed.startsWith("<html")
+    || (trimmed.includes("<body") && trimmed.includes("<"));
+}
+
 export function FilePreviewPane(props: {
   mode: "pdf" | "image" | "markdown" | "html" | "svg" | "empty";
   pdfUrl: string | null;
@@ -142,6 +149,8 @@ export function FilePreviewPane(props: {
     () => normalizeHtmlToMarkdown(sanitizePreviewText(markdownContent ?? "")),
     [markdownContent],
   );
+  const markdownAsHtml = useMemo(() => looksLikeStandaloneHtml(markdownContent ?? ""), [markdownContent]);
+  const markdownHtmlDoc = useMemo(() => buildHtmlPreviewDocument(markdownContent ?? ""), [markdownContent]);
   const sanitizedSvg = useMemo(() => sanitizeSvgForPreview(svgContent ?? ""), [svgContent]);
   const svgDoc = useMemo(() => buildSvgPreviewDocument(sanitizedSvg), [sanitizedSvg]);
   const htmlDoc = useMemo(() => buildHtmlPreviewDocument(htmlContent ?? ""), [htmlContent]);
@@ -178,6 +187,22 @@ export function FilePreviewPane(props: {
   }
 
   if (mode === "markdown") {
+    if (markdownAsHtml) {
+      return markdownContent.trim().length === 0 ? (
+        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          {emptyText}
+        </div>
+      ) : (
+        <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <iframe
+            title={title}
+            sandbox=""
+            srcDoc={markdownHtmlDoc}
+            className="h-full w-full border-0"
+          />
+        </div>
+      );
+    }
     return (
       <div className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
         <MarkdownPreviewPane

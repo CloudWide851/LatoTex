@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Copy, Plus } from "lucide-react";
 import { useCallback } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
@@ -58,7 +58,7 @@ export function SettingsPanel(props: {
   onSettingsSectionChange: (value: SettingsSection) => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
-  onOpenModelModal: (mode?: "create" | "edit", model?: ModelCatalogItem | null) => void;
+  onOpenModelModal: (mode?: "create" | "edit" | "duplicate", model?: ModelCatalogItem | null) => void;
   onReloadLogs: (options?: {
     silent?: boolean;
     logFileName?: string;
@@ -330,6 +330,15 @@ export function SettingsPanel(props: {
                           {modelTestActiveId === model.id && modelTestBusy
                             ? t("common.loading")
                             : t("settings.testModel")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onOpenModelModal("duplicate", model)}
+                          title={t("settings.copyModel")}
+                          aria-label={t("settings.copyModel")}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"

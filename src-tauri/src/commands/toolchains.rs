@@ -234,6 +234,16 @@ fn verify_local_toolchain(
     })
 }
 
+pub(crate) fn find_local_toolchain_executable(kind: &str) -> Option<PathBuf> {
+    local_toolchain_candidates(kind)
+        .iter()
+        .find_map(|name| find_executable_on_path(name))
+}
+
+pub(crate) fn find_local_toolchain_executable_from_names(names: &[&str]) -> Option<PathBuf> {
+    names.iter().find_map(|name| find_executable_on_path(name))
+}
+
 fn verify_probe_blocking(
     runtime_root: &Path,
     input: ToolchainActionInput,

@@ -24,10 +24,8 @@ vi.mock("../../../shared/utils/workspacePreviewBlob", () => ({
   revokeObjectUrl: vi.fn(),
 }));
 
-vi.mock("./usePdfPaperPreview", async () => {
-  const actual = await vi.importActual<typeof import("./usePdfPaperPreview")>("./usePdfPaperPreview");
+vi.mock("./usePdfPaperPreview", () => {
   return {
-    ...actual,
     buildPdfJsPaperPreview: mocks.buildPdfJsPaperPreview,
   };
 });

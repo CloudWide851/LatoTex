@@ -31,6 +31,7 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   "plugins.installBlocked": "Este plugin tiene errores de manifiesto y no se puede instalar.",
   "plugins.permissionsCount": "{count} permiso(s)",
   "plugins.validationOk": "Comprobado",
+  "plugins.details": "Detalles",
   "plugins.validationDetails": "Detalles de validación",
   "plugins.validationErrors": "{count} error(es)",
   "plugins.validationWarnings": "{count} aviso(s)",
@@ -72,6 +73,12 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   "settings.section.appearance": "Apariencia",
   "settings.section.pluginSources": "Fuentes de plugins",
   "settings.saveHint": "Los cambios se guardan automáticamente.",
+  "settings.copyModel": "Copiar",
+  "settings.modelCopySuffix": "copia",
+  "settings.modal.duplicateTitle": "Copiar modelo",
+  "preview.codeRunSummary": "salida {exitCode} / {duration}ms / {runner}",
+  "preview.codeNoOutput": "Sin salida.",
+  "preview.codeToolchainMissing": "No se detectó la herramienta local.",
   "toast.fileInvalidTextEncoding": "El archivo seleccionado no es texto UTF-8 válido.",
 };
 

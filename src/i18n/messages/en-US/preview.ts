@@ -19,6 +19,9 @@ export const enUS_preview = {
   "preview.codeStop": "Stop",
   "preview.codeRunning": "Running...",
   "preview.codeOutput": "Output",
+  "preview.codeRunSummary": "exit {exitCode} / {duration}ms / {runner}",
+  "preview.codeNoOutput": "No output.",
+  "preview.codeToolchainMissing": "Local toolchain not detected.",
   "preview.codeOutputTruncated": "Output truncated.",
   "preview.codeRunCancelled": "Run cancelled.",
 } as const;

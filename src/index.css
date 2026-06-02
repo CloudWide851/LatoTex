@@ -543,6 +543,25 @@ body::before {
   word-break: break-word;
 }
 
+.markdown-preview .markdown-code-block {
+  border-color: var(--app-border, #e2e8f0);
+  background: var(--editor-paper-bg, #fff);
+  color: var(--app-text, #0f172a);
+}
+
+.markdown-preview .markdown-code-toolbar,
+.markdown-preview .markdown-code-output {
+  border-color: var(--app-border, #e2e8f0);
+  background: color-mix(in srgb, var(--editor-paper-bg, #fff) 88%, var(--app-accent, #2563eb) 12%);
+  color: var(--app-text, #0f172a);
+}
+
+.markdown-preview .markdown-code-block pre {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
 .markdown-preview hr {
   margin: 0.7rem 0;
   border: none;
@@ -580,6 +599,19 @@ body::before {
 [data-theme="dark"] .markdown-preview pre {
   border-color: #334155;
   background: #0f172a;
+}
+
+[data-theme="dark"] .markdown-preview .markdown-code-block {
+  border-color: #334155;
+  background: #111827;
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .markdown-preview .markdown-code-toolbar,
+[data-theme="dark"] .markdown-preview .markdown-code-output {
+  border-color: #334155;
+  background: #0f172a;
+  color: #e5e7eb;
 }
 
 [data-theme="dark"] .markdown-preview hr {

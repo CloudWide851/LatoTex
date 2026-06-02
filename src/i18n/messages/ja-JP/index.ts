@@ -31,6 +31,7 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "plugins.installBlocked": "このプラグインのマニフェストにはエラーがあるためインストールできません。",
   "plugins.permissionsCount": "{count} 件の権限",
   "plugins.validationOk": "確認済み",
+  "plugins.details": "詳細",
   "plugins.validationDetails": "検証の詳細",
   "plugins.validationErrors": "{count} 件のエラー",
   "plugins.validationWarnings": "{count} 件の警告",
@@ -72,6 +73,12 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "settings.section.appearance": "外観",
   "settings.section.pluginSources": "プラグインソース",
   "settings.saveHint": "変更は自動的に保存されます。",
+  "settings.copyModel": "コピー",
+  "settings.modelCopySuffix": "コピー",
+  "settings.modal.duplicateTitle": "モデルをコピー",
+  "preview.codeRunSummary": "終了 {exitCode} / {duration}ms / {runner}",
+  "preview.codeNoOutput": "出力はありません。",
+  "preview.codeToolchainMissing": "ローカルツールチェーンを検出できませんでした。",
   "toast.fileInvalidTextEncoding": "選択したファイルは有効な UTF-8 テキストではありません。",
 };
 

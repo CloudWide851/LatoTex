@@ -1,13 +1,13 @@
 import { Play, Square } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Button } from "../../../components/ui/button";
-import { markdownRunCode } from "../../../shared/api/workspace";
-import type { MarkdownRunCodeResponse } from "../../../shared/types/app";
+import { markdownRunCode, markdownRunCodeCapabilities } from "../../../shared/api/workspace";
+import type { MarkdownRunCodeCapability, MarkdownRunCodeResponse } from "../../../shared/types/app";
 
 type RunState = {
   status: "idle" | "running" | "completed" | "failed";
@@ -15,7 +15,7 @@ type RunState = {
   error?: string | null;
 };
 
-const RUNNABLE = new Set(["javascript", "js", "typescript", "ts", "python", "py", "c", "cpp", "c++", "cc", "cxx"]);
+const RUNNABLE = new Set(["javascript", "js", "typescript", "ts", "python", "py", "c", "cpp", "c++", "cc", "cxx", "go", "golang", "rust", "rs", "zig"]);
 
 function languageFromClass(className?: string): string {
   return (className ?? "").split(/\s+/).find((item) => item.startsWith("language-"))?.replace("language-", "") ?? "";
@@ -38,6 +38,12 @@ function normalizeRunnable(language: string): string {
   }
   if (lower === "ts") {
     return "typescript";
+  }
+  if (lower === "golang") {
+    return "go";
+  }
+  if (lower === "rs") {
+    return "rust";
   }
   return lower;
 }
@@ -113,8 +119,28 @@ export function MarkdownPreviewPane(props: {
 }) {
   const { activeProjectId, selectedPath, markdown, emptyText, t } = props;
   const [runs, setRuns] = useState<Record<string, RunState>>({});
+  const [capabilities, setCapabilities] = useState<Record<string, MarkdownRunCodeCapability> | null>(null);
   const activeWorkerAbortRef = useRef<Record<string, boolean>>({});
   const content = useMemo(() => markdown, [markdown]);
+
+  useEffect(() => {
+    let active = true;
+    void markdownRunCodeCapabilities()
+      .then((items) => {
+        if (!active) {
+          return;
+        }
+        setCapabilities(Object.fromEntries(items.map((item) => [item.language, item])));
+      })
+      .catch(() => {
+        if (active) {
+          setCapabilities(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const runBlock = async (blockKey: string, language: string, code: string) => {
     const normalized = normalizeRunnable(language);
@@ -158,7 +184,9 @@ export function MarkdownPreviewPane(props: {
             const code = String(children ?? "").replace(/\n$/, "");
             const language = normalizeRunnable(languageFromClass(className));
             const blockKey = `${language}:${code.slice(0, 80)}:${code.length}`;
-            const runnable = !inline && RUNNABLE.has(language) && (isJsLanguage(language) || Boolean(activeProjectId));
+            const capability = capabilities?.[language];
+            const missingToolchain = !inline && RUNNABLE.has(language) && !isJsLanguage(language) && capabilities !== null && !capability?.available;
+            const runnable = !inline && RUNNABLE.has(language) && !missingToolchain && (isJsLanguage(language) || Boolean(activeProjectId));
             const run = runs[blockKey] ?? { status: "idle" };
             if (inline) {
               return (
@@ -168,15 +196,20 @@ export function MarkdownPreviewPane(props: {
               );
             }
             return (
-              <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-950">
-                <div className="flex items-center justify-between border-b border-slate-800 px-2 py-1">
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-slate-400">{language || "code"}</span>
-                  {runnable ? (
+              <div className="markdown-code-block overflow-hidden rounded-md border">
+                <div className="markdown-code-toolbar flex items-center justify-between border-b px-2 py-1">
+                  <span className="text-[10px] uppercase tracking-[0.14em]">{language || "code"}</span>
+                  {runnable || missingToolchain ? (
                     <Button
                       size="sm"
                       variant="secondary"
                       className="h-7 px-2 text-[11px]"
+                      disabled={missingToolchain}
+                      title={missingToolchain ? t("preview.codeToolchainMissing") : undefined}
                       onClick={() => {
+                        if (missingToolchain) {
+                          return;
+                        }
                         if (run.status === "running") {
                           activeWorkerAbortRef.current[blockKey] = true;
                           setRuns((prev) => ({ ...prev, [blockKey]: { status: "failed", error: t("preview.codeRunCancelled") } }));
@@ -190,17 +223,30 @@ export function MarkdownPreviewPane(props: {
                     </Button>
                   ) : null}
                 </div>
-                <pre className="m-0 overflow-auto p-3"><code {...codeProps} className={`font-mono text-[12px] ${className ?? ""}`}>{children}</code></pre>
+                <pre className="m-0 overflow-auto border-0 bg-transparent p-3"><code {...codeProps} className={`font-mono text-[12px] ${className ?? ""}`}>{children}</code></pre>
+                {missingToolchain ? (
+                  <div className="markdown-code-output border-t px-3 py-2 text-[11px] leading-5">
+                    {t("preview.codeToolchainMissing")}
+                  </div>
+                ) : null}
                 {run.status !== "idle" ? (
-                  <div className="border-t border-slate-800 bg-slate-900 px-3 py-2 text-[11px] leading-5 text-slate-200">
-                    <div className="mb-1 flex items-center justify-between text-slate-400">
+                  <div className="markdown-code-output border-t px-3 py-2 text-[11px] leading-5">
+                    <div className="mb-1 flex items-center justify-between gap-2 opacity-75">
                       <span>{run.status === "running" ? t("preview.codeRunning") : t("preview.codeOutput")}</span>
-                      {run.output ? <span>{run.output.durationMs}ms</span> : null}
+                      {run.output ? (
+                        <span className="truncate">
+                          {t("preview.codeRunSummary")
+                            .replace("{exitCode}", String(run.output.exitCode ?? "-"))
+                            .replace("{duration}", String(run.output.durationMs))
+                            .replace("{runner}", run.output.runner || "-")}
+                        </span>
+                      ) : null}
                     </div>
-                    {run.error ? <pre className="whitespace-pre-wrap text-rose-200">{run.error}</pre> : null}
+                    {run.error ? <pre className="whitespace-pre-wrap text-rose-600 dark:text-rose-300">{run.error}</pre> : null}
                     {run.output?.stdout ? <pre className="whitespace-pre-wrap">{run.output.stdout}</pre> : null}
-                    {run.output?.stderr ? <pre className="whitespace-pre-wrap text-amber-200">{run.output.stderr}</pre> : null}
-                    {run.output?.truncated ? <div className="mt-1 text-amber-200">{t("preview.codeOutputTruncated")}</div> : null}
+                    {run.output && !run.output.stdout && !run.output.stderr && !run.error ? <div className="opacity-70">{t("preview.codeNoOutput")}</div> : null}
+                    {run.output?.stderr ? <pre className="whitespace-pre-wrap text-amber-700 dark:text-amber-300">{run.output.stderr}</pre> : null}
+                    {run.output?.truncated ? <div className="mt-1 text-amber-700 dark:text-amber-300">{t("preview.codeOutputTruncated")}</div> : null}
                   </div>
                 ) : null}
               </div>

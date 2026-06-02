@@ -7,10 +7,8 @@ import {
 } from "../../../shared/utils/workspacePreviewBlob";
 import {
   buildPdfJsPaperPreview,
-  extractExcerpt,
-  normalizeText,
-  type PaperPreview,
 } from "./usePdfPaperPreview";
+import { extractExcerpt, normalizeText, type PaperPreview } from "./pdfPaperPreviewText";
 
 const PAPER_BRIEF_CACHE_MAX = 48;
 const paperBriefCache = new Map<string, PaperPreview>();
