@@ -61,6 +61,7 @@ export function LibraryExplorerPanel(props: {
   }) => void;
   onLibrarySyncZotero: (input: { ownerId: string; apiKey: string; scope?: "users" | "groups" }) => void;
   defaultExpanded: boolean;
+  scrollbarVisible: boolean;
   expandedPaths?: string[];
   onExpandedPathsChange: (paths: string[]) => void;
   t: TranslationFn;
@@ -76,6 +77,7 @@ export function LibraryExplorerPanel(props: {
     onLibraryImportLink,
     onLibrarySyncZotero,
     defaultExpanded,
+    scrollbarVisible,
     expandedPaths,
     onExpandedPathsChange,
     t,
@@ -119,6 +121,7 @@ export function LibraryExplorerPanel(props: {
             onFsAction("library", action, path, targetPath, content)
           }
           defaultExpanded={defaultExpanded}
+          scrollbarVisible={scrollbarVisible}
           expandedPaths={expandedPaths}
           onExpandedPathsChange={onExpandedPathsChange}
           t={t}

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LibraryExplorerPanel } from "./LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./WorkspaceExplorerPanel";
@@ -38,6 +39,9 @@ type WorkspacePageLayoutProps = Pick<
   | "paperBriefEngine"
   | "workspaceExplorerDefaultExpanded"
   | "libraryExplorerDefaultExpanded"
+  | "workspaceExplorerScrollbarVisible"
+  | "libraryExplorerScrollbarVisible"
+  | "editorResizeRefreshDelayMs"
   | "workspaceExplorerExpandedPaths"
   | "libraryExplorerExpandedPaths"
   | "onWorkspaceExplorerExpandedPathsChange"
@@ -81,6 +85,9 @@ export function WorkspacePageLayout({
   paperBriefEngine,
   workspaceExplorerDefaultExpanded,
   libraryExplorerDefaultExpanded,
+  workspaceExplorerScrollbarVisible,
+  libraryExplorerScrollbarVisible,
+  editorResizeRefreshDelayMs,
   workspaceExplorerExpandedPaths,
   libraryExplorerExpandedPaths,
   onWorkspaceExplorerExpandedPathsChange,
@@ -91,9 +98,27 @@ export function WorkspacePageLayout({
   renderPdfPreviewPanel,
   onSelectWorkspaceFile,
 }: WorkspacePageLayoutProps) {
+  const settledRefreshTimerRef = useRef<number | null>(null);
+  const refreshDelayMs = Math.max(500, Math.min(5000, Number(editorResizeRefreshDelayMs || 2000)));
+
+  useEffect(() => () => {
+    if (settledRefreshTimerRef.current !== null) {
+      window.clearTimeout(settledRefreshTimerRef.current);
+    }
+  }, []);
+
   const handleLayout = (targetPage: "latex" | "analysis" | "library" | "libraryBib", layout: number[]) => {
     onSavePanelLayout(targetPage, layout);
-    emitWorkspaceLayoutRefresh(targetPage === "libraryBib" ? "library" : targetPage, "panel-layout");
+    const refreshPage = targetPage === "libraryBib" ? "library" : targetPage;
+    emitWorkspaceLayoutRefresh(refreshPage, "panel-layout");
+    if (settledRefreshTimerRef.current !== null) {
+      window.clearTimeout(settledRefreshTimerRef.current);
+    }
+    settledRefreshTimerRef.current = window.setTimeout(() => {
+      emitWorkspaceLayoutRefresh(refreshPage, "panel-layout-settled");
+      window.dispatchEvent(new Event("resize"));
+      settledRefreshTimerRef.current = null;
+    }, refreshDelayMs);
   };
 
   const renderLibraryPanel = () => {
@@ -119,6 +144,7 @@ export function WorkspacePageLayout({
             onLibraryImportLink={onLibraryImportLink}
             onLibrarySyncZotero={onLibrarySyncZotero}
             defaultExpanded={libraryExplorerDefaultExpanded}
+            scrollbarVisible={libraryExplorerScrollbarVisible}
             expandedPaths={libraryExplorerExpandedPaths}
             onExpandedPathsChange={onLibraryExplorerExpandedPathsChange}
             t={t}
@@ -174,6 +200,7 @@ export function WorkspacePageLayout({
             onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
             onWorkspaceRescan={onWorkspaceRescan}
             defaultExpanded={workspaceExplorerDefaultExpanded}
+            scrollbarVisible={workspaceExplorerScrollbarVisible}
             expandedPaths={workspaceExplorerExpandedPaths}
             onExpandedPathsChange={onWorkspaceExplorerExpandedPathsChange}
             t={t}
@@ -218,6 +245,7 @@ export function WorkspacePageLayout({
             onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}
             onWorkspaceRescan={onWorkspaceRescan}
             defaultExpanded={workspaceExplorerDefaultExpanded}
+            scrollbarVisible={workspaceExplorerScrollbarVisible}
             expandedPaths={workspaceExplorerExpandedPaths}
             onExpandedPathsChange={onWorkspaceExplorerExpandedPathsChange}
             t={t}

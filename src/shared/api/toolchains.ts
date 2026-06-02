@@ -17,6 +17,20 @@ export function verifyToolchain(pluginId: string, contributionId: string): Promi
   });
 }
 
+export function pickToolchainDirectory(): Promise<string | null> {
+  return invokeCommand<string | null>("toolchain_pick_directory");
+}
+
+export function registerLocalToolchain(
+  pluginId: string,
+  contributionId: string,
+  rootDir: string,
+): Promise<ToolchainStatus> {
+  return invokeCommand<ToolchainStatus>("toolchain_register_local", {
+    input: { pluginId, contributionId, rootDir },
+  });
+}
+
 export function removeToolchain(pluginId: string, contributionId: string): Promise<ToolchainStatus> {
   return invokeCommand<ToolchainStatus>("toolchain_remove", {
     input: { pluginId, contributionId },

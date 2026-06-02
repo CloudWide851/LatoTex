@@ -2,19 +2,20 @@ use super::downloads::{
     download_verified, ordered_download_urls, replace_dir_atomically, resolve_installed_file,
     safe_segment,
 };
-use super::native_runtime::configure_hidden_process;
 use super::plugins::read_registry;
 use super::plugins_builtin::built_in_catalog;
+use super::toolchains_local::{verify_local_toolchain, version_of};
+use super::toolchains_register::register_local_blocking;
 use crate::models::{
     PluginContribution, PluginManifest, PluginToolchainInstaller, PluginToolchainProbe,
-    ToolchainActionInput, ToolchainInstallRecord, ToolchainStatus,
+    ToolchainActionInput, ToolchainInstallRecord, ToolchainLocalRegisterInput, ToolchainStatus,
 };
 use crate::state::AppState;
 use crate::storage;
+use rfd::FileDialog;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tauri::{async_runtime::spawn_blocking, State};
 use zip::ZipArchive;
 
@@ -26,7 +27,9 @@ fn registry_path(runtime_root: &Path) -> PathBuf {
     toolchain_root(runtime_root).join("registry.json")
 }
 
-fn read_toolchain_registry(runtime_root: &Path) -> Result<Vec<ToolchainInstallRecord>, String> {
+pub(crate) fn read_toolchain_registry(
+    runtime_root: &Path,
+) -> Result<Vec<ToolchainInstallRecord>, String> {
     let path = registry_path(runtime_root);
     if !path.is_file() {
         return Ok(Vec::new());
@@ -35,7 +38,7 @@ fn read_toolchain_registry(runtime_root: &Path) -> Result<Vec<ToolchainInstallRe
     serde_json::from_str::<Vec<ToolchainInstallRecord>>(&content).map_err(|e| e.to_string())
 }
 
-fn write_toolchain_registry(
+pub(crate) fn write_toolchain_registry(
     runtime_root: &Path,
     records: &[ToolchainInstallRecord],
 ) -> Result<(), String> {
@@ -52,6 +55,10 @@ fn write_toolchain_registry(
 
 fn status_from_record(record: &ToolchainInstallRecord) -> ToolchainStatus {
     let executable = PathBuf::from(&record.executable_path);
+    let source = record
+        .source
+        .clone()
+        .unwrap_or_else(|| "managed".to_string());
     ToolchainStatus {
         plugin_id: record.plugin_id.clone(),
         contribution_id: record.contribution_id.clone(),
@@ -66,11 +73,10 @@ fn status_from_record(record: &ToolchainInstallRecord) -> ToolchainStatus {
             "toolchain.missing".to_string()
         },
         source: if executable.is_file() {
-            "managed"
+            source
         } else {
-            "missing"
-        }
-        .to_string(),
+            "missing".to_string()
+        },
     }
 }
 
@@ -83,7 +89,7 @@ fn manifest_contributions(
         .map(move |item| (manifest, item))
 }
 
-fn toolchain_catalog(
+pub(crate) fn toolchain_catalog(
     runtime_root: &Path,
 ) -> Result<Vec<(PluginManifest, PluginContribution)>, String> {
     let mut items = Vec::new();
@@ -166,82 +172,12 @@ fn find_installer(
     Err("toolchain.not_found".to_string())
 }
 
-fn version_of(executable: &Path, arg: Option<&str>) -> Option<String> {
-    let mut command = Command::new(executable);
-    configure_hidden_process(&mut command);
-    command.arg(arg.unwrap_or("--version"));
-    let output = command.output().ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if text.is_empty() {
-        None
-    } else {
-        Some(text.lines().next().unwrap_or("").to_string())
-    }
-}
-
-fn find_executable_on_path(name: &str) -> Option<PathBuf> {
-    let path_var = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(name);
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-fn local_toolchain_candidates(kind: &str) -> &'static [&'static str] {
-    match kind {
-        "git" => &["git.exe"],
-        "go" => &["go.exe"],
-        "python" => &["python.exe", "py.exe"],
-        "node" => &["node.exe"],
-        "c" => &["clang.exe", "gcc.exe", "cl.exe"],
-        "cpp" => &["clang++.exe", "g++.exe", "cl.exe"],
-        "zig" => &["zig.exe"],
-        "rust" => &["rustc.exe", "cargo.exe"],
-        _ => &[],
-    }
-}
-
-fn verify_local_toolchain(
-    plugin_id: String,
-    contribution_id: String,
-    kind: String,
-    version_arg: Option<&str>,
-) -> Option<ToolchainStatus> {
-    let candidates = local_toolchain_candidates(&kind);
-    if candidates.is_empty() {
-        return None;
-    }
-    let resolved = candidates
-        .iter()
-        .find_map(|name| find_executable_on_path(name))?;
-    let version = version_of(&resolved, version_arg);
-    Some(ToolchainStatus {
-        plugin_id,
-        contribution_id,
-        kind,
-        installed: true,
-        install_path: None,
-        executable_path: Some(resolved.to_string_lossy().to_string()),
-        version,
-        message: "toolchain.detected".to_string(),
-        source: "local".to_string(),
-    })
-}
-
 pub(crate) fn find_local_toolchain_executable(kind: &str) -> Option<PathBuf> {
-    local_toolchain_candidates(kind)
-        .iter()
-        .find_map(|name| find_executable_on_path(name))
+    super::toolchains_local::find_local_toolchain_executable(kind)
 }
 
 pub(crate) fn find_local_toolchain_executable_from_names(names: &[&str]) -> Option<PathBuf> {
-    names.iter().find_map(|name| find_executable_on_path(name))
+    super::toolchains_local::find_local_toolchain_executable_from_names(names)
 }
 
 fn verify_probe_blocking(
@@ -253,7 +189,9 @@ fn verify_probe_blocking(
     let resolved: Vec<PathBuf> = probe
         .executables
         .iter()
-        .filter_map(|name| find_executable_on_path(name))
+        .filter_map(|name| {
+            super::toolchains_local::find_local_toolchain_executable_from_names(&[name.as_str()])
+        })
         .collect();
     let installed = resolved.len() == probe.executables.len();
     let version = resolved
@@ -363,6 +301,7 @@ fn install_blocking(
         root_dir: root.to_string_lossy().to_string(),
         executable_path: final_executable.to_string_lossy().to_string(),
         version,
+        source: Some("managed".to_string()),
     };
     records.push(record.clone());
     write_toolchain_registry(runtime_root, &records)?;
@@ -423,7 +362,8 @@ fn remove_blocking(
     };
     let record = records.remove(index);
     let root = PathBuf::from(&record.root_dir);
-    if root.starts_with(toolchain_root(runtime_root)) && root.exists() {
+    let source = record.source.as_deref().unwrap_or("managed");
+    if source == "managed" && root.starts_with(toolchain_root(runtime_root)) && root.exists() {
         fs::remove_dir_all(root).map_err(|e| e.to_string())?;
     }
     write_toolchain_registry(runtime_root, &records)?;
@@ -492,6 +432,32 @@ pub async fn toolchain_list(state: State<'_, AppState>) -> Result<Vec<ToolchainS
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn toolchain_pick_directory(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    state.log("INFO", "toolchain_pick_directory");
+    Ok(FileDialog::new()
+        .pick_folder()
+        .map(|path| path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub async fn toolchain_register_local(
+    state: State<'_, AppState>,
+    input: ToolchainLocalRegisterInput,
+) -> Result<ToolchainStatus, String> {
+    state.log(
+        "INFO",
+        &format!(
+            "toolchain_register_local: {}:{}",
+            input.plugin_id, input.contribution_id
+        ),
+    );
+    let runtime_root = state.runtime_root.clone();
+    spawn_blocking(move || register_local_blocking(&runtime_root, input))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

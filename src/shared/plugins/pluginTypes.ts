@@ -14,7 +14,7 @@ export type PluginCommandTemplate = {
 
 export type PluginToolchainInstaller = {
   id: string;
-  kind: "git" | "go" | "python" | "node" | "c" | "cpp" | "zig" | "rust" | string;
+  kind: "git" | "go" | "python" | "node" | "java" | "c" | "cpp" | "zig" | "rust" | string;
   platform: "windows-x64" | string;
   downloadUrl: string;
   downloadUrlCn?: string | null;
@@ -37,7 +37,7 @@ export type PluginRuntimeAsset = {
 
 export type PluginToolchainProbe = {
   id: string;
-  kind: "zig" | "rust" | "git" | "go" | "python" | "node" | "c" | "cpp" | string;
+  kind: "zig" | "rust" | "git" | "go" | "python" | "node" | "java" | "c" | "cpp" | string;
   platform: "windows-x64" | string;
   executables: string[];
   versionArg?: string | null;

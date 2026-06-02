@@ -145,6 +145,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     paperBriefEngine,
     workspaceExplorerDefaultExpanded,
     libraryExplorerDefaultExpanded,
+    workspaceExplorerScrollbarVisible,
+    libraryExplorerScrollbarVisible,
+    editorResizeRefreshDelayMs,
     workspaceExplorerExpandedPaths,
     libraryExplorerExpandedPaths,
     onWorkspaceExplorerExpandedPathsChange,
@@ -582,6 +585,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             paperBriefEngine={paperBriefEngine}
             workspaceExplorerDefaultExpanded={workspaceExplorerDefaultExpanded}
             libraryExplorerDefaultExpanded={libraryExplorerDefaultExpanded}
+            workspaceExplorerScrollbarVisible={workspaceExplorerScrollbarVisible}
+            libraryExplorerScrollbarVisible={libraryExplorerScrollbarVisible}
+            editorResizeRefreshDelayMs={editorResizeRefreshDelayMs}
             workspaceExplorerExpandedPaths={workspaceExplorerExpandedPaths}
             libraryExplorerExpandedPaths={libraryExplorerExpandedPaths}
             onWorkspaceExplorerExpandedPathsChange={onWorkspaceExplorerExpandedPathsChange}

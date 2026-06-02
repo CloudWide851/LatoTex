@@ -208,6 +208,12 @@ export function AppContainerView(props: any) {
   const paperBriefEngine = settings?.uiPrefs?.paperBriefEngine ?? "auto";
   const workspaceExplorerDefaultExpanded = settings?.uiPrefs?.workspaceExplorerDefaultExpanded ?? true;
   const libraryExplorerDefaultExpanded = settings?.uiPrefs?.libraryExplorerDefaultExpanded ?? true;
+  const workspaceExplorerScrollbarVisible = settings?.uiPrefs?.workspaceExplorerScrollbarVisible ?? true;
+  const libraryExplorerScrollbarVisible = settings?.uiPrefs?.libraryExplorerScrollbarVisible ?? true;
+  const editorResizeRefreshDelayMs = Math.max(
+    500,
+    Math.min(5000, Number(settings?.uiPrefs?.editorResizeRefreshDelayMs ?? 2000)),
+  );
   const workspaceExplorerExpandedPaths =
     activeProjectId
       ? settings?.uiPrefs?.workspaceExplorerExpandedPathsByProject?.[activeProjectId]
@@ -402,6 +408,9 @@ export function AppContainerView(props: any) {
                 paperBriefEngine={paperBriefEngine}
                 workspaceExplorerDefaultExpanded={workspaceExplorerDefaultExpanded}
                 libraryExplorerDefaultExpanded={libraryExplorerDefaultExpanded}
+                workspaceExplorerScrollbarVisible={workspaceExplorerScrollbarVisible}
+                libraryExplorerScrollbarVisible={libraryExplorerScrollbarVisible}
+                editorResizeRefreshDelayMs={editorResizeRefreshDelayMs}
                 workspaceExplorerExpandedPaths={workspaceExplorerExpandedPaths}
                 libraryExplorerExpandedPaths={libraryExplorerExpandedPaths}
                 onWorkspaceExplorerExpandedPathsChange={(paths) =>

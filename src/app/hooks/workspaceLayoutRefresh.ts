@@ -5,6 +5,7 @@ export const WORKSPACE_LAYOUT_REFRESH_EVENT = "latotex.workspace.layout.refresh"
 export type WorkspaceLayoutRefreshReason =
   | "page-change"
   | "panel-layout"
+  | "panel-layout-settled"
   | "startup-ready";
 
 export type WorkspaceLayoutRefreshDetail = {
@@ -41,4 +42,3 @@ export function emitWorkspaceLayoutRefresh(
     window.dispatchEvent(new Event("resize"));
   });
 }
-

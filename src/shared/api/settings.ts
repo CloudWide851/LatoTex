@@ -92,6 +92,9 @@ export function updateSettings(input: {
     libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
     workspaceExplorerDefaultExpanded?: boolean;
     libraryExplorerDefaultExpanded?: boolean;
+    workspaceExplorerScrollbarVisible?: boolean;
+    libraryExplorerScrollbarVisible?: boolean;
+    editorResizeRefreshDelayMs?: number;
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
     sidebarPageOrder?: Array<"latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings">;

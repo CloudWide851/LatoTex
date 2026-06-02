@@ -277,7 +277,9 @@ export function LatexWorkspaceEditorPanel(props: {
         return;
       }
       window.requestAnimationFrame(() => {
-        editorInstanceRef.current?.layout();
+        const editor = editorInstanceRef.current;
+        editor?.layout();
+        editor?.render?.(true);
       });
     };
     window.addEventListener(WORKSPACE_LAYOUT_REFRESH_EVENT, handleLayoutRefresh as EventListener);

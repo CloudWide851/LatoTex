@@ -10,6 +10,8 @@ import {
 import {
   installToolchain,
   listToolchains,
+  pickToolchainDirectory,
+  registerLocalToolchain,
   removeToolchain,
   verifyToolchain,
 } from "../../../shared/api/toolchains";
@@ -194,6 +196,26 @@ export function PluginMarketplace(props: {
     }
   };
 
+  const chooseToolchainDirectory = async (pluginId: string, contributionId: string) => {
+    if (busyActionId) {
+      return;
+    }
+    setBusyActionId(`${pluginId}:toolchain:${contributionId}:local`);
+    try {
+      const rootDir = await pickToolchainDirectory();
+      if (!rootDir) {
+        return;
+      }
+      const next = await registerLocalToolchain(pluginId, contributionId, rootDir);
+      setToolchains((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
+      setStatus(t("plugins.toolchain.localDone"));
+    } catch (error) {
+      setStatus(String(error));
+    } finally {
+      setBusyActionId(null);
+    }
+  };
+
   const runRuntimeAssetAction = async (
     pluginId: string,
     contributionId: string,
@@ -280,6 +302,7 @@ export function PluginMarketplace(props: {
                 onTogglePlugin={(item) => void toggle(item)}
                 onRemovePlugin={(pluginId) => void remove(pluginId)}
                 onToolchainAction={(pluginId, contributionId, action) => void runToolchainAction(pluginId, contributionId, action)}
+                onToolchainDirectoryPick={(pluginId, contributionId) => void chooseToolchainDirectory(pluginId, contributionId)}
                 onRuntimeAssetAction={(pluginId, contributionId, action) => void runRuntimeAssetAction(pluginId, contributionId, action)}
                 t={t}
               />

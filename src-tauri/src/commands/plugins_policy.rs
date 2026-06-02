@@ -109,6 +109,9 @@ pub(crate) const SAFE_COMMAND_REFS: &[&str] = &[
     "toolchain.install.cpp",
     "toolchain.install.go",
     "toolchain.install.git",
+    "toolchain.verify.python",
+    "toolchain.verify.node",
+    "toolchain.verify.java",
     "toolchain.verify.c",
     "toolchain.verify.cpp",
     "toolchain.verify.go",
@@ -119,14 +122,17 @@ pub(crate) const SAFE_COMMAND_REFS: &[&str] = &[
     "toolchain.remove.git",
     "toolchain.verify.zig",
     "toolchain.verify.rust",
+    "toolchain.configure.python",
+    "toolchain.configure.node",
+    "toolchain.configure.java",
     "toolchain.configure.zig",
     "toolchain.configure.rust",
 ];
 
 pub(crate) const INSTALLER_TOOLCHAIN_KINDS: &[&str] =
-    &["git", "go", "python", "node", "c", "cpp", "zig"];
-pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] =
-    &["git", "go", "python", "node", "c", "cpp", "zig", "rust"];
+    &["git", "go", "python", "node", "java", "c", "cpp", "zig"];
+pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] = &[
+    "git", "go", "python", "node", "java", "c", "cpp", "zig", "rust",
+];
 
-pub(crate) const RUNTIME_ASSET_KINDS: &[&str] =
-    &["drawio", "uv", "tectonic", "cloudflared"];
+pub(crate) const RUNTIME_ASSET_KINDS: &[&str] = &["drawio", "uv", "tectonic", "cloudflared"];

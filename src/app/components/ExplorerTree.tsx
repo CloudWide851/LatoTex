@@ -45,6 +45,7 @@ export function ExplorerTree(props: {
   onRevealInSystem?: (path?: string) => Promise<void> | void;
   onOpenTerminal?: (path?: string) => Promise<void> | void;
   defaultExpanded?: boolean;
+  scrollbarVisible?: boolean;
   expandedPaths?: string[];
   onExpandedPathsChange?: (paths: string[]) => void;
   t: TranslationFn;
@@ -65,6 +66,7 @@ export function ExplorerTree(props: {
     onRevealInSystem,
     onOpenTerminal,
     defaultExpanded = true,
+    scrollbarVisible = true,
     expandedPaths,
     onExpandedPathsChange,
     t,
@@ -470,7 +472,10 @@ export function ExplorerTree(props: {
       }}
     >
       <div
-        className="library-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-0.5"
+        className={cn(
+          "library-scrollbar min-h-0 flex-1 space-y-1 overflow-auto px-0.5",
+          !scrollbarVisible && "hide-scrollbar",
+        )}
         onDoubleClick={(event) => {
           if (mode !== "workspace" || editing) {
             return;

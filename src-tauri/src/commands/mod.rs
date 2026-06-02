@@ -27,3 +27,5 @@ pub mod share;
 pub mod swarm;
 pub mod terminal;
 pub mod toolchains;
+mod toolchains_local;
+mod toolchains_register;

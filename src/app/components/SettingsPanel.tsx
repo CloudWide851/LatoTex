@@ -137,6 +137,9 @@ export function SettingsPanel(props: {
         sampleIntervalSec: 25,
         criticalAction: "sleep",
       },
+      workspaceExplorerScrollbarVisible: true,
+      libraryExplorerScrollbarVisible: true,
+      editorResizeRefreshDelayMs: 2000,
       agentTeamPrefs: DEFAULT_AGENT_TEAM_PREFS,
     },
   };

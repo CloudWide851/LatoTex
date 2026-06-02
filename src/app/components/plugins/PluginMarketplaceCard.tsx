@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, Download, Info, Power, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, Download, FolderOpen, Info, Power, Trash2 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import type {
@@ -34,6 +34,7 @@ export function PluginMarketplaceCard(props: {
   onTogglePlugin: (plugin: InstalledPlugin) => void;
   onRemovePlugin: (pluginId: string) => void;
   onToolchainAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
+  onToolchainDirectoryPick: (pluginId: string, contributionId: string) => void;
   onRuntimeAssetAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
   t: TranslationFn;
 }) {
@@ -52,6 +53,7 @@ export function PluginMarketplaceCard(props: {
     onTogglePlugin,
     onRemovePlugin,
     onToolchainAction,
+    onToolchainDirectoryPick,
     onRuntimeAssetAction,
     t,
   } = props;
@@ -212,6 +214,14 @@ export function PluginMarketplaceCard(props: {
             ) : !toolchainStatus?.installed ? (
               <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "install")}>
                 {t("plugins.toolchain.install")}
+              </Button>
+            ) : null}
+            <Button size="sm" variant="ghost" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainDirectoryPick(plugin.id, toolchain.id)} title={t("plugins.toolchain.pickLocal")}>
+              <FolderOpen className="h-3.5 w-3.5" />
+            </Button>
+            {toolchainStatus?.installed && toolchainStatus.source === "local" ? (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => onToolchainAction(plugin.id, toolchain.id, "remove")}>
+                {t("plugins.toolchain.remove")}
               </Button>
             ) : null}
           </>

@@ -44,5 +44,21 @@ async function copyDirectory(sourcePath, targetPath) {
   }
 }
 
+async function directoryExists(pathname) {
+  try {
+    return (await fs.stat(pathname)).isDirectory();
+  } catch (error) {
+    if (error instanceof Error && "code" in error && String(error.code) === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+if (!(await directoryExists(sourceDir))) {
+  console.log(`Public assets directory not found at ${sourceDir}; skipping copy.`);
+  process.exit(0);
+}
+
 await copyDirectory(sourceDir, targetDir);
 console.log(`Public assets copied to ${targetDir}`);

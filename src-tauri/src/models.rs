@@ -531,6 +531,9 @@ pub struct UiPrefs {
     pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
     pub workspace_explorer_default_expanded: Option<bool>,
     pub library_explorer_default_expanded: Option<bool>,
+    pub workspace_explorer_scrollbar_visible: Option<bool>,
+    pub library_explorer_scrollbar_visible: Option<bool>,
+    pub editor_resize_refresh_delay_ms: Option<f64>,
     pub workspace_explorer_expanded_paths_by_project:
         Option<std::collections::HashMap<String, Vec<String>>>,
     pub library_explorer_expanded_paths_by_project:

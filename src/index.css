@@ -329,6 +329,23 @@ body::before {
   background-clip: padding-box;
 }
 
+input[type="range"] {
+  accent-color: var(--app-accent);
+}
+
+.monaco-editor .scrollbar .slider {
+  background: color-mix(in srgb, var(--library-scrollbar-thumb) 78%, transparent) !important;
+  border-radius: 999px !important;
+}
+
+.monaco-editor .scrollbar .slider:hover {
+  background: color-mix(in srgb, var(--library-scrollbar-thumb-hover) 86%, transparent) !important;
+}
+
+.monaco-editor .scrollbar .slider.active {
+  background: var(--library-scrollbar-thumb-hover) !important;
+}
+
 .app-motion-reduced :where(.motion-slide-up, .motion-page-in, .motion-fade-in) {
   animation-duration: 1ms !important;
 }

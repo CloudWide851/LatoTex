@@ -145,6 +145,9 @@ export type AppWorkspaceShellProps = {
   paperBriefEngine: "auto" | "pdfjs" | "python";
   workspaceExplorerDefaultExpanded: boolean;
   libraryExplorerDefaultExpanded: boolean;
+  workspaceExplorerScrollbarVisible: boolean;
+  libraryExplorerScrollbarVisible: boolean;
+  editorResizeRefreshDelayMs: number;
   workspaceExplorerExpandedPaths?: string[];
   libraryExplorerExpandedPaths?: string[];
   onWorkspaceExplorerExpandedPathsChange: (paths: string[]) => void;
