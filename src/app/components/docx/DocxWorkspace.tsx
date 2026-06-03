@@ -9,11 +9,13 @@ import { DocxRibbonPopup, type RibbonTab } from "./DocxRibbonPopup";
 import {
   countMatches,
   countWords,
+  captureSelectionInRoot,
   currentResourceQuery,
   execFormat,
   flattenResources,
   mapDocxStatus,
   replaceResourceTriggerWithHtml,
+  restoreSelectionInRoot,
   sanitizeDocxHtml,
   stripHtml,
   type ResourceSuggestion,
@@ -62,7 +64,10 @@ export function DocxWorkspace(props: {
   const syncTimerRef = useRef<number | null>(null);
   const autoSaveTimerRef = useRef<number | null>(null);
   const chromeRef = useRef<HTMLDivElement | null>(null);
+  const htmlRef = useRef("<p><br></p>");
+  const savedSelectionRef = useRef<Range | null>(null);
   const [html, setHtml] = useState("<p><br></p>");
+  const [loadRevision, setLoadRevision] = useState(0);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -80,6 +85,10 @@ export function DocxWorkspace(props: {
   const [resourceQuery, setResourceQuery] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const resources = useMemo(() => flattenResources(tree), [tree]);
+  const setHtmlSnapshot = useCallback((nextHtml: string) => {
+    htmlRef.current = nextHtml;
+    setHtml(nextHtml);
+  }, []);
 
   useEffect(() => {
     if (!selectedPath) {
@@ -98,10 +107,11 @@ export function DocxWorkspace(props: {
 
   useEffect(() => {
     if (!selectedPath) {
-      setHtml("<p><br></p>");
+      setHtmlSnapshot("<p><br></p>");
       setWarnings([]);
       setDirty(false);
       setStatus(null);
+      savedSelectionRef.current = null;
       return;
     }
     let disposed = false;
@@ -114,10 +124,11 @@ export function DocxWorkspace(props: {
         if (disposed || result.relativePath !== loadPath) {
           return;
         }
-        setHtml(result.html || "<p><br></p>");
+        setHtmlSnapshot(result.html || "<p><br></p>");
         setWarnings(result.warnings);
         setDirty(false);
         setStatus(null);
+        setLoadRevision((prev) => prev + 1);
       })
       .catch((error) => {
         if (!disposed) {
@@ -133,7 +144,16 @@ export function DocxWorkspace(props: {
     return () => {
       disposed = true;
     };
-  }, [projectId, reloadToken, selectedPath, t]);
+  }, [projectId, reloadToken, selectedPath, setHtmlSnapshot, t]);
+
+  useEffect(() => {
+    if (!selectedPath || loading || !editorRef.current) {
+      return;
+    }
+    editorRef.current.innerHTML = htmlRef.current || "<p><br></p>";
+    savedSelectionRef.current = null;
+    setResourceQuery(null);
+  }, [loadRevision, loading, selectedPath]);
 
   useEffect(() => () => {
     if (syncTimerRef.current !== null) {
@@ -163,10 +183,21 @@ export function DocxWorkspace(props: {
     };
   }, []);
 
-  const syncHtmlFromDom = useCallback(() => {
-    setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
-    setDirty(true);
+  const captureEditorSelection = useCallback(() => {
+    const range = captureSelectionInRoot(editorRef.current);
+    if (range) {
+      savedSelectionRef.current = range;
+    }
   }, []);
+
+  const restoreEditorSelection = useCallback(() => {
+    return restoreSelectionInRoot(editorRef.current, savedSelectionRef.current);
+  }, []);
+
+  const syncHtmlFromDom = useCallback(() => {
+    setHtmlSnapshot(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
+    setDirty(true);
+  }, [setHtmlSnapshot]);
 
   const syncHtmlFromDomDebounced = useCallback(() => {
     setDirty(true);
@@ -174,10 +205,10 @@ export function DocxWorkspace(props: {
       window.clearTimeout(syncTimerRef.current);
     }
     syncTimerRef.current = window.setTimeout(() => {
-      setHtml(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
+      setHtmlSnapshot(sanitizeDocxHtml(editorRef.current?.innerHTML || "<p><br></p>"));
       syncTimerRef.current = null;
     }, 180);
-  }, []);
+  }, [setHtmlSnapshot]);
 
   const refreshActiveMarks = useCallback(() => {
     setActiveMarks({
@@ -191,22 +222,22 @@ export function DocxWorkspace(props: {
   }, []);
 
   const applyFormat = useCallback((command: string, value?: string) => {
-    editorRef.current?.focus();
+    restoreEditorSelection();
     execFormat(command, value);
     syncHtmlFromDom();
     refreshActiveMarks();
-  }, [refreshActiveMarks, syncHtmlFromDom]);
+  }, [refreshActiveMarks, restoreEditorSelection, syncHtmlFromDom]);
 
   const save = useCallback(async (options: { rescan?: boolean; auto?: boolean } = {}) => {
     if (!selectedPath || saving) {
       return;
     }
-    const nextHtml = sanitizeDocxHtml(editorRef.current?.innerHTML || html);
+    const nextHtml = sanitizeDocxHtml(editorRef.current?.innerHTML || htmlRef.current);
     setSaving(true);
     setStatus(null);
     try {
       await writeDocx(projectId, selectedPath, nextHtml);
-      setHtml(nextHtml);
+      setHtmlSnapshot(nextHtml);
       setDirty(false);
       setStatus(t(options.auto ? "docx.autoSaved" : "docx.saved"));
       if (options.rescan ?? true) {
@@ -217,7 +248,7 @@ export function DocxWorkspace(props: {
     } finally {
       setSaving(false);
     }
-  }, [html, onRescan, projectId, saving, selectedPath, t]);
+  }, [onRescan, projectId, saving, selectedPath, setHtmlSnapshot, t]);
 
   useEffect(() => {
     if (autoSaveTimerRef.current !== null) {
@@ -231,9 +262,10 @@ export function DocxWorkspace(props: {
       void save({ auto: true, rescan: false });
       autoSaveTimerRef.current = null;
     }, 1200);
-  }, [autoSaveEnabled, dirty, loading, save, saving, selectedPath, html]);
+  }, [autoSaveEnabled, dirty, loading, save, saving, selectedPath]);
 
   const insertLink = () => {
+    captureEditorSelection();
     const url = window.prompt(t("docx.linkPrompt"));
     if (url) {
       applyFormat("createLink", url);
@@ -241,44 +273,51 @@ export function DocxWorkspace(props: {
   };
 
   const insertTable = () => {
-    editorRef.current?.focus();
+    restoreEditorSelection();
     execFormat("insertHTML", `<table><tbody><tr><td>${t("docx.tableCell")}</td><td>${t("docx.tableCell")}</td></tr><tr><td>${t("docx.tableCell")}</td><td>${t("docx.tableCell")}</td></tr></tbody></table><p><br></p>`);
     syncHtmlFromDom();
   };
 
   const insertPageBreak = () => {
-    editorRef.current?.focus();
+    restoreEditorSelection();
     execFormat("insertHTML", `<p data-docx-page-break="true"><br></p>`);
     syncHtmlFromDom();
   };
 
   const insertResource = (resource: ResourceSuggestion) => {
-    editorRef.current?.focus();
+    restoreEditorSelection();
     const safeName = resource.name.replace(/[<>&"]/g, "");
     const safePath = resource.path.replace(/"/g, "&quot;");
-    const htmlSnippet = resource.image
-      ? `<img data-docx-resource="${safePath}" src="${buildWorkspacePreviewUrl(projectId, resource.path)}" alt="${safeName}" /><p><br></p>`
+    const imageHtml = `<img data-docx-resource="${safePath}" src="${buildWorkspacePreviewUrl(projectId, resource.path)}" alt="${safeName}" />`;
+    const triggerHtmlSnippet = resource.image
+      ? `${imageHtml}<p><br></p>`
       : `<a href="#${safePath}" data-docx-resource="${safePath}">${safeName}</a>`;
-    if (!replaceResourceTriggerWithHtml(htmlSnippet)) {
-      execFormat("insertHTML", htmlSnippet);
+    const fallbackHtmlSnippet = resource.image
+      ? `<p>${imageHtml}</p><p><br></p>`
+      : triggerHtmlSnippet;
+    if (!replaceResourceTriggerWithHtml(triggerHtmlSnippet, editorRef.current)) {
+      execFormat("insertHTML", fallbackHtmlSnippet);
     }
     setResourceQuery(null);
     syncHtmlFromDom();
   };
 
-  const updateResourceQuery = () => setResourceQuery(currentResourceQuery());
+  const updateResourceQuery = useCallback(() => {
+    captureEditorSelection();
+    setResourceQuery(currentResourceQuery(editorRef.current));
+  }, [captureEditorSelection]);
 
   const replaceAll = () => {
     if (!findText) {
       return;
     }
-    const current = editorRef.current?.innerHTML || html;
+    const current = editorRef.current?.innerHTML || htmlRef.current;
     const escaped = findText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const nextHtml = sanitizeDocxHtml(current.replace(new RegExp(escaped, "gi"), replaceText));
     if (editorRef.current) {
       editorRef.current.innerHTML = nextHtml;
     }
-    setHtml(nextHtml);
+    setHtmlSnapshot(nextHtml);
     setDirty(true);
     setStatus(t("docx.replaceDone"));
   };
@@ -462,15 +501,26 @@ export function DocxWorkspace(props: {
                 "docx-page-surface mx-auto w-full bg-white text-slate-900 shadow-[0_22px_56px_rgba(15,23,42,0.16)] outline-none",
                 "prose prose-slate prose-sm max-w-none focus:ring-2 focus:ring-[color:var(--app-accent)]",
               )}
-              dangerouslySetInnerHTML={{ __html: html }}
-              onInput={syncHtmlFromDomDebounced}
-              onMouseUp={refreshActiveMarks}
-              onKeyUp={refreshActiveMarks}
-              onKeyUpCapture={updateResourceQuery}
+              onInput={() => {
+                captureEditorSelection();
+                syncHtmlFromDomDebounced();
+                updateResourceQuery();
+              }}
+              onMouseUp={() => {
+                captureEditorSelection();
+                refreshActiveMarks();
+                updateResourceQuery();
+              }}
+              onKeyUp={() => {
+                captureEditorSelection();
+                refreshActiveMarks();
+                updateResourceQuery();
+              }}
               onPaste={(event) => {
                 event.preventDefault();
                 const text = event.clipboardData.getData("text/plain");
                 execFormat("insertText", text);
+                captureEditorSelection();
                 syncHtmlFromDom();
               }}
             />

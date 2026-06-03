@@ -39,4 +39,48 @@ describe("docxUtils", () => {
     expect(editor.querySelector("img")?.getAttribute("data-docx-resource")).toBe("fig.png");
     editor.remove();
   });
+
+  it("does not replace resource triggers outside the active editor root", () => {
+    const editor = document.createElement("div");
+    const outside = document.createElement("div");
+    editor.contentEditable = "true";
+    outside.contentEditable = "true";
+    outside.textContent = "@@ fig";
+    document.body.append(editor, outside);
+
+    const textNode = outside.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(textNode, "@@ fig".length);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    expect(replaceResourceTriggerWithHtml('<img data-docx-resource="fig.png" src="blob:x" alt="fig" />', editor)).toBe(false);
+    expect(outside.textContent).toBe("@@ fig");
+    editor.remove();
+    outside.remove();
+  });
+
+  it("places the caret after the inserted resource", () => {
+    const editor = document.createElement("div");
+    editor.contentEditable = "true";
+    editor.textContent = "@@ fig";
+    document.body.appendChild(editor);
+    const textNode = editor.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(textNode, "@@ fig".length);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    expect(replaceResourceTriggerWithHtml('<img data-docx-resource="fig.png" src="blob:x" alt="fig" />', editor)).toBe(true);
+    expect(selection?.rangeCount).toBe(1);
+    expect(selection?.getRangeAt(0).collapsed).toBe(true);
+    expect(selection?.getRangeAt(0).startContainer).toBe(editor);
+    const imageIndex = Array.from(editor.childNodes).indexOf(editor.querySelector("img") as HTMLImageElement);
+    expect(selection?.getRangeAt(0).startOffset).toBeGreaterThan(imageIndex);
+    editor.remove();
+  });
 });

@@ -34,7 +34,13 @@ fn html_unescape(value: &str) -> String {
 }
 
 fn image_content_type(path: &str) -> Option<&'static str> {
-    match path.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
+    match path
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "png" => Some("image/png"),
         "jpg" | "jpeg" => Some("image/jpeg"),
         "gif" => Some("image/gif"),
@@ -45,7 +51,11 @@ fn image_content_type(path: &str) -> Option<&'static str> {
 }
 
 fn attr_value(tag: &str, name: &str) -> Option<String> {
-    let re = Regex::new(&format!(r#"(?is)\b{}\s*=\s*["']([^"']+)["']"#, regex::escape(name))).ok()?;
+    let re = Regex::new(&format!(
+        r#"(?is)\b{}\s*=\s*["']([^"']+)["']"#,
+        regex::escape(name)
+    ))
+    .ok()?;
     re.captures(tag)
         .and_then(|capture| capture.get(1))
         .map(|item| html_unescape(item.as_str()))
@@ -68,7 +78,10 @@ fn decode_image_data_url(src: &str) -> Option<(String, Vec<u8>)> {
         return None;
     }
     let mime = meta.trim_end_matches(";base64").to_string();
-    if !matches!(mime.as_str(), "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml") {
+    if !matches!(
+        mime.as_str(),
+        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml"
+    ) {
         return None;
     }
     let bytes = BASE64_STANDARD.decode(data.as_bytes()).ok()?;
@@ -81,8 +94,12 @@ pub(crate) fn embedded_image_sources(
 ) -> HashMap<String, String> {
     let mut out = HashMap::new();
     for (rel_id, target) in rels {
-        let Some(media_name) = media_name_from_target(target) else { continue };
-        let Some(content_type) = image_content_type(&media_name) else { continue };
+        let Some(media_name) = media_name_from_target(target) else {
+            continue;
+        };
+        let Some(content_type) = image_content_type(&media_name) else {
+            continue;
+        };
         let normalized = target.replace('\\', "/");
         let path = if normalized.starts_with("word/") {
             normalized
@@ -91,13 +108,18 @@ pub(crate) fn embedded_image_sources(
         } else {
             format!("word/{}", normalized.trim_start_matches('/'))
         };
-        let Ok(mut file) = archive.by_name(&path) else { continue };
+        let Ok(mut file) = archive.by_name(&path) else {
+            continue;
+        };
         let mut bytes = Vec::new();
         if file.read_to_end(&mut bytes).is_err() {
             continue;
         }
         let encoded = BASE64_STANDARD.encode(bytes);
-        out.insert(rel_id.clone(), format!("data:{};base64,{}", content_type, encoded));
+        out.insert(
+            rel_id.clone(),
+            format!("data:{};base64,{}", content_type, encoded),
+        );
     }
     out
 }
@@ -113,25 +135,36 @@ pub(crate) fn extract_image_assets(
     for img in img_re.find_iter(html) {
         let tag = img.as_str();
         let resource_path = attr_value(tag, "data-docx-resource");
-        let embedded_key = attr_value(tag, "data-docx-embedded")
-            .or_else(|| attr_value(tag, "data-docx-media"));
-        let Some(key) = resource_path.clone().or(embedded_key) else { continue };
+        let embedded_key =
+            attr_value(tag, "data-docx-embedded").or_else(|| attr_value(tag, "data-docx-media"));
+        let Some(key) = resource_path.clone().or(embedded_key) else {
+            continue;
+        };
         if rels.contains_key(&key) || key.contains("..") {
             continue;
         }
         let (content_type, bytes, extension) = if let Some(path) = resource_path {
-            let Some(content_type) = image_content_type(&path) else { continue };
+            let Some(content_type) = image_content_type(&path) else {
+                continue;
+            };
             let Ok(file) = storage::read_project_file_binary(db_path, project_id, &path) else {
                 continue;
             };
             (
                 content_type.to_string(),
                 file.bytes,
-                path.rsplit('.').next().unwrap_or("bin").to_ascii_lowercase(),
+                path.rsplit('.')
+                    .next()
+                    .unwrap_or("bin")
+                    .to_ascii_lowercase(),
             )
         } else {
-            let Some(src) = attr_value(tag, "src") else { continue };
-            let Some((content_type, bytes)) = decode_image_data_url(&src) else { continue };
+            let Some(src) = attr_value(tag, "src") else {
+                continue;
+            };
+            let Some((content_type, bytes)) = decode_image_data_url(&src) else {
+                continue;
+            };
             let extension = match content_type.as_str() {
                 "image/png" => "png",
                 "image/jpeg" => "jpg",
@@ -145,15 +178,27 @@ pub(crate) fn extract_image_assets(
         let rel_id = format!("rIdLatotexImage{}", assets.len() + 1);
         let media_name = format!("latotex-image-{}.{}", assets.len() + 1, extension);
         rels.insert(key.clone(), rel_id.clone());
-        assets.push(DocxImageAsset { resource_path: key, rel_id, media_name, content_type, bytes });
+        assets.push(DocxImageAsset {
+            resource_path: key,
+            rel_id,
+            media_name,
+            content_type,
+            bytes,
+        });
     }
     (assets, rels)
 }
 
-pub(crate) fn append_image_relationships(existing: Option<String>, images: &[DocxImageAsset]) -> String {
+pub(crate) fn append_image_relationships(
+    existing: Option<String>,
+    images: &[DocxImageAsset],
+) -> String {
     let mut rels = existing.unwrap_or_else(|| {
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>"#.to_string()
     });
+    let generated_re =
+        Regex::new(r#"(?is)<Relationship\b[^>]*Id="rIdLatotexImage\d+"[^>]*/>"#).unwrap();
+    rels = generated_re.replace_all(&rels, "").to_string();
     let insert = images
         .iter()
         .map(|image| {

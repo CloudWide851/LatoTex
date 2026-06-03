@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const defaultRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ignoredDirs = new Set([
   ".git",
   ".github",
@@ -69,28 +69,30 @@ const allowedFixtures = new Set([
   "src-tauri/src/secure.rs:openai-api-key:LATOTEX_REDACTED_OPENAI_KEY",
 ]);
 
-function toRepoPath(filePath) {
+const signingResiduePattern = /release:package:win-x64:signed|--require-signing|\bLATOTEX_SIGN\b|\bsigntool(?:\.exe)?\b|\.pfx\b|\bPFX\b|CODE_SIGN|WINDOWS_CERT/i;
+
+function toRepoPath(repoRoot, filePath) {
   return path.relative(repoRoot, filePath).replaceAll(path.sep, "/");
 }
 
-function shouldSkipFile(filePath) {
-  const repoPath = toRepoPath(filePath);
+function shouldSkipFile(repoRoot, filePath) {
+  const repoPath = toRepoPath(repoRoot, filePath);
   if (ignoredFiles.has(repoPath)) {
     return true;
   }
   return ignoredPathParts.some((part) => repoPath.startsWith(part));
 }
 
-function walk(dir, files = []) {
+function walk(repoRoot, dir, files = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (!ignoredDirs.has(entry.name)) {
-        walk(fullPath, files);
+        walk(repoRoot, fullPath, files);
       }
       continue;
     }
-    if (!textExtensions.has(path.extname(entry.name)) || shouldSkipFile(fullPath)) {
+    if (!textExtensions.has(path.extname(entry.name)) || shouldSkipFile(repoRoot, fullPath)) {
       continue;
     }
     files.push(fullPath);
@@ -102,81 +104,107 @@ function lineForIndex(content, index) {
   return content.slice(0, index).split(/\r?\n/).length;
 }
 
-const findings = [];
-for (const filePath of walk(repoRoot)) {
-  const content = fs.readFileSync(filePath, "utf8");
-  for (const { id, pattern } of secretPatterns) {
-    const match = pattern.exec(content);
-    if (!match) {
-      continue;
+function scanTextFindings(repoRoot) {
+  const findings = [];
+  for (const filePath of walk(repoRoot, repoRoot)) {
+    const content = fs.readFileSync(filePath, "utf8");
+    for (const { id, pattern } of secretPatterns) {
+      const match = pattern.exec(content);
+      if (!match) {
+        continue;
+      }
+      const matchedText = match[0];
+      const fixtureKey = `${toRepoPath(repoRoot, filePath)}:${id}:${matchedText}`;
+      if (allowedFixtures.has(fixtureKey)) {
+        continue;
+      }
+      findings.push({
+        id,
+        path: toRepoPath(repoRoot, filePath),
+        line: lineForIndex(content, match.index),
+      });
     }
-    const matchedText = match[0];
-    const fixtureKey = `${toRepoPath(filePath)}:${id}:${matchedText}`;
-    if (allowedFixtures.has(fixtureKey)) {
-      continue;
-    }
-    findings.push({
-      id,
-      path: toRepoPath(filePath),
-      line: lineForIndex(content, match.index),
-    });
   }
+  return findings;
 }
 
-function readRepoText(relativePath) {
+function readRepoText(repoRoot, relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-function addFinding(id, repoPath, line = 1) {
+function addFinding(findings, id, repoPath, line = 1) {
   findings.push({ id, path: repoPath, line });
 }
 
-function assertReleaseConfiguration() {
-  const packageJson = JSON.parse(readRepoText("package.json"));
+function assertReleaseConfiguration(repoRoot, findings) {
+  const packageJson = JSON.parse(readRepoText(repoRoot, "package.json"));
   const scripts = packageJson.scripts ?? {};
   if (!String(scripts["tauri:build:win-x64"] ?? "").includes("x86_64-pc-windows-msvc")) {
-    addFinding("release-target-drift", "package.json");
+    addFinding(findings, "release-target-drift", "package.json");
   }
   if (!String(scripts["tauri:build:win-x64"] ?? "").includes("--bundles nsis")) {
-    addFinding("release-bundle-drift", "package.json");
+    addFinding(findings, "release-bundle-drift", "package.json");
   }
-  if (!scripts["release:package:win-x64:signed"]) {
-    addFinding("missing-signed-package-gate", "package.json");
+  if (!scripts["release:package:win-x64"]) {
+    addFinding(findings, "missing-unsigned-package-gate", "package.json");
   }
   if (!scripts["release:install-smoke:win-x64"]) {
-    addFinding("missing-install-smoke-gate", "package.json");
+    addFinding(findings, "missing-install-smoke-gate", "package.json");
+  }
+  for (const [name, command] of Object.entries(scripts)) {
+    if (signingResiduePattern.test(`${name} ${String(command)}`)) {
+      addFinding(findings, "release-signing-flow-reintroduced", "package.json");
+      break;
+    }
   }
 
-  const tauriConfig = JSON.parse(readRepoText("src-tauri/tauri.conf.json"));
+  const tauriConfig = JSON.parse(readRepoText(repoRoot, "src-tauri/tauri.conf.json"));
   if (!tauriConfig.app?.security?.csp || tauriConfig.app.security.csp === null) {
-    addFinding("tauri-csp-null", "src-tauri/tauri.conf.json");
+    addFinding(findings, "tauri-csp-null", "src-tauri/tauri.conf.json");
   }
   if (tauriConfig.bundle?.targets !== "nsis") {
-    addFinding("tauri-bundle-target-drift", "src-tauri/tauri.conf.json");
+    addFinding(findings, "tauri-bundle-target-drift", "src-tauri/tauri.conf.json");
   }
 
-  const capability = JSON.parse(readRepoText("src-tauri/capabilities/default.json"));
+  const capability = JSON.parse(readRepoText(repoRoot, "src-tauri/capabilities/default.json"));
   if (!Array.isArray(capability.windows) || capability.windows.length !== 1 || capability.windows[0] !== "main") {
-    addFinding("tauri-capability-window-drift", "src-tauri/capabilities/default.json");
+    addFinding(findings, "tauri-capability-window-drift", "src-tauri/capabilities/default.json");
   }
 
-  const releaseWorkflow = readRepoText(".github/workflows/release-tauri.yml");
+  const releaseWorkflow = readRepoText(repoRoot, ".github/workflows/release-tauri.yml");
   if (!releaseWorkflow.includes("windows-latest") || releaseWorkflow.includes("ubuntu-latest") || releaseWorkflow.includes("macos-latest")) {
-    addFinding("release-workflow-target-drift", ".github/workflows/release-tauri.yml");
+    addFinding(findings, "release-workflow-target-drift", ".github/workflows/release-tauri.yml");
   }
-  if (!releaseWorkflow.includes("release:package:win-x64:signed")) {
-    addFinding("release-workflow-not-signed", ".github/workflows/release-tauri.yml");
+  if (!releaseWorkflow.includes("release:package:win-x64")) {
+    addFinding(findings, "release-workflow-missing-unsigned-package-gate", ".github/workflows/release-tauri.yml");
+  }
+  if (signingResiduePattern.test(releaseWorkflow)) {
+    addFinding(findings, "release-workflow-signing-reintroduced", ".github/workflows/release-tauri.yml");
   }
 }
 
-assertReleaseConfiguration();
-
-if (findings.length > 0) {
-  console.error("[release-security-scan] high-risk findings detected:");
-  for (const finding of findings) {
-    console.error(`- ${finding.id}: ${finding.path}:${finding.line}`);
-  }
-  process.exit(1);
+export function scanRepository(repoRoot = defaultRepoRoot) {
+  const resolvedRoot = path.resolve(repoRoot);
+  const findings = scanTextFindings(resolvedRoot);
+  assertReleaseConfiguration(resolvedRoot, findings);
+  return findings;
 }
 
-console.log("[release-security-scan] no high-risk local secrets or wildcard CORS patterns found.");
+function main() {
+  const repoRoot = process.env.LATOTEX_SECURITY_SCAN_ROOT
+    ? path.resolve(process.env.LATOTEX_SECURITY_SCAN_ROOT)
+    : defaultRepoRoot;
+  const findings = scanRepository(repoRoot);
+  if (findings.length > 0) {
+    console.error("[release-security-scan] high-risk findings detected:");
+    for (const finding of findings) {
+      console.error(`- ${finding.id}: ${finding.path}:${finding.line}`);
+    }
+    process.exit(1);
+  }
+  console.log("[release-security-scan] no high-risk local secrets, wildcard CORS patterns, or signing flow drift found.");
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

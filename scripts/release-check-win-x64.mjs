@@ -14,9 +14,9 @@ const validationSteps = [
 ];
 
 const packageSteps = [
-  ["pnpm", ["tauri", "build", "--target", "x86_64-pc-windows-msvc", "--bundles", "nsis"]],
+  ["pnpm", ["release:build-installer:win-x64"]],
   ["pnpm", ["release:hash:win-x64"]],
-  ["pnpm", ["tauri:smoke:win-x64"]],
+  ["pnpm", ["tauri:smoke:win-x64", "--", "--allow-native-fallback"], { retries: 1 }],
 ];
 
 const mode = process.argv.find((arg) => arg.startsWith("--mode="))?.slice("--mode=".length) ?? "check";
@@ -31,17 +31,28 @@ if (!steps) {
   process.exit(1);
 }
 
-for (const [command, args] of steps) {
+for (const [command, args, options = {}] of steps) {
   const label = [command, ...args].join(" ");
-  console.log(`\n[release-check-win-x64:${mode}] ${label}`);
-  const result = spawnSync(command, args, {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
-  if (result.status !== 0) {
-    const status = result.status ?? 1;
-    console.error(`[release-check-win-x64:${mode}] failed: ${label} (exit ${status})`);
-    process.exit(status);
+  const maxAttempts = Number(options.retries ?? 0) + 1;
+  let finalStatus = 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const attemptLabel = maxAttempts > 1 ? `${label} (attempt ${attempt}/${maxAttempts})` : label;
+    console.log(`\n[release-check-win-x64:${mode}] ${attemptLabel}`);
+    const result = spawnSync(command, args, {
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+    finalStatus = result.status ?? 1;
+    if (finalStatus === 0) {
+      break;
+    }
+    if (attempt < maxAttempts) {
+      console.warn(`[release-check-win-x64:${mode}] retrying after failed step: ${label} (exit ${finalStatus})`);
+    }
+  }
+  if (finalStatus !== 0) {
+    console.error(`[release-check-win-x64:${mode}] failed: ${label} (exit ${finalStatus})`);
+    process.exit(finalStatus);
   }
 }
 

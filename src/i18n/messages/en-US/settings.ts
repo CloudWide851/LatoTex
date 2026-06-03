@@ -437,7 +437,7 @@ export const enUS_settings = {
   "settings.doctor.shareCollab.ok": "{count} TeX files can be shared for collaborative editing.",
   "settings.doctor.shareCollab.noTex": "No TeX file is available for sharing in the current project.",
   "settings.doctor.releaseReadiness": "Release readiness",
-  "settings.doctor.releaseReadiness.ok": "Windows release target is {target} with {bundle}; signed package, WebView smoke, install smoke, soak, security, and performance gates are configured.",
+  "settings.doctor.releaseReadiness.ok": "Windows release target is {target} with {bundle}; unsigned package, WebView/native smoke, install smoke, soak, security, and performance gates are configured.",
   "settings.doctor.runtimeAssets": "Runtime assets",
   "settings.doctor.runtimeAssets.ok": "Install mode: {mode}. App version: {version}.",
 } as const;

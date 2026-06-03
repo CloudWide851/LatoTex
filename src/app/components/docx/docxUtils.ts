@@ -111,34 +111,74 @@ export function flattenResources(nodes: ResourceNode[]): ResourceSuggestion[] {
   return out;
 }
 
-export function currentResourceQuery(): string | null {
-  const selection = window.getSelection();
-  const text = selection?.anchorNode?.textContent ?? "";
-  const offset = selection?.anchorOffset ?? text.length;
-  const before = text.slice(0, offset);
-  const match = before.match(/@@\s+([^@\n\r]{0,80})$/);
-  return match ? match[1].trim().toLowerCase() : null;
-}
-
-export function replaceResourceTriggerWithHtml(html: string): boolean {
+function selectionRangeInRoot(root?: HTMLElement | null): Range | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+  const range = selection.getRangeAt(0);
+  if (root && (!root.contains(range.startContainer) || !root.contains(range.endContainer))) {
+    return null;
+  }
+  return range;
+}
+
+export function captureSelectionInRoot(root?: HTMLElement | null): Range | null {
+  return selectionRangeInRoot(root)?.cloneRange() ?? null;
+}
+
+export function restoreSelectionInRoot(root: HTMLElement | null | undefined, range: Range | null): boolean {
+  if (!root || !range || !range.startContainer.isConnected || !range.endContainer.isConnected) {
+    root?.focus();
     return false;
   }
-  const anchor = selection.anchorNode;
-  if (!anchor || anchor.nodeType !== Node.TEXT_NODE) {
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) {
+    root.focus();
     return false;
   }
-  const text = anchor.textContent ?? "";
-  const offset = selection.anchorOffset;
+  root.focus();
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return true;
+}
+
+function triggerTextBeforeRange(range: Range): { node: Text; offset: number; match: RegExpMatchArray } | null {
+  const anchor = range.startContainer;
+  if (anchor.nodeType !== Node.TEXT_NODE) {
+    return null;
+  }
+  const node = anchor as Text;
+  const text = node.textContent ?? "";
+  const offset = range.startOffset;
   const before = text.slice(0, offset);
   const match = before.match(/@@\s+([^@\n\r]{0,80})$/);
-  if (!match) {
+  return match ? { node, offset, match } : null;
+}
+
+export function currentResourceQuery(root?: HTMLElement | null): string | null {
+  const range = selectionRangeInRoot(root);
+  if (!range || !range.collapsed) {
+    return null;
+  }
+  const trigger = triggerTextBeforeRange(range);
+  return trigger ? trigger.match[1].trim().toLowerCase() : null;
+}
+
+export function replaceResourceTriggerWithHtml(html: string, root?: HTMLElement | null): boolean {
+  const selection = window.getSelection();
+  const activeRange = selectionRangeInRoot(root);
+  if (!selection || !activeRange || !activeRange.collapsed) {
     return false;
   }
+  const trigger = triggerTextBeforeRange(activeRange);
+  if (!trigger) {
+    return false;
+  }
+
   const range = document.createRange();
-  range.setStart(anchor, offset - match[0].length);
-  range.setEnd(anchor, offset);
+  range.setStart(trigger.node, trigger.offset - trigger.match[0].length);
+  range.setEnd(trigger.node, trigger.offset);
   range.deleteContents();
   const template = document.createElement("template");
   template.innerHTML = html;

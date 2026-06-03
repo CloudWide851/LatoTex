@@ -437,7 +437,7 @@ export const zhCN_settings = {
   "settings.doctor.shareCollab.ok": "{count} 个 TeX 文件可用于共享协作编辑。",
   "settings.doctor.shareCollab.noTex": "当前项目没有可共享的 TeX 文件。",
   "settings.doctor.releaseReadiness": "发布就绪度",
-  "settings.doctor.releaseReadiness.ok": "Windows 发布目标为 {target}，安装包为 {bundle}；签名包、WebView smoke、安装后 smoke、soak、安全和性能门禁均已配置。",
+  "settings.doctor.releaseReadiness.ok": "Windows 发布目标为 {target}，安装包为 {bundle}；无签名安装包、WebView/native smoke、安装后 smoke、soak、安全和性能门禁均已配置。",
   "settings.doctor.runtimeAssets": "运行资源",
   "settings.doctor.runtimeAssets.ok": "安装模式：{mode}。应用版本：{version}。",
 } as const;

@@ -50,6 +50,12 @@ export function DrawWorkspaceTabs(props: {
           return (
             <div
               key={path}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                if (!editing) {
+                  onStartRename(path);
+                }
+              }}
               className={`group inline-flex h-7 min-w-0 max-w-[260px] items-center gap-1 rounded border px-2 text-xs ${
                 active
                   ? "border-primary-400 bg-primary-50 text-primary-800"
@@ -96,6 +102,7 @@ export function DrawWorkspaceTabs(props: {
                   }
                   onClosePath(path);
                 }}
+                onContextMenu={(event) => event.stopPropagation()}
                 title={t("common.close")}
                 aria-label={t("common.close")}
               >

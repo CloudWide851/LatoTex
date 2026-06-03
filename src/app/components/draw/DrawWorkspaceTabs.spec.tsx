@@ -58,4 +58,48 @@ describe("DrawWorkspaceTabs", () => {
     });
     container.remove();
   });
+
+  it("starts inline rename from the tab context menu", async () => {
+    const onStartRename = vi.fn();
+    const onClosePath = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <DrawWorkspaceTabs
+          tabPaths={["drawings/new-diagram.drawio"]}
+          activePath="drawings/new-diagram.drawio"
+          renamingPath={null}
+          renameInput=""
+          busy={false}
+          status=""
+          onRenameInputChange={() => undefined}
+          onSelectPath={() => undefined}
+          onStartRename={onStartRename}
+          onCancelRename={() => undefined}
+          onCommitRename={() => undefined}
+          onClosePath={onClosePath}
+          onCreateNewTab={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const tab = container.querySelector(".group");
+    expect(tab).not.toBeNull();
+
+    await act(async () => {
+      tab?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+    });
+
+    expect(onStartRename).toHaveBeenCalledWith("drawings/new-diagram.drawio");
+    expect(onClosePath).not.toHaveBeenCalled();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

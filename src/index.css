@@ -922,7 +922,8 @@ input[type="range"] {
   border-collapse: collapse;
 }
 
-.docx-page-surface img[data-docx-resource] {
+.docx-page-surface img[data-docx-resource],
+.docx-page-surface img[data-docx-embedded] {
   display: block;
   max-width: 100%;
   max-height: 360px;
