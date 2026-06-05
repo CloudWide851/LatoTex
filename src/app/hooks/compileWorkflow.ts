@@ -8,29 +8,20 @@ import type { CompileInstallProgress } from "./compileWorkflowShared";
 
 export type { CompileInstallProgress } from "./compileWorkflowShared";
 
-const COMPILE_SKIP_EXTENSIONS = new Set([
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "bmp",
-  "webp",
-  "ico",
-  "svg",
-  "zip",
-  "7z",
-  "rar",
-  "mp4",
-  "mp3",
-  "wav",
-  "ogg",
-  "mov",
-  "avi",
-  "wasm",
-  "dll",
-  "exe",
-  "bin",
+const COMPILE_TEXT_EXTENSIONS = new Set([
+  "bbx",
+  "bib",
+  "bst",
+  "cbx",
+  "cfg",
+  "cls",
+  "clo",
+  "def",
+  "fd",
+  "ist",
+  "ltx",
+  "sty",
+  "tex",
 ]);
 
 const MISSING_STYLE_RE = /File [`']([^`']+\.(sty|cls|cfg|def|fd|tex|lua))[`'] not found/gi;
@@ -48,16 +39,16 @@ const FONT_REPLACEMENTS = [
   { pattern: /\\newCJKfontfamily(\\[A-Za-z@]+)\s*\{[^}]+\}/g, replacement: "\\newCJKfontfamily$1{FandolSong-Regular}" },
 ];
 
-function shouldIncludeCompileFile(path: string): boolean {
+export function shouldIncludeCompileFile(path: string): boolean {
   const normalized = path.trim().toLowerCase();
   if (!normalized) {
     return false;
   }
   const dot = normalized.lastIndexOf(".");
   if (dot < 0 || dot === normalized.length - 1) {
-    return true;
+    return false;
   }
-  return !COMPILE_SKIP_EXTENSIONS.has(normalized.slice(dot + 1));
+  return COMPILE_TEXT_EXTENSIONS.has(normalized.slice(dot + 1));
 }
 
 function collectRegexMatches(source: string, regex: RegExp): string[] {
@@ -208,8 +199,12 @@ async function buildCompileFileMap(
     if (!shouldIncludeCompileFile(filePath)) {
       continue;
     }
-    const data = await readFile(projectId, filePath);
-    fileMap[filePath] = data.content;
+    try {
+      const data = await readFile(projectId, filePath);
+      fileMap[filePath] = data.content;
+    } catch {
+      // Let the native compiler report missing or unreadable support files.
+    }
   }
   return fileMap;
 }

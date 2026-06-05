@@ -27,6 +27,7 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { cn } from "../../../lib/utils";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
+import { PluginMarketplaceDetailDialog } from "./PluginMarketplaceDetailDialog";
 import { installedPluginForMarketplaceEntry } from "./pluginMarketplaceInstallState";
 import { localeOf, localizedPlugin, type TranslationFn } from "./pluginMarketplaceUtils";
 import { notifyPluginsChanged } from "./usePluginFileInterfaces";
@@ -44,9 +45,10 @@ export function PluginMarketplace(props: {
   const [toolchains, setToolchains] = useState<ToolchainStatus[]>([]);
   const [runtimeAssets, setRuntimeAssets] = useState<RuntimeAssetStatus[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [busyActionId, setBusyActionId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [detailKey, setDetailKey] = useState<string | null>(null);
   const catalogSources = useMemo(
     () => (settings?.uiPrefs?.pluginCatalogSources ?? []).filter((source) => source.enabled ?? true),
     [settings?.uiPrefs?.pluginCatalogSources],
@@ -82,6 +84,12 @@ export function PluginMarketplace(props: {
         .includes(needle);
     });
   }, [catalog, locale, query]);
+  const detailEntry = useMemo(
+    () => detailKey
+      ? catalog.find((entry) => `${entry.sourceId}:${entry.manifest.id}` === detailKey) ?? null
+      : null,
+    [catalog, detailKey],
+  );
 
   const reload = async () => {
     setRefreshing(true);
@@ -104,6 +112,7 @@ export function PluginMarketplace(props: {
       setStatus(String(error));
     } finally {
       setRefreshing(false);
+      setLoaded(true);
     }
   };
 
@@ -240,7 +249,10 @@ export function PluginMarketplace(props: {
     }
   };
 
+  const showInitialLoading = refreshing && !loaded && catalog.length === 0;
+
   return (
+    <>
     <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
       <div className="border-b border-slate-200 bg-gradient-to-br from-white via-slate-50 to-primary-50/40 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -271,7 +283,19 @@ export function PluginMarketplace(props: {
         {warnings.length > 0 ? <p className="mt-2 text-[11px] text-amber-700">{warnings.join("; ")}</p> : null}
       </div>
       <div className="settings-scrollbar-hidden min-h-0 overflow-auto bg-slate-50/70 p-4">
-        {filtered.length === 0 ? (
+        {showInitialLoading ? (
+          <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-primary-200 bg-white px-4 text-sm text-slate-600">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="h-4 w-4 animate-spin text-primary-700" />
+              <span>{t("plugins.loading")}</span>
+              <span className="flex gap-1" aria-hidden>
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-500" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-500 [animation-delay:120ms]" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-500 [animation-delay:240ms]" />
+              </span>
+            </div>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-4 text-sm text-slate-500">
             {t("plugins.empty")}
           </div>
@@ -280,7 +304,6 @@ export function PluginMarketplace(props: {
             {filtered.map((entry) => {
             const plugin = entry.manifest;
             const installedPlugin = installedPluginForMarketplaceEntry(entry, installedById);
-            const expanded = expandedId === plugin.id;
             const toolchain = toolchainFor(plugin);
             const runtimeAsset = runtimeAssetFor(plugin);
             const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
@@ -292,17 +315,15 @@ export function PluginMarketplace(props: {
                 installedPlugin={installedPlugin}
                 locale={locale}
                 busy={Boolean(busyActionId?.startsWith(`${plugin.id}:`))}
-                expanded={expanded}
                 toolchainStatus={toolchainStatus ?? null}
                 runtimeAssetStatus={runtimeAssetStatus ?? null}
                 toolchain={toolchain}
                 runtimeAsset={runtimeAsset}
-                onExpandToggle={() => setExpandedId(expanded ? null : plugin.id)}
+                onDetailsOpen={() => setDetailKey(`${entry.sourceId}:${plugin.id}`)}
                 onInstallPlugin={(item) => void install(item)}
                 onTogglePlugin={(item) => void toggle(item)}
                 onRemovePlugin={(pluginId) => void remove(pluginId)}
                 onToolchainAction={(pluginId, contributionId, action) => void runToolchainAction(pluginId, contributionId, action)}
-                onToolchainDirectoryPick={(pluginId, contributionId) => void chooseToolchainDirectory(pluginId, contributionId)}
                 onRuntimeAssetAction={(pluginId, contributionId, action) => void runRuntimeAssetAction(pluginId, contributionId, action)}
                 t={t}
               />
@@ -312,5 +333,34 @@ export function PluginMarketplace(props: {
         )}
       </div>
     </section>
+    {detailEntry ? (() => {
+      const plugin = detailEntry.manifest;
+      const installedPlugin = installedPluginForMarketplaceEntry(detailEntry, installedById);
+      const toolchain = toolchainFor(plugin);
+      const runtimeAsset = runtimeAssetFor(plugin);
+      const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
+      const runtimeAssetStatus = runtimeAsset ? runtimeAssetStatusFor(plugin.id, runtimeAsset.id) : null;
+      return (
+        <PluginMarketplaceDetailDialog
+          entry={detailEntry}
+          installedPlugin={installedPlugin}
+          locale={locale}
+          busy={Boolean(busyActionId?.startsWith(`${plugin.id}:`))}
+          toolchain={toolchain}
+          runtimeAsset={runtimeAsset}
+          toolchainStatus={toolchainStatus ?? null}
+          runtimeAssetStatus={runtimeAssetStatus ?? null}
+          onClose={() => setDetailKey(null)}
+          onInstallPlugin={(item) => void install(item)}
+          onTogglePlugin={(item) => void toggle(item)}
+          onRemovePlugin={(pluginId) => void remove(pluginId)}
+          onToolchainAction={(pluginId, contributionId, action) => void runToolchainAction(pluginId, contributionId, action)}
+          onToolchainDirectoryPick={(pluginId, contributionId) => void chooseToolchainDirectory(pluginId, contributionId)}
+          onRuntimeAssetAction={(pluginId, contributionId, action) => void runRuntimeAssetAction(pluginId, contributionId, action)}
+          t={t}
+        />
+      );
+    })() : null}
+    </>
   );
 }

@@ -8,6 +8,7 @@ import {
   extractMissingSystemFontsFromDiagnostics,
   hasFontspecErrorDiagnostics,
   resolveFontFallbackCandidates,
+  shouldIncludeCompileFile,
   shouldDisplayCompileProgress,
 } from "./compileWorkflow";
 import { collectBibliographyResourcePathsFromFileMap } from "./compileBibliographyFiles";
@@ -193,6 +194,19 @@ describe("compile workflow progress visibility", () => {
       total: 100,
       message: "Starting Tectonic",
     })).toBe(true);
+  });
+});
+
+describe("compile workflow file staging", () => {
+  it("includes only LaTeX compile text resources", () => {
+    expect(shouldIncludeCompileFile("main.tex")).toBe(true);
+    expect(shouldIncludeCompileFile("styles/local.sty")).toBe(true);
+    expect(shouldIncludeCompileFile(".latotex/papers/source.bib")).toBe(true);
+    expect(shouldIncludeCompileFile("测试.docx")).toBe(false);
+    expect(shouldIncludeCompileFile("prompt.txt")).toBe(false);
+    expect(shouldIncludeCompileFile("sales_transactions.csv")).toBe(false);
+    expect(shouldIncludeCompileFile("figure.png")).toBe(false);
+    expect(shouldIncludeCompileFile("extensionless")).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, Download, FolderOpen, Info, Power, Trash2 } from "lucide-react";
+import { AlertTriangle, Download, Info, Power, Trash2 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { cn } from "../../../lib/utils";
 import type {
@@ -11,6 +11,8 @@ import type {
 } from "../../../shared/plugins/pluginTypes";
 import {
   contributionSummary,
+  describeRuntimeAssetStatus,
+  describeToolchainStatus,
   iconFor,
   issueTone,
   localizedPlugin,
@@ -24,17 +26,15 @@ export function PluginMarketplaceCard(props: {
   installedPlugin: InstalledPlugin | undefined;
   locale: string;
   busy: boolean;
-  expanded: boolean;
   toolchainStatus: ToolchainStatus | null;
   runtimeAssetStatus: RuntimeAssetStatus | null;
   toolchain: PluginContribution | undefined;
   runtimeAsset: PluginContribution | undefined;
-  onExpandToggle: () => void;
+  onDetailsOpen: () => void;
   onInstallPlugin: (entry: PluginCatalogEntry) => void;
   onTogglePlugin: (plugin: InstalledPlugin) => void;
   onRemovePlugin: (pluginId: string) => void;
   onToolchainAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
-  onToolchainDirectoryPick: (pluginId: string, contributionId: string) => void;
   onRuntimeAssetAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
   t: TranslationFn;
 }) {
@@ -43,17 +43,15 @@ export function PluginMarketplaceCard(props: {
     installedPlugin,
     locale,
     busy,
-    expanded,
     toolchainStatus,
     runtimeAssetStatus,
     toolchain,
     runtimeAsset,
-    onExpandToggle,
+    onDetailsOpen,
     onInstallPlugin,
     onTogglePlugin,
     onRemovePlugin,
     onToolchainAction,
-    onToolchainDirectoryPick,
     onRuntimeAssetAction,
     t,
   } = props;
@@ -75,25 +73,10 @@ export function PluginMarketplaceCard(props: {
     : installedPlugin
       ? t("plugins.disabled")
       : contributionInstalled
-        ? installedLabel
-        : t("plugins.notInstalled");
-  const runtimePath = runtimeAssetStatus?.source === "bundled"
-    ? runtimeAssetStatus.installPath || runtimeAssetStatus.entryPath || "-"
-    : runtimeAssetStatus?.entryPath || runtimeAssetStatus?.installPath || "-";
-
-  const runtimeDetail = runtimeAssetStatus?.installed
-    ? t(runtimeAssetStatus.source === "bundled"
-      ? "plugins.runtimeAsset.bundled"
-      : runtimeAssetStatus.source === "local"
-        ? "plugins.runtimeAsset.detected"
-        : "plugins.runtimeAsset.ready").replace("{path}", runtimePath)
-    : t("plugins.runtimeAsset.notInstalled");
-  const toolchainDetail = toolchainStatus?.installed
-    ? t(toolchainStatus.source === "local" ? "plugins.toolchain.detected" : "plugins.toolchain.ready").replace("{version}", toolchainStatus.version || toolchainStatus.executablePath || "-")
-    : toolchainIsProbe
-      ? t("plugins.toolchain.notDetected")
-      : t("plugins.toolchain.notInstalled");
-  const hasDetails = Boolean(toolchain || runtimeAsset || errorCount > 0 || warningCount > 0);
+      ? installedLabel
+      : t("plugins.notInstalled");
+  const runtimeDetail = describeRuntimeAssetStatus(runtimeAssetStatus, t);
+  const toolchainDetail = describeToolchainStatus(toolchain, toolchainStatus, t);
 
   return (
     <article className="group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
@@ -162,7 +145,7 @@ export function PluginMarketplaceCard(props: {
           <button
             type="button"
             className={cn("inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-[10px]", errorCount > 0 ? issueTone("error") : issueTone("warning"))}
-            onClick={onExpandToggle}
+            onClick={onDetailsOpen}
             title={t("plugins.validationDetails")}
           >
             {errorCount > 0 ? <AlertTriangle className="h-3 w-3" /> : <Info className="h-3 w-3" />}
@@ -177,28 +160,15 @@ export function PluginMarketplaceCard(props: {
             {t("plugins.validationOk")}
           </span>
         )}
-        {hasDetails ? (
-          <button
-            type="button"
-            className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 hover:border-primary-200 hover:text-primary-700"
-            onClick={onExpandToggle}
-            title={t("plugins.details")}
-          >
-            <ChevronDown className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")} />
-            <span className="truncate">{t("plugins.details")}</span>
-          </button>
-        ) : null}
-        {expanded ? (
-          <div className="settings-scrollbar-hidden max-h-28 overflow-auto rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
-            {toolchain ? <div className="mb-1 break-all rounded border border-slate-200 bg-slate-50 px-1.5 py-1">{toolchainDetail}</div> : null}
-            {runtimeAsset ? <div className="mb-1 break-all rounded border border-slate-200 bg-slate-50 px-1.5 py-1">{runtimeDetail}</div> : null}
-            {entry.validation.issues.map((item) => (
-              <div key={`${item.code}-${item.message}`} className={cn("mb-1 break-words rounded border px-1.5 py-1", issueTone(item.severity))}>
-                {item.message}
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <button
+          type="button"
+          className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 hover:border-primary-200 hover:text-primary-700"
+          onClick={onDetailsOpen}
+          title={t("plugins.details")}
+        >
+          <Info className="h-3 w-3" />
+          <span className="truncate">{t("plugins.details")}</span>
+        </button>
       </div>
 
       <div className="flex min-w-0 flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
@@ -216,9 +186,6 @@ export function PluginMarketplaceCard(props: {
                 {t("plugins.toolchain.install")}
               </Button>
             ) : null}
-            <Button size="sm" variant="ghost" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainDirectoryPick(plugin.id, toolchain.id)} title={t("plugins.toolchain.pickLocal")}>
-              <FolderOpen className="h-3.5 w-3.5" />
-            </Button>
             {toolchainStatus?.installed && toolchainStatus.source === "local" ? (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => onToolchainAction(plugin.id, toolchain.id, "remove")}>
                 {t("plugins.toolchain.remove")}

@@ -10,7 +10,12 @@ import {
   ShieldAlert,
   Terminal,
 } from "lucide-react";
-import type { PluginContribution, PluginManifest } from "../../../shared/plugins/pluginTypes";
+import type {
+  PluginContribution,
+  PluginManifest,
+  RuntimeAssetStatus,
+  ToolchainStatus,
+} from "../../../shared/plugins/pluginTypes";
 
 export type TranslationFn = (key: any) => string;
 
@@ -36,8 +41,47 @@ export function localizedContributionTitle(contribution: PluginContribution, loc
   return localized?.title || contribution.title;
 }
 
+export function localizedContribution(contribution: PluginContribution, locale: string) {
+  const localized = contribution.localized?.[locale] ?? contribution.localized?.["en-US"] ?? null;
+  return {
+    title: localized?.title || contribution.title,
+    description: localized?.description || contribution.description || "",
+  };
+}
+
 export function contributionSummary(plugin: PluginManifest, locale: string): string {
   return plugin.contributions.map((item) => localizedContributionTitle(item, locale)).filter(Boolean).join(", ");
+}
+
+export function describeToolchainStatus(
+  contribution: PluginContribution | undefined,
+  status: ToolchainStatus | null,
+  t: TranslationFn,
+): string {
+  if (status?.installed) {
+    return t(status.source === "local" ? "plugins.toolchain.detected" : "plugins.toolchain.ready")
+      .replace("{version}", status.version || status.executablePath || "-");
+  }
+  return contribution?.kind === "toolchainProbe"
+    ? t("plugins.toolchain.notDetected")
+    : t("plugins.toolchain.notInstalled");
+}
+
+export function describeRuntimeAssetStatus(
+  status: RuntimeAssetStatus | null,
+  t: TranslationFn,
+): string {
+  const runtimePath = status?.source === "bundled"
+    ? status.installPath || status.entryPath || "-"
+    : status?.entryPath || status?.installPath || "-";
+  if (status?.installed) {
+    return t(status.source === "bundled"
+      ? "plugins.runtimeAsset.bundled"
+      : status.source === "local"
+        ? "plugins.runtimeAsset.detected"
+        : "plugins.runtimeAsset.ready").replace("{path}", runtimePath);
+  }
+  return t("plugins.runtimeAsset.notInstalled");
 }
 
 export function iconFor(plugin: PluginManifest) {

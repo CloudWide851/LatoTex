@@ -10,7 +10,7 @@ export function LatexWorkspaceModeShell(props: {
   const { mode, onModeChange, texWorkspace, docxWorkspace, t } = props;
   return (
     <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
-      <div className="editor-toolbar-shell flex items-center justify-center px-3 py-2">
+      <div className="editor-toolbar-shell flex items-center justify-start px-3 py-2">
         <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-1 shadow-[0_10px_24px_rgba(15,23,42,0.10)]">
           {(["tex", "docx"] as const).map((item) => (
             <button

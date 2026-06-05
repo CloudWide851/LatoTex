@@ -6,9 +6,9 @@ use crate::state::AppState;
 use crate::storage;
 use std::collections::HashMap;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Condvar, Mutex};
-use std::path::{Path, PathBuf};
 use tauri::http::{header::HeaderValue, Method, Request};
 use urlencoding::encode;
 
@@ -101,6 +101,62 @@ fn create_test_fixture(name: &str) -> TestFixture {
         project_root,
         temp_root,
     }
+}
+
+fn write_test_asset(path: &Path, bytes: &[u8]) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, bytes).unwrap();
+}
+
+fn register_test_drawio_runtime(fixture: &TestFixture) {
+    let root = fixture
+        .state
+        .runtime_root
+        .join("runtime-assets")
+        .join("latotex-test-drawio-runtime");
+    write_test_asset(
+        &root.join("index.html"),
+        b"<!DOCTYPE html><html><body>drawio host</body></html>",
+    );
+    write_test_asset(&root.join("drawio-version.json"), b"{\"tag\":\"test\"}");
+    write_test_asset(&root.join("vendor/index.html"), b"<html>vendor</html>");
+    write_test_asset(&root.join("vendor/js/app.min.js"), b"window.App = {};");
+    write_test_asset(&root.join("vendor/js/bootstrap.js"), b"console.log('bootstrap');");
+    write_test_asset(&root.join("vendor/mxgraph/css/common.css"), b".mxgraph{}");
+    write_test_asset(&root.join("vendor/mxgraph/images/maximize.gif"), b"GIF89a");
+    write_test_asset(&root.join("vendor/math4/es5/startup.js"), b"console.log('math');");
+    write_test_asset(&root.join("vendor/resources/dia.txt"), b"dia");
+    write_test_asset(&root.join("vendor/images/github-logo.svg"), b"<svg></svg>");
+
+    let registry_path = fixture
+        .state
+        .runtime_root
+        .join("runtime-assets")
+        .join("registry.json");
+    write_test_asset(
+        &registry_path,
+        serde_json::json!([{
+            "pluginId": "latotex.drawio-runtime",
+            "contributionId": "drawio.webapp.windows-x64",
+            "asset": {
+                "id": "drawio",
+                "kind": "drawio",
+                "platform": "windows-x64",
+                "downloadUrl": "https://example.com/drawio.zip",
+                "downloadUrlCn": null,
+                "sha256": "a".repeat(64),
+                "archiveFormat": "zip",
+                "entryPath": "index.html"
+            },
+            "installedAt": "2026-06-01T00:00:00Z",
+            "rootDir": root.to_string_lossy(),
+            "entryPath": root.join("index.html").to_string_lossy()
+        }])
+        .to_string()
+        .as_bytes(),
+    );
 }
 
 #[test]
@@ -320,6 +376,7 @@ fn handle_local_resource_request_preserves_head_and_range_for_library_pdf() {
 #[test]
 fn handle_local_resource_request_serves_drawio_index_from_local_resources() {
     let fixture = create_test_fixture("drawio-index");
+    register_test_drawio_runtime(&fixture);
     let request = Request::builder()
         .method(Method::GET)
         .uri(format!(
@@ -346,6 +403,7 @@ fn handle_local_resource_request_serves_drawio_index_from_local_resources() {
 #[test]
 fn handle_local_resource_request_serves_drawio_runtime_script() {
     let fixture = create_test_fixture("drawio-script");
+    register_test_drawio_runtime(&fixture);
     let request = Request::builder()
         .method(Method::GET)
         .uri(format!(
@@ -371,6 +429,7 @@ fn handle_local_resource_request_serves_drawio_runtime_script() {
 #[test]
 fn handle_local_resource_request_serves_required_drawio_support_assets() {
     let fixture = create_test_fixture("drawio-support-assets");
+    register_test_drawio_runtime(&fixture);
     for (request_path, expected_content_type) in [
         ("vendor/mxgraph/css/common.css", "text/css; charset=utf-8"),
         ("vendor/mxgraph/images/maximize.gif", "image/gif"),
