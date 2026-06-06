@@ -3,20 +3,24 @@ use crate::state::AppState;
 use crate::storage;
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use super::swarm_events::{
-    EventMetadata, append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event,
-    run_envelope,
+    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, run_envelope,
+    EventMetadata,
 };
+use super::swarm_harness::{
+    apply_harness_prompt, harness_should_use_team, resolve_harness_profile,
+};
+use super::swarm_pipeline_team::{run_execute_pipeline_team, select_agent_team};
 use super::swarm_tool_search;
 use super::swarm_workflows::{
-    WorkflowDefinition, WorkflowStep, load_registry_for_project, max_steps_for_workflow, resolve_workflow,
-    timeout_for_workflow, validate_invocation, validate_step_tools,
+    load_registry_for_project, max_steps_for_workflow, resolve_workflow, timeout_for_workflow,
+    validate_invocation, validate_step_tools, WorkflowDefinition, WorkflowStep,
 };
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
@@ -36,11 +40,11 @@ impl Drop for AgentRunSlotGuard {
 }
 
 #[derive(Debug, Clone)]
-struct ModelConnection {
-    protocol_id: String,
-    base_url: String,
-    model_name: String,
-    api_key: String,
+pub(super) struct ModelConnection {
+    pub(super) protocol_id: String,
+    pub(super) base_url: String,
+    pub(super) model_name: String,
+    pub(super) api_key: String,
 }
 
 fn acquire_agent_slot_from(
@@ -120,7 +124,7 @@ fn pick_feature_binding(settings: &AppSettings, callsite: &str) -> Option<String
     }
 }
 
-fn resolve_model_connection(
+pub(super) fn resolve_model_connection(
     db_path: &Path,
     runtime_root: &Path,
     callsite: &str,
@@ -162,7 +166,7 @@ fn resolve_model_connection(
     Err("workflow.model.unavailable".to_string())
 }
 
-fn run_provider_step(
+pub(super) fn run_provider_step(
     db_path: &Path,
     run_id: &str,
     project_id: &str,
@@ -265,12 +269,31 @@ fn run_execute_pipeline_async(
     input: AgentExecuteRequest,
     workflow: WorkflowDefinition,
 ) -> Result<String, String> {
+    let harness_profile = resolve_harness_profile(&input, &workflow);
+    let mut harnessed_input = input.clone();
+    harnessed_input.prompt = apply_harness_prompt(&harness_profile, &input.prompt);
+    harnessed_input.harness_profile_id = Some(harness_profile.id.to_string());
+
+    if harness_should_use_team(&harnessed_input, &harness_profile) {
+        if let Some(team) = select_agent_team(&db_path, &runtime_root, &harnessed_input.callsite) {
+            return run_execute_pipeline_team(
+                &db_path,
+                &runtime_root,
+                &run_id,
+                &cancel_flag,
+                &harnessed_input,
+                &workflow,
+                team,
+            );
+        }
+    }
+
     let connection = resolve_model_connection(
         &db_path,
         &runtime_root,
-        &input.callsite,
+        &harnessed_input.callsite,
         &workflow,
-        input.model_override.as_deref(),
+        harnessed_input.model_override.as_deref(),
     )?;
     let max_steps = max_steps_for_workflow(&workflow);
     let timeout_ms = timeout_for_workflow(&workflow);
@@ -283,26 +306,29 @@ fn run_execute_pipeline_async(
         if Instant::now() >= deadline {
             return Err("agent.run.timeout.total".to_string());
         }
-        let metadata = EventMetadata::base(&workflow.id, &step.id, &input.callsite);
+        let metadata = EventMetadata {
+            harness_profile_id: Some(harness_profile.id),
+            ..EventMetadata::base(&workflow.id, &step.id, &harnessed_input.callsite)
+        };
         output = match step.kind.as_str() {
             "provider.generate" => run_provider_step(
                 &db_path,
                 &run_id,
-                &input.project_id,
+                &harnessed_input.project_id,
                 &workflow.id,
                 step,
-                &input.prompt,
-                &input.context_refs,
+                &harnessed_input.prompt,
+                &harnessed_input.context_refs,
                 &cancel_flag,
                 &connection,
-                input.bypass_cache,
+                harnessed_input.bypass_cache,
                 metadata,
             )?,
             "tool.search" => swarm_tool_search::run_stage_tool_search(
                 &db_path,
                 &runtime_root,
                 &run_id,
-                &input.project_id,
+                &harnessed_input.project_id,
                 &workflow.id,
                 &step.id,
                 if step.source.trim().is_empty() {
@@ -315,14 +341,14 @@ fn run_execute_pipeline_async(
                 } else {
                     step.title.as_str()
                 },
-                &input.prompt,
-                &input.context_refs,
+                &harnessed_input.prompt,
+                &harnessed_input.context_refs,
                 &cancel_flag,
                 &connection.protocol_id,
                 &connection.base_url,
                 &connection.api_key,
                 &connection.model_name,
-                input.bypass_cache,
+                harnessed_input.bypass_cache,
                 metadata,
             )?,
             other => {
@@ -350,6 +376,7 @@ pub fn agent_execute_start(
     let workflow = resolve_workflow(&registry, &input.workflow_id)?.clone();
     validate_invocation(&workflow, &input.callsite, &input.context_refs)?;
     validate_step_tools(&workflow)?;
+    let accepted_harness_profile = resolve_harness_profile(&input, &workflow);
 
     let run_id = Uuid::new_v4().to_string();
     append_protocol_event(
@@ -364,7 +391,12 @@ pub fn agent_execute_start(
             "Run Accepted",
             "",
             &format!("{run_id}:run:accepted"),
-            EventMetadata::base(&workflow.id, "run", &input.callsite),
+            EventMetadata {
+                phase: Some("run"),
+                node_id: Some("run:accepted"),
+                harness_profile_id: Some(accepted_harness_profile.id),
+                ..EventMetadata::base(&workflow.id, "run", &input.callsite)
+            },
         ),
     )?;
 
@@ -384,6 +416,7 @@ pub fn agent_execute_start(
     let worker_project_id = input.project_id.clone();
     let worker_workflow_id = workflow.id.clone();
     let worker_callsite = input.callsite.clone();
+    let worker_harness_profile_id = accepted_harness_profile.id.to_string();
     thread::spawn(move || {
         let slot_guard = acquire_agent_slot_from(slots);
         if slot_guard.is_err() {
@@ -402,7 +435,12 @@ pub fn agent_execute_start(
                     "Run Failed",
                     &message,
                     &format!("{run_id_for_worker}:run:failed"),
-                    EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
+                    EventMetadata {
+                        phase: Some("run"),
+                        node_id: Some("run:failed"),
+                        harness_profile_id: Some(worker_harness_profile_id.as_str()),
+                        ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
+                    },
                 ),
             );
             if let Ok(mut flags) = cancel_flags.lock() {
@@ -427,7 +465,12 @@ pub fn agent_execute_start(
                     "Run Completed",
                     "",
                     &format!("{run_id_for_worker}:run:completed"),
-                    EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
+                    EventMetadata {
+                        phase: Some("run"),
+                        node_id: Some("run:completed"),
+                        harness_profile_id: Some(worker_harness_profile_id.as_str()),
+                        ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
+                    },
                 );
                 if let Some(object) = payload.as_object_mut() {
                     object.insert("output".to_string(), json!(output));
@@ -455,7 +498,12 @@ pub fn agent_execute_start(
                             "Run Cancelled",
                             "",
                             &format!("{run_id_for_worker}:run:cancelled"),
-                            EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
+                            EventMetadata {
+                                phase: Some("run"),
+                                node_id: Some("run:cancelled"),
+                                harness_profile_id: Some(worker_harness_profile_id.as_str()),
+                                ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
+                            },
                         ),
                     );
                     if let Ok(mut flags) = cancel_flags.lock() {
@@ -475,7 +523,12 @@ pub fn agent_execute_start(
                         "Run Failed",
                         &error,
                         &format!("{run_id_for_worker}:run:failed"),
-                        EventMetadata::base(&worker_workflow_id, "run", &worker_callsite),
+                        EventMetadata {
+                            phase: Some("run"),
+                            node_id: Some("run:failed"),
+                            harness_profile_id: Some(worker_harness_profile_id.as_str()),
+                            ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
+                        },
                     ),
                 );
             }
@@ -490,4 +543,3 @@ pub fn agent_execute_start(
         status: "accepted".to_string(),
     })
 }
-

@@ -9,8 +9,8 @@ use super::plugins_policy::{
 };
 use crate::models::{
     Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput, PluginCatalogResponse,
-    PluginCatalogSource, PluginInstallInput, PluginManifest, PluginRefInput,
-    PluginSetEnabledInput, PluginValidationIssue, PluginValidationResult,
+    PluginCatalogSource, PluginInstallInput, PluginManifest, PluginRefInput, PluginSetEnabledInput,
+    PluginValidationIssue, PluginValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -29,6 +29,20 @@ fn issue(code: &str, severity: &str, message: &str) -> PluginValidationIssue {
         code: code.to_string(),
         severity: severity.to_string(),
         message: message.to_string(),
+        params: None,
+    }
+}
+fn issue_with_params(
+    code: &str,
+    severity: &str,
+    message: &str,
+    params: std::collections::HashMap<String, String>,
+) -> PluginValidationIssue {
+    PluginValidationIssue {
+        code: code.to_string(),
+        severity: severity.to_string(),
+        message: message.to_string(),
+        params: Some(params),
     }
 }
 fn validate_identifier(value: &str, max_len: usize) -> bool {
@@ -150,10 +164,13 @@ fn validate_permissions(manifest: &PluginManifest, issues: &mut Vec<PluginValida
     ]);
     for permission in &manifest.permissions {
         if high_risk.contains(permission.as_str()) {
-            issues.push(issue(
+            let mut params = std::collections::HashMap::new();
+            params.insert("permission".to_string(), permission.clone());
+            issues.push(issue_with_params(
                 "plugin.permission.high_risk",
                 "warning",
                 &format!("High-risk permission declared: {permission}."),
+                params,
             ));
         }
     }

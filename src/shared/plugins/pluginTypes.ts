@@ -296,6 +296,7 @@ export type PluginValidationIssue = {
   code: string;
   severity: "info" | "warning" | "error" | string;
   message: string;
+  params?: Record<string, string> | null;
 };
 
 export type PluginValidationResult = {

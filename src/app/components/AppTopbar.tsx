@@ -59,7 +59,10 @@ export function AppTopbar(props: {
   } = props;
 
   return (
-    <header className="app-topbar relative flex h-12 min-w-0 items-center gap-2 border-b px-3">
+    <header
+      className="app-topbar tauri-drag-region relative flex h-12 min-w-0 items-center gap-2 border-b px-3"
+      data-tauri-drag-region
+    >
       <div className="flex min-w-[7.5rem] max-w-[15rem] flex-[0_1_15rem] items-center gap-2">
         <div
           className="brand-badge flex min-w-0 items-center gap-2 rounded-md px-2 py-1"
@@ -76,7 +79,7 @@ export function AppTopbar(props: {
       </div>
 
       <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
-        <div className="min-w-[8rem] max-w-[18rem] flex-[0_1_18rem]">
+        <div className="tauri-no-drag min-w-[8rem] max-w-[18rem] flex-[0_1_18rem]">
           <ProjectSwitcher
             projects={projects}
             activeProjectId={activeProjectId}
@@ -86,7 +89,7 @@ export function AppTopbar(props: {
             t={t}
           />
         </div>
-        <div className="min-w-[10rem] flex-[1_1_24rem]">
+        <div className="tauri-no-drag min-w-[10rem] flex-[1_1_24rem]">
           <ProjectSearch
             query={projectSearchQuery}
             onQueryChange={onProjectSearchQueryChange}
@@ -101,7 +104,7 @@ export function AppTopbar(props: {
           />
         </div>
         <button
-          className="app-topbar-field shrink-0 rounded p-1.5"
+          className="app-topbar-field tauri-no-drag shrink-0 rounded p-1.5"
           onClick={onOpenFolder}
           disabled={busy}
           title={t("topbar.openFolder")}
@@ -111,7 +114,7 @@ export function AppTopbar(props: {
         </button>
       </div>
 
-      <div className="flex shrink-0 items-center">
+      <div className="tauri-no-drag flex shrink-0 items-center">
         <button
           aria-label={t("window.minimize")}
           className="app-topbar-btn flex h-8 w-10 items-center justify-center rounded transition disabled:opacity-40"

@@ -12,6 +12,38 @@ use tauri::State;
 struct TelegramConfig {
     token: String,
     allowed_chat_id: Option<String>,
+    api_base_url: String,
+}
+
+const DEFAULT_TELEGRAM_API_BASE_URL: &str = "https://api.telegram.org";
+
+fn normalize_telegram_api_base_url(raw: Option<&str>) -> Result<String, String> {
+    let candidate = raw
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_TELEGRAM_API_BASE_URL);
+    let parsed = reqwest::Url::parse(candidate)
+        .map_err(|_| "channels.telegram.base_url_invalid".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err("channels.telegram.base_url_invalid".to_string());
+    }
+    Ok(parsed.to_string().trim_end_matches('/').to_string())
+}
+
+fn telegram_method_url(base_url: &str, token: &str, method: &str) -> String {
+    format!(
+        "{}/bot{}/{}",
+        base_url.trim_end_matches('/'),
+        token.trim(),
+        method.trim_start_matches('/')
+    )
+}
+
+fn telegram_http_status_error(status: reqwest::StatusCode) -> String {
+    format!("channels.telegram.http_{}", status.as_u16())
 }
 
 fn resolve_telegram_config(state: &AppState) -> Result<TelegramConfig, String> {
@@ -35,16 +67,15 @@ fn resolve_telegram_config(state: &AppState) -> Result<TelegramConfig, String> {
         .telegram_chat_id
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let api_base_url = normalize_telegram_api_base_url(channels.telegram_api_base_url.as_deref())?;
     Ok(TelegramConfig {
         token,
         allowed_chat_id,
+        api_base_url,
     })
 }
 
-fn extract_telegram_error(payload: &Value, fallback: &str) -> String {
-    if let Some(description) = payload.get("description").and_then(Value::as_str) {
-        return format!("channels.telegram.error: {description}");
-    }
+fn extract_telegram_error(_payload: &Value, fallback: &str) -> String {
     fallback.to_string()
 }
 
@@ -56,6 +87,7 @@ fn parse_chat_id(value: &Value) -> Option<String> {
 }
 
 async fn send_telegram_message(
+    api_base_url: &str,
     token: &str,
     chat_id: &str,
     text: &str,
@@ -85,23 +117,19 @@ async fn send_telegram_message(
         body["reply_to_message_id"] = json!(reply_to_message_id);
     }
     let response = client
-        .post(format!(
-            "https://api.telegram.org/bot{}/sendMessage",
-            token
-        ))
+        .post(telegram_method_url(api_base_url, token, "sendMessage"))
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("channels.telegram.transport: {e}"))?;
+        .map_err(|_| "channels.telegram.transport".to_string())?;
     if !response.status().is_success() {
         let status = response.status();
-        let payload = response.text().await.unwrap_or_default();
-        return Err(format!("channels.telegram.http_{status}: {payload}"));
+        return Err(telegram_http_status_error(status));
     }
     let payload: Value = response
         .json()
         .await
-        .map_err(|e| format!("channels.telegram.parse: {e}"))?;
+        .map_err(|_| "channels.telegram.parse".to_string())?;
     if payload.get("ok").and_then(Value::as_bool) != Some(true) {
         return Err(extract_telegram_error(
             &payload,
@@ -114,7 +142,7 @@ async fn send_telegram_message(
     })
 }
 
-async fn test_telegram_token(token: &str) -> Result<Ack, String> {
+async fn test_telegram_token_with_base(api_base_url: &str, token: &str) -> Result<Ack, String> {
     let token = token.trim();
     if token.is_empty() {
         return Err("channels.telegram.token_missing".to_string());
@@ -124,19 +152,18 @@ async fn test_telegram_token(token: &str) -> Result<Ack, String> {
         .build()
         .map_err(|e| e.to_string())?;
     let response = client
-        .get(format!("https://api.telegram.org/bot{}/getMe", token))
+        .get(telegram_method_url(api_base_url, token, "getMe"))
         .send()
         .await
-        .map_err(|e| format!("channels.telegram.transport: {e}"))?;
+        .map_err(|_| "channels.telegram.transport".to_string())?;
     if !response.status().is_success() {
         let status = response.status();
-        let payload = response.text().await.unwrap_or_default();
-        return Err(format!("channels.telegram.http_{status}: {payload}"));
+        return Err(telegram_http_status_error(status));
     }
     let payload: Value = response
         .json()
         .await
-        .map_err(|e| format!("channels.telegram.parse: {e}"))?;
+        .map_err(|_| "channels.telegram.parse".to_string())?;
     if payload.get("ok").and_then(Value::as_bool) != Some(true) {
         return Err(extract_telegram_error(
             &payload,
@@ -171,23 +198,23 @@ pub async fn channels_telegram_poll(
         query.push(("limit", limit.clamp(1, 100).to_string()));
     }
     let response = client
-        .get(format!(
-            "https://api.telegram.org/bot{}/getUpdates",
-            config.token
+        .get(telegram_method_url(
+            &config.api_base_url,
+            &config.token,
+            "getUpdates",
         ))
         .query(&query)
         .send()
         .await
-        .map_err(|e| format!("channels.telegram.transport: {e}"))?;
+        .map_err(|_| "channels.telegram.transport".to_string())?;
     if !response.status().is_success() {
         let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(format!("channels.telegram.http_{status}: {body}"));
+        return Err(telegram_http_status_error(status));
     }
     let payload: Value = response
         .json()
         .await
-        .map_err(|e| format!("channels.telegram.parse: {e}"))?;
+        .map_err(|_| "channels.telegram.parse".to_string())?;
     if payload.get("ok").and_then(Value::as_bool) != Some(true) {
         return Err(extract_telegram_error(
             &payload,
@@ -273,14 +300,74 @@ pub async fn channels_telegram_send(
         .map(str::to_string)
         .or(config.allowed_chat_id)
         .ok_or_else(|| "channels.telegram.chat_id_missing".to_string())?;
-    send_telegram_message(&config.token, &chat_id, text, input.reply_to_message_id).await
+    send_telegram_message(
+        &config.api_base_url,
+        &config.token,
+        &chat_id,
+        text,
+        input.reply_to_message_id,
+    )
+    .await
 }
 
 #[tauri::command]
 pub async fn channels_telegram_test(input: TelegramTestInput) -> Result<Ack, String> {
+    let api_base_url = normalize_telegram_api_base_url(input.api_base_url.as_deref())?;
     let chat_id = input.chat_id.unwrap_or_default();
     if chat_id.trim().is_empty() {
-        return test_telegram_token(&input.token).await;
+        return test_telegram_token_with_base(&api_base_url, &input.token).await;
     }
-    send_telegram_message(&input.token, &chat_id, &input.text, None).await
+    send_telegram_message(&api_base_url, &input.token, &chat_id, &input.text, None).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        normalize_telegram_api_base_url, telegram_http_status_error, telegram_method_url,
+        DEFAULT_TELEGRAM_API_BASE_URL,
+    };
+
+    #[test]
+    fn telegram_base_url_defaults_and_trims_slashes() {
+        assert_eq!(
+            normalize_telegram_api_base_url(None).unwrap(),
+            DEFAULT_TELEGRAM_API_BASE_URL
+        );
+        assert_eq!(
+            normalize_telegram_api_base_url(Some(" https://example.test/proxy/ ")).unwrap(),
+            "https://example.test/proxy"
+        );
+    }
+
+    #[test]
+    fn telegram_base_url_rejects_non_http_query_and_fragment() {
+        assert_eq!(
+            normalize_telegram_api_base_url(Some("file:///tmp/api")).unwrap_err(),
+            "channels.telegram.base_url_invalid"
+        );
+        assert_eq!(
+            normalize_telegram_api_base_url(Some("https://example.test/api?token=1")).unwrap_err(),
+            "channels.telegram.base_url_invalid"
+        );
+        assert_eq!(
+            normalize_telegram_api_base_url(Some("https://example.test/api#bot")).unwrap_err(),
+            "channels.telegram.base_url_invalid"
+        );
+    }
+
+    #[test]
+    fn telegram_method_url_builds_bot_endpoint() {
+        assert_eq!(
+            telegram_method_url("https://example.test/base/", "123:abc", "/getMe"),
+            "https://example.test/base/bot123:abc/getMe"
+        );
+    }
+
+    #[test]
+    fn telegram_http_error_uses_stable_code_without_response_body() {
+        assert_eq!(
+            telegram_http_status_error(reqwest::StatusCode::UNAUTHORIZED),
+            "channels.telegram.http_401"
+        );
+    }
 }

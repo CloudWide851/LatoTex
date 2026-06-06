@@ -56,12 +56,14 @@ export function ChannelsSettingsSection(props: {
   const runTelegramTest = async () => {
     const token = settings?.uiPrefs?.channels?.telegramBotToken?.trim() ?? "";
     const chatId = settings?.uiPrefs?.channels?.telegramChatId?.trim() ?? "";
+    const apiBaseUrl = settings?.uiPrefs?.channels?.telegramApiBaseUrl?.trim() ?? "";
     setTestBusy(true);
     setTestMessage(null);
     try {
       await channelsTelegramTest({
         token,
         chatId: chatId || undefined,
+        apiBaseUrl: apiBaseUrl || undefined,
         text: t("settings.channels.telegramTestMessage"),
       });
       setTestMessage({ ok: true, text: t(chatId ? "settings.channels.telegramTestOk" : "settings.channels.telegramVerifyOk") });
@@ -161,6 +163,19 @@ export function ChannelsSettingsSection(props: {
               />
             </label>
           </div>
+          <label className="mt-3 grid gap-1.5">
+            <span className="px-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+              {t("settings.channels.telegramApiBaseUrl")}
+            </span>
+            <Input
+              value={settings?.uiPrefs?.channels?.telegramApiBaseUrl ?? ""}
+              onChange={(event) => setChannelField({ telegramApiBaseUrl: event.target.value })}
+              placeholder={t("settings.channels.telegramApiBaseUrlPlaceholder")}
+              autoComplete="off"
+              spellCheck={false}
+              className="h-9 border-slate-200/90 bg-white/78 text-xs text-slate-800 placeholder:text-slate-400"
+            />
+          </label>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button
               size="sm"
@@ -274,14 +289,21 @@ export function ChannelsSettingsSection(props: {
   );
 }
 
-function channelErrorText(raw: string, t: TranslationFn): string {
+export function channelErrorText(raw: string, t: TranslationFn): string {
   const key = raw.split(":")[0]?.trim();
   const localized: Record<string, string> = {
     "channels.telegram.disabled": t("settings.channels.errorTelegramDisabled"),
     "channels.telegram.token_missing": t("settings.channels.errorTelegramTokenMissing"),
     "channels.telegram.chat_id_missing": t("settings.channels.errorTelegramChatIdMissing"),
     "channels.telegram.empty_text": t("settings.channels.errorEmptyText"),
+    "channels.telegram.base_url_invalid": t("settings.channels.errorTelegramBaseUrlInvalid"),
+    "channels.telegram.transport": t("settings.channels.errorTelegramTransport"),
+    "channels.telegram.parse": t("settings.channels.errorTelegramParse"),
+    "channels.telegram.http_401": t("settings.channels.errorTelegramUnauthorized"),
+    "channels.telegram.http_403": t("settings.channels.errorTelegramForbidden"),
+    "channels.telegram.send_failed": t("settings.channels.errorTelegramSendFailed"),
     "channels.telegram.verify_failed": t("settings.channels.errorTelegramVerifyFailed"),
+    "channels.telegram.get_updates_failed": t("settings.channels.errorTelegramGetUpdatesFailed"),
     "channels.dingtalk.disabled": t("settings.channels.errorDingtalkDisabled"),
     "channels.dingtalk.client_id_missing": t("settings.channels.errorDingtalkClientIdMissing"),
     "channels.dingtalk.client_secret_missing": t("settings.channels.errorDingtalkClientSecretMissing"),
@@ -289,5 +311,14 @@ function channelErrorText(raw: string, t: TranslationFn): string {
     "channels.dingtalk.empty_text": t("settings.channels.errorEmptyText"),
     "channels.dingtalk.reply_target_missing": t("settings.channels.errorDingtalkReplyTargetMissing"),
   };
-  return localized[key] ?? raw;
+  if (localized[key]) {
+    return localized[key];
+  }
+  if (key?.startsWith("channels.telegram.http_")) {
+    return t("settings.channels.errorTelegramHttp");
+  }
+  if (key?.startsWith("channels.telegram.")) {
+    return t("settings.channels.errorTelegramGeneric");
+  }
+  return raw;
 }

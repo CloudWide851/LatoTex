@@ -54,6 +54,7 @@ export function updateSettings(input: {
       telegramEnabled?: boolean;
       telegramBotToken?: string;
       telegramChatId?: string;
+      telegramApiBaseUrl?: string;
       dingtalkEnabled?: boolean;
       dingtalkClientId?: string;
       dingtalkClientSecret?: string;

@@ -9,6 +9,7 @@ fn issue(code: &str, message: &str) -> PluginValidationIssue {
         code: code.to_string(),
         severity: "error".to_string(),
         message: message.to_string(),
+        params: None,
     }
 }
 
@@ -32,7 +33,11 @@ pub(crate) fn validate_more_safe_contribution_details(
         validate_tree_decoration(contribution.tree_decoration.as_ref(), issues);
     }
     if contribution.kind == "commandPaletteItem" {
-        validate_command_palette_item(contribution, contribution.command_palette_item.as_ref(), issues);
+        validate_command_palette_item(
+            contribution,
+            contribution.command_palette_item.as_ref(),
+            issues,
+        );
     }
 }
 
@@ -90,7 +95,9 @@ fn valid_file_matchers(extensions: &[String], filenames: &[String], patterns: &[
         && valid_extension_list(extensions)
         && valid_filename_list(filenames)
         && patterns.len() <= 32
-        && patterns.iter().all(|pattern| valid_relative_pattern(pattern))
+        && patterns
+            .iter()
+            .all(|pattern| valid_relative_pattern(pattern))
 }
 
 fn validate_resource_classifier(
@@ -106,7 +113,8 @@ fn validate_resource_classifier(
     };
     let allowed_categories =
         HashSet::from(["source", "document", "data", "image", "config", "runtime"]);
-    let allowed_icons = HashSet::from(["file", "code", "book", "image", "table", "settings", "tool"]);
+    let allowed_icons =
+        HashSet::from(["file", "code", "book", "image", "table", "settings", "tool"]);
     let allowed_colors = HashSet::from(["neutral", "blue", "green", "amber", "rose", "purple"]);
     let icon_ok = classifier
         .icon
@@ -156,10 +164,15 @@ fn validate_problem_matcher(
         .filter(|item| !item.is_empty())
         .map(|item| allowed_severity.contains(item))
         .unwrap_or(true);
-    let groups_ok = [matcher.file_group, matcher.line_group, matcher.column_group, matcher.message_group]
-        .iter()
-        .flatten()
-        .all(|group| (1..=12).contains(group));
+    let groups_ok = [
+        matcher.file_group,
+        matcher.line_group,
+        matcher.column_group,
+        matcher.message_group,
+    ]
+    .iter()
+    .flatten()
+    .all(|group| (1..=12).contains(group));
     if !valid_safe_key(&matcher.owner, 64)
         || matcher.pattern.trim().is_empty()
         || matcher.pattern.len() > 512
@@ -182,7 +195,8 @@ fn validate_plugin_panel(panel: Option<&PluginPanel>, issues: &mut Vec<PluginVal
         ));
         return;
     };
-    let allowed_locations = HashSet::from(["plugins.details", "settings.plugins", "workspace.empty"]);
+    let allowed_locations =
+        HashSet::from(["plugins.details", "settings.plugins", "workspace.empty"]);
     let markdown_lower = panel.markdown.to_ascii_lowercase();
     if !allowed_locations.contains(panel.location.as_str())
         || panel.title.trim().is_empty()
@@ -223,7 +237,10 @@ fn validate_static_markdown_surface(
     }
 }
 
-fn validate_sidebar_view(view: Option<&PluginSidebarView>, issues: &mut Vec<PluginValidationIssue>) {
+fn validate_sidebar_view(
+    view: Option<&PluginSidebarView>,
+    issues: &mut Vec<PluginValidationIssue>,
+) {
     let Some(view) = view else {
         issues.push(issue(
             "plugin.contribution.sidebar_view_missing",
@@ -231,8 +248,10 @@ fn validate_sidebar_view(view: Option<&PluginSidebarView>, issues: &mut Vec<Plug
         ));
         return;
     };
-    let allowed_locations = HashSet::from(["workspace.sidebar", "settings.sidebar", "plugins.sidebar"]);
-    let allowed_icons = HashSet::from(["file", "code", "book", "image", "table", "settings", "tool"]);
+    let allowed_locations =
+        HashSet::from(["workspace.sidebar", "settings.sidebar", "plugins.sidebar"]);
+    let allowed_icons =
+        HashSet::from(["file", "code", "book", "image", "table", "settings", "tool"]);
     let icon_ok = view
         .icon
         .as_deref()
@@ -268,7 +287,8 @@ fn validate_tree_decoration(
         ));
         return;
     };
-    let allowed_icons = HashSet::from(["file", "code", "book", "image", "table", "settings", "tool"]);
+    let allowed_icons =
+        HashSet::from(["file", "code", "book", "image", "table", "settings", "tool"]);
     let allowed_colors = HashSet::from(["neutral", "blue", "green", "amber", "rose", "purple"]);
     let icon_ok = decoration
         .icon
@@ -325,11 +345,8 @@ fn validate_command_palette_item(
         .filter(|value| !value.is_empty())
         .map(|value| valid_safe_key(value, 48))
         .unwrap_or(true);
-    let keywords_ok = item
-        .keywords
-        .iter()
-        .all(|value| valid_safe_key(value, 32))
-        && item.keywords.len() <= 16;
+    let keywords_ok =
+        item.keywords.iter().all(|value| valid_safe_key(value, 32)) && item.keywords.len() <= 16;
     let command_ref_ok = item
         .command_ref
         .as_ref()

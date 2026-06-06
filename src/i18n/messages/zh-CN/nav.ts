@@ -52,6 +52,8 @@ export const zhCN_nav = {
   "plugins.validationDetails": "校验详情",
   "plugins.validationErrors": "{count} 个错误",
   "plugins.validationWarnings": "{count} 个警告",
+  "plugins.validationIssue.permissionHighRisk": "声明了高风险权限：{permission}。",
+  "plugins.validationIssue.generic": "校验问题：{code}。",
   "plugins.toolchain.install": "安装工具",
   "plugins.toolchain.verify": "检查",
   "plugins.toolchain.remove": "移除工具",

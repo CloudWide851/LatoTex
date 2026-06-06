@@ -382,6 +382,7 @@ pub struct AgentExecuteRequest {
     #[serde(default)]
     pub bypass_cache: bool,
     pub team_mode: Option<String>,
+    pub harness_profile_id: Option<String>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

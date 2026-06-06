@@ -13,6 +13,7 @@ import {
 import type {
   PluginContribution,
   PluginManifest,
+  PluginValidationIssue,
   RuntimeAssetStatus,
   ToolchainStatus,
 } from "../../../shared/plugins/pluginTypes";
@@ -126,4 +127,17 @@ export function issueTone(severity: string): string {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
   return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function legacyHighRiskPermission(message: string): string | null {
+  const match = message.match(/^High-risk permission declared:\s*(.+?)\.$/);
+  return match?.[1]?.trim() || null;
+}
+
+export function describeValidationIssue(issue: PluginValidationIssue, t: TranslationFn): string {
+  if (issue.code === "plugin.permission.high_risk") {
+    const permission = issue.params?.permission || legacyHighRiskPermission(issue.message) || "";
+    return t("plugins.validationIssue.permissionHighRisk").replace("{permission}", permission || "-");
+  }
+  return issue.message || t("plugins.validationIssue.generic").replace("{code}", issue.code);
 }

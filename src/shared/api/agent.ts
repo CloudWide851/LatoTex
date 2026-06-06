@@ -16,6 +16,7 @@ export function executeWorkflowStart(input: {
   modelOverride?: string;
   bypassCache?: boolean;
   teamMode?: AgentTeamMode;
+  harnessProfileId?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -27,6 +28,7 @@ export function executeWorkflowStart(input: {
       modelOverride: input.modelOverride,
       bypassCache: input.bypassCache ?? false,
       teamMode: input.teamMode ?? "auto",
+      harnessProfileId: input.harnessProfileId,
     },
   });
 }

@@ -7,6 +7,18 @@ pub(super) struct EventMetadata<'a> {
     pub workflow_id: &'a str,
     pub step_id: &'a str,
     pub callsite: &'a str,
+    pub phase: Option<&'a str>,
+    pub node_id: Option<&'a str>,
+    pub parent_node_id: Option<&'a str>,
+    pub decision: Option<&'a str>,
+    pub risk_level: Option<&'a str>,
+    pub requires_approval: Option<bool>,
+    pub team_id: Option<&'a str>,
+    pub team_role_id: Option<&'a str>,
+    pub team_role_name: Option<&'a str>,
+    pub team_task_id: Option<&'a str>,
+    pub artifact_refs: Option<&'a [String]>,
+    pub harness_profile_id: Option<&'a str>,
     pub actions: Option<&'a serde_json::Value>,
 }
 
@@ -16,6 +28,18 @@ impl<'a> EventMetadata<'a> {
             workflow_id,
             step_id,
             callsite,
+            phase: None,
+            node_id: None,
+            parent_node_id: None,
+            decision: None,
+            risk_level: None,
+            requires_approval: None,
+            team_id: None,
+            team_role_id: None,
+            team_role_name: None,
+            team_task_id: None,
+            artifact_refs: None,
+            harness_profile_id: None,
             actions: None,
         }
     }
@@ -48,6 +72,42 @@ fn apply_metadata(payload: &mut serde_json::Value, metadata: EventMetadata<'_>) 
         object.insert("workflowId".to_string(), json!(metadata.workflow_id));
         object.insert("stepId".to_string(), json!(metadata.step_id));
         object.insert("callsite".to_string(), json!(metadata.callsite));
+        if let Some(phase) = metadata.phase {
+            object.insert("phase".to_string(), json!(phase));
+        }
+        if let Some(node_id) = metadata.node_id {
+            object.insert("nodeId".to_string(), json!(node_id));
+        }
+        if let Some(parent_node_id) = metadata.parent_node_id {
+            object.insert("parentNodeId".to_string(), json!(parent_node_id));
+        }
+        if let Some(decision) = metadata.decision {
+            object.insert("decision".to_string(), json!(decision));
+        }
+        if let Some(risk_level) = metadata.risk_level {
+            object.insert("riskLevel".to_string(), json!(risk_level));
+        }
+        if let Some(requires_approval) = metadata.requires_approval {
+            object.insert("requiresApproval".to_string(), json!(requires_approval));
+        }
+        if let Some(team_id) = metadata.team_id {
+            object.insert("teamId".to_string(), json!(team_id));
+        }
+        if let Some(team_role_id) = metadata.team_role_id {
+            object.insert("teamRoleId".to_string(), json!(team_role_id));
+        }
+        if let Some(team_role_name) = metadata.team_role_name {
+            object.insert("teamRoleName".to_string(), json!(team_role_name));
+        }
+        if let Some(team_task_id) = metadata.team_task_id {
+            object.insert("teamTaskId".to_string(), json!(team_task_id));
+        }
+        if let Some(artifact_refs) = metadata.artifact_refs {
+            object.insert("artifactRefs".to_string(), json!(artifact_refs));
+        }
+        if let Some(harness_profile_id) = metadata.harness_profile_id {
+            object.insert("harnessProfileId".to_string(), json!(harness_profile_id));
+        }
         if let Some(actions) = metadata.actions {
             object.insert("actions".to_string(), actions.clone());
         }

@@ -9,12 +9,59 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: windows-latest
+  build-release-artifacts:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            runner: windows-latest
+            os: windows
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifact_glob: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          - name: linux-x64
+            runner: ubuntu-22.04
+            os: linux
+            target: ""
+            bundles: deb,appimage
+            artifact_glob: |
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/appimage/*.AppImage
+          - name: macos-x64
+            runner: macos-15-intel
+            os: macos
+            target: x86_64-apple-darwin
+            bundles: dmg
+            artifact_glob: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+          - name: macos-arm64
+            runner: macos-15
+            os: macos
+            target: aarch64-apple-darwin
+            bundles: dmg
+            artifact_glob: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install Tauri Linux dependencies
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            patchelf \
+            wget
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -28,24 +75,84 @@ jobs:
           cache: pnpm
 
       - name: Setup Rust toolchain
+        if: matrix.target == ''
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust toolchain with target
+        if: matrix.target != ''
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Windows x64 validation gate
+        if: matrix.os == 'windows'
         run: pnpm release:validate:win-x64
 
       - name: Windows x64 unsigned package gate
+        if: matrix.os == 'windows'
         run: pnpm release:package:win-x64
 
-      - name: Upload generated Windows installer
+      - name: Cross-platform architecture check
+        if: matrix.os != 'windows'
+        run: pnpm arch:check
+
+      - name: Cross-platform typecheck
+        if: matrix.os != 'windows'
+        run: pnpm typecheck
+
+      - name: Cross-platform unit tests
+        if: matrix.os != 'windows'
+        run: pnpm test:unit
+        env:
+          CI: true
+
+      - name: Cross-platform frontend build
+        if: matrix.os != 'windows'
+        run: pnpm build
+
+      - name: Cross-platform Rust tests
+        if: matrix.os != 'windows' && matrix.target == ''
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Cross-platform Rust tests with target
+        if: matrix.os != 'windows' && matrix.target != ''
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Cross-platform package
+        if: matrix.os != 'windows' && matrix.target == ''
+        run: pnpm tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Cross-platform package with target
+        if: matrix.os != 'windows' && matrix.target != ''
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latotex-${{ matrix.name }}
+          if-no-files-found: error
+          path: ${{ matrix.artifact_glob }}
+
+  publish-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: build-release-artifacts
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
         with:
           name: LatoTex ${{ github.ref_name }}
-          body: Automated Windows x64 build for ${{ github.ref_name }}.
+          body: Automated Windows, Linux, and macOS builds for ${{ github.ref_name }}.
           draft: false
           prerelease: false
-          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          files: release-artifacts/*

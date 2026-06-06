@@ -12,6 +12,7 @@ fn issue(code: &str, message: &str) -> PluginValidationIssue {
         code: code.to_string(),
         severity: "error".to_string(),
         message: message.to_string(),
+        params: None,
     }
 }
 

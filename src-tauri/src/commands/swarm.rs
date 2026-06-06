@@ -1,17 +1,21 @@
-#[path = "swarm_pipeline.rs"]
-mod swarm_pipeline;
 #[path = "swarm_events.rs"]
 mod swarm_events;
-#[path = "swarm_tool_search.rs"]
-mod swarm_tool_search;
+#[path = "swarm_harness.rs"]
+mod swarm_harness;
+#[path = "swarm_pipeline.rs"]
+mod swarm_pipeline;
+#[path = "swarm_pipeline_team.rs"]
+mod swarm_pipeline_team;
 #[path = "swarm_provider.rs"]
 mod swarm_provider;
 #[path = "swarm_tool_mcp.rs"]
 mod swarm_tool_mcp;
-#[path = "swarm_workflows.rs"]
-mod swarm_workflows;
+#[path = "swarm_tool_search.rs"]
+mod swarm_tool_search;
 #[path = "swarm_tool_skills.rs"]
 mod swarm_tool_skills;
+#[path = "swarm_workflows.rs"]
+mod swarm_workflows;
 pub(crate) use swarm_provider::call_provider_with_retry;
 
 use crate::models::{
@@ -69,7 +73,10 @@ pub fn agent_execute_cancel(
         .get(&input.run_id)
         .ok_or_else(|| "agent run not found".to_string())?;
     flag.store(true, Ordering::Relaxed);
-    state.log("INFO", &format!("agent_execute_cancel requested: {}", input.run_id));
+    state.log(
+        "INFO",
+        &format!("agent_execute_cancel requested: {}", input.run_id),
+    );
     Ok(Ack {
         ok: true,
         message: "cancelling".to_string(),

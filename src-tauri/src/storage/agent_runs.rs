@@ -171,6 +171,7 @@ mod agent_runs_tests {
             model_override: None,
             bypass_cache: false,
             team_mode: None,
+            harness_profile_id: None,
         }
     }
 

@@ -1,5 +1,5 @@
-use crate::commands::swarm::start_agent_execution;
 use crate::commands::agent_workflows_context::context_path_candidates;
+use crate::commands::swarm::start_agent_execution;
 use crate::models::{
     AgentExecuteRequest, AgentExecuteStartAccepted, ChatWorkflowStartInput,
     CompletionWorkflowStartInput, GitSummaryWorkflowStartInput, LatexEditStartInput,
@@ -11,8 +11,8 @@ use latotex_agent::{
     build_completion_prompt, build_git_summary_prompt, build_reference_check_prompt,
     build_task_execution_prompt, sanitize_git_files,
 };
-use std::fs;
 use std::collections::HashSet;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::State;
 
@@ -51,15 +51,13 @@ fn to_relative_display(root: &Path, path: &Path) -> String {
         .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"))
 }
 
-fn resolve_context_refs(
-    db_path: &Path,
-    project_id: &str,
-    context_paths: &[String],
-) -> Vec<String> {
+fn resolve_context_refs(db_path: &Path, project_id: &str, context_paths: &[String]) -> Vec<String> {
     let mut resolved = Vec::new();
     for raw in context_paths {
         for relative_path in context_path_candidates(raw) {
-            let Ok(target) = storage::resolve_project_relative_path(db_path, project_id, &relative_path) else {
+            let Ok(target) =
+                storage::resolve_project_relative_path(db_path, project_id, &relative_path)
+            else {
                 continue;
             };
             let Ok(metadata) = fs::metadata(&target) else {
@@ -265,6 +263,7 @@ fn start_workflow(
             model_override,
             bypass_cache,
             team_mode,
+            harness_profile_id: None,
         },
     )
 }
@@ -360,7 +359,8 @@ pub fn latex_edit_start(
     } else {
         (None, None)
     };
-    let explicit_context_refs = resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
+    let explicit_context_refs =
+        resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
     for reference in &explicit_context_refs {
         dedupe_push(&mut context_refs, reference.clone());
     }
@@ -371,7 +371,8 @@ pub fn latex_edit_start(
         paper_context.as_deref(),
         paper_title.as_deref(),
     );
-    let extra_context_blocks = materialize_context_blocks(&state, &input.project_id, &explicit_context_refs)?;
+    let extra_context_blocks =
+        materialize_context_blocks(&state, &input.project_id, &explicit_context_refs)?;
     start_workflow(
         &state,
         input.project_id,
@@ -434,7 +435,8 @@ pub fn latex_reference_check_start(
     state: State<'_, AppState>,
     input: LatexReferenceCheckStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
-    let explicit_context_refs = resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
+    let explicit_context_refs =
+        resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
     let prompt = build_reference_check_prompt(
         &input.editor_content,
         input.user_hint.as_deref().unwrap_or_default(),
@@ -452,7 +454,8 @@ pub fn latex_reference_check_start(
     for reference in &explicit_context_refs {
         dedupe_push(&mut context_refs, reference.clone());
     }
-    let extra_context_blocks = materialize_context_blocks(&state, &input.project_id, &explicit_context_refs)?;
+    let extra_context_blocks =
+        materialize_context_blocks(&state, &input.project_id, &explicit_context_refs)?;
     start_workflow(
         &state,
         input.project_id,
@@ -518,7 +521,8 @@ pub fn chat_workflow_start(
     state: State<'_, AppState>,
     input: ChatWorkflowStartInput,
 ) -> Result<AgentExecuteStartAccepted, String> {
-    let context_refs = resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
+    let context_refs =
+        resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths);
     let prompt = append_materialized_context(
         input.prompt,
         &materialize_context_blocks(&state, &input.project_id, &context_refs)?,

@@ -22,6 +22,7 @@ import type {
 import {
   describeRuntimeAssetStatus,
   describeToolchainStatus,
+  describeValidationIssue,
   iconFor,
   issueTone,
   localizedContribution,
@@ -319,7 +320,7 @@ export function PluginMarketplaceDetailDialog(props: {
                 {entry.validation.issues.map((issue) => (
                   <li key={`${issue.code}:${issue.message}`} className={cn("rounded-md border px-2 py-1.5 text-xs", issueTone(issue.severity))}>
                     <div className="font-mono text-[10px]">{issue.code}</div>
-                    <div className="mt-1">{issue.message}</div>
+                    <div className="mt-1">{describeValidationIssue(issue, t)}</div>
                   </li>
                 ))}
               </ul>

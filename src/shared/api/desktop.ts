@@ -355,6 +355,7 @@ export function executeWorkflowStart(input: {
   modelOverride?: string;
   bypassCache?: boolean;
   teamMode?: AgentTeamMode;
+  harnessProfileId?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invoke<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -366,6 +367,7 @@ export function executeWorkflowStart(input: {
       modelOverride: input.modelOverride,
       bypassCache: input.bypassCache ?? false,
       teamMode: input.teamMode ?? "auto",
+      harnessProfileId: input.harnessProfileId,
     },
   });
 }
@@ -431,6 +433,7 @@ export function updateSettings(input: {
       telegramEnabled?: boolean;
       telegramBotToken?: string;
       telegramChatId?: string;
+      telegramApiBaseUrl?: string;
     };
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;

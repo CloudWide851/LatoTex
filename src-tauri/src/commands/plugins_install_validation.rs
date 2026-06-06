@@ -2,13 +2,16 @@ use crate::models::{
     PluginRuntimeAsset, PluginToolchainInstaller, PluginToolchainProbe, PluginValidationIssue,
 };
 
-use super::plugins_policy::{INSTALLER_TOOLCHAIN_KINDS, PROBE_TOOLCHAIN_KINDS, RUNTIME_ASSET_KINDS};
+use super::plugins_policy::{
+    INSTALLER_TOOLCHAIN_KINDS, PROBE_TOOLCHAIN_KINDS, RUNTIME_ASSET_KINDS,
+};
 
 fn issue(code: &str, message: &str) -> PluginValidationIssue {
     PluginValidationIssue {
         code: code.to_string(),
         severity: "error".to_string(),
         message: message.to_string(),
+        params: None,
     }
 }
 

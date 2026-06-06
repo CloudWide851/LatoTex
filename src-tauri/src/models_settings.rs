@@ -130,6 +130,7 @@ pub struct ChannelPrefs {
     pub telegram_enabled: Option<bool>,
     pub telegram_bot_token: Option<String>,
     pub telegram_chat_id: Option<String>,
+    pub telegram_api_base_url: Option<String>,
     pub dingtalk_enabled: Option<bool>,
     pub dingtalk_client_id: Option<String>,
     pub dingtalk_client_secret: Option<String>,
@@ -173,6 +174,7 @@ pub struct TelegramSendInput {
 pub struct TelegramTestInput {
     pub token: String,
     pub chat_id: Option<String>,
+    pub api_base_url: Option<String>,
     pub text: String,
 }
 

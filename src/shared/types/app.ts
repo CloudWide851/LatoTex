@@ -419,6 +419,7 @@ export type SkillValidationResult = {
 export type TelegramTestInput = {
   token: string;
   chatId?: string;
+  apiBaseUrl?: string;
   text: string;
 };
 
@@ -435,6 +436,7 @@ export type ChannelPrefs = {
   telegramEnabled?: boolean;
   telegramBotToken?: string;
   telegramChatId?: string;
+  telegramApiBaseUrl?: string;
   dingtalkEnabled?: boolean;
   dingtalkClientId?: string;
   dingtalkClientSecret?: string;
