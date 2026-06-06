@@ -51,14 +51,11 @@ fn legacy_managed_analysis_root(app_data_dir: &Path) -> PathBuf {
 }
 
 fn strip_windows_verbatim_prefix(text: &str) -> String {
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(stripped) = text.strip_prefix("\\\\?\\UNC\\") {
-            return format!("//{}", stripped.replace('\\', "/"));
-        }
-        if let Some(stripped) = text.strip_prefix("\\\\?\\") {
-            return stripped.replace('\\', "/");
-        }
+    if let Some(stripped) = text.strip_prefix("\\\\?\\UNC\\") {
+        return format!("//{}", stripped.replace('\\', "/"));
+    }
+    if let Some(stripped) = text.strip_prefix("\\\\?\\") {
+        return stripped.replace('\\', "/");
     }
     text.to_string()
 }

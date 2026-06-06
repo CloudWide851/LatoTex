@@ -104,14 +104,11 @@ fn summarize_output(label: &str, bytes: &[u8]) -> Option<String> {
 
 fn normalize_runtime_path_text(path: &Path) -> String {
     let text = path.to_string_lossy();
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(stripped) = text.strip_prefix("\\\\?\\UNC\\") {
-            return format!("\\\\{}", stripped);
-        }
-        if let Some(stripped) = text.strip_prefix("\\\\?\\") {
-            return stripped.to_string();
-        }
+    if let Some(stripped) = text.strip_prefix("\\\\?\\UNC\\") {
+        return format!("\\\\{}", stripped);
+    }
+    if let Some(stripped) = text.strip_prefix("\\\\?\\") {
+        return stripped.to_string();
     }
     text.to_string()
 }

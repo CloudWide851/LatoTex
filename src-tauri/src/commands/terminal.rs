@@ -81,13 +81,11 @@ fn venv_bin_dir(venv_path: &Path) -> PathBuf {
 }
 
 fn strip_windows_verbatim_prefix(text: &str) -> String {
-    if cfg!(target_os = "windows") {
-        if let Some(stripped) = text.strip_prefix(r"\\?\UNC\") {
-            return format!(r"\\{stripped}");
-        }
-        if let Some(stripped) = text.strip_prefix(r"\\?\") {
-            return stripped.to_string();
-        }
+    if let Some(stripped) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{stripped}");
+    }
+    if let Some(stripped) = text.strip_prefix(r"\\?\") {
+        return stripped.to_string();
     }
     text.to_string()
 }
@@ -562,13 +560,20 @@ mod tests {
         let cwd = PathBuf::from(r"H:\LatoTex");
         let venv = PathBuf::from(r"H:\LatoTex\.venv");
         let powershell = terminal_shell_command("powershell", &cwd, &venv);
-        assert!(powershell.shell.to_lowercase().contains("powershell"));
-        assert!(powershell.args.iter().any(|arg| arg == "-NoProfile"));
-        assert!(powershell.args.iter().any(|arg| arg.contains("Activate.ps1") || cfg!(not(target_os = "windows"))));
-
         if cfg!(target_os = "windows") {
+            assert!(powershell.shell.to_lowercase().contains("powershell"));
+            assert!(powershell.args.iter().any(|arg| arg == "-NoProfile"));
+            assert!(powershell.args.iter().any(|arg| arg.contains("Activate.ps1")));
             let cmd = terminal_shell_command("cmd", &cwd, &venv);
             assert!(cmd.args.iter().any(|arg| arg.contains("activate.bat")));
+        } else {
+            assert!(!powershell.shell.trim().is_empty());
+            if cfg!(target_os = "macos") {
+                assert!(powershell.shell.ends_with("zsh") || powershell.shell.ends_with("bash"));
+            } else {
+                assert!(powershell.shell.ends_with("bash") || powershell.shell.ends_with("sh"));
+            }
+            assert!(powershell.args.iter().any(|arg| arg.contains('i')));
         }
     }
 }

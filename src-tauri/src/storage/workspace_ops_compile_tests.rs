@@ -6,7 +6,7 @@ mod workspace_ops_compile_tests {
     use crate::models::FsOperationInput;
     use crate::storage;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::process::Command;
 
     fn unique_temp_dir(name: &str) -> PathBuf {
@@ -46,6 +46,10 @@ mod workspace_ops_compile_tests {
             return None;
         }
         Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    }
+
+    fn annotation_path_for(papers_root: &Path, relative_path: &str) -> PathBuf {
+        papers_root.join(Path::new(&to_library_annotation_relative_path(relative_path)))
     }
 
     #[test]
@@ -95,7 +99,7 @@ mod workspace_ops_compile_tests {
         fs::write(&source_pdf, b"%PDF-demo").unwrap();
 
         let annotation_relative = to_library_annotation_relative_path("demo.bib");
-        let annotation_path = papers_root.join(annotation_relative.replace('/', "\\"));
+        let annotation_path = papers_root.join(Path::new(&annotation_relative));
         fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
         fs::write(&annotation_path, "{\"version\":4}").unwrap();
 
@@ -114,9 +118,7 @@ mod workspace_ops_compile_tests {
 
         assert!(papers_root.join("grouped").join("demo-renamed.bib").exists());
         assert!(papers_root.join("grouped").join("demo-renamed.pdf").exists());
-        let next_annotation = papers_root.join(
-            to_library_annotation_relative_path("grouped/demo-renamed.bib").replace('/', "\\"),
-        );
+        let next_annotation = annotation_path_for(&papers_root, "grouped/demo-renamed.bib");
         assert!(next_annotation.exists());
         assert!(!source_bib.exists());
         assert!(!source_pdf.exists());
@@ -138,7 +140,7 @@ mod workspace_ops_compile_tests {
         fs::write(&source_pdf, b"%PDF-demo").unwrap();
 
         let annotation_relative = to_library_annotation_relative_path("demo.bib");
-        let annotation_path = papers_root.join(annotation_relative.replace('/', "\\"));
+        let annotation_path = papers_root.join(Path::new(&annotation_relative));
         fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
         fs::write(&annotation_path, "{\"version\":4}").unwrap();
 
@@ -175,7 +177,7 @@ mod workspace_ops_compile_tests {
         fs::write(&source_pdf, b"%PDF-demo").unwrap();
 
         let annotation_relative = to_library_annotation_relative_path("demo.bib");
-        let annotation_path = papers_root.join(annotation_relative.replace('/', "\\"));
+        let annotation_path = papers_root.join(Path::new(&annotation_relative));
         fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
         fs::write(&annotation_path, "{\"version\":4}").unwrap();
 
@@ -204,9 +206,7 @@ mod workspace_ops_compile_tests {
         )
         .unwrap();
 
-        let copied_annotation = papers_root.join(
-            to_library_annotation_relative_path("archive/demo-copy.bib").replace('/', "\\"),
-        );
+        let copied_annotation = annotation_path_for(&papers_root, "archive/demo-copy.bib");
         let copied_binding = remote_pdf_cache_binding_path_for_relative_path(
             &papers_root,
             "archive/demo-copy.bib",
@@ -322,9 +322,7 @@ mod workspace_ops_compile_tests {
         fs::write(&nested_bib, "@article{demo}").unwrap();
         fs::write(&nested_pdf, b"%PDF-demo").unwrap();
 
-        let annotation_path = papers_root.join(
-            to_library_annotation_relative_path("incoming/demo.bib").replace('/', "\\"),
-        );
+        let annotation_path = annotation_path_for(&papers_root, "incoming/demo.bib");
         fs::create_dir_all(annotation_path.parent().unwrap()).unwrap();
         fs::write(&annotation_path, "{\"version\":4}").unwrap();
 
@@ -350,9 +348,7 @@ mod workspace_ops_compile_tests {
         )
         .unwrap();
 
-        let target_annotation = papers_root.join(
-            to_library_annotation_relative_path("archive/incoming/demo.bib").replace('/', "\\"),
-        );
+        let target_annotation = annotation_path_for(&papers_root, "archive/incoming/demo.bib");
         let target_binding = remote_pdf_cache_binding_path_for_relative_path(
             &papers_root,
             "archive/incoming/demo.bib",

@@ -17,7 +17,47 @@ function writeFile(root: string, relativePath: string, content: string) {
   fs.writeFileSync(target, content, "utf8");
 }
 
-function createFixture(options: { signed?: boolean } = {}) {
+const unsignedWindowsWorkflow = [
+  "jobs:",
+  "  build:",
+  "    runs-on: windows-latest",
+  "    steps:",
+  "      - run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
+  "      - run: pnpm release:package:win-x64",
+  "",
+].join("\n");
+
+const unsignedMultiPlatformWorkflow = [
+  "jobs:",
+  "  build-release-artifacts:",
+  "    strategy:",
+  "      matrix:",
+  "        include:",
+  "          - name: windows-x64",
+  "            runner: windows-latest",
+  "            os: windows",
+  "            target: x86_64-pc-windows-msvc",
+  "            bundles: nsis",
+  "          - name: linux-x64",
+  "            runner: ubuntu-22.04",
+  "            os: linux",
+  "            target: \"\"",
+  "            bundles: deb,appimage",
+  "          - name: macos-x64",
+  "            runner: macos-15-intel",
+  "            os: macos",
+  "            target: x86_64-apple-darwin",
+  "            bundles: dmg",
+  "    runs-on: ${{ matrix.runner }}",
+  "    steps:",
+  "      - run: pnpm release:package:win-x64",
+  "        if: matrix.os == 'windows'",
+  "  publish-release:",
+  "    runs-on: ubuntu-latest",
+  "",
+].join("\n");
+
+function createFixture(options: { signed?: boolean; workflow?: string } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-security-scan-"));
   tempRoots.push(root);
   const scripts = {
@@ -38,9 +78,10 @@ function createFixture(options: { signed?: boolean } = {}) {
   writeFile(
     root,
     ".github/workflows/release-tauri.yml",
-    options.signed
-      ? "jobs:\n  build:\n    runs-on: windows-latest\n    steps:\n      - run: pnpm release:package:win-x64:signed\n"
-      : "jobs:\n  build:\n    runs-on: windows-latest\n    steps:\n      - run: pnpm release:package:win-x64\n",
+    options.workflow ??
+      (options.signed
+        ? unsignedWindowsWorkflow.replace("release:package:win-x64", "release:package:win-x64:signed")
+        : unsignedWindowsWorkflow),
   );
   return root;
 }
@@ -57,6 +98,16 @@ describe("release-security-scan", () => {
 
   it("accepts the unsigned Windows x64 release policy", () => {
     expect(scanRepository(createFixture())).toEqual([]);
+  });
+
+  it("accepts the unsigned multi-platform release policy", () => {
+    expect(scanRepository(createFixture({ workflow: unsignedMultiPlatformWorkflow }))).toEqual([]);
+  });
+
+  it("fails when the release workflow loses the Windows unsigned package gate", () => {
+    const workflow = unsignedMultiPlatformWorkflow.replace("pnpm release:package:win-x64", "pnpm build");
+    const findingIds = scanRepository(createFixture({ workflow })).map((finding) => finding.id);
+    expect(findingIds).toContain("release-workflow-missing-unsigned-package-gate");
   });
 
   it("fails when Windows signing gates are reintroduced", () => {

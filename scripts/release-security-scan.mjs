@@ -136,6 +136,14 @@ function addFinding(findings, id, repoPath, line = 1) {
   findings.push({ id, path: repoPath, line });
 }
 
+function releaseWorkflowHasWindowsTarget(workflowText) {
+  return (
+    workflowText.includes("windows-latest") &&
+    workflowText.includes("x86_64-pc-windows-msvc") &&
+    workflowText.includes("nsis")
+  );
+}
+
 function assertReleaseConfiguration(repoRoot, findings) {
   const packageJson = JSON.parse(readRepoText(repoRoot, "package.json"));
   const scripts = packageJson.scripts ?? {};
@@ -172,7 +180,7 @@ function assertReleaseConfiguration(repoRoot, findings) {
   }
 
   const releaseWorkflow = readRepoText(repoRoot, ".github/workflows/release-tauri.yml");
-  if (!releaseWorkflow.includes("windows-latest") || releaseWorkflow.includes("ubuntu-latest") || releaseWorkflow.includes("macos-latest")) {
+  if (!releaseWorkflowHasWindowsTarget(releaseWorkflow)) {
     addFinding(findings, "release-workflow-target-drift", ".github/workflows/release-tauri.yml");
   }
   if (!releaseWorkflow.includes("release:package:win-x64")) {
