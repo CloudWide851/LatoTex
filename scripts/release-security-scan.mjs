@@ -18,7 +18,6 @@ const ignoredPathParts = [
 ];
 const ignoredFiles = new Set([
   "pnpm-lock.yaml",
-  "scripts/release-security-scan.mjs",
   "src-tauri/Cargo.lock",
 ]);
 const textExtensions = new Set([
@@ -65,9 +64,6 @@ const secretPatterns = [
   },
 ];
 
-const allowedFixtures = new Set([
-  "src-tauri/src/secure.rs:openai-api-key:LATOTEX_REDACTED_OPENAI_KEY",
-]);
 
 const signingResiduePattern = /release:package:win-x64:signed|--require-signing|\bLATOTEX_SIGN\b|\bsigntool(?:\.exe)?\b|\.pfx\b|\bPFX\b|CODE_SIGN|WINDOWS_CERT/i;
 
@@ -109,20 +105,15 @@ function scanTextFindings(repoRoot) {
   for (const filePath of walk(repoRoot, repoRoot)) {
     const content = fs.readFileSync(filePath, "utf8");
     for (const { id, pattern } of secretPatterns) {
-      const match = pattern.exec(content);
-      if (!match) {
-        continue;
+      const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+      const matcher = new RegExp(pattern.source, flags);
+      for (const match of content.matchAll(matcher)) {
+        findings.push({
+          id,
+          path: toRepoPath(repoRoot, filePath),
+          line: lineForIndex(content, match.index ?? 0),
+        });
       }
-      const matchedText = match[0];
-      const fixtureKey = `${toRepoPath(repoRoot, filePath)}:${id}:${matchedText}`;
-      if (allowedFixtures.has(fixtureKey)) {
-        continue;
-      }
-      findings.push({
-        id,
-        path: toRepoPath(repoRoot, filePath),
-        line: lineForIndex(content, match.index),
-      });
     }
   }
   return findings;

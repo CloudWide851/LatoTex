@@ -454,7 +454,7 @@ mod tests {
     fn model_api_key_roundtrip_supports_fallback() {
         let context = test_context();
         let model_id = format!("test-model-key-save-{}", std::process::id());
-        let api_key = "LATOTEX_REDACTED_OPENAI_KEY";
+        let api_key = "latotex-test-api-key-value";
 
         let save_result = store_model_api_key(&context, &model_id, api_key);
         if let Err(error) = save_result {

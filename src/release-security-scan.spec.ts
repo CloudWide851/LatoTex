@@ -86,6 +86,10 @@ function createFixture(options: { signed?: boolean; workflow?: string } = {}) {
   return root;
 }
 
+function openAiKeyShapedTestValue() {
+  return ["sk", "a".repeat(48)].join("-");
+}
+
 describe("release-security-scan", () => {
   afterEach(() => {
     while (tempRoots.length > 0) {
@@ -114,5 +118,27 @@ describe("release-security-scan", () => {
     const findingIds = scanRepository(createFixture({ signed: true })).map((finding) => finding.id);
     expect(findingIds).toContain("release-signing-flow-reintroduced");
     expect(findingIds).toContain("release-workflow-signing-reintroduced");
+  });
+
+  it("fails when an mjs test fixture contains an OpenAI-shaped key", () => {
+    const root = createFixture();
+    writeFile(root, "scripts/leaked-fixture.mjs", `export const key = "${openAiKeyShapedTestValue()}";`);
+
+    expect(scanRepository(root)).toContainEqual({
+      id: "openai-api-key",
+      path: "scripts/leaked-fixture.mjs",
+      line: 1,
+    });
+  });
+
+  it("fails when a Rust test fixture contains an OpenAI-shaped key", () => {
+    const root = createFixture();
+    writeFile(root, "src-tauri/src/secure.rs", `const API_KEY: &str = "${openAiKeyShapedTestValue()}";`);
+
+    expect(scanRepository(root)).toContainEqual({
+      id: "openai-api-key",
+      path: "src-tauri/src/secure.rs",
+      line: 1,
+    });
   });
 });
