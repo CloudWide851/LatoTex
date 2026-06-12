@@ -121,6 +121,28 @@ export function startLatexPaperAnalyze(input: {
   });
 }
 
+export function startLatexRebuttalReply(input: {
+  projectId: string;
+  selectedFile: string;
+  editorContent: string;
+  reviewComments: string;
+  contextPaths?: string[];
+  modelOverride?: string;
+  teamMode?: AgentTeamMode;
+}): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("latex_rebuttal_reply_start", {
+    input: {
+      projectId: input.projectId,
+      selectedFile: input.selectedFile,
+      editorContent: input.editorContent,
+      reviewComments: input.reviewComments,
+      contextPaths: input.contextPaths ?? [],
+      modelOverride: input.modelOverride,
+      teamMode: input.teamMode ?? "auto",
+    },
+  });
+}
+
 export function startChatWorkflow(input: {
   projectId: string;
   prompt: string;

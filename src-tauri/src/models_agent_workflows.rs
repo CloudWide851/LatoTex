@@ -50,6 +50,19 @@ pub struct LatexPaperAnalyzeStartInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LatexRebuttalReplyStartInput {
+    pub project_id: String,
+    pub selected_file: String,
+    pub editor_content: String,
+    pub review_comments: String,
+    #[serde(default)]
+    pub context_paths: Vec<String>,
+    pub model_override: Option<String>,
+    pub team_mode: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatWorkflowStartInput {
     pub project_id: String,
     pub prompt: String,

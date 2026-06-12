@@ -530,6 +530,7 @@ export function LatexWorkspaceEditorPanel(props: {
         onAnalyzePaper={runResearchPaperAnalysis}
         onOpenLibrary={() => onPageChange("library")}
         onInsertCitation={(citationKey) => insertCitationAtEditorSelection(editorInstanceRef.current, citationKey)}
+        onRebuttalReply={(reviewComments) => onAgentRun(`/rebuttal ${reviewComments}`, { forceNewSession: true })}
         t={t}
       />
 

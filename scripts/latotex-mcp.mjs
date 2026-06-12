@@ -78,6 +78,9 @@ function parseBibEntries(content, sourcePath) {
       title: field("title"),
       author: field("author"),
       year: field("year"),
+      doi: field("doi"),
+      arxiv: field("arxiv") || field("eprint"),
+      url: field("url"),
       sourcePath,
     });
   }
@@ -124,6 +127,91 @@ function collectValues(source, regex) {
 
 function readBibKeys(root) {
   return new Set(searchPapers(root, "", 500).map((entry) => entry.citationKey));
+}
+
+function extractCitationOccurrences(source) {
+  const values = [];
+  for (const match of source.matchAll(/\\cite[a-zA-Z*]*\s*(?:\[[^\]]*])*\s*\{([^}]+)\}/g)) {
+    values.push(
+      ...String(match[1] || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+  }
+  return values;
+}
+
+function evidenceForEntry(entry) {
+  const evidence = ["library"];
+  if (entry.doi) evidence.push("doi");
+  if (entry.arxiv) evidence.push("arxiv");
+  if (entry.title) evidence.push("title");
+  if (entry.url) evidence.push("url");
+  if (entry.author && entry.year) evidence.push("author-year");
+  return evidence;
+}
+
+export function auditCitations(projectRoot, mainPath) {
+  const root = normalizeRoot(projectRoot);
+  const texFiles = walkFiles(root).filter((item) => item.toLowerCase().endsWith(".tex"));
+  const target = mainPath ? resolveProjectPath(root, mainPath, new Set([".tex"])) : texFiles[0];
+  if (!target) {
+    throw new Error("no_tex_file");
+  }
+  const source = fs.readFileSync(target, "utf8");
+  const entries = searchPapers(root, "", 1000);
+  const entryByKey = new Map(entries.map((entry) => [entry.citationKey, entry]));
+  const occurrences = extractCitationOccurrences(source);
+  const citationKeys = Array.from(new Set(occurrences));
+  const duplicateKeys = Array.from(new Set(occurrences.filter((key, index) => occurrences.indexOf(key) !== index)));
+  const citations = citationKeys.map((key) => {
+    const entry = entryByKey.get(key);
+    if (!entry) {
+      return { key, status: "fail", evidence: [], issue: "missing_bib_entry" };
+    }
+    const evidence = evidenceForEntry(entry);
+    const strong = evidence.some((item) => item !== "library");
+    return {
+      key,
+      status: strong ? "pass" : "warn",
+      evidence,
+      sourcePath: entry.sourcePath,
+      issue: strong ? "" : "weak_metadata",
+    };
+  });
+  const issues = [];
+  const missingKeys = citations.filter((item) => item.status === "fail").map((item) => item.key);
+  const weakKeys = citations.filter((item) => item.status === "warn").map((item) => item.key);
+  if (citationKeys.length === 0) {
+    issues.push({ id: "noCitations", severity: "warning" });
+  }
+  if (missingKeys.length > 0) {
+    issues.push({ id: "missingCitationKeys", severity: "error", detail: missingKeys });
+  }
+  if (weakKeys.length > 0) {
+    issues.push({ id: "weakCitationMetadata", severity: "warning", detail: weakKeys });
+  }
+  if (duplicateKeys.length > 0) {
+    issues.push({ id: "duplicateCitationUse", severity: "warning", detail: duplicateKeys });
+  }
+  const status = issues.some((item) => item.severity === "error")
+    ? "fail"
+    : issues.length > 0
+      ? "warn"
+      : "pass";
+  return {
+    mainPath: repoPath(root, target),
+    status,
+    summary: {
+      total: citations.length,
+      pass: citations.filter((item) => item.status === "pass").length,
+      warn: citations.filter((item) => item.status === "warn").length,
+      fail: citations.filter((item) => item.status === "fail").length,
+    },
+    issues,
+    citations,
+  };
 }
 
 export function checkSubmission(projectRoot, mainPath) {
@@ -248,6 +336,7 @@ function toolDefinitions(allowWrite) {
     { name: "read_tex", description: "Read a LaTeX-related project file.", inputSchema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
     { name: "compile_tex", description: "Compile a TeX file with the first available local TeX engine.", inputSchema: { type: "object", properties: { mainPath: { type: "string" } }, required: ["mainPath"] } },
     { name: "check_submission", description: "Run deterministic manuscript preflight checks.", inputSchema: { type: "object", properties: { mainPath: { type: "string" } } } },
+    { name: "audit_citations", description: "Audit local citation keys against project BibTeX evidence.", inputSchema: { type: "object", properties: { mainPath: { type: "string" } } } },
   ];
   if (allowWrite) {
     tools.push(
@@ -272,6 +361,9 @@ export function callTool(projectRoot, allowWrite, name, args = {}) {
   }
   if (name === "check_submission") {
     return checkSubmission(root, args.mainPath);
+  }
+  if (name === "audit_citations") {
+    return auditCitations(root, args.mainPath);
   }
   if (name === "insert_citation") {
     return insertCitation(root, args, allowWrite);

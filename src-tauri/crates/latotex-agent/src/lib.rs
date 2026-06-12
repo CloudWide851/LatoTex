@@ -366,6 +366,47 @@ pub fn build_reference_check_prompt(editor_content: &str, user_hint: &str) -> Op
     )
 }
 
+pub fn build_rebuttal_reply_prompt(
+    selected_file: &str,
+    editor_content: &str,
+    review_comments: &str,
+) -> String {
+    let normalized = editor_content.replace("\r\n", "\n");
+    let manuscript = if normalized.chars().count() > AGENT_TASK_FILE_CONTEXT_MAX_CHARS {
+        format!(
+            "{}\n\n...[TRUNCATED FOR CONTEXT]...",
+            truncate_chars(&normalized, AGENT_TASK_FILE_CONTEXT_MAX_CHARS)
+        )
+    } else {
+        normalized
+    };
+    [
+        "You are a senior research response-letter editor.".to_string(),
+        "Draft a concise, evidence-aware reviewer response in Markdown.".to_string(),
+        "Use sections: Summary, Reviewer-by-reviewer response, Manuscript changes, Residual risks.".to_string(),
+        "For each reviewer point, quote or paraphrase the concern briefly, then answer with manuscript-grounded evidence.".to_string(),
+        "If the manuscript should change, return minimal YAML edit actions in ```yaml fences after the response letter.".to_string(),
+        "Do not invent new experiments, citations, results, or page numbers. Mark any missing evidence as a risk or requested follow-up.".to_string(),
+        "Use this optional edit schema only when edits are justified:".to_string(),
+        "actions:".to_string(),
+        "  - type: replace".to_string(),
+        "    path: <relative path>".to_string(),
+        "    search: |".to_string(),
+        "      <exact text to find>".to_string(),
+        "    replace: |".to_string(),
+        "      <replacement text>".to_string(),
+        String::new(),
+        format!("Target manuscript path: {}", selected_file.trim()),
+        String::new(),
+        "Reviewer comments:".to_string(),
+        review_comments.trim().to_string(),
+        String::new(),
+        "Current manuscript content:".to_string(),
+        manuscript,
+    ]
+    .join("\n")
+}
+
 pub fn build_completion_prompt(
     line_prefix: &str,
     full_text: &str,
@@ -440,7 +481,7 @@ pub fn build_git_summary_prompt(files: &[String], joined_patch: &str) -> String 
 
 #[cfg(test)]
 mod tests {
-    use super::{build_reference_check_prompt, sanitize_git_files};
+    use super::{build_rebuttal_reply_prompt, build_reference_check_prompt, sanitize_git_files};
 
     #[test]
     fn reference_check_prompt_requires_targets() {
@@ -451,5 +492,18 @@ mod tests {
     fn sanitize_git_files_deduplicates() {
         let files = vec!["a.tex".to_string(), "a.tex".to_string(), " b.tex ".to_string()];
         assert_eq!(sanitize_git_files(&files), vec!["a.tex", "b.tex"]);
+    }
+
+    #[test]
+    fn rebuttal_prompt_includes_response_and_edit_contract() {
+        let prompt = build_rebuttal_reply_prompt(
+            "main.tex",
+            "\\begin{document}Draft\\end{document}",
+            "Reviewer 1 asks for limitations.",
+        );
+        assert!(prompt.contains("Reviewer-by-reviewer response"));
+        assert!(prompt.contains("actions:"));
+        assert!(prompt.contains("main.tex"));
+        assert!(prompt.contains("Reviewer 1 asks for limitations."));
     }
 }

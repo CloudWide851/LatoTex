@@ -31,6 +31,7 @@ import {
   resolvePaperCommandLink,
   resolvePaperFlowAction,
 } from "./agentPaperActions";
+import { executeRebuttalCommand } from "./agentRebuttalWorkflow";
 import { compileProposalPreviewWithAutoFix } from "./agentProposalPreviewCompile";
 import { buildAnalysisPrompt } from "./agentTaskPrompt";
 import { runAgentThroughEvents } from "./agentRunEvents";
@@ -408,6 +409,29 @@ export async function runAgentWorkflow(params: {
         modelOverride: taskModelOverride ?? undefined,
         pushAgentMessage,
         normalizeOutput: cleanAgentOutput,
+      });
+      setAgentPhase("done");
+      setAgentStatusKey("agent.statusDone");
+      return;
+    }
+    if (parsed.kind === "command" && parsed.command === "rebuttal") {
+      await executeRebuttalCommand({
+        activeProjectId,
+        selectedFile,
+        editorContent,
+        reviewComments: parsed.args,
+        prompt,
+        contextPaths: Array.from(new Set([...promptContextPaths, ...promptMentionedPaths])),
+        commitIntent,
+        taskModelOverride,
+        teamMode,
+        t,
+        normalizeOutput: cleanAgentOutput,
+        pushAgentMessage,
+        setAgentRunId,
+        setAgentProposal,
+        setEditorContent,
+        runCompilePass,
       });
       setAgentPhase("done");
       setAgentStatusKey("agent.statusDone");

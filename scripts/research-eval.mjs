@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  auditCitations,
   checkSubmission,
   compileTex,
   handleMcpMessage,
@@ -50,6 +51,14 @@ try {
   assert.ok(issueIds(brokenReport).includes("undefinedReferences"));
   assert.ok(issueIds(brokenReport).includes("missingBibliography"));
 
+  const basicAudit = auditCitations(basicProject, "main.tex");
+  assert.equal(basicAudit.status, "pass");
+  assert.equal(basicAudit.summary.pass, 1);
+
+  const brokenAudit = auditCitations(brokenProject, "main.tex");
+  assert.equal(brokenAudit.status, "fail");
+  assert.ok(brokenAudit.issues.some((issue) => issue.id === "missingCitationKeys"));
+
   const init = handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "initialize" }, {
     projectRoot: basicProject,
     allowWrite: false,
@@ -61,6 +70,7 @@ try {
     allowWrite: false,
   });
   assert.ok(listed.result.tools.some((tool) => tool.name === "check_submission"));
+  assert.ok(listed.result.tools.some((tool) => tool.name === "audit_citations"));
   assert.ok(!listed.result.tools.some((tool) => tool.name === "insert_citation"));
 
   const called = handleMcpMessage({
@@ -94,6 +104,7 @@ try {
     status: "ok",
     checks: [
       "citation-search",
+      "citation-audit",
       "submission-preflight",
       "mcp-tools",
       "write-gate",

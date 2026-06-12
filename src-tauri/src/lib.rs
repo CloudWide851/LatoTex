@@ -11,6 +11,7 @@ use commands::agent_workflows::{
     chat_workflow_start, completion_latex_start, git_summary_workflow_start, latex_edit_start,
     latex_paper_analyze_start, latex_reference_check_start, latex_review_fix_start,
 };
+use commands::agent_rebuttal_workflow::latex_rebuttal_reply_start;
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
@@ -417,6 +418,7 @@ pub fn run() {
             latex_review_fix_start,
             latex_reference_check_start,
             latex_paper_analyze_start,
+            latex_rebuttal_reply_start,
             chat_workflow_start,
             completion_latex_start,
             git_summary_workflow_start,

@@ -132,6 +132,12 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 &["readonly"],
             ),
             provider(
+                "latex.rebuttal_reply",
+                "Rebuttal Reply",
+                &["latex.overlay"],
+                &["latex"],
+            ),
+            provider(
                 "analysis.explore_chunk",
                 "Analysis Explore",
                 &["analysis.workspace"],
@@ -181,13 +187,33 @@ fn ensure_registry_file(project_root: &Path) -> Result<PathBuf, String> {
     Ok(file_path)
 }
 
+fn merge_missing_default_workflows(registry: &mut WorkflowRegistry) -> bool {
+    let defaults = default_workflow_registry();
+    let mut changed = false;
+    for workflow in defaults.workflows {
+        if registry.workflows.iter().any(|item| item.id == workflow.id) {
+            continue;
+        }
+        registry.workflows.push(workflow);
+        changed = true;
+    }
+    changed
+}
+
 pub(super) fn load_registry_for_project(db_path: &Path, project_id: &str) -> Result<WorkflowRegistry, String> {
     let project_root = storage::load_project_root(db_path, project_id)?;
     let file_path = ensure_registry_file(&project_root)?;
     let raw = fs::read_to_string(&file_path)
         .map_err(|error| format!("workflow.config.read_failed:{error}"))?;
-    serde_json::from_str::<WorkflowRegistry>(&raw)
-        .map_err(|error| format!("workflow.config.invalid_json:{error}"))
+    let mut registry = serde_json::from_str::<WorkflowRegistry>(&raw)
+        .map_err(|error| format!("workflow.config.invalid_json:{error}"))?;
+    if merge_missing_default_workflows(&mut registry) {
+        let payload = serde_json::to_string_pretty(&registry)
+            .map_err(|error| format!("workflow.config.serialize_failed:{error}"))?;
+        fs::write(&file_path, format!("{payload}\n"))
+            .map_err(|error| format!("workflow.config.write_failed:{error}"))?;
+    }
+    Ok(registry)
 }
 
 pub(super) fn resolve_workflow<'a>(

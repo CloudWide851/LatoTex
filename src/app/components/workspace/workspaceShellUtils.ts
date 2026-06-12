@@ -15,6 +15,9 @@ export function composeTitleWithShortcut(label: string, shortcut: string): strin
 export function buildAgentCommandItems(t: TranslationFn): AgentCommandItem[] {
   return [
     { token: "/review", label: t("agent.command.review.label"), description: t("agent.command.review.description") },
+    { token: "/check-ref", label: t("agent.command.checkRef.label"), description: t("agent.command.checkRef.description") },
+    { token: "/paper", label: t("agent.command.paper.label"), description: t("agent.command.paper.description") },
+    { token: "/rebuttal", label: t("agent.command.rebuttal.label"), description: t("agent.command.rebuttal.description") },
   ];
 }
 

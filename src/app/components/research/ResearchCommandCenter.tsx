@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
-import { BookOpenCheck, ClipboardCheck, FileCheck2, Quote, Wrench } from "lucide-react";
+import { BookOpenCheck, ClipboardCheck, FileCheck2, MessageSquareReply, Quote, Wrench } from "lucide-react";
 import { libraryCitationResolve } from "../../../shared/api/library";
 import { buildSubmissionCheckReport, type SubmissionIssue } from "../../hooks/researchSubmissionCheck";
+import { useResearchQualityGate } from "../../hooks/researchQualityGate";
+import { ResearchQualityGate } from "./ResearchQualityGate";
 
 type TranslationFn = (key: any) => string;
 
@@ -34,6 +36,7 @@ export function ResearchCommandCenter(props: {
   onAnalyzePaper: () => void;
   onOpenLibrary: () => void;
   onInsertCitation: (citationKey: string) => boolean;
+  onRebuttalReply: (reviewComments: string) => void;
   t: TranslationFn;
 }) {
   const {
@@ -50,16 +53,27 @@ export function ResearchCommandCenter(props: {
     onAnalyzePaper,
     onOpenLibrary,
     onInsertCitation,
+    onRebuttalReply,
     t,
   } = props;
   const [citationQuery, setCitationQuery] = useState("");
   const [citationBusy, setCitationBusy] = useState(false);
   const [citationStatus, setCitationStatus] = useState<string | null>(null);
   const [submissionOpen, setSubmissionOpen] = useState(false);
+  const [rebuttalOpen, setRebuttalOpen] = useState(false);
+  const [rebuttalComments, setRebuttalComments] = useState("");
+  const [rebuttalStatus, setRebuttalStatus] = useState<string | null>(null);
   const report = useMemo(
     () => buildSubmissionCheckReport({ texSource: editorContent, fileList, compileDiagnostics }),
     [compileDiagnostics, editorContent, fileList],
   );
+  const qualityGate = useResearchQualityGate({
+    projectId,
+    selectedFile,
+    texSource: editorContent,
+    fileList,
+    compileDiagnostics,
+  });
   const topIssues = report.issues.slice(0, 3);
   const canUseCitation = Boolean(projectId && selectedFile && canCompileSelectedFile);
   const paperActionLabel = selectedLibraryPath
@@ -95,6 +109,22 @@ export function ResearchCommandCenter(props: {
     }
   };
 
+  const runRebuttalReply = () => {
+    const comments = rebuttalComments.trim();
+    if (!projectId || !selectedFile || !canCompileSelectedFile) {
+      setRebuttalStatus(t("research.rebuttal.noEditor"));
+      return;
+    }
+    if (!comments) {
+      setRebuttalStatus(t("research.rebuttal.empty"));
+      return;
+    }
+    onRebuttalReply(comments);
+    setRebuttalComments("");
+    setRebuttalStatus(null);
+    setRebuttalOpen(false);
+  };
+
   return (
     <section className="border-b border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-3 py-2">
       <div className="grid min-w-0 grid-cols-[minmax(170px,0.85fr)_minmax(280px,1.6fr)] gap-3 max-[980px]:grid-cols-1">
@@ -106,7 +136,7 @@ export function ResearchCommandCenter(props: {
             {t("research.commandCenter.title")}
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-[repeat(4,minmax(0,1fr))] gap-1.5 max-[760px]:grid-cols-2">
+        <div className="grid min-w-0 grid-cols-[repeat(5,minmax(0,1fr))] gap-1.5 max-[900px]:grid-cols-3 max-[760px]:grid-cols-2">
           <button
             type="button"
             className="panel-topbar-btn justify-start gap-1.5 px-2 text-left text-[11px] disabled:opacity-50"
@@ -147,8 +177,26 @@ export function ResearchCommandCenter(props: {
               })}
             </span>
           </button>
+          <button
+            type="button"
+            className="panel-topbar-btn justify-start gap-1.5 px-2 text-left text-[11px] disabled:opacity-50"
+            disabled={busy || !canCompileSelectedFile}
+            onClick={() => setRebuttalOpen((value) => !value)}
+          >
+            <MessageSquareReply className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {rebuttalOpen ? t("research.rebuttal.close") : t("research.rebuttal.open")}
+            </span>
+          </button>
         </div>
       </div>
+      <ResearchQualityGate
+        report={qualityGate.report}
+        loading={qualityGate.loading}
+        rebuttalOpen={rebuttalOpen}
+        onRebuttalToggle={() => setRebuttalOpen((value) => !value)}
+        t={t}
+      />
       <div className="mt-2 grid min-w-0 grid-cols-[minmax(220px,1fr)_auto] gap-2 max-[760px]:grid-cols-1">
         <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5">
           <Quote className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
@@ -179,6 +227,31 @@ export function ResearchCommandCenter(props: {
       </div>
       {citationStatus ? (
         <div className="mt-1 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{citationStatus}</div>
+      ) : null}
+      {rebuttalOpen ? (
+        <div className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 max-[760px]:grid-cols-1">
+          <textarea
+            className="min-h-[74px] min-w-0 resize-y rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5 text-xs text-[color:var(--editor-tab-text)] outline-none placeholder:text-[color:var(--editor-tab-muted)]"
+            value={rebuttalComments}
+            disabled={!canCompileSelectedFile || busy}
+            placeholder={t("research.rebuttal.placeholder")}
+            onChange={(event) => {
+              setRebuttalComments(event.target.value);
+              setRebuttalStatus(null);
+            }}
+          />
+          <button
+            type="button"
+            className="panel-topbar-btn editor-toolbar-btn--primary self-start justify-center px-3 text-xs disabled:opacity-50"
+            disabled={!canCompileSelectedFile || busy}
+            onClick={runRebuttalReply}
+          >
+            {t("research.rebuttal.run")}
+          </button>
+        </div>
+      ) : null}
+      {rebuttalStatus ? (
+        <div className="mt-1 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{rebuttalStatus}</div>
       ) : null}
       {submissionOpen ? (
         <div className="mt-2 grid gap-1 text-[11px] text-[color:var(--editor-tab-muted)]">
