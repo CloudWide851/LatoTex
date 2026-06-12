@@ -442,10 +442,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         busy={busy}
         suspended={suspended}
         selectedFile={selectedFile}
+        selectedLibraryPath={selectedLibraryPath}
         selectedIsDraw={selectedIsDraw}
         selectedIsExcel={selectedIsExcel}
         selectedCodeLanguage={selectedCodeLanguage}
         editorContent={editorContent}
+        fileList={fileList}
         editorTabs={editorTabs}
         activeTabId={activeTabId}
         dirtyByPath={dirtyByPath}
@@ -496,6 +498,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onEditorRedo={onEditorRedo}
         onSaveFile={onSaveFile}
         onPageChange={onPageChange}
+        onLibraryAnalyzePaper={onLibraryAnalyzePaper}
         onCompileClick={() => {
           void handleCompileClick();
         }}

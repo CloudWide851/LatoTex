@@ -24,6 +24,8 @@ import {
 } from "../workspace/workspaceShellLazy";
 import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import { isTexPath } from "../../../shared/utils/fileKind";
+import { ResearchCommandCenter } from "../research/ResearchCommandCenter";
+import { insertCitationAtEditorSelection } from "../../hooks/researchCitationAssist";
 
 type TranslationFn = (key: any) => string;
 const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
@@ -52,10 +54,12 @@ export function LatexWorkspaceEditorPanel(props: {
   busy: boolean;
   suspended: boolean;
   selectedFile: string | null;
+  selectedLibraryPath: string | null;
   selectedIsDraw: boolean;
   selectedIsExcel: boolean;
   selectedCodeLanguage: CodeLanguageInfo;
   editorContent: string;
+  fileList: string[];
   editorTabs: any[];
   activeTabId: string | null;
   dirtyByPath: Record<string, boolean>;
@@ -106,6 +110,7 @@ export function LatexWorkspaceEditorPanel(props: {
   onEditorRedo: () => void;
   onSaveFile: () => void;
   onPageChange: (page: any) => void;
+  onLibraryAnalyzePaper: (path: string) => void;
   onCompileClick: () => void;
   onCompileAssistDismiss: () => void;
   onCompileAssistAutoFix: () => void;
@@ -136,10 +141,12 @@ export function LatexWorkspaceEditorPanel(props: {
     busy,
     suspended,
     selectedFile,
+    selectedLibraryPath,
     selectedIsDraw,
     selectedIsExcel,
     selectedCodeLanguage,
     editorContent,
+    fileList,
     editorTabs,
     activeTabId,
     dirtyByPath,
@@ -190,6 +197,7 @@ export function LatexWorkspaceEditorPanel(props: {
     onEditorRedo,
     onSaveFile,
     onPageChange,
+    onLibraryAnalyzePaper,
     onCompileClick,
     onCompileAssistDismiss,
     onCompileAssistAutoFix,
@@ -397,8 +405,16 @@ export function LatexWorkspaceEditorPanel(props: {
     </>
   );
 
+  const runResearchPaperAnalysis = () => {
+    if (selectedLibraryPath) {
+      onLibraryAnalyzePaper(selectedLibraryPath);
+      return;
+    }
+    onPageChange("library");
+  };
+
   return (
-    <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
+    <div className="editor-workspace-shell grid h-full min-w-0 grid-rows-[auto_auto_34px_minmax(260px,1fr)] overflow-hidden rounded-lg motion-shell-stage">
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
         <div className="panel-topbar grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <div className="editor-toolbar-surface-group flex min-w-0 items-center gap-2 overflow-visible">
@@ -499,6 +515,23 @@ export function LatexWorkspaceEditorPanel(props: {
           </div>
         </div>
       </div>
+
+      <ResearchCommandCenter
+        projectId={activeProjectId}
+        selectedFile={selectedFile}
+        selectedLibraryPath={selectedLibraryPath}
+        editorContent={editorContent}
+        fileList={fileList}
+        compileDiagnostics={compileAssistDiagnostics}
+        busy={busy}
+        canCompileSelectedFile={canCompileSelectedFile}
+        onCompileRepair={() => onAgentRun("/review", { forceNewSession: true })}
+        onReferenceCheck={() => onAgentRun("/check-ref", { forceNewSession: true })}
+        onAnalyzePaper={runResearchPaperAnalysis}
+        onOpenLibrary={() => onPageChange("library")}
+        onInsertCitation={(citationKey) => insertCitationAtEditorSelection(editorInstanceRef.current, citationKey)}
+        t={t}
+      />
 
       <EditorTabsBar
         tabs={editorTabs}
