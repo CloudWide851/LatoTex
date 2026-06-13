@@ -1,4 +1,5 @@
-import { lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
+import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 
 export const LazyAgentChatOverlay = lazy(async () => {
   const module = await import("../AgentChatOverlay");
@@ -19,6 +20,44 @@ export const LazyDrawWorkspace = lazy(async () => {
   const module = await import("../draw/DrawWorkspace");
   return { default: module.DrawWorkspace };
 });
+
+export const LazyDocxWorkspace = lazy(async () => {
+  const module = await import("../docx/DocxWorkspace");
+  return { default: module.DocxWorkspace };
+});
+
+export const LazyPluginMarketplace = lazy(async () => {
+  const module = await import("../plugins/PluginMarketplace");
+  return { default: module.PluginMarketplace };
+});
+
+export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps, "settings" | "t">) {
+  return (
+    <Suspense fallback={<WorkspacePanelFallback label={props.t("common.loading")} />}>
+      <LazyPluginMarketplace settings={props.settings} t={props.t} />
+    </Suspense>
+  );
+}
+
+export function LazyDocxWorkspaceSurface(props: {
+  shell: AppWorkspaceShellProps;
+  selectedIsDocx: boolean;
+}) {
+  const { shell, selectedIsDocx } = props;
+  return (
+    <Suspense fallback={<WorkspacePanelFallback label={shell.t("common.loading")} />}>
+      <LazyDocxWorkspace
+        projectId={shell.activeProjectId ?? ""}
+        selectedPath={selectedIsDocx ? shell.selectedFile : null}
+        busy={shell.busy}
+        tree={shell.tree}
+        autoSaveEnabled={shell.settings?.uiPrefs?.docxAutoSaveEnabled ?? false}
+        onRescan={shell.onWorkspaceRescan}
+        t={shell.t}
+      />
+    </Suspense>
+  );
+}
 
 export function preloadDrawWorkspace() {
   void import("../draw/DrawWorkspace");

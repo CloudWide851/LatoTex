@@ -1,11 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildCitationTrustReport,
   buildResearchQualityReport,
+  clearResearchQualityReportCacheForTests,
   extractDeclaredBibPaths,
 } from "./researchQualityGate";
 
 describe("researchQualityGate", () => {
+  beforeEach(() => {
+    clearResearchQualityReportCacheForTests();
+  });
+
   it("resolves declared bib paths relative to the selected TeX file", () => {
     expect(extractDeclaredBibPaths(
       String.raw`\bibliography{refs,../shared/library}`,
@@ -63,6 +68,53 @@ describe("researchQualityGate", () => {
       totalLanes: 4,
     });
     expect(report.readiness.score).toBeLessThan(50);
+  });
+
+  it("reuses cached reports for equivalent manuscript inputs", () => {
+    const first = buildResearchQualityReport({
+      selectedFile: "main.tex",
+      texSource: String.raw`\begin{document}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["refs.bib", "main.tex"],
+      compileDiagnostics: [],
+      bibSources: {
+        "refs.bib": "@article{smith2024,\ntitle={Local First Research Writing},\ndoi={10.0000/demo}\n}",
+      },
+    });
+    const second = buildResearchQualityReport({
+      selectedFile: "main.tex",
+      texSource: String.raw`\begin{document}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      compileDiagnostics: [],
+      bibSources: {
+        "refs.bib": "@article{smith2024,\ntitle={Local First Research Writing},\ndoi={10.0000/demo}\n}",
+      },
+    });
+
+    expect(second).toBe(first);
+  });
+
+  it("builds a fresh report when manuscript content changes", () => {
+    const first = buildResearchQualityReport({
+      selectedFile: "main.tex",
+      texSource: String.raw`\begin{document}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      compileDiagnostics: [],
+      bibSources: {
+        "refs.bib": "@article{smith2024,\ntitle={Local First Research Writing},\ndoi={10.0000/demo}\n}",
+      },
+    });
+    const second = buildResearchQualityReport({
+      selectedFile: "main.tex",
+      texSource: String.raw`\begin{document}\cite{smith2024,missing2025}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      compileDiagnostics: [],
+      bibSources: {
+        "refs.bib": "@article{smith2024,\ntitle={Local First Research Writing},\ndoi={10.0000/demo}\n}",
+      },
+    });
+
+    expect(second).not.toBe(first);
+    expect(second.citationTrust.missingKeys).toEqual(["missing2025"]);
   });
 
   it("scores a clean manuscript gate as ready", () => {

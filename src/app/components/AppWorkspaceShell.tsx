@@ -14,6 +14,8 @@ import { NoProjectPanel } from "./workspace/NoProjectPanel";
 import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import {
   LazyDrawWorkspace,
+  LazyDocxWorkspaceSurface,
+  LazyPluginMarketplaceSurface,
   useDrawWorkspacePreload,
   WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
@@ -25,9 +27,7 @@ import {
   type WorkspacePreviewMode,
 } from "./workspace/workspacePreviewMode";
 import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
-import { PluginMarketplace } from "./plugins/PluginMarketplace";
 import { usePluginFileInterface, usePluginFileManifests } from "./plugins/usePluginFileInterfaces";
-import { DocxWorkspace } from "./docx/DocxWorkspace";
 import { LatexWorkspaceModeShell } from "./workspace/LatexWorkspaceModeShell";
 import { isDocxPath } from "../../shared/utils/fileKind";
 import { textBackedPluginPreviewMode } from "../../shared/plugins/pluginFileInterfaces";
@@ -431,7 +431,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return settingsPanel;
     }
     if (page === "plugins") {
-      return <PluginMarketplace settings={settings} t={t} />;
+      return <LazyPluginMarketplaceSurface settings={settings} t={t} />;
     }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
@@ -534,17 +534,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         mode={latexMode}
         onModeChange={setLatexMode}
         texWorkspace={renderTexWorkspace()}
-        docxWorkspace={
-            <DocxWorkspace
-              projectId={activeProjectId}
-              selectedPath={selectedIsDocx ? selectedFile : null}
-              busy={busy}
-              tree={tree}
-              autoSaveEnabled={settings?.uiPrefs?.docxAutoSaveEnabled ?? false}
-              onRescan={onWorkspaceRescan}
-              t={t}
-            />
-        }
+        docxWorkspace={<LazyDocxWorkspaceSurface shell={props} selectedIsDocx={selectedIsDocx} />}
         t={t}
       />
     );

@@ -8,6 +8,8 @@ import remarkMath from "remark-math";
 import { Button } from "../../../components/ui/button";
 import { markdownRunCode, markdownRunCodeCapabilities } from "../../../shared/api/workspace";
 import type { MarkdownRunCodeCapability, MarkdownRunCodeResponse } from "../../../shared/types/app";
+import "katex/dist/katex.min.css";
+import "highlight.js/styles/github.css";
 
 type RunState = {
   status: "idle" | "running" | "completed" | "failed";

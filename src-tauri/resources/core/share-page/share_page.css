@@ -3347,6 +3347,24 @@ video {
 .\[color-scheme\:dark\] {
   color-scheme: dark;
 }
+.\[contain-intrinsic-size\:160px\] {
+  contain-intrinsic-size: 160px;
+}
+.\[contain-intrinsic-size\:180px\] {
+  contain-intrinsic-size: 180px;
+}
+.\[contain-intrinsic-size\:220px\] {
+  contain-intrinsic-size: 220px;
+}
+.\[contain-intrinsic-size\:320px\] {
+  contain-intrinsic-size: 320px;
+}
+.\[contain-intrinsic-size\:360px\] {
+  contain-intrinsic-size: 360px;
+}
+.\[content-visibility\:auto\] {
+  content-visibility: auto;
+}
 .\[gap\:var\(--app-pdf-page-gap\)\] {
   gap: var(--app-pdf-page-gap);
 }

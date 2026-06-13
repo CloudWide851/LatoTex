@@ -209,7 +209,7 @@ export function AgentTraceCards(props: {
           <span className="shrink-0 tabular-nums text-slate-400">{groups.length}</span>
         </button>
         {expanded ? (
-          <div className={cn("mt-1 min-h-0 overflow-auto space-y-2", bodyClassName)}>
+          <div className={cn("mt-1 min-h-0 overflow-auto space-y-2 [content-visibility:auto] [contain-intrinsic-size:320px]", bodyClassName)}>
             {groups.map((group) => (
               <TraceGroup key={group.key} group={group} t={t} />
             ))}
@@ -230,7 +230,7 @@ export function AgentTraceCards(props: {
   return (
     <section className={cn("flex min-h-0 flex-col border-b border-slate-200 px-3 py-2", className)}>
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-      <div className={cn("min-h-0 overflow-auto space-y-2", bodyClassName)}>
+      <div className={cn("min-h-0 overflow-auto space-y-2 [content-visibility:auto] [contain-intrinsic-size:360px]", bodyClassName)}>
         {groups.map((group) => <TraceGroup key={group.key} group={group} t={t} />)}
         <PendingActionCard
           pendingAction={pendingAction}
@@ -249,7 +249,7 @@ function TraceGroup(props: { group: TaskGroup; t: (key: any) => string }) {
   const { group, t } = props;
   const latest = group.steps[group.steps.length - 1];
   return (
-    <article className={cn("rounded border px-2 py-2 text-[11px]", tone(group.status))}>
+    <article className={cn("rounded border px-2 py-2 text-[11px] [content-visibility:auto] [contain-intrinsic-size:180px]", tone(group.status))}>
       <div className="flex items-center justify-between gap-2">
         <span className="truncate font-semibold">{group.teamRoleName ?? group.label}</span>
         <span className="max-w-[40%] truncate uppercase opacity-80">{latest?.status || group.status}</span>

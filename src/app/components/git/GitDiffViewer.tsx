@@ -48,7 +48,10 @@ export function GitDiffViewer(props: {
   return (
     <>
       {diff.hunks.map((hunk, hunkIndex) => (
-        <div key={`${hunk.header}-${hunkIndex}`} className="mb-1 last:mb-0">
+        <div
+          key={`${hunk.header}-${hunkIndex}`}
+          className="mb-1 [content-visibility:auto] [contain-intrinsic-size:220px] last:mb-0"
+        >
           <div className="space-y-0.5">
             {hunk.lines
               .filter((line) => line.text.trim() !== "\\ No newline at end of file")

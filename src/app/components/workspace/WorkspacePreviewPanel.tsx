@@ -1,12 +1,17 @@
+import { Suspense, lazy } from "react";
 import { AlertTriangle, Download, ListChecks, Minus, Plus, RotateCcw } from "lucide-react";
 import { FilePreviewPane } from "../FilePreviewPane";
-import { TablePreviewPane } from "../table/TablePreviewPane";
 import type { CompileInstallProgress } from "../../hooks/compileWorkflow";
 import { shouldDisplayCompileProgress } from "../../hooks/compileWorkflowShared";
 import type { WorkspacePreviewMode } from "./workspacePreviewMode";
 
 type TranslationFn = (key: any) => string;
 type LogTab = "events" | "status";
+
+const LazyTablePreviewPane = lazy(async () => {
+  const module = await import("../table/TablePreviewPane");
+  return { default: module.TablePreviewPane };
+});
 
 export function WorkspacePreviewPanel(props: {
   activeProjectId: string | null;
@@ -162,13 +167,15 @@ export function WorkspacePreviewPanel(props: {
         className="min-h-0 flex-1"
       >
         {selectedIsTabular ? (
-          <TablePreviewPane
-            projectId={activeProjectId}
-            selectedPath={selectedFile}
-            csvText={selectedIsCsv ? editorContent : ""}
-            onCsvTextChange={onEditorChange}
-            t={t}
-          />
+          <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-slate-500">{t("common.loading")}</div>}>
+            <LazyTablePreviewPane
+              projectId={activeProjectId}
+              selectedPath={selectedFile}
+              csvText={selectedIsCsv ? editorContent : ""}
+              onCsvTextChange={onEditorChange}
+              t={t}
+            />
+          </Suspense>
         ) : (
           <FilePreviewPane
             mode={previewMode}

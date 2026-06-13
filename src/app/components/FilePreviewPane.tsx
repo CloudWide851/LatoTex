@@ -1,8 +1,14 @@
-import { useMemo } from "react";
-import { MarkdownPreviewPane } from "./markdown/MarkdownPreviewPane";
-import { WorkspacePdfViewport } from "./pdf/WorkspacePdfViewport";
-import "katex/dist/katex.min.css";
-import "highlight.js/styles/github.css";
+import { Suspense, lazy, useMemo } from "react";
+
+const LazyMarkdownPreviewPane = lazy(async () => {
+  const module = await import("./markdown/MarkdownPreviewPane");
+  return { default: module.MarkdownPreviewPane };
+});
+
+const LazyWorkspacePdfViewport = lazy(async () => {
+  const module = await import("./pdf/WorkspacePdfViewport");
+  return { default: module.WorkspacePdfViewport };
+});
 
 function sanitizePreviewText(input: string): string {
   return input
@@ -154,19 +160,26 @@ export function FilePreviewPane(props: {
   const sanitizedSvg = useMemo(() => sanitizeSvgForPreview(svgContent ?? ""), [svgContent]);
   const svgDoc = useMemo(() => buildSvgPreviewDocument(sanitizedSvg), [sanitizedSvg]);
   const htmlDoc = useMemo(() => buildHtmlPreviewDocument(htmlContent ?? ""), [htmlContent]);
+  const loadingFallback = (
+    <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
+      {t("common.loading")}
+    </div>
+  );
 
   if (mode === "pdf") {
     return (
-      <WorkspacePdfViewport
-        pdfUrl={pdfUrl}
-        emptyText={emptyText}
-        pdfZoom={pdfZoom}
-        onPdfZoomChange={onPdfZoomChange}
-        pdfFallbackProjectId={pdfFallbackProjectId}
-        pdfFallbackRelativePath={pdfFallbackRelativePath}
-        focusRequest={focusRequest}
-        t={t}
-      />
+      <Suspense fallback={loadingFallback}>
+        <LazyWorkspacePdfViewport
+          pdfUrl={pdfUrl}
+          emptyText={emptyText}
+          pdfZoom={pdfZoom}
+          onPdfZoomChange={onPdfZoomChange}
+          pdfFallbackProjectId={pdfFallbackProjectId}
+          pdfFallbackRelativePath={pdfFallbackRelativePath}
+          focusRequest={focusRequest}
+          t={t}
+        />
+      </Suspense>
     );
   }
 
@@ -205,13 +218,15 @@ export function FilePreviewPane(props: {
     }
     return (
       <div className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-        <MarkdownPreviewPane
-          activeProjectId={activeProjectId ?? null}
-          selectedPath={selectedPath}
-          markdown={sanitizedMarkdown}
-          emptyText={emptyText}
-          t={t}
-        />
+        <Suspense fallback={loadingFallback}>
+          <LazyMarkdownPreviewPane
+            activeProjectId={activeProjectId ?? null}
+            selectedPath={selectedPath}
+            markdown={sanitizedMarkdown}
+            emptyText={emptyText}
+            t={t}
+          />
+        </Suspense>
       </div>
     );
   }

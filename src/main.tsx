@@ -8,6 +8,10 @@ import { I18nProvider, resolveLocale } from "./i18n";
 import "./index.css";
 import "./styles/control-system.css";
 
+if (typeof window !== "undefined") {
+  (window as Window & { __latotexBootStartedAt?: number }).__latotexBootStartedAt = performance.now();
+}
+
 function safeStoredLocale(): string | null {
   try {
     return typeof window !== "undefined" ? window.localStorage.getItem("latotex.locale") : null;

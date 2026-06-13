@@ -26,6 +26,7 @@ import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import { isTexPath } from "../../../shared/utils/fileKind";
 import { ResearchCommandCenter } from "../research/ResearchCommandCenter";
 import { insertCitationAtEditorSelection } from "../../hooks/researchCitationAssist";
+import { markFirstEditableTex } from "./editorStartupPerformance";
 
 type TranslationFn = (key: any) => string;
 const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
@@ -345,7 +346,10 @@ export function LatexWorkspaceEditorPanel(props: {
             options={editorOptions}
             editorInstanceRef={editorInstanceRef}
             onChange={onEditorChange}
-            onMount={onEditorMount}
+            onMount={(editor, monaco) => {
+              markFirstEditableTex(selectedFile);
+              onEditorMount(editor, monaco);
+            }}
           />
         </Suspense>
       )}

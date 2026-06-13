@@ -99,7 +99,7 @@ function CitationDetails(props: { report: ResearchQualityReport; t: TranslationF
           </span>
         )}
       </div>
-      <div className="max-h-48 overflow-auto pr-1">
+      <div className="max-h-48 overflow-auto pr-1 [content-visibility:auto] [contain-intrinsic-size:220px]">
         {citationTrust.items.length > 0 ? citationTrust.items.map((item) => (
           <CitationRow key={item.key} item={item} t={t} />
         )) : (
@@ -121,7 +121,7 @@ function CompileDetails(props: {
   return (
     <div className="space-y-2">
       {compileDiagnostics.length > 0 ? (
-        <div className="max-h-36 overflow-auto rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] p-2 font-mono text-[10px] leading-4 text-[color:var(--editor-tab-text)]">
+        <div className="max-h-36 overflow-auto rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] p-2 font-mono text-[10px] leading-4 text-[color:var(--editor-tab-text)] [content-visibility:auto] [contain-intrinsic-size:160px]">
           {compileDiagnostics.slice(0, 8).map((item, index) => (
             <div key={`${index}-${item}`} className="truncate">{item}</div>
           ))}
@@ -153,7 +153,7 @@ function SubmissionDetails(props: {
   const { compileDiagnostics, projectId, report, selectedFile, t } = props;
   return (
     <>
-      <div className="max-h-48 overflow-auto pr-1">
+      <div className="max-h-48 overflow-auto pr-1 [content-visibility:auto] [contain-intrinsic-size:220px]">
         {report.submission.issues.map((issue) => (
           <div
             key={`${issue.id}-${issue.detail ?? ""}`}

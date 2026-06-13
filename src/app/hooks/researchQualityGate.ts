@@ -60,6 +60,54 @@ type BibEntry = {
   sourcePath: string;
 };
 
+const REPORT_CACHE_LIMIT = 24;
+const reportCache = new Map<string, ResearchQualityReport>();
+
+function stableRecordEntries(record: Record<string, string> | undefined): [string, string][] {
+  return Object.entries(record ?? {}).sort(([left], [right]) => left.localeCompare(right));
+}
+
+function stableArray(values: string[] | undefined): string[] {
+  return [...(values ?? [])].sort();
+}
+
+function buildReportCacheKey(input: {
+  texSource: string;
+  fileList: string[];
+  compileDiagnostics: string[];
+  bibSources?: Record<string, string>;
+  unreadableBibPaths?: string[];
+  selectedFile?: string | null;
+}): string {
+  return JSON.stringify({
+    selectedFile: input.selectedFile ?? "",
+    texSource: input.texSource,
+    fileList: stableArray(input.fileList),
+    compileDiagnostics: input.compileDiagnostics,
+    bibSources: stableRecordEntries(input.bibSources),
+    unreadableBibPaths: stableArray(input.unreadableBibPaths),
+  });
+}
+
+function cacheReport(key: string, report: ResearchQualityReport): ResearchQualityReport {
+  if (reportCache.has(key)) {
+    reportCache.delete(key);
+  }
+  reportCache.set(key, report);
+  while (reportCache.size > REPORT_CACHE_LIMIT) {
+    const oldest = reportCache.keys().next().value as string | undefined;
+    if (oldest === undefined) {
+      break;
+    }
+    reportCache.delete(oldest);
+  }
+  return report;
+}
+
+export function clearResearchQualityReportCacheForTests() {
+  reportCache.clear();
+}
+
 function unique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -298,6 +346,13 @@ export function buildResearchQualityReport(input: {
   unreadableBibPaths?: string[];
   selectedFile?: string | null;
 }): ResearchQualityReport {
+  const cacheKey = buildReportCacheKey(input);
+  const cached = reportCache.get(cacheKey);
+  if (cached) {
+    reportCache.delete(cacheKey);
+    reportCache.set(cacheKey, cached);
+    return cached;
+  }
   const citationTrust = buildCitationTrustReport({
     texSource: input.texSource,
     bibSources: input.bibSources ?? {},
@@ -335,7 +390,7 @@ export function buildResearchQualityReport(input: {
       message: { key: canRebut ? "research.quality.rebuttal.pass" : "research.quality.rebuttal.warn" },
     },
   ];
-  return {
+  const report = {
     citationTrust,
     submission,
     lanes,
@@ -346,6 +401,16 @@ export function buildResearchQualityReport(input: {
       compileDiagnostics: input.compileDiagnostics,
     }),
   };
+  return cacheReport(cacheKey, report);
+}
+
+function parseBibPathsKey(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function useResearchQualityGate(input: {
@@ -359,6 +424,7 @@ export function useResearchQualityGate(input: {
     () => extractDeclaredBibPaths(input.texSource, input.selectedFile, input.fileList),
     [input.fileList, input.selectedFile, input.texSource],
   );
+  const bibPathsKey = useMemo(() => JSON.stringify(bibPaths), [bibPaths]);
   const [bibState, setBibState] = useState<{ sources: Record<string, string>; errors: string[]; loading: boolean }>({
     sources: {},
     errors: [],
@@ -366,14 +432,15 @@ export function useResearchQualityGate(input: {
   });
 
   useEffect(() => {
-    if (!input.projectId || bibPaths.length === 0) {
+    const paths = parseBibPathsKey(bibPathsKey);
+    if (!input.projectId || paths.length === 0) {
       setBibState({ sources: {}, errors: [], loading: false });
       return;
     }
     let cancelled = false;
     setBibState((prev) => ({ ...prev, loading: true }));
     void Promise.all(
-      bibPaths.map(async (path) => {
+      paths.map(async (path) => {
         try {
           const response = await readFile(input.projectId as string, path);
           return { path, content: response.content ?? "", error: false };
@@ -399,7 +466,7 @@ export function useResearchQualityGate(input: {
     return () => {
       cancelled = true;
     };
-  }, [bibPaths, input.projectId]);
+  }, [bibPathsKey, input.projectId]);
 
   const report = useMemo(
     () => buildResearchQualityReport({
