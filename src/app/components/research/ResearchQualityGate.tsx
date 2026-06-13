@@ -45,23 +45,38 @@ function StatusIcon(props: { status: ResearchQualityStatus }) {
 export function ResearchQualityGate(props: {
   report: ResearchQualityReport;
   loading: boolean;
+  activeLane: ResearchQualityLane["id"] | null;
   rebuttalOpen: boolean;
-  onRebuttalToggle: () => void;
+  onLaneSelect: (lane: ResearchQualityLane["id"]) => void;
   t: TranslationFn;
 }) {
-  const { report, loading, rebuttalOpen, onRebuttalToggle, t } = props;
+  const { report, loading, activeLane, rebuttalOpen, onLaneSelect, t } = props;
   return (
     <div className="mt-2 border-t border-[color:var(--editor-widget-border)] pt-2">
       <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-[11px] font-semibold text-[color:var(--editor-tab-text)]">
-          {t("research.quality.title")}
+        <div className="min-w-0">
+          <div className="truncate text-[11px] font-semibold text-[color:var(--editor-tab-text)]">
+            {t("research.quality.title")}
+          </div>
+          <div className="truncate text-[10px] text-[color:var(--editor-tab-muted)]">
+            {formatMessage(t("research.quality.summary"), {
+              blockers: report.readiness.blockers,
+              warnings: report.readiness.warnings,
+              passed: report.readiness.passedLanes,
+              total: report.readiness.totalLanes,
+            })}
+          </div>
         </div>
         {loading ? (
           <div className="flex shrink-0 items-center gap-1 text-[10px] text-[color:var(--editor-tab-muted)]">
             <Loader2 className="h-3 w-3 animate-spin" />
             <span>{t("research.quality.loading")}</span>
           </div>
-        ) : null}
+        ) : (
+          <div className="shrink-0 rounded border border-[color:var(--editor-widget-border)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--editor-tab-text)]">
+            {formatMessage(t("research.quality.score"), { score: report.readiness.score })}
+          </div>
+        )}
       </div>
       <div className="grid min-w-0 grid-cols-[repeat(4,minmax(0,1fr))] gap-1.5 max-[960px]:grid-cols-2">
         {report.lanes.map((lane) => (
@@ -70,10 +85,11 @@ export function ResearchQualityGate(props: {
             type="button"
             className={[
               "min-w-0 rounded-md border px-2 py-1.5 text-left transition-colors",
-              lane.id === "rebuttal" ? "hover:border-[color:var(--app-accent)]" : "",
+              activeLane === lane.id ? "ring-1 ring-[color:var(--app-accent)]" : "",
+              "hover:border-[color:var(--app-accent)]",
               statusClass(lane.status),
             ].join(" ")}
-            onClick={lane.id === "rebuttal" ? onRebuttalToggle : undefined}
+            onClick={() => onLaneSelect(lane.id)}
             aria-pressed={lane.id === "rebuttal" ? rebuttalOpen : undefined}
           >
             <div className="flex min-w-0 items-center justify-between gap-1.5">

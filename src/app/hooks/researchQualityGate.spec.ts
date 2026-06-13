@@ -56,5 +56,33 @@ describe("researchQualityGate", () => {
       ["submission", "fail"],
       ["rebuttal", "pass"],
     ]);
+    expect(report.readiness).toMatchObject({
+      blockers: 3,
+      warnings: 0,
+      passedLanes: 1,
+      totalLanes: 4,
+    });
+    expect(report.readiness.score).toBeLessThan(50);
+  });
+
+  it("scores a clean manuscript gate as ready", () => {
+    const report = buildResearchQualityReport({
+      selectedFile: "main.tex",
+      texSource: String.raw`\begin{document}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      compileDiagnostics: [],
+      bibSources: {
+        "refs.bib": "@article{smith2024,\ntitle={Local First Research Writing},\nauthor={Smith},\nyear={2024},\ndoi={10.0000/demo}\n}",
+      },
+    });
+
+    expect(report.lanes.every((lane) => lane.status === "pass")).toBe(true);
+    expect(report.readiness).toEqual({
+      score: 100,
+      blockers: 0,
+      warnings: 0,
+      passedLanes: 4,
+      totalLanes: 4,
+    });
   });
 });

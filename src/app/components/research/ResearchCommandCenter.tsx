@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { BookOpenCheck, ClipboardCheck, FileCheck2, MessageSquareReply, Quote, Wrench } from "lucide-react";
 import { libraryCitationResolve } from "../../../shared/api/library";
-import { buildSubmissionCheckReport, type SubmissionIssue } from "../../hooks/researchSubmissionCheck";
-import { useResearchQualityGate } from "../../hooks/researchQualityGate";
+import { type ResearchQualityLaneId, useResearchQualityGate } from "../../hooks/researchQualityGate";
+import { ResearchQualityDetails } from "./ResearchQualityDetails";
 import { ResearchQualityGate } from "./ResearchQualityGate";
 
 type TranslationFn = (key: any) => string;
@@ -12,14 +12,6 @@ function formatMessage(template: string, params: Record<string, string | number 
     (text, [key, value]) => text.replaceAll(`{${key}}`, String(value ?? "")),
     template,
   );
-}
-
-function issueLabel(t: TranslationFn, issue: SubmissionIssue): string {
-  const base = t(`research.submission.issue.${issue.id}`);
-  return formatMessage(base, {
-    count: issue.count ?? "",
-    detail: issue.detail ?? "",
-  });
 }
 
 export function ResearchCommandCenter(props: {
@@ -59,14 +51,10 @@ export function ResearchCommandCenter(props: {
   const [citationQuery, setCitationQuery] = useState("");
   const [citationBusy, setCitationBusy] = useState(false);
   const [citationStatus, setCitationStatus] = useState<string | null>(null);
-  const [submissionOpen, setSubmissionOpen] = useState(false);
+  const [activeQualityLane, setActiveQualityLane] = useState<ResearchQualityLaneId | null>(null);
   const [rebuttalOpen, setRebuttalOpen] = useState(false);
   const [rebuttalComments, setRebuttalComments] = useState("");
   const [rebuttalStatus, setRebuttalStatus] = useState<string | null>(null);
-  const report = useMemo(
-    () => buildSubmissionCheckReport({ texSource: editorContent, fileList, compileDiagnostics }),
-    [compileDiagnostics, editorContent, fileList],
-  );
   const qualityGate = useResearchQualityGate({
     projectId,
     selectedFile,
@@ -74,11 +62,17 @@ export function ResearchCommandCenter(props: {
     fileList,
     compileDiagnostics,
   });
-  const topIssues = report.issues.slice(0, 3);
+  const submissionReport = qualityGate.report.submission;
   const canUseCitation = Boolean(projectId && selectedFile && canCompileSelectedFile);
   const paperActionLabel = selectedLibraryPath
     ? t("research.action.paperAnalyze")
     : t("research.action.openPapers");
+  const selectQualityLane = (lane: ResearchQualityLaneId) => {
+    setActiveQualityLane((current) => current === lane ? null : lane);
+    if (lane === "rebuttal") {
+      setRebuttalOpen(true);
+    }
+  };
 
   const resolveCitation = async () => {
     const query = citationQuery.trim();
@@ -167,13 +161,13 @@ export function ResearchCommandCenter(props: {
           <button
             type="button"
             className="panel-topbar-btn justify-start gap-1.5 px-2 text-left text-[11px]"
-            onClick={() => setSubmissionOpen((value) => !value)}
+            onClick={() => selectQualityLane("submission")}
           >
             <FileCheck2 className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
               {formatMessage(t("research.action.submissionCheck"), {
-                errors: report.errorCount,
-                warnings: report.warningCount,
+                errors: submissionReport.errorCount,
+                warnings: submissionReport.warningCount,
               })}
             </span>
           </button>
@@ -181,7 +175,10 @@ export function ResearchCommandCenter(props: {
             type="button"
             className="panel-topbar-btn justify-start gap-1.5 px-2 text-left text-[11px] disabled:opacity-50"
             disabled={busy || !canCompileSelectedFile}
-            onClick={() => setRebuttalOpen((value) => !value)}
+            onClick={() => {
+              setRebuttalOpen((value) => !value);
+              setActiveQualityLane("rebuttal");
+            }}
           >
             <MessageSquareReply className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
@@ -193,10 +190,24 @@ export function ResearchCommandCenter(props: {
       <ResearchQualityGate
         report={qualityGate.report}
         loading={qualityGate.loading}
+        activeLane={activeQualityLane}
         rebuttalOpen={rebuttalOpen}
-        onRebuttalToggle={() => setRebuttalOpen((value) => !value)}
+        onLaneSelect={selectQualityLane}
         t={t}
       />
+      {activeQualityLane ? (
+        <ResearchQualityDetails
+          activeLane={activeQualityLane}
+          report={qualityGate.report}
+          compileDiagnostics={compileDiagnostics}
+          onCompileRepair={onCompileRepair}
+          onOpenRebuttal={() => {
+            setRebuttalOpen(true);
+            setActiveQualityLane("rebuttal");
+          }}
+          t={t}
+        />
+      ) : null}
       <div className="mt-2 grid min-w-0 grid-cols-[minmax(220px,1fr)_auto] gap-2 max-[760px]:grid-cols-1">
         <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5">
           <Quote className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
@@ -252,23 +263,6 @@ export function ResearchCommandCenter(props: {
       ) : null}
       {rebuttalStatus ? (
         <div className="mt-1 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{rebuttalStatus}</div>
-      ) : null}
-      {submissionOpen ? (
-        <div className="mt-2 grid gap-1 text-[11px] text-[color:var(--editor-tab-muted)]">
-          {topIssues.map((issue) => (
-            <div key={`${issue.id}-${issue.detail ?? ""}`} className="flex min-w-0 items-center gap-2">
-              <span className={[
-                "h-1.5 w-1.5 shrink-0 rounded-full",
-                issue.severity === "error"
-                  ? "bg-red-500"
-                  : issue.severity === "warning"
-                    ? "bg-amber-500"
-                    : "bg-emerald-500",
-              ].join(" ")} />
-              <span className="truncate">{issueLabel(t, issue)}</span>
-            </div>
-          ))}
-        </div>
       ) : null}
     </section>
   );

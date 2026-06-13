@@ -34,10 +34,19 @@ export type CitationTrustReport = {
   unreadableBibPaths: string[];
 };
 
+export type ResearchQualityReadiness = {
+  score: number;
+  blockers: number;
+  warnings: number;
+  passedLanes: number;
+  totalLanes: number;
+};
+
 export type ResearchQualityReport = {
   citationTrust: CitationTrustReport;
   submission: SubmissionCheckReport;
   lanes: ResearchQualityLane[];
+  readiness: ResearchQualityReadiness;
 };
 
 type BibEntry = {
@@ -250,6 +259,37 @@ function buildCitationLane(report: CitationTrustReport): ResearchQualityLane {
   };
 }
 
+function buildReadiness(input: {
+  citationTrust: CitationTrustReport;
+  submission: SubmissionCheckReport;
+  lanes: ResearchQualityLane[];
+  compileDiagnostics: string[];
+}): ResearchQualityReadiness {
+  const noCitations = input.citationTrust.items.length === 0 ? 1 : 0;
+  const rebuttalWarnings = input.lanes.some((lane) => lane.id === "rebuttal" && lane.status === "warn") ? 1 : 0;
+  const submissionBlockers = input.submission.issues
+    .filter((issue) => issue.severity === "error" && issue.id !== "compileDiagnostics")
+    .length;
+  const blockers =
+    input.citationTrust.missingKeys.length +
+    input.citationTrust.unreadableBibPaths.length +
+    input.compileDiagnostics.length +
+    submissionBlockers;
+  const warnings =
+    input.citationTrust.weakKeys.length +
+    input.citationTrust.duplicateKeys.length +
+    input.submission.warningCount +
+    noCitations +
+    rebuttalWarnings;
+  return {
+    score: Math.max(0, Math.min(100, 100 - blockers * 18 - warnings * 7)),
+    blockers,
+    warnings,
+    passedLanes: input.lanes.filter((lane) => lane.status === "pass").length,
+    totalLanes: input.lanes.length,
+  };
+}
+
 export function buildResearchQualityReport(input: {
   texSource: string;
   fileList: string[];
@@ -295,7 +335,17 @@ export function buildResearchQualityReport(input: {
       message: { key: canRebut ? "research.quality.rebuttal.pass" : "research.quality.rebuttal.warn" },
     },
   ];
-  return { citationTrust, submission, lanes };
+  return {
+    citationTrust,
+    submission,
+    lanes,
+    readiness: buildReadiness({
+      citationTrust,
+      submission,
+      lanes,
+      compileDiagnostics: input.compileDiagnostics,
+    }),
+  };
 }
 
 export function useResearchQualityGate(input: {
