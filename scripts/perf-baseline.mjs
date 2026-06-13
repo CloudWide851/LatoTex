@@ -14,7 +14,16 @@ const report = {
   budgets: {
     largestSourceFileLines: 600,
     largestBuiltAssetBytes: 5 * 1024 * 1024,
+    totalDistAssetBytes: 12 * 1024 * 1024,
     researchEvalDurationMs: 60_000,
+    distAssets: {
+      vendorMonacoBytes: 4 * 1024 * 1024,
+      vendorMonacoLanguagesBytes: 256 * 1024,
+      pdfWorkerBytes: 1.6 * 1024 * 1024,
+      vendorExceljsBytes: 1.1 * 1024 * 1024,
+      indexBytes: 720 * 1024,
+      appWorkspaceShellBytes: 560 * 1024,
+    },
   },
   timings: {
     totalMs: 0,
@@ -29,6 +38,7 @@ const report = {
     largestAssets: [],
     assetCount: 0,
     totalAssetBytes: 0,
+    budgetChecks: [],
   },
   researchEval: {
     status: "not_run",
@@ -72,6 +82,15 @@ function isBudgetedDistAsset(filePath) {
   return relative.startsWith("assets/") || relative === "index.html";
 }
 
+const distAssetBudgetRules = [
+  { name: "vendorMonacoBytes", label: "vendor-monaco", pattern: /dist\/assets\/vendor-monaco-[^/]+\.js$/ },
+  { name: "vendorMonacoLanguagesBytes", label: "vendor-monaco-languages", pattern: /dist\/assets\/vendor-monaco-languages-[^/]+\.js$/ },
+  { name: "pdfWorkerBytes", label: "pdf.worker", pattern: /dist\/assets\/pdf\.worker\.min-[^/]+\.mjs$/ },
+  { name: "vendorExceljsBytes", label: "vendor-exceljs", pattern: /dist\/assets\/vendor-exceljs-[^/]+\.js$/ },
+  { name: "indexBytes", label: "index", pattern: /dist\/assets\/index-[^/]+\.js$/ },
+  { name: "appWorkspaceShellBytes", label: "AppWorkspaceShell", pattern: /dist\/assets\/AppWorkspaceShell-[^/]+\.js$/ },
+];
+
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
 for (const scriptName of [
   "arch:check",
@@ -114,6 +133,17 @@ if (report.dist.exists) {
     report.dist.assetCount = assets.length;
     report.dist.totalAssetBytes = assets.reduce((total, asset) => total + asset.bytes, 0);
     report.dist.largestAssets = assets.slice(0, 10);
+    report.dist.budgetChecks = distAssetBudgetRules.map((rule) => {
+      const matched = assets.find((asset) => rule.pattern.test(asset.path));
+      const maxBytes = report.budgets.distAssets[rule.name];
+      return {
+        label: rule.label,
+        path: matched?.path ?? "",
+        bytes: matched?.bytes ?? 0,
+        maxBytes,
+        ok: Boolean(matched) && matched.bytes <= maxBytes,
+      };
+    });
   });
 }
 
@@ -145,6 +175,22 @@ const oversizedDistAsset = report.dist.largestAssets.find((asset) => asset.bytes
 if (oversizedDistAsset) {
   console.error(
     `Built asset exceeds ${report.budgets.largestBuiltAssetBytes} bytes: ${oversizedDistAsset.path} (${oversizedDistAsset.bytes})`,
+  );
+  process.exit(1);
+}
+
+if (report.dist.exists && report.dist.totalAssetBytes > report.budgets.totalDistAssetBytes) {
+  console.error(
+    `Total dist asset bytes exceed ${report.budgets.totalDistAssetBytes}: ${report.dist.totalAssetBytes}`,
+  );
+  process.exit(1);
+}
+
+const failedDistBudget = report.dist.budgetChecks.find((check) => !check.ok);
+if (failedDistBudget) {
+  console.error(
+    `Built asset budget failed for ${failedDistBudget.label}: ${failedDistBudget.path || "missing"} ` +
+    `(${failedDistBudget.bytes}/${failedDistBudget.maxBytes})`,
   );
   process.exit(1);
 }

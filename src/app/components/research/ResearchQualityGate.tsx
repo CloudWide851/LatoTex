@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Loader2, MessageSquareReply, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, MessageSquareReply, ShieldCheck, XCircle } from "lucide-react";
 import type {
   ResearchQualityLane,
   ResearchQualityReport,
@@ -77,6 +77,22 @@ export function ResearchQualityGate(props: {
             {formatMessage(t("research.quality.score"), { score: report.readiness.score })}
           </div>
         )}
+      </div>
+      <div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+        <span className="inline-flex min-w-0 items-center gap-1 font-semibold text-[color:var(--editor-tab-text)]">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
+          <span className="truncate">{t("research.quality.localAudit.title")}</span>
+        </span>
+        <span className="min-w-0">
+          {formatMessage(t("research.quality.localAudit.summary"), {
+            citations: report.citationTrust.items.length,
+            blockers: report.readiness.blockers,
+            warnings: report.readiness.warnings,
+          })}
+        </span>
+        <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5">
+          {t("research.quality.localAudit.trace")}
+        </span>
       </div>
       <div className="grid min-w-0 grid-cols-[repeat(4,minmax(0,1fr))] gap-1.5 max-[960px]:grid-cols-2">
         {report.lanes.map((lane) => (

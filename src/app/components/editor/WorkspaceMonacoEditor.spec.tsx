@@ -21,6 +21,7 @@ vi.mock("@monaco-editor/react", () => ({
 vi.mock("monaco-editor/esm/vs/editor/editor.api.js", () => mocks.monacoModule);
 
 vi.mock("./editorCodeLanguages", () => ({
+  loadDeferredEditorLanguage: vi.fn(),
   registerEditorCodeLanguages: vi.fn(),
 }));
 
@@ -61,5 +62,25 @@ describe("WorkspaceMonacoEditor", () => {
     }) as any;
 
     expect(element.props.path).toBe("/.env.local");
+  });
+
+  it("requests deferred Monaco language loading for the current language", async () => {
+    const languageModule = await import("./editorCodeLanguages");
+    const { WorkspaceMonacoEditor } = await import("./WorkspaceMonacoEditor");
+
+    const element = WorkspaceMonacoEditor({
+      path: "script.py",
+      language: "python",
+      theme: "vs",
+      value: "",
+      options: {},
+      editorInstanceRef: { current: null },
+      onChange: vi.fn(),
+      onMount: vi.fn(),
+    }) as any;
+
+    element.props.beforeMount(mocks.monacoModule);
+
+    expect(languageModule.loadDeferredEditorLanguage).toHaveBeenCalledWith("python");
   });
 });

@@ -193,20 +193,22 @@ export function GitCommitTab(props: {
         </div>
       </div>
 
-      <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+      <div className="flex min-h-0 flex-col rounded-md border border-slate-200 bg-slate-50 p-2">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h4 className="text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
           <span className="text-[11px] text-slate-500">
             {includedPaths.length}/{changedFiles.length}
           </span>
         </div>
-        <GitDiffViewer
-          active={Boolean(activeDiffKey)}
-          loading={Boolean(activeDiffKey && loadingDiffKey === activeDiffKey)}
-          error={activeDiffError}
-          diff={activeDiff}
-          t={t}
-        />
+        <div className="min-h-0 flex-1">
+          <GitDiffViewer
+            active={Boolean(activeDiffKey)}
+            loading={Boolean(activeDiffKey && loadingDiffKey === activeDiffKey)}
+            error={activeDiffError}
+            diff={activeDiff}
+            t={t}
+          />
+        </div>
       </div>
     </div>
   );

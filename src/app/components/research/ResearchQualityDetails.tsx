@@ -6,6 +6,7 @@ import type {
   ResearchQualityStatus,
 } from "../../hooks/researchQualityGate";
 import type { SubmissionIssue } from "../../hooks/researchSubmissionCheck";
+import { VirtualizedList } from "../virtual/VirtualizedList";
 import { SubmissionPackPanel } from "./SubmissionPackPanel";
 
 type TranslationFn = (key: any) => string;
@@ -99,10 +100,18 @@ function CitationDetails(props: { report: ResearchQualityReport; t: TranslationF
           </span>
         )}
       </div>
-      <div className="max-h-48 overflow-auto pr-1 [content-visibility:auto] [contain-intrinsic-size:220px]">
-        {citationTrust.items.length > 0 ? citationTrust.items.map((item) => (
-          <CitationRow key={item.key} item={item} t={t} />
-        )) : (
+      <div className="max-h-48 min-h-0 [content-visibility:auto] [contain-intrinsic-size:220px]">
+        {citationTrust.items.length > 0 ? (
+          <VirtualizedList
+            items={citationTrust.items}
+            estimatedItemHeight={42}
+            overscan={8}
+            fallbackViewportHeight={192}
+            className="max-h-48 pr-1"
+            getKey={(item) => item.key}
+            renderItem={(item) => <CitationRow item={item} t={t} />}
+          />
+        ) : (
           <div className="text-[11px] text-[color:var(--editor-tab-muted)]">
             {t("research.quality.detail.noCitations")}
           </div>
@@ -153,23 +162,28 @@ function SubmissionDetails(props: {
   const { compileDiagnostics, projectId, report, selectedFile, t } = props;
   return (
     <>
-      <div className="max-h-48 overflow-auto pr-1 [content-visibility:auto] [contain-intrinsic-size:220px]">
-        {report.submission.issues.map((issue) => (
-          <div
-            key={`${issue.id}-${issue.detail ?? ""}`}
-            className="flex min-w-0 items-start gap-2 border-t border-[color:var(--editor-widget-border)] py-1.5 text-[11px]"
-          >
-            <FileWarning className={[
-              "mt-0.5 h-3.5 w-3.5 shrink-0",
-              issue.severity === "error"
-                ? "text-red-500"
-                : issue.severity === "warning"
-                  ? "text-amber-500"
-                  : "text-emerald-500",
-            ].join(" ")} />
-            <span className="min-w-0">{issueLabel(t, issue)}</span>
-          </div>
-        ))}
+      <div className="max-h-48 min-h-0 [content-visibility:auto] [contain-intrinsic-size:220px]">
+        <VirtualizedList
+          items={report.submission.issues}
+          estimatedItemHeight={36}
+          overscan={8}
+          fallbackViewportHeight={192}
+          className="max-h-48 pr-1"
+          getKey={(issue, index) => `${issue.id}-${issue.detail ?? ""}-${index}`}
+          renderItem={(issue) => (
+            <div className="flex min-w-0 items-start gap-2 border-t border-[color:var(--editor-widget-border)] py-1.5 text-[11px]">
+              <FileWarning className={[
+                "mt-0.5 h-3.5 w-3.5 shrink-0",
+                issue.severity === "error"
+                  ? "text-red-500"
+                  : issue.severity === "warning"
+                    ? "text-amber-500"
+                    : "text-emerald-500",
+              ].join(" ")} />
+              <span className="min-w-0">{issueLabel(t, issue)}</span>
+            </div>
+          )}
+        />
       </div>
       <SubmissionPackPanel
         projectId={projectId}

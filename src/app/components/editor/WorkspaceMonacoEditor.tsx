@@ -1,7 +1,7 @@
 import MonacoEditor, { loader } from "@monaco-editor/react";
 import * as monacoEditor from "monaco-editor/esm/vs/editor/editor.api.js";
 import type { MutableRefObject } from "react";
-import { registerEditorCodeLanguages } from "./editorCodeLanguages";
+import { loadDeferredEditorLanguage, registerEditorCodeLanguages } from "./editorCodeLanguages";
 import { registerEditorSurfaceThemes } from "./editorSurfaceTheme";
 import { ensureLatexCompletionProvider } from "./latexCompletion";
 
@@ -33,6 +33,8 @@ export function WorkspaceMonacoEditor(props: {
     onMount,
   } = props;
 
+  void loadDeferredEditorLanguage(language);
+
   return (
     <MonacoEditor
       path={toMonacoModelPath(path)}
@@ -44,6 +46,7 @@ export function WorkspaceMonacoEditor(props: {
       beforeMount={(monaco) => {
         registerEditorSurfaceThemes(monaco);
         registerEditorCodeLanguages(monaco);
+        void loadDeferredEditorLanguage(language);
       }}
       onChange={(nextValue) => onChange(nextValue ?? "")}
       onMount={(editor, monaco) => {

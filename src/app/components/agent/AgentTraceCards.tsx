@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { cn } from "../../../lib/utils";
 import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
+import { VirtualizedList } from "../virtual/VirtualizedList";
 import { AgentActionRenderer } from "./AgentActionRenderer";
 
 function tone(status: string): string {
@@ -209,10 +210,8 @@ export function AgentTraceCards(props: {
           <span className="shrink-0 tabular-nums text-slate-400">{groups.length}</span>
         </button>
         {expanded ? (
-          <div className={cn("mt-1 min-h-0 overflow-auto space-y-2 [content-visibility:auto] [contain-intrinsic-size:320px]", bodyClassName)}>
-            {groups.map((group) => (
-              <TraceGroup key={group.key} group={group} t={t} />
-            ))}
+          <div className="mt-1 min-h-0">
+            <TraceGroupList groups={groups} t={t} className={bodyClassName} />
             <PendingActionCard
               pendingAction={pendingAction}
               pendingActionTitle={pendingActionTitle}
@@ -230,8 +229,8 @@ export function AgentTraceCards(props: {
   return (
     <section className={cn("flex min-h-0 flex-col border-b border-slate-200 px-3 py-2", className)}>
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
-      <div className={cn("min-h-0 overflow-auto space-y-2 [content-visibility:auto] [contain-intrinsic-size:360px]", bodyClassName)}>
-        {groups.map((group) => <TraceGroup key={group.key} group={group} t={t} />)}
+      <div className="min-h-0">
+        <TraceGroupList groups={groups} t={t} className={bodyClassName} />
         <PendingActionCard
           pendingAction={pendingAction}
           pendingActionTitle={pendingActionTitle}
@@ -242,6 +241,29 @@ export function AgentTraceCards(props: {
         />
       </div>
     </section>
+  );
+}
+
+function TraceGroupList(props: { groups: TaskGroup[]; t: (key: any) => string; className?: string }) {
+  const { groups, t, className } = props;
+  if (groups.length > 18) {
+    return (
+      <VirtualizedList
+        items={groups}
+        estimatedItemHeight={220}
+        overscan={6}
+        fallbackViewportHeight={360}
+        className={cn("min-h-0 [content-visibility:auto] [contain-intrinsic-size:360px]", className)}
+        contentClassName="space-y-2"
+        getKey={(group) => group.key}
+        renderItem={(group) => <TraceGroup group={group} t={t} />}
+      />
+    );
+  }
+  return (
+    <div className={cn("min-h-0 overflow-auto space-y-2 [content-visibility:auto] [contain-intrinsic-size:360px]", className)}>
+      {groups.map((group) => <TraceGroup key={group.key} group={group} t={t} />)}
+    </div>
   );
 }
 

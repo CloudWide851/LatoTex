@@ -2116,7 +2116,7 @@ dependencies = [
 
 [[package]]
 name = "latotex"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2144,14 +2144,14 @@ dependencies = [
 
 [[package]]
 name = "latotex-agent"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "regex",
 ]
 
 [[package]]
 name = "latotex-workspace"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "reqwest 0.12.28",
 ]

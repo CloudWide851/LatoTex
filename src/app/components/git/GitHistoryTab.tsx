@@ -137,7 +137,7 @@ export function GitHistoryTab(props: {
             </span>
           ) : null}
         </div>
-        <div className="min-h-0 overflow-auto rounded border border-slate-200 bg-white p-2">
+        <div className="min-h-0 rounded border border-slate-200 bg-white p-2">
           <GitDiffViewer
             active={Boolean(activeDiffKey)}
             loading={Boolean(activeDiffKey && loadingDiffKey === activeDiffKey)}

@@ -12,6 +12,9 @@ function resolveManualChunk(id: string) {
     return undefined;
   }
 
+  if (normalized.includes("monaco-editor/esm/vs/basic-languages/")) {
+    return "vendor-monaco-languages";
+  }
   if (normalized.includes("@monaco-editor") || normalized.includes("monaco-editor")) {
     return "vendor-monaco";
   }
