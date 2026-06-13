@@ -65,6 +65,7 @@ use commands::settings::{
     settings_remove_background_image, settings_update,
 };
 use commands::share::{share_session_create, share_session_status, share_session_stop};
+use commands::submission_pack::submission_pack_build;
 use commands::runtime_assets::{
     runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
 };
@@ -401,6 +402,7 @@ pub fn run() {
             share_session_create,
             share_session_status,
             share_session_stop,
+            submission_pack_build,
             channels_telegram_poll,
             channels_telegram_send,
             channels_telegram_test,

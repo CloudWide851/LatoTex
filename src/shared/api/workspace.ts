@@ -8,6 +8,8 @@ import type {
   MarkdownRunCodeResponse,
   MarkdownRunCodeCapability,
   ResourceNode,
+  SubmissionPackBuildInput,
+  SubmissionPackBuildResponse,
   TerminalReadResponse,
   TerminalStartResponse,
   WorkspaceExportAssetResponse,
@@ -157,4 +159,10 @@ export function workspaceExportAsset(
 
 export function fsOperation(input: FsOperationInput): Promise<FsOperationResult> {
   return invokeCommand<FsOperationResult>("fs_operation", { input });
+}
+
+export function submissionPackBuild(
+  input: SubmissionPackBuildInput,
+): Promise<SubmissionPackBuildResponse> {
+  return invokeCommand<SubmissionPackBuildResponse>("submission_pack_build", { input });
 }

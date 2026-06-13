@@ -200,6 +200,8 @@ export function ResearchCommandCenter(props: {
           activeLane={activeQualityLane}
           report={qualityGate.report}
           compileDiagnostics={compileDiagnostics}
+          projectId={projectId}
+          selectedFile={selectedFile}
           onCompileRepair={onCompileRepair}
           onOpenRebuttal={() => {
             setRebuttalOpen(true);

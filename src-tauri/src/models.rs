@@ -668,3 +668,4 @@ include!("models_terminal.rs");
 include!("models_plugins.rs");
 include!("models_docx.rs");
 include!("models_markdown_runtime.rs");
+include!("models_submission_pack.rs");

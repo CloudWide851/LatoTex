@@ -560,4 +560,5 @@ export type AppBackgroundImagePayload = {
 };
 
 export * from "./app-extended";
+export * from "./submissionPack";
 

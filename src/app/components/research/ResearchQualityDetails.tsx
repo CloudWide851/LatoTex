@@ -6,6 +6,7 @@ import type {
   ResearchQualityStatus,
 } from "../../hooks/researchQualityGate";
 import type { SubmissionIssue } from "../../hooks/researchSubmissionCheck";
+import { SubmissionPackPanel } from "./SubmissionPackPanel";
 
 type TranslationFn = (key: any) => string;
 
@@ -142,27 +143,42 @@ function CompileDetails(props: {
   );
 }
 
-function SubmissionDetails(props: { report: ResearchQualityReport; t: TranslationFn }) {
-  const { report, t } = props;
+function SubmissionDetails(props: {
+  compileDiagnostics: string[];
+  projectId: string | null;
+  report: ResearchQualityReport;
+  selectedFile: string | null;
+  t: TranslationFn;
+}) {
+  const { compileDiagnostics, projectId, report, selectedFile, t } = props;
   return (
-    <div className="max-h-48 overflow-auto pr-1">
-      {report.submission.issues.map((issue) => (
-        <div
-          key={`${issue.id}-${issue.detail ?? ""}`}
-          className="flex min-w-0 items-start gap-2 border-t border-[color:var(--editor-widget-border)] py-1.5 text-[11px]"
-        >
-          <FileWarning className={[
-            "mt-0.5 h-3.5 w-3.5 shrink-0",
-            issue.severity === "error"
-              ? "text-red-500"
-              : issue.severity === "warning"
-                ? "text-amber-500"
-                : "text-emerald-500",
-          ].join(" ")} />
-          <span className="min-w-0">{issueLabel(t, issue)}</span>
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="max-h-48 overflow-auto pr-1">
+        {report.submission.issues.map((issue) => (
+          <div
+            key={`${issue.id}-${issue.detail ?? ""}`}
+            className="flex min-w-0 items-start gap-2 border-t border-[color:var(--editor-widget-border)] py-1.5 text-[11px]"
+          >
+            <FileWarning className={[
+              "mt-0.5 h-3.5 w-3.5 shrink-0",
+              issue.severity === "error"
+                ? "text-red-500"
+                : issue.severity === "warning"
+                  ? "text-amber-500"
+                  : "text-emerald-500",
+            ].join(" ")} />
+            <span className="min-w-0">{issueLabel(t, issue)}</span>
+          </div>
+        ))}
+      </div>
+      <SubmissionPackPanel
+        projectId={projectId}
+        selectedFile={selectedFile}
+        report={report}
+        compileDiagnostics={compileDiagnostics}
+        t={t}
+      />
+    </>
   );
 }
 
@@ -189,11 +205,13 @@ export function ResearchQualityDetails(props: {
   activeLane: ResearchQualityLaneId;
   report: ResearchQualityReport;
   compileDiagnostics: string[];
+  projectId: string | null;
+  selectedFile: string | null;
   onCompileRepair: () => void;
   onOpenRebuttal: () => void;
   t: TranslationFn;
 }) {
-  const { activeLane, report, compileDiagnostics, onCompileRepair, onOpenRebuttal, t } = props;
+  const { activeLane, report, compileDiagnostics, projectId, selectedFile, onCompileRepair, onOpenRebuttal, t } = props;
   return (
     <div className="mt-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] p-2">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
@@ -208,7 +226,15 @@ export function ResearchQualityDetails(props: {
       {activeLane === "compile" ? (
         <CompileDetails compileDiagnostics={compileDiagnostics} onCompileRepair={onCompileRepair} t={t} />
       ) : null}
-      {activeLane === "submission" ? <SubmissionDetails report={report} t={t} /> : null}
+      {activeLane === "submission" ? (
+        <SubmissionDetails
+          compileDiagnostics={compileDiagnostics}
+          projectId={projectId}
+          report={report}
+          selectedFile={selectedFile}
+          t={t}
+        />
+      ) : null}
       {activeLane === "rebuttal" ? <RebuttalDetails onOpenRebuttal={onOpenRebuttal} t={t} /> : null}
     </div>
   );

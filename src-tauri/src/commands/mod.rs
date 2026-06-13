@@ -26,6 +26,7 @@ pub mod projects_translation;
 pub mod runtime_assets;
 pub mod settings;
 pub mod share;
+pub mod submission_pack;
 pub mod swarm;
 pub mod terminal;
 pub mod toolchains;

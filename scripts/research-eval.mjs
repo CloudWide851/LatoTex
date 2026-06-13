@@ -32,12 +32,32 @@ function issueIds(report) {
   return report.issues.map((issue) => issue.id);
 }
 
+const submissionPackAllowlist = new Set([".tex", ".bib", ".sty", ".cls", ".bst", ".pdf", ".png", ".jpg", ".jpeg"]);
+
+function listRelativeFiles(root, current = root, out = []) {
+  for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+    const fullPath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      listRelativeFiles(root, fullPath, out);
+    } else {
+      out.push(path.relative(root, fullPath).replaceAll(path.sep, "/"));
+    }
+  }
+  return out.sort();
+}
+
+function submissionPackAllowedFiles(root) {
+  return listRelativeFiles(root).filter((item) => submissionPackAllowlist.has(path.extname(item).toLowerCase()));
+}
+
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-research-eval-"));
 try {
   const basicProject = path.join(tempRoot, "basic-paper");
   const brokenProject = path.join(tempRoot, "broken-paper");
+  const packProject = path.join(tempRoot, "submission-pack");
   copyDir(path.join(fixtureRoot, "basic-paper"), basicProject);
   copyDir(path.join(fixtureRoot, "broken-paper"), brokenProject);
+  copyDir(path.join(fixtureRoot, "submission-pack"), packProject);
 
   const papers = searchPapers(basicProject, "local research", 5);
   assert.equal(papers[0]?.citationKey, "smith2024");
@@ -50,6 +70,14 @@ try {
   const brokenReport = checkSubmission(brokenProject, "main.tex");
   assert.ok(issueIds(brokenReport).includes("undefinedReferences"));
   assert.ok(issueIds(brokenReport).includes("missingBibliography"));
+
+  const packReport = checkSubmission(packProject, "main.tex");
+  assert.deepEqual(issueIds(packReport), ["ready"]);
+  assert.deepEqual(submissionPackAllowedFiles(packProject), [
+    "figures/result.png",
+    "main.tex",
+    "refs.bib",
+  ]);
 
   const basicAudit = auditCitations(basicProject, "main.tex");
   assert.equal(basicAudit.status, "pass");
@@ -106,6 +134,7 @@ try {
       "citation-search",
       "citation-audit",
       "submission-preflight",
+      "submission-pack-fixture",
       "mcp-tools",
       "write-gate",
       "compile-smoke",
