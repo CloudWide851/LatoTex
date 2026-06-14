@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileArchive, Loader2, XCircle } from "lucide-react";
-import { submissionPackBuild } from "../../../shared/api/workspace";
+import { submissionPackBuild, writeFile } from "../../../shared/api/workspace";
 import type { SubmissionPackBuildResponse, SubmissionPackIssuePayload } from "../../../shared/types/app";
+import { buildSubmissionEvidenceBundle } from "../../hooks/researchEvidenceBundle";
 import type { ResearchQualityReport } from "../../hooks/researchQualityGate";
 
 type TranslationFn = (key: any) => string;
@@ -133,8 +134,12 @@ function IssueRows(props: {
   );
 }
 
-function ResultSummary(props: { result: SubmissionPackBuildResponse; t: TranslationFn }) {
-  const { result, t } = props;
+function ResultSummary(props: {
+  evidencePaths: { jsonPath: string; markdownPath: string } | null;
+  result: SubmissionPackBuildResponse;
+  t: TranslationFn;
+}) {
+  const { evidencePaths, result, t } = props;
   const ready = result.status === "ready";
   return (
     <div className="mt-2 space-y-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-2">
@@ -166,6 +171,16 @@ function ResultSummary(props: { result: SubmissionPackBuildResponse; t: Translat
             ? formatMessage(t("research.submissionPack.result.zip"), { path: result.zipPath })
             : t("research.submissionPack.result.noZip")}
         </div>
+        {evidencePaths ? (
+          <>
+            <div className="min-w-0 truncate">
+              {formatMessage(t("research.evidence.result.markdown"), { path: evidencePaths.markdownPath })}
+            </div>
+            <div className="min-w-0 truncate">
+              {formatMessage(t("research.evidence.result.json"), { path: evidencePaths.jsonPath })}
+            </div>
+          </>
+        ) : null}
       </div>
       <div className="grid min-w-0 grid-cols-2 gap-2 max-[760px]:grid-cols-1">
         <IssueRows
@@ -196,6 +211,7 @@ export function SubmissionPackPanel(props: {
   const [profileId, setProfileId] = useState<JournalProfile["id"]>("generic");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmissionPackBuildResponse | null>(null);
+  const [evidencePaths, setEvidencePaths] = useState<{ jsonPath: string; markdownPath: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const gateIssues = useMemo(() => gateIssuesFromReport(report), [report]);
   const canBuild = Boolean(projectId && selectedFile && /\.tex$/i.test(selectedFile));
@@ -207,6 +223,7 @@ export function SubmissionPackPanel(props: {
     }
     setBusy(true);
     setError(null);
+    setEvidencePaths(null);
     try {
       const response = await submissionPackBuild({
         projectId,
@@ -215,7 +232,21 @@ export function SubmissionPackPanel(props: {
         gateIssues,
         compileDiagnostics,
       });
+      const evidence = buildSubmissionEvidenceBundle({
+        selectedFile,
+        report,
+        pack: response,
+        t: (key, params) => formatMessage(t(key), params ?? {}),
+      });
+      await Promise.all([
+        writeFile(projectId, evidence.jsonPath, evidence.jsonText),
+        writeFile(projectId, evidence.markdownPath, evidence.markdownText),
+      ]);
       setResult(response);
+      setEvidencePaths({
+        jsonPath: evidence.jsonPath,
+        markdownPath: evidence.markdownPath,
+      });
     } catch {
       setError(t("research.submissionPack.failed"));
     } finally {
@@ -249,6 +280,7 @@ export function SubmissionPackPanel(props: {
             onChange={(event) => {
               setProfileId(event.target.value as JournalProfile["id"]);
               setResult(null);
+              setEvidencePaths(null);
               setError(null);
             }}
           >
@@ -277,7 +309,7 @@ export function SubmissionPackPanel(props: {
       {error ? (
         <div className="mt-2 text-[11px] text-red-600 dark:text-red-300">{error}</div>
       ) : null}
-      {result ? <ResultSummary result={result} t={t} /> : null}
+      {result ? <ResultSummary evidencePaths={evidencePaths} result={result} t={t} /> : null}
     </div>
   );
 }

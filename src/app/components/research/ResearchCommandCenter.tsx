@@ -7,7 +7,9 @@ import {
   type ResearchWorkflowProfileId,
 } from "../../hooks/researchQualityAudit";
 import { type ResearchQualityLaneId, useResearchQualityGate } from "../../hooks/researchQualityGate";
+import { resolveResearchNextAction } from "../../hooks/researchNextAction";
 import { useEditableTexMetric } from "../../hooks/useEditableTexMetric";
+import { useProjectSearchReadyMetric } from "../../hooks/useProjectSearchReadyMetric";
 import { ResearchQualityDetails } from "./ResearchQualityDetails";
 import { ResearchQualityGate } from "./ResearchQualityGate";
 
@@ -80,6 +82,7 @@ export function ResearchCommandCenter(props: {
   const [rebuttalStatus, setRebuttalStatus] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<ResearchWorkflowProfileId>("generic");
   const editableTexMetric = useEditableTexMetric();
+  const searchReadyMetric = useProjectSearchReadyMetric();
   const profileStorageKey = useMemo(() => (
     projectId && selectedFile
       ? `latotex.research.profile.${projectId}.${selectedFile}`
@@ -117,10 +120,35 @@ export function ResearchCommandCenter(props: {
   const editableMetricLabel = editableTexMetric
     ? formatMessage(t("research.performance.editableTex"), { ms: editableTexMetric.elapsedMs })
     : t("research.performance.editableTexEmpty");
+  const searchReadyMetricLabel = searchReadyMetric
+    ? formatMessage(t("research.performance.searchReady"), { ms: searchReadyMetric.elapsedMs })
+    : t("research.performance.searchReadyEmpty");
+  const nextAction = useMemo(() => resolveResearchNextAction({
+    selectedFile,
+    canCompileSelectedFile,
+    report: qualityGate.report,
+  }), [canCompileSelectedFile, qualityGate.report, selectedFile]);
+  const paperStatusLabel = selectedFile && /\.tex$/i.test(selectedFile)
+    ? formatMessage(t("research.next.status.paper"), {
+      file: selectedFile,
+      score: qualityGate.report.readiness.score,
+      blockers: qualityGate.report.readiness.blockers,
+    })
+    : t("research.next.status.noPaper");
   const selectQualityLane = (lane: ResearchQualityLaneId) => {
     setActiveQualityLane((current) => current === lane ? null : lane);
     if (lane === "rebuttal") {
       setRebuttalOpen(true);
+    }
+  };
+
+  const runNextAction = () => {
+    if (nextAction.kind === "repair-compile") {
+      onCompileRepair();
+      return;
+    }
+    if (nextAction.laneId) {
+      selectQualityLane(nextAction.laneId);
     }
   };
 
@@ -235,6 +263,10 @@ export function ResearchCommandCenter(props: {
               <Gauge className="h-3 w-3 shrink-0" />
               <span className="truncate">{editableMetricLabel}</span>
             </span>
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+              <Gauge className="h-3 w-3 shrink-0" />
+              <span className="truncate">{searchReadyMetricLabel}</span>
+            </span>
           </div>
         </div>
         <div className="grid min-w-0 grid-cols-[repeat(5,minmax(0,1fr))] gap-1.5 max-[900px]:grid-cols-3 max-[760px]:grid-cols-2">
@@ -293,6 +325,26 @@ export function ResearchCommandCenter(props: {
             </span>
           </button>
         </div>
+      </div>
+      <div className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5 max-[760px]:grid-cols-1">
+        <div className="min-w-0">
+          <div className="truncate text-[11px] font-semibold text-[color:var(--editor-tab-text)]">
+            {paperStatusLabel}
+          </div>
+          <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+            <span className="font-semibold text-[color:var(--editor-tab-text)]">{t(nextAction.titleKey)}</span>
+            <span className="min-w-0 truncate">{t(nextAction.detailKey)}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="panel-topbar-btn editor-toolbar-btn--primary justify-center gap-1.5 px-3 text-xs disabled:opacity-50"
+          disabled={busy || nextAction.kind === "open-tex"}
+          onClick={runNextAction}
+        >
+          <FileCheck2 className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{t(nextAction.actionKey)}</span>
+        </button>
       </div>
       <ResearchQualityGate
         report={qualityGate.report}

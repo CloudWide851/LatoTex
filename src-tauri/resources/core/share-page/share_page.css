@@ -1877,9 +1877,16 @@ video {
 .gap-px {
   gap: 1px;
 }
+.gap-x-2 {
+  -moz-column-gap: 0.5rem;
+       column-gap: 0.5rem;
+}
 .gap-x-3 {
   -moz-column-gap: 0.75rem;
        column-gap: 0.75rem;
+}
+.gap-y-0\.5 {
+  row-gap: 0.125rem;
 }
 .gap-y-1 {
   row-gap: 0.25rem;

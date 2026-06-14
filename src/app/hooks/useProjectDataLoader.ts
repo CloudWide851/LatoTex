@@ -3,7 +3,9 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { gitBranches, gitCheckInstalled, gitLog, gitStatus } from "../../shared/api/git";
 import { getLibraryTree } from "../../shared/api/library";
 import { openProject, projectIntegrityStatus, projectPrepareSearchIndex } from "../../shared/api/projects";
+import { runtimeLogWrite } from "../../shared/api/runtime";
 import type { AppSettings, ResourceNode, WorkspacePage } from "../../shared/types/app";
+import { saveProjectSearchReadyMetric } from "./useProjectSearchReadyMetric";
 
 export type ProjectIntegrityIssue = { projectId: string; missingRequired: string[] };
 export type LoadProjectDataOptions = {
@@ -55,10 +57,25 @@ function prepareSearchIndexAfterProjectOpen(projectId: string, mainFile: string)
     void projectPrepareSearchIndex(projectId).catch(() => undefined);
     return;
   }
+  const startedAt = typeof performance === "undefined" ? Date.now() : performance.now();
   void projectPrepareSearchIndex(projectId, {
     mode: "focused",
     focusPaths,
   })
+    .then(() => {
+      const endedAt = typeof performance === "undefined" ? Date.now() : performance.now();
+      const elapsedMs = Math.max(0, Math.round(endedAt - startedAt));
+      saveProjectSearchReadyMetric({
+        elapsedMs,
+        projectId,
+        focusPaths,
+        recordedAt: new Date().toISOString(),
+      });
+      void runtimeLogWrite(
+        "INFO",
+        `frontend performance time_to_project_search_ready_ms=${elapsedMs}, project=${projectId}, focus=${focusPaths.join(",")}`,
+      ).catch(() => undefined);
+    })
     .catch(() => undefined)
     .finally(() => {
       void projectPrepareSearchIndex(projectId).catch(() => undefined);
