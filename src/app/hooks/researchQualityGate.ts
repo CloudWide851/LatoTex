@@ -4,9 +4,22 @@ import {
   buildSubmissionCheckReport,
   type SubmissionCheckReport,
 } from "./researchSubmissionCheck";
+import {
+  buildAuditSummary,
+  buildClaimAudit,
+  buildProfileChecklist,
+  buildRebuttalEvidence,
+  buildReviewerRisk,
+  type ResearchAuditSummary,
+  type ResearchClaimAudit,
+  type ResearchProfileChecklist,
+  type ResearchRebuttalEvidence,
+  type ResearchReviewerRisk,
+  type ResearchWorkflowProfileId,
+} from "./researchQualityAudit";
 
 export type ResearchQualityStatus = "pass" | "warn" | "fail";
-export type ResearchQualityLaneId = "citations" | "compile" | "submission" | "rebuttal";
+export type ResearchQualityLaneId = "claims" | "citations" | "compile" | "submission" | "profile" | "rebuttal";
 
 export type ResearchQualityMessage = {
   key: string;
@@ -45,6 +58,11 @@ export type ResearchQualityReadiness = {
 export type ResearchQualityReport = {
   citationTrust: CitationTrustReport;
   submission: SubmissionCheckReport;
+  claimAudit: ResearchClaimAudit;
+  profileChecklist: ResearchProfileChecklist;
+  reviewerRisk: ResearchReviewerRisk;
+  rebuttalEvidence: ResearchRebuttalEvidence;
+  auditSummary: ResearchAuditSummary;
   lanes: ResearchQualityLane[];
   readiness: ResearchQualityReadiness;
 };
@@ -78,9 +96,11 @@ function buildReportCacheKey(input: {
   bibSources?: Record<string, string>;
   unreadableBibPaths?: string[];
   selectedFile?: string | null;
+  profileId?: ResearchWorkflowProfileId;
 }): string {
   return JSON.stringify({
     selectedFile: input.selectedFile ?? "",
+    profileId: input.profileId ?? "generic",
     texSource: input.texSource,
     fileList: stableArray(input.fileList),
     compileDiagnostics: input.compileDiagnostics,
@@ -310,6 +330,8 @@ function buildCitationLane(report: CitationTrustReport): ResearchQualityLane {
 function buildReadiness(input: {
   citationTrust: CitationTrustReport;
   submission: SubmissionCheckReport;
+  claimAudit: ResearchClaimAudit;
+  profileChecklist: ResearchProfileChecklist;
   lanes: ResearchQualityLane[];
   compileDiagnostics: string[];
 }): ResearchQualityReadiness {
@@ -321,11 +343,15 @@ function buildReadiness(input: {
   const blockers =
     input.citationTrust.missingKeys.length +
     input.citationTrust.unreadableBibPaths.length +
+    input.claimAudit.blockerCount +
+    input.profileChecklist.blockerCount +
     input.compileDiagnostics.length +
     submissionBlockers;
   const warnings =
     input.citationTrust.weakKeys.length +
     input.citationTrust.duplicateKeys.length +
+    input.claimAudit.warningCount +
+    input.profileChecklist.warningCount +
     input.submission.warningCount +
     noCitations +
     rebuttalWarnings;
@@ -345,6 +371,7 @@ export function buildResearchQualityReport(input: {
   bibSources?: Record<string, string>;
   unreadableBibPaths?: string[];
   selectedFile?: string | null;
+  profileId?: ResearchWorkflowProfileId;
 }): ResearchQualityReport {
   const cacheKey = buildReportCacheKey(input);
   const cached = reportCache.get(cacheKey);
@@ -364,9 +391,41 @@ export function buildResearchQualityReport(input: {
     compileDiagnostics: input.compileDiagnostics,
     bibSources: input.bibSources,
   });
+  const claimAudit = buildClaimAudit(input.texSource);
+  const profileChecklist = buildProfileChecklist({
+    profileId: input.profileId,
+    texSource: input.texSource,
+    fileList: input.fileList,
+    citationTrust,
+    submission,
+  });
+  const reviewerRisk = buildReviewerRisk({
+    texSource: input.texSource,
+    claimAudit,
+    citationTrust,
+    compileDiagnostics: input.compileDiagnostics,
+    profileChecklist,
+  });
+  const rebuttalEvidence = buildRebuttalEvidence({ citationTrust, claimAudit });
+  const auditSummary = buildAuditSummary({
+    profileChecklist,
+    claimAudit,
+    citationTrust,
+    reviewerRisk,
+    rebuttalEvidence,
+  });
   const compileCount = input.compileDiagnostics.length;
   const canRebut = Boolean(input.selectedFile && /\.tex$/i.test(input.selectedFile));
   const lanes: ResearchQualityLane[] = [
+    {
+      id: "claims",
+      status: claimAudit.blockerCount > 0 ? "fail" : claimAudit.warningCount > 0 ? "warn" : "pass",
+      message: claimAudit.blockerCount > 0
+        ? { key: "research.quality.claims.fail", params: { count: claimAudit.blockerCount } }
+        : claimAudit.warningCount > 0
+          ? { key: "research.quality.claims.warn", params: { count: claimAudit.warningCount } }
+          : { key: "research.quality.claims.pass" },
+    },
     buildCitationLane(citationTrust),
     {
       id: "compile",
@@ -385,6 +444,15 @@ export function buildResearchQualityReport(input: {
           : { key: "research.quality.submission.pass" },
     },
     {
+      id: "profile",
+      status: profileChecklist.blockerCount > 0 ? "fail" : profileChecklist.warningCount > 0 ? "warn" : "pass",
+      message: profileChecklist.blockerCount > 0
+        ? { key: "research.quality.profile.fail", params: { count: profileChecklist.blockerCount } }
+        : profileChecklist.warningCount > 0
+          ? { key: "research.quality.profile.warn", params: { count: profileChecklist.warningCount, profile: profileChecklist.profileId } }
+          : { key: "research.quality.profile.pass", params: { profile: profileChecklist.profileId } },
+    },
+    {
       id: "rebuttal",
       status: canRebut ? "pass" : "warn",
       message: { key: canRebut ? "research.quality.rebuttal.pass" : "research.quality.rebuttal.warn" },
@@ -393,10 +461,17 @@ export function buildResearchQualityReport(input: {
   const report = {
     citationTrust,
     submission,
+    claimAudit,
+    profileChecklist,
+    reviewerRisk,
+    rebuttalEvidence,
+    auditSummary,
     lanes,
     readiness: buildReadiness({
       citationTrust,
       submission,
+      claimAudit,
+      profileChecklist,
       lanes,
       compileDiagnostics: input.compileDiagnostics,
     }),
@@ -419,6 +494,7 @@ export function useResearchQualityGate(input: {
   texSource: string;
   fileList: string[];
   compileDiagnostics: string[];
+  profileId?: ResearchWorkflowProfileId;
 }) {
   const bibPaths = useMemo(
     () => extractDeclaredBibPaths(input.texSource, input.selectedFile, input.fileList),
@@ -476,8 +552,9 @@ export function useResearchQualityGate(input: {
       bibSources: bibState.sources,
       unreadableBibPaths: bibState.errors,
       selectedFile: input.selectedFile,
+      profileId: input.profileId,
     }),
-    [bibState.errors, bibState.sources, input.compileDiagnostics, input.fileList, input.selectedFile, input.texSource],
+    [bibState.errors, bibState.sources, input.compileDiagnostics, input.fileList, input.profileId, input.selectedFile, input.texSource],
   );
 
   return { report, loading: bibState.loading };

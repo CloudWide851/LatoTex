@@ -189,7 +189,10 @@ fn create_search_documents_indices(conn: &Connection) -> Result<(), String> {
 }
 
 fn is_ignored_search_dir(name: &str) -> bool {
-    matches!(name, ".git" | "node_modules" | "target" | "dist" | ".pnpm-store")
+    matches!(
+        name,
+        ".git" | "node_modules" | "target" | "dist" | ".pnpm-store"
+    )
 }
 
 fn should_index_search_entry(path: &Path, name: &str, is_dir: bool) -> bool {
@@ -249,7 +252,9 @@ fn collect_search_scan_entries(
     Ok(())
 }
 
-fn existing_search_entries(conn: &Connection) -> Result<HashMap<String, SearchIndexedEntry>, String> {
+fn existing_search_entries(
+    conn: &Connection,
+) -> Result<HashMap<String, SearchIndexedEntry>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT relative_path, size_bytes, modified_epoch_sec, searchable FROM search_documents",
@@ -275,7 +280,10 @@ fn existing_search_entries(conn: &Connection) -> Result<HashMap<String, SearchIn
     Ok(entries)
 }
 
-fn load_searchable_file_content(path: &Path, size_bytes: u64) -> Result<(bool, Option<String>, Option<String>), String> {
+fn load_searchable_file_content(
+    path: &Path,
+    size_bytes: u64,
+) -> Result<(bool, Option<String>, Option<String>), String> {
     if size_bytes > SEARCH_MAX_FILE_SIZE_BYTES {
         return Ok((false, None, None));
     }
@@ -289,6 +297,107 @@ fn load_searchable_file_content(path: &Path, size_bytes: u64) -> Result<(bool, O
     }
     let content_lower = content_text.to_lowercase();
     Ok((true, Some(content_text), Some(content_lower)))
+}
+
+fn upsert_search_scan_entry(
+    tx: &rusqlite::Transaction<'_>,
+    item: &SearchScanEntry,
+) -> Result<(), String> {
+    let (searchable, content_text, content_lower) =
+        load_searchable_file_content(&item.full_path, item.size_bytes)?;
+    tx.execute(
+        "
+        INSERT INTO search_documents (
+          relative_path,
+          file_name,
+          file_name_lower,
+          lower_path,
+          size_bytes,
+          modified_epoch_sec,
+          searchable,
+          content_text,
+          content_lower
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+        ON CONFLICT(relative_path) DO UPDATE SET
+          file_name = excluded.file_name,
+          file_name_lower = excluded.file_name_lower,
+          lower_path = excluded.lower_path,
+          size_bytes = excluded.size_bytes,
+          modified_epoch_sec = excluded.modified_epoch_sec,
+          searchable = excluded.searchable,
+          content_text = excluded.content_text,
+          content_lower = excluded.content_lower
+        ",
+        params![
+            item.relative_path,
+            item.file_name,
+            item.file_name.to_lowercase(),
+            item.relative_path.to_lowercase(),
+            item.size_bytes as i64,
+            item.modified_epoch_sec,
+            if searchable { 1_i64 } else { 0_i64 },
+            content_text,
+            content_lower
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn normalize_focus_path(raw: &str) -> String {
+    raw.replace('\\', "/")
+        .trim()
+        .trim_start_matches("./")
+        .trim_matches('/')
+        .to_string()
+}
+
+fn collect_focused_search_entries(
+    project_root: &Path,
+    focus_paths: &[String],
+) -> Result<(Vec<SearchScanEntry>, Vec<String>), String> {
+    let canonical_root = project_root.canonicalize().map_err(|e| e.to_string())?;
+    let mut entries = Vec::new();
+    let mut missing_paths = Vec::new();
+    for raw_path in focus_paths {
+        let relative_path = normalize_focus_path(raw_path);
+        if relative_path.is_empty() {
+            continue;
+        }
+        let target = safe_join(project_root, &relative_path)?;
+        if !target.exists() {
+            missing_paths.push(relative_path);
+            continue;
+        }
+        let name = target
+            .file_name()
+            .map(|value| value.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let is_dir = target.is_dir();
+        if !should_index_search_entry(&target, &name, is_dir) {
+            missing_paths.push(relative_path);
+            continue;
+        }
+        if is_dir {
+            collect_search_scan_entries(&canonical_root, &target, &mut entries)?;
+            continue;
+        }
+        let metadata = fs::metadata(&target).map_err(|e| e.to_string())?;
+        entries.push(SearchScanEntry {
+            relative_path: target
+                .strip_prefix(&canonical_root)
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .replace('\\', "/"),
+            file_name: name,
+            full_path: target,
+            size_bytes: metadata.len(),
+            modified_epoch_sec: modified_epoch_sec(&metadata),
+        });
+    }
+    entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    entries.dedup_by(|a, b| a.relative_path == b.relative_path);
+    Ok((entries, missing_paths))
 }
 
 fn search_index_needs_refresh(conn: &Connection) -> Result<bool, String> {
@@ -314,55 +423,22 @@ fn sync_search_index(project_root: &Path, force: bool) -> Result<(), String> {
     let mut scan_entries = Vec::new();
     collect_search_scan_entries(project_root, project_root, &mut scan_entries)?;
     scan_entries.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
-    let seen_paths: HashSet<String> = scan_entries.iter().map(|item| item.relative_path.clone()).collect();
+    let seen_paths: HashSet<String> = scan_entries
+        .iter()
+        .map(|item| item.relative_path.clone())
+        .collect();
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     for item in &scan_entries {
         let existing_item = existing.get(&item.relative_path).copied();
         let unchanged = existing_item.is_some_and(|entry| {
-            entry.size_bytes == item.size_bytes && entry.modified_epoch_sec == item.modified_epoch_sec
+            entry.size_bytes == item.size_bytes
+                && entry.modified_epoch_sec == item.modified_epoch_sec
         });
         if unchanged {
             continue;
         }
-        let (searchable, content_text, content_lower) =
-            load_searchable_file_content(&item.full_path, item.size_bytes)?;
-        tx.execute(
-            "
-            INSERT INTO search_documents (
-              relative_path,
-              file_name,
-              file_name_lower,
-              lower_path,
-              size_bytes,
-              modified_epoch_sec,
-              searchable,
-              content_text,
-              content_lower
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-            ON CONFLICT(relative_path) DO UPDATE SET
-              file_name = excluded.file_name,
-              file_name_lower = excluded.file_name_lower,
-              lower_path = excluded.lower_path,
-              size_bytes = excluded.size_bytes,
-              modified_epoch_sec = excluded.modified_epoch_sec,
-              searchable = excluded.searchable,
-              content_text = excluded.content_text,
-              content_lower = excluded.content_lower
-            ",
-            params![
-                item.relative_path,
-                item.file_name,
-                item.file_name.to_lowercase(),
-                item.relative_path.to_lowercase(),
-                item.size_bytes as i64,
-                item.modified_epoch_sec,
-                if searchable { 1_i64 } else { 0_i64 },
-                content_text,
-                content_lower
-            ],
-        )
-        .map_err(|e| e.to_string())?;
+        upsert_search_scan_entry(&tx, item)?;
     }
 
     for stale_path in existing.keys().filter(|path| !seen_paths.contains(*path)) {
@@ -383,6 +459,37 @@ fn sync_search_index(project_root: &Path, force: bool) -> Result<(), String> {
           last_indexed_at = excluded.last_indexed_at
         ",
         params![SEARCH_INDEX_SCHEMA_VERSION, now_iso()],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn sync_focused_search_index(project_root: &Path, focus_paths: &[String]) -> Result<(), String> {
+    let project_lock = search_index_project_lock(project_root)?;
+    let _guard = project_lock.lock().map_err(|e| e.to_string())?;
+    let mut conn = open_search_index(project_root)?;
+    let (scan_entries, missing_paths) = collect_focused_search_entries(project_root, focus_paths)?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for item in &scan_entries {
+        upsert_search_scan_entry(&tx, item)?;
+    }
+    for stale_path in missing_paths {
+        tx.execute(
+            "DELETE FROM search_documents WHERE relative_path = ?1",
+            params![stale_path],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.execute(
+        "
+        INSERT INTO search_meta (id, schema_version, dirty, last_indexed_at)
+        VALUES (1, ?1, 1, NULL)
+        ON CONFLICT(id) DO UPDATE SET
+          schema_version = excluded.schema_version,
+          dirty = 1
+        ",
+        params![SEARCH_INDEX_SCHEMA_VERSION],
     )
     .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
@@ -426,5 +533,18 @@ pub fn prepare_project_search_index(db_path: &Path, project_id: &str) -> Result<
     Ok(Ack {
         ok: true,
         message: "Search index ready".to_string(),
+    })
+}
+
+pub fn prepare_project_search_index_focused(
+    db_path: &Path,
+    project_id: &str,
+    focus_paths: &[String],
+) -> Result<Ack, String> {
+    let root = load_project_root(db_path, project_id)?;
+    sync_focused_search_index(&root, focus_paths)?;
+    Ok(Ack {
+        ok: true,
+        message: "Focused search index ready".to_string(),
     })
 }

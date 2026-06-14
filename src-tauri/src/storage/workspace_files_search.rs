@@ -199,8 +199,8 @@ pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
 mod workspace_files_search_tests {
     use super::{
         is_python_venv_dir, list_workspace_tree, prepare_project_search_index,
-        read_project_file, read_project_file_binary, save_draw_export_asset, search_project_content,
-        search_project_content_incremental,
+        prepare_project_search_index_focused, read_project_file, read_project_file_binary,
+        save_draw_export_asset, search_project_content, search_project_content_incremental,
     };
     use crate::models::ProjectSearchInput;
     use crate::storage;
@@ -227,8 +227,8 @@ mod workspace_files_search_tests {
 
         fs::create_dir_all(&projects_dir).unwrap();
         storage::initialize_database(&db_path).unwrap();
-        let snapshot = storage::create_project(&db_path, &projects_dir, "Workspace Binary Read Test")
-            .unwrap();
+        let snapshot =
+            storage::create_project(&db_path, &projects_dir, "Workspace Binary Read Test").unwrap();
         let project_id = snapshot.summary.id;
         let project_root = PathBuf::from(snapshot.summary.root_path);
         (temp_root, project_id, project_root, db_path)
@@ -304,18 +304,20 @@ mod workspace_files_search_tests {
             .children
             .iter()
             .any(|node| node.relative_path == "drawings/.hidden.txt"));
-        assert!(tree
-            .iter()
-            .any(|node| node.relative_path == ".env.local"));
+        assert!(tree.iter().any(|node| node.relative_path == ".env.local"));
 
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn read_project_file_binary_reads_local_library_pdf_bytes() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("binary-library");
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("binary-library");
         let relative_path = ".latotex/papers/demo-paper.pdf";
-        let pdf_path = project_root.join(".latotex").join("papers").join("demo-paper.pdf");
+        let pdf_path = project_root
+            .join(".latotex")
+            .join("papers")
+            .join("demo-paper.pdf");
         fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
         fs::write(&pdf_path, b"%PDF-local-library").unwrap();
 
@@ -341,7 +343,8 @@ mod workspace_files_search_tests {
 
     #[test]
     fn read_project_file_binary_reads_cached_remote_library_pdf_bytes() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("binary-remote-cache");
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("binary-remote-cache");
         let relative_path = ".latotex/cache/papers/remote-preview.pdf";
         let pdf_path = project_root
             .join(".latotex")
@@ -397,7 +400,13 @@ mod workspace_files_search_tests {
         assert_eq!(result.saved_path, "drawings/exports/demo.svg");
         assert_eq!(result.file_name, "demo.svg");
         assert_eq!(
-            fs::read(project_root.join("drawings").join("exports").join("demo.svg")).unwrap(),
+            fs::read(
+                project_root
+                    .join("drawings")
+                    .join("exports")
+                    .join("demo.svg")
+            )
+            .unwrap(),
             b"<svg>demo</svg>"
         );
 
@@ -406,7 +415,8 @@ mod workspace_files_search_tests {
 
     #[test]
     fn search_project_content_returns_path_and_content_hits() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("search-path-and-content");
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("search-path-and-content");
         fs::write(
             project_root.join("AlphaNotes.txt"),
             "first line\nalpha keyword appears here\nthird line",
@@ -479,6 +489,43 @@ mod workspace_files_search_tests {
     }
 
     #[test]
+    fn focused_search_index_prepares_only_requested_files_and_rejects_traversal() {
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("search-focused");
+        fs::write(project_root.join("main.tex"), "focused keyword").unwrap();
+        fs::write(project_root.join("other.tex"), "background keyword").unwrap();
+
+        prepare_project_search_index_focused(&db_path, &project_id, &["main.tex".to_string()])
+            .unwrap();
+
+        let hits = search_project_content(
+            &db_path,
+            ProjectSearchInput {
+                project_id: project_id.clone(),
+                query: "keyword".to_string(),
+                limit: Some(20),
+                scopes: Some(vec!["file_content".to_string()]),
+            },
+        )
+        .unwrap();
+        assert!(hits
+            .iter()
+            .any(|hit| hit.relative_path.as_deref() == Some("main.tex")));
+        assert!(!hits
+            .iter()
+            .any(|hit| hit.relative_path.as_deref() == Some("other.tex")));
+
+        let denied = prepare_project_search_index_focused(
+            &db_path,
+            &project_id,
+            &["../outside.tex".to_string()],
+        );
+        assert!(denied.is_err());
+
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[test]
     fn search_project_content_incremental_returns_progressive_content_batches() {
         let (temp_root, project_id, project_root, db_path) =
             create_project_fixture("search-incremental-content");
@@ -523,4 +570,3 @@ mod workspace_files_search_tests {
         let _ = fs::remove_dir_all(temp_root);
     }
 }
-

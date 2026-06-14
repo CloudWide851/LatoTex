@@ -32,6 +32,7 @@ import {
   resolvePaperFlowAction,
 } from "./agentPaperActions";
 import { executeRebuttalCommand } from "./agentRebuttalWorkflow";
+import { executeSubmissionPreflightCommand } from "./agentSubmissionPreflightWorkflow";
 import { compileProposalPreviewWithAutoFix } from "./agentProposalPreviewCompile";
 import { buildAnalysisPrompt } from "./agentTaskPrompt";
 import { runAgentThroughEvents } from "./agentRunEvents";
@@ -437,6 +438,23 @@ export async function runAgentWorkflow(params: {
       setAgentStatusKey("agent.statusDone");
       return;
     }
+    if (parsed.kind === "command" && parsed.command === "submit-check") {
+      await executeSubmissionPreflightCommand({
+        activeProjectId,
+        selectedFile,
+        prompt: parsed.args || prompt,
+        contextPaths: Array.from(new Set([...promptContextPaths, ...promptMentionedPaths])),
+        taskModelOverride,
+        teamMode,
+        t,
+        normalizeOutput: cleanAgentOutput,
+        pushAgentMessage,
+        setAgentRunId,
+      });
+      setAgentPhase("done");
+      setAgentStatusKey("agent.statusDone");
+      return;
+    }
 
     const inferredAction = inferPaperPromptAction(prompt);
     const inferredLink = extractPaperLinkFromPrompt(prompt);
@@ -576,18 +594,5 @@ export async function runAgentWorkflow(params: {
     setToast({ type: "error", message: toastMessage });
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

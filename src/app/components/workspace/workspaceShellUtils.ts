@@ -18,6 +18,7 @@ export function buildAgentCommandItems(t: TranslationFn): AgentCommandItem[] {
     { token: "/check-ref", label: t("agent.command.checkRef.label"), description: t("agent.command.checkRef.description") },
     { token: "/paper", label: t("agent.command.paper.label"), description: t("agent.command.paper.description") },
     { token: "/rebuttal", label: t("agent.command.rebuttal.label"), description: t("agent.command.rebuttal.description") },
+    { token: "/submit-check", label: t("agent.command.submitCheck.label"), description: t("agent.command.submitCheck.description") },
   ];
 }
 

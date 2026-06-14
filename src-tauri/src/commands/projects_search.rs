@@ -1,6 +1,6 @@
 use crate::models::{
-    Ack, ProjectPathActionInput, ProjectRefInput, ProjectSearchBatch, ProjectSearchHit,
-    ProjectSearchIncrementalInput, ProjectSearchInput,
+    Ack, ProjectPathActionInput, ProjectSearchBatch, ProjectSearchHit,
+    ProjectSearchIncrementalInput, ProjectSearchIndexPrepareInput, ProjectSearchInput,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -49,17 +49,29 @@ pub async fn project_search_content_incremental(
 #[tauri::command]
 pub async fn project_prepare_search_index(
     state: State<'_, AppState>,
-    input: ProjectRefInput,
+    input: ProjectSearchIndexPrepareInput,
 ) -> Result<Ack, String> {
     state.log(
         "INFO",
-        &format!("project_prepare_search_index: {}", input.project_id),
+        &format!(
+            "project_prepare_search_index: {}, mode={}",
+            input.project_id,
+            input.mode.as_deref().unwrap_or("full")
+        ),
     );
     let db_path = state.db_path.clone();
     let project_id = input.project_id;
-    spawn_blocking(move || storage::prepare_project_search_index(&db_path, &project_id))
-        .await
-        .map_err(|e| e.to_string())?
+    let mode = input.mode.unwrap_or_else(|| "full".to_string());
+    let focus_paths = input.focus_paths.unwrap_or_default();
+    spawn_blocking(move || {
+        if mode == "focused" && !focus_paths.is_empty() {
+            storage::prepare_project_search_index_focused(&db_path, &project_id, &focus_paths)
+        } else {
+            storage::prepare_project_search_index(&db_path, &project_id)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

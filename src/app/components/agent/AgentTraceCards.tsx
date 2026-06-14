@@ -110,6 +110,8 @@ type TaskGroup = {
   inputRefs: string[];
   outputRefs: string[];
   requiresApproval: boolean;
+  workflowId?: string;
+  harnessProfileId?: string;
   teamRoleName?: string;
 };
 
@@ -134,12 +136,16 @@ function buildTaskGroups(cards: AgentEventCard[], t: (key: any) => string): Task
       inputRefs: [],
       outputRefs: [],
       requiresApproval: false,
+      workflowId: card.workflowId,
+      harnessProfileId: card.harnessProfileId,
       teamRoleName: card.teamRoleName,
     };
     group.label = group.label || nextLabel;
     group.status = card.status || group.status;
     group.steps.push(card);
     group.requiresApproval = group.requiresApproval || card.requiresApproval === true;
+    group.workflowId = card.workflowId ?? group.workflowId;
+    group.harnessProfileId = card.harnessProfileId ?? group.harnessProfileId;
     group.teamRoleName = card.teamRoleName ?? group.teamRoleName;
     if (outputLike) {
       group.outputRefs = unique([...group.outputRefs, ...refs]);
@@ -281,6 +287,18 @@ function TraceGroup(props: { group: TaskGroup; t: (key: any) => string }) {
         {latest?.decision ? badge(latest.decision, "decision") : null}
         {latest?.riskLevel ? badge(latest.riskLevel, "risk") : null}
         {group.requiresApproval ? badge(t("agent.task.approvalBadge"), "approval") : null}
+        {group.workflowId ? (
+          <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-600">
+            <span className="mr-1 shrink-0 font-medium">{t("agent.task.workflow")}</span>
+            <span className="truncate font-mono">{group.workflowId}</span>
+          </span>
+        ) : null}
+        {group.harnessProfileId ? (
+          <span className="inline-flex max-w-full items-center rounded-full border border-violet-200 bg-white px-1.5 py-0.5 text-[10px] text-violet-700">
+            <span className="mr-1 shrink-0 font-medium">{t("agent.task.harness")}</span>
+            <span className="truncate font-mono">{group.harnessProfileId}</span>
+          </span>
+        ) : null}
       </div>
       {group.inputRefs.length > 0 ? (
         <div className="mt-2">

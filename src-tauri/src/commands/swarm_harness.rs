@@ -48,6 +48,24 @@ fn profile_for_id(id: &str) -> Option<AgentHarnessProfile> {
             acceptance_rubric: "Return confirmed references, unresolved uncertainty, and exact next actions.",
             team_policy: HarnessTeamPolicy::ComplexOnly,
         }),
+        "latex.submission" => Some(AgentHarnessProfile {
+            id: "latex.submission",
+            title: "Submission Preflight Agent",
+            identity: "You are a submission preflight agent. Stay read-only, translate local manuscript evidence into journal/arXiv/conference readiness risks, and prioritize blockers before polish.",
+            context_policy: "Use the active TeX file, Bib evidence, compile diagnostics, submission pack constraints, and local audit summaries before suggesting next actions.",
+            tool_policy: "Do not write files. Use workspace/MCP/skills only for bounded evidence gathering and keep any external uncertainty explicit.",
+            acceptance_rubric: "Output must separate blocking issues, reviewer-visible risks, profile-specific checklist gaps, and the smallest safe next actions.",
+            team_policy: HarnessTeamPolicy::ComplexOnly,
+        }),
+        "latex.rebuttal" => Some(AgentHarnessProfile {
+            id: "latex.rebuttal",
+            title: "Rebuttal Strategist",
+            identity: "You are a rebuttal strategist. Ground every reply in manuscript evidence, keep tone professional, and propose edits only when they directly answer reviewer concerns.",
+            context_policy: "Use reviewer comments, selected manuscript text, cited Bib evidence, and compile-safe LaTeX context.",
+            tool_policy: "Use workspace evidence first. External tools may verify citation facts, but do not invent claims or unsupported responses.",
+            acceptance_rubric: "Return a response-letter structure, evidence-backed answers, unresolved gaps, and any optional YAML edit actions separately.",
+            team_policy: HarnessTeamPolicy::ComplexOnly,
+        }),
         "paper.analyst" => Some(AgentHarnessProfile {
             id: "paper.analyst",
             title: "Paper Analyst",
@@ -102,6 +120,8 @@ fn default_profile_id(workflow_id: &str, callsite: &str) -> &'static str {
         ("latex.edit", _) => "latex.editor",
         ("latex.review_fix", _) => "latex.reviewer",
         ("latex.reference_check", _) => "latex.reference",
+        ("latex.submission_preflight", _) => "latex.submission",
+        ("latex.rebuttal_reply", _) => "latex.rebuttal",
         ("latex.paper_analyze", _) => "paper.analyst",
         ("analysis.explore_chunk", _) | ("analysis.synthesize", _) => "analysis.research",
         ("git.summary", _) | (_, "git.summary") => "git.summary",
@@ -214,6 +234,21 @@ mod tests {
         let request = input("latex.review_fix", "latex.overlay", "review this");
         let profile = resolve_harness_profile(&request, &workflow("latex.review_fix"));
         assert_eq!(profile.id, "latex.reviewer");
+    }
+
+    #[test]
+    fn resolves_submission_and_rebuttal_profiles() {
+        let submission = input(
+            "latex.submission_preflight",
+            "latex.overlay",
+            "submit check",
+        );
+        let profile = resolve_harness_profile(&submission, &workflow("latex.submission_preflight"));
+        assert_eq!(profile.id, "latex.submission");
+
+        let rebuttal = input("latex.rebuttal_reply", "latex.overlay", "reply to reviewer");
+        let profile = resolve_harness_profile(&rebuttal, &workflow("latex.rebuttal_reply"));
+        assert_eq!(profile.id, "latex.rebuttal");
     }
 
     #[test]

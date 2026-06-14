@@ -76,25 +76,29 @@ fn is_latex_related_path(path: &str) -> bool {
 }
 
 fn default_workflow_registry() -> WorkflowRegistry {
-    let provider = |id: &str, title: &str, callsites: &[&str], writable_scopes: &[&str]| WorkflowDefinition {
-        id: id.to_string(),
-        title: title.to_string(),
-        callsites: callsites.iter().map(|value| value.to_string()).collect(),
-        model_id: None,
-        steps: vec![WorkflowStep {
-            id: "main".to_string(),
-            kind: "provider.generate".to_string(),
+    let provider =
+        |id: &str, title: &str, callsites: &[&str], writable_scopes: &[&str]| WorkflowDefinition {
+            id: id.to_string(),
             title: title.to_string(),
-            source: "workflow".to_string(),
-        }],
-        constraints: WorkflowConstraints {
-            allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
-            allowed_tools: vec!["provider_generate".to_string()],
-            writable_scopes: writable_scopes.iter().map(|value| value.to_string()).collect(),
-            max_steps: Some(4),
-            timeout_ms: Some(DEFAULT_TIMEOUT_MS),
-        },
-    };
+            callsites: callsites.iter().map(|value| value.to_string()).collect(),
+            model_id: None,
+            steps: vec![WorkflowStep {
+                id: "main".to_string(),
+                kind: "provider.generate".to_string(),
+                title: title.to_string(),
+                source: "workflow".to_string(),
+            }],
+            constraints: WorkflowConstraints {
+                allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
+                allowed_tools: vec!["provider_generate".to_string()],
+                writable_scopes: writable_scopes
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect(),
+                max_steps: Some(4),
+                timeout_ms: Some(DEFAULT_TIMEOUT_MS),
+            },
+        };
 
     WorkflowRegistry {
         version: 1,
@@ -136,6 +140,12 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 "Rebuttal Reply",
                 &["latex.overlay"],
                 &["latex"],
+            ),
+            provider(
+                "latex.submission_preflight",
+                "Submission Preflight",
+                &["latex.overlay"],
+                &["readonly"],
             ),
             provider(
                 "analysis.explore_chunk",
@@ -200,7 +210,10 @@ fn merge_missing_default_workflows(registry: &mut WorkflowRegistry) -> bool {
     changed
 }
 
-pub(super) fn load_registry_for_project(db_path: &Path, project_id: &str) -> Result<WorkflowRegistry, String> {
+pub(super) fn load_registry_for_project(
+    db_path: &Path,
+    project_id: &str,
+) -> Result<WorkflowRegistry, String> {
     let project_root = storage::load_project_root(db_path, project_id)?;
     let file_path = ensure_registry_file(&project_root)?;
     let raw = fs::read_to_string(&file_path)
@@ -295,7 +308,10 @@ pub(super) fn validate_invocation(
         .iter()
         .any(|scope| scope == "latex");
     if latex_only {
-        for reference in context_refs.iter().filter(|value| value.starts_with("file:")) {
+        for reference in context_refs
+            .iter()
+            .filter(|value| value.starts_with("file:"))
+        {
             let relative = reference.trim_start_matches("file:");
             if !is_latex_related_path(relative) {
                 return Err(format!("constraint.write_scope.denied:{reference}"));

@@ -1,7 +1,13 @@
-import { useState } from "react";
-import { BookOpenCheck, ClipboardCheck, FileCheck2, MessageSquareReply, Quote, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpenCheck, ClipboardCheck, FileCheck2, Gauge, MessageSquareReply, Quote, Wrench } from "lucide-react";
 import { libraryCitationResolve } from "../../../shared/api/library";
+import { writeFile } from "../../../shared/api/workspace";
+import {
+  buildResearchAuditMarkdown,
+  type ResearchWorkflowProfileId,
+} from "../../hooks/researchQualityAudit";
 import { type ResearchQualityLaneId, useResearchQualityGate } from "../../hooks/researchQualityGate";
+import { useEditableTexMetric } from "../../hooks/useEditableTexMetric";
 import { ResearchQualityDetails } from "./ResearchQualityDetails";
 import { ResearchQualityGate } from "./ResearchQualityGate";
 
@@ -12,6 +18,20 @@ function formatMessage(template: string, params: Record<string, string | number 
     (text, [key, value]) => text.replaceAll(`{${key}}`, String(value ?? "")),
     template,
   );
+}
+
+const RESEARCH_PROFILE_OPTIONS: ResearchWorkflowProfileId[] = [
+  "generic",
+  "arxiv",
+  "conference",
+  "journal",
+  "ieee-like",
+];
+
+function normalizeProfileId(value: string | null | undefined): ResearchWorkflowProfileId {
+  return RESEARCH_PROFILE_OPTIONS.includes(value as ResearchWorkflowProfileId)
+    ? value as ResearchWorkflowProfileId
+    : "generic";
 }
 
 export function ResearchCommandCenter(props: {
@@ -29,6 +49,7 @@ export function ResearchCommandCenter(props: {
   onOpenLibrary: () => void;
   onInsertCitation: (citationKey: string) => boolean;
   onRebuttalReply: (reviewComments: string) => void;
+  onSubmissionPreflight: (prompt: string) => void;
   t: TranslationFn;
 }) {
   const {
@@ -46,32 +67,98 @@ export function ResearchCommandCenter(props: {
     onOpenLibrary,
     onInsertCitation,
     onRebuttalReply,
+    onSubmissionPreflight,
     t,
   } = props;
   const [citationQuery, setCitationQuery] = useState("");
   const [citationBusy, setCitationBusy] = useState(false);
   const [citationStatus, setCitationStatus] = useState<string | null>(null);
+  const [auditStatus, setAuditStatus] = useState<string | null>(null);
   const [activeQualityLane, setActiveQualityLane] = useState<ResearchQualityLaneId | null>(null);
   const [rebuttalOpen, setRebuttalOpen] = useState(false);
   const [rebuttalComments, setRebuttalComments] = useState("");
   const [rebuttalStatus, setRebuttalStatus] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<ResearchWorkflowProfileId>("generic");
+  const editableTexMetric = useEditableTexMetric();
+  const profileStorageKey = useMemo(() => (
+    projectId && selectedFile
+      ? `latotex.research.profile.${projectId}.${selectedFile}`
+      : null
+  ), [projectId, selectedFile]);
+
+  useEffect(() => {
+    if (!profileStorageKey || typeof window === "undefined") {
+      setProfileId("generic");
+      return;
+    }
+    setProfileId(normalizeProfileId(window.localStorage.getItem(profileStorageKey)));
+  }, [profileStorageKey]);
+
+  useEffect(() => {
+    if (!profileStorageKey || typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(profileStorageKey, profileId);
+  }, [profileId, profileStorageKey]);
+
   const qualityGate = useResearchQualityGate({
     projectId,
     selectedFile,
     texSource: editorContent,
     fileList,
     compileDiagnostics,
+    profileId,
   });
   const submissionReport = qualityGate.report.submission;
   const canUseCitation = Boolean(projectId && selectedFile && canCompileSelectedFile);
   const paperActionLabel = selectedLibraryPath
     ? t("research.action.paperAnalyze")
     : t("research.action.openPapers");
+  const editableMetricLabel = editableTexMetric
+    ? formatMessage(t("research.performance.editableTex"), { ms: editableTexMetric.elapsedMs })
+    : t("research.performance.editableTexEmpty");
   const selectQualityLane = (lane: ResearchQualityLaneId) => {
     setActiveQualityLane((current) => current === lane ? null : lane);
     if (lane === "rebuttal") {
       setRebuttalOpen(true);
     }
+  };
+
+  const exportAuditReport = async () => {
+    if (!projectId || !selectedFile) {
+      setAuditStatus(t("research.audit.exportFailed"));
+      return;
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const path = `.latotex/reports/research-audit-${timestamp}.md`;
+    try {
+      await writeFile(projectId, path, buildResearchAuditMarkdown({
+        report: qualityGate.report,
+        selectedFile,
+      }, (key, params) => formatMessage(t(key), params ?? {})));
+      setAuditStatus(formatMessage(t("research.audit.exported"), { path }));
+    } catch {
+      setAuditStatus(t("research.audit.exportFailed"));
+    }
+  };
+
+  const runSubmissionPreflight = () => {
+    if (!projectId || !selectedFile || !canCompileSelectedFile) {
+      setAuditStatus(t("research.rebuttal.noEditor"));
+      return;
+    }
+    const prompt = [
+      `profile=${profileId}`,
+      `file=${selectedFile}`,
+      `score=${qualityGate.report.readiness.score}`,
+      `blockers=${qualityGate.report.readiness.blockers}`,
+      `warnings=${qualityGate.report.readiness.warnings}`,
+      `claimBlockers=${qualityGate.report.auditSummary.claimBlockers}`,
+      `reviewerRisks=${qualityGate.report.auditSummary.reviewerRisks}`,
+      "Use the local quality gate summary, explain submission blockers, and propose the smallest manuscript-safe next actions.",
+    ].join("; ");
+    onSubmissionPreflight(prompt);
+    setAuditStatus(null);
   };
 
   const resolveCitation = async () => {
@@ -128,6 +215,26 @@ export function ResearchCommandCenter(props: {
           </div>
           <div className="truncate text-sm font-semibold text-[color:var(--editor-tab-text)]">
             {t("research.commandCenter.title")}
+          </div>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+            <label className="flex min-w-0 items-center gap-1.5">
+              <span className="shrink-0">{t("research.profile.label")}</span>
+              <select
+                className="max-w-[148px] rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-text)] outline-none"
+                value={profileId}
+                onChange={(event) => setProfileId(normalizeProfileId(event.currentTarget.value))}
+              >
+                {RESEARCH_PROFILE_OPTIONS.map((profile) => (
+                  <option key={profile} value={profile}>
+                    {t(`research.profile.${profile === "ieee-like" ? "ieeeLike" : profile}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+              <Gauge className="h-3 w-3 shrink-0" />
+              <span className="truncate">{editableMetricLabel}</span>
+            </span>
           </div>
         </div>
         <div className="grid min-w-0 grid-cols-[repeat(5,minmax(0,1fr))] gap-1.5 max-[900px]:grid-cols-3 max-[760px]:grid-cols-2">
@@ -203,12 +310,19 @@ export function ResearchCommandCenter(props: {
           projectId={projectId}
           selectedFile={selectedFile}
           onCompileRepair={onCompileRepair}
+          onExportAudit={() => {
+            void exportAuditReport();
+          }}
           onOpenRebuttal={() => {
             setRebuttalOpen(true);
             setActiveQualityLane("rebuttal");
           }}
+          onSubmissionPreflight={runSubmissionPreflight}
           t={t}
         />
+      ) : null}
+      {auditStatus ? (
+        <div className="mt-1 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{auditStatus}</div>
       ) : null}
       <div className="mt-2 grid min-w-0 grid-cols-[minmax(220px,1fr)_auto] gap-2 max-[760px]:grid-cols-1">
         <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5">

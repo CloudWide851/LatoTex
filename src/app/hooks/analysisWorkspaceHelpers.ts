@@ -25,6 +25,8 @@ export type AgentEventCard = {
   parentNodeId?: string;
   artifactRefs?: string[];
   requiresApproval?: boolean;
+  workflowId?: string;
+  harnessProfileId?: string;
   teamId?: string;
   teamRoleId?: string;
   teamRoleName?: string;
@@ -308,6 +310,8 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
         parentNodeId: typeof payload.parentNodeId === "string" ? payload.parentNodeId : undefined,
         artifactRefs: toArtifactRefs(payload),
         requiresApproval: payload.requiresApproval === true,
+        workflowId: typeof payload.workflowId === "string" ? payload.workflowId : undefined,
+        harnessProfileId: typeof payload.harnessProfileId === "string" ? payload.harnessProfileId : undefined,
         teamId: typeof payload.teamId === "string" ? payload.teamId : undefined,
         teamRoleId: typeof payload.teamRoleId === "string" ? payload.teamRoleId : undefined,
         teamRoleName: typeof payload.teamRoleName === "string" ? payload.teamRoleName : undefined,
@@ -328,6 +332,8 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
     existing.parentNodeId = typeof payload.parentNodeId === "string" && payload.parentNodeId ? payload.parentNodeId : existing.parentNodeId;
     existing.artifactRefs = toArtifactRefs(payload);
     existing.requiresApproval = payload.requiresApproval === true || existing.requiresApproval;
+    existing.workflowId = typeof payload.workflowId === "string" && payload.workflowId ? payload.workflowId : existing.workflowId;
+    existing.harnessProfileId = typeof payload.harnessProfileId === "string" && payload.harnessProfileId ? payload.harnessProfileId : existing.harnessProfileId;
     existing.content = append ? `${existing.content}${content}` : content || existing.content;
     existing.teamId = typeof payload.teamId === "string" && payload.teamId ? payload.teamId : existing.teamId;
     existing.teamRoleId = typeof payload.teamRoleId === "string" && payload.teamRoleId ? payload.teamRoleId : existing.teamRoleId;

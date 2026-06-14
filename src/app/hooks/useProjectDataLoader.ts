@@ -49,6 +49,22 @@ function resolvePersistedLibrarySelection(
   return filePaths.includes(selectedPath) ? selectedPath : firstPaperPath(filePaths);
 }
 
+function prepareSearchIndexAfterProjectOpen(projectId: string, mainFile: string) {
+  const focusPaths = mainFile ? [mainFile] : [];
+  if (focusPaths.length === 0) {
+    void projectPrepareSearchIndex(projectId).catch(() => undefined);
+    return;
+  }
+  void projectPrepareSearchIndex(projectId, {
+    mode: "focused",
+    focusPaths,
+  })
+    .catch(() => undefined)
+    .finally(() => {
+      void projectPrepareSearchIndex(projectId).catch(() => undefined);
+    });
+}
+
 export function useProjectDataLoader(params: {
   page: WorkspacePage;
   activeProjectIdRef: MutableRefObject<string | null>;
@@ -148,7 +164,7 @@ export function useProjectDataLoader(params: {
     const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
-    void projectPrepareSearchIndex(projectId).catch(() => undefined);
+    prepareSearchIndexAfterProjectOpen(projectId, snapshot.mainFile);
     loadedLibraryProjectIdRef.current = null;
     lastLoadedProjectIdRef.current = projectId;
     setLibraryTree([]);

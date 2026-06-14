@@ -54,4 +54,41 @@ describe("AgentTraceCards", () => {
       root.unmount();
     });
   });
+
+  it("shows workflow and harness chips", async () => {
+    const cards: AgentEventCard[] = [{
+      id: "event-1",
+      runId: "run-1",
+      kind: "event",
+      stage: "provider",
+      source: "agent",
+      status: "completed",
+      title: "Submission preflight",
+      content: "checked",
+      cardKey: "card-1",
+      createdAt: "2026-06-13T00:00:00.000Z",
+      workflowId: "latex.submission_preflight",
+      harnessProfileId: "latex.submission",
+    }];
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <AgentTraceCards
+          cards={cards}
+          title="Trace"
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("latex.submission_preflight");
+    expect(container.textContent).toContain("latex.submission");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });

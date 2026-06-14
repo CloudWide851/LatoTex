@@ -27,7 +27,7 @@ import { extractEventCards } from "../hooks/analysisWorkspaceHelpers";
 export type AgentPhase = "idle" | "starting" | "running" | "done" | "error";
 
 export type AgentCommandItem = {
-  token: "/review" | "/check-ref" | "/new" | "/memory" | "/resume" | "/paper" | "/rebuttal";
+  token: "/review" | "/check-ref" | "/new" | "/memory" | "/resume" | "/paper" | "/rebuttal" | "/submit-check";
   label: string;
   description: string;
 };

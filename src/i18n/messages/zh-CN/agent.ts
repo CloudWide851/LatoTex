@@ -57,6 +57,8 @@ export const zhCN_agent = {
   "agent.command.rebuttal.label": "/rebuttal",
   "agent.command.rebuttal.description": "起草审稿回复并可生成论文稿修改建议",
   "agent.command.rebuttal.requiresComments": "请在 /rebuttal 后粘贴审稿意见。",
+  "agent.command.submitCheck.label": "/submit-check",
+  "agent.command.submitCheck.description": "结合质量门运行只读投稿预检",
   "agent.command.paper.imported": "已导入论文条目：{path}（来源 {link}）。",
   "agent.command.paper.cached": "PDF 缓存已就绪：{path}（来源 {source}）。",
   "agent.command.paper.cachedPending": "暂未拿到直接 PDF 缓存，你仍可先做元数据分析或稍后翻译。",
@@ -91,6 +93,8 @@ export const zhCN_agent = {
   "agent.task.outputs": "输出",
   "agent.task.steps": "过程",
   "agent.task.approvalBadge": "待确认",
+  "agent.task.workflow": "流程",
+  "agent.task.harness": "定位",
 } as const;
 
 

@@ -86,6 +86,9 @@ export function ResearchQualityGate(props: {
         <span className="min-w-0">
           {formatMessage(t("research.quality.localAudit.summary"), {
             citations: report.citationTrust.items.length,
+            claims: report.auditSummary.claimBlockers,
+            profile: report.auditSummary.profileId,
+            risks: report.auditSummary.reviewerRisks,
             blockers: report.readiness.blockers,
             warnings: report.readiness.warnings,
           })}
@@ -94,7 +97,7 @@ export function ResearchQualityGate(props: {
           {t("research.quality.localAudit.trace")}
         </span>
       </div>
-      <div className="grid min-w-0 grid-cols-[repeat(4,minmax(0,1fr))] gap-1.5 max-[960px]:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-[repeat(6,minmax(0,1fr))] gap-1.5 max-[1180px]:grid-cols-3 max-[760px]:grid-cols-2">
         {report.lanes.map((lane) => (
           <button
             key={lane.id}

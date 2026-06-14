@@ -1,10 +1,11 @@
-import { AlertTriangle, CheckCircle2, FileWarning, MessageSquareReply, Wrench, XCircle } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, Download, FileWarning, MessageSquareReply, Wrench, XCircle } from "lucide-react";
 import type {
   CitationTrustItem,
   ResearchQualityLaneId,
   ResearchQualityReport,
   ResearchQualityStatus,
 } from "../../hooks/researchQualityGate";
+import type { ResearchAuditItem } from "../../hooks/researchQualityAudit";
 import type { SubmissionIssue } from "../../hooks/researchSubmissionCheck";
 import { VirtualizedList } from "../virtual/VirtualizedList";
 import { SubmissionPackPanel } from "./SubmissionPackPanel";
@@ -48,6 +49,47 @@ function issueLabel(t: TranslationFn, issue: SubmissionIssue): string {
 function evidenceLabel(t: TranslationFn, evidence: string): string {
   const key = evidence === "author-year" ? "authorYear" : evidence;
   return t(`research.quality.evidence.${key}`);
+}
+
+function auditText(t: TranslationFn, value: string): string {
+  const key = `research.quality.audit.${value}`;
+  const translated = t(key);
+  return translated === key ? value : translated;
+}
+
+function AuditItemRow(props: { item: ResearchAuditItem; t: TranslationFn }) {
+  const { item, t } = props;
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(120px,0.9fr)_minmax(160px,1.2fr)_minmax(120px,0.8fr)] gap-2 border-t border-[color:var(--editor-widget-border)] py-1.5 text-[11px] max-[760px]:grid-cols-1">
+      <div className={["flex min-w-0 items-center gap-1.5 font-semibold", statusClass(item.status)].join(" ")}>
+        <StatusIcon status={item.status} />
+        <span className="truncate">{auditText(t, item.title)}</span>
+      </div>
+      <div className="min-w-0 text-[color:var(--editor-tab-muted)]">{auditText(t, item.detail)}</div>
+      <div className="flex min-w-0 flex-wrap gap-1">
+        {item.evidence.map((evidence) => (
+          <span key={`${item.id}-${evidence}`} className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+            {evidence}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AuditList(props: { items: ResearchAuditItem[]; t: TranslationFn }) {
+  const { items, t } = props;
+  return (
+    <VirtualizedList
+      items={items}
+      estimatedItemHeight={44}
+      overscan={8}
+      fallbackViewportHeight={192}
+      className="max-h-48 pr-1 [content-visibility:auto] [contain-intrinsic-size:220px]"
+      getKey={(item) => item.id}
+      renderItem={(item) => <AuditItemRow item={item} t={t} />}
+    />
+  );
 }
 
 function CitationRow(props: { item: CitationTrustItem; t: TranslationFn }) {
@@ -154,12 +196,14 @@ function CompileDetails(props: {
 
 function SubmissionDetails(props: {
   compileDiagnostics: string[];
+  onExportAudit: () => void;
+  onSubmissionPreflight: () => void;
   projectId: string | null;
   report: ResearchQualityReport;
   selectedFile: string | null;
   t: TranslationFn;
 }) {
-  const { compileDiagnostics, projectId, report, selectedFile, t } = props;
+  const { compileDiagnostics, onExportAudit, onSubmissionPreflight, projectId, report, selectedFile, t } = props;
   return (
     <>
       <div className="max-h-48 min-h-0 [content-visibility:auto] [contain-intrinsic-size:220px]">
@@ -192,6 +236,26 @@ function SubmissionDetails(props: {
         compileDiagnostics={compileDiagnostics}
         t={t}
       />
+      <div className="mt-2 flex min-w-0 flex-wrap gap-2">
+        <button
+          type="button"
+          className="panel-topbar-btn justify-center gap-1.5 px-3 text-xs disabled:opacity-50"
+          disabled={!projectId || !selectedFile}
+          onClick={onSubmissionPreflight}
+        >
+          <Bot className="h-3.5 w-3.5" />
+          {t("research.quality.detail.submissionAgentAction")}
+        </button>
+        <button
+          type="button"
+          className="panel-topbar-btn justify-center gap-1.5 px-3 text-xs disabled:opacity-50"
+          disabled={!projectId || !selectedFile}
+          onClick={onExportAudit}
+        >
+          <Download className="h-3.5 w-3.5" />
+          {t("research.quality.detail.exportAudit")}
+        </button>
+      </div>
     </>
   );
 }
@@ -222,10 +286,12 @@ export function ResearchQualityDetails(props: {
   projectId: string | null;
   selectedFile: string | null;
   onCompileRepair: () => void;
+  onExportAudit: () => void;
   onOpenRebuttal: () => void;
+  onSubmissionPreflight: () => void;
   t: TranslationFn;
 }) {
-  const { activeLane, report, compileDiagnostics, projectId, selectedFile, onCompileRepair, onOpenRebuttal, t } = props;
+  const { activeLane, report, compileDiagnostics, projectId, selectedFile, onCompileRepair, onExportAudit, onOpenRebuttal, onSubmissionPreflight, t } = props;
   return (
     <div className="mt-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] p-2">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
@@ -236,6 +302,7 @@ export function ResearchQualityDetails(props: {
           {formatMessage(t("research.quality.detail.score"), { score: report.readiness.score })}
         </div>
       </div>
+      {activeLane === "claims" ? <AuditList items={report.claimAudit.items} t={t} /> : null}
       {activeLane === "citations" ? <CitationDetails report={report} t={t} /> : null}
       {activeLane === "compile" ? (
         <CompileDetails compileDiagnostics={compileDiagnostics} onCompileRepair={onCompileRepair} t={t} />
@@ -243,13 +310,27 @@ export function ResearchQualityDetails(props: {
       {activeLane === "submission" ? (
         <SubmissionDetails
           compileDiagnostics={compileDiagnostics}
+          onExportAudit={onExportAudit}
+          onSubmissionPreflight={onSubmissionPreflight}
           projectId={projectId}
           report={report}
           selectedFile={selectedFile}
           t={t}
         />
       ) : null}
+      {activeLane === "profile" ? (
+        <div className="space-y-2">
+          <AuditList items={report.profileChecklist.items} t={t} />
+          <div className="rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-2">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
+              {t("research.quality.detail.reviewerRisk")}
+            </div>
+            <AuditList items={report.reviewerRisk.items} t={t} />
+          </div>
+        </div>
+      ) : null}
       {activeLane === "rebuttal" ? <RebuttalDetails onOpenRebuttal={onOpenRebuttal} t={t} /> : null}
+      {activeLane === "rebuttal" ? <div className="mt-2"><AuditList items={report.rebuttalEvidence.items} t={t} /></div> : null}
     </div>
   );
 }

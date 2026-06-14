@@ -56,16 +56,18 @@ describe("researchQualityGate", () => {
     });
 
     expect(report.lanes.map((lane) => [lane.id, lane.status])).toEqual([
+      ["claims", "pass"],
       ["citations", "fail"],
       ["compile", "fail"],
       ["submission", "fail"],
+      ["profile", "fail"],
       ["rebuttal", "pass"],
     ]);
     expect(report.readiness).toMatchObject({
-      blockers: 3,
+      blockers: 5,
       warnings: 0,
-      passedLanes: 1,
-      totalLanes: 4,
+      passedLanes: 2,
+      totalLanes: 6,
     });
     expect(report.readiness.score).toBeLessThan(50);
   });
@@ -133,8 +135,27 @@ describe("researchQualityGate", () => {
       score: 100,
       blockers: 0,
       warnings: 0,
-      passedLanes: 4,
-      totalLanes: 4,
+      passedLanes: 6,
+      totalLanes: 6,
     });
+  });
+
+  it("adds profile-specific checklist warnings", () => {
+    const report = buildResearchQualityReport({
+      selectedFile: "main.tex",
+      profileId: "ieee-like",
+      texSource: String.raw`\documentclass{article}\begin{document}\begin{abstract}Short.\end{abstract}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      compileDiagnostics: [],
+      bibSources: {
+        "refs.bib": "@article{smith2024,\ntitle={Local First Research Writing},\nauthor={Smith},\nyear={2024},\ndoi={10.0000/demo}\n}",
+      },
+    });
+
+    expect(report.profileChecklist.profileId).toBe("ieee-like");
+    expect(report.lanes.find((lane) => lane.id === "profile")).toMatchObject({
+      status: "warn",
+    });
+    expect(report.profileChecklist.items.some((item) => item.id === "profile-ieee-class" && item.status === "warn")).toBe(true);
   });
 });

@@ -254,6 +254,14 @@ pub struct ProjectSearchIncrementalInput {
     pub cursor: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectSearchIndexPrepareInput {
+    pub project_id: String,
+    pub mode: Option<String>,
+    pub focus_paths: Option<Vec<String>>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSearchHit {
@@ -298,4 +306,3 @@ pub struct FsOperationResult {
     pub ok: bool,
     pub message: String,
 }
-

@@ -73,8 +73,15 @@ export function projectSearchContentIncremental(input: {
   });
 }
 
-export function projectPrepareSearchIndex(projectId: string): Promise<{ ok: boolean; message: string }> {
+export function projectPrepareSearchIndex(
+  projectId: string,
+  options?: { mode?: "focused" | "full"; focusPaths?: string[] },
+): Promise<{ ok: boolean; message: string }> {
   return invokeCommand<{ ok: boolean; message: string }>("project_prepare_search_index", {
-    input: { projectId },
+    input: {
+      projectId,
+      mode: options?.mode,
+      focusPaths: options?.focusPaths,
+    },
   });
 }

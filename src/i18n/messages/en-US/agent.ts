@@ -57,6 +57,8 @@ export const enUS_agent = {
   "agent.command.rebuttal.label": "/rebuttal",
   "agent.command.rebuttal.description": "Draft a reviewer response and optional manuscript edits",
   "agent.command.rebuttal.requiresComments": "Please paste reviewer comments after /rebuttal.",
+  "agent.command.submitCheck.label": "/submit-check",
+  "agent.command.submitCheck.description": "Run a read-only submission preflight with the research gate",
   "agent.command.paper.imported": "Imported paper entry: {path} (from {link}).",
   "agent.command.paper.cached": "PDF cache ready: {path} (source: {source}).",
   "agent.command.paper.cachedPending": "No direct PDF cache yet. You can still analyze metadata or translate later.",
@@ -91,6 +93,8 @@ export const enUS_agent = {
   "agent.task.outputs": "Outputs",
   "agent.task.steps": "Steps",
   "agent.task.approvalBadge": "approval",
+  "agent.task.workflow": "workflow",
+  "agent.task.harness": "harness",
 } as const;
 
 
