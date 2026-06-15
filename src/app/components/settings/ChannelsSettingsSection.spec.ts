@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelErrorText } from "./ChannelsSettingsSection";
+import { channelErrorText, telegramProxyEnabledValue } from "./ChannelsSettingsSection";
 
 const messages: Record<string, string> = {
   "settings.channels.errorTelegramTransport": "无法连接 Telegram Bot API。",
@@ -13,6 +13,13 @@ const messages: Record<string, string> = {
 const t = (key: any) => messages[String(key)] ?? String(key);
 
 describe("channelErrorText", () => {
+  it("keeps Telegram system proxy enabled by default", () => {
+    expect(telegramProxyEnabledValue(null)).toBe(true);
+    expect(telegramProxyEnabledValue({})).toBe(true);
+    expect(telegramProxyEnabledValue({ telegramProxyEnabled: true })).toBe(true);
+    expect(telegramProxyEnabledValue({ telegramProxyEnabled: false })).toBe(false);
+  });
+
   it("maps telegram transport errors without exposing raw backend details", () => {
     expect(channelErrorText("channels.telegram.transport: token=123:abc", t)).toBe(
       "无法连接 Telegram Bot API。",

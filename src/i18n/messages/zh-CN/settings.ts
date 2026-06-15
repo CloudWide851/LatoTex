@@ -44,6 +44,7 @@ export const zhCN_settings = {
   "settings.channels.telegramChatId": "允许的 Chat ID（可选）",
   "settings.channels.telegramApiBaseUrl": "Bot API Base URL（可选）",
   "settings.channels.telegramApiBaseUrlPlaceholder": "https://api.telegram.org",
+  "settings.channels.telegramProxyEnabled": "使用系统代理",
   "settings.channels.telegramTest": "发送测试消息",
   "settings.channels.telegramTestMessage": "LatoTex Telegram 通道测试消息",
   "settings.channels.telegramTestOk": "测试消息已发送",
