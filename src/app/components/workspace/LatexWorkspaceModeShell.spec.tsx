@@ -46,4 +46,32 @@ describe("LatexWorkspaceModeShell", () => {
     });
     container.remove();
   });
+
+  it("keeps TeX mode free of a separate mode-switcher row", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <LatexWorkspaceModeShell
+          mode="tex"
+          onModeChange={() => undefined}
+          texWorkspace={<div data-testid="tex-surface">tex surface</div>}
+          docxWorkspace={<div>docx surface</div>}
+          submissionWorkspace={<div>submission surface</div>}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    expect(container.querySelector("[data-testid='tex-surface']")).not.toBeNull();
+    expect(container.querySelector(".editor-toolbar-shell")).toBeNull();
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

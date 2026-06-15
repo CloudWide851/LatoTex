@@ -29,7 +29,11 @@ import {
 } from "./workspace/workspacePreviewMode";
 import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
 import { usePluginFileInterface, usePluginFileManifests } from "./plugins/usePluginFileInterfaces";
-import { LatexWorkspaceModeShell, type LatexWorkspaceMode } from "./workspace/LatexWorkspaceModeShell";
+import {
+  LatexWorkspaceModeShell,
+  LatexWorkspaceModeSwitcher,
+  type LatexWorkspaceMode,
+} from "./workspace/LatexWorkspaceModeShell";
 import { isDocxPath } from "../../shared/utils/fileKind";
 import { textBackedPluginPreviewMode } from "../../shared/plugins/pluginFileInterfaces";
 
@@ -447,6 +451,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
     }
+    const renderModeSwitcher = () => (
+      <LatexWorkspaceModeSwitcher mode={latexMode} onModeChange={setLatexMode} t={t} />
+    );
     const renderTexWorkspace = () => (
       <LatexWorkspaceEditorPanel
         activeProjectId={activeProjectId}
@@ -493,6 +500,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         terminalVisible={terminalVisible}
         terminalLayout={latexTerminalLayout}
         fontScale={fontScale}
+        modeSwitcher={renderModeSwitcher()}
         onTerminalLayoutChange={(layout) => onSavePanelLayout("latexTerminal", layout)}
         onTerminalToggle={() => setTerminalVisible((prev) => !prev)}
         onShareModeChange={onShareModeChange}

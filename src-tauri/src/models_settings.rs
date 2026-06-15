@@ -134,6 +134,46 @@ pub struct ChannelPrefs {
     pub dingtalk_enabled: Option<bool>,
     pub dingtalk_client_id: Option<String>,
     pub dingtalk_client_secret: Option<String>,
+    pub email_enabled: Option<bool>,
+    pub email_address: Option<String>,
+    pub email_imap_host: Option<String>,
+    pub email_imap_port: Option<u16>,
+    pub email_security: Option<String>,
+    pub email_username: Option<String>,
+    pub email_mailbox: Option<String>,
+    pub email_search_keywords: Option<String>,
+    pub email_max_results: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailPasswordSaveInput {
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailFetchSubmissionInput {
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailSubmissionItem {
+    pub id: String,
+    pub subject: String,
+    pub from: String,
+    pub date: String,
+    pub preview: String,
+    pub match_reason: String,
+    pub status_tag: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailFetchSubmissionResult {
+    pub items: Vec<EmailSubmissionItem>,
+    pub status: String,
 }
 
 #[derive(Debug, Deserialize)]

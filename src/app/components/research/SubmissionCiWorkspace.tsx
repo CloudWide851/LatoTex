@@ -4,6 +4,7 @@ import {
   FileCheck2,
   FileSearch,
   Gauge,
+  Loader2,
   MessageSquareReply,
   Quote,
   Search,
@@ -11,6 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "../../../components/ui/select";
 import { libraryCitationResolve } from "../../../shared/api/library";
 import { writeFile } from "../../../shared/api/workspace";
 import { buildResearchAuditMarkdown } from "../../hooks/researchQualityAudit";
@@ -293,10 +295,13 @@ export function SubmissionCiWorkspace(props: {
               </div>
             </div>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 max-[900px]:justify-start">
-              <label className="flex min-w-0 items-center gap-1.5 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1 text-[10px] text-[color:var(--editor-tab-muted)]">
+              <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-1.5 py-1 text-[10px] text-[color:var(--editor-tab-muted)]">
                 <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
-                <select
-                  className="max-w-[150px] bg-transparent text-[10px] text-[color:var(--editor-tab-text)] outline-none"
+                <Select
+                  uiSize="sm"
+                  tone="dark"
+                  wrapperClassName="w-[168px]"
+                  className="h-7 rounded-md border-0 bg-transparent px-2 pr-1 text-[10px] shadow-none"
                   title={t("research.profile.label")}
                   aria-label={t("research.profile.label")}
                   value={profileId}
@@ -307,8 +312,8 @@ export function SubmissionCiWorkspace(props: {
                       {t(researchProfileLabelKey(profile))}
                     </option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </div>
               <button
                 type="button"
                 className="panel-topbar-btn editor-toolbar-btn--primary h-8 w-8 justify-center p-0 disabled:opacity-50"
@@ -323,8 +328,8 @@ export function SubmissionCiWorkspace(props: {
           </div>
         </div>
 
-        <div className="grid min-w-0 grid-cols-[minmax(220px,0.8fr)_minmax(0,1fr)] gap-3 max-[980px]:grid-cols-1">
-          <div className="rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">
+        <div className="submission-ci-card submission-ci-card--delay-1 rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">
+          <div className="grid min-w-0 grid-cols-[minmax(220px,0.76fr)_minmax(0,1fr)] gap-3 max-[980px]:grid-cols-1">
             <div className="grid grid-cols-5 gap-2">
               {[
                 { icon: Wrench, label: t("research.action.compileRepair"), disabled: busy || !canCompileSelectedFile, onClick: onCompileRepair },
@@ -341,7 +346,7 @@ export function SubmissionCiWorkspace(props: {
                   <button
                     key={action.label}
                     type="button"
-                    className="panel-topbar-btn h-10 justify-center p-0 disabled:opacity-50"
+                    className="panel-topbar-btn h-10 justify-center p-0 disabled:opacity-50 motion-hover-rise"
                     disabled={action.disabled}
                     title={action.label}
                     aria-label={action.label}
@@ -352,7 +357,7 @@ export function SubmissionCiWorkspace(props: {
                 );
               })}
             </div>
-            <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
               <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5">
                 <Quote className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
                 <input
@@ -379,11 +384,11 @@ export function SubmissionCiWorkspace(props: {
                   void resolveCitation();
                 }}
               >
-                <Search className="h-4 w-4" />
+                {citationBusy ? <Loader2 className="h-4 w-4 motion-rotate-soft" /> : <Search className="h-4 w-4" />}
               </button>
               <button
                 type="button"
-                className="panel-topbar-btn h-8 w-8 justify-center p-0"
+                className="panel-topbar-btn h-8 w-8 justify-center p-0 motion-hover-rise"
                 title={t("research.citation.quickOpenTex")}
                 aria-label={t("research.citation.quickOpenTex")}
                 onClick={onOpenTexMode}
@@ -391,57 +396,59 @@ export function SubmissionCiWorkspace(props: {
                 <Quote className="h-4 w-4" />
               </button>
             </div>
-            {citationStatus ? (
-              <div className="mt-1 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{citationStatus}</div>
-            ) : null}
           </div>
+          {citationStatus ? (
+            <div className="mt-2 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{citationStatus}</div>
+          ) : null}
+        </div>
 
-          <div className="rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">
-            <div className="grid min-w-0 grid-cols-6 gap-2 max-[900px]:grid-cols-3 max-[620px]:grid-cols-2">
-              {report.lanes.map((lane) => {
-                const Icon = laneIcon(lane.id);
-                const label = t(laneTitleKey(lane.id));
-                return (
-                  <button
-                    key={lane.id}
-                    type="button"
-                    className={[
-                      "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md border transition hover:border-[color:var(--app-accent)]",
-                      activeLane === lane.id ? "ring-1 ring-[color:var(--app-accent)]" : "",
-                      statusTone(lane.status),
-                    ].join(" ")}
-                    title={formatMessage(t(lane.message.key), lane.message.params)}
-                    aria-label={label}
-                    aria-pressed={lane.id === "rebuttal" ? rebuttalOpen : undefined}
-                    onClick={() => selectLane(lane.id)}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="truncate text-[10px] font-semibold">{label}</span>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="submission-ci-card submission-ci-card--delay-2 rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">
+          <div className="grid min-w-0 grid-cols-6 gap-2 max-[900px]:grid-cols-3 max-[620px]:grid-cols-2">
+            {report.lanes.map((lane) => {
+              const Icon = laneIcon(lane.id);
+              const label = t(laneTitleKey(lane.id));
+              return (
+                <button
+                  key={lane.id}
+                  type="button"
+                  className={[
+                    "submission-ci-lane flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md border transition hover:border-[color:var(--app-accent)]",
+                    activeLane === lane.id ? "ring-1 ring-[color:var(--app-accent)]" : "",
+                    statusTone(lane.status),
+                  ].join(" ")}
+                  title={formatMessage(t(lane.message.key), lane.message.params)}
+                  aria-label={label}
+                  aria-pressed={activeLane === lane.id || (lane.id === "rebuttal" && rebuttalOpen)}
+                  onClick={() => selectLane(lane.id)}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="truncate text-[10px] font-semibold">{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {activeLane ? (
-          <ResearchQualityDetails
-            activeLane={activeLane}
-            report={report}
-            compileDiagnostics={compileDiagnostics}
-            projectId={projectId}
-            selectedFile={selectedFile}
-            onCompileRepair={onCompileRepair}
-            onExportAudit={() => {
-              void exportAuditReport();
-            }}
-            onOpenRebuttal={() => {
-              setRebuttalOpen(true);
-              setActiveLane("rebuttal");
-            }}
-            onSubmissionPreflight={runSubmissionPreflight}
-            t={t}
-          />
+          <div className="submission-ci-detail">
+            <ResearchQualityDetails
+              activeLane={activeLane}
+              report={report}
+              compileDiagnostics={compileDiagnostics}
+              projectId={projectId}
+              selectedFile={selectedFile}
+              onCompileRepair={onCompileRepair}
+              onExportAudit={() => {
+                void exportAuditReport();
+              }}
+              onOpenRebuttal={() => {
+                setRebuttalOpen(true);
+                setActiveLane("rebuttal");
+              }}
+              onSubmissionPreflight={runSubmissionPreflight}
+              t={t}
+            />
+          </div>
         ) : null}
         {auditStatus ? (
           <div className="truncate text-[11px] text-[color:var(--editor-tab-muted)]">{auditStatus}</div>

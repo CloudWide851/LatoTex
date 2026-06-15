@@ -93,6 +93,7 @@ export function LatexWorkspaceEditorPanel(props: {
   terminalVisible: boolean;
   terminalLayout: number[];
   fontScale: number;
+  modeSwitcher?: React.ReactNode;
   onTerminalLayoutChange: (layout: number[]) => void;
   onTerminalToggle: () => void;
   onShareModeChange: (mode: any) => void;
@@ -178,6 +179,7 @@ export function LatexWorkspaceEditorPanel(props: {
     terminalVisible,
     terminalLayout,
     fontScale,
+    modeSwitcher,
     onTerminalLayoutChange,
     onTerminalToggle,
     onShareModeChange,
@@ -408,6 +410,9 @@ export function LatexWorkspaceEditorPanel(props: {
       <div className="editor-toolbar-shell min-w-0 overflow-visible px-3 py-2">
         <div className="panel-topbar grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <div className="editor-toolbar-surface-group flex min-w-0 items-center gap-2 overflow-visible">
+            {modeSwitcher ? (
+              <div className="shrink-0">{modeSwitcher}</div>
+            ) : null}
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}

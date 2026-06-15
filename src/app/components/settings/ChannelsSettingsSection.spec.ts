@@ -6,6 +6,8 @@ const messages: Record<string, string> = {
   "settings.channels.errorTelegramUnauthorized": "Telegram 拒绝了该 Bot Token。",
   "settings.channels.errorTelegramHttp": "Telegram Bot API 返回了 HTTP 错误。",
   "settings.channels.errorTelegramGeneric": "Telegram 通道测试失败。",
+  "settings.channels.errorEmailAuthFailed": "IMAP 登录失败，请检查用户名和应用专用密码。",
+  "settings.channels.errorEmailGeneric": "邮箱获取失败。",
 };
 
 const t = (key: any) => messages[String(key)] ?? String(key);
@@ -23,6 +25,15 @@ describe("channelErrorText", () => {
     );
     expect(channelErrorText("channels.telegram.http_502", t)).toBe(
       "Telegram Bot API 返回了 HTTP 错误。",
+    );
+  });
+
+  it("maps email errors to stable localized text without leaking backend details", () => {
+    expect(channelErrorText("channels.email.auth_failed: password=hidden", t)).toBe(
+      "IMAP 登录失败，请检查用户名和应用专用密码。",
+    );
+    expect(channelErrorText("channels.email.worker: join failure", t)).toBe(
+      "邮箱获取失败。",
     );
   });
 });

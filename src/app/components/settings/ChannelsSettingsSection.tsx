@@ -6,6 +6,7 @@ import { Input } from "../../../components/ui/input";
 import { channelsDingTalkTest, channelsTelegramTest } from "../../../shared/api/share";
 import type { AppSettings } from "../../../shared/types/app";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
+import { EmailChannelSettingsCard } from "./EmailChannelSettingsCard";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
 
 type TranslationFn = (key: any) => string;
@@ -199,6 +200,13 @@ export function ChannelsSettingsSection(props: {
           </div>
         </div>
       </section>
+      <EmailChannelSettingsCard
+        settings={settings}
+        backgroundUrl={backgroundUrl}
+        setChannelField={setChannelField}
+        formatError={channelErrorText}
+        t={t}
+      />
       <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-soft">
         {backgroundUrl ? (
           <>
@@ -310,6 +318,19 @@ export function channelErrorText(raw: string, t: TranslationFn): string {
     "channels.dingtalk.open_invalid": t("settings.channels.errorDingtalkOpenInvalid"),
     "channels.dingtalk.empty_text": t("settings.channels.errorEmptyText"),
     "channels.dingtalk.reply_target_missing": t("settings.channels.errorDingtalkReplyTargetMissing"),
+    "channels.email.disabled": t("settings.channels.errorEmailDisabled"),
+    "channels.email.address_missing": t("settings.channels.errorEmailAddressMissing"),
+    "channels.email.host_missing": t("settings.channels.errorEmailHostMissing"),
+    "channels.email.host_invalid": t("settings.channels.errorEmailHostInvalid"),
+    "channels.email.port_invalid": t("settings.channels.errorEmailPortInvalid"),
+    "channels.email.security_invalid": t("settings.channels.errorEmailSecurityInvalid"),
+    "channels.email.password_missing": t("settings.channels.errorEmailPasswordMissing"),
+    "channels.email.password_save_failed": t("settings.channels.errorEmailPasswordSaveFailed"),
+    "channels.email.password_verify_failed": t("settings.channels.errorEmailPasswordVerifyFailed"),
+    "channels.email.transport": t("settings.channels.errorEmailTransport"),
+    "channels.email.auth_failed": t("settings.channels.errorEmailAuthFailed"),
+    "channels.email.mailbox_failed": t("settings.channels.errorEmailMailboxFailed"),
+    "channels.email.parse": t("settings.channels.errorEmailParse"),
   };
   if (localized[key]) {
     return localized[key];
@@ -319,6 +340,9 @@ export function channelErrorText(raw: string, t: TranslationFn): string {
   }
   if (key?.startsWith("channels.telegram.")) {
     return t("settings.channels.errorTelegramGeneric");
+  }
+  if (key?.startsWith("channels.email.")) {
+    return t("settings.channels.errorEmailGeneric");
   }
   return raw;
 }
