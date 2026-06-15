@@ -16,6 +16,7 @@ import {
   LazyDrawWorkspace,
   LazyDocxWorkspaceSurface,
   LazyPluginMarketplaceSurface,
+  LazySubmissionCiWorkspaceSurface,
   useDrawWorkspacePreload,
   WorkspacePanelFallback,
 } from "./workspace/workspaceShellLazy";
@@ -28,7 +29,7 @@ import {
 } from "./workspace/workspacePreviewMode";
 import { useLatexWorkspaceChatTab } from "./workspace/useLatexWorkspaceChatTab";
 import { usePluginFileInterface, usePluginFileManifests } from "./plugins/usePluginFileInterfaces";
-import { LatexWorkspaceModeShell } from "./workspace/LatexWorkspaceModeShell";
+import { LatexWorkspaceModeShell, type LatexWorkspaceMode } from "./workspace/LatexWorkspaceModeShell";
 import { isDocxPath } from "../../shared/utils/fileKind";
 import { textBackedPluginPreviewMode } from "../../shared/plugins/pluginFileInterfaces";
 
@@ -166,7 +167,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   >(null);
   const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
-  const [latexMode, setLatexMode] = useState<"tex" | "docx">("tex");
+  const [latexMode, setLatexMode] = useState<LatexWorkspaceMode>("tex");
   const selectedIsDocx = isDocxPath(selectedFile);
 
   const clampPreviewZoom = (value: number) => Math.max(0.5, Math.min(3, Number(value.toFixed(2))));
@@ -186,7 +187,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   }, [activeProjectId, completionModelId, editorContent, fileList, selectedFile]);
 
   useEffect(() => {
-    setLatexMode(selectedIsDocx ? "docx" : "tex");
+    setLatexMode((prev) => {
+      if (selectedIsDocx) {
+        return "docx";
+      }
+      return prev === "docx" ? "tex" : prev;
+    });
   }, [selectedIsDocx]);
 
   useEffect(() => {
@@ -372,6 +378,11 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     await onCompile();
   };
 
+  const openTexMode = () => {
+    setLatexMode("tex");
+    emitWorkspaceLayoutRefresh("latex", "panel-layout");
+  };
+
   const renderPdfPreviewPanel = () => (
     <WorkspaceEditorPreviewPanel
       activeProjectId={activeProjectId}
@@ -442,7 +453,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         busy={busy}
         suspended={suspended}
         selectedFile={selectedFile}
-        selectedLibraryPath={selectedLibraryPath}
         selectedIsDraw={selectedIsDraw}
         selectedIsExcel={selectedIsExcel}
         selectedCodeLanguage={selectedCodeLanguage}
@@ -498,7 +508,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onEditorRedo={onEditorRedo}
         onSaveFile={onSaveFile}
         onPageChange={onPageChange}
-        onLibraryAnalyzePaper={onLibraryAnalyzePaper}
         onCompileClick={() => {
           void handleCompileClick();
         }}
@@ -535,6 +544,15 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onModeChange={setLatexMode}
         texWorkspace={renderTexWorkspace()}
         docxWorkspace={<LazyDocxWorkspaceSurface shell={props} selectedIsDocx={selectedIsDocx} />}
+        submissionWorkspace={(
+          <LazySubmissionCiWorkspaceSurface
+            shell={props}
+            selectedIsDraw={selectedIsDraw}
+            selectedIsExcel={selectedIsExcel}
+            compileAssistDiagnostics={compileAssistDiagnostics}
+            onOpenTexMode={openTexMode}
+          />
+        )}
         t={t}
       />
     );
