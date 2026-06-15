@@ -51,8 +51,62 @@ function resolvePersistedLibrarySelection(
   return filePaths.includes(selectedPath) ? selectedPath : firstPaperPath(filePaths);
 }
 
-function prepareSearchIndexAfterProjectOpen(projectId: string, mainFile: string) {
-  const focusPaths = mainFile ? [mainFile] : [];
+const SEARCH_WARMUP_BIB_LIMIT = 8;
+const SEARCH_WARMUP_TEX_SIBLING_LIMIT = 4;
+
+function normalizeProjectPath(value: string): string {
+  return value.trim().replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/");
+}
+
+function parentDir(value: string): string {
+  const index = value.lastIndexOf("/");
+  return index >= 0 ? value.slice(0, index) : "";
+}
+
+function pushUnique(paths: string[], value: string) {
+  const normalized = normalizeProjectPath(value);
+  if (normalized && !paths.includes(normalized)) {
+    paths.push(normalized);
+  }
+}
+
+function bySearchWarmupAffinity(mainDir: string) {
+  return (left: string, right: string) => {
+    const leftDir = parentDir(left);
+    const rightDir = parentDir(right);
+    const leftScore = leftDir === mainDir ? 0 : leftDir === "" ? 1 : 2;
+    const rightScore = rightDir === mainDir ? 0 : rightDir === "" ? 1 : 2;
+    return leftScore - rightScore
+      || left.length - right.length
+      || left.localeCompare(right);
+  };
+}
+
+export function collectSearchWarmupFocusPaths(tree: ResourceNode[], mainFile: string): string[] {
+  const filePaths = collectResourceFilePaths(tree).map(normalizeProjectPath).filter(Boolean);
+  const fallbackMain = filePaths.find((path) => /\.tex$/i.test(path)) ?? "";
+  const normalizedMain = normalizeProjectPath(mainFile) || fallbackMain;
+  const mainDir = parentDir(normalizedMain);
+  const focusPaths: string[] = [];
+  pushUnique(focusPaths, normalizedMain);
+
+  filePaths
+    .filter((path) => /\.bib$/i.test(path))
+    .sort(bySearchWarmupAffinity(mainDir))
+    .slice(0, SEARCH_WARMUP_BIB_LIMIT)
+    .forEach((path) => pushUnique(focusPaths, path));
+
+  filePaths
+    .filter((path) => /\.tex$/i.test(path) && path !== normalizedMain)
+    .sort(bySearchWarmupAffinity(mainDir))
+    .slice(0, SEARCH_WARMUP_TEX_SIBLING_LIMIT)
+    .forEach((path) => pushUnique(focusPaths, path));
+
+  return focusPaths;
+}
+
+function prepareSearchIndexAfterProjectOpen(projectId: string, mainFile: string, tree: ResourceNode[]) {
+  const focusPaths = collectSearchWarmupFocusPaths(tree, mainFile);
   if (focusPaths.length === 0) {
     void projectPrepareSearchIndex(projectId).catch(() => undefined);
     return;
@@ -181,7 +235,7 @@ export function useProjectDataLoader(params: {
     const snapshot = await openProject(projectId);
     setTree(snapshot.tree);
     setSelectedFile(snapshot.mainFile);
-    prepareSearchIndexAfterProjectOpen(projectId, snapshot.mainFile);
+    prepareSearchIndexAfterProjectOpen(projectId, snapshot.mainFile, snapshot.tree);
     loadedLibraryProjectIdRef.current = null;
     lastLoadedProjectIdRef.current = projectId;
     setLibraryTree([]);

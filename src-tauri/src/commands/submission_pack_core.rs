@@ -1,6 +1,5 @@
-use super::submission_pack_collect::{
-    canonical_profile_id, collect_pack_files, issue, parse_profile, safe_join,
-};
+use super::submission_pack_collect::{collect_pack_files, issue, safe_join};
+use super::submission_pack_profiles::{canonical_profile_id, parse_profile};
 use crate::models::{
     SubmissionPackBuildInput, SubmissionPackBuildResponse, SubmissionPackFile, SubmissionPackIssue,
     SubmissionPackIssueInput, SubmissionPackSkippedFile,

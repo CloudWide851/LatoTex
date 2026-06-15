@@ -1,7 +1,6 @@
 import type { CitationTrustReport, ResearchQualityStatus } from "./researchQualityGate";
+import { normalizeResearchWorkflowProfileId, type ResearchWorkflowProfileId } from "./researchProfiles";
 import type { SubmissionCheckReport } from "./researchSubmissionCheck";
-
-export type ResearchWorkflowProfileId = "generic" | "arxiv" | "conference" | "journal" | "ieee-like";
 
 export type ResearchAuditItem = {
   id: string;
@@ -71,17 +70,6 @@ const CLAIM_HINTS = [
   "降低",
   "创新",
 ];
-
-function normalizeProfileId(value: string | null | undefined): ResearchWorkflowProfileId {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  if (["arxiv", "conference", "journal", "ieee-like"].includes(normalized)) {
-    return normalized as ResearchWorkflowProfileId;
-  }
-  if (normalized === "ieee" || normalized === "ieee_like") {
-    return "ieee-like";
-  }
-  return "generic";
-}
 
 function cleanTexText(source: string): string {
   return source
@@ -163,6 +151,16 @@ function hasPattern(source: string, pattern: RegExp): boolean {
   return pattern.test(source);
 }
 
+function hasAbstract(source: string): boolean {
+  return hasPattern(source, /\\begin\{abstract\}[\s\S]+?\\end\{abstract\}/i);
+}
+
+function hasKeywords(source: string): boolean {
+  return hasPattern(source, /\\keywords\s*\{[^}]+}/i)
+    || hasPattern(source, /\\begin\{keywords?\}[\s\S]+?\\end\{keywords?\}/i)
+    || hasPattern(source, /\\begin\{keyword\}[\s\S]+?\\end\{keyword\}/i);
+}
+
 export function buildProfileChecklist(input: {
   profileId?: string | null;
   texSource: string;
@@ -170,7 +168,7 @@ export function buildProfileChecklist(input: {
   citationTrust: CitationTrustReport;
   submission: SubmissionCheckReport;
 }): ResearchProfileChecklist {
-  const profileId = normalizeProfileId(input.profileId);
+  const profileId = normalizeResearchWorkflowProfileId(input.profileId);
   const lowerFiles = input.fileList.map((path) => path.toLowerCase());
   const hasBbl = lowerFiles.some((path) => path.endsWith(".bbl"));
   const items: ResearchAuditItem[] = [
@@ -199,10 +197,10 @@ export function buildProfileChecklist(input: {
       evidence: hasBbl ? ["bbl-found"] : ["bbl-missing"],
     });
   }
-  if (profileId === "conference" || profileId === "journal" || profileId === "ieee-like") {
+  if (profileId !== "generic" && profileId !== "arxiv") {
     items.push({
       id: "profile-abstract",
-      status: hasPattern(input.texSource, /\\begin\{abstract\}[\s\S]+?\\end\{abstract\}/) ? "pass" : "warn",
+      status: hasAbstract(input.texSource) ? "pass" : "warn",
       title: "profile.abstract",
       detail: "profile.abstractDetail",
       evidence: ["tex"],
@@ -215,6 +213,54 @@ export function buildProfileChecklist(input: {
       title: "profile.ieeeClass",
       detail: "profile.ieeeClassDetail",
       evidence: ["documentclass"],
+    });
+  }
+  if (profileId === "acm") {
+    items.push({
+      id: "profile-acm-class",
+      status: hasPattern(input.texSource, /\\documentclass(?:\[[^\]]*])?\{acmart\}/i) ? "pass" : "warn",
+      title: "profile.acmClass",
+      detail: "profile.acmClassDetail",
+      evidence: ["documentclass"],
+    });
+    items.push({
+      id: "profile-acm-metadata",
+      status: hasPattern(input.texSource, /\\(?:acmConference|setcopyright|copyrightyear|acmYear|acmDOI)\b/i) ? "pass" : "warn",
+      title: "profile.acmMetadata",
+      detail: "profile.acmMetadataDetail",
+      evidence: ["venue-metadata"],
+    });
+  }
+  if (profileId === "springer") {
+    items.push({
+      id: "profile-springer-class",
+      status: hasPattern(input.texSource, /\\documentclass(?:\[[^\]]*])?\{(?:llncs|sn-jnl|svjour\d?|svmult|svmono|spbasic)\}/i) ? "pass" : "warn",
+      title: "profile.springerClass",
+      detail: "profile.springerClassDetail",
+      evidence: ["documentclass"],
+    });
+    items.push({
+      id: "profile-keywords",
+      status: hasKeywords(input.texSource) ? "pass" : "warn",
+      title: "profile.keywords",
+      detail: "profile.keywordsDetail",
+      evidence: ["tex"],
+    });
+  }
+  if (profileId === "elsevier") {
+    items.push({
+      id: "profile-elsevier-class",
+      status: hasPattern(input.texSource, /\\documentclass(?:\[[^\]]*])?\{elsarticle\}/i) ? "pass" : "warn",
+      title: "profile.elsevierClass",
+      detail: "profile.elsevierClassDetail",
+      evidence: ["documentclass"],
+    });
+    items.push({
+      id: "profile-keywords",
+      status: hasKeywords(input.texSource) ? "pass" : "warn",
+      title: "profile.keywords",
+      detail: "profile.keywordsDetail",
+      evidence: ["tex"],
     });
   }
   return { profileId, items, ...counts(items) };

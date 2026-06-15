@@ -1,5 +1,6 @@
 import { executeWorkflowStart } from "../../../shared/api/desktop";
 import { waitForRunOutputWithPolicy } from "../../hooks/runEventWait";
+import { buildCitationCompletionItems } from "./latexCompletionCitations";
 import { getIndexedProjectSymbols, scheduleProjectSymbolIndexSync } from "./latexProjectSymbolIndex";
 
 const LATEX_COMMAND_SNIPPETS: Array<{ label: string; insertText: string }> = [
@@ -445,7 +446,7 @@ export function ensureLatexCompletionProvider(monaco: any) {
       const wordPrefix = wordPrefixFromLine(linePrefix);
       const replaceRange = buildReplaceRange(monaco, model, position);
       const inRef = /\\(?:auto)?ref\{[^}]*$/i.test(linePrefix);
-      const inCite = /\\cite[a-zA-Z*]*\{[^}]*$/i.test(linePrefix);
+      const inCite = /\\cite[a-zA-Z*]*\s*(?:\[[^\]]*])*\s*\{[^}]*$/i.test(linePrefix);
       const inBegin = /\\begin\{[^}]*$/i.test(linePrefix);
       const inCommand = /\\[A-Za-z]*$/.test(linePrefix);
       const suggestions: any[] = [];
@@ -470,14 +471,14 @@ export function ensureLatexCompletionProvider(monaco: any) {
       }
 
       if (inCite) {
-        for (const key of collectCiteKeys(text)) {
-          suggestions.push({
-            label: key,
-            kind: monaco.languages.CompletionItemKind.Reference,
-            insertText: key,
-            range: replaceRange,
-          });
-        }
+        suggestions.push(...await buildCitationCompletionItems({
+          monaco,
+          position,
+          linePrefix,
+          text,
+          context,
+          fallbackKeys: collectCiteKeys(text),
+        }));
       }
 
       if (inBegin) {
@@ -515,7 +516,7 @@ export function ensureLatexCompletionProvider(monaco: any) {
         suggestions.push(...toSymbolCompletionItems(monaco, replaceRange, projectSymbols));
       }
 
-      const shouldQueryRemote = /\\[A-Za-z]{2,}$/.test(linePrefix) || inRef || inCite || inBegin;
+      const shouldQueryRemote = /\\[A-Za-z]{2,}$/.test(linePrefix) || inRef || inBegin;
       if (shouldQueryRemote) {
         const remoteSuggestions = await fetchRemoteSuggestions({
           linePrefix,

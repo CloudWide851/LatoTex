@@ -4,6 +4,9 @@ import type {
   DingTalkPollResult,
   DingTalkSendInput,
   DingTalkTestInput,
+  EmailFetchSubmissionInput,
+  EmailFetchSubmissionResult,
+  EmailPasswordSaveInput,
   ShareSessionInfo,
   TelegramPollInput,
   TelegramPollResult,
@@ -56,4 +59,18 @@ export function channelsDingTalkSend(input: DingTalkSendInput): Promise<Ack> {
 
 export function channelsDingTalkTest(input: DingTalkTestInput): Promise<Ack> {
   return invokeCommand<Ack>("channels_dingtalk_test", { input });
+}
+
+export function channelsEmailPasswordSaveVerified(input: EmailPasswordSaveInput): Promise<Ack> {
+  return invokeCommand<Ack>("channels_email_password_save_verified", { input });
+}
+
+export function channelsEmailTest(): Promise<Ack> {
+  return invokeCommand<Ack>("channels_email_test");
+}
+
+export function channelsEmailFetchSubmission(
+  input: EmailFetchSubmissionInput = {},
+): Promise<EmailFetchSubmissionResult> {
+  return invokeCommand<EmailFetchSubmissionResult>("channels_email_fetch_submission", { input });
 }

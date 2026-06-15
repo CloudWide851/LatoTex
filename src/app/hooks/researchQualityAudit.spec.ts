@@ -62,6 +62,28 @@ describe("researchQualityAudit", () => {
     expect(checklist.items.some((item) => item.id === "profile-arxiv-bbl" && item.status === "warn")).toBe(true);
   });
 
+  it("checks publisher-specific profile expectations", () => {
+    const acmChecklist = buildProfileChecklist({
+      profileId: "acm",
+      texSource: String.raw`\documentclass{article}\begin{document}\begin{abstract}Short.\end{abstract}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      citationTrust: cleanCitationTrust,
+      submission: cleanSubmission,
+    });
+    const elsevierChecklist = buildProfileChecklist({
+      profileId: "elsevier",
+      texSource: String.raw`\documentclass{elsarticle}\begin{document}\begin{abstract}Short.\end{abstract}\begin{keyword}local-first\end{keyword}\cite{smith2024}\bibliography{refs}\end{document}`,
+      fileList: ["main.tex", "refs.bib"],
+      citationTrust: cleanCitationTrust,
+      submission: cleanSubmission,
+    });
+
+    expect(acmChecklist.profileId).toBe("acm");
+    expect(acmChecklist.items.some((item) => item.id === "profile-acm-class" && item.status === "warn")).toBe(true);
+    expect(elsevierChecklist.profileId).toBe("elsevier");
+    expect(elsevierChecklist.items.every((item) => item.status === "pass")).toBe(true);
+  });
+
   it("exports a local markdown audit summary", () => {
     const claimAudit = buildClaimAudit("No risky claims here.");
     const profileChecklist = buildProfileChecklist({

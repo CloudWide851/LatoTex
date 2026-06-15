@@ -2,6 +2,8 @@
 mod submission_pack_collect;
 #[path = "submission_pack_core.rs"]
 mod submission_pack_core;
+#[path = "submission_pack_profiles.rs"]
+mod submission_pack_profiles;
 #[cfg(test)]
 #[path = "submission_pack_tests.rs"]
 mod submission_pack_tests;

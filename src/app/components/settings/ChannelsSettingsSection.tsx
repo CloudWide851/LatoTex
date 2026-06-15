@@ -4,8 +4,9 @@ import telegramIcon from "../../../assets/brands/telegram.svg";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { channelsDingTalkTest, channelsTelegramTest } from "../../../shared/api/share";
-import type { AppSettings } from "../../../shared/types/app";
+import type { AppSettings, ChannelPrefs } from "../../../shared/types/app";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
+import { EmailChannelSettingsCard } from "./EmailChannelSettingsCard";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
 
 type TranslationFn = (key: any) => string;
@@ -19,6 +20,10 @@ function resolveActiveBackgroundPath(settings: AppSettings | null): string {
     .map((item) => String(item ?? "").trim())
     .filter((item) => item.length > 0);
   return preferred && normalized.includes(preferred) ? preferred : "";
+}
+
+export function telegramProxyEnabledValue(channels?: Pick<ChannelPrefs, "telegramProxyEnabled"> | null): boolean {
+  return channels?.telegramProxyEnabled !== false;
 }
 
 export function ChannelsSettingsSection(props: {
@@ -57,6 +62,7 @@ export function ChannelsSettingsSection(props: {
     const token = settings?.uiPrefs?.channels?.telegramBotToken?.trim() ?? "";
     const chatId = settings?.uiPrefs?.channels?.telegramChatId?.trim() ?? "";
     const apiBaseUrl = settings?.uiPrefs?.channels?.telegramApiBaseUrl?.trim() ?? "";
+    const proxyEnabled = telegramProxyEnabledValue(settings?.uiPrefs?.channels);
     setTestBusy(true);
     setTestMessage(null);
     try {
@@ -64,6 +70,7 @@ export function ChannelsSettingsSection(props: {
         token,
         chatId: chatId || undefined,
         apiBaseUrl: apiBaseUrl || undefined,
+        proxyEnabled,
         text: t("settings.channels.telegramTestMessage"),
       });
       setTestMessage({ ok: true, text: t(chatId ? "settings.channels.telegramTestOk" : "settings.channels.telegramVerifyOk") });
@@ -134,6 +141,14 @@ export function ChannelsSettingsSection(props: {
             checkboxClassName="border-slate-400"
             onCheckedChange={(nextValue) => setChannelField({ telegramEnabled: nextValue })}
           />
+          <SettingsBooleanRow
+            label={t("settings.channels.telegramProxyEnabled")}
+            checked={telegramProxyEnabledValue(settings?.uiPrefs?.channels)}
+            className="mt-2 rounded-2xl border border-slate-200/80 bg-white/72 px-3 py-3 text-xs text-slate-700 shadow-none"
+            textClassName="text-slate-700"
+            checkboxClassName="border-slate-400"
+            onCheckedChange={(nextValue) => setChannelField({ telegramProxyEnabled: nextValue })}
+          />
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <label className="grid gap-1.5">
@@ -199,6 +214,13 @@ export function ChannelsSettingsSection(props: {
           </div>
         </div>
       </section>
+      <EmailChannelSettingsCard
+        settings={settings}
+        backgroundUrl={backgroundUrl}
+        setChannelField={setChannelField}
+        formatError={channelErrorText}
+        t={t}
+      />
       <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-soft">
         {backgroundUrl ? (
           <>
@@ -310,6 +332,19 @@ export function channelErrorText(raw: string, t: TranslationFn): string {
     "channels.dingtalk.open_invalid": t("settings.channels.errorDingtalkOpenInvalid"),
     "channels.dingtalk.empty_text": t("settings.channels.errorEmptyText"),
     "channels.dingtalk.reply_target_missing": t("settings.channels.errorDingtalkReplyTargetMissing"),
+    "channels.email.disabled": t("settings.channels.errorEmailDisabled"),
+    "channels.email.address_missing": t("settings.channels.errorEmailAddressMissing"),
+    "channels.email.host_missing": t("settings.channels.errorEmailHostMissing"),
+    "channels.email.host_invalid": t("settings.channels.errorEmailHostInvalid"),
+    "channels.email.port_invalid": t("settings.channels.errorEmailPortInvalid"),
+    "channels.email.security_invalid": t("settings.channels.errorEmailSecurityInvalid"),
+    "channels.email.password_missing": t("settings.channels.errorEmailPasswordMissing"),
+    "channels.email.password_save_failed": t("settings.channels.errorEmailPasswordSaveFailed"),
+    "channels.email.password_verify_failed": t("settings.channels.errorEmailPasswordVerifyFailed"),
+    "channels.email.transport": t("settings.channels.errorEmailTransport"),
+    "channels.email.auth_failed": t("settings.channels.errorEmailAuthFailed"),
+    "channels.email.mailbox_failed": t("settings.channels.errorEmailMailboxFailed"),
+    "channels.email.parse": t("settings.channels.errorEmailParse"),
   };
   if (localized[key]) {
     return localized[key];
@@ -319,6 +354,9 @@ export function channelErrorText(raw: string, t: TranslationFn): string {
   }
   if (key?.startsWith("channels.telegram.")) {
     return t("settings.channels.errorTelegramGeneric");
+  }
+  if (key?.startsWith("channels.email.")) {
+    return t("settings.channels.errorEmailGeneric");
   }
   return raw;
 }

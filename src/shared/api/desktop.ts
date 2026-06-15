@@ -15,6 +15,7 @@ import type {
   DrawioCacheInfo,
   BusyTexCacheInfo,
   BusyTexInstallPackageResult,
+  ChannelPrefs,
   CompileRecord,
   CredentialSaveResult,
   EventBatch,
@@ -429,12 +430,7 @@ export function updateSettings(input: {
       translationModelId?: string;
       completionModelId?: string;
     };
-    channels?: {
-      telegramEnabled?: boolean;
-      telegramBotToken?: string;
-      telegramChatId?: string;
-      telegramApiBaseUrl?: string;
-    };
+    channels?: ChannelPrefs;
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;
     backgroundImagePath?: string;

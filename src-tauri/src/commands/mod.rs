@@ -4,6 +4,7 @@ mod agent_workflows_context;
 pub mod analysis;
 pub mod channels;
 pub mod channels_dingtalk;
+pub mod channels_email;
 pub mod docx;
 mod docx_images;
 mod docx_package;

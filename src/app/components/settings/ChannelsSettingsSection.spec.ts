@@ -1,16 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { channelErrorText } from "./ChannelsSettingsSection";
+import { channelErrorText, telegramProxyEnabledValue } from "./ChannelsSettingsSection";
 
 const messages: Record<string, string> = {
   "settings.channels.errorTelegramTransport": "无法连接 Telegram Bot API。",
   "settings.channels.errorTelegramUnauthorized": "Telegram 拒绝了该 Bot Token。",
   "settings.channels.errorTelegramHttp": "Telegram Bot API 返回了 HTTP 错误。",
   "settings.channels.errorTelegramGeneric": "Telegram 通道测试失败。",
+  "settings.channels.errorEmailAuthFailed": "IMAP 登录失败，请检查用户名和应用专用密码。",
+  "settings.channels.errorEmailGeneric": "邮箱获取失败。",
 };
 
 const t = (key: any) => messages[String(key)] ?? String(key);
 
 describe("channelErrorText", () => {
+  it("keeps Telegram system proxy enabled by default", () => {
+    expect(telegramProxyEnabledValue(null)).toBe(true);
+    expect(telegramProxyEnabledValue({})).toBe(true);
+    expect(telegramProxyEnabledValue({ telegramProxyEnabled: true })).toBe(true);
+    expect(telegramProxyEnabledValue({ telegramProxyEnabled: false })).toBe(false);
+  });
+
   it("maps telegram transport errors without exposing raw backend details", () => {
     expect(channelErrorText("channels.telegram.transport: token=123:abc", t)).toBe(
       "无法连接 Telegram Bot API。",
@@ -23,6 +32,15 @@ describe("channelErrorText", () => {
     );
     expect(channelErrorText("channels.telegram.http_502", t)).toBe(
       "Telegram Bot API 返回了 HTTP 错误。",
+    );
+  });
+
+  it("maps email errors to stable localized text without leaking backend details", () => {
+    expect(channelErrorText("channels.email.auth_failed: password=hidden", t)).toBe(
+      "IMAP 登录失败，请检查用户名和应用专用密码。",
+    );
+    expect(channelErrorText("channels.email.worker: join failure", t)).toBe(
+      "邮箱获取失败。",
     );
   });
 });

@@ -1,3 +1,4 @@
+use super::submission_pack_profiles::{collect_profile_warnings, PackProfile};
 use crate::models::{SubmissionPackFile, SubmissionPackIssue, SubmissionPackSkippedFile};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -7,13 +8,6 @@ const MAX_DEPENDENCY_SCAN_BYTES: u64 = 2_000_000;
 const TEXT_EXTENSIONS: &[&str] = &["tex", "bib", "sty", "cls", "bst"];
 const FIGURE_EXTENSIONS: &[&str] = &["pdf", "png", "jpg", "jpeg"];
 const IGNORED_DIRS: &[&str] = &[".git", ".latotex", "node_modules", "target", "dist"];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum PackProfile {
-    Generic,
-    Arxiv,
-    IeeeLike,
-}
 
 pub(super) fn normalize_relative_path(input: &str) -> Result<String, String> {
     let value = input
@@ -94,22 +88,6 @@ fn is_ignored_dir(name: &str) -> bool {
     IGNORED_DIRS
         .iter()
         .any(|item| item.eq_ignore_ascii_case(name))
-}
-
-pub(super) fn parse_profile(profile_id: &str) -> PackProfile {
-    match profile_id.trim().to_ascii_lowercase().as_str() {
-        "arxiv" => PackProfile::Arxiv,
-        "ieee" | "ieee-like" | "ieee_like" => PackProfile::IeeeLike,
-        _ => PackProfile::Generic,
-    }
-}
-
-pub(super) fn canonical_profile_id(profile: PackProfile) -> &'static str {
-    match profile {
-        PackProfile::Generic => "generic",
-        PackProfile::Arxiv => "arxiv",
-        PackProfile::IeeeLike => "ieee-like",
-    }
 }
 
 pub(super) fn issue(
@@ -277,36 +255,6 @@ fn add_if_exists(root: &Path, included: &mut BTreeSet<String>, path: &Path) -> R
         }
     }
     Ok(())
-}
-
-fn collect_profile_warnings(
-    profile: PackProfile,
-    tex_sources: &BTreeMap<String, String>,
-) -> Vec<SubmissionPackIssue> {
-    let mut warnings = Vec::new();
-    if profile == PackProfile::IeeeLike {
-        let combined = tex_sources.values().cloned().collect::<Vec<_>>().join("\n");
-        if !combined.to_ascii_lowercase().contains("ieeetran") {
-            warnings.push(issue("submissionPack.ieeeClassHint", "warning", None, None));
-        }
-        if !combined.contains("\\bibliographystyle") {
-            warnings.push(issue(
-                "submissionPack.ieeeBibliographyStyleHint",
-                "warning",
-                None,
-                None,
-            ));
-        }
-    }
-    if profile == PackProfile::Arxiv {
-        warnings.push(issue(
-            "submissionPack.arxivSourceHint",
-            "warning",
-            None,
-            None,
-        ));
-    }
-    warnings
 }
 
 pub(super) fn collect_pack_files(

@@ -31,6 +31,11 @@ export const LazyPluginMarketplace = lazy(async () => {
   return { default: module.PluginMarketplace };
 });
 
+export const LazySubmissionCiWorkspace = lazy(async () => {
+  const module = await import("../research/SubmissionCiWorkspace");
+  return { default: module.SubmissionCiWorkspace };
+});
+
 export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps, "settings" | "t">) {
   return (
     <Suspense fallback={<WorkspacePanelFallback label={props.t("common.loading")} />}>
@@ -53,6 +58,57 @@ export function LazyDocxWorkspaceSurface(props: {
         tree={shell.tree}
         autoSaveEnabled={shell.settings?.uiPrefs?.docxAutoSaveEnabled ?? false}
         onRescan={shell.onWorkspaceRescan}
+        t={shell.t}
+      />
+    </Suspense>
+  );
+}
+
+export function LazySubmissionCiWorkspaceSurface(props: {
+  shell: AppWorkspaceShellProps;
+  selectedIsDraw: boolean;
+  selectedIsExcel: boolean;
+  compileAssistDiagnostics: string[];
+  onOpenTexMode: () => void;
+}) {
+  const {
+    shell,
+    selectedIsDraw,
+    selectedIsExcel,
+    compileAssistDiagnostics,
+    onOpenTexMode,
+  } = props;
+  const canCompileSelectedFile = Boolean(
+    shell.selectedFile
+    && !selectedIsDraw
+    && !selectedIsExcel
+    && /\.tex$/i.test(shell.selectedFile),
+  );
+  const runResearchPaperAnalysis = () => {
+    if (shell.selectedLibraryPath) {
+      shell.onLibraryAnalyzePaper(shell.selectedLibraryPath);
+      return;
+    }
+    shell.onPageChange("library");
+  };
+  return (
+    <Suspense fallback={<WorkspacePanelFallback label={shell.t("common.loading")} />}>
+      <LazySubmissionCiWorkspace
+        projectId={shell.activeProjectId}
+        selectedFile={shell.selectedFile}
+        selectedLibraryPath={shell.selectedLibraryPath}
+        editorContent={shell.editorContent}
+        fileList={shell.fileList}
+        compileDiagnostics={compileAssistDiagnostics}
+        busy={shell.busy}
+        canCompileSelectedFile={canCompileSelectedFile}
+        onCompileRepair={() => shell.onAgentRun("/review", { forceNewSession: true })}
+        onReferenceCheck={() => shell.onAgentRun("/check-ref", { forceNewSession: true })}
+        onAnalyzePaper={runResearchPaperAnalysis}
+        onOpenLibrary={() => shell.onPageChange("library")}
+        onOpenTexMode={onOpenTexMode}
+        onRebuttalReply={(reviewComments) => shell.onAgentRun(`/rebuttal ${reviewComments}`, { forceNewSession: true })}
+        onSubmissionPreflight={(prompt) => shell.onAgentRun(`/submit-check ${prompt}`, { forceNewSession: true })}
         t={shell.t}
       />
     </Suspense>

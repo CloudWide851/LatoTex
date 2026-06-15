@@ -19,6 +19,9 @@ use commands::channels::{channels_telegram_poll, channels_telegram_send, channel
 use commands::channels_dingtalk::{
     channels_dingtalk_poll, channels_dingtalk_send, channels_dingtalk_test,
 };
+use commands::channels_email::{
+    channels_email_fetch_submission, channels_email_password_save_verified, channels_email_test,
+};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_commit_files, git_diff_file,
     git_download_cancel, git_download_installer_start, git_download_status, git_fetch,
@@ -409,6 +412,9 @@ pub fn run() {
             channels_dingtalk_poll,
             channels_dingtalk_send,
             channels_dingtalk_test,
+            channels_email_password_save_verified,
+            channels_email_test,
+            channels_email_fetch_submission,
             fs_operation,
             latex_compile_record,
             agent_execute_start,
