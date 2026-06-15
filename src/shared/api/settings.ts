@@ -7,6 +7,7 @@ import type {
   AppSettings,
   AgentToolPrefs,
   AgentPermissionPrefs,
+  ChannelPrefs,
   CredentialSaveResult,
   McpValidationResult,
   McpServerConfig,
@@ -50,15 +51,7 @@ export function updateSettings(input: {
       translationModelId?: string;
       completionModelId?: string;
     };
-    channels?: {
-      telegramEnabled?: boolean;
-      telegramBotToken?: string;
-      telegramChatId?: string;
-      telegramApiBaseUrl?: string;
-      dingtalkEnabled?: boolean;
-      dingtalkClientId?: string;
-      dingtalkClientSecret?: string;
-    };
+    channels?: ChannelPrefs;
     closeBehavior?: "ask" | "tray" | "exit";
     closeBehaviorRemember?: boolean;
     backgroundImagePath?: string;

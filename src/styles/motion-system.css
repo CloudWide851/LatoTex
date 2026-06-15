@@ -430,6 +430,40 @@
   animation: prism-rotate-soft 900ms var(--motion-ease-soft) infinite alternate;
 }
 
+.submission-ci-card {
+  animation: prism-pop 260ms var(--motion-ease-soft) both;
+}
+
+.submission-ci-card--delay-1 {
+  animation-delay: 55ms;
+}
+
+.submission-ci-card--delay-2 {
+  animation-delay: 110ms;
+}
+
+.submission-ci-lane {
+  transition:
+    transform 170ms var(--motion-ease-out-quart),
+    border-color 170ms var(--motion-ease-out-quart),
+    box-shadow 170ms var(--motion-ease-out-quart),
+    background-color 170ms var(--motion-ease-out-quart),
+    color 170ms var(--motion-ease-out-quart);
+}
+
+.submission-ci-lane:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.submission-ci-lane[aria-pressed="true"] {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-accent, #10b981) 52%, transparent);
+}
+
+.submission-ci-detail {
+  animation: prism-veil 210ms var(--motion-ease-out-quart) both;
+}
+
 @media (max-width: 900px) {
   .analysis-live-rail {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -445,7 +479,9 @@
   .motion-card-pop,
   .motion-overlay-enter,
   .motion-live-pulse,
-  .motion-status-chip::after {
+  .motion-status-chip::after,
+  .submission-ci-card,
+  .submission-ci-detail {
     animation: none !important;
   }
   .startup-loading-orbit > span,
@@ -455,6 +491,7 @@
 
   .motion-panel-glow,
   .motion-hover-rise,
+  .submission-ci-lane,
   .agent-overlay-shell,
   .agent-overlay-trigger {
     transition: none !important;
@@ -463,6 +500,7 @@
   .motion-panel-glow:hover,
   .motion-hover-rise:hover:not(:disabled),
   .motion-hover-rise:active:not(:disabled),
+  .submission-ci-lane:hover:not(:disabled),
   .agent-overlay-shell:hover,
   .agent-overlay-trigger:hover:not(:disabled) {
     transform: none !important;

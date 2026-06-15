@@ -440,6 +440,38 @@ export type ChannelPrefs = {
   dingtalkEnabled?: boolean;
   dingtalkClientId?: string;
   dingtalkClientSecret?: string;
+  emailEnabled?: boolean;
+  emailAddress?: string;
+  emailImapHost?: string;
+  emailImapPort?: number;
+  emailSecurity?: "tls" | "starttls" | "plain" | string;
+  emailUsername?: string;
+  emailMailbox?: string;
+  emailSearchKeywords?: string;
+  emailMaxResults?: number;
+};
+
+export type EmailPasswordSaveInput = {
+  password: string;
+};
+
+export type EmailFetchSubmissionInput = {
+  limit?: number;
+};
+
+export type EmailSubmissionItem = {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  preview: string;
+  matchReason: string;
+  statusTag: string;
+};
+
+export type EmailFetchSubmissionResult = {
+  items: EmailSubmissionItem[];
+  status: string;
 };
 
 export type TelegramPollInput = {
