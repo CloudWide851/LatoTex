@@ -44,6 +44,7 @@ export const enUS_settings = {
   "settings.channels.telegramChatId": "Allowed Chat ID (optional)",
   "settings.channels.telegramApiBaseUrl": "Bot API Base URL (optional)",
   "settings.channels.telegramApiBaseUrlPlaceholder": "https://api.telegram.org",
+  "settings.channels.telegramProxyEnabled": "Use system proxy",
   "settings.channels.telegramTest": "Send test message",
   "settings.channels.telegramTestMessage": "LatoTex Telegram channel test message",
   "settings.channels.telegramTestOk": "Test message sent",

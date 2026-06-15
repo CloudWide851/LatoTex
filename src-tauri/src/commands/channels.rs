@@ -13,6 +13,7 @@ struct TelegramConfig {
     token: String,
     allowed_chat_id: Option<String>,
     api_base_url: String,
+    proxy_enabled: bool,
 }
 
 const DEFAULT_TELEGRAM_API_BASE_URL: &str = "https://api.telegram.org";
@@ -46,6 +47,20 @@ fn telegram_http_status_error(status: reqwest::StatusCode) -> String {
     format!("channels.telegram.http_{}", status.as_u16())
 }
 
+fn telegram_proxy_enabled(value: Option<bool>) -> bool {
+    value.unwrap_or(true)
+}
+
+fn telegram_client(timeout_secs: u64, proxy_enabled: bool) -> Result<Client, String> {
+    let mut builder = Client::builder().timeout(Duration::from_secs(timeout_secs));
+    if !proxy_enabled {
+        builder = builder.no_proxy();
+    }
+    builder
+        .build()
+        .map_err(|_| "channels.telegram.transport".to_string())
+}
+
 fn resolve_telegram_config(state: &AppState) -> Result<TelegramConfig, String> {
     let settings = storage::load_settings(&state.db_path, &state.runtime_root)?;
     let channels = settings
@@ -68,10 +83,12 @@ fn resolve_telegram_config(state: &AppState) -> Result<TelegramConfig, String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     let api_base_url = normalize_telegram_api_base_url(channels.telegram_api_base_url.as_deref())?;
+    let proxy_enabled = telegram_proxy_enabled(channels.telegram_proxy_enabled);
     Ok(TelegramConfig {
         token,
         allowed_chat_id,
         api_base_url,
+        proxy_enabled,
     })
 }
 
@@ -92,6 +109,7 @@ async fn send_telegram_message(
     chat_id: &str,
     text: &str,
     reply_to_message_id: Option<i64>,
+    proxy_enabled: bool,
 ) -> Result<Ack, String> {
     let token = token.trim();
     let chat_id = chat_id.trim();
@@ -105,10 +123,7 @@ async fn send_telegram_message(
     if text.is_empty() {
         return Err("channels.telegram.empty_text".to_string());
     }
-    let client = Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = telegram_client(15, proxy_enabled)?;
     let mut body = json!({
         "chat_id": chat_id,
         "text": text,
@@ -142,15 +157,16 @@ async fn send_telegram_message(
     })
 }
 
-async fn test_telegram_token_with_base(api_base_url: &str, token: &str) -> Result<Ack, String> {
+async fn test_telegram_token_with_base(
+    api_base_url: &str,
+    token: &str,
+    proxy_enabled: bool,
+) -> Result<Ack, String> {
     let token = token.trim();
     if token.is_empty() {
         return Err("channels.telegram.token_missing".to_string());
     }
-    let client = Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = telegram_client(15, proxy_enabled)?;
     let response = client
         .get(telegram_method_url(api_base_url, token, "getMe"))
         .send()
@@ -183,10 +199,7 @@ pub async fn channels_telegram_poll(
 ) -> Result<TelegramPollResult, String> {
     let config = resolve_telegram_config(&state)?;
     let timeout_secs = input.timeout_secs.unwrap_or(2).clamp(1, 25);
-    let client = Client::builder()
-        .timeout(Duration::from_secs(timeout_secs + 8))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = telegram_client(timeout_secs + 8, config.proxy_enabled)?;
     let mut query: Vec<(&str, String)> = vec![
         ("timeout", timeout_secs.to_string()),
         ("allowed_updates", "[\"message\"]".to_string()),
@@ -306,6 +319,7 @@ pub async fn channels_telegram_send(
         &chat_id,
         text,
         input.reply_to_message_id,
+        config.proxy_enabled,
     )
     .await
 }
@@ -314,17 +328,26 @@ pub async fn channels_telegram_send(
 pub async fn channels_telegram_test(input: TelegramTestInput) -> Result<Ack, String> {
     let api_base_url = normalize_telegram_api_base_url(input.api_base_url.as_deref())?;
     let chat_id = input.chat_id.unwrap_or_default();
+    let proxy_enabled = telegram_proxy_enabled(input.proxy_enabled);
     if chat_id.trim().is_empty() {
-        return test_telegram_token_with_base(&api_base_url, &input.token).await;
+        return test_telegram_token_with_base(&api_base_url, &input.token, proxy_enabled).await;
     }
-    send_telegram_message(&api_base_url, &input.token, &chat_id, &input.text, None).await
+    send_telegram_message(
+        &api_base_url,
+        &input.token,
+        &chat_id,
+        &input.text,
+        None,
+        proxy_enabled,
+    )
+    .await
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         normalize_telegram_api_base_url, telegram_http_status_error, telegram_method_url,
-        DEFAULT_TELEGRAM_API_BASE_URL,
+        telegram_proxy_enabled, DEFAULT_TELEGRAM_API_BASE_URL,
     };
 
     #[test]
@@ -369,5 +392,12 @@ mod tests {
             telegram_http_status_error(reqwest::StatusCode::UNAUTHORIZED),
             "channels.telegram.http_401"
         );
+    }
+
+    #[test]
+    fn telegram_proxy_defaults_to_system_proxy_and_can_be_disabled() {
+        assert!(telegram_proxy_enabled(None));
+        assert!(telegram_proxy_enabled(Some(true)));
+        assert!(!telegram_proxy_enabled(Some(false)));
     }
 }

@@ -26,6 +26,7 @@ import {
 } from "../../hooks/researchProfiles";
 import { useEditableTexMetric } from "../../hooks/useEditableTexMetric";
 import { useProjectSearchReadyMetric } from "../../hooks/useProjectSearchReadyMetric";
+import { SubmissionEmailWorkbench } from "./SubmissionEmailWorkbench";
 import { ResearchQualityDetails } from "./ResearchQualityDetails";
 
 type TranslationFn = (key: any) => string;
@@ -262,6 +263,16 @@ export function SubmissionCiWorkspace(props: {
     setRebuttalOpen(false);
   };
 
+  const useEmailForRebuttal = (draft: string) => {
+    setRebuttalComments((current) => {
+      const existing = current.trim();
+      return existing ? `${existing}\n\n${draft}` : draft;
+    });
+    setRebuttalStatus(null);
+    setRebuttalOpen(true);
+    setActiveLane("rebuttal");
+  };
+
   return (
     <section className="h-full min-h-0 overflow-auto rounded-lg bg-[color:var(--editor-paper-bg)] p-3 motion-shell-stage">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-3">
@@ -400,6 +411,12 @@ export function SubmissionCiWorkspace(props: {
           {citationStatus ? (
             <div className="mt-2 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{citationStatus}</div>
           ) : null}
+          <SubmissionEmailWorkbench
+            busy={busy}
+            canUseRebuttal={Boolean(projectId && selectedFile && canCompileSelectedFile)}
+            onUseEmail={useEmailForRebuttal}
+            t={t}
+          />
         </div>
 
         <div className="submission-ci-card submission-ci-card--delay-2 rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">

@@ -409,6 +409,7 @@ mod tests {
             telegram_bot_token: None,
             telegram_chat_id: None,
             telegram_api_base_url: None,
+            telegram_proxy_enabled: None,
             dingtalk_enabled: None,
             dingtalk_client_id: None,
             dingtalk_client_secret: None,

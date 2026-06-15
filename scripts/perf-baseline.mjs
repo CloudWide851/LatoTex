@@ -24,6 +24,7 @@ const report = {
       vendorExceljsBytes: 1.1 * 1024 * 1024,
       indexBytes: 720 * 1024,
       appWorkspaceShellBytes: 560 * 1024,
+      submissionCiWorkspaceBytes: 220 * 1024,
     },
   },
   timings: {
@@ -192,6 +193,7 @@ const distAssetBudgetRules = [
   { name: "vendorExceljsBytes", label: "vendor-exceljs", pattern: /dist\/assets\/vendor-exceljs-[^/]+\.js$/ },
   { name: "indexBytes", label: "index", pattern: /dist\/assets\/index-[^/]+\.js$/ },
   { name: "appWorkspaceShellBytes", label: "AppWorkspaceShell", pattern: /dist\/assets\/AppWorkspaceShell-[^/]+\.js$/ },
+  { name: "submissionCiWorkspaceBytes", label: "SubmissionCiWorkspace", pattern: /dist\/assets\/SubmissionCiWorkspace-[^/]+\.js$/ },
 ];
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));

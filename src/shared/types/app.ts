@@ -420,6 +420,7 @@ export type TelegramTestInput = {
   token: string;
   chatId?: string;
   apiBaseUrl?: string;
+  proxyEnabled?: boolean;
   text: string;
 };
 
@@ -437,6 +438,7 @@ export type ChannelPrefs = {
   telegramBotToken?: string;
   telegramChatId?: string;
   telegramApiBaseUrl?: string;
+  telegramProxyEnabled?: boolean;
   dingtalkEnabled?: boolean;
   dingtalkClientId?: string;
   dingtalkClientSecret?: string;

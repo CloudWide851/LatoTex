@@ -4,7 +4,7 @@ import telegramIcon from "../../../assets/brands/telegram.svg";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { channelsDingTalkTest, channelsTelegramTest } from "../../../shared/api/share";
-import type { AppSettings } from "../../../shared/types/app";
+import type { AppSettings, ChannelPrefs } from "../../../shared/types/app";
 import { useBackgroundImageObjectUrl } from "../../hooks/useBackgroundImageObjectUrl";
 import { EmailChannelSettingsCard } from "./EmailChannelSettingsCard";
 import { SettingsBooleanRow } from "./SettingsBooleanRow";
@@ -20,6 +20,10 @@ function resolveActiveBackgroundPath(settings: AppSettings | null): string {
     .map((item) => String(item ?? "").trim())
     .filter((item) => item.length > 0);
   return preferred && normalized.includes(preferred) ? preferred : "";
+}
+
+export function telegramProxyEnabledValue(channels?: Pick<ChannelPrefs, "telegramProxyEnabled"> | null): boolean {
+  return channels?.telegramProxyEnabled !== false;
 }
 
 export function ChannelsSettingsSection(props: {
@@ -58,6 +62,7 @@ export function ChannelsSettingsSection(props: {
     const token = settings?.uiPrefs?.channels?.telegramBotToken?.trim() ?? "";
     const chatId = settings?.uiPrefs?.channels?.telegramChatId?.trim() ?? "";
     const apiBaseUrl = settings?.uiPrefs?.channels?.telegramApiBaseUrl?.trim() ?? "";
+    const proxyEnabled = telegramProxyEnabledValue(settings?.uiPrefs?.channels);
     setTestBusy(true);
     setTestMessage(null);
     try {
@@ -65,6 +70,7 @@ export function ChannelsSettingsSection(props: {
         token,
         chatId: chatId || undefined,
         apiBaseUrl: apiBaseUrl || undefined,
+        proxyEnabled,
         text: t("settings.channels.telegramTestMessage"),
       });
       setTestMessage({ ok: true, text: t(chatId ? "settings.channels.telegramTestOk" : "settings.channels.telegramVerifyOk") });
@@ -134,6 +140,14 @@ export function ChannelsSettingsSection(props: {
             textClassName="text-slate-700"
             checkboxClassName="border-slate-400"
             onCheckedChange={(nextValue) => setChannelField({ telegramEnabled: nextValue })}
+          />
+          <SettingsBooleanRow
+            label={t("settings.channels.telegramProxyEnabled")}
+            checked={telegramProxyEnabledValue(settings?.uiPrefs?.channels)}
+            className="mt-2 rounded-2xl border border-slate-200/80 bg-white/72 px-3 py-3 text-xs text-slate-700 shadow-none"
+            textClassName="text-slate-700"
+            checkboxClassName="border-slate-400"
+            onCheckedChange={(nextValue) => setChannelField({ telegramProxyEnabled: nextValue })}
           />
 
           <div className="mt-3 grid gap-2 sm:grid-cols-2">

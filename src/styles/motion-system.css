@@ -464,6 +464,20 @@
   animation: prism-veil 210ms var(--motion-ease-out-quart) both;
 }
 
+.submission-ci-mail-item {
+  animation: prism-veil 190ms var(--motion-ease-out-quart) both;
+  transition:
+    transform 170ms var(--motion-ease-out-quart),
+    border-color 170ms var(--motion-ease-out-quart),
+    box-shadow 170ms var(--motion-ease-out-quart);
+}
+
+.submission-ci-mail-item:hover {
+  transform: translate3d(0, -1px, 0);
+  border-color: color-mix(in srgb, var(--app-accent, #10b981) 40%, var(--editor-widget-border));
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.07);
+}
+
 @media (max-width: 900px) {
   .analysis-live-rail {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -481,7 +495,8 @@
   .motion-live-pulse,
   .motion-status-chip::after,
   .submission-ci-card,
-  .submission-ci-detail {
+  .submission-ci-detail,
+  .submission-ci-mail-item {
     animation: none !important;
   }
   .startup-loading-orbit > span,
@@ -492,6 +507,7 @@
   .motion-panel-glow,
   .motion-hover-rise,
   .submission-ci-lane,
+  .submission-ci-mail-item,
   .agent-overlay-shell,
   .agent-overlay-trigger {
     transition: none !important;
@@ -501,6 +517,7 @@
   .motion-hover-rise:hover:not(:disabled),
   .motion-hover-rise:active:not(:disabled),
   .submission-ci-lane:hover:not(:disabled),
+  .submission-ci-mail-item:hover,
   .agent-overlay-shell:hover,
   .agent-overlay-trigger:hover:not(:disabled) {
     transform: none !important;
