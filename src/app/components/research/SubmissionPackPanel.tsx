@@ -1,22 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileArchive, Loader2, XCircle } from "lucide-react";
 import { submissionPackBuild, writeFile } from "../../../shared/api/workspace";
 import type { SubmissionPackBuildResponse, SubmissionPackIssuePayload } from "../../../shared/types/app";
 import { buildSubmissionEvidenceBundle } from "../../hooks/researchEvidenceBundle";
 import type { ResearchQualityReport } from "../../hooks/researchQualityGate";
+import {
+  RESEARCH_WORKFLOW_PROFILE_IDS,
+  submissionPackProfileLabelKey,
+  type ResearchWorkflowProfileId,
+} from "../../hooks/researchProfiles";
 
 type TranslationFn = (key: any) => string;
-
-type JournalProfile = {
-  id: "generic" | "arxiv" | "ieee-like";
-  labelKey: string;
-};
-
-const PROFILES: JournalProfile[] = [
-  { id: "generic", labelKey: "research.submissionPack.profile.generic" },
-  { id: "arxiv", labelKey: "research.submissionPack.profile.arxiv" },
-  { id: "ieee-like", labelKey: "research.submissionPack.profile.ieeeLike" },
-];
 
 const SUBMISSION_ISSUE_IDS = new Set([
   "compileDiagnostics",
@@ -208,13 +202,22 @@ export function SubmissionPackPanel(props: {
   t: TranslationFn;
 }) {
   const { projectId, selectedFile, report, compileDiagnostics, t } = props;
-  const [profileId, setProfileId] = useState<JournalProfile["id"]>("generic");
+  const [profileId, setProfileId] = useState<ResearchWorkflowProfileId>(
+    report.profileChecklist.profileId,
+  );
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmissionPackBuildResponse | null>(null);
   const [evidencePaths, setEvidencePaths] = useState<{ jsonPath: string; markdownPath: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const gateIssues = useMemo(() => gateIssuesFromReport(report), [report]);
   const canBuild = Boolean(projectId && selectedFile && /\.tex$/i.test(selectedFile));
+
+  useEffect(() => {
+    setProfileId(report.profileChecklist.profileId);
+    setResult(null);
+    setEvidencePaths(null);
+    setError(null);
+  }, [report.profileChecklist.profileId]);
 
   const buildPack = async () => {
     if (!projectId || !selectedFile) {
@@ -278,15 +281,15 @@ export function SubmissionPackPanel(props: {
             className="h-8 w-full rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-2 text-xs text-[color:var(--editor-tab-text)] outline-none focus:border-[color:var(--app-accent)]"
             value={profileId}
             onChange={(event) => {
-              setProfileId(event.target.value as JournalProfile["id"]);
+              setProfileId(event.target.value as ResearchWorkflowProfileId);
               setResult(null);
               setEvidencePaths(null);
               setError(null);
             }}
           >
-            {PROFILES.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {t(profile.labelKey)}
+            {RESEARCH_WORKFLOW_PROFILE_IDS.map((profile) => (
+              <option key={profile} value={profile}>
+                {t(submissionPackProfileLabelKey(profile))}
               </option>
             ))}
           </select>

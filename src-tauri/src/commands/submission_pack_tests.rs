@@ -136,3 +136,79 @@ fn rejects_outside_dependencies_and_skips_disallowed_files() {
         .any(|item| item.path == "data.csv"));
     let _ = fs::remove_dir_all(temp_root);
 }
+
+#[test]
+fn keeps_acm_profile_when_building_pack() {
+    let (temp_root, project_id, project_root, db_path) = create_project_fixture("acm");
+    fs::write(
+        project_root.join("main.tex"),
+        "\\documentclass{acmart}\n\\acmConference{Demo}{2026}{Remote}\n\\begin{document}\n\\begin{abstract}Short.\\end{abstract}\n\\cite{smith2024}\\bibliography{refs}\n\\end{document}\n",
+    )
+    .unwrap();
+    fs::write(
+        project_root.join("refs.bib"),
+        "@article{smith2024,title={A}}\n",
+    )
+    .unwrap();
+
+    let result = build_submission_pack(
+        &db_path,
+        SubmissionPackBuildInput {
+            project_id,
+            main_path: "main.tex".to_string(),
+            profile_id: "acm".to_string(),
+            gate_issues: Vec::new(),
+            compile_diagnostics: Vec::new(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.profile_id, "acm");
+    assert!(result
+        .warnings
+        .iter()
+        .all(|item| item.id != "submissionPack.acmClassHint"));
+    assert_eq!(result.status, "ready");
+    let _ = fs::remove_dir_all(temp_root);
+}
+
+#[test]
+fn reports_publisher_profile_warnings_without_blocking_zip() {
+    let (temp_root, project_id, project_root, db_path) =
+        create_project_fixture("publisher-warning");
+    fs::write(
+        project_root.join("main.tex"),
+        "\\documentclass{article}\n\\begin{document}\n\\begin{abstract}Short.\\end{abstract}\n\\cite{smith2024}\\bibliography{refs}\n\\end{document}\n",
+    )
+    .unwrap();
+    fs::write(
+        project_root.join("refs.bib"),
+        "@article{smith2024,title={A}}\n",
+    )
+    .unwrap();
+
+    let result = build_submission_pack(
+        &db_path,
+        SubmissionPackBuildInput {
+            project_id,
+            main_path: "main.tex".to_string(),
+            profile_id: "springer".to_string(),
+            gate_issues: Vec::new(),
+            compile_diagnostics: Vec::new(),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(result.profile_id, "springer");
+    assert!(result
+        .warnings
+        .iter()
+        .any(|item| item.id == "submissionPack.springerClassHint"));
+    assert!(result
+        .warnings
+        .iter()
+        .any(|item| item.id == "submissionPack.springerKeywordsHint"));
+    assert_eq!(result.status, "ready");
+    assert!(result.zip_path.is_some());
+    let _ = fs::remove_dir_all(temp_root);
+}

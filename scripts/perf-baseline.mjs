@@ -9,6 +9,7 @@ const distDir = path.join(repoRoot, "dist");
 const srcDir = path.join(repoRoot, "src");
 const artifactsDir = path.join(repoRoot, "artifacts");
 const reportPath = path.join(artifactsDir, "perf-baseline.json");
+const markdownReportPath = path.join(artifactsDir, "perf-baseline.md");
 const report = {
   generatedAt: new Date().toISOString(),
   budgets: {
@@ -55,6 +56,108 @@ function measure(label, fn) {
   const value = fn();
   report.timings[label] = Math.round(performance.now() - started);
   return value;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function escapeMarkdownCell(value) {
+  return String(value ?? "").replaceAll("|", "\\|").replace(/\r?\n/g, " ");
+}
+
+function markdownTable(headers, rows) {
+  return [
+    `| ${headers.map(escapeMarkdownCell).join(" | ")} |`,
+    `| ${headers.map(() => "---").join(" | ")} |`,
+    ...rows.map((row) => `| ${row.map(escapeMarkdownCell).join(" | ")} |`),
+  ].join("\n");
+}
+
+function renderMarkdownReport() {
+  const largestAssets = report.dist.largestAssets.length > 0
+    ? markdownTable(
+      ["Asset", "Size"],
+      report.dist.largestAssets.map((asset) => [asset.path, formatBytes(asset.bytes)]),
+    )
+    : "_No built assets were found._";
+  const budgetChecks = report.dist.budgetChecks.length > 0
+    ? markdownTable(
+      ["Budget", "Asset", "Size", "Limit", "Status"],
+      report.dist.budgetChecks.map((check) => [
+        check.label,
+        check.path || "missing",
+        formatBytes(check.bytes),
+        formatBytes(check.maxBytes),
+        check.ok ? "pass" : "fail",
+      ]),
+    )
+    : "_No built asset budgets were evaluated._";
+  const largestSourceFiles = report.source.largestFiles.length > 0
+    ? markdownTable(
+      ["Source file", "Lines"],
+      report.source.largestFiles.map((item) => [item.path, item.lines]),
+    )
+    : "_No source files were scanned._";
+  return [
+    "# LatoTex Performance Baseline",
+    "",
+    `- Generated: ${report.generatedAt}`,
+    `- Total runtime: ${report.timings.totalMs} ms`,
+    `- Source scan: ${report.timings.sourceScanMs ?? 0} ms`,
+    `- Dist scan: ${report.timings.distScanMs ?? 0} ms`,
+    `- Dist assets: ${report.dist.assetCount} files / ${formatBytes(report.dist.totalAssetBytes)}`,
+    `- Research eval: ${report.researchEval.status} (${report.researchEval.durationMs} ms)`,
+    "",
+    "## Budgets",
+    "",
+    `- Largest source file: ${report.budgets.largestSourceFileLines} lines`,
+    `- Largest built asset: ${formatBytes(report.budgets.largestBuiltAssetBytes)}`,
+    `- Total dist assets: ${formatBytes(report.budgets.totalDistAssetBytes)}`,
+    `- Research eval duration: ${report.budgets.researchEvalDurationMs} ms`,
+    "",
+    "## Chunk Budget Checks",
+    "",
+    budgetChecks,
+    "",
+    "## Largest Built Assets",
+    "",
+    largestAssets,
+    "",
+    "## Largest Source Files",
+    "",
+    largestSourceFiles,
+    "",
+    "## Research Eval Tail",
+    "",
+    "```text",
+    report.researchEval.outputTail || "(empty)",
+    "```",
+    "",
+  ].join("\n");
+}
+
+function writeReports() {
+  report.timings.totalMs = Math.round(performance.now() - totalStarted);
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  fs.writeFileSync(markdownReportPath, renderMarkdownReport(), "utf8");
+}
+
+function fail(message, exitCode = 1) {
+  writeReports();
+  console.error(message);
+  process.exit(exitCode);
 }
 
 function walkFiles(dir, predicate, out = []) {
@@ -167,47 +270,42 @@ const missingScripts = Object.entries(report.scripts)
   .filter(([, exists]) => !exists)
   .map(([name]) => name);
 if (missingScripts.length > 0) {
-  console.error(`Missing required scripts: ${missingScripts.join(", ")}`);
-  process.exit(1);
+  fail(`Missing required scripts: ${missingScripts.join(", ")}`);
 }
 
 const oversizedDistAsset = report.dist.largestAssets.find((asset) => asset.bytes > report.budgets.largestBuiltAssetBytes);
 if (oversizedDistAsset) {
-  console.error(
+  fail(
     `Built asset exceeds ${report.budgets.largestBuiltAssetBytes} bytes: ${oversizedDistAsset.path} (${oversizedDistAsset.bytes})`,
   );
-  process.exit(1);
 }
 
 if (report.dist.exists && report.dist.totalAssetBytes > report.budgets.totalDistAssetBytes) {
-  console.error(
+  fail(
     `Total dist asset bytes exceed ${report.budgets.totalDistAssetBytes}: ${report.dist.totalAssetBytes}`,
   );
-  process.exit(1);
 }
 
 const failedDistBudget = report.dist.budgetChecks.find((check) => !check.ok);
 if (failedDistBudget) {
-  console.error(
+  fail(
     `Built asset budget failed for ${failedDistBudget.label}: ${failedDistBudget.path || "missing"} ` +
     `(${failedDistBudget.bytes}/${failedDistBudget.maxBytes})`,
   );
-  process.exit(1);
 }
 
 if (report.researchEval.status !== "passed") {
-  console.error(`Research eval failed during performance baseline:\n${report.researchEval.outputTail}`);
-  process.exit(report.researchEval.exitCode ?? 1);
+  fail(
+    `Research eval failed during performance baseline:\n${report.researchEval.outputTail}`,
+    report.researchEval.exitCode ?? 1,
+  );
 }
 
 if (report.researchEval.durationMs > report.budgets.researchEvalDurationMs) {
-  console.error(
+  fail(
     `Research eval exceeded ${report.budgets.researchEvalDurationMs}ms: ${report.researchEval.durationMs}ms`,
   );
-  process.exit(1);
 }
 
-report.timings.totalMs = Math.round(performance.now() - totalStarted);
-fs.mkdirSync(artifactsDir, { recursive: true });
-fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+writeReports();
 console.log(JSON.stringify(report, null, 2));

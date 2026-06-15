@@ -15,8 +15,8 @@ import {
   type ResearchProfileChecklist,
   type ResearchRebuttalEvidence,
   type ResearchReviewerRisk,
-  type ResearchWorkflowProfileId,
 } from "./researchQualityAudit";
+import type { ResearchWorkflowProfileId } from "./researchProfiles";
 
 export type ResearchQualityStatus = "pass" | "warn" | "fail";
 export type ResearchQualityLaneId = "claims" | "citations" | "compile" | "submission" | "profile" | "rebuttal";

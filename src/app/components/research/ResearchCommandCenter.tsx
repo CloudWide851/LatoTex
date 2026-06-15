@@ -4,10 +4,15 @@ import { libraryCitationResolve } from "../../../shared/api/library";
 import { writeFile } from "../../../shared/api/workspace";
 import {
   buildResearchAuditMarkdown,
-  type ResearchWorkflowProfileId,
 } from "../../hooks/researchQualityAudit";
 import { type ResearchQualityLaneId, useResearchQualityGate } from "../../hooks/researchQualityGate";
 import { resolveResearchNextAction } from "../../hooks/researchNextAction";
+import {
+  normalizeResearchWorkflowProfileId,
+  researchProfileLabelKey,
+  RESEARCH_WORKFLOW_PROFILE_IDS,
+  type ResearchWorkflowProfileId,
+} from "../../hooks/researchProfiles";
 import { useEditableTexMetric } from "../../hooks/useEditableTexMetric";
 import { useProjectSearchReadyMetric } from "../../hooks/useProjectSearchReadyMetric";
 import { ResearchQualityDetails } from "./ResearchQualityDetails";
@@ -20,20 +25,6 @@ function formatMessage(template: string, params: Record<string, string | number 
     (text, [key, value]) => text.replaceAll(`{${key}}`, String(value ?? "")),
     template,
   );
-}
-
-const RESEARCH_PROFILE_OPTIONS: ResearchWorkflowProfileId[] = [
-  "generic",
-  "arxiv",
-  "conference",
-  "journal",
-  "ieee-like",
-];
-
-function normalizeProfileId(value: string | null | undefined): ResearchWorkflowProfileId {
-  return RESEARCH_PROFILE_OPTIONS.includes(value as ResearchWorkflowProfileId)
-    ? value as ResearchWorkflowProfileId
-    : "generic";
 }
 
 export function ResearchCommandCenter(props: {
@@ -94,7 +85,7 @@ export function ResearchCommandCenter(props: {
       setProfileId("generic");
       return;
     }
-    setProfileId(normalizeProfileId(window.localStorage.getItem(profileStorageKey)));
+    setProfileId(normalizeResearchWorkflowProfileId(window.localStorage.getItem(profileStorageKey)));
   }, [profileStorageKey]);
 
   useEffect(() => {
@@ -250,11 +241,11 @@ export function ResearchCommandCenter(props: {
               <select
                 className="max-w-[148px] rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-1.5 py-0.5 text-[10px] text-[color:var(--editor-tab-text)] outline-none"
                 value={profileId}
-                onChange={(event) => setProfileId(normalizeProfileId(event.currentTarget.value))}
+                onChange={(event) => setProfileId(normalizeResearchWorkflowProfileId(event.currentTarget.value))}
               >
-                {RESEARCH_PROFILE_OPTIONS.map((profile) => (
+                {RESEARCH_WORKFLOW_PROFILE_IDS.map((profile) => (
                   <option key={profile} value={profile}>
-                    {t(`research.profile.${profile === "ieee-like" ? "ieeeLike" : profile}`)}
+                    {t(researchProfileLabelKey(profile))}
                   </option>
                 ))}
               </select>
