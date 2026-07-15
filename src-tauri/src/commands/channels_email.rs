@@ -73,6 +73,14 @@ fn normalize_host(raw: Option<String>) -> Result<String, String> {
     Ok(host)
 }
 
+fn normalize_port(raw: Option<u16>, security: &str) -> Result<u16, String> {
+    let port = raw.unwrap_or(if security == "plain" { 143 } else { 993 });
+    if port == 0 {
+        return Err("channels.email.port_invalid".to_string());
+    }
+    Ok(port)
+}
+
 fn normalize_keywords(raw: Option<String>) -> Vec<String> {
     let keywords: Vec<String> = raw
         .unwrap_or_default()
@@ -108,12 +116,7 @@ fn resolve_email_config(state: &AppState) -> Result<EmailConfig, String> {
     }
     let host = normalize_host(channels.email_imap_host)?;
     let security = normalize_security(channels.email_security)?;
-    let port = channels
-        .email_imap_port
-        .unwrap_or(if security == "plain" { 143 } else { 993 });
-    if port == 0 {
-        return Err("channels.email.port_invalid".to_string());
-    }
+    let port = normalize_port(channels.email_imap_port, &security)?;
     let username = normalize_non_empty(channels.email_username).if_empty(address.clone());
     let mailbox = normalize_non_empty(channels.email_mailbox).if_empty(DEFAULT_MAILBOX.to_string());
     let max_results = channels
@@ -380,7 +383,10 @@ pub async fn channels_email_fetch_submission(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_keywords, parse_submission_email, status_tag_for};
+    use super::{
+        normalize_host, normalize_keywords, normalize_port, normalize_security,
+        parse_submission_email, status_tag_for,
+    };
     use crate::models::ChannelPrefs;
 
     #[test]
@@ -388,6 +394,46 @@ mod tests {
         let keywords = normalize_keywords(Some("  \n ".to_string()));
         assert!(keywords.iter().any(|keyword| keyword == "submission"));
         assert!(keywords.iter().any(|keyword| keyword == "decision"));
+    }
+
+    #[test]
+    fn email_security_defaults_to_tls_and_rejects_unknown_modes() {
+        assert_eq!(normalize_security(None).as_deref(), Ok("tls"));
+        assert_eq!(
+            normalize_security(Some(" STARTTLS ".to_string())).as_deref(),
+            Ok("starttls")
+        );
+        assert_eq!(
+            normalize_security(Some("plain".to_string())).as_deref(),
+            Ok("plain")
+        );
+        assert_eq!(
+            normalize_security(Some("auto".to_string())),
+            Err("channels.email.security_invalid".to_string())
+        );
+    }
+
+    #[test]
+    fn email_host_and_port_normalization_preserves_secure_defaults() {
+        assert_eq!(
+            normalize_host(Some(" imap.example.test ".to_string())).as_deref(),
+            Ok("imap.example.test")
+        );
+        assert_eq!(
+            normalize_host(Some("https://imap.example.test".to_string())),
+            Err("channels.email.host_invalid".to_string())
+        );
+        assert_eq!(
+            normalize_host(Some("imap.example.test/path".to_string())),
+            Err("channels.email.host_invalid".to_string())
+        );
+        assert_eq!(normalize_port(None, "tls"), Ok(993));
+        assert_eq!(normalize_port(None, "starttls"), Ok(993));
+        assert_eq!(normalize_port(None, "plain"), Ok(143));
+        assert_eq!(
+            normalize_port(Some(0), "tls"),
+            Err("channels.email.port_invalid".to_string())
+        );
     }
 
     #[test]

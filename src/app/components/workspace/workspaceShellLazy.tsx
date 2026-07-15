@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import { requestSettingsSection } from "../../settings/settingsNavigation";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 
 export const LazyAgentChatOverlay = lazy(async () => {
@@ -84,12 +85,22 @@ export function LazySubmissionCiWorkspaceSurface(props: {
     && !selectedIsExcel
     && /\.tex$/i.test(shell.selectedFile),
   );
+  const emailChannels = shell.settings?.uiPrefs?.channels;
+  const emailConfigured = Boolean(
+    emailChannels?.emailEnabled
+    && emailChannels.emailAddress?.trim()
+    && emailChannels.emailImapHost?.trim(),
+  );
   const runResearchPaperAnalysis = () => {
     if (shell.selectedLibraryPath) {
       shell.onLibraryAnalyzePaper(shell.selectedLibraryPath);
       return;
     }
     shell.onPageChange("library");
+  };
+  const openEmailSettings = () => {
+    requestSettingsSection("channels");
+    shell.onPageChange("settings");
   };
   return (
     <Suspense fallback={<WorkspacePanelFallback label={shell.t("common.loading")} />}>
@@ -102,10 +113,12 @@ export function LazySubmissionCiWorkspaceSurface(props: {
         compileDiagnostics={compileAssistDiagnostics}
         busy={shell.busy}
         canCompileSelectedFile={canCompileSelectedFile}
+        emailConfigured={emailConfigured}
         onCompileRepair={() => shell.onAgentRun("/review", { forceNewSession: true })}
         onReferenceCheck={() => shell.onAgentRun("/check-ref", { forceNewSession: true })}
         onAnalyzePaper={runResearchPaperAnalysis}
         onOpenLibrary={() => shell.onPageChange("library")}
+        onOpenEmailSettings={openEmailSettings}
         onOpenTexMode={onOpenTexMode}
         onRebuttalReply={(reviewComments) => shell.onAgentRun(`/rebuttal ${reviewComments}`, { forceNewSession: true })}
         onSubmissionPreflight={(prompt) => shell.onAgentRun(`/submit-check ${prompt}`, { forceNewSession: true })}

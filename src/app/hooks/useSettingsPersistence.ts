@@ -5,6 +5,7 @@ import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
+import { registerSettingsPersistence } from "../settings/settingsPersistenceBridge";
 
 type SettingsPersistenceParams = {
   activeProjectId: string | null;
@@ -300,6 +301,8 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
     },
     [cancelPendingAutoSave, lastAutoSavedHashRef, persistSettingsInternal],
   );
+
+  useEffect(() => registerSettingsPersistence(persistSettings), [persistSettings]);
 
   const savePanelLayout = useCallback(
     (panelKey: keyof PanelLayoutPrefs, layout: number[]) => {

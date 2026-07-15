@@ -1,5 +1,5 @@
 import { Copy, Plus } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
@@ -35,6 +35,7 @@ import { SettingsSelectRow } from "./settings/SettingsSelectRow";
 import { SidebarPageOrderSettingsSection } from "./settings/SidebarPageOrderSettingsSection";
 import { PluginSourcesSettingsSection } from "./settings/PluginSourcesSettingsSection";
 import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
+import { subscribeSettingsSectionRequests } from "../settings/settingsNavigation";
 
 type TranslationFn = (key: any) => string;
 
@@ -102,6 +103,11 @@ export function SettingsPanel(props: {
     setSettings,
     t,
   } = props;
+
+  useEffect(
+    () => subscribeSettingsSectionRequests(onSettingsSectionChange),
+    [onSettingsSectionChange],
+  );
 
   const localSettings = settings ?? {
     activeProjectId,

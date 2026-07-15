@@ -80,10 +80,12 @@ export function SubmissionCiWorkspace(props: {
   compileDiagnostics: string[];
   busy: boolean;
   canCompileSelectedFile: boolean;
+  emailConfigured: boolean;
   onCompileRepair: () => void;
   onReferenceCheck: () => void;
   onAnalyzePaper: () => void;
   onOpenLibrary: () => void;
+  onOpenEmailSettings: () => void;
   onOpenTexMode: () => void;
   onRebuttalReply: (reviewComments: string) => void;
   onSubmissionPreflight: (prompt: string) => void;
@@ -98,10 +100,12 @@ export function SubmissionCiWorkspace(props: {
     compileDiagnostics,
     busy,
     canCompileSelectedFile,
+    emailConfigured,
     onCompileRepair,
     onReferenceCheck,
     onAnalyzePaper,
     onOpenLibrary,
+    onOpenEmailSettings,
     onOpenTexMode,
     onRebuttalReply,
     onSubmissionPreflight,
@@ -279,7 +283,7 @@ export function SubmissionCiWorkspace(props: {
         <div className="rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3 shadow-sm">
           <div className="grid min-w-0 grid-cols-[minmax(120px,0.7fr)_minmax(0,1fr)_auto] items-center gap-3 max-[900px]:grid-cols-1">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
+              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
                 {t("workspace.mode.submission")}
               </div>
               <div className="truncate text-lg font-semibold text-[color:var(--editor-tab-text)]">
@@ -290,7 +294,7 @@ export function SubmissionCiWorkspace(props: {
               <div className="truncate text-sm font-semibold text-[color:var(--editor-tab-text)]">
                 {selectedFile ?? t("research.next.status.noPaper")}
               </div>
-              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] text-[color:var(--editor-tab-muted)]">
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-[color:var(--editor-tab-muted)]">
                 <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5">
                   {report.readiness.blockers}
                 </span>
@@ -369,11 +373,12 @@ export function SubmissionCiWorkspace(props: {
               })}
             </div>
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
-              <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5">
+              <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5 transition focus-within:border-[color:var(--control-primary-border)] focus-within:ring-2 focus-within:ring-[color:var(--control-ring)]">
                 <Quote className="h-3.5 w-3.5 shrink-0 text-[color:var(--app-accent)]" />
                 <input
                   className="min-w-0 flex-1 bg-transparent text-xs text-[color:var(--editor-tab-text)] outline-none placeholder:text-[color:var(--editor-tab-muted)]"
                   value={citationQuery}
+                  aria-label={t("research.citation.quickLookupLabel")}
                   disabled={!canUseCitation || citationBusy}
                   placeholder={t("research.citation.placeholder")}
                   onChange={(event) => setCitationQuery(event.target.value)}
@@ -408,12 +413,19 @@ export function SubmissionCiWorkspace(props: {
               </button>
             </div>
           </div>
+          {!canCompileSelectedFile ? (
+            <p className="mt-2 text-xs leading-5 text-[color:var(--editor-tab-muted)]">
+              {t("research.submission.texRequired")}
+            </p>
+          ) : null}
           {citationStatus ? (
-            <div className="mt-2 truncate text-[11px] text-[color:var(--editor-tab-muted)]">{citationStatus}</div>
+            <div role="status" aria-live="polite" className="mt-2 truncate text-xs text-[color:var(--editor-tab-muted)]">{citationStatus}</div>
           ) : null}
           <SubmissionEmailWorkbench
             busy={busy}
             canUseRebuttal={Boolean(projectId && selectedFile && canCompileSelectedFile)}
+            emailConfigured={emailConfigured}
+            onOpenEmailSettings={onOpenEmailSettings}
             onUseEmail={useEmailForRebuttal}
             t={t}
           />

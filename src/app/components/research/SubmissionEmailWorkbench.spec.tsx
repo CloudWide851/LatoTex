@@ -19,6 +19,11 @@ const messages: Record<string, string> = {
   "research.email.sync": "同步投稿邮件",
   "research.email.syncing": "正在同步邮件",
   "research.email.empty": "暂无投稿邮件",
+  "research.email.configureTitle": "连接投稿邮箱",
+  "research.email.configureDescription": "请先配置投稿收件箱。",
+  "research.email.configureAction": "打开通道设置",
+  "research.email.readyDescription": "投稿邮箱已配置，请同步邮件。",
+  "research.email.noMatchesDescription": "没有邮件匹配当前投稿关键词。",
   "research.email.synced": "{count} 封邮件",
   "research.email.use": "用于回复",
   "research.email.rebuttalSubject": "主题",
@@ -86,6 +91,8 @@ describe("SubmissionEmailWorkbench", () => {
         <SubmissionEmailWorkbench
           busy={false}
           canUseRebuttal={true}
+          emailConfigured={true}
+          onOpenEmailSettings={vi.fn()}
           onUseEmail={onUseEmail}
           t={t}
         />,
@@ -110,6 +117,76 @@ describe("SubmissionEmailWorkbench", () => {
     });
 
     expect(onUseEmail).toHaveBeenCalledWith(expect.stringContaining("Major revision"));
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("guides an unconfigured inbox to Channels settings", async () => {
+    const onOpenEmailSettings = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <SubmissionEmailWorkbench
+          busy={false}
+          canUseRebuttal={false}
+          emailConfigured={false}
+          onOpenEmailSettings={onOpenEmailSettings}
+          onUseEmail={vi.fn()}
+          t={t}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("请先配置投稿收件箱。");
+    const settingsButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("打开通道设置"),
+    );
+    expect(settingsButton).toBeTruthy();
+    await act(async () => {
+      settingsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onOpenEmailSettings).toHaveBeenCalledOnce();
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="同步投稿邮件"]')?.disabled).toBe(true);
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("distinguishes a completed sync with no keyword matches", async () => {
+    vi.mocked(channelsEmailFetchSubmission).mockResolvedValue({ status: "channels.email.no_matches", items: [] });
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <SubmissionEmailWorkbench
+          busy={false}
+          canUseRebuttal={true}
+          emailConfigured={true}
+          onOpenEmailSettings={vi.fn()}
+          onUseEmail={vi.fn()}
+          t={t}
+        />,
+      );
+    });
+    expect(container.textContent).toContain("投稿邮箱已配置，请同步邮件。");
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('button[aria-label="同步投稿邮件"]')
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("没有邮件匹配当前投稿关键词。");
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("暂无投稿邮件");
 
     await act(async () => {
       root.unmount();

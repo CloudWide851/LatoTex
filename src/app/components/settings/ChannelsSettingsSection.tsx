@@ -216,7 +216,6 @@ export function ChannelsSettingsSection(props: {
       </section>
       <EmailChannelSettingsCard
         settings={settings}
-        backgroundUrl={backgroundUrl}
         setChannelField={setChannelField}
         formatError={channelErrorText}
         t={t}
@@ -341,6 +340,7 @@ export function channelErrorText(raw: string, t: TranslationFn): string {
     "channels.email.password_missing": t("settings.channels.errorEmailPasswordMissing"),
     "channels.email.password_save_failed": t("settings.channels.errorEmailPasswordSaveFailed"),
     "channels.email.password_verify_failed": t("settings.channels.errorEmailPasswordVerifyFailed"),
+    "settings.persistence.unavailable": t("settings.channels.errorSettingsPersistenceUnavailable"),
     "channels.email.transport": t("settings.channels.errorEmailTransport"),
     "channels.email.auth_failed": t("settings.channels.errorEmailAuthFailed"),
     "channels.email.mailbox_failed": t("settings.channels.errorEmailMailboxFailed"),
