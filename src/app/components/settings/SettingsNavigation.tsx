@@ -34,22 +34,6 @@ const SETTINGS_NAVIGATION_GROUPS: SettingsNavigationGroup[] = [
   },
 ];
 
-const SETTINGS_SEARCH_KEYWORDS: Record<SettingsSection, string> = {
-  general: "language locale terminal project tray behavior",
-  appearance: "theme color accent wallpaper glass motion font",
-  models: "model provider api protocol catalog",
-  agents: "agent routing binding model",
-  "agent-teams": "team multi-agent roles orchestration",
-  "agent-tools": "tools web python workspace search",
-  "agent-permissions": "permissions approval access safety",
-  "plugin-sources": "plugins marketplace source install",
-  mcp: "mcp server tools protocol",
-  skills: "skills prompts instructions",
-  channels: "email telegram proxy submission mailbox",
-  doctor: "doctor repair dependencies health",
-  diagnostics: "diagnostics logs runtime debug",
-};
-
 export type SettingsNavigationProjection = Array<{
   id: SettingsNavigationGroup["id"];
   label: string;
@@ -71,7 +55,7 @@ export function buildSettingsNavigationProjection(
         t(item.key),
         item.id,
         label,
-        SETTINGS_SEARCH_KEYWORDS[item.id],
+        t(`settings.navigation.keywords.${item.id}`),
       ].join(" ").toLocaleLowerCase();
       return haystack.includes(normalizedQuery);
     });

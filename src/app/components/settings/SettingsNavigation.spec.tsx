@@ -30,6 +30,19 @@ const labels: Record<string, string> = {
   "settings.section.channels": "Channels",
   "settings.section.doctor": "Doctor",
   "settings.section.diagnostics": "Diagnostics",
+  "settings.navigation.keywords.general": "language locale terminal project tray behavior",
+  "settings.navigation.keywords.appearance": "theme color accent wallpaper glass motion font",
+  "settings.navigation.keywords.models": "model provider api protocol catalog",
+  "settings.navigation.keywords.agents": "agent routing binding model",
+  "settings.navigation.keywords.agent-teams": "team multi-agent roles orchestration",
+  "settings.navigation.keywords.agent-tools": "tools web python workspace search",
+  "settings.navigation.keywords.agent-permissions": "permissions approval access safety",
+  "settings.navigation.keywords.plugin-sources": "plugins marketplace source install",
+  "settings.navigation.keywords.mcp": "mcp server tools protocol",
+  "settings.navigation.keywords.skills": "skills prompts instructions",
+  "settings.navigation.keywords.channels": "email telegram proxy submission mailbox",
+  "settings.navigation.keywords.doctor": "doctor repair dependencies health",
+  "settings.navigation.keywords.diagnostics": "diagnostics logs runtime debug",
 };
 const t = (key: any) => labels[String(key)] ?? String(key);
 
@@ -57,6 +70,20 @@ describe("SettingsNavigation", () => {
     const groups = buildSettingsNavigationProjection("mailbox", t);
     expect(groups.flatMap((group) => group.sections.map((item) => item.id))).toEqual(["channels"]);
     expect(buildSettingsNavigationProjection("Appearance", t)[0]?.sections[0]?.id).toBe("appearance");
+  });
+
+  it("matches localized operational synonyms in Chinese, Spanish, and Japanese", () => {
+    const localized = {
+      "settings.navigation.keywords.appearance": "主题 壁纸 磨砂",
+      "settings.navigation.keywords.channels": "correo buzón envío",
+      "settings.navigation.keywords.agent-permissions": "権限 承認 安全",
+    };
+    const localizedT: typeof t = (key) =>
+      localized[String(key) as keyof typeof localized] ?? labels[String(key)] ?? String(key);
+
+    expect(buildSettingsNavigationProjection("壁纸", localizedT)[0]?.sections[0]?.id).toBe("appearance");
+    expect(buildSettingsNavigationProjection("buzón", localizedT)[0]?.sections[0]?.id).toBe("channels");
+    expect(buildSettingsNavigationProjection("権限", localizedT)[0]?.sections[0]?.id).toBe("agent-permissions");
   });
 
   it("keeps the selected section in the compact projection while filtering", async () => {

@@ -49,7 +49,7 @@ function resolveEnvPromptStageLabel(t: TranslationFn, stage?: string | null, fal
   return String(fallback || stage || "");
 }
 
-export function AppOverlays(props: {
+export type AppOverlaysProps = {
   overlay: OverlayType;
   logsTab: LogTab;
   events: SwarmEvent[];
@@ -104,7 +104,9 @@ export function AppOverlays(props: {
   onCloseBehaviorCancel: () => void;
   onCloseBehaviorConfirm: (behavior: "tray" | "exit") => void;
   t: TranslationFn;
-}) {
+};
+
+export function AppOverlays(props: AppOverlaysProps) {
   const {
     overlay,
     logsTab,
@@ -193,7 +195,7 @@ export function AppOverlays(props: {
   return (
     <>
       {overlay === "logs" && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/60 p-4 motion-overlay-enter">
+        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
           <div className="app-material-floating grid h-[74vh] w-full max-w-4xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-xl motion-card-pop motion-panel-glow">
             <div className="flex items-center justify-between border-b border-slate-200 px-4">
               <h3 className="text-sm font-semibold text-slate-800">{t("preview.title")}</h3>
@@ -288,7 +290,7 @@ export function AppOverlays(props: {
       )}
 
       {deleteIntent && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-950/62 p-4 motion-overlay-enter">
+        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
           <div className="app-material-floating w-full max-w-md rounded-[22px] border-rose-200 p-5 motion-card-pop motion-panel-glow">
             <div className="rounded-[18px] border border-rose-100 bg-rose-50/90 px-4 py-3">
               <h3 className="text-sm font-semibold text-rose-900">{t("explorer.deleteConfirmTitle")}</h3>
@@ -324,7 +326,7 @@ export function AppOverlays(props: {
       />
 
       {integrityIssue && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
+        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
           <div className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow">
             <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">
@@ -350,7 +352,7 @@ export function AppOverlays(props: {
       )}
 
       {closeBehaviorDialogOpen && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
+        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
           <div className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow">
             <h3 className="text-sm font-semibold text-slate-800">
               {t("window.closeConfirmTitle")}
@@ -395,7 +397,7 @@ export function AppOverlays(props: {
       )}
 
       {analysisEnvPrompt.envPromptOpen && envPromptStatus && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
+        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
           <div className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow">
             <h3 className="text-sm font-semibold text-slate-800">{t("analysis.envPromptTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">

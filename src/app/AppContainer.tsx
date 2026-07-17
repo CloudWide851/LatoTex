@@ -1,7 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppContainerView } from "./components/AppContainerView";
+import { AppContainerView, createAppContainerViewBridge } from "./components/AppContainerView";
 import { useI18n } from "../i18n";
 import logoMark from "../assets/branding/logo.svg";
 import {
@@ -651,6 +651,7 @@ export function AppContainer() {
 
   return (
     <AppContainerView
+      {...createAppContainerViewBridge(s, panels, handlers)}
       windowActionBusy={s.windowActionBusy}
       status={s.status}
       startupReady={startupReady}
@@ -773,7 +774,6 @@ export function AppContainer() {
       setModelModalInitial={s.setModelModalInitial}
       setModelModalMode={s.setModelModalMode}
       handleModelModalSubmit={workspaceActions.handleModelModalSubmit}
-      handleProtocolPing={handlers.handleProtocolPing}
       handleGetModelApiKey={workspaceActions.handleGetModelApiKey}
       setDeleteIntent={s.setDeleteIntent}
       confirmDelete={handlers.confirmDelete}

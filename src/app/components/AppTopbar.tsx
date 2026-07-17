@@ -11,7 +11,7 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
 
 type TranslationFn = (key: any) => string;
 
-export function AppTopbar(props: {
+export type AppTopbarProps = {
   status: "ready" | "offline";
   logoMark: string;
   projects: ProjectSummary[];
@@ -33,7 +33,9 @@ export function AppTopbar(props: {
   onOpenFolder: () => void;
   onWindowControl: (action: "minimize" | "toggle" | "close") => void;
   t: TranslationFn;
-}) {
+};
+
+export function AppTopbar(props: AppTopbarProps) {
   const {
     status,
     logoMark,

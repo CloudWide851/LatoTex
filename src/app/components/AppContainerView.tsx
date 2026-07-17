@@ -1,21 +1,22 @@
-import { Suspense, lazy, useEffect, type CSSProperties } from "react";
+import { Suspense, lazy } from "react";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppOverlays } from "./AppOverlays";
 import { AppTopbar } from "./AppTopbar";
-import { StartupLoadingScreen } from "./StartupLoadingScreen";
+import { WorkspaceBootstrapFallback } from "./workspace/WorkspaceBootstrapFallback";
 import { SleepWakeScreen } from "./SleepWakeScreen";
 import { UnsavedChangesDialog } from "./editor/UnsavedChangesDialog";
-import { useBackgroundImageObjectUrl } from "../hooks/useBackgroundImageObjectUrl";
+import { useAppAppearance } from "../hooks/useAppAppearance";
 import { runtimeClearVolatileCacheAndRestart } from "../../shared/api/runtime";
-import { ACCENT_COLORS, THEME_PRESETS, cropBackgroundStyle } from "./AppContainerTheme";
 import { clearRecoverableClientState } from "../utils/recoverableClientState";
+import type { AppContainerViewProps } from "./appContainerViewTypes";
+export { createAppContainerViewBridge } from "./appContainerViewBridge";
 
 const AppWorkspaceShell = lazy(async () => {
   const module = await import("./AppWorkspaceShell");
   return { default: module.AppWorkspaceShell };
 });
 
-export function AppContainerView(props: any) {
+export function AppContainerView(props: AppContainerViewProps) {
   const {
     status,
     sleeping,
@@ -45,27 +46,27 @@ export function AppContainerView(props: any) {
     shareSession,
     shareBusy,
     shareSyncing,
-    shareConflict,
-    shareComments,
-    shareEditAnnotations,
-    shareMode,
-    shareSessionName,
-    handleShareModeChange,
-    handleShareSessionNameChange,
+    shareConflict = null,
+    shareComments = [],
+    shareEditAnnotations = [],
+    shareMode = "local",
+    shareSessionName = "",
+    handleShareModeChange = () => undefined,
+    handleShareSessionNameChange = () => undefined,
     handleShareStart,
     handleShareStop,
     handleShareRefresh,
-    handleShareConflictResolve,
+    handleShareConflictResolve = () => undefined,
     t,
     recoverWorkspaceLayout,
     page,
     pageRailItems,
     shellLayout,
     latexLayout,
-    latexTerminalLayout,
+    latexTerminalLayout = latexLayout,
     analysisLayout,
     libraryLayout,
-    libraryBibLayout,
+    libraryBibLayout = libraryLayout,
     settings,
     tree,
     libraryTree,
@@ -79,18 +80,19 @@ export function AppContainerView(props: any) {
     pdfUrl,
     preferCompiledPreview,
     selectedFilePdfUrl,
-    selectedImagePreviewUrl,
-    previewOverridePath,
+    compiledPdfRelativePath = null,
+    selectedImagePreviewUrl = null,
+    previewOverridePath = null,
     compileErrorLine,
     compileDiagnostics,
-    compileInstallProgress,
+    compileInstallProgress = null,
     agentCollapsed,
     agentPhase,
     agentStatusKey,
     agentPrompt,
     agentMessages,
     agentProposal,
-    agentPendingAction,
+    agentPendingAction = null,
     agentRunId,
     agentSessions,
     agentSessionPickerOpen,
@@ -119,9 +121,9 @@ export function AppContainerView(props: any) {
     handleAgentRollback,
     handleAcceptAgentProposal,
     handleRejectAgentProposal,
-    handleResolveAgentPendingAction,
+    handleResolveAgentPendingAction = () => undefined,
     handleSaveActiveFile,
-    handleWriteSelectedFileContent,
+    handleWriteSelectedFileContent = async () => false,
     handleCompile,
     handleExportCompiledPdf,
     handleEditorUndo,
@@ -131,17 +133,17 @@ export function AppContainerView(props: any) {
     handleLibraryRescan,
     handleLibraryImportPdf,
     handleLibraryImportLink,
-    handleLibrarySyncZotero,
+    handleLibrarySyncZotero = () => undefined,
     handleLibraryAnalyzePaper,
     analysisRunning,
-    libraryViewMode,
-    handleLibraryViewModeChange,
+    libraryViewMode = null,
+    handleLibraryViewModeChange = () => undefined,
     handleWorkspaceRevealInSystem,
     handleWorkspaceOpenTerminal,
-    handleWorkspaceRescan,
+    handleWorkspaceRescan = () => undefined,
     savePanelLayout,
     requestFsAction,
-    runFsAction,
+    runFsAction = async () => false,
     overlay,
     logsTab,
     events,
@@ -229,7 +231,7 @@ export function AppContainerView(props: any) {
     if (!activeProjectId) {
       return;
     }
-    props.setSettings?.((prev: any) => {
+    props.setSettings((prev) => {
       if (!prev) {
         return prev;
       }
@@ -245,90 +247,13 @@ export function AppContainerView(props: any) {
       };
     });
   };
-  const rawBackgroundPaths: string[] = Array.isArray(settings?.uiPrefs?.backgroundImagePaths)
-    ? (settings.uiPrefs.backgroundImagePaths as string[])
-    : [];
-  const normalizedBackgroundPaths: string[] = Array.from(
-    new Set(
-      rawBackgroundPaths
-        .map((item: string) => String(item ?? "").trim())
-        .filter((item: string) => item.length > 0),
-    ),
-  );
-  const selectedBackgroundPath = String(settings?.uiPrefs?.backgroundImagePath ?? "").trim();
-  const backgroundPath = selectedBackgroundPath && normalizedBackgroundPaths.includes(selectedBackgroundPath)
-    ? selectedBackgroundPath
-    : "";
-  const backgroundUrl = useBackgroundImageObjectUrl(backgroundPath);
-  const backgroundCropStyle = backgroundPath
-    ? cropBackgroundStyle(backgroundPath, settings?.uiPrefs?.backgroundCropByPath)
-    : null;
-  const rawBlur = Number(settings?.uiPrefs?.backgroundBlurPx ?? 18);
-  const backgroundBlurPx = Number.isFinite(rawBlur) ? Math.max(4, Math.min(32, rawBlur)) : 18;
-  const themePreset = THEME_PRESETS[String(settings?.uiPrefs?.themePreset ?? "default")] ?? THEME_PRESETS.default;
-  const accentChoice = String(settings?.uiPrefs?.accentColor ?? "emerald");
-  const accentColor = accentChoice === "custom"
-    ? String(settings?.uiPrefs?.accentCustomColor || ACCENT_COLORS.emerald)
-    : ACCENT_COLORS[accentChoice] ?? themePreset.accent;
-  const hasCustomScrollbarColors = Boolean(
-    String(settings?.uiPrefs?.scrollbarThumbColor ?? "").trim()
-    || String(settings?.uiPrefs?.scrollbarTrackColor ?? "").trim(),
-  );
-  const scrollbarColorMode = String(
-    settings?.uiPrefs?.scrollbarColorMode ?? (hasCustomScrollbarColors ? "custom" : "accent"),
-  );
-  const scrollbarThumbColor = scrollbarColorMode === "custom"
-    ? String(settings?.uiPrefs?.scrollbarThumbColor || accentColor)
-    : accentColor;
-  const scrollbarTrackColor = scrollbarColorMode === "custom"
-    ? String(settings?.uiPrefs?.scrollbarTrackColor || "")
-    : "";
-  const scrollbarWidth = Math.max(8, Math.min(18, Number(settings?.uiPrefs?.scrollbarWidthPx ?? 14)));
-  const fontScale = Math.max(0.85, Math.min(1.25, Number(settings?.uiPrefs?.fontScale ?? 1)));
-  const editorBackgroundColor = String(settings?.uiPrefs?.editorBackgroundColor ?? "").trim();
-  const customEditorBackground = /^#[0-9a-f]{6}$/i.test(editorBackgroundColor) ? editorBackgroundColor : "";
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-    const root = document.documentElement;
-    root.style.setProperty("--app-font-scale", String(fontScale));
-    return () => {
-      root.style.removeProperty("--app-font-scale");
-    };
-  }, [fontScale]);
-  const appBackgroundStyle = {
-    ...(backgroundUrl
-      ? {
-          backgroundImage: `url("${backgroundUrl}")`,
-          backgroundSize: backgroundCropStyle?.backgroundSize ?? "cover",
-          backgroundPosition: backgroundCropStyle?.backgroundPosition ?? "center",
-          backgroundRepeat: "no-repeat",
-          ["--wallpaper-blur" as string]: `${backgroundBlurPx}px`,
-        }
-      : {}),
-    ["--app-accent" as string]: accentColor,
-    ["--app-theme-surface" as string]: themePreset.surface,
-    ["--control-primary-top" as string]: accentColor,
-    ["--control-primary-bottom" as string]: accentColor,
-    ["--control-primary-top-hover" as string]: accentColor,
-    ["--control-primary-bottom-hover" as string]: accentColor,
-    ["--control-primary-border" as string]: accentColor,
-    ["--library-scrollbar-thumb" as string]: scrollbarThumbColor,
-    ["--library-scrollbar-thumb-hover" as string]: scrollbarColorMode === "custom" ? scrollbarThumbColor : accentColor,
-    ["--library-scrollbar-track" as string]: scrollbarTrackColor || themePreset.scrollbarTrack,
-    ["--app-scrollbar-size" as string]: `${scrollbarWidth}px`,
-    ["--app-glass-opacity" as string]: String(Math.max(0.55, Math.min(1, Number(settings?.uiPrefs?.glassOpacity ?? 0.78)))),
-    ["--app-glass-blur" as string]: `${Math.max(0, Math.min(32, Number(settings?.uiPrefs?.glassBlurPx ?? 18)))}px`,
-    ["--app-panel-radius" as string]: `${Math.max(4, Math.min(14, Number(settings?.uiPrefs?.panelRadiusPx ?? 8)))}px`,
-    ["--app-pdf-page-gap" as string]: `${Math.max(4, Math.min(28, Number(settings?.uiPrefs?.pdfPageGapPx ?? 12)))}px`,
-    ["--app-font-scale" as string]: String(fontScale),
-    ["--app-log-font-size" as string]: `${Math.max(10, Math.min(16, Number(settings?.uiPrefs?.logFontSizePx ?? 12)))}px`,
-    ...(customEditorBackground ? { ["--editor-paper-bg" as string]: customEditorBackground } : {}),
-    backgroundColor: themePreset.background,
-  } as CSSProperties;
-  const motionClass = `app-motion-${settings?.uiPrefs?.motionLevel ?? "full"}`;
-  const borderClass = `app-border-${settings?.uiPrefs?.panelBorderContrast ?? "normal"}`;
+  const {
+    backgroundUrl,
+    fontScale,
+    style: appBackgroundStyle,
+    motionClass,
+    borderClass,
+  } = useAppAppearance(settings);
 
   if (sleeping) {
     return <SleepWakeScreen logoMark={logoMark} t={t} onWake={onWakeFromSleep} />;
@@ -382,13 +307,9 @@ export function AppContainerView(props: any) {
           onCircuitBreak={handleCircuitBreak}
         >
           {!startupReady ? (
-            <StartupLoadingScreen logoMark={logoMark} t={t} />
+            <WorkspaceBootstrapFallback t={t} />
           ) : (
-            <Suspense
-              fallback={
-                <StartupLoadingScreen logoMark={logoMark} t={t} />
-              }
-            >
+            <Suspense fallback={<WorkspaceBootstrapFallback t={t} />}>
               <AppWorkspaceShell
                 page={page}
                 pageRailItems={pageRailItems}
@@ -429,7 +350,7 @@ export function AppContainerView(props: any) {
                 activeTabId={activeTabId}
                 dirtyByPath={dirtyByPath}
                 compiledPdfUrl={pdfUrl}
-                compiledPdfRelativePath={props.compiledPdfRelativePath}
+                compiledPdfRelativePath={compiledPdfRelativePath}
                 preferCompiledPreview={preferCompiledPreview}
                 selectedFilePdfUrl={selectedFilePdfUrl}
                 selectedImagePreviewUrl={selectedImagePreviewUrl}

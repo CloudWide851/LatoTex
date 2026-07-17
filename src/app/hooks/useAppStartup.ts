@@ -16,6 +16,11 @@ import {
   normalizeAgentBindings,
   type ThemeMode,
 } from "../app-config";
+import {
+  DEFAULT_GLASS_BLUR_PX,
+  DEFAULT_GLASS_OPACITY,
+  DEFAULT_PANEL_RADIUS_PX,
+} from "../appearance/appAppearance";
 import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 
 type TranslationFn = (...args: any[]) => string;
@@ -155,13 +160,13 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       scrollbarWidthPx: appSettings.uiPrefs?.scrollbarWidthPx ?? 14,
       scrollbarThumbColor: appSettings.uiPrefs?.scrollbarThumbColor ?? "",
       scrollbarTrackColor: appSettings.uiPrefs?.scrollbarTrackColor ?? "",
-      glassOpacity: appSettings.uiPrefs?.glassOpacity ?? 0.78,
-      glassBlurPx: appSettings.uiPrefs?.glassBlurPx ?? 18,
+      glassOpacity: appSettings.uiPrefs?.glassOpacity ?? DEFAULT_GLASS_OPACITY,
+      glassBlurPx: appSettings.uiPrefs?.glassBlurPx ?? DEFAULT_GLASS_BLUR_PX,
       motionLevel: appSettings.uiPrefs?.motionLevel ?? "full",
       fontScale: appSettings.uiPrefs?.fontScale ?? 1,
       pdfPageGapPx: appSettings.uiPrefs?.pdfPageGapPx ?? 12,
       logFontSizePx: appSettings.uiPrefs?.logFontSizePx ?? 12,
-      panelRadiusPx: appSettings.uiPrefs?.panelRadiusPx ?? 8,
+      panelRadiusPx: appSettings.uiPrefs?.panelRadiusPx ?? DEFAULT_PANEL_RADIUS_PX,
       panelBorderContrast: appSettings.uiPrefs?.panelBorderContrast ?? "normal",
       memoryGuardPrefs: {
         enabled: appSettings.uiPrefs?.memoryGuardPrefs?.enabled ?? true,

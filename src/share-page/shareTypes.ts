@@ -1,3 +1,5 @@
+import type { ShareUiErrorCode } from "../shared/utils/shareUiError";
+
 export type ShareLocale = "en-US" | "zh-CN";
 export type ShareDevice = "desktop" | "mobile";
 export type ShareView = "tex" | "pdf" | "comments";
@@ -89,6 +91,7 @@ export type ShareI18n = {
   commentJump: string;
   sessionBadge: (sid: string) => string;
   missingSession: string;
+  shareErrorMessage: (code: ShareUiErrorCode) => string;
   statusPdfLoadFailed: (reason: string) => string;
   statusPostCommentFailed: (reason: string) => string;
   statusCompileRequested: string;

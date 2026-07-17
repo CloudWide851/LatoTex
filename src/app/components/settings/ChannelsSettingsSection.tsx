@@ -106,20 +106,9 @@ export function ChannelsSettingsSection(props: {
               style={{ backgroundImage: `url("${backgroundUrl}")` }}
               aria-hidden="true"
             />
-            <div
-              className="absolute inset-0 backdrop-blur-[calc(var(--wallpaper-blur,18px)*0.45)]"
-              aria-hidden="true"
-            />
           </>
         ) : null}
-        <div
-          className={`absolute inset-0 ${
-            backgroundUrl
-              ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.74),rgba(248,250,252,0.92))]"
-              : "bg-[linear-gradient(180deg,#f8fafc,#ffffff)]"
-          }`}
-          aria-hidden="true"
-        />
+        <div className="absolute inset-0 bg-[color:var(--app-material-content)]" aria-hidden="true" />
         <div className="relative z-10 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -228,17 +217,9 @@ export function ChannelsSettingsSection(props: {
               style={{ backgroundImage: `url("${backgroundUrl}")` }}
               aria-hidden="true"
             />
-            <div className="absolute inset-0 backdrop-blur-[calc(var(--wallpaper-blur,18px)*0.45)]" aria-hidden="true" />
           </>
         ) : null}
-        <div
-          className={`absolute inset-0 ${
-            backgroundUrl
-              ? "bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(248,250,252,0.94))]"
-              : "bg-[linear-gradient(180deg,#f8fafc,#ffffff)]"
-          }`}
-          aria-hidden="true"
-        />
+        <div className="absolute inset-0 bg-[color:var(--app-material-content)]" aria-hidden="true" />
         <div className="relative z-10 p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#1677ff]/10 text-[#1677ff]">

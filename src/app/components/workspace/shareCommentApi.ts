@@ -1,5 +1,6 @@
 import type { ShareCommentItem, ShareSessionInfo } from "../../../shared/types/app";
 import { authenticatedDesktopShareFetch } from "../../hooks/shareHttpAuth";
+import { ShareUiError, shareUiErrorFromStatus } from "../../../shared/utils/shareUiError";
 
 export type ShareCommentSource = "tex" | "pdf";
 
@@ -39,7 +40,7 @@ export async function postShareComment(
 ): Promise<ShareCommentItem> {
   const sessionId = session?.sessionId?.trim();
   if (!sessionId) {
-    throw new Error("share.session_not_ready");
+    throw new ShareUiError("session_missing");
   }
   const payload = createShareCommentItem(draft);
   const response = await authenticatedDesktopShareFetch(
@@ -53,7 +54,7 @@ export async function postShareComment(
     draft.username,
   );
   if (!response.ok) {
-    throw new Error((await response.text()) || `HTTP ${response.status}`);
+    throw shareUiErrorFromStatus(response.status);
   }
   return payload;
 }

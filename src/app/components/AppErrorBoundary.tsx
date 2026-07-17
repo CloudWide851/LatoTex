@@ -51,12 +51,12 @@ export class AppErrorBoundary extends Component<Props, State> {
       return this.props.children;
     }
     return (
-      <div className="m-1 flex h-full items-center justify-center rounded-lg border border-rose-300 bg-rose-50 p-4">
+      <div className="app-material-shell m-1 flex h-full items-center justify-center rounded-lg border p-4">
         <div className="max-w-md text-center">
-          <h2 className="text-base font-semibold text-rose-700">{this.props.fallbackTitle}</h2>
-          <p className="mt-2 text-sm text-rose-600">{this.props.fallbackHint}</p>
+          <h2 className="text-base font-semibold text-[color:var(--app-status-danger)]">{this.props.fallbackTitle}</h2>
+          <p className="mt-2 text-sm text-[color:var(--app-muted)]">{this.props.fallbackHint}</p>
           <button
-            className="mt-3 rounded border border-rose-400 bg-white px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-100"
+            className="control-button control-button--secondary mt-3 px-3 py-1.5 text-sm"
             onClick={this.handleRetry}
           >
             {this.props.retryLabel}
@@ -64,10 +64,10 @@ export class AppErrorBoundary extends Component<Props, State> {
           {this.props.onCircuitBreak && this.state.crashCount >= 2 ? (
             <>
               {this.props.circuitBreakerHint ? (
-                <p className="mt-3 text-xs text-rose-500">{this.props.circuitBreakerHint}</p>
+                <p className="mt-3 text-xs text-[color:var(--app-muted)]">{this.props.circuitBreakerHint}</p>
               ) : null}
               <button
-                className="mt-2 rounded border border-rose-500 bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-700"
+                className="control-button control-button--danger mt-2 px-3 py-1.5 text-sm"
                 onClick={this.handleCircuitBreak}
               >
                 {this.props.circuitBreakerLabel ?? this.props.retryLabel}

@@ -14,6 +14,7 @@ import {
   resolveVisibleSharePdfRange,
 } from "./sharePdfVirtualizer";
 import type { ShareI18n } from "./shareTypes";
+import { resolveShareUiErrorCode } from "../shared/utils/shareUiError";
 
 type PdfModule = {
   GlobalWorkerOptions: { workerSrc: string };
@@ -38,6 +39,10 @@ function statusVersion(status: SharePdfStatus): string | null {
     return `${status.updatedAt ?? "unknown"}-${status.sizeBytes ?? 0}`;
   }
   return null;
+}
+
+function sharePdfFailureReason(i18n: ShareI18n, error: unknown): string {
+  return i18n.shareErrorMessage(resolveShareUiErrorCode(error));
 }
 
 function makeStage(root: HTMLDivElement, totalHeight: number): HTMLDivElement {
@@ -242,7 +247,10 @@ export function useSharePdfPreview(params: {
       behavior,
     });
     window.requestAnimationFrame(() => {
-      void renderVisiblePages().catch((error) => onStatus(i18n.statusPdfLoadFailed(String(error)), true));
+      void renderVisiblePages().catch((error) => onStatus(
+        i18n.statusPdfLoadFailed(sharePdfFailureReason(i18n, error)),
+        true,
+      ));
     });
   }, [containerRef, i18n, onStatus, renderVisiblePages, setCurrentPage]);
 
@@ -251,7 +259,7 @@ export function useSharePdfPreview(params: {
       return;
     }
     try {
-      const status = await fetchSharePdfStatus(sid, auth).catch(() => ({ ready: false } as SharePdfStatus));
+      const status = await fetchSharePdfStatus(sid, auth);
       if (!status.ready) {
         pdfDocRef.current = null;
         versionRef.current = null;
@@ -300,7 +308,7 @@ export function useSharePdfPreview(params: {
       setCurrentPage(1);
       setPlaceholder(i18n.noPdfPreview);
       clearRenderedPages();
-      onStatus(i18n.statusPdfLoadFailed(String(error)), true);
+      onStatus(i18n.statusPdfLoadFailed(sharePdfFailureReason(i18n, error)), true);
     }
   }, [auth, clearRenderedPages, connected, ensurePdfModule, i18n, onStatus, ready, renderVisiblePages, resolvePageMetrics, scrollToPage, setCurrentPage, sid]);
 
@@ -316,7 +324,10 @@ export function useSharePdfPreview(params: {
       scrollRafRef.current = window.requestAnimationFrame(() => {
         scrollRafRef.current = null;
         updatePageFromScroll();
-        void renderVisiblePages().catch((error) => onStatus(i18n.statusPdfLoadFailed(String(error)), true));
+        void renderVisiblePages().catch((error) => onStatus(
+          i18n.statusPdfLoadFailed(sharePdfFailureReason(i18n, error)),
+          true,
+        ));
       });
     };
     const resizeObserver = typeof ResizeObserver === "undefined"
@@ -333,7 +344,10 @@ export function useSharePdfPreview(params: {
             clearRenderedPages();
             void resolvePageMetrics()
               .then(renderVisiblePages)
-              .catch((error) => onStatus(i18n.statusPdfLoadFailed(String(error)), true));
+              .catch((error) => onStatus(
+                i18n.statusPdfLoadFailed(sharePdfFailureReason(i18n, error)),
+                true,
+              ));
           }, 140);
         });
     root.addEventListener("scroll", handleScroll, { passive: true });

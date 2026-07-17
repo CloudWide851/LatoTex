@@ -119,15 +119,15 @@ export function PluginMarketplaceDetailDialog(props: {
         : t("plugins.notInstalled");
 
   return (
-    <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
+    <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
       <section
         role="dialog"
         aria-modal="true"
         aria-label={t("plugins.details")}
         className="app-material-floating grid max-h-[86vh] w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl motion-card-pop motion-panel-glow"
       >
-        <header className="flex min-w-0 items-start gap-3 border-b border-slate-200 bg-gradient-to-br from-white via-slate-50 to-primary-50/40 px-4 py-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary-200 bg-white text-primary-700 shadow-sm">
+        <header className="app-material-content flex min-w-0 items-start gap-3 border-b px-4 py-3">
+          <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-primary-700">
             {plugin.icon ? (
               <img src={plugin.icon} alt="" className="h-7 w-7 rounded object-contain" />
             ) : (

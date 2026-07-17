@@ -146,7 +146,7 @@ export function DiagnosticsSettingsSection(props: {
 
   return (
     <div className="app-material-content flex h-full min-h-0 flex-col gap-2 rounded-lg border p-3">
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 px-3 py-2 text-[11px] text-slate-600">
+      <div className="app-material-inset flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-[11px] text-[color:var(--app-muted)]">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden">
           <span className="truncate">
             {t("settings.currentLog")}: <span className="font-mono">{sessionLogName}</span>
@@ -186,7 +186,7 @@ export function DiagnosticsSettingsSection(props: {
         </div>
       ) : null}
 
-      <div className="rounded-lg border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-2.5 shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
+      <div className="app-material-inset rounded-lg border p-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <div ref={pickerRef} className="relative w-full min-w-[230px] shrink-0 sm:w-[320px]">
             <button
@@ -327,7 +327,7 @@ export function DiagnosticsSettingsSection(props: {
       </div>
 
       {clearLogConfirmOpen && (
-        <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
+        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4">
           <div className="app-material-floating w-full max-w-md rounded-lg p-4">
             <h3 className="text-sm font-semibold text-slate-800">{t("settings.logClearModalTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{t("settings.logClearModalDesc")}</p>

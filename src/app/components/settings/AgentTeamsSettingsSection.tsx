@@ -206,7 +206,7 @@ export function AgentTeamsSettingsSection(props: {
 
         {editingTeamId ? (
           <div
-            className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter"
+            className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter"
             role="presentation"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) {

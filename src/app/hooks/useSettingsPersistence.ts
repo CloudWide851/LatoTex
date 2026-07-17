@@ -3,6 +3,11 @@ import type { Locale } from "../../i18n";
 import { setModelApiKey, updateSettings } from "../../shared/api/settings";
 import type { AppSettings, PanelLayoutPrefs } from "../../shared/types/app";
 import { DEFAULT_PANEL_LAYOUT, type ThemeMode } from "../app-config";
+import {
+  DEFAULT_GLASS_BLUR_PX,
+  DEFAULT_GLASS_OPACITY,
+  DEFAULT_PANEL_RADIUS_PX,
+} from "../appearance/appAppearance";
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
 import { registerSettingsPersistence } from "../settings/settingsPersistenceBridge";
@@ -201,13 +206,13 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
           scrollbarWidthPx: nextSettings.uiPrefs?.scrollbarWidthPx ?? 14,
           scrollbarThumbColor: nextSettings.uiPrefs?.scrollbarThumbColor ?? "",
           scrollbarTrackColor: nextSettings.uiPrefs?.scrollbarTrackColor ?? "",
-          glassOpacity: nextSettings.uiPrefs?.glassOpacity ?? 0.78,
-          glassBlurPx: nextSettings.uiPrefs?.glassBlurPx ?? 18,
+          glassOpacity: nextSettings.uiPrefs?.glassOpacity ?? DEFAULT_GLASS_OPACITY,
+          glassBlurPx: nextSettings.uiPrefs?.glassBlurPx ?? DEFAULT_GLASS_BLUR_PX,
           motionLevel: nextSettings.uiPrefs?.motionLevel ?? "full",
           fontScale: Math.max(0.85, Math.min(1.25, Number(nextSettings.uiPrefs?.fontScale ?? 1))),
           pdfPageGapPx: nextSettings.uiPrefs?.pdfPageGapPx ?? 12,
           logFontSizePx: nextSettings.uiPrefs?.logFontSizePx ?? 12,
-          panelRadiusPx: nextSettings.uiPrefs?.panelRadiusPx ?? 8,
+          panelRadiusPx: nextSettings.uiPrefs?.panelRadiusPx ?? DEFAULT_PANEL_RADIUS_PX,
           panelBorderContrast: nextSettings.uiPrefs?.panelBorderContrast ?? "normal",
           memoryGuardPrefs: {
             enabled: nextSettings.uiPrefs?.memoryGuardPrefs?.enabled ?? true,

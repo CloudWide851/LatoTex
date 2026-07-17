@@ -5,6 +5,11 @@ import { HelpTooltip } from "../../../components/ui/help-tooltip";
 import { cn } from "../../../lib/utils";
 import type { AppSettings } from "../../../shared/types/app";
 import type { ThemeMode } from "../../app-config";
+import {
+  DEFAULT_GLASS_BLUR_PX,
+  DEFAULT_GLASS_OPACITY,
+  DEFAULT_PANEL_RADIUS_PX,
+} from "../../appearance/appAppearance";
 import { BackgroundImageCard } from "./BackgroundImageCard";
 import { SettingsSelectRow } from "./SettingsSelectRow";
 
@@ -198,7 +203,7 @@ export function AppearanceSettingsSection(props: {
             min={0.55}
             max={1}
             step={0.01}
-            value={clampNumber(prefs.glassOpacity, 0.55, 1, 0.78)}
+            value={clampNumber(prefs.glassOpacity, 0.55, 1, DEFAULT_GLASS_OPACITY)}
             onChange={(event) => updateUiPrefs({ glassOpacity: Number(event.target.value) })}
           />
         </label>
@@ -208,7 +213,7 @@ export function AppearanceSettingsSection(props: {
             type="range"
             min={0}
             max={32}
-            value={clampNumber(prefs.glassBlurPx, 0, 32, 18)}
+            value={clampNumber(prefs.glassBlurPx, 0, 32, DEFAULT_GLASS_BLUR_PX)}
             onChange={(event) => updateUiPrefs({ glassBlurPx: Number(event.target.value) })}
           />
         </label>
@@ -218,7 +223,7 @@ export function AppearanceSettingsSection(props: {
             type="range"
             min={4}
             max={14}
-            value={clampNumber(prefs.panelRadiusPx, 4, 14, 8)}
+            value={clampNumber(prefs.panelRadiusPx, 4, 14, DEFAULT_PANEL_RADIUS_PX)}
             onChange={(event) => updateUiPrefs({ panelRadiusPx: Number(event.target.value) })}
           />
         </label>

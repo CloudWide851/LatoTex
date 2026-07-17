@@ -186,7 +186,7 @@ export function LibraryPdfToolSidebar(props: {
 
   return (
     <div ref={containerRef} className="relative flex h-full min-h-0">
-      <aside className="flex h-full min-h-0 w-12 flex-col items-center gap-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-1.5 shadow-sm">
+      <aside className="app-material-content flex h-full min-h-0 w-12 flex-col items-center gap-1.5 overflow-y-auto rounded-xl border p-1.5">
         <button
           className={toolButtonClass(mode === "select")}
           title={titleWithShortcut(t("library.viewer.toolSelect"), t("library.viewer.shortcut.select"))}

@@ -18,6 +18,11 @@ import {
   type SettingsSection,
   type ThemeMode,
 } from "../app-config";
+import {
+  DEFAULT_GLASS_BLUR_PX,
+  DEFAULT_GLASS_OPACITY,
+  DEFAULT_PANEL_RADIUS_PX,
+} from "../appearance/appAppearance";
 import { DiagnosticsSettingsSection } from "./settings/DiagnosticsSettingsSection";
 import { DocxSettingsSection } from "./settings/DocxSettingsSection";
 import { SettingsDoctorSection } from "./settings/SettingsDoctorSection";
@@ -137,13 +142,13 @@ export function SettingsPanel(props: {
       accentCustomColor: "",
       scrollbarColorMode: "accent",
       scrollbarWidthPx: 14,
-      glassOpacity: 0.78,
-      glassBlurPx: 18,
+      glassOpacity: DEFAULT_GLASS_OPACITY,
+      glassBlurPx: DEFAULT_GLASS_BLUR_PX,
       motionLevel: "full",
       fontScale: 1,
       pdfPageGapPx: 12,
       logFontSizePx: 12,
-      panelRadiusPx: 8,
+      panelRadiusPx: DEFAULT_PANEL_RADIUS_PX,
       panelBorderContrast: "normal",
       memoryGuardPrefs: {
         enabled: true,

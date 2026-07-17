@@ -5,6 +5,21 @@
 @layer base {
   :root {
     color-scheme: light;
+    --share-canvas: #f5f5f7;
+    --share-panel: rgb(255 255 255 / 0.88);
+    --share-content: #fafafc;
+    --share-inset: #f0f0f3;
+    --share-floating: rgb(255 255 255 / 0.96);
+    --share-border: rgba(60, 60, 67, 0.16);
+    --share-border-strong: rgba(60, 60, 67, 0.24);
+    --share-text: #1d1d1f;
+    --share-muted: #6e6e73;
+    --share-accent: #18794e;
+    --share-accent-soft: rgba(24, 121, 78, 0.1);
+    --share-danger: #d70015;
+    --share-danger-soft: rgba(215, 0, 21, 0.08);
+    --share-shadow: 0 8px 26px rgba(28, 28, 30, 0.07), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+    --share-shadow-floating: 0 20px 52px rgba(28, 28, 30, 0.16);
   }
 
   html,
@@ -16,9 +31,9 @@
   body {
     margin: 0;
     min-height: 100dvh;
-    font-family: "Segoe UI Variable Text", "Segoe UI", "Aptos", sans-serif;
-    color: #0f172a;
-    background: #eef5f2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", sans-serif;
+    color: var(--share-text);
+    background: var(--share-canvas);
   }
 
   button,
@@ -29,31 +44,127 @@
 }
 
 @layer components {
+  .share-canvas {
+    min-height: 100vh;
+    color: var(--share-text);
+    background: var(--share-canvas);
+  }
+
   .share-panel {
-    @apply rounded-[20px] shadow-[0_18px_42px_rgba(15,23,42,0.07)] backdrop-blur-xl;
-    border: 1px solid rgba(226, 232, 240, 0.86);
-    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--share-border);
+    border-radius: 16px;
+    background: var(--share-panel);
+    box-shadow: var(--share-shadow);
+    backdrop-filter: saturate(120%) blur(14px);
+    -webkit-backdrop-filter: saturate(120%) blur(14px);
   }
 
   .share-control {
-    @apply rounded-2xl border border-slate-200 bg-white text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100;
+    @apply border outline-none transition;
+    border-color: var(--share-border);
+    border-radius: 10px;
+    background: var(--share-content);
+    color: var(--share-text);
+  }
+
+  .share-control:focus {
+    border-color: var(--share-accent);
+    box-shadow: 0 0 0 3px var(--share-accent-soft);
   }
 
   .share-primary {
-    @apply inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800;
+    @apply inline-flex items-center gap-2 border px-4 py-2.5 text-sm font-semibold transition;
+    border-color: var(--share-accent);
+    border-radius: 10px;
+    background: var(--share-accent);
+    color: #f7f7f8;
+  }
+
+  .share-primary:hover {
+    filter: brightness(0.92);
   }
 
   .share-secondary {
-    @apply inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50;
+    @apply inline-flex items-center gap-2 border px-4 py-2.5 text-sm font-medium transition;
+    border-color: var(--share-border);
+    border-radius: 10px;
+    background: var(--share-content);
+    color: var(--share-text);
+  }
+
+  .share-secondary:hover,
+  .share-icon-btn:hover {
+    background: var(--share-inset);
   }
 
   .share-icon-btn {
-    @apply inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50;
+    @apply inline-flex h-9 w-9 items-center justify-center border transition;
+    border-color: var(--share-border);
+    border-radius: 10px;
+    background: var(--share-content);
+    color: var(--share-text);
+  }
+
+  .share-popover {
+    border: 1px solid var(--share-border-strong);
+    border-radius: 12px;
+    background: var(--share-floating);
+    box-shadow: var(--share-shadow-floating);
+    backdrop-filter: saturate(120%) blur(14px);
+    -webkit-backdrop-filter: saturate(120%) blur(14px);
+  }
+
+  .share-inset {
+    border-color: var(--share-border);
+    background: var(--share-inset);
+  }
+
+  .share-status {
+    border: 1px solid var(--share-border);
+    background: var(--share-content);
+    color: var(--share-muted);
+  }
+
+  .share-status--success {
+    border-color: color-mix(in srgb, var(--share-accent) 30%, transparent);
+    background: var(--share-accent-soft);
+    color: var(--share-accent);
+  }
+
+  .share-status--error {
+    border-color: color-mix(in srgb, var(--share-danger) 28%, transparent);
+    background: var(--share-danger-soft);
+    color: var(--share-danger);
+  }
+
+  .share-tab-list {
+    border: 1px solid var(--share-border);
+    border-radius: 12px;
+    background: var(--share-inset);
+  }
+
+  .share-tab {
+    border-radius: 9px;
+    color: var(--share-muted);
+  }
+
+  .share-tab[data-selected] {
+    background: var(--share-content);
+    color: var(--share-text);
+    box-shadow: 0 1px 5px rgba(28, 28, 30, 0.08);
+  }
+
+  .share-document-surface {
+    border: 1px solid var(--share-border);
+    border-radius: 14px;
+    background: #fffefb;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .share-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(5, 150, 105, 0.45) rgba(226, 232, 240, 0.72);
+    scrollbar-color: color-mix(in srgb, var(--share-accent) 48%, transparent) var(--share-inset);
   }
 
   .share-scrollbar::-webkit-scrollbar {
@@ -63,17 +174,19 @@
 
   .share-scrollbar::-webkit-scrollbar-thumb {
     border-radius: 999px;
-    background: rgba(5, 150, 105, 0.42);
+    background: color-mix(in srgb, var(--share-accent) 42%, transparent);
     border: 2px solid transparent;
     background-clip: padding-box;
   }
 
   .share-scrollbar::-webkit-scrollbar-track {
-    background: rgba(226, 232, 240, 0.62);
+    background: var(--share-inset);
   }
 
   .share-pdf-viewer-shell {
-    @apply rounded-xl border border-slate-200 bg-[#f8fafc];
+    border: 1px solid var(--share-border);
+    border-radius: 12px;
+    background: #f1f1f3;
   }
 
   .share-pdf-stage {
@@ -85,6 +198,15 @@
   }
 
   .share-pdf-canvas {
-    @apply block h-auto max-w-full bg-white shadow-[0_2px_10px_rgba(15,23,42,0.12)];
+    @apply block h-auto max-w-full bg-white shadow-[0_2px_10px_rgba(28,28,30,0.12)];
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .share-panel,
+    .share-popover {
+      background: #fbfbfc;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   }
 }

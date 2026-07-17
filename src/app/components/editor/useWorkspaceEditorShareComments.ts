@@ -41,6 +41,43 @@ function trimQuote(input: string, max = 220): string {
   return `${normalized.slice(0, max)}...`;
 }
 
+export async function submitWorkspaceEditorShareComment(options: {
+  textarea: HTMLTextAreaElement | null;
+  submitButton: HTMLButtonElement | null;
+  errorNode: HTMLElement | null;
+  errorMessage: string;
+  submit: (text: string) => Promise<void>;
+}): Promise<boolean> {
+  const { textarea, submitButton, errorNode, errorMessage, submit } = options;
+  const nextText = textarea?.value?.trim() ?? "";
+  if (!nextText) {
+    textarea?.focus();
+    return false;
+  }
+  if (errorNode) {
+    errorNode.textContent = "";
+  }
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.setAttribute("aria-busy", "true");
+  }
+  try {
+    await submit(nextText);
+    return true;
+  } catch {
+    if (errorNode) {
+      errorNode.textContent = errorMessage;
+    }
+    textarea?.focus();
+    return false;
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.removeAttribute("aria-busy");
+    }
+  }
+}
+
 function toNormalizedComment(model: any, item: ShareCommentItem): NormalizedEditorComment | null {
   const start = Number(item.start);
   const end = Number(item.end);
@@ -275,6 +312,7 @@ export function useWorkspaceEditorShareComments(params: {
           <div class="editor-share-composer-card">
             <div class="editor-share-composer-card__quote">${escapeHtml(selection.quote)}</div>
             <textarea class="editor-share-composer-card__input" placeholder="${t("share.commentPlaceholder")}"></textarea>
+            <div class="editor-share-composer-card__error" role="alert" aria-live="assertive"></div>
             <div class="editor-share-composer-card__actions">
               <button type="button" class="editor-share-composer-card__submit">${t("share.postComment")}</button>
               <button type="button" class="editor-share-composer-card__cancel">${t("common.cancel")}</button>
@@ -282,25 +320,23 @@ export function useWorkspaceEditorShareComments(params: {
           </div>
         `;
         const textarea = node.querySelector("textarea") as HTMLTextAreaElement | null;
-        const submitButton = node.querySelector(".editor-share-composer-card__submit");
+        const submitButton = node.querySelector(".editor-share-composer-card__submit") as HTMLButtonElement | null;
         const cancelButton = node.querySelector(".editor-share-composer-card__cancel");
+        const errorNode = node.querySelector(".editor-share-composer-card__error") as HTMLElement | null;
         submitButton?.addEventListener("click", async () => {
-          const nextText = textarea?.value?.trim() ?? "";
-          if (!nextText) {
-            textarea?.focus();
-            return;
-          }
-          try {
-            await submitSelectionComment(nextText);
-          } catch {
-            textarea?.focus();
-          }
+          await submitWorkspaceEditorShareComment({
+            textarea,
+            submitButton,
+            errorNode,
+            errorMessage: t("share.commentFailed"),
+            submit: submitSelectionComment,
+          });
         });
         cancelButton?.addEventListener("click", closeComposer);
         composerZoneIdsRef.current = [
           accessor.addZone({
             afterLineNumber: selection.lineNumber,
-            heightInPx: 156,
+            heightInPx: 184,
             domNode: node,
           }),
         ];

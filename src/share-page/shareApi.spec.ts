@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchSharePdfBuffer, fetchSharePdfStatus } from "./shareApi";
+import { fetchSharePdfBuffer, fetchSharePdfStatus, postShareJson } from "./shareApi";
 
 describe("share API PDF caching", () => {
   afterEach(() => {
@@ -39,5 +39,17 @@ describe("share API PDF caching", () => {
       cache: "force-cache",
       headers: { Authorization: "Bearer token-1" },
     });
+  });
+
+  it("maps failed requests without reading or exposing the response body", async () => {
+    const text = vi.fn(async () => "database details must stay private");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 403,
+      text,
+    } as unknown as Response);
+
+    await expect(postShareJson("/api/join", {})).rejects.toMatchObject({ code: "invalid_access" });
+    expect(text).not.toHaveBeenCalled();
   });
 });

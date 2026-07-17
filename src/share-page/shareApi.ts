@@ -1,4 +1,5 @@
 import type { ShareComment, ShareParticipant } from "./shareTypes";
+import { shareUiErrorFromStatus } from "../shared/utils/shareUiError";
 
 export type SharePdfStatus = {
   ready: boolean;
@@ -29,8 +30,7 @@ export async function postShareJson<T>(path: string, body: unknown, participantT
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
+    throw shareUiErrorFromStatus(response.status);
   }
   return response.json() as Promise<T>;
 }
@@ -50,7 +50,7 @@ export async function fetchShareSnapshot(sid: string, auth: ShareParticipantAuth
     { headers: authorizedHeaders(auth.participantToken) },
   );
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw shareUiErrorFromStatus(response.status);
   }
   return response.json() as Promise<{ content: string }>;
 }
@@ -79,7 +79,7 @@ export async function pullShareUpdates(params: {
     { headers: authorizedHeaders(params.participantToken) },
   );
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw shareUiErrorFromStatus(response.status);
   }
   return response.json() as Promise<{ events?: Array<{ seq?: number; from?: string; update: string }>; nextCursor?: number }>;
 }
@@ -104,7 +104,7 @@ export async function listShareComments(params: {
     { headers: authorizedHeaders(params.participantToken) },
   );
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw shareUiErrorFromStatus(response.status);
   }
   return response.json() as Promise<{ comments?: ShareComment[] }>;
 }
@@ -133,7 +133,7 @@ export async function fetchSharePdfStatus(sid: string, auth: ShareParticipantAut
     headers: authorizedHeaders(auth.participantToken),
   });
   if (!response.ok) {
-    return { ready: false };
+    throw shareUiErrorFromStatus(response.status);
   }
   const payload = await response.json() as { state?: string; updatedAt?: string | null; sizeBytes?: number; version?: string | null };
   return {
@@ -156,7 +156,7 @@ export async function fetchSharePdfBuffer(
     headers: authorizedHeaders(auth.participantToken),
   });
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw shareUiErrorFromStatus(response.status);
   }
   return response.arrayBuffer();
 }

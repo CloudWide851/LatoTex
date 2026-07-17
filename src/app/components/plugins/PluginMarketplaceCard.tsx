@@ -80,8 +80,8 @@ export function PluginMarketplaceCard(props: {
 
   return (
     <article className="app-material-inset group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
-      <div className="flex min-w-0 items-start gap-2 bg-gradient-to-br from-slate-50 to-white p-2.5">
-        <div className="flex h-8 w-8 max-w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white text-primary-700 shadow-sm">
+      <div className="app-material-content flex min-w-0 items-start gap-2 p-2.5">
+        <div className="app-material-inset flex h-8 w-8 max-w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border text-primary-700">
           {plugin.icon ? (
             <img src={plugin.icon} alt="" className="h-5 w-5 rounded object-contain" />
           ) : (

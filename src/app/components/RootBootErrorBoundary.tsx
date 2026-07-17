@@ -100,24 +100,24 @@ export class RootBootErrorBoundary extends Component<Props, State> {
       return this.props.children;
     }
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[color:var(--editor-paper-bg,#f8fafc)] p-6 text-slate-800">
-        <section className="app-material-floating w-full max-w-lg rounded-lg border-rose-200 p-5">
-          <h1 className="text-base font-semibold text-rose-700">{bootText("workspace.bootCrashedTitle")}</h1>
-          <p className="mt-2 text-sm text-slate-600">{bootText("workspace.bootCrashedHint")}</p>
-          <p className="mt-3 max-h-24 overflow-auto rounded border border-rose-100 bg-rose-50 p-2 font-mono text-xs text-rose-700">
+      <main className="app-material-canvas flex min-h-screen items-center justify-center p-6 text-[color:var(--app-text)]">
+        <section className="app-material-floating w-full max-w-lg rounded-lg border p-5">
+          <h1 className="text-base font-semibold text-[color:var(--app-status-danger)]">{bootText("workspace.bootCrashedTitle")}</h1>
+          <p className="mt-2 text-sm text-[color:var(--app-muted)]">{bootText("workspace.bootCrashedHint")}</p>
+          <p className="app-status-danger mt-3 max-h-24 overflow-auto rounded border p-2 font-mono text-xs">
             {this.state.errorMessage}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded border border-rose-300 bg-white px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50"
+              className="control-button control-button--secondary px-3 py-1.5 text-sm"
               onClick={this.handleRetry}
             >
               {bootText("workspace.bootCrashedRetry")}
             </button>
             <button
               type="button"
-              className="rounded border border-rose-600 bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-700"
+              className="control-button control-button--danger px-3 py-1.5 text-sm"
               onClick={this.handleCircuitBreak}
             >
               {bootText("workspace.circuitBreakerRestart")}

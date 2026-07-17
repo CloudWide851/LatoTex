@@ -17,7 +17,7 @@ export function AnalysisFilePickerDialog(props: {
     return null;
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="app-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="app-material-floating grid h-[min(76vh,640px)] w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-lg">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h3 className="text-sm font-semibold text-slate-800">{t("analysis.filePickerTitle")}</h3>

@@ -50,7 +50,7 @@ function avatarColor(seed: string): string {
 function ParticipantList(props: { participants: ShareParticipantInfo[]; t: TranslationFn }) {
   const { participants, t } = props;
   if (participants.length === 0) {
-    return <p className="text-[11px] text-slate-500">{t("share.participantsEmpty")}</p>;
+    return <p className="text-[11px] text-[color:var(--app-muted)]">{t("share.participantsEmpty")}</p>;
   }
   return (
     <div className="max-h-28 space-y-1 overflow-auto">
@@ -63,9 +63,9 @@ function ParticipantList(props: { participants: ShareParticipantInfo[]; t: Trans
             >
               {(item.username || "G").slice(0, 1).toUpperCase()}
             </span>
-            <span className="truncate text-[11px] text-slate-700">{item.username}</span>
+            <span className="truncate text-[11px] text-[color:var(--app-text)]">{item.username}</span>
           </div>
-          <span className="max-w-[50%] truncate text-[10px] text-slate-500">
+          <span className="max-w-[50%] truncate text-[10px] text-[color:var(--app-muted)]">
             {item.lastAction || "-"}
           </span>
         </div>
@@ -77,7 +77,7 @@ function ParticipantList(props: { participants: ShareParticipantInfo[]; t: Trans
 function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: TranslationFn }) {
   const { participants, t } = props;
   if (participants.length === 0) {
-    return <span className="text-[11px] text-slate-500">{t("share.participantsEmpty")}</span>;
+    return <span className="text-[11px] text-[color:var(--app-muted)]">{t("share.participantsEmpty")}</span>;
   }
   const visible = participants.slice(0, 20);
   return (
@@ -86,7 +86,7 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
         <button
           key={item.participantId}
           type="button"
-          className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] text-slate-700"
+          className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] text-[color:var(--app-text)]"
           title={item.username || item.participantId}
         >
           <span
@@ -98,7 +98,7 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
         </button>
       ))}
       {participants.length > visible.length ? (
-        <span className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] text-slate-600">
+        <span className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] text-[color:var(--app-muted)]">
           +{participants.length - visible.length}
         </span>
       ) : null}
@@ -132,7 +132,7 @@ function CompactShareStatusBubble(props: {
           className="app-material-inset absolute -top-[7px] left-3 h-3.5 w-3.5 rotate-45 border-l border-t"
         />
         <div className="relative">
-          <div className="mb-1 text-[11px] font-semibold text-slate-700">{statusText}</div>
+          <div className="mb-1 text-[11px] font-semibold text-[color:var(--app-text)]">{statusText}</div>
           <ParticipantChips participants={participants} t={t} />
         </div>
       </div>
@@ -262,18 +262,18 @@ export function WorkspaceShareControl(props: {
     void navigator.clipboard?.writeText(raw).then(() => setPasswordCopyDone(true)).catch(() => undefined);
   };
   const dotClass = shareSession?.status === "ready"
-    ? "bg-emerald-500"
+    ? "bg-[color:var(--app-status-success)]"
     : shareSession?.status === "starting"
-      ? "bg-amber-500"
-      : "bg-slate-400";
+      ? "bg-[color:var(--app-status-warning)]"
+      : "bg-[color:var(--app-muted)]";
 
   return (
     <div ref={rootRef} className="relative">
       <button
         className={`panel-topbar-btn relative rounded border transition disabled:opacity-60 ${
           sessionExists
-            ? "border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-            : "app-material-inset text-slate-700"
+            ? "app-status-success border"
+            : "app-material-inset text-[color:var(--app-text)]"
         }`}
         onClick={() => setPanelOpen((prev) => !prev)}
         title={t("share.openPanel")}
@@ -281,7 +281,7 @@ export function WorkspaceShareControl(props: {
       >
         <Share2 className="h-4 w-4" />
         {sessionExists ? (
-          <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white ${dotClass}`} />
+          <span className={`absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-[color:var(--app-material-floating)] ${dotClass}`} />
         ) : null}
       </button>
 
@@ -300,10 +300,10 @@ export function WorkspaceShareControl(props: {
         >
           <div className="mb-2 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-slate-800">{t("share.panelTitle")}</h3>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-emerald-700">{statusText}</p>
+              <h3 className="truncate text-sm font-semibold text-[color:var(--app-text)]">{t("share.panelTitle")}</h3>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-[color:var(--app-status-success)]">{statusText}</p>
               {shareSession?.sessionName ? (
-                <p className="truncate text-[11px] text-slate-500">
+                <p className="truncate text-[11px] text-[color:var(--app-muted)]">
                   {shareSession.sessionName}
                   {shareSession.sessionCreatedAt ? ` · ${shareSession.sessionCreatedAt}` : ""}
                 </p>
@@ -331,7 +331,7 @@ export function WorkspaceShareControl(props: {
 
           {!detailsExpanded ? null : (
             <>
-              <div className="space-y-1.5 text-xs text-slate-700">
+              <div className="space-y-1.5 text-xs text-[color:var(--app-text)]">
                 <div className="app-material-inset rounded-md border p-2">
                   <div className="flex items-center justify-between gap-2">
                     <strong>{activeMode === "local" ? t("share.localLink") : t("share.publicLink")}:</strong>
@@ -378,13 +378,13 @@ export function WorkspaceShareControl(props: {
                 <div className="app-material-inset rounded-md border p-2">
                   <strong>{t("share.expiresAt")}:</strong> {shareSession?.expiresAt || "-"}
                 </div>
-              {shareSession?.tunnelError ? (
-                  <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-rose-700">
-                    {shareSession.tunnelError}
+                {shareSession?.tunnelError ? (
+                  <div className="app-status-danger rounded-md border p-2" role="alert">
+                    {t("share.status.failed")}
                   </div>
                 ) : null}
                 {shareConflict ? (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                  <div className="app-status-warning rounded-md border p-2">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                       <div className="min-w-0">
@@ -392,14 +392,14 @@ export function WorkspaceShareControl(props: {
                         <div className="mt-0.5 break-words text-[11px] leading-5">
                           {t("share.conflictDesc")}
                         </div>
-                        <div className="mt-1 truncate text-[11px] text-amber-800">
+                        <div className="mt-1 truncate text-[11px]">
                           {t("share.conflictPath")}: {shareConflict.path}
                         </div>
                       </div>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button
-                        className="rounded border border-amber-700 bg-amber-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-amber-800"
+                        className="control-button control-button--primary px-2 py-1 text-[11px]"
                         type="button"
                         onClick={() => onShareConflictResolve("remote")}
                       >
@@ -421,7 +421,7 @@ export function WorkspaceShareControl(props: {
                 {!sessionExists ? (
                   <>
                     <input
-                      className="app-material-inset min-w-[180px] flex-1 rounded border px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                      className="control-surface min-w-[180px] flex-1 px-2 py-1.5 text-xs"
                       value={shareSessionName}
                       maxLength={120}
                       onChange={(event) => onShareSessionNameChange(event.target.value)}
@@ -439,7 +439,7 @@ export function WorkspaceShareControl(props: {
                       <option value="local">{t("share.mode.local")}</option>
                     </Select>
                     <button
-                      className="rounded-md border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-55"
+                      className="control-button control-button--primary px-3 py-1.5 text-xs"
                       disabled={shareBusy || !isTexSelected}
                       onClick={() => void onShareStart(activeMode)}
                     >
@@ -457,7 +457,7 @@ export function WorkspaceShareControl(props: {
                       {t("common.refresh")}
                     </button>
                     <button
-                      className="rounded-md border border-rose-600 bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-700 disabled:opacity-60"
+                      className="control-button control-button--danger px-2 py-1 text-xs"
                       disabled={shareBusy}
                       onClick={() => void onShareStop()}
                     >
@@ -466,12 +466,12 @@ export function WorkspaceShareControl(props: {
                   </>
                 )}
                 {!isTexSelected ? (
-                  <span className="text-[11px] text-rose-600">{t("share.startNeedTex")}</span>
+                  <span className="text-[11px] text-[color:var(--app-status-danger)]">{t("share.startNeedTex")}</span>
                 ) : null}
               </div>
 
               <div className="app-material-inset mt-3 rounded-md border p-2">
-                <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--app-muted)]">
                   {t("share.participants")}
                 </h4>
                 <ParticipantList participants={participants} t={t} />
@@ -479,8 +479,8 @@ export function WorkspaceShareControl(props: {
 
               {qrDataUrl ? (
                 <div className="app-material-inset mt-3 flex items-start gap-3 rounded-md border p-2">
-                  <img src={qrDataUrl} alt={t("share.qrAlt")} className="h-24 w-24 rounded bg-white p-1" />
-                  <p className="text-[11px] leading-5 text-slate-600">
+                  <img src={qrDataUrl} alt={t("share.qrAlt")} className="h-24 w-24 rounded bg-[color:var(--app-material-content)] p-1" />
+                  <p className="text-[11px] leading-5 text-[color:var(--app-muted)]">
                     {activeMode === "local" ? t("share.qrHintLocal") : t("share.qrHintRemote")}
                   </p>
                 </div>

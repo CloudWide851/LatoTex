@@ -4,7 +4,7 @@ import { Button } from "../../../components/ui/button";
 
 type TranslationFn = (key: any) => string;
 
-export function UnsavedChangesDialog(props: {
+export type UnsavedChangesDialogProps = {
   open: boolean;
   intent: PendingNavigationIntent;
   items: UnsavedChangeItem[];
@@ -13,7 +13,9 @@ export function UnsavedChangesDialog(props: {
   onDiscardAndContinue: () => void;
   onCancel: () => void;
   t: TranslationFn;
-}) {
+};
+
+export function UnsavedChangesDialog(props: UnsavedChangesDialogProps) {
   const {
     open,
     intent,
@@ -37,7 +39,7 @@ export function UnsavedChangesDialog(props: {
   };
 
   return (
-    <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
+    <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4">
       <div className="app-material-floating w-full max-w-lg rounded-lg p-4">
         <div className="flex items-start gap-3">
           <div className="rounded-md bg-amber-100 p-2 text-amber-700">

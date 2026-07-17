@@ -69,4 +69,27 @@ describe("shareCommentApi", () => {
     expect(new Headers(commentRequest?.headers).get("Authorization")).toBe("Bearer token-1");
     expect(item.source).toBe("tex");
   });
+
+  it("returns a stable UI error without reading a failed response body", async () => {
+    const text = vi.fn(async () => "internal stack trace");
+    vi.mocked(fetch)
+      .mockReset()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ participantId: "desktop-owner", participantToken: "token-1" }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 413, text } as unknown as Response);
+
+    await expect(postShareComment({
+      active: true,
+      localUrl: "http://127.0.0.1:4021",
+      sessionId: "sid-1",
+      password: "pwd-1",
+    }, {
+      username: "Desktop",
+      text: "large comment",
+      source: "tex",
+    })).rejects.toMatchObject({ code: "payload_too_large" });
+    expect(text).not.toHaveBeenCalled();
+  });
 });

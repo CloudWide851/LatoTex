@@ -58,4 +58,49 @@ describe("WorkspaceShareControl", () => {
     });
     container.remove();
   });
+
+  it("maps tunnel failures without exposing the backend error", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <WorkspaceShareControl
+          selectedFile="main.tex"
+          shareSession={{
+            active: true,
+            sessionId: "session-1",
+            status: "failed",
+            tunnelError: "cloudflared: bearer token secret leaked",
+          }}
+          shareBusy={false}
+          shareSyncing={false}
+          shareConflict={null}
+          shareMode="remote"
+          shareSessionName=""
+          onShareModeChange={() => undefined}
+          onShareSessionNameChange={() => undefined}
+          onShareStart={() => undefined}
+          onShareStop={() => undefined}
+          onShareRefresh={() => undefined}
+          onShareConflictResolve={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const trigger = container.querySelector("button[aria-label='share.openPanel']") as HTMLButtonElement;
+    await act(async () => {
+      trigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("share.status.failed");
+    expect(container.textContent).not.toContain("bearer token secret leaked");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
 });

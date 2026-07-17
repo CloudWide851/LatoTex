@@ -8,12 +8,12 @@
 @tailwind utilities;
 
 :root {
-  --app-bg: #f3f4f6;
-  --app-surface: #ffffff;
-  --app-surface-muted: #f8fafc;
-  --app-border: #e2e8f0;
-  --app-text: #0f172a;
-  --app-muted: #64748b;
+  --app-bg: #f5f5f7;
+  --app-surface: #fbfbfc;
+  --app-surface-muted: #f1f1f3;
+  --app-border: #d8d8dc;
+  --app-text: #1d1d1f;
+  --app-muted: #6e6e73;
   --control-surface-top: rgba(255, 255, 255, 0.98);
   --control-surface-bottom: rgba(241, 245, 249, 0.94);
   --control-surface-hover-top: rgba(255, 255, 255, 1);
@@ -26,9 +26,9 @@
   --control-text: #0f172a;
   --control-muted: #64748b;
   --control-ring: rgba(59, 130, 246, 0.24);
-  --control-shadow: 0 12px 24px rgba(15, 23, 42, 0.08), 0 1px 1px rgba(15, 23, 42, 0.04);
-  --control-shadow-hover: 0 18px 34px rgba(15, 23, 42, 0.12), 0 1px 1px rgba(15, 23, 42, 0.05);
-  --control-menu-shadow: 0 22px 52px rgba(15, 23, 42, 0.16), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  --control-shadow: 0 3px 10px rgba(28, 28, 30, 0.06), 0 1px 1px rgba(28, 28, 30, 0.04);
+  --control-shadow-hover: 0 6px 18px rgba(28, 28, 30, 0.1), 0 1px 1px rgba(28, 28, 30, 0.04);
+  --control-menu-shadow: 0 16px 38px rgba(28, 28, 30, 0.14), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
   --control-primary-top: #3b82f6;
   --control-primary-bottom: #2563eb;
   --control-primary-top-hover: #4f8cff;
@@ -38,39 +38,47 @@
   --control-primary-shadow: 0 16px 32px rgba(37, 99, 235, 0.22), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
   --app-accent: #22c55e;
   --app-scrollbar-size: 14px;
-  --app-glass-opacity: 0.78;
-  --app-glass-blur: 18px;
-  --app-panel-radius: 8px;
+  --app-glass-opacity: 0.86;
+  --app-glass-blur: 14px;
+  --app-panel-radius: 10px;
   --app-pdf-page-gap: 12px;
   --app-font-scale: 1;
   --app-log-font-size: 12px;
-  --app-material-canvas: linear-gradient(145deg, #eef3f8 0%, #f8fafc 48%, #edf2f7 100%);
-  --app-material-shell: linear-gradient(145deg, rgb(255 255 255 / calc(var(--app-glass-opacity) * 0.86)), rgb(241 245 249 / calc(var(--app-glass-opacity) * 0.76)));
-  --app-material-panel: linear-gradient(145deg, rgb(255 255 255 / calc(var(--app-glass-opacity) * 0.9)), rgb(248 250 252 / calc(var(--app-glass-opacity) * 0.8)));
-  --app-material-content: linear-gradient(160deg, rgb(255 255 255 / calc(var(--app-glass-opacity) * 0.74)), rgb(241 245 249 / calc(var(--app-glass-opacity) * 0.64)));
-  --app-material-inset: rgb(248 250 252 / calc(var(--app-glass-opacity) * 0.72));
-  --app-material-floating: linear-gradient(145deg, rgb(255 255 255 / calc(var(--app-glass-opacity) * 1.08)), rgb(248 250 252 / var(--app-glass-opacity)));
-  --app-material-border: rgba(100, 116, 139, 0.25);
-  --app-material-border-strong: rgba(71, 85, 105, 0.38);
-  --app-material-highlight: rgba(255, 255, 255, 0.72);
-  --app-material-shadow: 0 18px 44px rgba(15, 23, 42, 0.1), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
-  --app-material-shadow-floating: 0 24px 64px rgba(15, 23, 42, 0.2), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+  --app-material-canvas: #f5f5f7;
+  --app-material-shell: rgb(255 255 255 / calc(var(--app-glass-opacity) * 0.9));
+  --app-material-panel: rgb(252 252 253 / calc(var(--app-glass-opacity) * 0.84));
+  --app-material-content: rgb(248 248 250 / calc(var(--app-glass-opacity) * 0.8));
+  --app-material-inset: rgb(239 239 242 / calc(var(--app-glass-opacity) * 0.72));
+  --app-material-floating: rgb(255 255 255 / calc(var(--app-glass-opacity) * 1.04));
+  --app-material-border: rgba(60, 60, 67, 0.16);
+  --app-material-border-strong: rgba(60, 60, 67, 0.24);
+  --app-material-highlight: rgba(255, 255, 255, 0.66);
+  --app-material-shadow: 0 6px 20px rgba(28, 28, 30, 0.07), 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  --app-material-shadow-floating: 0 20px 52px rgba(28, 28, 30, 0.16), 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+  --app-status-info: #0a84ff;
+  --app-status-success: #248a3d;
+  --app-status-warning: #b25000;
+  --app-status-danger: #d70015;
+  --app-status-info-soft: color-mix(in srgb, var(--app-status-info) 11%, transparent);
+  --app-status-success-soft: color-mix(in srgb, var(--app-status-success) 11%, transparent);
+  --app-status-warning-soft: color-mix(in srgb, var(--app-status-warning) 12%, transparent);
+  --app-status-danger-soft: color-mix(in srgb, var(--app-status-danger) 11%, transparent);
   --library-scrollbar-thumb: rgba(34, 197, 94, 0.72);
   --library-scrollbar-thumb-hover: rgba(22, 163, 74, 0.9);
   --library-scrollbar-track: rgba(203, 213, 225, 0.92);
   --explorer-node-fg: #334155;
   --explorer-node-muted: #64748b;
   --brand-wordmark-fg: var(--topbar-fg);
-  --topbar-bg: rgb(255 255 255 / calc(var(--app-glass-opacity) * 0.88));
+  --topbar-bg: rgb(255 255 255 / calc(var(--app-glass-opacity) * 0.92));
   --topbar-border: var(--app-material-border);
   --topbar-fg: var(--app-text);
   --topbar-muted: var(--app-muted);
-  --topbar-field-bg: rgb(248 250 252 / calc(var(--app-glass-opacity) * 0.78));
+  --topbar-field-bg: rgb(246 246 248 / calc(var(--app-glass-opacity) * 0.82));
   --topbar-field-border: var(--app-material-border);
-  --topbar-field-hover: rgb(241 245 249 / calc(var(--app-glass-opacity) * 0.94));
+  --topbar-field-hover: rgb(232 232 235 / calc(var(--app-glass-opacity) * 0.92));
   color: #111827;
   background-color: var(--app-bg);
-  font-family: "Sohne", "Inter", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -86,17 +94,21 @@ html {
   --app-border: #243041;
   --app-text: #e5e7eb;
   --app-muted: #9ca3af;
-  --app-material-canvas: linear-gradient(145deg, #08111f 0%, #0f172a 48%, #0a1322 100%);
-  --app-material-shell: linear-gradient(145deg, rgb(24 36 55 / calc(var(--app-glass-opacity) * 0.9)), rgb(10 19 33 / calc(var(--app-glass-opacity) * 0.84)));
-  --app-material-panel: linear-gradient(145deg, rgb(25 38 58 / calc(var(--app-glass-opacity) * 0.92)), rgb(13 22 37 / calc(var(--app-glass-opacity) * 0.86)));
-  --app-material-content: linear-gradient(160deg, rgb(21 33 51 / calc(var(--app-glass-opacity) * 0.82)), rgb(8 16 29 / calc(var(--app-glass-opacity) * 0.76)));
-  --app-material-inset: rgb(15 26 43 / calc(var(--app-glass-opacity) * 0.8));
-  --app-material-floating: linear-gradient(145deg, rgb(27 41 62 / calc(var(--app-glass-opacity) * 1.06)), rgb(12 21 36 / var(--app-glass-opacity)));
+  --app-material-canvas: #0b0b0d;
+  --app-material-shell: rgb(32 32 35 / calc(var(--app-glass-opacity) * 0.92));
+  --app-material-panel: rgb(27 27 30 / calc(var(--app-glass-opacity) * 0.88));
+  --app-material-content: rgb(23 23 26 / calc(var(--app-glass-opacity) * 0.82));
+  --app-material-inset: rgb(18 18 21 / calc(var(--app-glass-opacity) * 0.8));
+  --app-material-floating: rgb(38 38 42 / calc(var(--app-glass-opacity) * 1.04));
   --app-material-border: rgba(148, 163, 184, 0.2);
   --app-material-border-strong: rgba(186, 199, 219, 0.34);
   --app-material-highlight: rgba(255, 255, 255, 0.08);
-  --app-material-shadow: 0 22px 52px rgba(2, 6, 23, 0.34), 0 1px 0 rgba(255, 255, 255, 0.07) inset;
-  --app-material-shadow-floating: 0 28px 72px rgba(2, 6, 23, 0.54), 0 1px 0 rgba(255, 255, 255, 0.09) inset;
+  --app-material-shadow: 0 8px 26px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+  --app-material-shadow-floating: 0 24px 64px rgba(0, 0, 0, 0.48), 0 1px 0 rgba(255, 255, 255, 0.09) inset;
+  --app-status-info: #64d2ff;
+  --app-status-success: #30d158;
+  --app-status-warning: #ffd60a;
+  --app-status-danger: #ff453a;
   --control-surface-top: rgba(37, 50, 74, 0.96);
   --control-surface-bottom: rgba(22, 32, 51, 0.98);
   --control-surface-hover-top: rgba(47, 64, 92, 0.98);
@@ -158,37 +170,6 @@ body {
   overflow: hidden;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0;
-  background-image:
-    radial-gradient(1px 1px at 12% 24%, rgba(255, 255, 255, 0.5) 0, transparent 100%),
-    radial-gradient(1px 1px at 26% 78%, rgba(255, 255, 255, 0.44) 0, transparent 100%),
-    radial-gradient(1.2px 1.2px at 48% 16%, rgba(255, 255, 255, 0.5) 0, transparent 100%),
-    radial-gradient(1px 1px at 63% 58%, rgba(255, 255, 255, 0.38) 0, transparent 100%),
-    radial-gradient(1.1px 1.1px at 78% 34%, rgba(255, 255, 255, 0.46) 0, transparent 100%),
-    radial-gradient(1px 1px at 92% 68%, rgba(255, 255, 255, 0.4) 0, transparent 100%);
-  transition: opacity 240ms ease-out;
-}
-
-@keyframes stars-twinkle {
-  0%, 100% {
-    opacity: 0.36;
-  }
-  50% {
-    opacity: 0.56;
-  }
-}
-
-[data-theme="dark"] body::before {
-  opacity: 1;
-  animation: stars-twinkle 5.4s ease-in-out infinite;
-}
-
 .tauri-drag-region {
   -webkit-app-region: drag;
   app-region: drag;
@@ -219,11 +200,11 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(rgba(248, 250, 252, 0.18), rgba(248, 250, 252, 0.24));
+  background: rgba(248, 248, 250, 0.22);
 }
 
 [data-theme="dark"] .wallpaper-enabled::before {
-  background: linear-gradient(rgba(15, 23, 42, 0.34), rgba(2, 6, 23, 0.5));
+  background: rgba(11, 11, 13, 0.44);
 }
 
 [data-theme="dark"] .wallpaper-enabled {
@@ -702,7 +683,7 @@ input[type="range"] {
   --editor-tab-active-shadow: 0 16px 28px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.85) inset;
   --editor-tab-badge-bg: rgba(59, 130, 246, 0.09);
   --editor-tab-badge-text: #1d4ed8;
-  --settings-row-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.86));
+  --settings-row-bg: var(--app-material-content);
   --settings-row-border: rgba(148, 163, 184, 0.26);
 }
 
@@ -726,7 +707,7 @@ input[type="range"] {
   --editor-tab-active-shadow: 0 18px 34px rgba(2, 6, 23, 0.34), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
   --editor-tab-badge-bg: rgba(96, 165, 250, 0.14);
   --editor-tab-badge-text: #93c5fd;
-  --settings-row-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.86));
+  --settings-row-bg: var(--app-material-content);
   --settings-row-border: rgba(71, 85, 105, 0.34);
 }
 
@@ -734,8 +715,8 @@ input[type="range"] {
   border: 1px solid var(--editor-shell-border);
   background: var(--editor-shell-bg);
   box-shadow: var(--app-material-shadow);
-  backdrop-filter: saturate(132%) blur(var(--app-glass-blur));
-  -webkit-backdrop-filter: saturate(132%) blur(var(--app-glass-blur));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .editor-workspace-shell :where(.monaco-editor, .monaco-editor-background, .monaco-editor .margin) {
@@ -766,11 +747,11 @@ input[type="range"] {
 
 .editor-tabs-shell {
   border-bottom: 1px solid var(--editor-shell-divider);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+  background: var(--app-material-content);
 }
 
 [data-theme="dark"] .editor-tabs-shell {
-  background: linear-gradient(180deg, rgba(148, 163, 184, 0.06), rgba(15, 23, 42, 0.04));
+  background: var(--app-material-content);
 }
 
 .editor-tab {
@@ -1118,13 +1099,20 @@ input[type="range"] {
 .editor-share-composer-card__input {
   min-height: 72px;
   resize: vertical;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 12px;
-  background: #ffffff;
-  color: #0f172a;
+  border: 1px solid var(--app-material-border);
+  border-radius: 10px;
+  background: var(--editor-paper-bg);
+  color: var(--editor-tab-text);
   font: inherit;
   line-height: 1.55;
   padding: 10px 12px;
+}
+
+.editor-share-composer-card__error {
+  min-height: 16px;
+  color: var(--app-status-danger);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .editor-share-composer-card__actions {
@@ -1142,9 +1130,9 @@ input[type="range"] {
 }
 
 .editor-share-composer-card__submit {
-  border: 1px solid rgba(22, 163, 74, 0.92);
-  background: #16a34a;
-  color: #f0fdf4;
+  border: 1px solid var(--app-accent);
+  background: var(--app-accent);
+  color: #f7f7f8;
 }
 
 .editor-share-composer-card__cancel {

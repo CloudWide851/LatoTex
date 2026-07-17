@@ -200,7 +200,7 @@ export function ModelModal(props: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
+    <div className="app-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 motion-fade-in">
       <div className="app-material-floating grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">

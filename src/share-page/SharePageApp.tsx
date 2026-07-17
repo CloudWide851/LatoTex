@@ -16,6 +16,7 @@ import { applyYTextDelta, deriveSelectionQuote, fromBase64, normalizeComment, to
 import { useShareEditorReview } from "./useShareEditorReview";
 import { useSharePdfPreview } from "./useSharePdfPreview";
 import type { ShareDevice, ShareI18n, ShareLocale, ShareParticipant, ShareQuote, ShareComment, ShareView } from "./shareTypes";
+import { resolveShareUiErrorCode } from "../shared/utils/shareUiError";
 
 type SharePageAppProps = {
   device: ShareDevice;
@@ -87,6 +88,10 @@ export function SharePageApp(props: SharePageAppProps) {
     setStatus(message);
     setStatusError(isError);
   }, []);
+  const shareErrorReason = useCallback(
+    (error: unknown) => i18n.shareErrorMessage(resolveShareUiErrorCode(error)),
+    [i18n],
+  );
 
   const pdf = useSharePdfPreview({
     sid,
@@ -137,7 +142,7 @@ export function SharePageApp(props: SharePageAppProps) {
         username: username.trim(),
         action: i18n.actionEditing,
         update: toBase64(update),
-      }).catch((error) => setStatusLine(i18n.statusSyncFailed(String(error)), true));
+      }).catch((error) => setStatusLine(i18n.statusSyncFailed(shareErrorReason(error)), true));
     };
     yText.observe(handleObserve);
     docRef.current.on("update", handleUpdate);
@@ -145,7 +150,7 @@ export function SharePageApp(props: SharePageAppProps) {
       yText.unobserve(handleObserve);
       docRef.current.off("update", handleUpdate);
     };
-  }, [i18n.actionEditing, i18n.statusSyncFailed, setStatusLine, sid, username]);
+  }, [i18n.actionEditing, i18n.statusSyncFailed, setStatusLine, shareErrorReason, sid, username]);
 
   const loadComments = useCallback(async () => {
     if (!connectedRef.current || !participantIdRef.current) {
@@ -265,7 +270,7 @@ export function SharePageApp(props: SharePageAppProps) {
           await pullUpdates();
           await loadComments();
         } catch (error) {
-          setStatusLine(i18n.statusSyncFailed(String(error)), true);
+          setStatusLine(i18n.statusSyncFailed(shareErrorReason(error)), true);
         }
         schedulePull();
       }, document.hidden ? 1700 : 840);
@@ -303,7 +308,7 @@ export function SharePageApp(props: SharePageAppProps) {
       window.clearTimeout(presenceTimer);
       window.clearTimeout(pdfTimer);
     };
-  }, [connected, i18n.actionReading, i18n.statusSyncFailed, loadComments, pdf.reload, pingPresence, pullUpdates, setStatusLine, view]);
+  }, [connected, i18n.actionReading, i18n.statusSyncFailed, loadComments, pdf.reload, pingPresence, pullUpdates, setStatusLine, shareErrorReason, view]);
 
   const handleConnect = useCallback(async () => {
     const trimmedPassword = password.trim();
@@ -345,9 +350,9 @@ export function SharePageApp(props: SharePageAppProps) {
       persistStoredAuth(authStorageKey, null);
       setAuth(null);
       setConnected(false);
-      setStatusLine(i18n.statusConnectFailed(String(error)), true);
+      setStatusLine(i18n.statusConnectFailed(shareErrorReason(error)), true);
     }
-  }, [authStorageKey, hydrateAuthenticatedSession, i18n, loadComments, password, pingPresence, setStatusLine, sid, username, usernameStorageKey]);
+  }, [authStorageKey, hydrateAuthenticatedSession, i18n, loadComments, password, pingPresence, setStatusLine, shareErrorReason, sid, username, usernameStorageKey]);
 
   const handleEditorChange = useCallback((value: string) => {
     setEditorText(value);
@@ -422,9 +427,9 @@ export function SharePageApp(props: SharePageAppProps) {
       setQuoteDraft(null);
       setStatusLine(i18n.statusCommentPosted);
     } catch (error) {
-      setStatusLine(i18n.statusPostCommentFailed(String(error)), true);
+      setStatusLine(i18n.statusPostCommentFailed(shareErrorReason(error)), true);
     }
-  }, [commentText, connected, i18n, quoteDraft, setStatusLine, sid, username]);
+  }, [commentText, connected, i18n, quoteDraft, setStatusLine, shareErrorReason, sid, username]);
 
   return (
     <SharePageLayout

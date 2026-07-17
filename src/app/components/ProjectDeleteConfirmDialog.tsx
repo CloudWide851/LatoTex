@@ -22,7 +22,7 @@ export function ProjectDeleteConfirmDialog(props: {
   }
   const destructive = intent.mode === "trashRoot";
   return (
-    <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-950/62 p-4 motion-overlay-enter">
+    <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
       <div className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow">
         <div className="flex items-start gap-3">
           <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${destructive ? "border-rose-200 bg-rose-50 text-rose-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>

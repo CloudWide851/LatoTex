@@ -254,10 +254,10 @@ export function PluginMarketplace(props: {
   return (
     <>
     <section className="app-material-panel grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border">
-      <div className="border-b border-slate-200 bg-gradient-to-br from-white via-slate-50 to-primary-50/40 p-4">
+      <div className="app-material-content border-b p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary-200 bg-white text-primary-700 shadow-sm">
+            <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-primary-700">
               <Store className="h-5 w-5" />
             </div>
             <div className="min-w-0">
