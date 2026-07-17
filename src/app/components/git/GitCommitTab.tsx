@@ -110,7 +110,7 @@ export function GitCommitTab(props: {
           </Button>
         </div>
 
-        <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+        <div className="app-material-inset grid gap-2 rounded-md border p-2">
           <h4 className="text-xs font-semibold text-slate-600">{t("git.commit")}</h4>
           <p className="text-[11px] text-slate-500">{t("git.defaultIncludeHint")}</p>
           <Input
@@ -160,7 +160,7 @@ export function GitCommitTab(props: {
         </div>
 
         <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2 overflow-hidden">
-          <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+          <div className="app-material-inset min-h-0 overflow-auto rounded-md border p-2">
             <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.unstaged")}</h4>
             <GitChangeList
               entries={unstagedFiles}
@@ -175,7 +175,7 @@ export function GitCommitTab(props: {
               t={t}
             />
           </div>
-          <div className="min-h-0 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+          <div className="app-material-inset min-h-0 overflow-auto rounded-md border p-2">
             <h4 className="mb-2 text-xs font-semibold text-slate-600">{t("git.staged")}</h4>
             <GitChangeList
               entries={stagedFiles}
@@ -193,7 +193,7 @@ export function GitCommitTab(props: {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-col rounded-md border border-slate-200 bg-slate-50 p-2">
+      <div className="app-material-content flex min-h-0 flex-col rounded-md border p-2">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h4 className="text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
           <span className="text-[11px] text-slate-500">

@@ -60,7 +60,7 @@ export function GitDiffViewer(props: {
 
   if (!active) {
     return (
-      <div className="flex h-full min-h-[160px] items-center justify-center rounded-md bg-slate-100/70 px-4 text-sm text-slate-500">
+      <div className="app-material-inset flex h-full min-h-[160px] items-center justify-center rounded-md px-4 text-sm text-slate-500">
         {t("git.selectFileToDiff")}
       </div>
     );
@@ -68,7 +68,7 @@ export function GitDiffViewer(props: {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+      <div className="app-material-inset flex items-center gap-2 rounded border px-2 py-1.5 text-[11px] text-slate-600">
         <SvgSpinner className="h-3.5 w-3.5 text-slate-500" />
         {t("common.loading")}
       </div>
@@ -85,7 +85,7 @@ export function GitDiffViewer(props: {
 
   if (!diff || diff.hunks.length === 0) {
     return (
-      <div className="rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] text-slate-600">
+      <div className="app-material-inset rounded border px-2 py-1.5 text-[11px] text-slate-600">
         {t("git.diffEmpty")}
       </div>
     );

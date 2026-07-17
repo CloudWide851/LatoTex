@@ -25,14 +25,14 @@ export function AnalysisPreflightPanel(props: {
           {preflight.questions.map((question) => {
             const selected = new Set(preflight.answers[question.id] ?? []);
             return (
-              <fieldset key={question.id} className="rounded-lg border border-slate-200 bg-white p-3">
+              <fieldset key={question.id} className="app-material-inset rounded-lg border p-3">
                 <legend className="px-1 text-sm font-semibold text-slate-800">{question.title}</legend>
                 <p className="mb-2 text-xs leading-5 text-slate-500">{question.description}</p>
                 <div className="grid gap-1.5">
                   {question.options.map((option) => {
                     const checked = selected.has(option.id);
                     return (
-                      <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
+                      <label key={option.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-700 hover:bg-[color:var(--app-material-inset)]">
                         <input
                           className="mt-0.5"
                           type={question.multiple ? "checkbox" : "radio"}

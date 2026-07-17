@@ -1,9 +1,9 @@
 export const enUS_preview = {
   "preview.title": "Preview",
   "preview.empty": "No preview available for the current file.",
-  "preview.unsupported": "This file type is not previewed.",
+  "preview.unsupported": "No preview is available for this file type. You can still edit it in the center pane.",
   "preview.markdownEmpty": "Markdown file is empty.",
-  "preview.textEmpty": "Text file is empty.",
+  "preview.textEmpty": "Nothing to preview yet. Add content in the editor to see it here.",
   "preview.diagnostics": "Diagnostics",
   "preview.events": "Swarm Events",
   "preview.annotationEnable": "Enable highlight mode",

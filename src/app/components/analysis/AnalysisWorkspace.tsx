@@ -123,7 +123,7 @@ export function AnalysisWorkspace(props: {
   };
 
   return (
-    <div className="relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border border-slate-200 bg-white shadow-soft motion-shell-stage motion-panel-glow">
+    <div className="app-material-panel relative grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-lg border motion-shell-stage motion-panel-glow">
       <AnalysisTaskTabs
         tasks={tasks}
         activeTaskId={activeTaskId}
@@ -174,11 +174,11 @@ export function AnalysisWorkspace(props: {
             />
           ) : tasks.length === 0 ? (
             <button
-              className="flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-500 transition motion-hover-rise hover:border-primary-300 hover:bg-primary-50/40 hover:text-primary-700"
+              className="app-material-content flex h-full w-full min-h-0 flex-col items-center justify-center rounded-lg border border-dashed text-slate-500 transition motion-hover-rise hover:border-primary-300 hover:text-primary-700"
               onClick={onCreateTask}
               disabled={running}
             >
-              <span className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white">
+              <span className="app-material-inset mb-2 inline-flex h-10 w-10 items-center justify-center rounded-md border">
                 <Plus className="h-5 w-5" />
               </span>
               <span className="text-sm font-medium">{t("analysis.emptyTaskTitle")}</span>
@@ -194,14 +194,14 @@ export function AnalysisWorkspace(props: {
                   t={t}
                 />
               </div>
-              <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-4 motion-card-pop">
+              <section className="app-material-content grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-lg border p-4 motion-card-pop">
                 <div className="text-slate-600">
                   <div className="mb-2 inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-700">
                     {activeTaskName}
                   </div>
                   <p className="text-sm font-medium text-slate-700">{t("analysis.centerRunning")}</p>
                 </div>
-                <div className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
+                <div className="app-material-inset min-h-0 overflow-auto rounded-lg border p-3">
                   {currentDraftOutput ? (
                     <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-slate-700">
                       {currentDraftOutput}
@@ -218,7 +218,7 @@ export function AnalysisWorkspace(props: {
               </aside>
             </div>
           ) : !activeRun ? (
-            <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50/70 p-4 motion-page-in">
+            <div className="app-material-content flex h-full min-h-0 items-center justify-center rounded-lg border p-4 motion-page-in">
               <span className="text-sm text-slate-500">
                 {running ? t("analysis.centerRunning") : t("analysis.blankHint")}
               </span>
@@ -226,7 +226,7 @@ export function AnalysisWorkspace(props: {
           ) : (
             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-2">
               <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 motion-card-pop">
+                <div className="app-material-inset rounded-lg border p-2 motion-card-pop">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -234,7 +234,7 @@ export function AnalysisWorkspace(props: {
                         {activeRun.status === "completed" ? (
                           <button
                             type="button"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                            className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border"
                             onClick={toggleHeaderCollapsed}
                             title={headerCollapsed ? t("analysis.expandHeader") : t("analysis.collapseHeader")}
                             aria-label={headerCollapsed ? t("analysis.expandHeader") : t("analysis.collapseHeader")}
@@ -279,10 +279,10 @@ export function AnalysisWorkspace(props: {
                     key={activeRun.id}
                     title={t("analysis.reportTitle")}
                     srcDoc={activeRunHtml}
-                    className="h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white"
+                    className="app-material-content h-full min-h-0 w-full rounded-lg border"
                   />
                 ) : (
-                  <section className="min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-3">
+                  <section className="app-material-content min-h-0 overflow-auto rounded-lg border p-3">
                     {persistedDraftOutput ? (
                       <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-slate-700">
                         {persistedDraftOutput}

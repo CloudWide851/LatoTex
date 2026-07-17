@@ -39,7 +39,7 @@ export function PageRail(props: {
   );
 
   return (
-    <aside className="relative h-full bg-transparent px-1.5 py-2 motion-slide-up">
+    <aside className="app-material-shell relative h-full rounded-lg border px-1.5 py-2 motion-slide-up">
       <div className="flex h-full flex-col items-center gap-2">
         {items.map((item) => {
           const Icon = item.icon;
@@ -49,12 +49,13 @@ export function PageRail(props: {
               key={item.id}
               type="button"
               aria-label={item.label}
+              aria-current={selected ? "page" : undefined}
               title={item.label}
               className={cn(
-                "relative flex h-11 w-11 items-center justify-center rounded-md border transition",
+                "app-page-rail-item relative flex h-11 w-11 items-center justify-center rounded-md border transition",
                 selected
-                  ? "border-primary-600 bg-primary-600 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900",
+                  ? "app-page-rail-item--active"
+                  : "app-page-rail-item--idle",
               )}
               onClick={() => onChange(item.id)}
               onMouseEnter={(event) => {
@@ -86,7 +87,7 @@ export function PageRail(props: {
       {tooltip && tooltipContainer
         ? createPortal(
           <div
-            className="pointer-events-none fixed z-[320] -translate-y-1/2 whitespace-nowrap rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-100 shadow-lg"
+            className="app-material-floating pointer-events-none fixed z-[320] -translate-y-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[11px]"
             style={{ left: tooltip.x, top: tooltip.y }}
           >
             {tooltip.label}

@@ -246,12 +246,12 @@ export function GitWorkspace(props: {
     const downloading =
       statusText === "downloading" || statusText === "cancelling" || statusText === "installer-started";
     return (
-      <div className="grid h-full place-items-center rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
-        <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="app-material-panel grid h-full place-items-center rounded-lg border p-6">
+        <div className="app-material-content w-full max-w-lg rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-slate-800">{t("git.installRequired")}</h3>
           <p className="mt-2 text-xs text-slate-600">{t("git.installHint")}</p>
           {downloadStatus && (
-            <div className="mt-3 space-y-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
+            <div className="app-material-inset mt-3 space-y-2 rounded-md border p-3 text-xs text-slate-700">
               <div className="flex items-center justify-between">
                 <span>{downloadStatus.fileName}</span>
                 <span>{downloadStatus.progressPercent.toFixed(1)}%</span>
@@ -308,7 +308,7 @@ export function GitWorkspace(props: {
       initProgress?.phase === "initializing" ||
       initProgress?.phase === "refreshing";
     return (
-      <div className="grid h-full place-items-center rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+      <div className="app-material-panel grid h-full place-items-center rounded-lg border border-dashed p-6 text-sm text-slate-500">
         <div className="flex flex-col items-center gap-3">
           <div>{t("git.notRepo")}</div>
           {initProgress?.message ? <div className="text-xs text-slate-500">{initProgress.message}</div> : null}
@@ -322,7 +322,7 @@ export function GitWorkspace(props: {
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[44px_auto_minmax(0,1fr)] gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-soft motion-slide-up">
+    <div className="app-material-panel grid h-full min-h-0 grid-rows-[44px_auto_minmax(0,1fr)] gap-2 rounded-lg border p-3 motion-slide-up">
       <div className="panel-topbar flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <GitBranch className="h-4 w-4" />
@@ -372,7 +372,7 @@ export function GitWorkspace(props: {
           className={`rounded border px-2 py-1 text-xs ${
             activeTab === "commit"
               ? "border-primary-500 bg-primary-50 text-primary-900"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+              : "app-material-inset text-slate-700"
           }`}
           onClick={() => setActiveTab("commit")}
         >
@@ -382,7 +382,7 @@ export function GitWorkspace(props: {
           className={`rounded border px-2 py-1 text-xs ${
             activeTab === "history"
               ? "border-primary-500 bg-primary-50 text-primary-900"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+              : "app-material-inset text-slate-700"
           }`}
           onClick={() => setActiveTab("history")}
         >

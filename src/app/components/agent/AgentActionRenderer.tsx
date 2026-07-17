@@ -27,7 +27,7 @@ export function AgentActionRenderer(props: { actions: AgentAction[] }) {
         return (
           <div
             key={`${action.type}:${action.tool ?? ""}:${action.path ?? ""}:${index}`}
-            className="rounded border border-slate-200 bg-white/80 px-2 py-1.5"
+            className="app-material-inset rounded border px-2 py-1.5"
           >
             <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               <Icon className="h-3.5 w-3.5" />

@@ -9,19 +9,31 @@ export function NoProjectPanel(props: {
 }) {
   const { busy, onOpenFolder, t } = props;
   return (
-    <div
-      className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 motion-slide-up"
+    <section
+      className="app-material-panel flex h-full flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center motion-slide-up"
+      aria-labelledby="workspace-welcome-title"
     >
-      <p className="mb-3 text-sm text-slate-600">{t("workspace.noProject")}</p>
+      <div className="app-material-inset mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border text-[color:var(--app-accent)] shadow-sm">
+        <FolderOpen className="h-7 w-7" aria-hidden="true" />
+      </div>
+      <h2 id="workspace-welcome-title" className="max-w-xl text-xl font-semibold tracking-tight text-slate-900">
+        {t("workspace.welcomeTitle")}
+      </h2>
+      <p className="mt-2 max-w-lg text-sm leading-6 text-slate-600">
+        {t("workspace.welcomeDescription")}
+      </p>
       <button
-        className="rounded border border-slate-300 bg-white p-2 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+        className="control-button control-button--primary mt-6 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm disabled:opacity-50"
         onClick={onOpenFolder}
         disabled={busy}
-        title={t("topbar.openFolder")}
-        aria-label={t("topbar.openFolder")}
+        title={t("workspace.openProjectFolder")}
       >
-        <FolderOpen className="h-5 w-5" />
+        <FolderOpen className="h-4 w-4" aria-hidden="true" />
+        <span>{t("workspace.openProjectFolder")}</span>
       </button>
-    </div>
+      <p className="mt-3 max-w-md text-xs leading-5 text-slate-500">
+        {t("workspace.folderHint")}
+      </p>
+    </section>
   );
 }

@@ -124,7 +124,7 @@ export function PluginMarketplaceDetailDialog(props: {
         role="dialog"
         aria-modal="true"
         aria-label={t("plugins.details")}
-        className="grid max-h-[86vh] w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft motion-card-pop motion-panel-glow"
+        className="app-material-floating grid max-h-[86vh] w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl motion-card-pop motion-panel-glow"
       >
         <header className="flex min-w-0 items-start gap-3 border-b border-slate-200 bg-gradient-to-br from-white via-slate-50 to-primary-50/40 px-4 py-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary-200 bg-white text-primary-700 shadow-sm">
@@ -156,7 +156,7 @@ export function PluginMarketplaceDetailDialog(props: {
         </header>
 
         <div className="settings-scrollbar-hidden min-h-0 space-y-3 overflow-auto p-4 text-sm">
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="app-material-inset rounded-lg border p-3">
             <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
               {t("plugins.detail.overview")}
             </h4>
@@ -173,7 +173,7 @@ export function PluginMarketplaceDetailDialog(props: {
             </div>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="app-material-inset rounded-lg border p-3">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary-700" />
               <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -194,7 +194,7 @@ export function PluginMarketplaceDetailDialog(props: {
             )}
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="app-material-inset rounded-lg border p-3">
             <div className="flex items-center gap-2">
               <Package className="h-4 w-4 text-primary-700" />
               <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -223,7 +223,7 @@ export function PluginMarketplaceDetailDialog(props: {
           </section>
 
           {toolchain ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-3">
+            <section className="app-material-inset rounded-lg border p-3">
               <div className="flex items-center gap-2">
                 <Code2 className="h-4 w-4 text-primary-700" />
                 <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -268,7 +268,7 @@ export function PluginMarketplaceDetailDialog(props: {
           ) : null}
 
           {runtimeAsset ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-3">
+            <section className="app-material-inset rounded-lg border p-3">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-primary-700" />
                 <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -302,7 +302,7 @@ export function PluginMarketplaceDetailDialog(props: {
             </section>
           ) : null}
 
-          <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <section className="app-material-inset rounded-lg border p-3">
             <div className="flex items-center gap-2">
               {entry.validation.ok ? (
                 <CheckCircle2 className="h-4 w-4 text-emerald-700" />

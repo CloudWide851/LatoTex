@@ -41,7 +41,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     readOnly = false,
     syncId = "viewer",
     syncGroupRef,
-    containerClassName = "library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded border border-slate-200 bg-slate-100",
+    containerClassName = "app-material-content library-scrollbar relative min-h-0 min-w-0 h-full overflow-x-auto overflow-y-scroll rounded border",
     documentClassName = "mx-auto flex w-max min-w-full flex-col [gap:var(--app-pdf-page-gap)] p-3 pr-4 pb-4",
     onZoomChange,
     initialScrollAnchor = null,

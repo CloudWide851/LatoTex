@@ -440,14 +440,14 @@ export function LibraryDocumentViewer(props: {
 
   if (!selectedPath) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+      <div className="app-material-panel flex h-full items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
         {t("library.noSelection")}
       </div>
     );
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2">
+    <div className="app-material-panel grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] gap-2 rounded-lg border p-2">
       <LibraryDocumentToolbar
         selectedPath={selectedPath}
         viewMode={viewMode}

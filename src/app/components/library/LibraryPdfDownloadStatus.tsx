@@ -48,7 +48,7 @@ export function LibraryPdfDownloadToast(props: {
     : t("library.viewer.downloadingPdf");
 
   return (
-    <div className={`pointer-events-none absolute right-3 ${offsetTopClassName} z-20 w-64 max-w-[calc(100%-1.5rem)] rounded-xl border border-slate-200 bg-white/96 p-3 shadow-lg backdrop-blur-sm`}>
+    <div className={`app-material-floating pointer-events-none absolute right-3 ${offsetTopClassName} z-20 w-64 max-w-[calc(100%-1.5rem)] rounded-xl p-3`}>
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700">
           <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -76,7 +76,7 @@ export function LibraryPdfBlockedNotice(props: {
   const { error, retryAvailable, onRetry, t } = props;
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+    <div className="app-material-inset rounded-lg border px-3 py-2 text-xs text-slate-600">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-medium text-slate-700">{t("library.viewer.pdfBlocked")}</div>

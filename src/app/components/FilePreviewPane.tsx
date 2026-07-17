@@ -1,3 +1,4 @@
+import { FileQuestion } from "lucide-react";
 import { Suspense, lazy, useMemo } from "react";
 
 const LazyMarkdownPreviewPane = lazy(async () => {
@@ -9,6 +10,17 @@ const LazyWorkspacePdfViewport = lazy(async () => {
   const module = await import("./pdf/WorkspacePdfViewport");
   return { default: module.WorkspacePdfViewport };
 });
+
+function PreviewEmptyState(props: { message: string }) {
+  return (
+    <div className="app-material-inset flex h-full flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center">
+      <span className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--app-material-border)] text-[color:var(--app-accent)]">
+        <FileQuestion className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <p className="max-w-sm text-xs leading-5 text-slate-500">{props.message}</p>
+    </div>
+  );
+}
 
 function sanitizePreviewText(input: string): string {
   return input
@@ -161,7 +173,7 @@ export function FilePreviewPane(props: {
   const svgDoc = useMemo(() => buildSvgPreviewDocument(sanitizedSvg), [sanitizedSvg]);
   const htmlDoc = useMemo(() => buildHtmlPreviewDocument(htmlContent ?? ""), [htmlContent]);
   const loadingFallback = (
-    <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
+    <div className="app-material-inset flex h-full items-center justify-center rounded-lg border px-3 text-xs text-slate-500">
       {t("common.loading")}
     </div>
   );
@@ -185,28 +197,24 @@ export function FilePreviewPane(props: {
 
   if (mode === "image") {
     return imageUrl ? (
-      <div className="flex h-full items-center justify-center overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
+      <div className="app-material-content flex h-full items-center justify-center overflow-auto rounded-lg border p-2">
         <img
           src={imageUrl}
           alt={title}
-          className="max-h-full max-w-full rounded border border-slate-200 bg-white shadow-sm"
+          className="app-document-surface max-h-full max-w-full rounded border border-slate-200 shadow-sm"
         />
       </div>
     ) : (
-      <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
-        {emptyText}
-      </div>
+      <PreviewEmptyState message={emptyText} />
     );
   }
 
   if (mode === "markdown") {
     if (markdownAsHtml) {
       return markdownContent.trim().length === 0 ? (
-        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-          {emptyText}
-        </div>
+        <PreviewEmptyState message={emptyText} />
       ) : (
-        <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <div className="app-document-surface h-full overflow-hidden rounded-lg border border-slate-200">
           <iframe
             title={title}
             sandbox=""
@@ -217,7 +225,7 @@ export function FilePreviewPane(props: {
       );
     }
     return (
-      <div className="h-full overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+      <div className="app-material-content h-full overflow-auto rounded-lg border p-3 text-sm text-slate-700">
         <Suspense fallback={loadingFallback}>
           <LazyMarkdownPreviewPane
             activeProjectId={activeProjectId ?? null}
@@ -233,11 +241,9 @@ export function FilePreviewPane(props: {
 
   if (mode === "svg") {
     return sanitizedSvg.trim().length === 0 ? (
-      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-        {emptyText}
-      </div>
+      <PreviewEmptyState message={emptyText} />
     ) : (
-      <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+      <div className="app-material-content h-full overflow-hidden rounded-lg border">
         <iframe
           title={title}
           sandbox="allow-same-origin"
@@ -250,11 +256,9 @@ export function FilePreviewPane(props: {
 
   if (mode === "html") {
     return htmlContent.trim().length === 0 ? (
-      <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-        {emptyText}
-      </div>
+      <PreviewEmptyState message={emptyText} />
     ) : (
-      <div className="h-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="app-document-surface h-full overflow-hidden rounded-lg border border-slate-200">
         <iframe
           title={title}
           sandbox=""
@@ -266,9 +270,7 @@ export function FilePreviewPane(props: {
   }
 
   return (
-    <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
-      {emptyText}
-    </div>
+    <PreviewEmptyState message={emptyText} />
   );
 }
 

@@ -59,12 +59,12 @@ export function DrawWorkspaceTabs(props: {
               className={`group inline-flex h-7 min-w-0 max-w-[260px] items-center gap-1 rounded border px-2 text-xs ${
                 active
                   ? "border-primary-400 bg-primary-50 text-primary-800"
-                  : "border-slate-300 bg-white text-slate-700"
+                  : "app-material-inset text-slate-700"
               }`}
             >
               {editing ? (
                 <input
-                  className="h-5 min-w-0 flex-1 rounded border border-slate-300 bg-white px-1 text-xs text-slate-700"
+                  className="app-material-inset h-5 min-w-0 flex-1 rounded border px-1 text-xs text-slate-700"
                   value={renameInput}
                   autoFocus
                   onChange={(event) => onRenameInputChange(event.target.value)}
@@ -113,7 +113,7 @@ export function DrawWorkspaceTabs(props: {
         })}
         <button
           type="button"
-          className="panel-topbar-btn inline-flex shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          className="panel-topbar-btn inline-flex shrink-0 items-center justify-center rounded border disabled:opacity-50"
           onClick={onCreateNewTab}
           disabled={busy}
           title={t("draw.newTab")}

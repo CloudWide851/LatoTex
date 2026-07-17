@@ -85,7 +85,7 @@ export function GitChangeList(props: {
           <div
             key={`${entry.path}-${entry.indexStatus}-${entry.worktreeStatus}-${staged ? "staged" : "unstaged"}`}
             className={cn(
-              "rounded-md border bg-white shadow-sm",
+              "app-material-inset rounded-md border",
               isActive ? "border-primary-300" : "border-slate-200",
             )}
           >

@@ -98,7 +98,7 @@ export function ChannelsSettingsSection(props: {
 
   return (
     <div className="grid gap-3">
-      <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-soft">
+      <section className="app-material-content relative overflow-hidden rounded-[22px] border">
         {backgroundUrl ? (
           <>
             <div
@@ -136,7 +136,7 @@ export function ChannelsSettingsSection(props: {
           <SettingsBooleanRow
             label={t("settings.channels.telegramEnabled")}
             checked={Boolean(settings?.uiPrefs?.channels?.telegramEnabled)}
-            className="mt-4 rounded-2xl border border-slate-200/80 bg-white/72 px-3 py-3 text-xs text-slate-700 shadow-none"
+            className="app-material-inset mt-4 rounded-2xl border px-3 py-3 text-xs text-slate-700 shadow-none"
             textClassName="text-slate-700"
             checkboxClassName="border-slate-400"
             onCheckedChange={(nextValue) => setChannelField({ telegramEnabled: nextValue })}
@@ -144,7 +144,7 @@ export function ChannelsSettingsSection(props: {
           <SettingsBooleanRow
             label={t("settings.channels.telegramProxyEnabled")}
             checked={telegramProxyEnabledValue(settings?.uiPrefs?.channels)}
-            className="mt-2 rounded-2xl border border-slate-200/80 bg-white/72 px-3 py-3 text-xs text-slate-700 shadow-none"
+            className="app-material-inset mt-2 rounded-2xl border px-3 py-3 text-xs text-slate-700 shadow-none"
             textClassName="text-slate-700"
             checkboxClassName="border-slate-400"
             onCheckedChange={(nextValue) => setChannelField({ telegramProxyEnabled: nextValue })}
@@ -161,7 +161,7 @@ export function ChannelsSettingsSection(props: {
                 placeholder={t("settings.channels.telegramToken")}
                 autoComplete="off"
                 spellCheck={false}
-                className="h-9 border-slate-200/90 bg-white/78 text-xs text-slate-800 placeholder:text-slate-400"
+                className="app-material-inset h-9 text-xs text-slate-800 placeholder:text-slate-400"
               />
             </label>
             <label className="grid gap-1.5">
@@ -174,7 +174,7 @@ export function ChannelsSettingsSection(props: {
                 placeholder={t("settings.channels.telegramChatId")}
                 autoComplete="off"
                 spellCheck={false}
-                className="h-9 border-slate-200/90 bg-white/78 text-xs text-slate-800 placeholder:text-slate-400"
+                className="app-material-inset h-9 text-xs text-slate-800 placeholder:text-slate-400"
               />
             </label>
           </div>
@@ -188,7 +188,7 @@ export function ChannelsSettingsSection(props: {
               placeholder={t("settings.channels.telegramApiBaseUrlPlaceholder")}
               autoComplete="off"
               spellCheck={false}
-              className="h-9 border-slate-200/90 bg-white/78 text-xs text-slate-800 placeholder:text-slate-400"
+              className="app-material-inset h-9 text-xs text-slate-800 placeholder:text-slate-400"
             />
           </label>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -220,7 +220,7 @@ export function ChannelsSettingsSection(props: {
         formatError={channelErrorText}
         t={t}
       />
-      <section className="relative overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-soft">
+      <section className="app-material-content relative overflow-hidden rounded-[22px] border">
         {backgroundUrl ? (
           <>
             <div
@@ -249,7 +249,7 @@ export function ChannelsSettingsSection(props: {
           <SettingsBooleanRow
             label={t("settings.channels.dingtalkEnabled")}
             checked={Boolean(settings?.uiPrefs?.channels?.dingtalkEnabled)}
-            className="mt-4 rounded-2xl border border-slate-200/80 bg-white/72 px-3 py-3 text-xs text-slate-700 shadow-none"
+            className="app-material-inset mt-4 rounded-2xl border px-3 py-3 text-xs text-slate-700 shadow-none"
             textClassName="text-slate-700"
             checkboxClassName="border-slate-400"
             onCheckedChange={(nextValue) => setChannelField({ dingtalkEnabled: nextValue })}
@@ -265,7 +265,7 @@ export function ChannelsSettingsSection(props: {
                 placeholder={t("settings.channels.dingtalkClientId")}
                 autoComplete="off"
                 spellCheck={false}
-                className="h-9 border-slate-200/90 bg-white/78 text-xs text-slate-800 placeholder:text-slate-400"
+                className="app-material-inset h-9 text-xs text-slate-800 placeholder:text-slate-400"
               />
             </label>
             <label className="grid gap-1.5">
@@ -279,7 +279,7 @@ export function ChannelsSettingsSection(props: {
                 placeholder={t("settings.channels.dingtalkClientSecret")}
                 autoComplete="off"
                 spellCheck={false}
-                className="h-9 border-slate-200/90 bg-white/78 text-xs text-slate-800 placeholder:text-slate-400"
+                className="app-material-inset h-9 text-xs text-slate-800 placeholder:text-slate-400"
               />
             </label>
           </div>

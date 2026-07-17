@@ -5,7 +5,7 @@ type TranslationFn = (key: any) => string;
 
 export function DrawWorkspaceNoProject(props: { t: TranslationFn }) {
   return (
-    <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
+    <section className="app-material-panel flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
       {props.t("workspace.noProject")}
     </section>
   );
@@ -14,7 +14,7 @@ export function DrawWorkspaceNoProject(props: { t: TranslationFn }) {
 export function DrawWorkspacePluginRequired(props: { onOpenPlugins: () => void; t: TranslationFn }) {
   const { onOpenPlugins, t } = props;
   return (
-    <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+    <section className="app-material-panel flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed p-6 text-center">
       <div className="max-w-md">
         <div className="text-sm font-semibold text-slate-900">{t("draw.pluginRequiredTitle")}</div>
         <p className="mt-2 text-xs leading-5 text-slate-500">{t("draw.pluginRequiredBody")}</p>
@@ -133,7 +133,7 @@ export function DrawWorkspaceFrameSurface(props: {
         }}
       />
       {framePhase !== "ready" ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/92 px-4 text-center text-xs text-slate-500">
+        <div className="app-material-floating absolute inset-0 flex items-center justify-center px-4 text-center text-xs text-slate-500">
           {status || t("draw.waiting")}
         </div>
       ) : null}

@@ -79,19 +79,19 @@ export function WorkspacePreviewPanel(props: {
   const installProgressPercent = Math.max(0, Math.min(100, Math.round(visibleCompileInstallProgress?.percent ?? 0)));
 
   return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-2 shadow-soft motion-slide-up">
+    <aside className="app-material-panel flex h-full min-h-0 flex-col overflow-hidden rounded-lg border p-2 motion-slide-up">
       <div className="panel-topbar mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-700">{t("preview.title")}</h2>
         <div className="flex items-center gap-1">
           <button
-            className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+            className="panel-topbar-btn rounded border"
             title={t("preview.events")}
             onClick={() => onOpenLogs("events")}
           >
             <ListChecks className="h-3.5 w-3.5" />
           </button>
           <button
-            className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+            className="panel-topbar-btn rounded border"
             title={t("preview.diagnostics")}
             onClick={() => onOpenLogs("status")}
           >
@@ -100,7 +100,7 @@ export function WorkspacePreviewPanel(props: {
           {!selectedIsTabular ? (
             <>
               <button
-                className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn rounded border disabled:opacity-40"
                 title={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
                 aria-label={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
                 onClick={onExportPdf}
@@ -109,7 +109,7 @@ export function WorkspacePreviewPanel(props: {
                 <Download className="h-3.5 w-3.5" />
               </button>
               <button
-                className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn rounded border disabled:opacity-40"
                 title={t("preview.zoomOut")}
                 aria-label={t("preview.zoomOut")}
                 onClick={onZoomOut}
@@ -118,7 +118,7 @@ export function WorkspacePreviewPanel(props: {
                 <Minus className="h-3.5 w-3.5" />
               </button>
               <button
-                className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn rounded border disabled:opacity-40"
                 title={t("preview.zoomIn")}
                 aria-label={t("preview.zoomIn")}
                 onClick={onZoomIn}
@@ -127,7 +127,7 @@ export function WorkspacePreviewPanel(props: {
                 <Plus className="h-3.5 w-3.5" />
               </button>
               <button
-                className="panel-topbar-btn rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn rounded border disabled:opacity-40"
                 title={t("preview.zoomReset")}
                 aria-label={t("preview.zoomReset")}
                 onClick={onZoomReset}
@@ -164,7 +164,7 @@ export function WorkspacePreviewPanel(props: {
       ) : null}
       <div
         data-testid="workspace-preview-content"
-        className="min-h-0 flex-1"
+        className="app-material-content min-h-0 flex-1 overflow-hidden rounded-lg border"
       >
         {selectedIsTabular ? (
           <Suspense fallback={<div className="flex h-full items-center justify-center text-xs text-slate-500">{t("common.loading")}</div>}>

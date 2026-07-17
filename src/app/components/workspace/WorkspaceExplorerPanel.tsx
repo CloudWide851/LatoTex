@@ -51,12 +51,12 @@ export function WorkspaceExplorerPanel(props: {
   } = props;
 
   return (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5 shadow-soft motion-slide-up">
+    <aside className="app-material-panel h-full min-h-0 overflow-hidden rounded-lg border p-1.5 motion-slide-up">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("explorer.title")}</h2>
         <button
           type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border transition disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => void onWorkspaceRescan()}
           disabled={busy || !activeProjectId}
           title={t("explorer.action.rescan")}

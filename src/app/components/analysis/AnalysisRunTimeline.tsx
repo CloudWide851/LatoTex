@@ -82,7 +82,7 @@ export function AnalysisRunTimeline(props: {
 
   return (
     <section className={cn(
-      "flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50 p-2",
+      "app-material-content flex h-full min-h-0 flex-col overflow-hidden rounded-lg border p-2",
       compact ? "motion-card-pop" : "",
     )}>
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("analysis.timeline")}</h4>

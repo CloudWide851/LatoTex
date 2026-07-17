@@ -6,12 +6,9 @@ use super::ShareSyncEvent;
 #[serde(rename_all = "camelCase")]
 pub(super) struct PushSyncBody {
     pub sid: String,
-    pub pwd: String,
     pub client_id: String,
     pub update: String,
     pub participant_id: Option<String>,
-    pub participant_token: Option<String>,
-    pub username: Option<String>,
     pub action: Option<String>,
 }
 
@@ -19,14 +16,12 @@ pub(super) struct PushSyncBody {
 #[serde(rename_all = "camelCase")]
 pub(super) struct SessionBody {
     pub sid: String,
-    pub pwd: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct UploadPdfBody {
     pub sid: String,
-    pub pwd: String,
     pub pdf_base64: String,
 }
 
@@ -43,9 +38,7 @@ pub(super) struct JoinBody {
 #[serde(rename_all = "camelCase")]
 pub(super) struct PresencePingBody {
     pub sid: String,
-    pub pwd: String,
     pub participant_id: String,
-    pub participant_token: Option<String>,
     pub action: Option<String>,
 }
 
@@ -53,9 +46,7 @@ pub(super) struct PresencePingBody {
 #[serde(rename_all = "camelCase")]
 pub(super) struct CommentPostBody {
     pub sid: String,
-    pub pwd: String,
     pub participant_id: Option<String>,
-    pub participant_token: Option<String>,
     pub username: Option<String>,
     pub id: Option<String>,
     pub text: Option<String>,

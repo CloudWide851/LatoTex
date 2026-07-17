@@ -15,6 +15,7 @@ import { TerminalSessionRail } from "./TerminalSessionRail";
 import { TerminalSuggestionOverlay } from "./TerminalSuggestionOverlay";
 import { loadTerminalState, saveTerminalState } from "./terminalPersistence";
 import { buildTerminalSuggestions, nextTerminalInputLine } from "./terminalSuggestions";
+import { getTerminalSurfaceTheme } from "./terminalSurfaceTheme";
 import { reorderTerminalTabs } from "./terminalTabOrder";
 import type { ProjectTerminalState, TerminalTab, TranslationFn } from "./terminalTypes";
 
@@ -113,23 +114,6 @@ function persistState(projectId: string | null, tabs: TerminalTab[], activeTabId
     activeTabId,
   });
   saveTerminalState(projectId, tabs, activeTabId);
-}
-
-function xtermTheme() {
-  const dark = typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
-  return dark
-    ? {
-        background: "#0f172a",
-        foreground: "#e2e8f0",
-        cursor: "#38bdf8",
-        selectionBackground: "#334155",
-      }
-    : {
-        background: "#111827",
-        foreground: "#f8fafc",
-        cursor: "#34d399",
-        selectionBackground: "#475569",
-      };
 }
 
 export function WorkspaceTerminalPanel(props: {
@@ -362,7 +346,7 @@ export function WorkspaceTerminalPanel(props: {
       fontSize: Math.round(12 * Math.max(0.85, Math.min(1.25, Number(fontScale) || 1))),
       lineHeight: 1.25,
       scrollback: 4000,
-      theme: xtermTheme(),
+      theme: getTerminalSurfaceTheme(),
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -536,7 +520,7 @@ export function WorkspaceTerminalPanel(props: {
   const statusLabel = busyTabId === activeTab?.id ? t("terminal.starting") : activeTab?.status ?? "idle";
 
   return (
-    <section className="flex h-full min-h-0 overflow-hidden rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-paper-bg)] text-[color:var(--editor-tab-text)]">
+    <section className="app-material-content app-terminal-surface flex h-full min-h-0 overflow-hidden rounded-lg border text-[color:var(--editor-tab-text)]">
       <TerminalSessionRail
         tabs={tabs}
         activeTabId={activeTabId}
@@ -582,7 +566,7 @@ export function WorkspaceTerminalPanel(props: {
             {activeTab.error}
           </div>
         ) : null}
-        <div className="relative min-h-0 flex-1 overflow-hidden bg-slate-950 p-1">
+        <div className="app-terminal-viewport relative min-h-0 flex-1 overflow-hidden p-1">
           <div ref={viewportRef} className="h-full min-h-0" />
           <TerminalSuggestionOverlay
             suggestions={suggestions}

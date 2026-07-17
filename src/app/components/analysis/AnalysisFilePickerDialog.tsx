@@ -18,7 +18,7 @@ export function AnalysisFilePickerDialog(props: {
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="grid h-[min(76vh,640px)] w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-lg border border-slate-300 bg-white shadow-soft">
+      <div className="app-material-floating grid h-[min(76vh,640px)] w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-lg">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h3 className="text-sm font-semibold text-slate-800">{t("analysis.filePickerTitle")}</h3>
           <div className="flex items-center gap-2">
@@ -43,7 +43,7 @@ export function AnalysisFilePickerDialog(props: {
               return (
                 <button
                   key={path}
-                  className="flex w-full items-center gap-2 rounded border border-slate-200 bg-white px-2 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                  className="app-material-inset flex w-full items-center gap-2 rounded border px-2 py-2 text-left text-xs text-slate-700"
                   onClick={() => onToggleFile(path)}
                 >
                   <FlatCheckIndicator checked={checked} />

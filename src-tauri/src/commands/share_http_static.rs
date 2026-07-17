@@ -23,22 +23,7 @@ fn content_type_header(value: &str) -> Header {
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/octet-stream").unwrap())
 }
 
-fn static_text_response(
-    content: &'static str,
-    header: Header,
-) -> Response<std::io::Cursor<Vec<u8>>> {
-    share_http_response::with_share_headers(
-        Response::from_string(content)
-            .with_status_code(StatusCode(200))
-            .with_header(header)
-            .with_header(no_cache_header()),
-    )
-}
-
-fn static_bytes_response(
-    content: Vec<u8>,
-    header: Header,
-) -> Response<std::io::Cursor<Vec<u8>>> {
+fn static_bytes_response(content: Vec<u8>, header: Header) -> Response<std::io::Cursor<Vec<u8>>> {
     share_http_response::with_share_headers(
         Response::from_data(content)
             .with_status_code(StatusCode(200))
@@ -55,7 +40,8 @@ fn static_asset_bytes_response(
 }
 
 fn resolve_share_vendor_root() -> Option<PathBuf> {
-    let mut candidates = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/share-vendor")];
+    let mut candidates =
+        vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/share-vendor")];
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             candidates.push(exe_dir.join("resources/core/share-vendor"));
@@ -67,7 +53,8 @@ fn resolve_share_vendor_root() -> Option<PathBuf> {
 }
 
 fn resolve_share_page_root() -> Option<PathBuf> {
-    let mut candidates = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/share-page")];
+    let mut candidates =
+        vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/core/share-page")];
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             candidates.push(exe_dir.join("resources/core/share-page"));
@@ -103,7 +90,11 @@ fn normalize_vendor_relative_path(request_path: &str) -> Result<PathBuf, String>
 }
 
 fn vendor_header_for_path(path: &Path) -> Header {
-    match path.extension().and_then(|value| value.to_str()).unwrap_or_default() {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+    {
         "js" | "mjs" => javascript_header(),
         "css" => css_header(),
         "json" => content_type_header("application/json; charset=utf-8"),
@@ -114,7 +105,11 @@ fn vendor_header_for_path(path: &Path) -> Header {
 }
 
 fn share_page_header_for_path(path: &Path) -> Header {
-    match path.extension().and_then(|value| value.to_str()).unwrap_or_default() {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+    {
         "html" => content_type_header("text/html; charset=utf-8"),
         "js" | "mjs" => javascript_header(),
         "css" => css_header(),
@@ -127,7 +122,10 @@ fn try_vendor_response(path: &str) -> Option<Response<std::io::Cursor<Vec<u8>>>>
     let relative = normalize_vendor_relative_path(path).ok()?;
     let absolute = root.join(relative);
     let bytes = fs::read(&absolute).ok()?;
-    Some(static_bytes_response(bytes, vendor_header_for_path(&absolute)))
+    Some(static_bytes_response(
+        bytes,
+        vendor_header_for_path(&absolute),
+    ))
 }
 
 fn try_share_page_asset_response(path: &str) -> Option<Response<std::io::Cursor<Vec<u8>>>> {
@@ -139,7 +137,10 @@ fn try_share_page_asset_response(path: &str) -> Option<Response<std::io::Cursor<
         _ => return None,
     };
     let bytes = fs::read(&absolute).ok()?;
-    Some(static_bytes_response(bytes, share_page_header_for_path(&absolute)))
+    Some(static_bytes_response(
+        bytes,
+        share_page_header_for_path(&absolute),
+    ))
 }
 
 pub(super) fn try_serve_static_route(
@@ -147,7 +148,8 @@ pub(super) fn try_serve_static_route(
     path: &str,
     request: Request,
 ) -> Option<Request> {
-    if *method == Method::Get && (path == "/favicon.ico" || path == "/assets/logo-icon-rounded.svg") {
+    if *method == Method::Get && (path == "/favicon.ico" || path == "/assets/logo-icon-rounded.svg")
+    {
         let _ = request.respond(static_asset_bytes_response(
             include_bytes!("../../../src/assets/branding/logo-icon-rounded.svg"),
             svg_header(),
@@ -161,58 +163,7 @@ pub(super) fn try_serve_static_route(
         let _ = request.respond(response);
         return None;
     }
-    if path == "/" {
-        let _ = request.respond(html_response(include_str!("share_page.html")));
-        return None;
-    }
     if let Some(response) = try_vendor_response(path) {
-        let _ = request.respond(response);
-        return None;
-    }
-    let maybe_content = match path {
-        "/assets/share_page.js" => Some(static_text_response(
-            include_str!("share_page_entry.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_app.js" => Some(static_text_response(
-            include_str!("share_page_app.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_desktop.js" => Some(static_text_response(
-            include_str!("share_page_desktop.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_mobile.js" => Some(static_text_response(
-            include_str!("share_page_mobile.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_pdf.js" => Some(static_text_response(
-            include_str!("share_page_pdf.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_i18n.js" => Some(static_text_response(
-            include_str!("share_page_i18n.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_render.js" => Some(static_text_response(
-            include_str!("share_page_render.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_editor.js" => Some(static_text_response(
-            include_str!("share_page_editor.js"),
-            javascript_header(),
-        )),
-        "/assets/share_page_utils.js" => Some(static_text_response(
-            include_str!("share_page_utils.js"),
-            javascript_header(),
-        )),
-        "/assets/pico.min.css" => Some(static_text_response(
-            include_str!("share_page_pico.min.css"),
-            css_header(),
-        )),
-        _ => None,
-    };
-    if let Some(response) = maybe_content {
         let _ = request.respond(response);
         return None;
     }

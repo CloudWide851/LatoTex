@@ -55,7 +55,7 @@ function ParticipantList(props: { participants: ShareParticipantInfo[]; t: Trans
   return (
     <div className="max-h-28 space-y-1 overflow-auto">
       {participants.map((item) => (
-        <div key={item.participantId} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1">
+        <div key={item.participantId} className="app-material-inset flex items-center justify-between gap-2 rounded border px-2 py-1">
           <div className="flex min-w-0 items-center gap-2">
             <span
               className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white"
@@ -86,7 +86,7 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
         <button
           key={item.participantId}
           type="button"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] text-slate-700 shadow-sm"
+          className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] text-slate-700"
           title={item.username || item.participantId}
         >
           <span
@@ -98,7 +98,7 @@ function ParticipantChips(props: { participants: ShareParticipantInfo[]; t: Tran
         </button>
       ))}
       {participants.length > visible.length ? (
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] text-slate-600">
+        <span className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded-full border text-[11px] text-slate-600">
           +{participants.length - visible.length}
         </span>
       ) : null}
@@ -113,11 +113,6 @@ function CompactShareStatusBubble(props: {
   t: TranslationFn;
 }) {
   const { statusText, participants, onOpen, t } = props;
-  const solidSurfaceStyle = {
-    backgroundColor: "var(--app-surface)",
-    backdropFilter: "none",
-    WebkitBackdropFilter: "none",
-  } as const;
   return (
     <div
       className="absolute left-0 top-[calc(100%+10px)] z-[220] w-[min(264px,72vw)] cursor-pointer"
@@ -131,11 +126,10 @@ function CompactShareStatusBubble(props: {
         }
       }}
     >
-      <div className="relative ml-2 rounded-md border border-slate-300 px-2.5 py-2 shadow-sm" style={solidSurfaceStyle}>
+      <div className="app-material-floating relative ml-2 rounded-md px-2.5 py-2">
         <div
           aria-hidden="true"
-          className="absolute -top-[7px] left-3 h-3.5 w-3.5 rotate-45 border-l border-t border-slate-300"
-          style={solidSurfaceStyle}
+          className="app-material-inset absolute -top-[7px] left-3 h-3.5 w-3.5 rotate-45 border-l border-t"
         />
         <div className="relative">
           <div className="mb-1 text-[11px] font-semibold text-slate-700">{statusText}</div>
@@ -195,15 +189,6 @@ export function WorkspaceShareControl(props: {
   );
   const shareLink = shareSession?.activeJoinUrl || "";
   const localJoinLink = shareSession?.localJoinUrl || "";
-  const solidSurfaceStyle = useMemo(
-    () => ({
-      backgroundColor: "var(--app-surface)",
-      backdropFilter: "none",
-      WebkitBackdropFilter: "none",
-    }),
-    [],
-  );
-
   useEffect(() => {
     if (!panelOpen || !shareLink) {
       setQrDataUrl("");
@@ -288,7 +273,7 @@ export function WorkspaceShareControl(props: {
         className={`panel-topbar-btn relative rounded border transition disabled:opacity-60 ${
           sessionExists
             ? "border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-            : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            : "app-material-inset text-slate-700"
         }`}
         onClick={() => setPanelOpen((prev) => !prev)}
         title={t("share.openPanel")}
@@ -311,8 +296,7 @@ export function WorkspaceShareControl(props: {
 
       {panelOpen ? (
         <section
-          className="absolute left-0 top-[calc(100%+8px)] z-[230] w-[min(430px,86vw)] rounded-lg border border-slate-300 p-3 shadow-lg shadow-slate-900/8"
-          style={solidSurfaceStyle}
+          className="app-material-floating absolute left-0 top-[calc(100%+8px)] z-[230] w-[min(430px,86vw)] rounded-lg p-3"
         >
           <div className="mb-2 flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -327,7 +311,7 @@ export function WorkspaceShareControl(props: {
             </div>
             <div className="flex items-center gap-1">
               <button
-                className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
+                className="panel-topbar-btn rounded border p-1"
                 onClick={() => setDetailsExpanded((prev) => !prev)}
                 title={detailsExpanded ? t("share.panelCollapse") : t("share.panelExpand")}
                 type="button"
@@ -335,7 +319,7 @@ export function WorkspaceShareControl(props: {
                 {detailsExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
               </button>
               <button
-                className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100"
+                className="panel-topbar-btn rounded border p-1"
                 onClick={() => setPanelOpen(false)}
                 title={t("common.cancel")}
                 type="button"
@@ -348,11 +332,11 @@ export function WorkspaceShareControl(props: {
           {!detailsExpanded ? null : (
             <>
               <div className="space-y-1.5 text-xs text-slate-700">
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                <div className="app-material-inset rounded-md border p-2">
                   <div className="flex items-center justify-between gap-2">
                     <strong>{activeMode === "local" ? t("share.localLink") : t("share.publicLink")}:</strong>
                     <button
-                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border disabled:opacity-50"
                       disabled={!shareReady || !shareLink}
                       onClick={() => copyLink(shareLink)}
                       title={t("share.copyLink")}
@@ -363,11 +347,11 @@ export function WorkspaceShareControl(props: {
                   <div className="mt-1 break-all">{shareLink || "-"}</div>
                 </div>
                 {activeMode === "remote" && localJoinLink ? (
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <div className="app-material-inset rounded-md border p-2">
                     <div className="flex items-center justify-between gap-2">
                       <strong>{t("share.localLink")}:</strong>
                       <button
-                        className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                        className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border"
                         onClick={() => copyLink(localJoinLink)}
                         title={t("share.copyLink")}
                       >
@@ -377,11 +361,11 @@ export function WorkspaceShareControl(props: {
                     <div className="mt-1 break-all">{localJoinLink}</div>
                   </div>
                 ) : null}
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                <div className="app-material-inset rounded-md border p-2">
                   <div className="flex items-center justify-between gap-2">
                     <strong>{t("share.password")}:</strong>
                     <button
-                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border disabled:opacity-50"
                       disabled={!shareSession?.password}
                       onClick={() => copyPassword(shareSession?.password || "")}
                       title={t("share.copyPassword")}
@@ -391,7 +375,7 @@ export function WorkspaceShareControl(props: {
                   </div>
                   <div className="mt-1 break-all">{shareSession?.password || "-"}</div>
                 </div>
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                <div className="app-material-inset rounded-md border p-2">
                   <strong>{t("share.expiresAt")}:</strong> {shareSession?.expiresAt || "-"}
                 </div>
               {shareSession?.tunnelError ? (
@@ -422,7 +406,7 @@ export function WorkspaceShareControl(props: {
                         {t("share.conflictUseRemote")}
                       </button>
                       <button
-                        className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                        className="panel-topbar-btn rounded border px-2 py-1 text-[11px] font-medium"
                         type="button"
                         onClick={() => onShareConflictResolve("local")}
                       >
@@ -437,7 +421,7 @@ export function WorkspaceShareControl(props: {
                 {!sessionExists ? (
                   <>
                     <input
-                      className="min-w-[180px] flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                      className="app-material-inset min-w-[180px] flex-1 rounded border px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                       value={shareSessionName}
                       maxLength={120}
                       onChange={(event) => onShareSessionNameChange(event.target.value)}
@@ -465,7 +449,7 @@ export function WorkspaceShareControl(props: {
                 ) : (
                   <>
                     <button
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                      className="panel-topbar-btn rounded-md border px-2 py-1 text-xs disabled:opacity-60"
                       disabled={shareBusy}
                       onClick={() => void onShareRefresh()}
                     >
@@ -486,7 +470,7 @@ export function WorkspaceShareControl(props: {
                 ) : null}
               </div>
 
-              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
+              <div className="app-material-inset mt-3 rounded-md border p-2">
                 <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   {t("share.participants")}
                 </h4>
@@ -494,7 +478,7 @@ export function WorkspaceShareControl(props: {
               </div>
 
               {qrDataUrl ? (
-                <div className="mt-3 flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 p-2">
+                <div className="app-material-inset mt-3 flex items-start gap-3 rounded-md border p-2">
                   <img src={qrDataUrl} alt={t("share.qrAlt")} className="h-24 w-24 rounded bg-white p-1" />
                   <p className="text-[11px] leading-5 text-slate-600">
                     {activeMode === "local" ? t("share.qrHintLocal") : t("share.qrHintRemote")}

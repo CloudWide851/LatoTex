@@ -62,7 +62,7 @@ export function ExplorerDefaultsSection(props: {
         checked={libraryScrollbarVisible}
         onCheckedChange={(nextValue) => update({ libraryExplorerScrollbarVisible: nextValue })}
       />
-      <label className="grid gap-2 rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+      <label className="app-material-inset grid gap-2 rounded-[18px] border p-4 text-xs text-slate-600">
         <span className="font-medium text-slate-700">
           {t("settings.editorResizeRefreshDelay")}
         </span>

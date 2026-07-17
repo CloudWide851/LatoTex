@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/desktop";
 import type { ShareSessionInfo } from "../../shared/types/app";
+import { authenticatedDesktopShareFetch, clearDesktopShareAuth } from "./shareHttpAuth";
 
 type TranslationFn = (key: any) => string;
 
@@ -22,12 +23,7 @@ function fromBase64(raw: string): Uint8Array {
   return bytes;
 }
 
-async function postJson(url: string, payload: unknown) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+async function requireJsonResponse(response: Response) {
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || `HTTP ${response.status}`);
@@ -74,6 +70,12 @@ export function useShareSession(params: {
   const localUrl = shareSession?.localUrl ?? "";
   const sessionId = shareSession?.sessionId ?? "";
   const sessionPwd = shareSession?.password ?? "";
+  const shareConnection = useMemo(() => ({
+    active,
+    localUrl,
+    sessionId,
+    password: sessionPwd,
+  }), [active, localUrl, sessionId, sessionPwd]);
   const collabEnabled = Boolean(
     active && selectedFile && activeTarget && selectedFile.replace(/\\/g, "/") === activeTarget.replace(/\\/g, "/"),
   );
@@ -82,6 +84,9 @@ export function useShareSession(params: {
     try {
       const status = await shareSessionStatus();
       setShareSession(status.active ? status : null);
+      if (!status.active) {
+        clearDesktopShareAuth();
+      }
     } catch (error) {
       setToast({ type: "error", message: String(error) });
     }
@@ -98,6 +103,7 @@ export function useShareSession(params: {
     }
     setShareBusy(true);
     try {
+      clearDesktopShareAuth();
       const created = await shareSessionCreate(activeProjectId, selectedFile);
       setShareSession(created.active ? created : null);
       setToast({ type: "info", message: t("share.started") });
@@ -112,6 +118,7 @@ export function useShareSession(params: {
     setShareBusy(true);
     try {
       await shareSessionStop();
+      clearDesktopShareAuth();
       setShareSession(null);
       setToast({ type: "info", message: t("share.stopped") });
     } catch (error) {
@@ -158,12 +165,21 @@ export function useShareSession(params: {
     setSyncing(true);
 
     const pushUpdate = async (update: Uint8Array) => {
-      await postJson(`${localUrl}/api/sync/push`, {
-        sid: sessionId,
-        pwd: sessionPwd,
-        clientId: localClientIdRef.current,
-        update: toBase64(update),
-      });
+      const response = await authenticatedDesktopShareFetch(
+        shareConnection,
+        "/api/sync/push",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sid: sessionId,
+            clientId: localClientIdRef.current,
+            update: toBase64(update),
+          }),
+        },
+        t("share.desktopUser"),
+      );
+      await requireJsonResponse(response);
     };
 
     const onDocUpdate = (update: Uint8Array, origin: unknown) => {
@@ -186,8 +202,11 @@ export function useShareSession(params: {
     yText.observe(onText);
 
     const initialize = async () => {
-      const response = await fetch(
-        `${localUrl}/api/snapshot?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}`,
+      const response = await authenticatedDesktopShareFetch(
+        shareConnection,
+        `/api/snapshot?sid=${encodeURIComponent(sessionId)}`,
+        undefined,
+        t("share.desktopUser"),
       );
       if (!response.ok) {
         throw new Error(await response.text());
@@ -201,8 +220,11 @@ export function useShareSession(params: {
     };
 
     const pullUpdates = async () => {
-      const response = await fetch(
-        `${localUrl}/api/sync/pull?sid=${encodeURIComponent(sessionId)}&pwd=${encodeURIComponent(sessionPwd)}&cursor=${pullCursorRef.current}`,
+      const response = await authenticatedDesktopShareFetch(
+        shareConnection,
+        `/api/sync/pull?sid=${encodeURIComponent(sessionId)}&cursor=${pullCursorRef.current}`,
+        undefined,
+        t("share.desktopUser"),
       );
       if (!response.ok) {
         throw new Error(await response.text());
@@ -243,7 +265,7 @@ export function useShareSession(params: {
       yTextRef.current = null;
       doc.destroy();
     };
-  }, [collabEnabled, editorContent, localUrl, sessionId, sessionPwd, setEditorContent, setToast]);
+  }, [collabEnabled, editorContent, localUrl, sessionId, sessionPwd, setEditorContent, setToast, shareConnection, t]);
 
   useEffect(() => {
     if (!collabEnabled || applyingRemoteRef.current) {
@@ -269,10 +291,17 @@ export function useShareSession(params: {
       return;
     }
     compilePollRef.current = Number(window.setInterval(() => {
-      void postJson(`${localUrl}/api/compile/take`, {
-        sid: sessionId,
-        pwd: sessionPwd,
-      })
+      void authenticatedDesktopShareFetch(
+        shareConnection,
+        "/api/compile/take",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sid: sessionId }),
+        },
+        t("share.desktopUser"),
+      )
+        .then(requireJsonResponse)
         .then(async (payload) => {
           if (payload?.requested) {
             await onCompile();
@@ -286,7 +315,7 @@ export function useShareSession(params: {
         compilePollRef.current = null;
       }
     };
-  }, [active, localUrl, onCompile, sessionId, sessionPwd]);
+  }, [active, localUrl, onCompile, sessionId, sessionPwd, shareConnection, t]);
 
   useEffect(() => {
     if (!active || !localUrl || !sessionId || !sessionPwd || !compiledPdfUrl) {
@@ -301,17 +330,25 @@ export function useShareSession(params: {
       .then((response) => response.arrayBuffer())
       .then((buffer) => {
         const raw = new Uint8Array(buffer);
-        return postJson(`${localUrl}/api/pdf/upload`, {
-          sid: sessionId,
-          pwd: sessionPwd,
-          pdfBase64: toBase64(raw),
-        });
+        return authenticatedDesktopShareFetch(
+          shareConnection,
+          "/api/pdf/upload",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sid: sessionId,
+              pdfBase64: toBase64(raw),
+            }),
+          },
+          t("share.desktopUser"),
+        ).then(requireJsonResponse);
       })
       .catch(() => undefined)
       .finally(() => {
         uploadingPdfRef.current = false;
       });
-  }, [active, compiledPdfUrl, localUrl, sessionId, sessionPwd]);
+  }, [active, compiledPdfUrl, localUrl, sessionId, sessionPwd, shareConnection, t]);
 
   return useMemo(
     () => ({

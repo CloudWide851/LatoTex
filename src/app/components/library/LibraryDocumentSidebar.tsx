@@ -91,7 +91,7 @@ export function LibraryDocumentSidebar(props: {
 
   return (
     <aside className="grid min-h-0 gap-3 lg:grid-rows-[auto_auto_minmax(0,1fr)]">
-      <section className="rounded-xl border border-slate-200 bg-white p-3">
+      <section className="app-material-content rounded-xl border p-3">
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -104,11 +104,11 @@ export function LibraryDocumentSidebar(props: {
           <StatusPill label={statusLabel(sourcePdfState, t)} tone={statusTone(sourcePdfState)} />
         </div>
         <div className="mt-3 grid gap-2 text-xs text-slate-600">
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+          <div className="app-material-inset flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2">
             <span>{t("library.viewer.sourcePdf")}</span>
             <StatusPill label={statusLabel(sourcePdfState, t)} tone={statusTone(sourcePdfState)} />
           </div>
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+          <div className="app-material-inset flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2">
             <span>{t("library.viewer.translatedPdf")}</span>
             <StatusPill label={statusLabel(translatedPdfState, t)} tone={statusTone(translatedPdfState)} />
           </div>
@@ -137,7 +137,7 @@ export function LibraryDocumentSidebar(props: {
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-3">
+      <section className="app-material-content rounded-xl border p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             {t("library.viewer.section.links")}
@@ -146,7 +146,7 @@ export function LibraryDocumentSidebar(props: {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded-lg border transition"
                 onClick={onOpenLink}
                 title={t("library.viewer.openLink")}
               >
@@ -154,7 +154,7 @@ export function LibraryDocumentSidebar(props: {
               </button>
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+                className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded-lg border transition"
                 onClick={onCopyLink}
                 title={t("library.viewer.copyLink")}
               >
@@ -182,7 +182,7 @@ export function LibraryDocumentSidebar(props: {
         </div>
       </section>
 
-      <section className="min-h-0 overflow-auto rounded-xl border border-slate-200 bg-white p-3">
+      <section className="app-material-content min-h-0 overflow-auto rounded-xl border p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             {t("library.viewer.section.reading")}

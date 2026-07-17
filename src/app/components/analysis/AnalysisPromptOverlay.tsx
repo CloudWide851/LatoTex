@@ -112,7 +112,7 @@ export function AnalysisPromptOverlay(props: {
     >
       <div
         className={cn(
-          "w-[min(920px,100%)] rounded-lg border border-slate-300 bg-white/95 p-3 shadow-soft motion-slide-up",
+          "app-material-floating w-[min(920px,100%)] rounded-lg p-3 motion-slide-up",
           embedded ? "" : "pointer-events-auto",
         )}
       >
@@ -120,7 +120,7 @@ export function AnalysisPromptOverlay(props: {
           <textarea
             ref={textareaRef}
             className={cn(
-              "hide-scrollbar h-[96px] w-full resize-none overflow-auto rounded-lg border border-slate-300 bg-white px-3 pb-12 pt-2 pr-24 text-sm text-slate-700 outline-none transition",
+              "app-material-inset hide-scrollbar h-[96px] w-full resize-none overflow-auto rounded-lg border px-3 pb-12 pt-2 pr-24 text-sm text-slate-700 outline-none transition",
               "focus:border-primary-500 focus:ring-2 focus:ring-primary-100",
               dragActive ? "border-primary-500 bg-primary-50/50" : "",
             )}
@@ -168,7 +168,7 @@ export function AnalysisPromptOverlay(props: {
           {suggestions.length > 0 ? (
             <div
               className={cn(
-                "absolute left-2 z-20 max-h-36 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft",
+                "app-material-floating absolute left-2 z-20 max-h-36 overflow-auto rounded-md p-1",
                 suggestionPlacement === "above"
                   ? "bottom-[calc(100%+6px)]"
                   : "top-[calc(100%+6px)]",
@@ -199,7 +199,7 @@ export function AnalysisPromptOverlay(props: {
           <div className="absolute bottom-2 right-2 flex items-center gap-2">
             {!running ? (
               <button
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded-md border transition disabled:opacity-40"
                 title={t("agent.teams.run")}
                 aria-label={t("agent.teams.run")}
                 onClick={onRunTeams}
@@ -210,7 +210,7 @@ export function AnalysisPromptOverlay(props: {
             ) : null}
             {!running && canContinue ? (
               <button
-                className="inline-flex h-8 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn inline-flex h-8 items-center justify-center rounded-md border px-2 text-[11px] font-medium transition disabled:opacity-40"
                 title={t("analysis.continueRun")}
                 aria-label={t("analysis.continueRun")}
                 onClick={onContinue}

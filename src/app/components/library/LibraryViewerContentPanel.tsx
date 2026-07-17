@@ -33,7 +33,7 @@ function clampCompareZoom(next: number): number {
 
 const LIBRARY_INFO_PANE_CLASSNAME = [
   "library-scrollbar h-full min-h-0 min-w-0 overflow-x-auto overflow-y-scroll rounded-xl",
-  "border border-slate-200 bg-white p-3 motion-card-pop",
+  "app-material-content border p-3 motion-card-pop",
 ].join(" ");
 const LIBRARY_VIEWER_FRAME_CLASSNAME = "h-full min-h-0 min-w-0 overflow-hidden";
 const LIBRARY_PDF_MODE_SHELL_CLASSNAME = "grid h-full min-h-0 min-w-0 grid-cols-[56px_minmax(0,1fr)] gap-3 overflow-hidden";
@@ -54,7 +54,7 @@ function ComparePaneHeader(props: {
       <div className="flex items-center gap-1">
         <button
           type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+          className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border transition"
           onClick={onZoomOut}
           title={`${label} · ${t("preview.zoomOut")}`}
           aria-label={`${label} · ${t("preview.zoomOut")}`}
@@ -64,7 +64,7 @@ function ComparePaneHeader(props: {
         <span className="w-11 text-center text-[11px] font-medium text-slate-600">{Math.round(zoom * 100)}%</span>
         <button
           type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100"
+          className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border transition"
           onClick={onZoomIn}
           title={`${label} · ${t("preview.zoomIn")}`}
           aria-label={`${label} · ${t("preview.zoomIn")}`}
@@ -281,7 +281,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     return (
       <section className={LIBRARY_VIEWER_FRAME_CLASSNAME}>
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-lg border px-4 text-xs text-slate-500">
             {pdfPreviewLoading ? t("library.viewer.downloadingPdf") : t("library.viewer.preparingPdf")}
           </div>
         ) : pdfPaneError ? (
@@ -367,7 +367,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
             <FileUp className="mr-2 h-3.5 w-3.5" />
             {t("library.viewer.noPdf")}
           </div>
@@ -380,7 +380,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     return (
       <section className={LIBRARY_VIEWER_FRAME_CLASSNAME}>
         {pdfPaneLoading ? (
-          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
             {pdfPreviewLoading ? t("library.viewer.downloadingPdf") : t("library.viewer.preparingPdf")}
           </div>
         ) : pdfPaneError ? (
@@ -389,7 +389,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
           </div>
         ) : hasComparePair && pdfUrl && translatedPdfUrl ? (
           <div className={LIBRARY_COMPARE_SHELL_CLASSNAME}>
-            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+            <div className="app-material-content grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border">
               <ComparePaneHeader
                 label={t("library.viewer.compareOriginal")}
                 zoom={compareSourceZoom}
@@ -428,7 +428,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 t={t}
               />
             </div>
-            <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+            <div className="app-material-content grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border">
               <ComparePaneHeader
                 label={t("library.viewer.compareTranslated")}
                 zoom={compareTranslatedZoom}
@@ -469,7 +469,7 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded border border-dashed text-xs text-slate-500">
             {t("library.viewer.compareUnavailable")}
           </div>
         )}
@@ -511,11 +511,11 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
             ) : bibPreviewError ? (
               <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">{t("library.viewer.bibReadFailed")} {bibPreviewError}</div>
             ) : bibPreview.trim().length > 0 ? (
-              <pre className="min-h-full whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50/70 p-3 font-mono text-xs leading-5 text-slate-700">
+              <pre className="app-material-inset min-h-full whitespace-pre-wrap break-words rounded-lg border p-3 font-mono text-xs leading-5 text-slate-700">
                 {bibPreview}
               </pre>
             ) : (
-              <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+              <div className="app-material-inset flex h-full items-center justify-center rounded border border-dashed text-xs text-slate-500">
                 {t("library.viewer.noBib")}
               </div>
             )}

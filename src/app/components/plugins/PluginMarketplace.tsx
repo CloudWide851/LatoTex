@@ -253,7 +253,7 @@ export function PluginMarketplace(props: {
 
   return (
     <>
-    <section className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+    <section className="app-material-panel grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border">
       <div className="border-b border-slate-200 bg-gradient-to-br from-white via-slate-50 to-primary-50/40 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
@@ -273,18 +273,18 @@ export function PluginMarketplace(props: {
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <label className="relative block min-w-[240px] max-w-xl flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
-            <Input className="h-9 rounded-full border-slate-200 bg-white pl-9 text-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("plugins.search")} />
+            <Input className="app-material-inset h-9 rounded-full pl-9 text-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("plugins.search")} />
           </label>
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-500">
+          <span className="app-material-inset rounded-full border px-3 py-1.5 text-[11px] text-slate-500">
             {t("plugins.sourcesSummary").replace("{count}", String(catalogSources.length + 1))}
           </span>
         </div>
         {status ? <p className="mt-2 text-[11px] text-slate-600">{status}</p> : null}
         {warnings.length > 0 ? <p className="mt-2 text-[11px] text-amber-700">{warnings.join("; ")}</p> : null}
       </div>
-      <div className="settings-scrollbar-hidden min-h-0 overflow-auto bg-slate-50/70 p-4">
+      <div className="app-material-content settings-scrollbar-hidden min-h-0 overflow-auto p-4">
         {showInitialLoading ? (
-          <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-primary-200 bg-white px-4 text-sm text-slate-600">
+          <div className="app-material-inset flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-primary-200 px-4 text-sm text-slate-600">
             <div className="flex items-center gap-3">
               <RefreshCw className="h-4 w-4 animate-spin text-primary-700" />
               <span>{t("plugins.loading")}</span>
@@ -296,7 +296,7 @@ export function PluginMarketplace(props: {
             </div>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-4 text-sm text-slate-500">
+          <div className="app-material-inset flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed px-4 text-sm text-slate-500">
             {t("plugins.empty")}
           </div>
         ) : (

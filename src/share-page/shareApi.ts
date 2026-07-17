@@ -8,10 +8,24 @@ export type SharePdfStatus = {
   version?: string | null;
 };
 
-export async function postShareJson<T>(path: string, body: unknown): Promise<T> {
+export type ShareParticipantAuth = {
+  participantId: string;
+  participantToken: string;
+};
+
+function authorizedHeaders(participantToken: string, json = false): HeadersInit {
+  return {
+    ...(json ? { "Content-Type": "application/json" } : {}),
+    Authorization: `Bearer ${participantToken}`,
+  };
+}
+
+export async function postShareJson<T>(path: string, body: unknown, participantToken?: string): Promise<T> {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: participantToken
+      ? authorizedHeaders(participantToken, true)
+      : { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -30,8 +44,11 @@ export async function joinShareSession(params: {
   return postShareJson("/api/join", params);
 }
 
-export async function fetchShareSnapshot(sid: string, pwd: string): Promise<{ content: string }> {
-  const response = await fetch(`/api/snapshot?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`);
+export async function fetchShareSnapshot(sid: string, auth: ShareParticipantAuth): Promise<{ content: string }> {
+  const response = await fetch(
+    `/api/snapshot?sid=${encodeURIComponent(sid)}&participantId=${encodeURIComponent(auth.participantId)}`,
+    { headers: authorizedHeaders(auth.participantToken) },
+  );
   if (!response.ok) {
     throw new Error(await response.text());
   }
@@ -40,7 +57,6 @@ export async function fetchShareSnapshot(sid: string, pwd: string): Promise<{ co
 
 export async function pushShareUpdate(params: {
   sid: string;
-  pwd: string;
   clientId: string;
   participantId: string;
   participantToken: string;
@@ -48,19 +64,19 @@ export async function pushShareUpdate(params: {
   action: string;
   update: string;
 }): Promise<void> {
-  await postShareJson("/api/sync/push", params);
+  const { participantToken, ...body } = params;
+  await postShareJson("/api/sync/push", body, participantToken);
 }
 
 export async function pullShareUpdates(params: {
   sid: string;
-  pwd: string;
   participantId: string;
   participantToken: string;
   cursor: number;
 }): Promise<{ events?: Array<{ seq?: number; from?: string; update: string }>; nextCursor?: number }> {
-  const token = params.participantToken ? `&participantToken=${encodeURIComponent(params.participantToken)}` : "";
   const response = await fetch(
-    `/api/sync/pull?sid=${encodeURIComponent(params.sid)}&pwd=${encodeURIComponent(params.pwd)}&participantId=${encodeURIComponent(params.participantId)}${token}&cursor=${params.cursor}`,
+    `/api/sync/pull?sid=${encodeURIComponent(params.sid)}&participantId=${encodeURIComponent(params.participantId)}&cursor=${params.cursor}`,
+    { headers: authorizedHeaders(params.participantToken) },
   );
   if (!response.ok) {
     throw new Error(await response.text());
@@ -70,23 +86,22 @@ export async function pullShareUpdates(params: {
 
 export async function pingSharePresence(params: {
   sid: string;
-  pwd: string;
   participantId: string;
   participantToken: string;
   action: string;
 }): Promise<{ participants?: ShareParticipant[] }> {
-  return postShareJson("/api/presence/ping", params);
+  const { participantToken, ...body } = params;
+  return postShareJson("/api/presence/ping", body, participantToken);
 }
 
 export async function listShareComments(params: {
   sid: string;
-  pwd: string;
   participantId: string;
   participantToken: string;
 }): Promise<{ comments?: ShareComment[] }> {
-  const token = params.participantToken ? `&participantToken=${encodeURIComponent(params.participantToken)}` : "";
   const response = await fetch(
-    `/api/comments/list?sid=${encodeURIComponent(params.sid)}&pwd=${encodeURIComponent(params.pwd)}&participantId=${encodeURIComponent(params.participantId)}${token}&t=${Date.now()}`,
+    `/api/comments/list?sid=${encodeURIComponent(params.sid)}&participantId=${encodeURIComponent(params.participantId)}&t=${Date.now()}`,
+    { headers: authorizedHeaders(params.participantToken) },
   );
   if (!response.ok) {
     throw new Error(await response.text());
@@ -96,7 +111,6 @@ export async function listShareComments(params: {
 
 export async function postShareComment(params: {
   sid: string;
-  pwd: string;
   participantId: string;
   participantToken: string;
   id: string;
@@ -109,12 +123,14 @@ export async function postShareComment(params: {
   end?: number;
   createdAt: string;
 }): Promise<{ comments?: ShareComment[] }> {
-  return postShareJson("/api/comments/post", params);
+  const { participantToken, ...body } = params;
+  return postShareJson("/api/comments/post", body, participantToken);
 }
 
-export async function fetchSharePdfStatus(sid: string, pwd: string): Promise<SharePdfStatus> {
-  const response = await fetch(`/api/pdf/status?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}`, {
+export async function fetchSharePdfStatus(sid: string, auth: ShareParticipantAuth): Promise<SharePdfStatus> {
+  const response = await fetch(`/api/pdf/status?sid=${encodeURIComponent(sid)}`, {
     cache: "no-store",
+    headers: authorizedHeaders(auth.participantToken),
   });
   if (!response.ok) {
     return { ready: false };
@@ -129,10 +145,15 @@ export async function fetchSharePdfStatus(sid: string, pwd: string): Promise<Sha
   };
 }
 
-export async function fetchSharePdfBuffer(sid: string, pwd: string, version?: string | null): Promise<ArrayBuffer> {
+export async function fetchSharePdfBuffer(
+  sid: string,
+  auth: ShareParticipantAuth,
+  version?: string | null,
+): Promise<ArrayBuffer> {
   const versionParam = version ? `&v=${encodeURIComponent(version)}` : "";
-  const response = await fetch(`/api/pdf?sid=${encodeURIComponent(sid)}&pwd=${encodeURIComponent(pwd)}${versionParam}`, {
+  const response = await fetch(`/api/pdf?sid=${encodeURIComponent(sid)}${versionParam}`, {
     cache: "force-cache",
+    headers: authorizedHeaders(auth.participantToken),
   });
   if (!response.ok) {
     throw new Error(await response.text());

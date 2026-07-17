@@ -65,7 +65,7 @@ export function ChatWorkspaceComposer(props: {
               {t("agent.autoCommit.yes")}
             </button>
             <button
-              className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-700"
+              className="app-material-inset rounded border px-2 py-1 text-slate-700"
               onClick={() => onResolveWorkspaceAgentPendingAction(false)}
             >
               {t("agent.autoCommit.no")}
@@ -83,7 +83,7 @@ export function ChatWorkspaceComposer(props: {
         <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
           {!running ? (
             <button
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
+              className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded-full border transition disabled:opacity-40"
               onClick={onSendTeams}
               disabled={!draft.trim()}
               title={t("agent.teams.run")}

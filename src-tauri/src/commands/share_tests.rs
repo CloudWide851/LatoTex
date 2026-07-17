@@ -17,3 +17,11 @@ fn share_sync_event_serializes_participant_metadata() {
     assert_eq!(value["action"], "editing");
     assert_eq!(value["from"], "web-1");
 }
+
+#[test]
+fn public_join_url_contains_only_the_non_secret_session_id() {
+    let url = build_public_join_url("https://example.trycloudflare.com/", "sid-123");
+    assert_eq!(url, "https://example.trycloudflare.com/?sid=sid-123");
+    assert!(!url.contains("pwd="));
+    assert!(!url.contains("token"));
+}

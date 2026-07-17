@@ -79,7 +79,7 @@ export function PluginMarketplaceCard(props: {
   const toolchainDetail = describeToolchainStatus(toolchain, toolchainStatus, t);
 
   return (
-    <article className="group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
+    <article className="app-material-inset group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
       <div className="flex min-w-0 items-start gap-2 bg-gradient-to-br from-slate-50 to-white p-2.5">
         <div className="flex h-8 w-8 max-w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white text-primary-700 shadow-sm">
           {plugin.icon ? (
@@ -171,7 +171,7 @@ export function PluginMarketplaceCard(props: {
         </button>
       </div>
 
-      <div className="flex min-w-0 flex-wrap justify-end gap-1 border-t border-slate-100 bg-slate-50/70 px-2.5 py-1.5">
+      <div className="app-material-content flex min-w-0 flex-wrap justify-end gap-1 border-t px-2.5 py-1.5">
         {toolchain ? (
           <>
             <Button size="sm" variant="secondary" disabled={busy || !entry.validation.ok || !canUseRuntime} onClick={() => onToolchainAction(plugin.id, toolchain.id, "verify")}>

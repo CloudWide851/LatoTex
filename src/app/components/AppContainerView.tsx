@@ -336,7 +336,7 @@ export function AppContainerView(props: any) {
 
   return (
     <div
-      className={`relative isolate flex h-screen w-screen flex-col overflow-hidden ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
+      className={`app-material-canvas relative isolate flex h-screen w-screen flex-col overflow-hidden ${motionClass} ${borderClass} ${backgroundUrl ? "wallpaper-enabled" : ""}`}
       style={appBackgroundStyle}
     >
       <div className="relative z-10 flex h-full w-full flex-col">

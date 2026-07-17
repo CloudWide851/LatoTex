@@ -85,8 +85,8 @@ export function AnalysisTaskHistoryMenu(props: {
         </span>
       </button>
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-20 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="border-b border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <div className="app-material-floating absolute left-0 top-[calc(100%+6px)] z-20 w-72 overflow-hidden rounded-lg">
+          <div className="app-material-inset border-b px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
             {t("analysis.history")}
           </div>
           <div className="max-h-72 overflow-auto p-1">
@@ -99,7 +99,7 @@ export function AnalysisTaskHistoryMenu(props: {
                   className={`mb-1 grid w-full gap-0.5 rounded-md border px-2 py-1.5 text-left text-[11px] transition last:mb-0 ${
                     active
                       ? "border-primary-300 bg-primary-50 text-primary-800"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      : "app-material-inset text-slate-700"
                   }`}
                   onClick={() => {
                     onSelectRun(run.id);

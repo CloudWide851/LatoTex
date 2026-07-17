@@ -20,7 +20,7 @@ export function LibraryTranslationStatusToast(props: {
     : t("library.viewer.translateProgressPending");
 
   return (
-    <div className="pointer-events-none absolute right-3 top-3 z-20 w-64 max-w-[calc(100%-1.5rem)] rounded-xl border border-slate-200 bg-white/96 p-3 shadow-lg backdrop-blur-sm">
+    <div className="app-material-floating pointer-events-none absolute right-3 top-3 z-20 w-64 max-w-[calc(100%-1.5rem)] rounded-xl p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary-700">

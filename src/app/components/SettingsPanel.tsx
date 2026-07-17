@@ -1,5 +1,5 @@
 import { Copy, Plus } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { detectSystemLocale, type Locale } from "../../i18n";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
@@ -36,6 +36,7 @@ import { SidebarPageOrderSettingsSection } from "./settings/SidebarPageOrderSett
 import { PluginSourcesSettingsSection } from "./settings/PluginSourcesSettingsSection";
 import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
 import { subscribeSettingsSectionRequests } from "../settings/settingsNavigation";
+import { applyExternalSettingsSectionRequest, SettingsNavigation } from "./settings/SettingsNavigation";
 
 type TranslationFn = (key: any) => string;
 
@@ -104,8 +105,16 @@ export function SettingsPanel(props: {
     t,
   } = props;
 
+  const [settingsNavigationQuery, setSettingsNavigationQuery] = useState("");
+
   useEffect(
-    () => subscribeSettingsSectionRequests(onSettingsSectionChange),
+    () => subscribeSettingsSectionRequests((section) => {
+      applyExternalSettingsSectionRequest(
+        section,
+        () => setSettingsNavigationQuery(""),
+        onSettingsSectionChange,
+      );
+    }),
     [onSettingsSectionChange],
   );
 
@@ -172,31 +181,18 @@ export function SettingsPanel(props: {
   }, [locale, localSettings, setSettings]);
 
   return (
-    <div className="settings-panel-scroll-scope relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft motion-slide-up max-[980px]:grid-cols-1">
-      <aside className="bg-slate-50 p-2 max-[980px]:border-b">
-        <div className="space-y-1">
-          {SETTINGS_SECTIONS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                className={cn(
-                  "settings-nav-item flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition focus:outline-none",
-                  settingsSection === item.id && "settings-nav-item--active",
-                )}
-                onClick={() => onSettingsSectionChange(item.id)}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{t(item.key)}</span>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
+    <div className="app-material-panel settings-panel-scroll-scope relative z-[450] grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-lg border motion-slide-up max-[980px]:grid-cols-1 max-[980px]:grid-rows-[auto_minmax(0,1fr)]">
+      <SettingsNavigation
+        selectedSection={settingsSection}
+        query={settingsNavigationQuery}
+        onQueryChange={setSettingsNavigationQuery}
+        onSectionChange={onSettingsSectionChange}
+        t={t}
+      />
 
       <section
         className={cn(
-          "min-h-0 p-3",
+          "app-material-content min-h-0 p-3",
           settingsSection === "diagnostics"
             ? "grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
             : "settings-scrollbar-hidden overflow-auto",
@@ -324,7 +320,7 @@ export function SettingsPanel(props: {
                   return (
                     <div
                       key={model.id}
-                      className="grid grid-cols-[minmax(140px,1fr)_minmax(180px,1fr)_minmax(140px,1fr)_auto] items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs max-[980px]:grid-cols-1"
+                      className="app-material-inset grid grid-cols-[minmax(140px,1fr)_minmax(180px,1fr)_minmax(140px,1fr)_auto] items-center gap-2 rounded-md border p-2 text-xs max-[980px]:grid-cols-1"
                     >
                       <span>{model.displayName}</span>
                       <span className="font-mono text-slate-600">{model.requestName}</span>

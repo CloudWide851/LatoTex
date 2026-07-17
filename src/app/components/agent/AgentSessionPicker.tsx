@@ -28,7 +28,7 @@ export function AgentSessionPicker(props: {
 
   return (
     <div
-      className="absolute bottom-[calc(100%+6px)] left-0 right-0 z-30 max-h-44 overflow-auto rounded-md border border-slate-200 bg-white p-1 shadow-soft"
+      className="app-material-floating absolute bottom-[calc(100%+6px)] left-0 right-0 z-30 max-h-44 overflow-auto rounded-md p-1"
       onWheel={(event) => {
         if (sessions.length === 0) {
           return;

@@ -71,7 +71,7 @@ export function AppearanceSettingsSection(props: {
                   "flex h-11 items-center justify-center gap-2 rounded-md border text-sm transition focus:outline-none focus-visible:ring-2",
                   selected
                     ? "border-[var(--app-accent)] bg-[var(--app-accent)] text-white focus-visible:ring-[var(--control-primary-ring)]"
-                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
+                    : "app-material-inset text-slate-700",
                 )}
                 style={selected ? { boxShadow: "0 0 0 1px color-mix(in srgb, var(--app-accent) 28%, transparent)" } : undefined}
                 onClick={(event) =>
@@ -102,7 +102,7 @@ export function AppearanceSettingsSection(props: {
                 type="button"
                 className={cn(
                   "flex min-h-16 flex-col items-start justify-between rounded-md border p-2 text-left text-xs transition",
-                  selected ? "border-[var(--app-accent)] bg-slate-50" : "border-slate-200 bg-white hover:border-slate-300",
+                  selected ? "border-[var(--app-accent)] bg-slate-50" : "app-material-inset hover:border-slate-300",
                 )}
                 onClick={() => updateUiPrefs({
                   themePreset: preset.id,
@@ -132,7 +132,7 @@ export function AppearanceSettingsSection(props: {
           <input
             type="color"
             value={prefs.accentCustomColor || "#22c55e"}
-            className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
+            className="app-material-inset h-9 w-20 rounded border p-1"
             onChange={(event) => updateUiPrefs({ accentColor: "custom", accentCustomColor: event.target.value })}
           />
         </label>
@@ -171,7 +171,7 @@ export function AppearanceSettingsSection(props: {
             <input
               type="color"
               value={prefs.scrollbarThumbColor || "#22c55e"}
-              className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
+              className="app-material-inset h-9 w-20 rounded border p-1"
               onChange={(event) => updateUiPrefs({ scrollbarColorMode: "custom", scrollbarThumbColor: event.target.value })}
             />
           </label>
@@ -180,7 +180,7 @@ export function AppearanceSettingsSection(props: {
             <input
               type="color"
               value={prefs.scrollbarTrackColor || "#cbd5e1"}
-              className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
+              className="app-material-inset h-9 w-20 rounded border p-1"
               onChange={(event) => updateUiPrefs({ scrollbarColorMode: "custom", scrollbarTrackColor: event.target.value })}
             />
           </label>
@@ -294,7 +294,7 @@ export function AppearanceSettingsSection(props: {
           <input
             type="color"
             value={/^#[0-9a-f]{6}$/i.test(String(prefs.editorBackgroundColor ?? "")) ? prefs.editorBackgroundColor : "#fffdf8"}
-            className="h-9 w-20 rounded border border-slate-300 bg-white p-1"
+            className="app-material-inset h-9 w-20 rounded border p-1"
             onChange={(event) => updateUiPrefs({ editorBackgroundColor: event.target.value })}
           />
           <span className="text-[11px] text-slate-500">{t("settings.editorBackgroundHint")}</span>

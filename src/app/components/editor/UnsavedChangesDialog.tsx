@@ -38,7 +38,7 @@ export function UnsavedChangesDialog(props: {
 
   return (
     <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
-      <div className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
+      <div className="app-material-floating w-full max-w-lg rounded-lg p-4">
         <div className="flex items-start gap-3">
           <div className="rounded-md bg-amber-100 p-2 text-amber-700">
             <AlertTriangle className="h-4 w-4" />

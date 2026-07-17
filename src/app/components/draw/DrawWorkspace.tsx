@@ -490,7 +490,7 @@ export function DrawWorkspace(props: {
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+    <section className="app-material-panel grid h-full min-h-0 grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-lg border">
       <DrawWorkspaceHeader
         tabPaths={tabPaths}
         activePath={activePath}

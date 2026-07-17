@@ -84,17 +84,17 @@ export function PluginSourcesSettingsSection(props: {
           {t("settings.pluginSourcesAdd")}
         </Button>
       </div>
-      <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+      <div className="app-material-inset rounded-md border p-3 text-xs text-slate-600">
         {t("settings.pluginSourcesBuiltin")}
       </div>
       {sources.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">
+        <div className="app-material-inset rounded-md border border-dashed p-4 text-xs text-slate-500">
           {t("settings.pluginSourcesEmpty")}
         </div>
       ) : sources.map((source, index) => {
         const result = resultById[source.id];
         return (
-          <section key={`${source.id}-${index}`} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <section key={`${source.id}-${index}`} className="app-material-inset grid gap-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                 <input

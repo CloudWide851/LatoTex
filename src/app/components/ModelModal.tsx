@@ -201,7 +201,7 @@ export function ModelModal(props: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
-      <div className="grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
+      <div className="app-material-floating grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">
             {dialogMode === "edit"
@@ -306,7 +306,7 @@ export function ModelModal(props: {
             </div>
           )}
 
-          <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="app-material-inset grid gap-2 rounded-md border p-3">
             <label className="grid gap-1">
               <span className="text-xs text-slate-500">{t("settings.modal.modelDisplayName")}</span>
               <Input

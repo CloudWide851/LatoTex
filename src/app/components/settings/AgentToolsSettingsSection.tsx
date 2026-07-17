@@ -232,7 +232,7 @@ export function McpSettingsSection(props: {
       </div>
 
       {installablePlugins.length > 0 ? (
-        <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+        <div className="app-material-inset grid gap-2 rounded-md border p-2">
           <div className="text-[11px] font-semibold text-slate-600">{t("settings.mcpInstallTemplates")}</div>
           <div className="flex flex-wrap gap-2">
             {installablePlugins.flatMap((plugin) =>
@@ -254,14 +254,14 @@ export function McpSettingsSection(props: {
       ) : null}
 
       {servers.length === 0 ? (
-        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500">
+        <div className="app-material-inset rounded-md border border-dashed p-4 text-xs text-slate-500">
           {t("settings.mcpEmpty")}
         </div>
       ) : servers.map((server, index) => {
         const key = serverKey(index);
         const validation = validationByKey[key];
         return (
-          <section key={key} className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3">
+          <section key={key} className="app-material-inset grid gap-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                 <input
@@ -289,7 +289,7 @@ export function McpSettingsSection(props: {
               value={formatEnv(server.env)}
               onChange={(event) => updateServer(index, { env: parseEnv(event.target.value) })}
               placeholder={t("settings.mcpEnvPlaceholder")}
-              className="settings-scrollbar-hidden min-h-16 resize-none rounded border border-slate-200 bg-slate-50 px-2 py-1.5 font-mono text-[11px] leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
+              className="app-material-content settings-scrollbar-hidden min-h-16 resize-none rounded border px-2 py-1.5 font-mono text-[11px] leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
             />
             {validation ? (
               <div className={cn("flex items-start gap-2 rounded border px-2 py-1.5 text-[11px]", statusTone(validation))}>
@@ -444,7 +444,7 @@ export function SkillsSettingsSection(props: {
         {visibleSkills.map((skill) => {
           const validation = validationBySkill[skill];
           return (
-            <div key={skill} className="rounded-md border border-slate-200 bg-white p-3">
+            <div key={skill} className="app-material-inset rounded-md border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
                   <input
@@ -483,7 +483,7 @@ export function SkillsSettingsSection(props: {
                 </div>
               ) : null}
               {agentRunBySkill[skill] ? (
-                <div className="mt-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+                <div className="app-material-content mt-2 rounded border px-2 py-1 text-[11px] text-slate-600">
                   {agentRunBySkill[skill]?.startsWith("error:")
                     ? agentRunBySkill[skill]?.slice(6)
                     : t("settings.skillRunStarted").replace("{runId}", agentRunBySkill[skill] ?? "")}
@@ -494,7 +494,7 @@ export function SkillsSettingsSection(props: {
                   cards={extractEventCards(agentEventsByRun[agentRunBySkill[skill] ?? ""] ?? [], [agentRunBySkill[skill] ?? ""])}
                   title={t("settings.skillRunTrace")}
                   t={t}
-                  className="mt-2 rounded border border-slate-200 bg-white px-2 py-2"
+                  className="app-material-content mt-2 rounded border px-2 py-2"
                   bodyClassName="max-h-72"
                   compact
                 />

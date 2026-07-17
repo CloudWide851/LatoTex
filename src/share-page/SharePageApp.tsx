@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
-import { fetchShareSnapshot, joinShareSession, listShareComments, pingSharePresence, postShareComment, pullShareUpdates, pushShareUpdate } from "./shareApi";
+import {
+  fetchShareSnapshot,
+  joinShareSession,
+  listShareComments,
+  pingSharePresence,
+  postShareComment,
+  pullShareUpdates,
+  pushShareUpdate,
+  type ShareParticipantAuth,
+} from "./shareApi";
 import { createShareI18n } from "./shareMessages";
 import { SharePageLayout } from "./SharePageLayout";
 import { applyYTextDelta, deriveSelectionQuote, fromBase64, normalizeComment, toBase64 } from "./shareUtils";
@@ -13,15 +22,42 @@ type SharePageAppProps = {
   locale: ShareLocale;
 };
 
+function readStoredAuth(storageKey: string): ShareParticipantAuth | null {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(storageKey) || "null") as Partial<ShareParticipantAuth> | null;
+    const participantId = typeof parsed?.participantId === "string" ? parsed.participantId.trim() : "";
+    const participantToken = typeof parsed?.participantToken === "string" ? parsed.participantToken.trim() : "";
+    if (!participantId || !participantToken) {
+      return null;
+    }
+    return { participantId, participantToken };
+  } catch {
+    return null;
+  }
+}
+
+function persistStoredAuth(storageKey: string, auth: ShareParticipantAuth | null) {
+  try {
+    if (auth) {
+      sessionStorage.setItem(storageKey, JSON.stringify(auth));
+    } else {
+      sessionStorage.removeItem(storageKey);
+    }
+  } catch {
+    // Session storage may be unavailable in hardened/private browsing contexts.
+  }
+}
+
 export function SharePageApp(props: SharePageAppProps) {
   const { device, locale } = props;
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const sid = params.get("sid") || "";
   const i18n = useMemo<ShareI18n>(() => createShareI18n(locale), [locale]);
-  const defaultPwd = params.get("pwd") || "";
   const usernameStorageKey = sid ? `latotex-share-username:${sid}` : "latotex-share-username:default";
+  const authStorageKey = sid ? `latotex-share-auth:${sid}` : "latotex-share-auth:default";
   const [username, setUsername] = useState(() => localStorage.getItem(usernameStorageKey) || "");
-  const [password, setPassword] = useState(defaultPwd);
+  const [password, setPassword] = useState("");
+  const [auth, setAuth] = useState<ShareParticipantAuth | null>(() => readStoredAuth(authStorageKey));
   const [status, setStatus] = useState(i18n.statusIdle);
   const [statusError, setStatusError] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -38,10 +74,11 @@ export function SharePageApp(props: SharePageAppProps) {
   const docRef = useRef(new Y.Doc());
   const yTextRef = useRef(docRef.current.getText("tex"));
   const clientIdRef = useRef(`web-${Math.random().toString(36).slice(2, 10)}`);
-  const participantIdRef = useRef("");
-  const participantTokenRef = useRef("");
+  const participantIdRef = useRef(auth?.participantId ?? "");
+  const participantTokenRef = useRef(auth?.participantToken ?? "");
   const pullCursorRef = useRef(0);
   const connectedRef = useRef(false);
+  const restoreAttemptedRef = useRef(false);
   const syncingRemoteRef = useRef(false);
   const pullInFlightRef = useRef(false);
   const editorReview = useShareEditorReview({ textareaRef, comments });
@@ -53,7 +90,7 @@ export function SharePageApp(props: SharePageAppProps) {
 
   const pdf = useSharePdfPreview({
     sid,
-    pwd: password.trim(),
+    auth,
     connected,
     i18n,
     containerRef: pdfPagesRef,
@@ -69,6 +106,20 @@ export function SharePageApp(props: SharePageAppProps) {
   }, [device, i18n.title, locale]);
 
   useEffect(() => {
+    const nextUrl = new URL(window.location.href);
+    const hadSecretQuery = nextUrl.searchParams.has("pwd")
+      || nextUrl.searchParams.has("participantToken")
+      || nextUrl.searchParams.has("participant_token");
+    if (!hadSecretQuery) {
+      return;
+    }
+    nextUrl.searchParams.delete("pwd");
+    nextUrl.searchParams.delete("participantToken");
+    nextUrl.searchParams.delete("participant_token");
+    window.history.replaceState(null, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+  }, []);
+
+  useEffect(() => {
     const yText = yTextRef.current;
     const handleObserve = () => {
       const next = yText.toString();
@@ -80,7 +131,6 @@ export function SharePageApp(props: SharePageAppProps) {
       }
       void pushShareUpdate({
         sid,
-        pwd: password.trim(),
         clientId: clientIdRef.current,
         participantId: participantIdRef.current,
         participantToken: participantTokenRef.current,
@@ -95,7 +145,7 @@ export function SharePageApp(props: SharePageAppProps) {
       yText.unobserve(handleObserve);
       docRef.current.off("update", handleUpdate);
     };
-  }, [i18n.actionEditing, i18n.statusSyncFailed, password, setStatusLine, sid, username]);
+  }, [i18n.actionEditing, i18n.statusSyncFailed, setStatusLine, sid, username]);
 
   const loadComments = useCallback(async () => {
     if (!connectedRef.current || !participantIdRef.current) {
@@ -103,12 +153,11 @@ export function SharePageApp(props: SharePageAppProps) {
     }
     const payload = await listShareComments({
       sid,
-      pwd: password.trim(),
       participantId: participantIdRef.current,
       participantToken: participantTokenRef.current,
     });
     setComments(Array.isArray(payload.comments) ? payload.comments.map((item) => normalizeComment(item, "Guest")) : []);
-  }, [password, sid]);
+  }, [sid]);
 
   const pingPresence = useCallback(async (action: string) => {
     if (!connectedRef.current || !participantIdRef.current) {
@@ -116,13 +165,12 @@ export function SharePageApp(props: SharePageAppProps) {
     }
     const payload = await pingSharePresence({
       sid,
-      pwd: password.trim(),
       participantId: participantIdRef.current,
       participantToken: participantTokenRef.current,
       action,
     });
     setParticipants(Array.isArray(payload.participants) ? payload.participants : []);
-  }, [password, sid]);
+  }, [sid]);
 
   const pullUpdates = useCallback(async () => {
     if (!connectedRef.current || pullInFlightRef.current) {
@@ -132,7 +180,6 @@ export function SharePageApp(props: SharePageAppProps) {
     try {
       const payload = await pullShareUpdates({
         sid,
-        pwd: password.trim(),
         participantId: participantIdRef.current,
         participantToken: participantTokenRef.current,
         cursor: pullCursorRef.current,
@@ -153,11 +200,53 @@ export function SharePageApp(props: SharePageAppProps) {
     } finally {
       pullInFlightRef.current = false;
     }
-  }, [password, sid]);
+  }, [sid]);
 
   useEffect(() => {
     connectedRef.current = connected;
   }, [connected]);
+
+  const hydrateAuthenticatedSession = useCallback(async (nextAuth: ShareParticipantAuth) => {
+    participantIdRef.current = nextAuth.participantId;
+    participantTokenRef.current = nextAuth.participantToken;
+    const snapshot = await fetchShareSnapshot(sid, nextAuth);
+    syncingRemoteRef.current = true;
+    try {
+      docRef.current.transact(() => {
+        const yText = yTextRef.current;
+        yText.delete(0, yText.length);
+        yText.insert(0, snapshot.content || "");
+      }, "remote");
+    } finally {
+      syncingRemoteRef.current = false;
+    }
+    pullCursorRef.current = 0;
+    connectedRef.current = true;
+    setConnected(true);
+  }, [sid]);
+
+  useEffect(() => {
+    if (!auth || !sid || connected || restoreAttemptedRef.current) {
+      return;
+    }
+    restoreAttemptedRef.current = true;
+    setStatusLine(i18n.statusConnecting);
+    void hydrateAuthenticatedSession(auth)
+      .then(async () => {
+        await pingPresence(i18n.actionReading).catch(() => undefined);
+        await loadComments().catch(() => undefined);
+        setStatusLine(i18n.statusConnected);
+      })
+      .catch(() => {
+        connectedRef.current = false;
+        participantIdRef.current = "";
+        participantTokenRef.current = "";
+        persistStoredAuth(authStorageKey, null);
+        setAuth(null);
+        setConnected(false);
+        setStatusLine(i18n.statusIdle);
+      });
+  }, [auth, authStorageKey, connected, hydrateAuthenticatedSession, i18n.actionReading, i18n.statusConnected, i18n.statusConnecting, i18n.statusIdle, loadComments, pingPresence, setStatusLine, sid]);
 
   useEffect(() => {
     if (!connected) {
@@ -232,31 +321,33 @@ export function SharePageApp(props: SharePageAppProps) {
         clientId: clientIdRef.current,
         username: trimmedUsername,
       });
-      participantIdRef.current = String(joined.participantId || "");
-      participantTokenRef.current = String(joined.participantToken || "");
-      setParticipants(Array.isArray(joined.participants) ? joined.participants : []);
-      const snapshot = await fetchShareSnapshot(sid, trimmedPassword);
-      syncingRemoteRef.current = true;
-      try {
-        docRef.current.transact(() => {
-          const yText = yTextRef.current;
-          yText.delete(0, yText.length);
-          yText.insert(0, snapshot.content || "");
-        }, "remote");
-      } finally {
-        syncingRemoteRef.current = false;
+      const nextAuth = {
+        participantId: String(joined.participantId || "").trim(),
+        participantToken: String(joined.participantToken || "").trim(),
+      };
+      if (!nextAuth.participantId || !nextAuth.participantToken) {
+        throw new Error("share.auth_failed");
       }
-      setConnected(true);
-      pullCursorRef.current = 0;
+      participantIdRef.current = nextAuth.participantId;
+      participantTokenRef.current = nextAuth.participantToken;
+      persistStoredAuth(authStorageKey, nextAuth);
+      setAuth(nextAuth);
+      setParticipants(Array.isArray(joined.participants) ? joined.participants : []);
+      await hydrateAuthenticatedSession(nextAuth);
+      setPassword("");
       await pingPresence(i18n.actionReading);
-      await pdf.reload({ forceConnected: true }).catch(() => undefined);
       await loadComments().catch(() => undefined);
-      setStatusLine(pdf.ready ? i18n.statusConnected : i18n.statusPdfPreparing);
+      setStatusLine(i18n.statusPdfPreparing);
     } catch (error) {
+      connectedRef.current = false;
+      participantIdRef.current = "";
+      participantTokenRef.current = "";
+      persistStoredAuth(authStorageKey, null);
+      setAuth(null);
       setConnected(false);
       setStatusLine(i18n.statusConnectFailed(String(error)), true);
     }
-  }, [i18n, loadComments, password, pdf.ready, pdf.reload, pingPresence, setStatusLine, sid, username, usernameStorageKey]);
+  }, [authStorageKey, hydrateAuthenticatedSession, i18n, loadComments, password, pingPresence, setStatusLine, sid, username, usernameStorageKey]);
 
   const handleEditorChange = useCallback((value: string) => {
     setEditorText(value);
@@ -314,7 +405,6 @@ export function SharePageApp(props: SharePageAppProps) {
     try {
       const response = await postShareComment({
         sid,
-        pwd: password.trim(),
         participantId: participantIdRef.current,
         participantToken: participantTokenRef.current,
         id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -334,7 +424,7 @@ export function SharePageApp(props: SharePageAppProps) {
     } catch (error) {
       setStatusLine(i18n.statusPostCommentFailed(String(error)), true);
     }
-  }, [commentText, connected, i18n, password, quoteDraft, setStatusLine, sid, username]);
+  }, [commentText, connected, i18n, quoteDraft, setStatusLine, sid, username]);
 
   return (
     <SharePageLayout

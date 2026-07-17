@@ -234,7 +234,7 @@ export function AgentChatOverlay(props: {
 
   return (
     <div className="pointer-events-none absolute inset-x-2 bottom-3 z-20 flex items-end">
-      <div className="agent-overlay-shell pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg border border-slate-300 bg-white/95 shadow-soft motion-card-pop transition-[box-shadow,border-color,opacity] duration-150">
+      <div className="app-material-floating agent-overlay-shell pointer-events-auto w-full max-w-full min-w-0 max-h-[calc(100vh-132px)] overflow-hidden rounded-lg motion-card-pop transition-[box-shadow,border-color,opacity] duration-150">
         <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-slate-700">
             <MessageSquareMore className="h-3.5 w-3.5 shrink-0" />

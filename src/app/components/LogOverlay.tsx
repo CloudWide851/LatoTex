@@ -4,7 +4,7 @@ export function LogOverlay(props: { title: string; lines: string[]; onClose: () 
   const { title, lines, onClose } = props;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-4 motion-fade-in">
-      <div className="grid h-[70vh] w-full max-w-3xl grid-rows-[48px_minmax(0,1fr)] overflow-hidden rounded-lg border border-slate-300 bg-white shadow-soft motion-slide-up">
+      <div className="app-material-floating grid h-[70vh] w-full max-w-3xl grid-rows-[48px_minmax(0,1fr)] overflow-hidden rounded-lg motion-slide-up">
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
           <button

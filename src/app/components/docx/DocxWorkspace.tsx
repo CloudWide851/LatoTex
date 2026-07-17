@@ -387,7 +387,7 @@ export function DocxWorkspace(props: {
 
   return (
     <section
-      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-paper-bg)] shadow-soft"
+      className="app-material-panel grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-lg border"
       onKeyDown={handleWorkspaceKeyDown}
     >
       <header ref={chromeRef} className="relative z-30 border-b border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)]">
@@ -471,7 +471,7 @@ export function DocxWorkspace(props: {
         </div>
       </header>
       <div
-        className="docx-page-wrap min-h-0 overflow-auto bg-[color:var(--editor-paper-bg)] px-3 py-4"
+        className="app-material-content docx-page-wrap min-h-0 overflow-auto px-3 py-4"
         style={{ ["--docx-zoom" as string]: String(zoom) }}
         onWheel={(event) => {
           if (event.ctrlKey && selectedPath) {
@@ -481,7 +481,7 @@ export function DocxWorkspace(props: {
         }}
       >
         {!selectedPath ? (
-          <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-white/70 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-md border border-dashed text-xs text-slate-500">
             {t("docx.select")}
           </div>
         ) : loading ? (
@@ -525,7 +525,7 @@ export function DocxWorkspace(props: {
               }}
             />
             {resourceQuery !== null ? (
-              <div className="absolute left-6 top-16 z-20 w-72 overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+              <div className="app-material-floating absolute left-6 top-16 z-20 w-72 overflow-hidden rounded-md">
                 {matchingResources.length > 0 ? matchingResources.map((resource) => (
                   <button
                     key={resource.path}

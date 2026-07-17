@@ -23,7 +23,7 @@ export function EditorTabContextMenu(props: {
 
   return (
     <div
-      className="fixed z-[70] min-w-44 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+      className="app-material-floating fixed z-[70] min-w-44 overflow-hidden rounded-md py-1"
       style={{ left: x, top: y }}
     >
       {items.map((item) => (

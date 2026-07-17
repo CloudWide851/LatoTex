@@ -48,7 +48,7 @@ export function GitHistoryTab(props: {
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(280px,0.36fr)_minmax(0,1fr)] gap-3">
-      <aside className="grid min-h-0 grid-rows-[auto_minmax(120px,0.48fr)_minmax(160px,0.52fr)] gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+      <aside className="app-material-content grid min-h-0 grid-rows-[auto_minmax(120px,0.48fr)_minmax(160px,0.52fr)] gap-2 rounded-md border p-2">
         <Input
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
@@ -56,7 +56,7 @@ export function GitHistoryTab(props: {
           className="h-8 text-xs"
         />
 
-        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-1.5 overflow-hidden rounded border border-slate-200 bg-white p-1.5">
+        <section className="app-material-inset grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-1.5 overflow-hidden rounded border p-1.5">
           <h4 className="px-1 text-xs font-semibold text-slate-600">{t("git.history")}</h4>
           <div className="min-h-0 space-y-1 overflow-auto">
             {commits.length === 0 ? (
@@ -81,7 +81,7 @@ export function GitHistoryTab(props: {
           </div>
         </section>
 
-        <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-1.5 overflow-hidden rounded border border-slate-200 bg-white p-1.5">
+        <section className="app-material-inset grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-1.5 overflow-hidden rounded border p-1.5">
           <div className="flex items-center justify-between px-1">
             <h4 className="text-xs font-semibold text-slate-600">{t("git.changedFiles")}</h4>
             {loadingFiles ? <SvgSpinner className="h-3.5 w-3.5 text-slate-500" /> : null}
@@ -105,7 +105,7 @@ export function GitHistoryTab(props: {
                       className={`flex w-full items-center justify-between rounded border px-2 py-1 text-left text-[11px] ${
                         active
                           ? "border-primary-300 bg-primary-50 text-primary-900"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                          : "app-material-inset text-slate-700"
                       }`}
                       onClick={() => void onSelectFile(file.path)}
                       title={pathLabel}
@@ -128,7 +128,7 @@ export function GitHistoryTab(props: {
         </section>
       </aside>
 
-      <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+      <section className="app-material-content grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-md border p-2">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-semibold text-slate-600">{t("git.diff")}</h4>
           {selectedPath ? (
@@ -137,7 +137,7 @@ export function GitHistoryTab(props: {
             </span>
           ) : null}
         </div>
-        <div className="min-h-0 rounded border border-slate-200 bg-white p-2">
+        <div className="app-material-inset min-h-0 rounded border p-2">
           <GitDiffViewer
             active={Boolean(activeDiffKey)}
             loading={Boolean(activeDiffKey && loadingDiffKey === activeDiffKey)}

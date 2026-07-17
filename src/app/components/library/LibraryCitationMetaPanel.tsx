@@ -51,7 +51,7 @@ export function LibraryCitationMetaPanel(props: {
         ) : null}
       </div>
 
-      <section className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+      <section className="app-material-content rounded-lg border p-3">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {t("library.viewer.paperBrief")}
         </div>
@@ -64,31 +64,31 @@ export function LibraryCitationMetaPanel(props: {
             {paperPreview.title ? <p className="break-words text-sm font-medium">{paperPreview.title}</p> : null}
             <div className="grid gap-2 sm:grid-cols-3">
               {paperPreview.detectedLanguage ? (
-                <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2">
+                <div className="app-material-inset rounded-md border px-2.5 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">{t("library.viewer.paperLanguage")}</div>
                   <div className="mt-1 break-words text-[11px] text-slate-700">{paperPreview.detectedLanguage}</div>
                 </div>
               ) : null}
               {paperPreview.pageCount ? (
-                <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2">
+                <div className="app-material-inset rounded-md border px-2.5 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">{t("library.viewer.paperPages")}</div>
                   <div className="mt-1 text-[11px] text-slate-700">{paperPreview.pageCount}</div>
                 </div>
               ) : null}
               {paperPreview.extractionEngine ? (
-                <div className="rounded-md border border-slate-200 bg-white px-2.5 py-2">
+                <div className="app-material-inset rounded-md border px-2.5 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-slate-400">{t("library.viewer.paperEngine")}</div>
                   <div className="mt-1 break-words text-[11px] text-slate-700">{paperPreview.extractionEngine}</div>
                 </div>
               ) : null}
             </div>
             {paperPreview.excerpt ? (
-              <div className="rounded-md border border-slate-200 bg-white px-3 py-2.5 text-[11px] leading-5 text-slate-600">
+              <div className="app-material-inset rounded-md border px-3 py-2.5 text-[11px] leading-5 text-slate-600">
                 <div className="mb-1 font-semibold text-slate-500">{t("library.viewer.paperExcerpt")}</div>
                 <p className="line-clamp-6 whitespace-pre-wrap break-words">{paperPreview.excerpt}</p>
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-2.5 text-[11px] leading-5 text-slate-500">
+              <div className="app-material-inset rounded-md border border-dashed px-3 py-2.5 text-[11px] leading-5 text-slate-500">
                 {t("library.viewer.paperExcerptUnavailable")}
               </div>
             )}
@@ -98,7 +98,7 @@ export function LibraryCitationMetaPanel(props: {
         )}
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white">
+      <section className="app-material-inset rounded-lg border">
         <div className="border-b border-slate-200 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {t("library.viewer.metadataTab")}
         </div>

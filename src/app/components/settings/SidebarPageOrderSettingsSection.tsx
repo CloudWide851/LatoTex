@@ -41,7 +41,7 @@ export function SidebarPageOrderSettingsSection(props: {
         </div>
         <button
           type="button"
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
+          className="panel-topbar-btn inline-flex h-8 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium"
           onClick={() => updateOrder(DEFAULT_PAGE_ORDER)}
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -58,13 +58,13 @@ export function SidebarPageOrderSettingsSection(props: {
           return (
             <div
               key={page}
-              className="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 text-sm text-slate-700"
+              className="app-material-inset flex min-h-10 items-center gap-2 rounded-md border px-2 text-sm text-slate-700"
             >
               <Icon className="h-4 w-4 shrink-0 text-slate-500" />
               <span className="min-w-0 flex-1 truncate">{t(item.key)}</span>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border disabled:opacity-40"
                 disabled={index === 0}
                 onClick={() => updateOrder(moveSidebarPageOrderItem(order, page, -1))}
                 title={t("settings.sidebarOrderMoveUp")}
@@ -74,7 +74,7 @@ export function SidebarPageOrderSettingsSection(props: {
               </button>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border disabled:opacity-40"
                 disabled={index === order.length - 1}
                 onClick={() => updateOrder(moveSidebarPageOrderItem(order, page, 1))}
                 title={t("settings.sidebarOrderMoveDown")}

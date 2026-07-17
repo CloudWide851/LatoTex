@@ -23,6 +23,8 @@ use uuid::Uuid;
 mod share_comments_store;
 #[path = "share_http_auth.rs"]
 mod share_http_auth;
+#[path = "share_http_join.rs"]
+mod share_http_join;
 #[path = "share_http_pdf.rs"]
 mod share_http_pdf;
 #[path = "share_http_response.rs"]
@@ -39,16 +41,18 @@ mod share_payloads;
 mod share_pdf;
 #[path = "share_runtime_auth.rs"]
 mod share_runtime_auth;
-#[path = "share_tunnel.rs"]
-mod share_tunnel;
+#[path = "share_security.rs"]
+mod share_security;
 #[cfg(test)]
 #[path = "share_tests.rs"]
 mod share_tests;
+#[path = "share_tunnel.rs"]
+mod share_tunnel;
 use share_http_response::with_share_headers;
 use share_limits::*;
 use share_payloads::*;
 use share_pdf::share_pdf_ready;
-use share_runtime_auth::{verify_body_auth, verify_query_auth};
+use share_security::{new_share_password, resolve_share_target_path, JoinAttemptLimiter};
 const SHARE_TTL_HOURS: i64 = 24;
 const MAX_SYNC_EVENTS_PER_PULL: usize = 400;
 const SHARE_PARTICIPANT_IDLE_SECS: i64 = 120;
@@ -92,6 +96,7 @@ struct ShareRuntime {
     next_seq: u64,
     sync_events: Vec<ShareSyncEvent>,
     participants: HashMap<String, ShareParticipantState>,
+    join_attempt_limiter: JoinAttemptLimiter,
     compile_requested: bool,
     pdf_cache_path: Option<PathBuf>,
     pdf_size_bytes: u64,
@@ -110,10 +115,6 @@ fn json_header() -> Header {
     Header::from_bytes("Content-Type", "application/json; charset=utf-8")
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/json").unwrap())
 }
-fn html_header() -> Header {
-    Header::from_bytes("Content-Type", "text/html; charset=utf-8")
-        .unwrap_or_else(|_| Header::from_bytes("Content-Type", "text/html").unwrap())
-}
 fn pdf_header() -> Header {
     Header::from_bytes("Content-Type", "application/pdf")
         .unwrap_or_else(|_| Header::from_bytes("Content-Type", "application/octet-stream").unwrap())
@@ -130,15 +131,7 @@ fn json_response(
         Response::from_string(payload.to_string())
             .with_status_code(status)
             .with_header(json_header())
-            .with_header(no_cache_header())
-    )
-}
-fn html_response(content: &'static str) -> Response<std::io::Cursor<Vec<u8>>> {
-    with_share_headers(
-        Response::from_string(content)
-            .with_status_code(StatusCode(200))
-            .with_header(html_header())
-            .with_header(no_cache_header())
+            .with_header(no_cache_header()),
     )
 }
 fn split_url_path_query(url: &str) -> (String, HashMap<String, String>) {
@@ -167,9 +160,7 @@ fn parse_json_body<T: DeserializeOwned>(request: &mut Request) -> Result<T, Stri
     }
     let mut raw = String::new();
     let mut reader = request.as_reader().take(MAX_SHARE_JSON_BODY_BYTES + 1);
-    reader
-        .read_to_string(&mut raw)
-        .map_err(|e| e.to_string())?;
+    reader.read_to_string(&mut raw).map_err(|e| e.to_string())?;
     if raw.len() as u64 > MAX_SHARE_JSON_BODY_BYTES {
         return Err("request body too large".to_string());
     }
@@ -177,9 +168,6 @@ fn parse_json_body<T: DeserializeOwned>(request: &mut Request) -> Result<T, Stri
         return Err("empty request body".to_string());
     }
     serde_json::from_str::<T>(&raw).map_err(|e| e.to_string())
-}
-fn normalize_target_path(path: &str) -> String {
-    path.replace('\\', "/").trim().to_string()
 }
 fn normalize_share_mode(mode: Option<String>) -> String {
     let normalized = mode
@@ -272,23 +260,15 @@ fn participant_public_list(runtime: &ShareRuntime) -> Vec<ShareParticipantInfo> 
     participants.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
     participants
 }
+fn build_public_join_url(base_url: &str, session_id: &str) -> String {
+    format!("{}/?sid={}", base_url.trim_end_matches('/'), session_id)
+}
 fn build_local_join_url(runtime: &ShareRuntime) -> String {
-    if runtime.mode == "local" {
-        format!(
-            "{}/?sid={}&pwd={}",
-            runtime.local_url, runtime.session_id, runtime.password
-        )
-    } else {
-        format!("{}/?sid={}", runtime.local_url, runtime.session_id)
-    }
+    build_public_join_url(&runtime.local_url, &runtime.session_id)
 }
 fn build_remote_join_url(runtime: &ShareRuntime) -> Option<String> {
     let tunnel = runtime.tunnel_url.as_ref()?;
-    Some(format!(
-        "{}/?sid={}",
-        tunnel.trim_end_matches('/'),
-        runtime.session_id
-    ))
+    Some(build_public_join_url(tunnel, &runtime.session_id))
 }
 fn build_active_join_url(runtime: &ShareRuntime) -> Option<String> {
     if runtime.mode == "local" {
@@ -314,7 +294,7 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
         local_join_url: Some(local_join_url),
         remote_join_url,
         active_join_url,
-        password_required: Some(runtime.mode != "local"),
+        password_required: Some(true),
         password: Some(runtime.password.clone()),
         expires_at: Some(runtime.expires_at.clone()),
         status: Some(runtime.status.clone()),
@@ -424,6 +404,9 @@ fn stop_runtime(runtime: &Arc<Mutex<ShareRuntime>>) {
         if let Some(path) = guard.pdf_cache_path.take() {
             let _ = fs::remove_file(path);
         }
+        guard.password.clear();
+        guard.participants.clear();
+        guard.join_attempt_limiter = JoinAttemptLimiter::new();
         guard.pdf_size_bytes = 0;
     }
 }
@@ -469,23 +452,11 @@ pub fn share_session_create(
     state: State<'_, AppState>,
     input: ShareSessionCreateInput,
 ) -> Result<ShareSessionInfo, String> {
-    let target_path = normalize_target_path(&input.target_path);
-    if !target_path.to_ascii_lowercase().ends_with(".tex") {
-        return Err("share only supports current tex file".to_string());
-    }
     let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let candidate = project_root.join(&target_path);
-    if !candidate.exists() {
-        return Err(format!("target file not found: {}", target_path));
-    }
+    let (target_path, _) = resolve_share_target_path(&project_root, &input.target_path)?;
     let local_port = find_free_port()?;
     let session_id = Uuid::new_v4().simple().to_string();
-    let password = Uuid::new_v4()
-        .simple()
-        .to_string()
-        .chars()
-        .take(8)
-        .collect::<String>();
+    let password = new_share_password();
     let session_name = normalize_session_name(input.session_name.as_deref());
     let session_created_at = now_iso();
     let expires_at = (Utc::now() + ChronoDuration::hours(SHARE_TTL_HOURS)).to_rfc3339();
@@ -523,6 +494,7 @@ pub fn share_session_create(
         next_seq: 1,
         sync_events: Vec::new(),
         participants: HashMap::new(),
+        join_attempt_limiter: JoinAttemptLimiter::new(),
         compile_requested: false,
         pdf_cache_path: None,
         pdf_size_bytes: 0,

@@ -62,7 +62,7 @@ export function WorkspacePdfViewport(props: {
 
   if (!effectivePdfUrl) {
     return (
-      <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs text-slate-500">
+      <div className="app-material-content flex h-full items-center justify-center rounded-lg border px-3 text-xs text-slate-500">
         {emptyText}
       </div>
     );
@@ -92,7 +92,7 @@ export function WorkspacePdfViewport(props: {
       onScrollAnchorChange={setScrollAnchor}
       initialScrollRatio={scrollRatio}
       onScrollRatioChange={setScrollRatio}
-      containerClassName="library-scrollbar relative h-full min-h-0 overflow-x-auto overflow-y-scroll rounded-lg border border-slate-200 bg-slate-50"
+      containerClassName="app-material-content library-scrollbar relative h-full min-h-0 overflow-x-auto overflow-y-scroll rounded-lg border"
       documentClassName="mx-auto flex w-max min-w-full flex-col [gap:var(--app-pdf-page-gap)] p-3"
       onDocumentLoadError={() => {
         void tryFallbackToBlob();

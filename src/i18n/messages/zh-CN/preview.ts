@@ -1,9 +1,9 @@
 export const zhCN_preview = {
   "preview.title": "预览",
   "preview.empty": "当前文件暂无可预览内容。",
-  "preview.unsupported": "此文件类型不需要预览。",
+  "preview.unsupported": "此文件类型暂无预览，但仍可在中间编辑区修改。",
   "preview.markdownEmpty": "Markdown 文件为空。",
-  "preview.textEmpty": "文本文件为空。",
+  "preview.textEmpty": "暂无可预览内容。在编辑器中输入内容后会显示在这里。",
   "preview.diagnostics": "诊断信息",
   "preview.events": "蜂群事件",
   "preview.annotationEnable": "启用荧光笔标注",

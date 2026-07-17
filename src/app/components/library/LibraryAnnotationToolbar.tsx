@@ -77,12 +77,12 @@ export function LibraryAnnotationToolbar(props: {
 
   return (
     <>
-      <div className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
+      <div className="app-material-inset inline-flex items-center gap-1 rounded border px-1 py-0.5">
         <button
           className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
             mode === "select"
               ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-              : "border-slate-300 bg-white hover:bg-slate-100"
+              : "border-transparent hover:bg-[color:var(--app-surface-muted)]"
           }`}
           title={t("library.viewer.toolSelect")}
           aria-label={t("library.viewer.toolSelect")}
@@ -95,7 +95,7 @@ export function LibraryAnnotationToolbar(props: {
           className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
             mode === "highlight"
               ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-              : "border-slate-300 bg-white hover:bg-slate-100"
+              : "border-transparent hover:bg-[color:var(--app-surface-muted)]"
           }`}
           title={t("preview.annotationEnable")}
           aria-label={t("preview.annotationEnable")}
@@ -108,7 +108,7 @@ export function LibraryAnnotationToolbar(props: {
           className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
             mode === "eraser"
               ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-              : "border-slate-300 bg-white hover:bg-slate-100"
+              : "border-transparent hover:bg-[color:var(--app-surface-muted)]"
           }`}
           title={t("library.viewer.eraser")}
           aria-label={t("library.viewer.eraser")}
@@ -121,7 +121,7 @@ export function LibraryAnnotationToolbar(props: {
           className={`rounded border p-1.5 text-slate-600 transition disabled:opacity-40 ${
             mode === "textbox"
               ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-              : "border-slate-300 bg-white hover:bg-slate-100"
+              : "border-transparent hover:bg-[color:var(--app-surface-muted)]"
           }`}
           title={t("library.viewer.textboxMode")}
           aria-label={t("library.viewer.textboxMode")}
@@ -132,7 +132,7 @@ export function LibraryAnnotationToolbar(props: {
         </button>
       </div>
 
-      <div className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1">
+      <div className="app-material-inset inline-flex items-center gap-1 rounded border px-2 py-1">
         <span className="text-[10px] text-slate-500">{t("library.viewer.highlightColor")}</span>
         <div className="flex items-center gap-1">
           {HIGHLIGHT_COLORS.map((color) => (
@@ -149,7 +149,7 @@ export function LibraryAnnotationToolbar(props: {
         </div>
       </div>
 
-      <div className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1">
+      <div className="app-material-inset inline-flex items-center gap-1 rounded border px-2 py-1">
         <span className="text-[10px] text-slate-500">{t("library.viewer.textColor")}</span>
         <div className="flex items-center gap-1">
           {TEXT_COLORS.map((color) => (
@@ -167,7 +167,7 @@ export function LibraryAnnotationToolbar(props: {
       </div>
 
       <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+        className="panel-topbar-btn rounded border p-1.5 disabled:opacity-40"
         title={t("preview.annotationUndo")}
         aria-label={t("preview.annotationUndo")}
         onClick={onUndo}
@@ -176,7 +176,7 @@ export function LibraryAnnotationToolbar(props: {
         <Undo2 className="h-3.5 w-3.5" />
       </button>
       <button
-        className="rounded border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+        className="panel-topbar-btn rounded border p-1.5 disabled:opacity-40"
         title={t("preview.annotationClear")}
         aria-label={t("preview.annotationClear")}
         onClick={onClear}
@@ -185,7 +185,7 @@ export function LibraryAnnotationToolbar(props: {
         <Check className="h-3.5 w-3.5" />
       </button>
 
-      <div className="ml-1 inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
+      <div className="app-material-inset ml-1 inline-flex items-center gap-1 rounded border px-1 py-0.5">
         <button
           className="rounded p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
           onClick={onPrevPage}
@@ -212,7 +212,7 @@ export function LibraryAnnotationToolbar(props: {
         </button>
       </div>
 
-      <div className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5">
+      <div className="app-material-inset inline-flex items-center gap-1 rounded border px-1 py-0.5">
         <button
           className="rounded p-1 text-slate-600 hover:bg-slate-100 disabled:opacity-40"
           onClick={onZoomOut}
@@ -233,7 +233,7 @@ export function LibraryAnnotationToolbar(props: {
       </div>
 
       <button
-        className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+        className="panel-topbar-btn inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] disabled:opacity-40"
         onClick={onOpenLink}
         disabled={!activeLink}
         title={t("library.viewer.openLink")}
@@ -242,7 +242,7 @@ export function LibraryAnnotationToolbar(props: {
         <span>{t("library.viewer.openLink")}</span>
       </button>
       <button
-        className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+        className="panel-topbar-btn inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] disabled:opacity-40"
         onClick={onCopyLink}
         disabled={!activeLink}
         title={copyState ? t("library.viewer.copySuccess") : t("library.viewer.copyLink")}

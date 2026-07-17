@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearDesktopShareAuth } from "../../hooks/shareHttpAuth";
 import { createShareCommentItem, postShareComment } from "./shareCommentApi";
 
 describe("shareCommentApi", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => "",
-    }));
+    clearDesktopShareAuth();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ participantId: "desktop-owner", participantToken: "token-1" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => "",
+      }));
   });
 
   afterEach(() => {
@@ -45,14 +52,21 @@ describe("shareCommentApi", () => {
       end: 32,
     });
 
-    expect(fetch).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
       "http://127.0.0.1:4021/api/comments/post",
       expect.objectContaining({
         method: "POST",
       }),
     );
-    expect((fetch as any).mock.calls[0][1].body).toContain("\"sid\":\"sid-1\"");
-    expect((fetch as any).mock.calls[0][1].body).toContain("\"start\":12");
+    const fetchMock = vi.mocked(fetch);
+    const joinBody = String(fetchMock.mock.calls[0]?.[1]?.body ?? "");
+    const commentRequest = fetchMock.mock.calls[1]?.[1];
+    expect(joinBody).toContain("\"pwd\":\"pwd-1\"");
+    expect(commentRequest?.body).toContain("\"sid\":\"sid-1\"");
+    expect(commentRequest?.body).toContain("\"start\":12");
+    expect(commentRequest?.body).not.toContain("pwd-1");
+    expect(new Headers(commentRequest?.headers).get("Authorization")).toBe("Bearer token-1");
     expect(item.source).toBe("tex");
   });
 });

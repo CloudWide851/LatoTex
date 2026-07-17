@@ -37,7 +37,7 @@ function badgeTone(kind: "phase" | "decision" | "risk" | "approval", value: stri
   if (kind === "approval") {
     return "border-violet-200 bg-violet-100 text-violet-700";
   }
-  return "border-slate-200 bg-white text-slate-600";
+  return "app-material-inset text-slate-600";
 }
 
 function badge(label: string, kind: "phase" | "decision" | "risk" | "approval") {
@@ -328,7 +328,7 @@ function TraceGroup(props: { group: TaskGroup; t: (key: any) => string }) {
         <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{t("agent.task.steps")}</div>
         <div className="mt-1 space-y-1">
           {group.steps.slice(-5).map((card) => (
-            <div key={`${card.runId}:${card.cardKey}`} className="rounded border border-slate-200 bg-white/70 px-2 py-1">
+            <div key={`${card.runId}:${card.cardKey}`} className="app-material-inset rounded border px-2 py-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate font-medium text-slate-700">{card.title}</span>
                 <span className="truncate text-[10px] uppercase text-slate-500">{card.stage}</span>
@@ -374,7 +374,7 @@ function PendingActionCard(props: {
         <button className="rounded border border-emerald-600 bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => onPendingActionResolve(true)}>
           {pendingActionYesLabel}
         </button>
-        <button className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700" onClick={() => onPendingActionResolve(false)}>
+        <button className="panel-topbar-btn rounded border px-2 py-1 text-xs" onClick={() => onPendingActionResolve(false)}>
           {pendingActionNoLabel}
         </button>
       </div>

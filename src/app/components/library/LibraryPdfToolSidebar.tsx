@@ -372,7 +372,7 @@ export function LibraryPdfToolSidebar(props: {
       {panelOpen ? (
         <div
           ref={panelRef}
-          className="absolute left-[56px] top-2 z-[75] w-64 rounded-xl border border-slate-300 bg-white/95 p-3 shadow-xl backdrop-blur"
+          className="app-material-floating absolute left-[56px] top-2 z-[75] w-64 rounded-xl p-3"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">{activePanelTitle}</span>

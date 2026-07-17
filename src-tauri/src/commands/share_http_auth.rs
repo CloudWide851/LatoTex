@@ -1,49 +1,24 @@
-use super::share_runtime_auth::{verify_body_auth, verify_participant_auth, verify_query_auth};
+use super::share_runtime_auth::verify_bearer_auth;
 use super::*;
 
-pub(super) fn verify_sync_query_auth(
+pub(super) fn verify_request_query_auth(
     runtime: &ShareRuntime,
+    request: &Request,
     query: &std::collections::HashMap<String, String>,
-) -> Result<(), Response<std::io::Cursor<Vec<u8>>>> {
-    let sid_ok = query
-        .get("sid")
-        .map(|value| value == &runtime.session_id)
-        .unwrap_or(false);
-    if !sid_ok {
-        return Err(json_response(
-            StatusCode(401),
-            json!({ "ok": false, "message": "unauthorized" }),
-        ));
-    }
+) -> Result<String, Response<std::io::Cursor<Vec<u8>>>> {
+    let sid = query.get("sid").map(String::as_str).unwrap_or_default();
     let participant_id = query
         .get("participantId")
         .or_else(|| query.get("participant_id"))
-        .map(|value| value.as_str());
-    let participant_token = query
-        .get("participantToken")
-        .or_else(|| query.get("participant_token"))
-        .map(|value| value.as_str());
-    if verify_participant_auth(runtime, participant_id, participant_token) {
-        return Ok(());
-    }
-    verify_query_auth(runtime, query)
+        .map(String::as_str);
+    verify_bearer_auth(runtime, request, sid, participant_id)
 }
 
-pub(super) fn verify_sync_body_auth(
+pub(super) fn verify_request_body_auth(
     runtime: &ShareRuntime,
+    request: &Request,
     sid: &str,
-    pwd: &str,
     participant_id: Option<&str>,
-    participant_token: Option<&str>,
-) -> Result<(), Response<std::io::Cursor<Vec<u8>>>> {
-    if runtime.session_id != sid {
-        return Err(json_response(
-            StatusCode(401),
-            json!({ "ok": false, "message": "unauthorized" }),
-        ));
-    }
-    if verify_participant_auth(runtime, participant_id, participant_token) {
-        return Ok(());
-    }
-    verify_body_auth(runtime, sid, pwd)
+) -> Result<String, Response<std::io::Cursor<Vec<u8>>>> {
+    verify_bearer_auth(runtime, request, sid, participant_id)
 }

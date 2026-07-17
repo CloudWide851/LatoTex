@@ -1,7 +1,7 @@
 export const enUS_library = {
   "library.title": "Paper Explorer",
   "library.detailTitle": "Paper Details",
-  "library.noSelection": "No paper file selected.",
+  "library.noSelection": "Select a .bib or PDF in the paper list to read, annotate, or compare it.",
   "library.empty": "No papers yet.",
   "library.upload": "Upload",
   "library.uploadPdf": "Upload PDF",

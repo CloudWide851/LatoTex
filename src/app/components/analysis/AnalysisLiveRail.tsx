@@ -22,7 +22,7 @@ export function AnalysisLiveRail(props: {
   const eventCount = cards.length;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <section className="app-material-content rounded-lg border p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${running ? "bg-primary-500 animate-pulse" : "bg-slate-400"}`} />

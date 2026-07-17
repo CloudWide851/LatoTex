@@ -471,8 +471,8 @@ export function SettingsDoctorSection(props: {
     : null;
 
   return (
-    <div className="settings-scrollbar-hidden h-full min-h-0 overflow-auto rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+    <div className="app-material-content settings-scrollbar-hidden h-full min-h-0 overflow-auto rounded-lg border p-4">
+      <div className="app-material-inset flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Stethoscope className="h-4 w-4" />
@@ -503,7 +503,7 @@ export function SettingsDoctorSection(props: {
 
       <div className="mt-3 space-y-2">
         {checks.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-8 text-center text-sm text-slate-500">
+          <div className="app-material-inset rounded-lg border border-dashed px-3 py-8 text-center text-sm text-slate-500">
             {t("settings.doctor.empty")}
           </div>
         ) : (

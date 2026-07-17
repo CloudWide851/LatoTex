@@ -126,7 +126,7 @@ export function ChatTabMenuContent(props: {
   return (
     <div className="max-h-[320px] overflow-auto p-2">
       {sessions.length === 0 ? (
-        <div className="rounded border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-500">
+        <div className="app-material-inset rounded border px-2 py-2 text-xs text-slate-500">
           {t("chat.session.emptyHistory")}
         </div>
       ) : (
@@ -138,7 +138,7 @@ export function ChatTabMenuContent(props: {
               <div
                 key={session.id}
                 className={`group flex items-center gap-1 rounded border px-1 py-1 ${
-                  selected ? "border-primary-500 bg-primary-50" : "border-slate-200 bg-white"
+                  selected ? "border-primary-500 bg-primary-50" : "app-material-inset"
                 }`}
               >
                 {editing ? (
@@ -158,7 +158,7 @@ export function ChatTabMenuContent(props: {
                         }
                       }}
                       maxLength={80}
-                      className="h-7 min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700"
+                      className="app-material-inset h-7 min-w-0 flex-1 rounded border px-2 text-xs text-slate-700"
                       placeholder={t("chat.rename")}
                       autoFocus
                     />
@@ -171,7 +171,7 @@ export function ChatTabMenuContent(props: {
                       <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                      className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border"
                       onClick={() => {
                         setEditingSessionId(null);
                         setEditingDraft("");
@@ -191,7 +191,7 @@ export function ChatTabMenuContent(props: {
                       {session.title}
                     </button>
                     <button
-                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-100"
+                      className="panel-topbar-btn inline-flex h-7 w-7 items-center justify-center rounded border"
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -202,7 +202,7 @@ export function ChatTabMenuContent(props: {
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      className="inline-flex h-7 w-7 items-center justify-center rounded border border-rose-300 bg-white text-rose-600 hover:bg-rose-50"
+                      className="app-material-inset inline-flex h-7 w-7 items-center justify-center rounded border border-rose-300 text-rose-600 hover:bg-rose-50"
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();

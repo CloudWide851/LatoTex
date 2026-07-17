@@ -1,7 +1,7 @@
 export const zhCN_library = {
   "library.title": "论文资源管理器",
   "library.detailTitle": "论文详情",
-  "library.noSelection": "未选择论文文件。",
+  "library.noSelection": "请在论文列表中选择 .bib 或 PDF，以便阅读、标注或对照。",
   "library.empty": "暂无论文。",
   "library.upload": "上传",
   "library.uploadPdf": "上传 PDF",

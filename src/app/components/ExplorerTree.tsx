@@ -488,7 +488,7 @@ export function ExplorerTree(props: {
         }}
       >
         {tree.length === 0 ? (
-          <div className="flex h-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-md border border-dashed px-4 text-xs text-slate-500">
             <div className="flex items-center gap-2">
               <Files className="h-4 w-4" />
               <span>{mode === "library" ? t("library.empty") : t("explorer.empty")}</span>
@@ -558,7 +558,7 @@ export function ExplorerTree(props: {
       {dragPreview?.active && typeof document !== "undefined"
         ? createPortal(
           <div
-            className="pointer-events-none fixed z-[320] rounded-md border border-emerald-300 bg-white/95 px-2 py-1 text-xs text-slate-700 shadow-lg backdrop-blur"
+            className="app-material-floating pointer-events-none fixed z-[320] rounded-md border-emerald-300 px-2 py-1 text-xs text-slate-700"
             style={{
               left: dragPreview.x + 14,
               top: dragPreview.y + 14,

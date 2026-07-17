@@ -1,81 +1,82 @@
-.wallpaper-enabled .app-topbar {
-  background-color: rgba(15, 23, 42, 0.66);
-  border-color: rgba(148, 163, 184, 0.32);
-  backdrop-filter: blur(calc(var(--wallpaper-blur) + 4px));
-  -webkit-backdrop-filter: blur(calc(var(--wallpaper-blur) + 4px));
+.app-material-canvas {
+  background: var(--app-material-canvas);
+  color: var(--app-text);
 }
 
-.wallpaper-enabled .app-topbar-field {
-  background-color: rgba(30, 41, 59, 0.56);
-  border-color: rgba(148, 163, 184, 0.34);
-  backdrop-filter: blur(var(--wallpaper-blur));
-  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
+.app-material-shell,
+.app-material-panel,
+.app-material-content,
+.app-material-floating {
+  border-color: var(--app-material-border);
+  color: var(--app-text);
 }
 
-.wallpaper-enabled .brand-badge {
-  background-color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(100, 116, 139, 0.42);
-  backdrop-filter: blur(var(--wallpaper-blur));
-  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+.app-material-shell,
+.app-material-panel,
+.app-material-floating {
+  backdrop-filter: saturate(132%) blur(var(--app-glass-blur));
+  -webkit-backdrop-filter: saturate(132%) blur(var(--app-glass-blur));
 }
 
-.wallpaper-enabled .bg-white,
-.wallpaper-enabled .bg-white\/95,
-.wallpaper-enabled .bg-white\/90,
-.wallpaper-enabled .bg-white\/80,
-.wallpaper-enabled .bg-slate-50,
-.wallpaper-enabled .bg-slate-50\/80,
-.wallpaper-enabled .bg-slate-50\/70,
-.wallpaper-enabled .bg-slate-100,
-.wallpaper-enabled [class*="bg-white/"],
-.wallpaper-enabled [class*="bg-slate-50/"],
-.wallpaper-enabled [class*="bg-slate-100/"] {
-  background-color: rgba(248, 250, 252, 0.58) !important;
-  backdrop-filter: blur(var(--wallpaper-blur));
-  -webkit-backdrop-filter: blur(var(--wallpaper-blur));
+.app-material-shell {
+  background: var(--app-material-shell);
+  box-shadow: var(--app-material-shadow);
 }
 
-[data-theme="dark"] .wallpaper-enabled .bg-white,
-[data-theme="dark"] .wallpaper-enabled .bg-white\/95,
-[data-theme="dark"] .wallpaper-enabled .bg-white\/90,
-[data-theme="dark"] .wallpaper-enabled .bg-white\/80,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-50,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-50\/80,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-50\/70,
-[data-theme="dark"] .wallpaper-enabled .bg-slate-100,
-[data-theme="dark"] .wallpaper-enabled [class*="bg-white/"],
-[data-theme="dark"] .wallpaper-enabled [class*="bg-slate-50/"],
-[data-theme="dark"] .wallpaper-enabled [class*="bg-slate-100/"] {
-  background-color: rgba(15, 23, 42, 0.6) !important;
+.app-material-panel {
+  background: var(--app-material-panel);
+  box-shadow: var(--app-material-shadow);
 }
 
-.wallpaper-enabled .border-slate-200,
-.wallpaper-enabled .border-slate-300 {
-  border-color: rgba(148, 163, 184, 0.34) !important;
+.app-material-content {
+  background: var(--app-material-content);
+  box-shadow: 0 1px 0 var(--app-material-highlight) inset;
 }
 
-.wallpaper-enabled .app-topbar,
-.wallpaper-enabled .app-topbar-field,
-.wallpaper-enabled .brand-badge,
-.wallpaper-enabled .bg-white,
-.wallpaper-enabled .bg-white\/95,
-.wallpaper-enabled .bg-white\/90,
-.wallpaper-enabled .bg-white\/80,
-.wallpaper-enabled .bg-slate-50,
-.wallpaper-enabled .bg-slate-50\/80,
-.wallpaper-enabled .bg-slate-50\/70,
-.wallpaper-enabled .bg-slate-100,
-.wallpaper-enabled [class*="bg-white/"],
-.wallpaper-enabled [class*="bg-slate-50/"],
-.wallpaper-enabled [class*="bg-slate-100/"] {
-  transition: backdrop-filter 120ms linear, -webkit-backdrop-filter 120ms linear, background-color 120ms linear;
+.app-material-inset {
+  border-color: var(--app-material-border);
+  background: var(--app-material-inset);
+  color: var(--app-text);
+  box-shadow: 0 1px 0 var(--app-material-highlight) inset;
+}
+
+.app-material-floating {
+  border: 1px solid var(--app-material-border-strong);
+  background: var(--app-material-floating);
+  box-shadow: var(--app-material-shadow-floating);
+}
+
+.app-document-surface {
+  background: var(--editor-paper-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.wallpaper-enabled :where(.app-material-shell, .app-material-panel, .app-material-floating) {
+  backdrop-filter: saturate(138%) blur(calc(var(--wallpaper-blur) + 2px));
+  -webkit-backdrop-filter: saturate(138%) blur(calc(var(--wallpaper-blur) + 2px));
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :where(.app-material-shell, .app-material-panel, .app-material-content, .app-material-inset, .app-material-floating) {
+    background: var(--app-surface);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --app-glass-opacity: 0.98 !important;
+    --app-glass-blur: 0px !important;
+  }
 }
 
 .app-topbar {
-  background-color: var(--topbar-bg);
+  background: var(--topbar-bg);
   border-color: var(--topbar-border);
   color: var(--topbar-fg);
+  box-shadow: 0 1px 0 var(--app-material-highlight) inset, 0 12px 32px rgba(15, 23, 42, 0.08);
+  backdrop-filter: saturate(138%) blur(calc(var(--app-glass-blur) + 4px));
+  -webkit-backdrop-filter: saturate(138%) blur(calc(var(--app-glass-blur) + 4px));
 }
 
 .app-topbar-field {
@@ -166,6 +167,16 @@
   color: #ffffff;
 }
 
+.app-status-warning {
+  border-color: color-mix(in srgb, #d97706 42%, transparent);
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+  color: color-mix(in srgb, #92400e 88%, var(--app-text));
+}
+
+[data-theme="dark"] .app-status-warning {
+  color: #fde68a;
+}
+
 .brand-wordmark {
   font-family: "Great Vibes", "Segoe Script", "Lucida Handwriting", "STKaiti", "KaiTi", cursive;
   font-weight: 500;
@@ -174,9 +185,9 @@
 }
 
 .brand-badge {
-  background-color: color-mix(in srgb, var(--topbar-field-bg) 94%, transparent);
+  background-color: var(--topbar-field-bg);
   border: 1px solid color-mix(in srgb, var(--topbar-field-border) 90%, white 10%);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 1px 0 var(--app-material-highlight) inset;
 }
 
 [data-theme="dark"] .brand-badge {
@@ -188,7 +199,7 @@
   color: var(--control-text);
   border: 1px solid var(--control-border);
   border-radius: 12px;
-  background-color: var(--control-surface-top);
+  background-color: color-mix(in srgb, var(--app-material-inset) 88%, transparent);
   box-shadow: 0 1px 0 var(--control-highlight) inset;
   transition:
     border-color 150ms var(--motion-ease-out-quart),
@@ -228,10 +239,10 @@
 .control-menu-surface {
   border: 1px solid color-mix(in srgb, var(--control-border) 92%, white 8%);
   border-radius: 16px;
-  background-color: var(--control-menu-top);
-  box-shadow: var(--control-menu-shadow);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--app-material-floating);
+  box-shadow: var(--app-material-shadow-floating);
+  backdrop-filter: saturate(138%) blur(calc(var(--app-glass-blur) + 4px));
+  -webkit-backdrop-filter: saturate(138%) blur(calc(var(--app-glass-blur) + 4px));
 }
 
 .control-menu-item {
@@ -257,7 +268,7 @@
 .control-menu-search {
   border: 1px solid color-mix(in srgb, var(--control-border) 88%, white 12%);
   border-radius: 12px;
-  background-color: var(--control-surface-top);
+  background-color: var(--app-material-inset);
   box-shadow: 0 1px 0 var(--control-highlight) inset;
 }
 
@@ -307,7 +318,7 @@
 .control-button--surface {
   color: var(--control-text);
   border: 1px solid var(--control-border);
-  background-color: var(--control-surface-top);
+  background-color: var(--app-material-inset);
   box-shadow: 0 1px 0 var(--control-highlight) inset;
 }
 
@@ -375,7 +386,7 @@
 .panel-topbar-btn {
   color: var(--control-text);
   border-color: color-mix(in srgb, var(--control-border) 92%, white 8%);
-  background-color: var(--control-surface-top);
+  background-color: var(--app-material-inset);
   box-shadow: 0 1px 0 var(--control-highlight) inset;
   transition:
     border-color 150ms var(--motion-ease-out-quart),
@@ -397,4 +408,46 @@
 
 .panel-topbar-btn:active:not(:disabled) {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--control-border-strong) 72%, transparent);
+}
+
+.app-page-rail-item {
+  outline: none;
+  box-shadow: 0 1px 0 var(--app-material-highlight) inset;
+}
+
+.app-page-rail-item--idle {
+  border-color: var(--app-material-border);
+  background: var(--app-material-inset);
+  color: var(--app-muted);
+}
+
+.app-page-rail-item--idle:hover,
+.app-page-rail-item--idle:focus-visible {
+  border-color: var(--app-material-border-strong);
+  background: color-mix(in srgb, var(--app-material-inset) 76%, var(--app-accent) 24%);
+  color: var(--app-text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.app-page-rail-item--active {
+  border-color: color-mix(in srgb, var(--app-accent) 78%, white 22%);
+  background: var(--app-accent);
+  color: #ffffff;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--app-accent) 28%, transparent), 0 1px 0 rgba(255, 255, 255, 0.24) inset;
+}
+
+.app-page-rail-item--active:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 24%, transparent), 0 10px 24px color-mix(in srgb, var(--app-accent) 28%, transparent);
+}
+
+.app-terminal-viewport {
+  background: color-mix(in srgb, var(--app-material-inset) 64%, transparent);
+}
+
+.app-terminal-surface :where(.xterm, .xterm-viewport, .xterm-screen) {
+  background-color: transparent !important;
+}
+
+.app-terminal-surface .xterm-viewport {
+  scrollbar-color: var(--library-scrollbar-thumb) transparent;
 }

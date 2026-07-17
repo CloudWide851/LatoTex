@@ -278,9 +278,9 @@ export function SubmissionCiWorkspace(props: {
   };
 
   return (
-    <section className="h-full min-h-0 overflow-auto rounded-lg bg-[color:var(--editor-paper-bg)] p-3 motion-shell-stage">
+    <section className="app-material-content h-full min-h-0 overflow-auto rounded-lg border p-3 motion-shell-stage">
       <div className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col gap-3">
-        <div className="rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3 shadow-sm">
+        <div className="app-material-inset rounded-lg border p-3 shadow-sm">
           <div className="grid min-w-0 grid-cols-[minmax(120px,0.7fr)_minmax(0,1fr)_auto] items-center gap-3 max-[900px]:grid-cols-1">
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
@@ -298,7 +298,7 @@ export function SubmissionCiWorkspace(props: {
                 <span className="rounded border border-[color:var(--editor-widget-border)] px-1.5 py-0.5">
                   {report.readiness.blockers}
                 </span>
-                <span>{t(nextAction.titleKey)}</span>
+                <span id="submission-next-action-title" className="font-medium text-[color:var(--editor-tab-text)]">{t(nextAction.titleKey)}</span>
                 <span className="inline-flex min-w-0 items-center gap-1 truncate">
                   <Gauge className="h-3 w-3 shrink-0" />
                   <span className="truncate">{editableMetricLabel}</span>
@@ -308,6 +308,9 @@ export function SubmissionCiWorkspace(props: {
                   <span className="truncate">{searchReadyMetricLabel}</span>
                 </span>
               </div>
+              <p id="submission-next-action-detail" className="mt-1 line-clamp-2 text-xs leading-5 text-[color:var(--editor-tab-muted)]">
+                {t(nextAction.detailKey)}
+              </p>
             </div>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 max-[900px]:justify-start">
               <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-1.5 py-1 text-[10px] text-[color:var(--editor-tab-muted)]">
@@ -331,46 +334,78 @@ export function SubmissionCiWorkspace(props: {
               </div>
               <button
                 type="button"
-                className="panel-topbar-btn editor-toolbar-btn--primary h-8 w-8 justify-center p-0 disabled:opacity-50"
+                className="submission-next-action control-button control-button--primary inline-flex min-h-9 items-center justify-center gap-2 rounded-md px-3 text-xs disabled:opacity-50"
                 disabled={busy}
                 title={t(nextAction.actionKey)}
-                aria-label={t(nextAction.actionKey)}
+                aria-describedby="submission-next-action-title submission-next-action-detail"
                 onClick={runNextAction}
               >
                 <FileCheck2 className="h-4 w-4" />
+                <span>{t(nextAction.actionKey)}</span>
               </button>
             </div>
           </div>
         </div>
 
-        <div className="submission-ci-card submission-ci-card--delay-1 rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">
-          <div className="grid min-w-0 grid-cols-[minmax(220px,0.76fr)_minmax(0,1fr)] gap-3 max-[980px]:grid-cols-1">
-            <div className="grid grid-cols-5 gap-2">
-              {[
-                { icon: Wrench, label: t("research.action.compileRepair"), disabled: busy || !canCompileSelectedFile, onClick: onCompileRepair },
-                { icon: BookOpenCheck, label: t("research.action.referenceCheck"), disabled: busy || !canCompileSelectedFile, onClick: onReferenceCheck },
-                { icon: ClipboardCheck, label: paperActionLabel, disabled: busy || !projectId, onClick: selectedLibraryPath ? onAnalyzePaper : onOpenLibrary },
-                { icon: FileCheck2, label: t("research.quality.detail.submissionAgentAction"), disabled: busy || !canCompileSelectedFile, onClick: runSubmissionPreflight },
-                { icon: MessageSquareReply, label: t("research.rebuttal.open"), disabled: busy || !canCompileSelectedFile, onClick: () => {
-                  setRebuttalOpen((value) => !value);
-                  setActiveLane("rebuttal");
-                } },
-              ].map((action) => {
-                const Icon = action.icon;
-                return (
-                  <button
-                    key={action.label}
-                    type="button"
-                    className="panel-topbar-btn h-10 justify-center p-0 disabled:opacity-50 motion-hover-rise"
-                    disabled={action.disabled}
-                    title={action.label}
-                    aria-label={action.label}
-                    onClick={action.onClick}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
-                );
-              })}
+        <div className="app-material-inset submission-ci-card submission-ci-card--delay-1 rounded-lg border p-3">
+          <div className="grid min-w-0 grid-cols-[minmax(420px,1fr)_minmax(0,1fr)] gap-3 max-[1080px]:grid-cols-1">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-2 max-[680px]:grid-cols-1">
+              <section aria-labelledby="submission-manuscript-actions">
+                <h3 id="submission-manuscript-actions" className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
+                  {t("research.actions.manuscriptGroup")}
+                </h3>
+                <div className="grid grid-cols-3 gap-1.5 max-[520px]:grid-cols-1">
+                  {[
+                    { icon: Wrench, label: t("research.action.compileRepair"), disabled: busy || !canCompileSelectedFile, onClick: onCompileRepair },
+                    { icon: BookOpenCheck, label: t("research.action.referenceCheck"), disabled: busy || !canCompileSelectedFile, onClick: onReferenceCheck },
+                    { icon: ClipboardCheck, label: paperActionLabel, disabled: busy || !projectId, onClick: selectedLibraryPath ? onAnalyzePaper : onOpenLibrary },
+                  ].map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <button
+                        key={action.label}
+                        type="button"
+                        className="panel-topbar-btn inline-flex h-9 min-w-0 items-center justify-center gap-1.5 px-2 text-[11px] disabled:opacity-50 motion-hover-rise"
+                        disabled={action.disabled}
+                        title={action.label}
+                        onClick={action.onClick}
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{action.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+              <section aria-labelledby="submission-workflow-actions">
+                <h3 id="submission-workflow-actions" className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--editor-tab-muted)]">
+                  {t("research.actions.submissionGroup")}
+                </h3>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { icon: FileCheck2, label: t("research.quality.detail.submissionAgentAction"), disabled: busy || !canCompileSelectedFile, onClick: runSubmissionPreflight },
+                    { icon: MessageSquareReply, label: t("research.rebuttal.open"), disabled: busy || !canCompileSelectedFile, onClick: () => {
+                      setRebuttalOpen((value) => !value);
+                      setActiveLane("rebuttal");
+                    } },
+                  ].map((action) => {
+                    const Icon = action.icon;
+                    return (
+                      <button
+                        key={action.label}
+                        type="button"
+                        className="panel-topbar-btn inline-flex h-9 min-w-0 items-center justify-center gap-1.5 px-2 text-[11px] disabled:opacity-50 motion-hover-rise"
+                        disabled={action.disabled}
+                        title={action.label}
+                        onClick={action.onClick}
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{action.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
               <label className="flex min-w-0 items-center gap-2 rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5 transition focus-within:border-[color:var(--control-primary-border)] focus-within:ring-2 focus-within:ring-[color:var(--control-ring)]">
@@ -431,7 +466,7 @@ export function SubmissionCiWorkspace(props: {
           />
         </div>
 
-        <div className="submission-ci-card submission-ci-card--delay-2 rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3">
+        <div className="app-material-inset submission-ci-card submission-ci-card--delay-2 rounded-lg border p-3">
           <div className="grid min-w-0 grid-cols-6 gap-2 max-[900px]:grid-cols-3 max-[620px]:grid-cols-2">
             {report.lanes.map((lane) => {
               const Icon = laneIcon(lane.id);
@@ -483,7 +518,7 @@ export function SubmissionCiWorkspace(props: {
           <div className="truncate text-[11px] text-[color:var(--editor-tab-muted)]">{auditStatus}</div>
         ) : null}
         {rebuttalOpen ? (
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] p-3 max-[760px]:grid-cols-1">
+          <div className="app-material-inset grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border p-3 max-[760px]:grid-cols-1">
             <textarea
               className="min-h-[74px] min-w-0 resize-y rounded-md border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-surface-bg)] px-2 py-1.5 text-xs text-[color:var(--editor-tab-text)] outline-none placeholder:text-[color:var(--editor-tab-muted)]"
               value={rebuttalComments}

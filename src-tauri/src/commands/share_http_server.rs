@@ -1,4 +1,5 @@
-use super::share_http_auth::{verify_sync_body_auth, verify_sync_query_auth};
+use super::share_http_auth::{verify_request_body_auth, verify_request_query_auth};
+use super::share_security::read_share_target;
 use super::*;
 use tiny_http::Method;
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
@@ -7,7 +8,9 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
     let method = request.method().clone();
     let (path, query) = split_url_path_query(request.url());
     if method == Method::Options {
-        let _ = request.respond(share_http_response::share_options_response(origin.as_deref()));
+        let _ = request.respond(share_http_response::share_options_response(
+            origin.as_deref(),
+        ));
         return;
     }
     let runtime_snapshot = if let Ok(guard) = runtime.lock() {
@@ -67,66 +70,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         return;
     }
     if method == Method::Post && path == "/api/join" {
-        let body = match parse_json_body::<JoinBody>(&mut request) {
-            Ok(value) => value,
-            Err(error) => {
-                let _ = request.respond(json_response(
-                    StatusCode(400),
-                    json!({ "ok": false, "message": error }),
-                ));
-                return;
-            }
-        };
-        let mut guard = if let Ok(runtime_guard) = runtime.lock() {
-            runtime_guard
-        } else {
-            let _ = request.respond(json_response(
-                StatusCode(500),
-                json!({ "ok": false, "message": "runtime lock failed" }),
-            ));
-            return;
-        };
-        if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
-            let _ = request.respond(response);
-            return;
-        }
-        let username = normalize_share_username(&body.username);
-        if username.is_empty() {
-            let _ = request.respond(json_response(
-                StatusCode(400),
-                json!({ "ok": false, "message": "username required" }),
-            ));
-            return;
-        }
-        let participant_id = format!(
-            "p-{}",
-            body.client_id
-                .unwrap_or_else(|| Uuid::new_v4().simple().to_string())
-                .chars()
-                .filter(|ch| ch.is_ascii_alphanumeric())
-                .take(16)
-                .collect::<String>()
-        );
-        let participant_token = new_participant_token();
-        upsert_participant(
-            &mut guard,
-            &participant_id,
-            &username,
-            Some("joined collaboration"),
-        );
-        if let Some(item) = guard.participants.get_mut(&participant_id) {
-            item.auth_token = participant_token.clone();
-        }
-        let _ = request.respond(json_response(
-            StatusCode(200),
-            json!({
-                "ok": true,
-                "participantId": participant_id,
-                "participantToken": participant_token,
-                "username": username,
-                "participants": participant_public_list(&guard),
-            }),
-        ));
+        share_http_join::handle_join(request, runtime);
         return;
     }
     if method == Method::Post && path == "/api/presence/ping" {
@@ -149,12 +93,11 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_body_auth(
+        if let Err(response) = verify_request_body_auth(
             &guard,
+            &request,
             &body.sid,
-            &body.pwd,
             Some(body.participant_id.as_str()),
-            body.participant_token.as_deref(),
         ) {
             let _ = request.respond(response);
             return;
@@ -189,7 +132,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_query_auth(&guard, &query) {
+        if let Err(response) = verify_request_query_auth(&guard, &request, &query) {
             let _ = request.respond(response);
             return;
         }
@@ -213,7 +156,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_query_auth(&guard, &query) {
+        if let Err(response) = verify_request_query_auth(&guard, &request, &query) {
             let _ = request.respond(response);
             return;
         }
@@ -229,7 +172,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         return;
     }
     if method == Method::Post && path == "/api/comments/post" {
-        let body = match parse_json_body::<CommentPostBody>(&mut request) {
+        let mut body = match parse_json_body::<CommentPostBody>(&mut request) {
             Ok(value) => value,
             Err(error) => {
                 let _ = request.respond(json_response(
@@ -248,16 +191,24 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_body_auth(
+        let participant_id = match verify_request_body_auth(
             &guard,
+            &request,
             &body.sid,
-            &body.pwd,
             body.participant_id.as_deref(),
-            body.participant_token.as_deref(),
         ) {
-            let _ = request.respond(response);
-            return;
-        }
+            Ok(value) => value,
+            Err(response) => {
+                let _ = request.respond(response);
+                return;
+            }
+        };
+        body.participant_id = Some(participant_id);
+        body.username = body
+            .participant_id
+            .as_deref()
+            .and_then(|pid| guard.participants.get(pid))
+            .map(|participant| participant.username.clone());
         if let Some(pid) = body.participant_id.as_deref() {
             let username = body
                 .username
@@ -305,12 +256,20 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_query_auth(&guard, &query) {
+        if let Err(response) = verify_request_query_auth(&guard, &request, &query) {
             let _ = request.respond(response);
             return;
         }
-        let path = guard.project_root.join(&guard.target_path);
-        let content = fs::read_to_string(path).unwrap_or_default();
+        let content = match read_share_target(&guard.project_root, &guard.target_path) {
+            Ok(content) => content,
+            Err(code) => {
+                let _ = request.respond(json_response(
+                    StatusCode(409),
+                    json!({ "ok": false, "code": code, "message": "target unavailable" }),
+                ));
+                return;
+            }
+        };
         let _ = request.respond(json_response(
             StatusCode(200),
             json!({ "ok": true, "content": content }),
@@ -327,7 +286,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_query_auth(&guard, &query) {
+        if let Err(response) = verify_request_query_auth(&guard, &request, &query) {
             let _ = request.respond(response);
             return;
         }
@@ -378,28 +337,23 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_sync_body_auth(
+        let participant_id = match verify_request_body_auth(
             &guard,
+            &request,
             &body.sid,
-            &body.pwd,
             body.participant_id.as_deref(),
-            body.participant_token.as_deref(),
         ) {
-            let _ = request.respond(response);
-            return;
-        }
-        let participant_id = body
-            .participant_id
-            .as_deref()
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-            .unwrap_or("desktop-owner");
-        let participant_name = body
-            .username
-            .as_deref()
-            .map(normalize_share_username)
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| "Desktop".to_string());
+            Ok(value) => value,
+            Err(response) => {
+                let _ = request.respond(response);
+                return;
+            }
+        };
+        let participant_name = guard
+            .participants
+            .get(&participant_id)
+            .map(|participant| participant.username.clone())
+            .unwrap_or_else(|| "Guest".to_string());
         let action = body
             .action
             .as_deref()
@@ -413,7 +367,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             seq,
             from: body.client_id,
             update: normalize_share_sync_update(&body.update),
-            participant_id: participant_id.to_string(),
+            participant_id: participant_id.clone(),
             username: participant_name.clone(),
             action: action.clone(),
             created_at: now.clone(),
@@ -421,7 +375,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         guard.last_sync_at = Some(now);
         upsert_participant(
             &mut guard,
-            participant_id,
+            &participant_id,
             &participant_name,
             action.as_deref(),
         );
@@ -455,7 +409,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
+        if let Err(response) = verify_request_body_auth(&guard, &request, &body.sid, None) {
             let _ = request.respond(response);
             return;
         }
@@ -483,7 +437,7 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
             ));
             return;
         };
-        if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
+        if let Err(response) = verify_request_body_auth(&guard, &request, &body.sid, None) {
             let _ = request.respond(response);
             return;
         }

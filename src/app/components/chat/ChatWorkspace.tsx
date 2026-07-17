@@ -621,14 +621,14 @@ export function ChatWorkspace(props: {
 
   if (!projectId) {
     return (
-      <section className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-xs text-slate-500">
+      <section className="app-material-panel flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
         {t("workspace.noProject")}
       </section>
     );
   }
 
   return (
-    <section className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_128px] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+    <section className="app-material-panel grid h-full min-h-0 grid-rows-[minmax(0,1fr)_128px] overflow-hidden rounded-lg border">
       <div ref={listRef} className="min-h-0 overflow-auto px-4 py-3">
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-slate-400">{t("chat.empty")}</div>
@@ -651,7 +651,7 @@ export function ChatWorkspace(props: {
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={t("chat.inputPlaceholder")}
-            className="h-full w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
+            className="app-material-inset h-full w-full resize-none rounded-md border px-3 py-2 pr-12 text-sm leading-5 outline-none focus:border-primary-500"
           />
           <button
             className={`absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border transition ${

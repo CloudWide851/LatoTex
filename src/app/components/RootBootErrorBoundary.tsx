@@ -101,7 +101,7 @@ export class RootBootErrorBoundary extends Component<Props, State> {
     }
     return (
       <main className="flex min-h-screen items-center justify-center bg-[color:var(--editor-paper-bg,#f8fafc)] p-6 text-slate-800">
-        <section className="w-full max-w-lg rounded-lg border border-rose-200 bg-white p-5 shadow-soft">
+        <section className="app-material-floating w-full max-w-lg rounded-lg border-rose-200 p-5">
           <h1 className="text-base font-semibold text-rose-700">{bootText("workspace.bootCrashedTitle")}</h1>
           <p className="mt-2 text-sm text-slate-600">{bootText("workspace.bootCrashedHint")}</p>
           <p className="mt-3 max-h-24 overflow-auto rounded border border-rose-100 bg-rose-50 p-2 font-mono text-xs text-rose-700">

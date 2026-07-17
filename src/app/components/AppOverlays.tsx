@@ -194,7 +194,7 @@ export function AppOverlays(props: {
     <>
       {overlay === "logs" && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/60 p-4 motion-overlay-enter">
-          <div className="grid h-[74vh] w-full max-w-4xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-300 bg-white shadow-soft motion-card-pop motion-panel-glow">
+          <div className="app-material-floating grid h-[74vh] w-full max-w-4xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-xl motion-card-pop motion-panel-glow">
             <div className="flex items-center justify-between border-b border-slate-200 px-4">
               <h3 className="text-sm font-semibold text-slate-800">{t("preview.title")}</h3>
               <button className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={onOverlayClose}>
@@ -289,7 +289,7 @@ export function AppOverlays(props: {
 
       {deleteIntent && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-950/62 p-4 motion-overlay-enter">
-          <div className="w-full max-w-md rounded-[22px] border border-rose-200 bg-white p-5 shadow-soft motion-card-pop motion-panel-glow">
+          <div className="app-material-floating w-full max-w-md rounded-[22px] border-rose-200 p-5 motion-card-pop motion-panel-glow">
             <div className="rounded-[18px] border border-rose-100 bg-rose-50/90 px-4 py-3">
               <h3 className="text-sm font-semibold text-rose-900">{t("explorer.deleteConfirmTitle")}</h3>
               <p className="mt-2 break-all rounded-[14px] border border-rose-100 bg-white/90 px-3 py-2 font-mono text-xs text-rose-800 shadow-sm">
@@ -325,7 +325,7 @@ export function AppOverlays(props: {
 
       {integrityIssue && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
-          <div className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-4 shadow-soft motion-card-pop motion-panel-glow">
+          <div className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow">
             <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">
               {t("workspace.integrityHint")}
@@ -351,7 +351,7 @@ export function AppOverlays(props: {
 
       {closeBehaviorDialogOpen && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
-          <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft motion-card-pop motion-panel-glow">
+          <div className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow">
             <h3 className="text-sm font-semibold text-slate-800">
               {t("window.closeConfirmTitle")}
             </h3>
@@ -396,7 +396,7 @@ export function AppOverlays(props: {
 
       {analysisEnvPrompt.envPromptOpen && envPromptStatus && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4 motion-overlay-enter">
-          <div className="w-full max-w-lg rounded-lg border border-slate-300 bg-white p-4 shadow-soft motion-card-pop motion-panel-glow">
+          <div className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow">
             <h3 className="text-sm font-semibold text-slate-800">{t("analysis.envPromptTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">
               {envPromptStatus.exists ? t("analysis.envPromptRepairHint") : t("analysis.envPromptCreateHint")}

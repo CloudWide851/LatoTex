@@ -160,7 +160,7 @@ export function AgentTeamsSettingsSection(props: {
               <article
                 key={team.id}
                 className={cn(
-                  "rounded-md border bg-white p-3 text-xs transition",
+                  "app-material-inset rounded-md border p-3 text-xs transition",
                   selected ? "border-[var(--app-accent)] shadow-sm" : "border-slate-200 hover:border-slate-300",
                 )}
               >
@@ -219,7 +219,7 @@ export function AgentTeamsSettingsSection(props: {
             role="dialog"
             aria-modal="true"
             aria-labelledby="agent-teams-editor-title"
-            className="settings-scrollbar-hidden max-h-[min(760px,calc(100vh-40px))] w-[min(920px,calc(100vw-32px))] overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-soft"
+            className="app-material-floating settings-scrollbar-hidden max-h-[min(760px,calc(100vh-40px))] w-[min(920px,calc(100vw-32px))] overflow-auto rounded-lg p-4"
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -249,7 +249,7 @@ export function AgentTeamsSettingsSection(props: {
 
           {editingRole ? (
             <div className="grid gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white p-2">
+              <div className="app-material-inset flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
                 <Button size="sm" variant="ghost" onClick={() => setEditingRoleId(null)}>
                   <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
                   {t("settings.agentTeamsBackToTeam")}
@@ -294,7 +294,7 @@ export function AgentTeamsSettingsSection(props: {
               <textarea
                 value={editingRole.identityPrompt ?? ""}
                 onChange={(event) => updateEditingRole(editingRole.id, { identityPrompt: event.target.value })}
-                className="settings-scrollbar-hidden h-28 w-full resize-none overflow-auto rounded border border-slate-300 bg-white px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
+                className="app-material-inset settings-scrollbar-hidden h-28 w-full resize-none overflow-auto rounded border px-2 py-1.5 text-xs leading-5 text-slate-700 outline-none focus:border-[var(--app-accent)]"
                 placeholder={t("settings.agentTeamRole.promptPlaceholder")}
               />
 
@@ -318,7 +318,7 @@ export function AgentTeamsSettingsSection(props: {
                 </label>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-2">
+              <div className="app-material-inset flex flex-wrap items-center gap-2 rounded-md border p-2">
                 <label className="inline-flex items-center gap-1 text-[11px] text-slate-600">
                   <input
                     type="checkbox"
@@ -389,7 +389,7 @@ export function AgentTeamsSettingsSection(props: {
 
             <div className="flex flex-wrap gap-2">
               {CALLSITE_CHOICES.map((callsite) => (
-                <label key={callsite} className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600">
+                <label key={callsite} className="app-material-inset inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] text-slate-600">
                   <input
                     type="checkbox"
                     checked={(editingTeam.callsites ?? []).includes(callsite)}
@@ -411,7 +411,7 @@ export function AgentTeamsSettingsSection(props: {
                 <button
                   key={role.id}
                   type="button"
-                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white p-3 text-left transition hover:border-[var(--app-accent)]"
+                  className="app-material-inset flex w-full flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left transition hover:border-[var(--app-accent)]"
                   onClick={() => setEditingRoleId(role.id)}
                 >
                   <span className="flex min-w-0 flex-wrap items-center gap-2">

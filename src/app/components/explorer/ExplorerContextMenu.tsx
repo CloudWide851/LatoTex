@@ -100,7 +100,7 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
   const content = (
     <div
       data-explorer-context-menu="true"
-      className="fixed z-[260] min-w-40 overflow-hidden rounded-md border border-slate-300 bg-white py-1 shadow-lg"
+      className="app-material-floating fixed z-[260] min-w-40 overflow-hidden rounded-md py-1"
       style={{
         left: Math.max(8, Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : menu.x) - 180)),
         top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 220)),

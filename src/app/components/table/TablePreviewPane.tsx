@@ -111,7 +111,7 @@ function TableGrid(props: {
 }) {
   const { rows, editable, onCellChange } = props;
   return (
-    <div className="h-full overflow-auto rounded-md border border-slate-200 bg-white">
+    <div className="app-material-content h-full overflow-auto rounded-md border">
       <table className="min-w-full border-separate border-spacing-0 text-xs">
         <thead className="sticky top-0 z-10">
           <tr className="bg-slate-100">
@@ -331,7 +331,7 @@ export function TablePreviewPane(props: {
   if (isExcel) {
     if (isLegacyXls) {
       return (
-        <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 text-xs text-slate-500">
+        <div className="app-material-inset flex h-full items-center justify-center rounded-lg border border-dashed px-3 text-xs text-slate-500">
           {t("table.excel.readonlyXls")}
         </div>
       );
@@ -365,13 +365,13 @@ export function TablePreviewPane(props: {
           </button>
         </div>
         {excelLoading ? (
-          <div className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-lg border text-xs text-slate-500">
             {t("table.excel.loading")}
           </div>
         ) : activeExcelSheet ? (
           <TableGrid rows={activeExcelSheet.rows} editable onCellChange={updateExcelCell} />
         ) : (
-          <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+          <div className="app-material-inset flex h-full items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
             {t("table.excel.noSheets")}
           </div>
         )}
@@ -388,7 +388,7 @@ export function TablePreviewPane(props: {
   }
 
   return (
-    <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-500">
+    <div className="app-material-inset flex h-full items-center justify-center rounded-lg border border-dashed text-xs text-slate-500">
       {t("preview.empty")}
     </div>
   );

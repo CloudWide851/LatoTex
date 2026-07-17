@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { fetchSharePdfBuffer, fetchSharePdfStatus, type SharePdfStatus } from "./shareApi";
+import {
+  fetchSharePdfBuffer,
+  fetchSharePdfStatus,
+  type ShareParticipantAuth,
+  type SharePdfStatus,
+} from "./shareApi";
 import {
   SHARE_PDF_PAGE_GAP,
   clampSharePdfPage,
@@ -55,14 +60,14 @@ function isPdfRenderCancelled(error: unknown): boolean {
 
 export function useSharePdfPreview(params: {
   sid: string;
-  pwd: string;
+  auth: ShareParticipantAuth | null;
   connected: boolean;
   i18n: ShareI18n;
   containerRef: RefObject<HTMLDivElement>;
   active: boolean;
   onStatus: (message: string, isError?: boolean) => void;
 }) {
-  const { sid, pwd, connected, i18n, containerRef, active, onStatus } = params;
+  const { sid, auth, connected, i18n, containerRef, active, onStatus } = params;
   const pdfModuleRef = useRef<PdfModule | null>(null);
   const pdfDocRef = useRef<any>(null);
   const renderTasksRef = useRef(new Map<number, any>());
@@ -242,11 +247,11 @@ export function useSharePdfPreview(params: {
   }, [containerRef, i18n, onStatus, renderVisiblePages, setCurrentPage]);
 
   const reload = useCallback(async (options?: { forceConnected?: boolean }) => {
-    if (!(connected || options?.forceConnected) || !sid || !pwd) {
+    if (!(connected || options?.forceConnected) || !sid || !auth?.participantToken) {
       return;
     }
     try {
-      const status = await fetchSharePdfStatus(sid, pwd).catch(() => ({ ready: false } as SharePdfStatus));
+      const status = await fetchSharePdfStatus(sid, auth).catch(() => ({ ready: false } as SharePdfStatus));
       if (!status.ready) {
         pdfDocRef.current = null;
         versionRef.current = null;
@@ -268,7 +273,7 @@ export function useSharePdfPreview(params: {
       renderEpochRef.current += 1;
       clearRenderedPages();
       const pdfjs = await ensurePdfModule();
-      const buffer = await fetchSharePdfBuffer(sid, pwd, nextVersion);
+      const buffer = await fetchSharePdfBuffer(sid, auth, nextVersion);
       const nextPdfDoc = await pdfjs.getDocument({
         data: new Uint8Array(buffer),
         cMapUrl: PDF_CMAP_URL,
@@ -297,7 +302,7 @@ export function useSharePdfPreview(params: {
       clearRenderedPages();
       onStatus(i18n.statusPdfLoadFailed(String(error)), true);
     }
-  }, [clearRenderedPages, connected, ensurePdfModule, i18n, onStatus, pwd, ready, renderVisiblePages, resolvePageMetrics, scrollToPage, setCurrentPage, sid]);
+  }, [auth, clearRenderedPages, connected, ensurePdfModule, i18n, onStatus, ready, renderVisiblePages, resolvePageMetrics, scrollToPage, setCurrentPage, sid]);
 
   useEffect(() => {
     const root = containerRef.current;

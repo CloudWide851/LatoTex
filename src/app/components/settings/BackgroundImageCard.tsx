@@ -86,7 +86,7 @@ function DefaultBackgroundCard(props: {
   return (
     <button
       type="button"
-      className={`relative flex h-24 w-36 shrink-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-md border bg-white text-xs transition ${
+      className={`app-material-inset relative flex h-24 w-36 shrink-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-md border text-xs transition ${
         active
           ? "border-[var(--app-accent)] ring-2 ring-[var(--control-primary-ring)]"
           : "border-slate-300 hover:border-[var(--app-accent)]"
@@ -144,7 +144,7 @@ function BackgroundCropEditor(props: {
   };
 
   return (
-    <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="app-material-inset grid gap-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
           <Scissors className="h-3.5 w-3.5" />
@@ -152,7 +152,7 @@ function BackgroundCropEditor(props: {
         </span>
         <button
           type="button"
-          className="inline-flex h-7 items-center gap-1 rounded border border-slate-300 bg-white px-2 text-[11px] text-slate-600 hover:bg-slate-100"
+          className="panel-topbar-btn inline-flex h-7 items-center gap-1 rounded border px-2 text-[11px]"
           onClick={onReset}
         >
           <RotateCcw className="h-3 w-3" />

@@ -567,12 +567,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   };
 
   return (
-    <main className="flex-1 min-h-0 overflow-hidden p-1">
+    <main className="app-material-canvas flex-1 min-h-0 overflow-hidden p-1">
       <div className="flex h-full gap-0">
         <div className="w-14 shrink-0">
           <PageRail items={pageRailItems} activePage={page} onChange={onPageChange} />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="app-material-shell min-w-0 flex-1 overflow-hidden rounded-lg border p-1">
           <WorkspacePageLayout
             page={page}
             activeProjectId={activeProjectId}

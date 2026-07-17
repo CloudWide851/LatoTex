@@ -20,7 +20,7 @@ export function CodePreviewPane(props: {
 
   if (!String(codeContent ?? "").trim()) {
     return (
-      <div className="flex h-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500">
+      <div className="app-material-inset flex h-full items-center justify-center rounded border border-dashed text-sm text-slate-500">
         {emptyText}
       </div>
     );

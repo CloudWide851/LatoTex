@@ -86,14 +86,14 @@ export function LibraryExplorerPanel(props: {
   const filteredLibraryTree = filterPaperNodes(libraryTree);
 
   return (
-    <aside className="h-full min-h-0 overflow-hidden rounded-lg border border-slate-200 bg-white p-1.5 shadow-soft">
+    <aside className="app-material-panel h-full min-h-0 overflow-hidden rounded-lg border p-1.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           {t("library.title")}
         </h2>
         <div className="flex items-center gap-1">
           <button
-            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+            className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded border transition disabled:opacity-50"
             onClick={onLibraryRescan}
             disabled={busy}
             title={t("explorer.action.rescan")}

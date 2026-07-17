@@ -112,7 +112,7 @@ export function PdfTextBoxContextMenu(props: {
   const menu = (
     <div
       data-textbox-menu="true"
-      className={`${positioning === "fixed" ? "fixed" : "absolute"} z-[620] w-80 rounded-lg border border-slate-300 bg-white p-3 shadow-xl`}
+      className={`app-material-floating ${positioning === "fixed" ? "fixed" : "absolute"} z-[620] w-80 rounded-lg p-3`}
       style={{ left: x, top: y }}
       onMouseDown={keepMenuOpen}
     >

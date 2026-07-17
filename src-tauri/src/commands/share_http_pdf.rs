@@ -1,3 +1,4 @@
+use super::share_http_auth::{verify_request_body_auth, verify_request_query_auth};
 use super::share_pdf::{persist_uploaded_pdf, share_pdf_ready};
 use super::*;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -53,7 +54,7 @@ pub(super) fn handle_pdf_upload(mut request: Request, runtime: &Arc<Mutex<ShareR
         ));
         return;
     };
-    if let Err(response) = verify_body_auth(&guard, &body.sid, &body.pwd) {
+    if let Err(response) = verify_request_body_auth(&guard, &request, &body.sid, None) {
         let _ = request.respond(response);
         return;
     }
@@ -98,7 +99,7 @@ pub(super) fn handle_pdf_status(
         ));
         return;
     };
-    if let Err(response) = verify_query_auth(&guard, query) {
+    if let Err(response) = verify_request_query_auth(&guard, &request, query) {
         let _ = request.respond(response);
         return;
     }
@@ -133,7 +134,7 @@ pub(super) fn handle_pdf_fetch(
         ));
         return;
     };
-    if let Err(response) = verify_query_auth(&guard, query) {
+    if let Err(response) = verify_request_query_auth(&guard, &request, query) {
         let _ = request.respond(response);
         return;
     }
@@ -165,15 +166,13 @@ pub(super) fn handle_pdf_fetch(
             return;
         }
     };
-    let _ = request.respond(
-        share_http_response::with_share_headers(
-            Response::from_file(file)
-                .with_status_code(StatusCode(200))
-                .with_header(pdf_header())
-                .with_header(pdf_cache_header())
-                .with_header(pdf_etag_header(&version))
-        ),
-    );
+    let _ = request.respond(share_http_response::with_share_headers(
+        Response::from_file(file)
+            .with_status_code(StatusCode(200))
+            .with_header(pdf_header())
+            .with_header(pdf_cache_header())
+            .with_header(pdf_etag_header(&version)),
+    ));
 }
 
 #[cfg(test)]

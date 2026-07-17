@@ -145,7 +145,7 @@ export function DiagnosticsSettingsSection(props: {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
+    <div className="app-material-content flex h-full min-h-0 flex-col gap-2 rounded-lg border p-3">
       <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 px-3 py-2 text-[11px] text-slate-600">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden">
           <span className="truncate">
@@ -181,7 +181,7 @@ export function DiagnosticsSettingsSection(props: {
         </div>
       </div>
       {bundleStatus ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div className="app-material-inset rounded-md border px-3 py-2 text-xs text-slate-600">
           {bundleStatus}
         </div>
       ) : null}
@@ -328,7 +328,7 @@ export function DiagnosticsSettingsSection(props: {
 
       {clearLogConfirmOpen && (
         <div className="fixed inset-0 z-[430] flex items-center justify-center bg-slate-900/55 p-4">
-          <div className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-4 shadow-soft">
+          <div className="app-material-floating w-full max-w-md rounded-lg p-4">
             <h3 className="text-sm font-semibold text-slate-800">{t("settings.logClearModalTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{t("settings.logClearModalDesc")}</p>
             <div className="mt-4 flex justify-end gap-2">

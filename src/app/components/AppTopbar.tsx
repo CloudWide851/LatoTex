@@ -60,7 +60,7 @@ export function AppTopbar(props: {
 
   return (
     <header
-      className="app-topbar tauri-drag-region relative flex h-12 min-w-0 items-center gap-2 border-b px-3"
+      className="app-topbar app-material-shell tauri-drag-region relative flex h-12 min-w-0 items-center gap-2 border-b px-3"
       data-tauri-drag-region
     >
       <div className="flex min-w-[7.5rem] max-w-[15rem] flex-[0_1_15rem] items-center gap-2">
@@ -69,10 +69,10 @@ export function AppTopbar(props: {
           data-tauri-drag-region
         >
           <img src={logoMark} alt={t("app.brand")} className="h-5 w-5 object-contain" />
-          <span className="brand-wordmark truncate text-base leading-none text-slate-900">{t("app.brand")}</span>
+          <span className="brand-wordmark truncate text-base leading-none">{t("app.brand")}</span>
         </div>
         {status === "offline" && (
-          <span className="shrink-0 rounded bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-300">
+          <span className="app-status-warning shrink-0 rounded border px-2 py-0.5 text-[11px] font-medium">
             {t("app.offline")}
           </span>
         )}
