@@ -8,6 +8,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "windows")]
+#[path = "secure_dpapi.rs"]
+mod secure_dpapi;
+
 const SERVICE_NAME: &str = "latotex.desktop";
 const MASTER_KEY_ACCOUNT: &str = "secure:master-key:v1";
 const MASTER_KEY_FILE_DIR: &str = "secure";
@@ -88,6 +92,39 @@ fn master_key_file_path(runtime_root: &Path) -> PathBuf {
         .join(MASTER_KEY_FILE_NAME)
 }
 
+#[cfg(target_os = "windows")]
+fn ensure_file_master_key(runtime_root: &Path) -> Result<([u8; MASTER_KEY_LEN], bool), String> {
+    let key_path = secure_dpapi::master_key_file_path(runtime_root);
+    let parent = key_path
+        .parent()
+        .ok_or_else(|| "failed to resolve master key folder".to_string())?;
+    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    if key_path.exists() {
+        return secure_dpapi::read_master_key(&key_path).map(|key| (key, false));
+    }
+
+    let legacy_path = master_key_file_path(runtime_root);
+    if legacy_path.exists() {
+        let raw = fs::read(&legacy_path).map_err(|e| e.to_string())?;
+        if raw.len() == MASTER_KEY_LEN {
+            let mut key = [0_u8; MASTER_KEY_LEN];
+            key.copy_from_slice(&raw);
+            secure_dpapi::write_master_key(&key_path, &key)?;
+            fs::remove_file(&legacy_path).map_err(|e| e.to_string())?;
+            return Ok((key, false));
+        }
+        return Err("invalid legacy master key length".to_string());
+    }
+
+    let rng = SystemRandom::new();
+    let mut generated = [0_u8; MASTER_KEY_LEN];
+    rng.fill(&mut generated)
+        .map_err(|_| "failed to generate master key".to_string())?;
+    secure_dpapi::write_master_key(&key_path, &generated)?;
+    Ok((generated, true))
+}
+
+#[cfg(not(target_os = "windows"))]
 fn ensure_file_master_key(runtime_root: &Path) -> Result<([u8; MASTER_KEY_LEN], bool), String> {
     let key_path = master_key_file_path(runtime_root);
     let parent = key_path
@@ -96,11 +133,12 @@ fn ensure_file_master_key(runtime_root: &Path) -> Result<([u8; MASTER_KEY_LEN], 
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     if key_path.exists() {
         let raw = fs::read(&key_path).map_err(|e| e.to_string())?;
-        if raw.len() == MASTER_KEY_LEN {
-            let mut key = [0_u8; MASTER_KEY_LEN];
-            key.copy_from_slice(&raw);
-            return Ok((key, false));
+        if raw.len() != MASTER_KEY_LEN {
+            return Err("invalid master key length".to_string());
         }
+        let mut key = [0_u8; MASTER_KEY_LEN];
+        key.copy_from_slice(&raw);
+        return Ok((key, false));
     }
 
     let rng = SystemRandom::new();
@@ -475,5 +513,46 @@ mod tests {
         }
 
         let _ = delete_model_api_key(&context, &model_id);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn dpapi_master_key_roundtrip_is_user_bound_and_not_plaintext() {
+        use super::{ensure_file_master_key, secure_dpapi, MASTER_KEY_LEN};
+        let context = test_context();
+        let (created, regenerated) = ensure_file_master_key(&context.runtime_root).unwrap();
+        assert!(regenerated);
+        assert_eq!(created.len(), MASTER_KEY_LEN);
+        let encoded =
+            std::fs::read(secure_dpapi::master_key_file_path(&context.runtime_root)).unwrap();
+        assert!(encoded.starts_with(secure_dpapi::FILE_MAGIC));
+        assert!(!encoded
+            .windows(MASTER_KEY_LEN)
+            .any(|window| window == created));
+        let (loaded, regenerated) = ensure_file_master_key(&context.runtime_root).unwrap();
+        assert!(!regenerated);
+        assert_eq!(loaded, created);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn legacy_plaintext_master_key_is_migrated_to_dpapi() {
+        use super::{ensure_file_master_key, master_key_file_path, secure_dpapi, MASTER_KEY_LEN};
+        let context = test_context();
+        let legacy_path = master_key_file_path(&context.runtime_root);
+        std::fs::create_dir_all(legacy_path.parent().unwrap()).unwrap();
+        let legacy_key = [0x5a_u8; MASTER_KEY_LEN];
+        std::fs::write(&legacy_path, legacy_key).unwrap();
+
+        let (loaded, regenerated) = ensure_file_master_key(&context.runtime_root).unwrap();
+        assert_eq!(loaded, legacy_key);
+        assert!(!regenerated);
+        assert!(!legacy_path.exists());
+        let encoded =
+            std::fs::read(secure_dpapi::master_key_file_path(&context.runtime_root)).unwrap();
+        assert!(encoded.starts_with(secure_dpapi::FILE_MAGIC));
+        assert!(!encoded
+            .windows(MASTER_KEY_LEN)
+            .any(|window| window == legacy_key));
     }
 }
