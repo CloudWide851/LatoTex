@@ -73,8 +73,9 @@ use commands::runtime_assets::{
     runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
 };
 use commands::swarm::{
-    agent_execute_cancel, agent_execute_start, agent_mcp_validate, agent_runs_recover,
-    agent_skill_validate, events_subscribe, latex_compile_record,
+    agent_approval_list, agent_approval_resolve, agent_execute_cancel, agent_execute_start,
+    agent_mcp_validate, agent_permission_grant_revoke, agent_permission_grants_list,
+    agent_runs_recover, agent_skill_validate, events_subscribe, latex_compile_record,
 };
 use commands::terminal::{
     terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
@@ -420,6 +421,10 @@ pub fn run() {
             agent_execute_start,
             agent_execute_cancel,
             agent_runs_recover,
+            agent_approval_list,
+            agent_approval_resolve,
+            agent_permission_grants_list,
+            agent_permission_grant_revoke,
             agent_mcp_validate,
             agent_skill_validate,
             latex_edit_start,

@@ -60,6 +60,30 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             finished_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS agent_approval_requests (
+            approval_id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL UNIQUE,
+            project_id TEXT NOT NULL,
+            workflow_id TEXT NOT NULL,
+            request_json TEXT NOT NULL,
+            workflow_json TEXT NOT NULL,
+            capabilities_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            decision TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            resolved_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_permission_grants (
+            grant_id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            capability TEXT NOT NULL,
+            resource TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(project_id, capability, resource)
+        );
+
         CREATE TABLE IF NOT EXISTS provider_profiles (
             provider TEXT PRIMARY KEY,
             base_url TEXT NOT NULL,
@@ -115,6 +139,10 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_root_path ON projects(root_path);
         CREATE INDEX IF NOT EXISTS idx_swarm_events_run_seq ON swarm_events(run_id, seq);
         CREATE INDEX IF NOT EXISTS idx_agent_runs_status_project ON agent_runs(status, project_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_approvals_status_project
+          ON agent_approval_requests(status, project_id, expires_at);
+        CREATE INDEX IF NOT EXISTS idx_agent_permission_grants_project
+          ON agent_permission_grants(project_id, capability, resource);
         CREATE INDEX IF NOT EXISTS idx_translation_terms_lookup
           ON translation_terms(project_id, target_language, updated_at DESC);
         ",

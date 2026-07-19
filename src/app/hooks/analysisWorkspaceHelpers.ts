@@ -32,7 +32,27 @@ export type AgentEventCard = {
   teamRoleName?: string;
   teamTaskId?: string;
   actions?: AgentAction[];
+  approvalId?: string;
+  approvalCapabilities?: Array<{ capability: string; resource: string }>;
+  approvalExpiresAt?: string;
 };
+
+function toApprovalCapabilities(payload: Record<string, unknown>) {
+  if (!Array.isArray(payload.capabilities)) {
+    return undefined;
+  }
+  const capabilities = payload.capabilities.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+    const record = item as Record<string, unknown>;
+    if (typeof record.capability !== "string" || typeof record.resource !== "string") {
+      return [];
+    }
+    return [{ capability: record.capability, resource: record.resource }];
+  });
+  return capabilities.length > 0 ? capabilities : undefined;
+}
 
 export type AgentAnalysisPayload = {
   title?: string;
@@ -118,7 +138,7 @@ function toCardKind(kind: string): string {
   if (kind.startsWith("responses.")) {
     return "responses";
   }
-  if (kind.startsWith("agent.run")) {
+  if (kind.startsWith("agent.run") || kind.startsWith("agent.approval")) {
     return "run";
   }
   return "other";
@@ -317,6 +337,9 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
         teamRoleName: typeof payload.teamRoleName === "string" ? payload.teamRoleName : undefined,
         teamTaskId: typeof payload.teamTaskId === "string" ? payload.teamTaskId : undefined,
         actions: fallbackActions,
+        approvalId: typeof payload.approvalId === "string" ? payload.approvalId : undefined,
+        approvalCapabilities: toApprovalCapabilities(payload),
+        approvalExpiresAt: typeof payload.expiresAt === "string" ? payload.expiresAt : undefined,
       });
       continue;
     }
@@ -331,7 +354,9 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
     existing.nodeId = typeof payload.nodeId === "string" && payload.nodeId ? payload.nodeId : existing.nodeId;
     existing.parentNodeId = typeof payload.parentNodeId === "string" && payload.parentNodeId ? payload.parentNodeId : existing.parentNodeId;
     existing.artifactRefs = toArtifactRefs(payload);
-    existing.requiresApproval = payload.requiresApproval === true || existing.requiresApproval;
+    existing.requiresApproval = typeof payload.requiresApproval === "boolean"
+      ? payload.requiresApproval
+      : existing.requiresApproval;
     existing.workflowId = typeof payload.workflowId === "string" && payload.workflowId ? payload.workflowId : existing.workflowId;
     existing.harnessProfileId = typeof payload.harnessProfileId === "string" && payload.harnessProfileId ? payload.harnessProfileId : existing.harnessProfileId;
     existing.content = append ? `${existing.content}${content}` : content || existing.content;
@@ -340,6 +365,13 @@ export function extractEventCards(events: SwarmEvent[], runIds: string[]): Agent
     existing.teamRoleName = typeof payload.teamRoleName === "string" && payload.teamRoleName ? payload.teamRoleName : existing.teamRoleName;
     existing.teamTaskId = typeof payload.teamTaskId === "string" && payload.teamTaskId ? payload.teamTaskId : existing.teamTaskId;
     existing.actions = fallbackActions.length > 0 ? fallbackActions : existing.actions;
+    existing.approvalId = typeof payload.approvalId === "string" && payload.approvalId
+      ? payload.approvalId
+      : existing.approvalId;
+    existing.approvalCapabilities = toApprovalCapabilities(payload) ?? existing.approvalCapabilities;
+    existing.approvalExpiresAt = typeof payload.expiresAt === "string" && payload.expiresAt
+      ? payload.expiresAt
+      : existing.approvalExpiresAt;
   }
   return Array.from(byCard.values());
 }

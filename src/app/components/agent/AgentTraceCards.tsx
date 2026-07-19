@@ -5,6 +5,7 @@ import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
 import type { AgentPendingAction } from "../../hooks/useAppContainerState";
 import { VirtualizedList } from "../virtual/VirtualizedList";
 import { AgentActionRenderer } from "./AgentActionRenderer";
+import { AgentApprovalCard } from "./AgentApprovalCard";
 
 function tone(status: string): string {
   if (status === "error" || status === "failed") {
@@ -339,6 +340,7 @@ function TraceGroup(props: { group: TaskGroup; t: (key: any) => string }) {
                 </p>
               ) : null}
               <AgentActionRenderer actions={card.actions ?? []} />
+              <AgentApprovalCard card={card} t={t} />
             </div>
           ))}
         </div>

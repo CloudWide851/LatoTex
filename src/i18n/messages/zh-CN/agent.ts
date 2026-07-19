@@ -95,6 +95,21 @@ export const zhCN_agent = {
   "agent.task.approvalBadge": "待确认",
   "agent.task.workflow": "流程",
   "agent.task.harness": "定位",
+  "agent.approval.title": "需要权限确认",
+  "agent.approval.description": "请先核对本次 Agent 运行申请的能力，再决定是否继续。",
+  "agent.approval.expiresAt": "本次请求将在 {time} 过期。",
+  "agent.approval.allowOnce": "仅允许本次",
+  "agent.approval.allowProject": "对此项目记住",
+  "agent.approval.deny": "拒绝",
+  "agent.approval.resolving": "正在保存...",
+  "agent.approval.error": "无法保存权限决定。",
+  "agent.approval.capability.webSearch": "访问网络搜索",
+  "agent.approval.capability.workspaceRead": "读取项目文件",
+  "agent.approval.capability.python": "运行受管 Python",
+  "agent.approval.capability.mcp": "调用 MCP 服务",
+  "agent.approval.capability.skills": "加载 Agent 技能",
+  "agent.approval.capability.pluginCommands": "执行插件命令",
+  "agent.approval.capability.nonLatexWrites": "写入非 LaTeX 文件",
 } as const;
 
 

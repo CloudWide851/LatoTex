@@ -1,26 +1,24 @@
-use crate::models::{AgentExecuteRequest, AgentExecuteStartAccepted, AppSettings};
+use crate::models::{Ack, AgentApprovalRequest, AgentExecuteRequest, AgentExecuteStartAccepted};
 use crate::state::AppState;
-use crate::storage;
-use serde_json::json;
-use std::path::{Path, PathBuf};
+use crate::storage::{self, AgentApprovalContext};
+use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::{Duration, Instant};
 use uuid::Uuid;
 
-use super::swarm_events::{
-    append_protocol_event, emit_response_event, emit_stage_event, emit_tool_event, run_envelope,
-    EventMetadata,
+use super::swarm_events::{append_protocol_event, run_envelope, EventMetadata};
+use super::swarm_executor::{
+    build_run_terminal_payload, build_slot_failure_payload, run_execute_pipeline_async,
 };
 use super::swarm_harness::{
     apply_harness_prompt, harness_should_use_team, resolve_harness_profile,
 };
-use super::swarm_pipeline_team::{run_execute_pipeline_team, select_agent_team};
-use super::swarm_tool_search;
+use super::swarm_permissions::{preflight_permissions, PermissionPreflight};
+use super::swarm_team_executor::{select_agent_team, should_use_team};
 use super::swarm_workflows::{
-    load_registry_for_project, max_steps_for_workflow, resolve_workflow, timeout_for_workflow,
-    validate_invocation, validate_step_tools, WorkflowDefinition, WorkflowStep,
+    load_registry_for_project, resolve_workflow, validate_invocation, validate_step_tools,
+    WorkflowDefinition,
 };
 
 const AGENT_MAX_CONCURRENT: u32 = 4;
@@ -37,14 +35,6 @@ impl Drop for AgentRunSlotGuard {
             cvar.notify_one();
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct ModelConnection {
-    pub(super) protocol_id: String,
-    pub(super) base_url: String,
-    pub(super) model_name: String,
-    pub(super) api_key: String,
 }
 
 fn acquire_agent_slot_from(
@@ -64,300 +54,265 @@ fn acquire_agent_slot_from(
     Ok(AgentRunSlotGuard { slots })
 }
 
-fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
-    if cancel_flag.load(Ordering::Relaxed) {
-        return Err("agent.run.cancelled".to_string());
+fn prepare_harnessed_input(
+    input: &AgentExecuteRequest,
+    workflow: &WorkflowDefinition,
+) -> AgentExecuteRequest {
+    let profile = resolve_harness_profile(input, workflow);
+    let mut harnessed = input.clone();
+    harnessed.prompt = apply_harness_prompt(&profile, &input.prompt);
+    harnessed.harness_profile_id = Some(profile.id.to_string());
+    harnessed.team_mode = Some(
+        if harness_should_use_team(input, &profile) {
+            "force"
+        } else {
+            "off"
+        }
+        .to_string(),
+    );
+    harnessed
+}
+
+fn approval_payload(
+    approval: &AgentApprovalRequest,
+    callsite: &str,
+    status: &str,
+    decision: Option<&str>,
+) -> Value {
+    let mut payload = run_envelope(
+        &approval.run_id,
+        status,
+        "Permission Approval",
+        "",
+        &format!("{}:approval:{}", approval.run_id, approval.approval_id),
+        EventMetadata {
+            phase: Some("approval"),
+            node_id: Some("approval:permissions"),
+            requires_approval: Some(status == "waiting_approval"),
+            ..EventMetadata::base(&approval.workflow_id, "approval.permissions", callsite)
+        },
+    );
+    if let Some(object) = payload.as_object_mut() {
+        object.insert("approvalId".to_string(), json!(approval.approval_id));
+        object.insert("capabilities".to_string(), json!(approval.capabilities));
+        object.insert("expiresAt".to_string(), json!(approval.expires_at));
+        if let Some(decision) = decision {
+            object.insert("decision".to_string(), json!(decision));
+        }
     }
+    payload
+}
+
+fn append_terminal_event(
+    db_path: &std::path::Path,
+    run_id: &str,
+    project_id: &str,
+    workflow_id: &str,
+    callsite: &str,
+    kind: &str,
+    content: &str,
+) {
+    let _ = append_protocol_event(
+        db_path,
+        run_id,
+        project_id,
+        workflow_id,
+        kind,
+        build_run_terminal_payload(run_id, workflow_id, callsite, kind, content),
+    );
+}
+
+fn terminalize_run(
+    db_path: &std::path::Path,
+    run_id: &str,
+    project_id: &str,
+    workflow_id: &str,
+    callsite: &str,
+    status: &str,
+    kind: &str,
+    content: &str,
+) {
+    if storage::terminalize_agent_run_if_open(db_path, run_id, status, None).unwrap_or(false) {
+        append_terminal_event(
+            db_path,
+            run_id,
+            project_id,
+            workflow_id,
+            callsite,
+            kind,
+            content,
+        );
+    }
+}
+
+fn append_approval_resolution(
+    state: &AppState,
+    context: &AgentApprovalContext,
+    decision: &str,
+) {
+    let callsite = serde_json::from_str::<AgentExecuteRequest>(&context.request_json)
+        .map(|input| input.callsite)
+        .unwrap_or_else(|_| "agent.approval".to_string());
+    let _ = append_protocol_event(
+        &state.db_path,
+        &context.approval.run_id,
+        &context.approval.project_id,
+        &context.approval.workflow_id,
+        "agent.approval.resolved",
+        approval_payload(
+            &context.approval,
+            &callsite,
+            "resolved",
+            Some(decision),
+        ),
+    );
+}
+
+fn launch_agent_worker(
+    state: &AppState,
+    run_id: String,
+    input: AgentExecuteRequest,
+    workflow: WorkflowDefinition,
+) -> Result<(), String> {
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    {
+        let mut flags = state
+            .agent_cancel_flags
+            .lock()
+            .map_err(|_| "failed to lock agent cancel flags".to_string())?;
+        if flags.contains_key(&run_id) {
+            return Err("agent.run.already_active".to_string());
+        }
+        flags.insert(run_id.clone(), cancel_flag.clone());
+    }
+
+    let db_path = state.db_path.clone();
+    let runtime_root = state.runtime_root.clone();
+    let app_data_dir = state.app_data_dir.clone();
+    let slots = state.agent_slots.clone();
+    let cancel_flags = state.agent_cancel_flags.clone();
+    thread::spawn(move || {
+        let project_id = input.project_id.clone();
+        let workflow_id = workflow.id.clone();
+        let callsite = input.callsite.clone();
+        let slot_guard = match acquire_agent_slot_from(slots) {
+            Ok(guard) => guard,
+            Err(message) => {
+                if storage::terminalize_agent_run_if_open(&db_path, &run_id, "failed", None)
+                    .unwrap_or(false)
+                {
+                    let _ = append_protocol_event(
+                        &db_path,
+                        &run_id,
+                        &project_id,
+                        &workflow_id,
+                        "agent.run.failed",
+                        build_slot_failure_payload(
+                            &run_id,
+                            &workflow_id,
+                            &callsite,
+                            &input.context_refs,
+                            &message,
+                        ),
+                    );
+                }
+                if let Ok(mut flags) = cancel_flags.lock() {
+                    flags.remove(&run_id);
+                }
+                return;
+            }
+        };
+        let _slot_guard = slot_guard;
+        let lease_id = Uuid::new_v4().to_string();
+        if let Err(error) =
+            storage::update_agent_run_status(&db_path, &run_id, "running", Some(&lease_id))
+        {
+            terminalize_run(
+                &db_path,
+                &run_id,
+                &project_id,
+                &workflow_id,
+                &callsite,
+                "failed",
+                "agent.run.failed",
+                &error,
+            );
+        } else {
+            let result = run_execute_pipeline_async(
+                db_path.clone(),
+                runtime_root,
+                app_data_dir,
+                run_id.clone(),
+                cancel_flag,
+                input,
+                workflow,
+            );
+            match result {
+                Ok(output) => terminalize_run(
+                    &db_path,
+                    &run_id,
+                    &project_id,
+                    &workflow_id,
+                    &callsite,
+                    "completed",
+                    "agent.run.completed",
+                    &output,
+                ),
+                Err(error) if error == "agent.run.cancelled" => terminalize_run(
+                    &db_path,
+                    &run_id,
+                    &project_id,
+                    &workflow_id,
+                    &callsite,
+                    "cancelled",
+                    "agent.run.cancelled",
+                    "",
+                ),
+                Err(error) => terminalize_run(
+                    &db_path,
+                    &run_id,
+                    &project_id,
+                    &workflow_id,
+                    &callsite,
+                    "failed",
+                    "agent.run.failed",
+                    &error,
+                ),
+            }
+        }
+        if let Ok(mut flags) = cancel_flags.lock() {
+            flags.remove(&run_id);
+        }
+    });
     Ok(())
 }
 
-fn build_prompt(prompt: &str, context_refs: &[String]) -> String {
-    if context_refs.is_empty() {
-        return prompt.to_string();
-    }
-    format!("{}\n\n[Context]\n{}", prompt, context_refs.join("\n"))
-}
-
-fn call_model_output(
-    db_path: &Path,
-    connection: &ModelConnection,
-    prompt: &str,
-    context_refs: &[String],
-    bypass_cache: bool,
-) -> Result<String, String> {
-    let full_prompt = build_prompt(prompt, context_refs);
-    super::call_provider_with_retry(
-        Some(db_path),
-        &connection.protocol_id,
-        &connection.base_url,
-        &connection.api_key,
-        &connection.model_name,
-        &full_prompt,
-        bypass_cache,
-    )
-}
-
-fn push_unique(values: &mut Vec<String>, candidate: Option<String>) {
-    let Some(value) = candidate.map(|item| item.trim().to_string()) else {
-        return;
-    };
-    if value.is_empty() {
-        return;
-    }
-    if !values.iter().any(|existing| existing == &value) {
-        values.push(value);
-    }
-}
-
-fn pick_feature_binding(settings: &AppSettings, callsite: &str) -> Option<String> {
-    let bindings = settings
-        .ui_prefs
-        .as_ref()
-        .and_then(|prefs| prefs.feature_model_bindings.as_ref())?;
-    match callsite {
-        "latex.overlay" => bindings.latex_agent_model_id.clone(),
-        "analysis.workspace" => bindings.analysis_agent_model_id.clone(),
-        "chat.workspace" => bindings.translation_model_id.clone(),
-        "completion.inline" => bindings.completion_model_id.clone(),
-        "git.summary" => bindings.analysis_agent_model_id.clone(),
-        _ => None,
-    }
-}
-
-pub(super) fn resolve_model_connection(
-    db_path: &Path,
-    runtime_root: &Path,
-    callsite: &str,
-    workflow: &WorkflowDefinition,
-    model_override: Option<&str>,
-) -> Result<ModelConnection, String> {
-    let settings = storage::load_settings(db_path, runtime_root)?;
-
-    let mut candidates = Vec::<String>::new();
-    push_unique(
-        &mut candidates,
-        model_override.map(|item| item.trim().to_string()),
-    );
-    push_unique(&mut candidates, workflow.model_id.clone());
-    push_unique(&mut candidates, pick_feature_binding(&settings, callsite));
-    for model in &settings.model_catalog {
-        push_unique(&mut candidates, Some(model.id.clone()));
-    }
-
-    for model_id in candidates {
-        let resolved = storage::resolve_model_test_connection(db_path, runtime_root, &model_id);
-        let Ok((protocol_id, base_url, model_name, api_key)) = resolved else {
-            continue;
-        };
-        let Some(key) = api_key else {
-            continue;
-        };
-        if key.trim().is_empty() {
-            continue;
-        }
-        return Ok(ModelConnection {
-            protocol_id,
-            base_url,
-            model_name,
-            api_key: key,
-        });
-    }
-
-    Err("workflow.model.unavailable".to_string())
-}
-
-pub(super) fn run_provider_step(
-    db_path: &Path,
+fn emit_run_accepted(
+    db_path: &std::path::Path,
     run_id: &str,
-    project_id: &str,
-    event_scope: &str,
-    step: &WorkflowStep,
-    prompt: &str,
-    context_refs: &[String],
-    cancel_flag: &Arc<AtomicBool>,
-    connection: &ModelConnection,
-    bypass_cache: bool,
-    metadata: EventMetadata<'_>,
-) -> Result<String, String> {
-    ensure_not_cancelled(cancel_flag)?;
-    let stage = if step.id.trim().is_empty() {
-        "step"
-    } else {
-        step.id.as_str()
-    };
-    let title = if step.title.trim().is_empty() {
-        "Workflow Step"
-    } else {
-        step.title.as_str()
-    };
-    let source = if step.source.trim().is_empty() {
-        "workflow"
-    } else {
-        step.source.as_str()
-    };
-
-    emit_stage_event(
+    input: &AgentExecuteRequest,
+    workflow: &WorkflowDefinition,
+) -> Result<(), String> {
+    append_protocol_event(
         db_path,
         run_id,
-        project_id,
-        event_scope,
-        source,
-        stage,
-        "running",
-        title,
-        "",
-        metadata,
-    )?;
-    emit_tool_event(
-        db_path,
-        run_id,
-        project_id,
-        event_scope,
-        source,
-        stage,
-        "provider_generate",
-        "running",
-        "",
-        metadata,
-    )?;
-
-    let output = call_model_output(db_path, connection, prompt, context_refs, bypass_cache)?;
-    ensure_not_cancelled(cancel_flag)?;
-
-    emit_tool_event(
-        db_path,
-        run_id,
-        project_id,
-        event_scope,
-        source,
-        stage,
-        "provider_generate",
-        "success",
-        "",
-        metadata,
-    )?;
-    emit_response_event(
-        db_path,
-        run_id,
-        project_id,
-        event_scope,
-        source,
-        stage,
-        &output,
-        metadata,
-    )?;
-    emit_stage_event(
-        db_path,
-        run_id,
-        project_id,
-        event_scope,
-        source,
-        stage,
-        "success",
-        title,
-        "",
-        metadata,
-    )?;
-    Ok(output)
-}
-
-fn run_execute_pipeline_async(
-    db_path: PathBuf,
-    runtime_root: PathBuf,
-    run_id: String,
-    cancel_flag: Arc<AtomicBool>,
-    input: AgentExecuteRequest,
-    workflow: WorkflowDefinition,
-) -> Result<String, String> {
-    let harness_profile = resolve_harness_profile(&input, &workflow);
-    let mut harnessed_input = input.clone();
-    harnessed_input.prompt = apply_harness_prompt(&harness_profile, &input.prompt);
-    harnessed_input.harness_profile_id = Some(harness_profile.id.to_string());
-
-    if harness_should_use_team(&harnessed_input, &harness_profile) {
-        if let Some(team) = select_agent_team(&db_path, &runtime_root, &harnessed_input.callsite) {
-            return run_execute_pipeline_team(
-                &db_path,
-                &runtime_root,
-                &run_id,
-                &cancel_flag,
-                &harnessed_input,
-                &workflow,
-                team,
-            );
-        }
-    }
-
-    let connection = resolve_model_connection(
-        &db_path,
-        &runtime_root,
-        &harnessed_input.callsite,
-        &workflow,
-        harnessed_input.model_override.as_deref(),
-    )?;
-    let max_steps = max_steps_for_workflow(&workflow);
-    let timeout_ms = timeout_for_workflow(&workflow);
-    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-
-    let mut output = String::new();
-    let steps = workflow.steps.iter().take(max_steps);
-    for step in steps {
-        ensure_not_cancelled(&cancel_flag)?;
-        if Instant::now() >= deadline {
-            return Err("agent.run.timeout.total".to_string());
-        }
-        let metadata = EventMetadata {
-            harness_profile_id: Some(harness_profile.id),
-            ..EventMetadata::base(&workflow.id, &step.id, &harnessed_input.callsite)
-        };
-        output = match step.kind.as_str() {
-            "provider.generate" => run_provider_step(
-                &db_path,
-                &run_id,
-                &harnessed_input.project_id,
-                &workflow.id,
-                step,
-                &harnessed_input.prompt,
-                &harnessed_input.context_refs,
-                &cancel_flag,
-                &connection,
-                harnessed_input.bypass_cache,
-                metadata,
-            )?,
-            "tool.search" => swarm_tool_search::run_stage_tool_search(
-                &db_path,
-                &runtime_root,
-                &run_id,
-                &harnessed_input.project_id,
-                &workflow.id,
-                &step.id,
-                if step.source.trim().is_empty() {
-                    "workflow"
-                } else {
-                    step.source.as_str()
-                },
-                if step.title.trim().is_empty() {
-                    "Tool Search"
-                } else {
-                    step.title.as_str()
-                },
-                &harnessed_input.prompt,
-                &harnessed_input.context_refs,
-                &cancel_flag,
-                &connection.protocol_id,
-                &connection.base_url,
-                &connection.api_key,
-                &connection.model_name,
-                harnessed_input.bypass_cache,
-                metadata,
-            )?,
-            other => {
-                return Err(format!("workflow.step.unsupported:{}", other));
-            }
-        };
-    }
-
-    Ok(output)
+        &input.project_id,
+        &workflow.id,
+        "agent.run.accepted",
+        run_envelope(
+            run_id,
+            "accepted",
+            "Run Accepted",
+            "",
+            &format!("{run_id}:run:accepted"),
+            EventMetadata {
+                phase: Some("run"),
+                node_id: Some("run:accepted"),
+                harness_profile_id: input.harness_profile_id.as_deref(),
+                ..EventMetadata::base(&workflow.id, "run", &input.callsite)
+            },
+        ),
+    )
 }
 
 pub fn agent_execute_start(
@@ -371,175 +326,170 @@ pub fn agent_execute_start(
             input.workflow_id, input.callsite, input.project_id
         ),
     );
-
     let registry = load_registry_for_project(&state.db_path, &input.project_id)?;
     let workflow = resolve_workflow(&registry, &input.workflow_id)?.clone();
     validate_invocation(&workflow, &input.callsite, &input.context_refs)?;
     validate_step_tools(&workflow)?;
-    let accepted_harness_profile = resolve_harness_profile(&input, &workflow);
-
-    let run_id = Uuid::new_v4().to_string();
-    append_protocol_event(
+    let harnessed_input = prepare_harnessed_input(&input, &workflow);
+    let team = if should_use_team(&harnessed_input) {
+        select_agent_team(&state.db_path, &state.runtime_root, &input.callsite)
+    } else {
+        None
+    };
+    let preflight = preflight_permissions(
         &state.db_path,
-        &run_id,
-        &input.project_id,
-        &workflow.id,
-        "agent.run.accepted",
-        run_envelope(
-            &run_id,
-            "accepted",
-            "Run Accepted",
-            "",
-            &format!("{run_id}:run:accepted"),
-            EventMetadata {
-                phase: Some("run"),
-                node_id: Some("run:accepted"),
-                harness_profile_id: Some(accepted_harness_profile.id),
-                ..EventMetadata::base(&workflow.id, "run", &input.callsite)
-            },
-        ),
+        &state.runtime_root,
+        &input,
+        &workflow,
+        team.as_ref(),
     )?;
 
-    let db_path = state.db_path.clone();
-    let runtime_root = state.runtime_root.clone();
-    let run_id_for_worker = run_id.clone();
-    let slots = state.agent_slots.clone();
-    let cancel_flags = state.agent_cancel_flags.clone();
-    let cancel_flag = Arc::new(AtomicBool::new(false));
-    {
-        let mut flags = cancel_flags
-            .lock()
-            .map_err(|_| "failed to lock agent cancel flags".to_string())?;
-        flags.insert(run_id.clone(), cancel_flag.clone());
+    let run_id = Uuid::new_v4().to_string();
+    storage::insert_agent_run(&state.db_path, &run_id, &input)?;
+    emit_run_accepted(&state.db_path, &run_id, &harnessed_input, &workflow)?;
+
+    match preflight {
+        PermissionPreflight::Allowed => {
+            launch_agent_worker(state, run_id.clone(), harnessed_input, workflow)?;
+            Ok(AgentExecuteStartAccepted {
+                run_id,
+                status: "accepted".to_string(),
+            })
+        }
+        PermissionPreflight::Pending(capabilities) => {
+            let workflow_json = serde_json::to_string(&workflow).map_err(|e| e.to_string())?;
+            let approval = storage::insert_agent_approval(
+                &state.db_path,
+                &run_id,
+                &input,
+                &workflow_json,
+                &capabilities,
+            )?;
+            storage::update_agent_run_status(&state.db_path, &run_id, "waiting_approval", None)?;
+            append_protocol_event(
+                &state.db_path,
+                &run_id,
+                &input.project_id,
+                &workflow.id,
+                "agent.approval.requested",
+                approval_payload(&approval, &input.callsite, "waiting_approval", None),
+            )?;
+            Ok(AgentExecuteStartAccepted {
+                run_id,
+                status: "waiting_approval".to_string(),
+            })
+        }
     }
+}
 
-    let worker_project_id = input.project_id.clone();
-    let worker_workflow_id = workflow.id.clone();
-    let worker_callsite = input.callsite.clone();
-    let worker_harness_profile_id = accepted_harness_profile.id.to_string();
-    thread::spawn(move || {
-        let slot_guard = acquire_agent_slot_from(slots);
-        if slot_guard.is_err() {
-            let message = slot_guard
-                .err()
-                .unwrap_or_else(|| "failed to acquire slot".to_string());
-            let _ = append_protocol_event(
-                &db_path,
-                &run_id_for_worker,
-                &worker_project_id,
-                &worker_workflow_id,
-                "a2a.task.failed",
-                run_envelope(
-                    &run_id_for_worker,
-                    "error",
-                    "Run Failed",
-                    &message,
-                    &format!("{run_id_for_worker}:run:failed"),
-                    EventMetadata {
-                        phase: Some("run"),
-                        node_id: Some("run:failed"),
-                        harness_profile_id: Some(worker_harness_profile_id.as_str()),
-                        ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
-                    },
-                ),
-            );
-            if let Ok(mut flags) = cancel_flags.lock() {
-                flags.remove(&run_id_for_worker);
-            }
-            return;
-        }
-        let _slot_guard = slot_guard.unwrap();
-        let run_output = run_execute_pipeline_async(
-            db_path.clone(),
-            runtime_root.clone(),
-            run_id_for_worker.clone(),
-            cancel_flag,
-            input,
-            workflow,
+pub(super) fn resolve_agent_approval(
+    state: &AppState,
+    approval_id: &str,
+    decision: &str,
+) -> Result<AgentExecuteStartAccepted, String> {
+    let context = storage::resolve_agent_approval(&state.db_path, approval_id, decision)?;
+    let input: AgentExecuteRequest =
+        serde_json::from_str(&context.request_json).map_err(|e| e.to_string())?;
+    let workflow: WorkflowDefinition =
+        serde_json::from_str(&context.workflow_json).map_err(|e| e.to_string())?;
+    append_protocol_event(
+        &state.db_path,
+        &context.approval.run_id,
+        &context.approval.project_id,
+        &context.approval.workflow_id,
+        "agent.approval.resolved",
+        approval_payload(
+            &context.approval,
+            &input.callsite,
+            "resolved",
+            Some(decision),
+        ),
+    )?;
+    if decision == "deny" {
+        terminalize_run(
+            &state.db_path,
+            &context.approval.run_id,
+            &context.approval.project_id,
+            &context.approval.workflow_id,
+            &input.callsite,
+            "cancelled",
+            "agent.run.cancelled",
+            "agent.approval.denied",
         );
-        match run_output {
-            Ok(output) => {
-                let mut payload = run_envelope(
-                    &run_id_for_worker,
-                    "success",
-                    "Run Completed",
-                    "",
-                    &format!("{run_id_for_worker}:run:completed"),
-                    EventMetadata {
-                        phase: Some("run"),
-                        node_id: Some("run:completed"),
-                        harness_profile_id: Some(worker_harness_profile_id.as_str()),
-                        ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
-                    },
-                );
-                if let Some(object) = payload.as_object_mut() {
-                    object.insert("output".to_string(), json!(output));
-                }
-                let _ = append_protocol_event(
-                    &db_path,
-                    &run_id_for_worker,
-                    &worker_project_id,
-                    &worker_workflow_id,
-                    "agent.run.completed",
-                    payload,
-                );
-            }
-            Err(error) => {
-                if error == "agent.run.cancelled" {
-                    let _ = append_protocol_event(
-                        &db_path,
-                        &run_id_for_worker,
-                        &worker_project_id,
-                        &worker_workflow_id,
-                        "agent.run.cancelled",
-                        run_envelope(
-                            &run_id_for_worker,
-                            "cancelled",
-                            "Run Cancelled",
-                            "",
-                            &format!("{run_id_for_worker}:run:cancelled"),
-                            EventMetadata {
-                                phase: Some("run"),
-                                node_id: Some("run:cancelled"),
-                                harness_profile_id: Some(worker_harness_profile_id.as_str()),
-                                ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
-                            },
-                        ),
-                    );
-                    if let Ok(mut flags) = cancel_flags.lock() {
-                        flags.remove(&run_id_for_worker);
-                    }
-                    return;
-                }
-                let _ = append_protocol_event(
-                    &db_path,
-                    &run_id_for_worker,
-                    &worker_project_id,
-                    &worker_workflow_id,
-                    "agent.run.failed",
-                    run_envelope(
-                        &run_id_for_worker,
-                        "error",
-                        "Run Failed",
-                        &error,
-                        &format!("{run_id_for_worker}:run:failed"),
-                        EventMetadata {
-                            phase: Some("run"),
-                            node_id: Some("run:failed"),
-                            harness_profile_id: Some(worker_harness_profile_id.as_str()),
-                            ..EventMetadata::base(&worker_workflow_id, "run", &worker_callsite)
-                        },
-                    ),
-                );
-            }
-        }
-        if let Ok(mut flags) = cancel_flags.lock() {
-            flags.remove(&run_id_for_worker);
-        }
-    });
-
+        return Ok(AgentExecuteStartAccepted {
+            run_id: context.approval.run_id,
+            status: "denied".to_string(),
+        });
+    }
+    let harnessed_input = prepare_harnessed_input(&input, &workflow);
+    storage::update_agent_run_status(&state.db_path, &context.approval.run_id, "accepted", None)?;
+    launch_agent_worker(
+        state,
+        context.approval.run_id.clone(),
+        harnessed_input,
+        workflow,
+    )?;
     Ok(AgentExecuteStartAccepted {
-        run_id,
+        run_id: context.approval.run_id,
         status: "accepted".to_string(),
     })
+}
+
+pub(super) fn cancel_agent_execution(state: &AppState, run_id: &str) -> Result<Ack, String> {
+    if let Some(flag) = state
+        .agent_cancel_flags
+        .lock()
+        .map_err(|_| "failed to lock agent cancel flags".to_string())?
+        .get(run_id)
+        .cloned()
+    {
+        flag.store(true, Ordering::Relaxed);
+        return Ok(Ack {
+            ok: true,
+            message: "cancelling".to_string(),
+        });
+    }
+    let approval_context =
+        storage::get_pending_agent_approval_context_by_run(&state.db_path, run_id)?;
+    if approval_context.is_some()
+        && storage::cancel_pending_agent_approval(&state.db_path, run_id)?
+    {
+        let record = storage::get_agent_run_record(&state.db_path, run_id)?
+            .ok_or_else(|| "agent run not found".to_string())?;
+        if let Some(context) = approval_context.as_ref() {
+            append_approval_resolution(state, context, "cancelled");
+        }
+        terminalize_run(
+            &state.db_path,
+            run_id,
+            &record.project_id,
+            &record.workflow_id,
+            &record.callsite,
+            "cancelled",
+            "agent.run.cancelled",
+            "",
+        );
+        return Ok(Ack {
+            ok: true,
+            message: "cancelled".to_string(),
+        });
+    }
+    Err("agent run not found".to_string())
+}
+
+pub(super) fn expire_approval_context(state: &AppState, context: AgentApprovalContext) {
+    let callsite = serde_json::from_str::<AgentExecuteRequest>(&context.request_json)
+        .map(|input| input.callsite)
+        .unwrap_or_else(|_| "agent.approval".to_string());
+    append_approval_resolution(state, &context, "expired");
+    terminalize_run(
+        &state.db_path,
+        &context.approval.run_id,
+        &context.approval.project_id,
+        &context.approval.workflow_id,
+        &callsite,
+        "cancelled",
+        "agent.run.cancelled",
+        "agent.approval.expired",
+    );
 }

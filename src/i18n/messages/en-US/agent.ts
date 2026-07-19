@@ -95,6 +95,21 @@ export const enUS_agent = {
   "agent.task.approvalBadge": "approval",
   "agent.task.workflow": "workflow",
   "agent.task.harness": "harness",
+  "agent.approval.title": "Permission required",
+  "agent.approval.description": "Review the requested capabilities before this Agent run continues.",
+  "agent.approval.expiresAt": "This request expires at {time}.",
+  "agent.approval.allowOnce": "Allow once",
+  "agent.approval.allowProject": "Remember for project",
+  "agent.approval.deny": "Deny",
+  "agent.approval.resolving": "Saving...",
+  "agent.approval.error": "Could not save the permission decision.",
+  "agent.approval.capability.webSearch": "Search the web",
+  "agent.approval.capability.workspaceRead": "Read project files",
+  "agent.approval.capability.python": "Run managed Python",
+  "agent.approval.capability.mcp": "Use an MCP server",
+  "agent.approval.capability.skills": "Load an Agent skill",
+  "agent.approval.capability.pluginCommands": "Run a plugin command",
+  "agent.approval.capability.nonLatexWrites": "Write non-LaTeX files",
 } as const;
 
 

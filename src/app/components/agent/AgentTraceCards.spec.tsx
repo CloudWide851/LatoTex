@@ -2,9 +2,14 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveAgentApproval } from "../../../shared/api/agent";
 import { AgentTraceCards } from "./AgentTraceCards";
 import type { AgentEventCard } from "../../hooks/analysisWorkspaceHelpers";
+
+vi.mock("../../../shared/api/agent", () => ({
+  resolveAgentApproval: vi.fn().mockResolvedValue({ runId: "run-1", status: "accepted" }),
+}));
 
 describe("AgentTraceCards", () => {
   beforeEach(() => {
@@ -86,6 +91,45 @@ describe("AgentTraceCards", () => {
 
     expect(container.textContent).toContain("latex.submission_preflight");
     expect(container.textContent).toContain("latex.submission");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
+
+  it("resolves a pending permission from the trace card", async () => {
+    const cards: AgentEventCard[] = [{
+      id: "event-approval",
+      runId: "run-1",
+      kind: "agent.approval.requested",
+      stage: "run",
+      source: "system",
+      status: "waiting_approval",
+      title: "Permission Approval",
+      content: "",
+      cardKey: "approval-card",
+      createdAt: "2026-06-13T00:00:00.000Z",
+      requiresApproval: true,
+      approvalId: "approval-1",
+      approvalExpiresAt: "2026-06-13T00:10:00.000Z",
+      approvalCapabilities: [{ capability: "python", resource: "managed" }],
+    }];
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<AgentTraceCards cards={cards} title="Trace" t={(key) => String(key)} />);
+    });
+    const allowOnce = Array.from(container.querySelectorAll("button"))
+      .find((button) => button.textContent === "agent.approval.allowOnce");
+    expect(allowOnce).toBeTruthy();
+
+    await act(async () => {
+      allowOnce?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(resolveAgentApproval).toHaveBeenCalledWith("approval-1", "allow_once");
 
     await act(async () => {
       root.unmount();

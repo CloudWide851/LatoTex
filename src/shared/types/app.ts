@@ -190,6 +190,32 @@ export type AgentExecuteStartAccepted = {
   status: string;
 };
 
+export type AgentApprovalCapability = {
+  capability: string;
+  resource: string;
+};
+
+export type AgentApprovalRequest = {
+  approvalId: string;
+  runId: string;
+  projectId: string;
+  workflowId: string;
+  capabilities: AgentApprovalCapability[];
+  status: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type AgentApprovalDecision = "allow_once" | "allow_project" | "deny";
+
+export type AgentPermissionGrant = {
+  grantId: string;
+  projectId: string;
+  capability: string;
+  resource: string;
+  createdAt: string;
+};
+
 export type AgentTeamMode = "auto" | "force" | "off";
 
 export type AgentRunsRecoverResponse = {

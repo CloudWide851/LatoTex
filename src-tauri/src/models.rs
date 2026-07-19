@@ -396,6 +396,55 @@ pub struct AgentExecuteStartAccepted {
     pub status: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentApprovalCapability {
+    pub capability: String,
+    pub resource: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentApprovalRequest {
+    pub approval_id: String,
+    pub run_id: String,
+    pub project_id: String,
+    pub workflow_id: String,
+    pub capabilities: Vec<AgentApprovalCapability>,
+    pub status: String,
+    pub created_at: String,
+    pub expires_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentApprovalListInput {
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentApprovalResolveInput {
+    pub approval_id: String,
+    pub decision: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPermissionGrant {
+    pub grant_id: String,
+    pub project_id: String,
+    pub capability: String,
+    pub resource: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPermissionGrantRevokeInput {
+    pub grant_id: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRunsRecoverInput {

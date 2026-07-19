@@ -1,6 +1,9 @@
 import type {
   Ack,
+  AgentApprovalDecision,
+  AgentApprovalRequest,
   AgentExecuteStartAccepted,
+  AgentPermissionGrant,
   AgentRunsRecoverResponse,
   AgentTeamMode,
   EventBatch,
@@ -202,6 +205,35 @@ export function executeWorkflowCancel(runId: string): Promise<Ack> {
 export function recoverAgentRuns(projectId?: string | null): Promise<AgentRunsRecoverResponse> {
   return invokeCommand<AgentRunsRecoverResponse>("agent_runs_recover", {
     input: { projectId: projectId ?? null },
+  });
+}
+
+export function listAgentApprovals(projectId?: string | null): Promise<AgentApprovalRequest[]> {
+  return invokeCommand<AgentApprovalRequest[]>("agent_approval_list", {
+    input: { projectId: projectId ?? null },
+  });
+}
+
+export function resolveAgentApproval(
+  approvalId: string,
+  decision: AgentApprovalDecision,
+): Promise<AgentExecuteStartAccepted> {
+  return invokeCommand<AgentExecuteStartAccepted>("agent_approval_resolve", {
+    input: { approvalId, decision },
+  });
+}
+
+export function listAgentPermissionGrants(
+  projectId?: string | null,
+): Promise<AgentPermissionGrant[]> {
+  return invokeCommand<AgentPermissionGrant[]>("agent_permission_grants_list", {
+    input: { projectId: projectId ?? null },
+  });
+}
+
+export function revokeAgentPermissionGrant(grantId: string): Promise<Ack> {
+  return invokeCommand<Ack>("agent_permission_grant_revoke", {
+    input: { grantId },
   });
 }
 

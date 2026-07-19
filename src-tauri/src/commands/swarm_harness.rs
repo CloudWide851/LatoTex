@@ -224,6 +224,7 @@ mod tests {
             title: id.to_string(),
             callsites: Vec::new(),
             model_id: None,
+            execution_mode: None,
             steps: Vec::new(),
             constraints: WorkflowConstraints::default(),
         }

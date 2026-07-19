@@ -84,4 +84,41 @@ describe("extractEventCards", () => {
     expect(cards).toHaveLength(1);
     expect(cards[0].content).toBe("hello world");
   });
+
+  it("keeps approval details and clears the pending state after resolution", () => {
+    const cards = extractEventCards([
+      makeEvent({
+        kind: "agent.approval.requested",
+        payload: {
+          cardKey: "approval:1",
+          status: "waiting_approval",
+          requiresApproval: true,
+          approvalId: "approval-1",
+          expiresAt: "2026-03-29T00:10:00.000Z",
+          capabilities: [{ capability: "python", resource: "managed" }],
+        },
+      }),
+      makeEvent({
+        seq: 2,
+        id: "evt-2",
+        kind: "agent.approval.resolved",
+        payload: {
+          cardKey: "approval:1",
+          status: "resolved",
+          requiresApproval: false,
+          approvalId: "approval-1",
+          decision: "allow_once",
+        },
+      }),
+    ], ["run-1"]);
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({
+      approvalId: "approval-1",
+      approvalCapabilities: [{ capability: "python", resource: "managed" }],
+      approvalExpiresAt: "2026-03-29T00:10:00.000Z",
+      requiresApproval: false,
+      decision: "allow_once",
+    });
+  });
 });

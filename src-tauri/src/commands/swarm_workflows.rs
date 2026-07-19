@@ -22,6 +22,8 @@ pub struct WorkflowDefinition {
     #[serde(default)]
     pub model_id: Option<String>,
     #[serde(default)]
+    pub execution_mode: Option<String>,
+    #[serde(default)]
     pub steps: Vec<WorkflowStep>,
     #[serde(default)]
     pub constraints: WorkflowConstraints,
@@ -36,6 +38,10 @@ pub struct WorkflowStep {
     pub title: String,
     #[serde(default)]
     pub source: String,
+    #[serde(default)]
+    pub retryable: Option<bool>,
+    #[serde(default)]
+    pub approval_required: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -48,7 +54,9 @@ pub struct WorkflowConstraints {
     #[serde(default)]
     pub writable_scopes: Vec<String>,
     pub max_steps: Option<u32>,
+    pub max_iterations: Option<u32>,
     pub timeout_ms: Option<u64>,
+    pub approval_policy: Option<String>,
 }
 
 const DEFAULT_TIMEOUT_MS: u64 = 45 * 60 * 1000;
@@ -66,7 +74,7 @@ fn latex_extensions() -> &'static [&'static str] {
     ]
 }
 
-fn is_latex_related_path(path: &str) -> bool {
+pub(super) fn is_latex_related_path(path: &str) -> bool {
     let normalized = path.trim().replace('\\', "/").to_ascii_lowercase();
     if normalized.ends_with('/') || normalized.is_empty() {
         return false;
@@ -82,11 +90,14 @@ fn default_workflow_registry() -> WorkflowRegistry {
             title: title.to_string(),
             callsites: callsites.iter().map(|value| value.to_string()).collect(),
             model_id: None,
+            execution_mode: None,
             steps: vec![WorkflowStep {
                 id: "main".to_string(),
                 kind: "provider.generate".to_string(),
                 title: title.to_string(),
                 source: "workflow".to_string(),
+                retryable: None,
+                approval_required: None,
             }],
             constraints: WorkflowConstraints {
                 allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
@@ -96,7 +107,9 @@ fn default_workflow_registry() -> WorkflowRegistry {
                     .map(|value| value.to_string())
                     .collect(),
                 max_steps: Some(4),
+                max_iterations: None,
                 timeout_ms: Some(DEFAULT_TIMEOUT_MS),
+                approval_policy: None,
             },
         };
 
@@ -115,18 +128,23 @@ fn default_workflow_registry() -> WorkflowRegistry {
                 title: "Reference Check".to_string(),
                 callsites: vec!["latex.overlay".to_string()],
                 model_id: None,
+                execution_mode: None,
                 steps: vec![WorkflowStep {
                     id: "search".to_string(),
                     kind: "tool.search".to_string(),
                     title: "Tool Search".to_string(),
                     source: "workflow".to_string(),
+                    retryable: None,
+                    approval_required: None,
                 }],
                 constraints: WorkflowConstraints {
                     allowed_context_prefixes: vec!["file:".to_string(), "paper:".to_string()],
                     allowed_tools: vec!["tool_search".to_string()],
                     writable_scopes: vec!["readonly".to_string()],
                     max_steps: Some(2),
+                    max_iterations: None,
                     timeout_ms: Some(DEFAULT_TIMEOUT_MS),
+                    approval_policy: None,
                 },
             },
             provider(
@@ -258,6 +276,30 @@ pub(super) fn max_steps_for_workflow(workflow: &WorkflowDefinition) -> usize {
         .max_steps
         .map(|value| value.clamp(1, 12) as usize)
         .unwrap_or(4)
+}
+
+pub(super) fn max_iterations_for_workflow(workflow: &WorkflowDefinition) -> usize {
+    workflow
+        .constraints
+        .max_iterations
+        .map(|value| value.clamp(1, 4) as usize)
+        .unwrap_or(2)
+}
+
+pub(super) fn execution_mode_for_workflow<'a>(
+    workflow: &'a WorkflowDefinition,
+    callsite: &str,
+) -> &'a str {
+    workflow
+        .execution_mode
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| matches!(*value, "single" | "supervisor"))
+        .unwrap_or(if callsite == "completion.inline" {
+            "single"
+        } else {
+            "supervisor"
+        })
 }
 
 pub(super) fn normalize_tool_name(step_kind: &str) -> String {
