@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import type { PendingNavigationIntent, UnsavedChangeItem } from "../../../shared/types/app";
 import { Button } from "../../../components/ui/button";
+import { AppDialog } from "../../../components/ui/dialog";
 
 type TranslationFn = (key: any) => string;
 
@@ -39,8 +40,12 @@ export function UnsavedChangesDialog(props: UnsavedChangesDialogProps) {
   };
 
   return (
-    <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4">
-      <div className="app-material-floating w-full max-w-lg rounded-lg p-4">
+    <AppDialog
+      onClose={onCancel}
+      ariaLabel={t("editor.unsaved.title")}
+      isDismissable={!busy}
+      className="app-material-floating w-full max-w-lg rounded-lg p-4"
+    >
         <div className="flex items-start gap-3">
           <div className="rounded-md bg-amber-100 p-2 text-amber-700">
             <AlertTriangle className="h-4 w-4" />
@@ -70,7 +75,6 @@ export function UnsavedChangesDialog(props: UnsavedChangesDialogProps) {
             {t("editor.unsaved.saveAndContinue")}
           </Button>
         </div>
-      </div>
-    </div>
+    </AppDialog>
   );
 }

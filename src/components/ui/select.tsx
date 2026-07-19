@@ -1,6 +1,12 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
+import {
+  Button as AriaButton,
+  ListBox,
+  ListBoxItem,
+  Popover,
+  Select as AriaSelect,
+} from "react-aria-components";
 import { cn } from "../../lib/utils";
 
 type SelectTone = "light" | "dark";
@@ -58,18 +64,8 @@ function collectOptions(children: React.ReactNode): OptionShape[] {
 }
 
 function synthesizeChangeEvent(value: string, name?: string): SelectChangeEvent {
-  const target = {
-    value,
-    name: name ?? "",
-  } as HTMLSelectElement;
-  return {
-    target,
-    currentTarget: target,
-  } as SelectChangeEvent;
-}
-
-function buttonHeight(uiSize: SelectSize): number {
-  return uiSize === "sm" ? 32 : 40;
+  const target = { value, name: name ?? "" } as HTMLSelectElement;
+  return { target, currentTarget: target } as SelectChangeEvent;
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
@@ -84,8 +80,9 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     onChange,
     disabled,
     name,
+    id,
     placeholder,
-    restoreFocusOnCommit = true,
+    restoreFocusOnCommit: _restoreFocusOnCommit = true,
     portalAttributes,
     portalClassName,
     ...props
@@ -102,15 +99,11 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       return options.find((option) => !option.disabled)?.value ?? "";
     }, [defaultValue, options, value]);
     const [internalValue, setInternalValue] = React.useState(initialValue);
-    const [open, setOpen] = React.useState(false);
-    const [menuStyle, setMenuStyle] = React.useState<React.CSSProperties>({});
-    const wrapperRef = React.useRef<HTMLDivElement | null>(null);
-    const buttonRef = React.useRef<HTMLButtonElement | null>(null);
-    const menuRef = React.useRef<HTMLDivElement | null>(null);
     const hiddenSelectRef = React.useRef<HTMLSelectElement | null>(null);
     const activeValue = isControlled ? String(value ?? "") : internalValue;
-    const selectedOption = options.find((option) => option.value === activeValue) ?? options[0] ?? null;
+    const selectedOption = options.find((option) => option.value === activeValue) ?? null;
     const selectedLabel = selectedOption?.label || String(placeholder || "");
+    const accessibleLabel = props["aria-label"] || props.title || name || placeholder || selectedLabel;
 
     React.useImperativeHandle(ref, () => hiddenSelectRef.current as HTMLSelectElement, []);
 
@@ -120,85 +113,12 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       }
     }, [initialValue, isControlled]);
 
-    const updateMenuPosition = React.useCallback(() => {
-      const button = buttonRef.current;
-      if (!button || typeof window === "undefined") {
-        return;
-      }
-      const rect = button.getBoundingClientRect();
-      const width = Math.max(rect.width, uiSize === "sm" ? 156 : 188);
-      const viewportWidth = window.innerWidth;
-      const maxLeft = Math.max(12, viewportWidth - width - 12);
-      const left = Math.min(Math.max(12, rect.left), maxLeft);
-      const top = Math.min(rect.bottom + 8, window.innerHeight - 16 - buttonHeight(uiSize));
-      setMenuStyle({
-        position: "fixed",
-        left,
-        top,
-        width,
-        maxHeight: Math.min(window.innerHeight - top - 16, 320),
-      });
-    }, [uiSize]);
-
-    React.useEffect(() => {
-      if (!open) {
-        return;
-      }
-      updateMenuPosition();
-      const handleResize = () => updateMenuPosition();
-      const handlePointerDown = (event: MouseEvent) => {
-        const target = event.target as Node | null;
-        if (wrapperRef.current?.contains(target)) {
-          return;
-        }
-        if (menuRef.current?.contains(target)) {
-          return;
-        }
-        setOpen(false);
-      };
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (event.key === "Escape") {
-          setOpen(false);
-          buttonRef.current?.focus();
-        }
-      };
-      window.addEventListener("resize", handleResize);
-      window.addEventListener("scroll", handleResize, true);
-      window.addEventListener("mousedown", handlePointerDown);
-      window.addEventListener("keydown", handleKeyDown);
-      return () => {
-        window.removeEventListener("resize", handleResize);
-        window.removeEventListener("scroll", handleResize, true);
-        window.removeEventListener("mousedown", handlePointerDown);
-        window.removeEventListener("keydown", handleKeyDown);
-      };
-    }, [open, updateMenuPosition]);
-
     const commitValue = React.useCallback((nextValue: string) => {
       if (!isControlled) {
         setInternalValue(nextValue);
       }
       onChange?.(synthesizeChangeEvent(nextValue, name));
-      setOpen(false);
-      if (restoreFocusOnCommit) {
-        requestAnimationFrame(() => buttonRef.current?.focus());
-      }
-    }, [isControlled, name, onChange, restoreFocusOnCommit]);
-
-    const cycleOption = React.useCallback((direction: 1 | -1) => {
-      if (options.length === 0) {
-        return;
-      }
-      const currentIndex = Math.max(0, options.findIndex((option) => option.value === activeValue));
-      for (let offset = 1; offset <= options.length; offset += 1) {
-        const index = (currentIndex + offset * direction + options.length) % options.length;
-        const candidate = options[index];
-        if (!candidate?.disabled) {
-          commitValue(candidate.value);
-          return;
-        }
-      }
-    }, [activeValue, commitValue, options]);
+    }, [isControlled, name, onChange]);
 
     const triggerClassName = cn(
       "control-surface control-select-trigger group inline-flex w-full items-center justify-between gap-2 font-medium leading-none outline-none",
@@ -208,47 +128,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       className,
     );
 
-    const menu = open && typeof document !== "undefined"
-      ? createPortal(
-          <div
-            {...portalAttributes}
-            ref={menuRef}
-            className={cn("control-select-portal z-[520]", portalClassName)}
-            style={menuStyle}
-          >
-            <div className="control-menu-surface overflow-hidden p-1.5">
-              <div className="max-h-[inherit] overflow-auto pr-0.5">
-                {options.map((option) => {
-                  const selected = option.value === activeValue;
-                  return (
-                    <button
-                      key={`${option.value}-${option.label}`}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      disabled={option.disabled}
-                      className={cn(
-                        "control-menu-item flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left",
-                        uiSize === "sm" ? "rounded-[12px] text-xs" : "rounded-[14px] text-sm",
-                        selected && "control-menu-item--selected",
-                        option.disabled && "cursor-not-allowed opacity-45",
-                      )}
-                      onClick={() => commitValue(option.value)}
-                    >
-                      <span className="truncate">{option.label || option.value}</span>
-                      <Check className={cn("h-3.5 w-3.5 shrink-0 transition", selected ? "opacity-100" : "opacity-0")} />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )
-      : null;
-
     return (
-      <div ref={wrapperRef} className={cn("relative w-full", wrapperClassName)}>
+      <div className={cn("relative w-full", wrapperClassName)}>
         <select
           {...props}
           ref={hiddenSelectRef}
@@ -262,56 +143,64 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         >
           {children}
         </select>
-        <button
-          ref={buttonRef}
-          type="button"
-          role="combobox"
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-disabled={disabled}
-          className={triggerClassName}
-          disabled={disabled}
-          onClick={() => setOpen((prev) => !prev)}
-          onKeyDown={(event) => {
-            if (disabled) {
-              return;
-            }
-            if (event.key === "ArrowDown") {
-              event.preventDefault();
-              if (!open) {
-                setOpen(true);
-                return;
-              }
-              cycleOption(1);
-              return;
-            }
-            if (event.key === "ArrowUp") {
-              event.preventDefault();
-              if (!open) {
-                setOpen(true);
-                return;
-              }
-              cycleOption(-1);
-              return;
-            }
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              setOpen((prev) => !prev);
-            }
-          }}
+        <AriaSelect
+          id={id}
+          aria-label={accessibleLabel}
+          aria-labelledby={props["aria-labelledby"]}
+          aria-describedby={props["aria-describedby"]}
+          selectedKey={activeValue}
+          isDisabled={disabled}
+          isRequired={props.required}
+          onSelectionChange={(key) => commitValue(String(key))}
         >
-          <span className={cn("truncate text-left", !selectedOption && "text-[color:var(--control-muted)]")}>
-            {selectedLabel}
-          </span>
-          <ChevronDown
+          <AriaButton className={triggerClassName}>
+            <span className={cn("truncate text-left", !selectedOption && "text-[color:var(--control-muted)]") }>
+              {selectedLabel}
+            </span>
+            <ChevronDown
+              className={cn(
+                "pointer-events-none h-4 w-4 shrink-0 text-[color:var(--control-muted)] transition-transform duration-200",
+                uiSize === "sm" && "h-3.5 w-3.5",
+              )}
+            />
+          </AriaButton>
+          <Popover
+            {...portalAttributes}
+            placement="bottom start"
+            offset={8}
             className={cn(
-              "pointer-events-none shrink-0 text-[color:var(--control-muted)] transition-all duration-200",
-              uiSize === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
-              open ? "-rotate-180 text-[color:var(--control-text)]" : "group-hover:text-[color:var(--control-text)]",
+              "control-select-portal z-[520] w-[var(--trigger-width)] min-w-40 outline-none",
+              portalClassName,
             )}
-          />
-        </button>
-        {menu}
+          >
+            <div className="control-menu-surface max-h-80 overflow-hidden p-1.5">
+              <ListBox className="max-h-[inherit] overflow-auto pr-0.5 outline-none">
+                {options.map((option) => (
+                  <ListBoxItem
+                    key={`${option.value}-${option.label}`}
+                    id={option.value}
+                    textValue={option.label || option.value}
+                    isDisabled={option.disabled}
+                    className={({ isSelected, isFocused, isDisabled }) => cn(
+                      "control-menu-item flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left outline-none",
+                      uiSize === "sm" ? "rounded-[12px] text-xs" : "rounded-[14px] text-sm",
+                      isSelected && "control-menu-item--selected",
+                      isFocused && "ring-2 ring-[color:var(--app-accent)] ring-inset",
+                      isDisabled && "cursor-not-allowed opacity-45",
+                    )}
+                  >
+                    {({ isSelected }) => (
+                      <>
+                        <span className="truncate">{option.label || option.value}</span>
+                        <Check className={cn("h-3.5 w-3.5 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                      </>
+                    )}
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </div>
+          </Popover>
+        </AriaSelect>
       </div>
     );
   },

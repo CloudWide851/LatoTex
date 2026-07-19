@@ -26,6 +26,7 @@ describe("Select", () => {
     await act(async () => {
       root.render(
         <Select
+          aria-label="Provider"
           value="anthropic"
           onChange={handleChange}
           portalAttributes={{ "data-textbox-menu": "true" }}
@@ -36,14 +37,14 @@ describe("Select", () => {
       );
     });
 
-    const trigger = container.querySelector("button[role='combobox']");
+    const trigger = container.querySelector("button[aria-haspopup='listbox']");
     expect(trigger).not.toBeNull();
 
     await act(async () => {
       trigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const option = document.body.querySelector("button[role='option'][aria-selected='false']");
+    const option = document.body.querySelector("[role='option'][aria-selected='false']");
     expect(document.body.querySelector("[data-textbox-menu='true']")).not.toBeNull();
     expect(option?.textContent).toContain("OpenAI");
 

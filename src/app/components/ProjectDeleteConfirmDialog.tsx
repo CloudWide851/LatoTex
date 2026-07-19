@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Button } from "../../components/ui/button";
+import { AppDialog } from "../../components/ui/dialog";
 import type { ProjectSummary } from "../../shared/types/app";
 
 type TranslationFn = (key: any) => string;
@@ -21,16 +22,21 @@ export function ProjectDeleteConfirmDialog(props: {
     return null;
   }
   const destructive = intent.mode === "trashRoot";
+  const title = t(destructive ? "topbar.projectMoveToTrashTitle" : "topbar.projectRemoveFromListTitle");
   return (
-    <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-      <div className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow">
+    <AppDialog
+      onClose={onCancel}
+      ariaLabel={title}
+      isDismissable={!busy}
+      className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow"
+    >
         <div className="flex items-start gap-3">
           <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${destructive ? "border-rose-200 bg-rose-50 text-rose-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
             <AlertTriangle className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-slate-900">
-              {t(destructive ? "topbar.projectMoveToTrashTitle" : "topbar.projectRemoveFromListTitle")}
+              {title}
             </h3>
             <p className="mt-1 text-xs leading-5 text-slate-600">
               {t(destructive ? "topbar.projectMoveToTrashConfirm" : "topbar.projectRemoveFromListConfirm").replace("{name}", intent.project.name)}
@@ -49,7 +55,6 @@ export function ProjectDeleteConfirmDialog(props: {
             {t("common.confirm")}
           </Button>
         </div>
-      </div>
-    </div>
+    </AppDialog>
   );
 }

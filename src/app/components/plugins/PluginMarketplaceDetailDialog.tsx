@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
+import { AppDialog } from "../../../components/ui/dialog";
 import { cn } from "../../../lib/utils";
 import type {
   InstalledPlugin,
@@ -133,15 +134,13 @@ export function PluginMarketplaceDetailDialog(props: {
         : t("plugins.notInstalled");
 
   return (
-    <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("plugins.details")}
-        className="app-material-floating grid max-h-[86vh] w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl motion-card-pop motion-panel-glow"
-      >
+    <AppDialog
+      onClose={onClose}
+      ariaLabel={t("plugins.details")}
+      className="app-material-floating grid max-h-[86vh] w-full max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl motion-card-pop motion-panel-glow"
+    >
         <header className="app-material-content flex min-w-0 items-start gap-3 border-b px-4 py-3">
-          <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-primary-700">
+          <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-[color:var(--app-accent)]">
             {plugin.icon ? (
               <img src={plugin.icon} alt="" className="h-7 w-7 rounded object-contain" />
             ) : (
@@ -201,7 +200,7 @@ export function PluginMarketplaceDetailDialog(props: {
 
           <section className="app-material-inset rounded-lg border p-3">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary-700" />
+              <ShieldCheck className="h-4 w-4 text-[color:var(--app-accent)]" />
               <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                 {t("plugins.detail.permissions")}
               </h4>
@@ -222,7 +221,7 @@ export function PluginMarketplaceDetailDialog(props: {
 
           <section className="app-material-inset rounded-lg border p-3">
             <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-primary-700" />
+              <Package className="h-4 w-4 text-[color:var(--app-accent)]" />
               <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                 {t("plugins.detail.contributions")}
               </h4>
@@ -251,7 +250,7 @@ export function PluginMarketplaceDetailDialog(props: {
           {toolchain ? (
             <section className="app-material-inset rounded-lg border p-3">
               <div className="flex items-center gap-2">
-                <Code2 className="h-4 w-4 text-primary-700" />
+                <Code2 className="h-4 w-4 text-[color:var(--app-accent)]" />
                 <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                   {t("plugins.detail.toolchain")}
                 </h4>
@@ -296,7 +295,7 @@ export function PluginMarketplaceDetailDialog(props: {
           {runtimeAsset ? (
             <section className="app-material-inset rounded-lg border p-3">
               <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-primary-700" />
+                <Package className="h-4 w-4 text-[color:var(--app-accent)]" />
                 <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                   {t("plugins.detail.runtime")}
                 </h4>
@@ -376,7 +375,6 @@ export function PluginMarketplaceDetailDialog(props: {
             {t("common.close")}
           </Button>
         </footer>
-      </section>
-    </div>
+    </AppDialog>
   );
 }

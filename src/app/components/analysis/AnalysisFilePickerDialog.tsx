@@ -1,4 +1,5 @@
 import { FlatCheckIndicator } from "../../../components/ui/flat-check-indicator";
+import { AppDialog } from "../../../components/ui/dialog";
 
 type TranslationFn = (key: any) => string;
 
@@ -17,18 +18,24 @@ export function AnalysisFilePickerDialog(props: {
     return null;
   }
   return (
-    <div className="app-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="app-material-floating grid h-[min(76vh,640px)] w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-lg">
+    <AppDialog
+      onClose={onClose}
+      ariaLabel={t("analysis.filePickerTitle")}
+      overlayClassName="z-50"
+      className="app-material-floating grid h-[min(76vh,640px)] w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] rounded-lg"
+    >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h3 className="text-sm font-semibold text-slate-800">{t("analysis.filePickerTitle")}</h3>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
               onClick={onSelectAll}
             >
               {t("analysis.selectAll")}
             </button>
             <button
+              type="button"
               className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
               onClick={onInvert}
             >
@@ -42,7 +49,9 @@ export function AnalysisFilePickerDialog(props: {
               const checked = selectedFiles.includes(path);
               return (
                 <button
+                  type="button"
                   key={path}
+                  aria-pressed={checked}
                   className="app-material-inset flex w-full items-center gap-2 rounded border px-2 py-2 text-left text-xs text-slate-700"
                   onClick={() => onToggleFile(path)}
                 >
@@ -55,13 +64,13 @@ export function AnalysisFilePickerDialog(props: {
         </div>
         <div className="flex items-center justify-end border-t border-slate-200 px-4 py-3">
           <button
+            type="button"
             className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
             onClick={onClose}
           >
             {t("common.close")}
           </button>
         </div>
-      </div>
-    </div>
+    </AppDialog>
   );
 }

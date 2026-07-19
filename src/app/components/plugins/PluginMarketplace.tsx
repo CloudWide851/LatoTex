@@ -279,7 +279,7 @@ export function PluginMarketplace(props: {
       <div className="app-material-content border-b p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-primary-700">
+            <div className="app-material-inset flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-[color:var(--app-accent)]">
               <Store className="h-5 w-5" />
             </div>
             <div className="min-w-0">

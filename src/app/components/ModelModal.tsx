@@ -1,6 +1,7 @@
 import { Eye, EyeOff, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
+import { AppDialog } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Select } from "../../components/ui/select";
 import { SvgSpinner } from "../../components/ui/svg-spinner";
@@ -149,6 +150,11 @@ export function ModelModal(props: {
     resolvedProtocol.baseUrl.length > 0 &&
     modelDisplayName.trim().length > 0 &&
     modelRequestName.trim().length > 0;
+  const dialogTitle = dialogMode === "edit"
+    ? t("settings.modal.editTitle")
+    : dialogMode === "duplicate"
+      ? t("settings.modal.duplicateTitle")
+      : t("settings.modal.createTitle");
 
   const syncExistingProtocolSelection = (nextProtocolId: string) => {
     const nextProtocol = protocols.find((item) => item.id === nextProtocolId);
@@ -200,17 +206,20 @@ export function ModelModal(props: {
   };
 
   return (
-    <div className="app-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 motion-fade-in">
-      <div className="app-material-floating grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg motion-slide-up">
+    <AppDialog
+      onClose={onClose}
+      ariaLabel={dialogTitle}
+      isDismissable={!saving}
+      overlayClassName="z-50 motion-fade-in"
+      className="app-material-floating grid h-[min(84vh,780px)] w-full max-w-2xl grid-rows-[52px_minmax(0,1fr)_64px] overflow-hidden rounded-lg motion-slide-up"
+    >
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">
-            {dialogMode === "edit"
-              ? t("settings.modal.editTitle")
-              : dialogMode === "duplicate"
-                ? t("settings.modal.duplicateTitle")
-                : t("settings.modal.createTitle")}
+            {dialogTitle}
           </h3>
           <button
+            type="button"
+            aria-label={t("common.close")}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             onClick={onClose}
             title={t("common.close")}
@@ -332,7 +341,7 @@ export function ModelModal(props: {
                 {t("settings.apiKey")}
                 {apiKeyChanged ? (
                   <span
-                    className="inline-block h-1.5 w-1.5 rounded-full bg-primary-600"
+                    className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--app-accent)]"
                     title={t("settings.modal.apiKeyChanged")}
                   />
                 ) : null}
@@ -386,7 +395,6 @@ export function ModelModal(props: {
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+    </AppDialog>
   );
 }

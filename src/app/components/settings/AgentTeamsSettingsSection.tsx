@@ -1,6 +1,7 @@
 import { ArrowLeft, Check, Pencil, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "../../../components/ui/button";
+import { AppDialog } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import { cn } from "../../../lib/utils";
@@ -205,20 +206,12 @@ export function AgentTeamsSettingsSection(props: {
         </div>
 
         {editingTeamId ? (
-          <div
-            className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                setEditingTeamId(null);
-                setEditingRoleId(null);
-              }
+          <AppDialog
+            onClose={() => {
+              setEditingTeamId(null);
+              setEditingRoleId(null);
             }}
-          >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="agent-teams-editor-title"
+            ariaLabelledBy="agent-teams-editor-title"
             className="app-material-floating settings-scrollbar-hidden max-h-[min(760px,calc(100vh-40px))] w-[min(920px,calc(100vw-32px))] overflow-auto rounded-lg p-4"
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -432,8 +425,7 @@ export function AgentTeamsSettingsSection(props: {
             </div>
             </div>
           )}
-          </section>
-          </div>
+          </AppDialog>
         ) : null}
       </div>
     </div>

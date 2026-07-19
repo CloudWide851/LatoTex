@@ -1,13 +1,20 @@
 import { X } from "lucide-react";
+import { AppDialog } from "../../components/ui/dialog";
 
 export function LogOverlay(props: { title: string; lines: string[]; onClose: () => void }) {
   const { title, lines, onClose } = props;
   return (
-    <div className="app-overlay-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 motion-fade-in">
-      <div className="app-material-floating grid h-[70vh] w-full max-w-3xl grid-rows-[48px_minmax(0,1fr)] overflow-hidden rounded-lg motion-slide-up">
+    <AppDialog
+      onClose={onClose}
+      ariaLabel={title}
+      overlayClassName="z-50 motion-fade-in"
+      className="app-material-floating grid h-[70vh] w-full max-w-3xl grid-rows-[48px_minmax(0,1fr)] overflow-hidden rounded-lg motion-slide-up"
+    >
         <div className="flex items-center justify-between border-b border-slate-200 px-4">
           <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
           <button
+            type="button"
+            aria-label={title}
             className="flex h-8 w-8 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             onClick={onClose}
           >
@@ -30,7 +37,6 @@ export function LogOverlay(props: { title: string; lines: string[]; onClose: () 
             </ul>
           )}
         </div>
-      </div>
-    </div>
+    </AppDialog>
   );
 }

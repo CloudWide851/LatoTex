@@ -56,12 +56,12 @@ describe("ModelModal", () => {
       );
     });
 
-    const inputs = container.querySelectorAll("input");
+    const inputs = document.body.querySelectorAll("input");
     const baseUrlInput = inputs[0] as HTMLInputElement;
     const modelDisplayNameInput = inputs[1] as HTMLInputElement;
     const modelRequestNameInput = inputs[2] as HTMLInputElement;
     const apiKeyInput = inputs[3] as HTMLInputElement;
-    const protocolTrigger = container.querySelector("button[role='combobox']");
+    const protocolTrigger = document.body.querySelector("button[aria-haspopup='listbox']");
 
     await act(async () => {
       setInputValue(modelDisplayNameInput, "Claude 3.7");
@@ -75,14 +75,14 @@ describe("ModelModal", () => {
       protocolTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const anthropicOption = Array.from(document.body.querySelectorAll("button[role='option']"))
+    const anthropicOption = Array.from(document.body.querySelectorAll("[role='option']"))
       .find((element) => element.textContent?.includes("Anthropic"));
 
     await act(async () => {
       anthropicOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const nextInputs = container.querySelectorAll("input");
+    const nextInputs = document.body.querySelectorAll("input");
     expect((nextInputs[0] as HTMLInputElement).value).toBe("https://api.anthropic.com");
     expect((nextInputs[1] as HTMLInputElement).value).toBe("Claude 3.7");
     expect((nextInputs[2] as HTMLInputElement).value).toBe("claude-3-7-sonnet");
@@ -138,7 +138,7 @@ describe("ModelModal", () => {
       await Promise.resolve();
     });
 
-    const saveButton = Array.from(container.querySelectorAll("button"))
+    const saveButton = Array.from(document.body.querySelectorAll("button"))
       .find((button) => button.textContent?.includes("settings.saveSettings"));
     await act(async () => {
       saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

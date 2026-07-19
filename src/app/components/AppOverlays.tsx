@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
+import { AppDialog } from "../../components/ui/dialog";
 import { ModelModal } from "./ModelModal";
 import { ProjectDeleteConfirmDialog, type ProjectDeleteConfirmIntent } from "./ProjectDeleteConfirmDialog";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
@@ -195,20 +196,30 @@ export function AppOverlays(props: AppOverlaysProps) {
   return (
     <>
       {overlay === "logs" && (
-        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-          <div className="app-material-floating grid h-[74vh] w-full max-w-4xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-xl motion-card-pop motion-panel-glow">
+        <AppDialog
+          onClose={onOverlayClose}
+          ariaLabel={t("preview.title")}
+          className="app-material-floating grid h-[74vh] w-full max-w-4xl grid-rows-[48px_auto_minmax(0,1fr)] overflow-hidden rounded-xl motion-card-pop motion-panel-glow"
+        >
             <div className="flex items-center justify-between border-b border-slate-200 px-4">
               <h3 className="text-sm font-semibold text-slate-800">{t("preview.title")}</h3>
-              <button className="rounded p-1 text-slate-500 hover:bg-slate-100" onClick={onOverlayClose}>
+              <button
+                type="button"
+                aria-label={t("common.close")}
+                className="rounded p-1 text-slate-500 hover:bg-slate-100"
+                onClick={onOverlayClose}
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2">
               <button
+                type="button"
+                aria-pressed={logsTab === "events"}
                 className={cn(
                   "rounded-md border px-2.5 py-1 text-xs",
                   logsTab === "events"
-                    ? "border-primary-600 bg-primary-600 text-white"
+                    ? "border-[color:var(--app-accent)] bg-[color:var(--app-accent)] text-white"
                     : "border-slate-300 bg-white text-slate-600",
                 )}
                 onClick={() => onLogsTabChange("events")}
@@ -216,10 +227,12 @@ export function AppOverlays(props: AppOverlaysProps) {
                 {t("preview.events")}
               </button>
               <button
+                type="button"
+                aria-pressed={logsTab === "status"}
                 className={cn(
                   "rounded-md border px-2.5 py-1 text-xs",
                   logsTab === "status"
-                    ? "border-primary-600 bg-primary-600 text-white"
+                    ? "border-[color:var(--app-accent)] bg-[color:var(--app-accent)] text-white"
                     : "border-slate-300 bg-white text-slate-600",
                 )}
                 onClick={() => onLogsTabChange("status")}
@@ -272,8 +285,7 @@ export function AppOverlays(props: AppOverlaysProps) {
                 </ul>
               )}
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
 
       {modelModalOpen && settings && (
@@ -290,8 +302,11 @@ export function AppOverlays(props: AppOverlaysProps) {
       )}
 
       {deleteIntent && (
-        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-          <div className="app-material-floating w-full max-w-md rounded-[22px] border-rose-200 p-5 motion-card-pop motion-panel-glow">
+        <AppDialog
+          onClose={onDeleteCancel}
+          ariaLabel={t("explorer.deleteConfirmTitle")}
+          className="app-material-floating w-full max-w-md rounded-[22px] border-rose-200 p-5 motion-card-pop motion-panel-glow"
+        >
             <div className="rounded-[18px] border border-rose-100 bg-rose-50/90 px-4 py-3">
               <h3 className="text-sm font-semibold text-rose-900">{t("explorer.deleteConfirmTitle")}</h3>
               <p className="mt-2 break-all rounded-[14px] border border-rose-100 bg-white/90 px-3 py-2 font-mono text-xs text-rose-800 shadow-sm">
@@ -313,8 +328,7 @@ export function AppOverlays(props: AppOverlaysProps) {
                 {t("common.confirm")}
               </Button>
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
 
       <ProjectDeleteConfirmDialog
@@ -326,8 +340,11 @@ export function AppOverlays(props: AppOverlaysProps) {
       />
 
       {integrityIssue && (
-        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-          <div className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow">
+        <AppDialog
+          onClose={onIntegrityCancel}
+          ariaLabel={t("workspace.integrityTitle")}
+          className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow"
+        >
             <h3 className="text-sm font-semibold text-slate-800">{t("workspace.integrityTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">
               {t("workspace.integrityHint")}
@@ -347,13 +364,16 @@ export function AppOverlays(props: AppOverlaysProps) {
                 {t("workspace.integrityRepair")}
               </Button>
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
 
       {closeBehaviorDialogOpen && (
-        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-          <div className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow">
+        <AppDialog
+          onClose={onCloseBehaviorCancel}
+          ariaLabel={t("window.closeConfirmTitle")}
+          isDismissable={!closeBehaviorDialogBusy}
+          className="app-material-floating w-full max-w-md rounded-lg p-4 motion-card-pop motion-panel-glow"
+        >
             <h3 className="text-sm font-semibold text-slate-800">
               {t("window.closeConfirmTitle")}
             </h3>
@@ -392,13 +412,16 @@ export function AppOverlays(props: AppOverlaysProps) {
                 {t("common.cancel")}
               </Button>
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
 
       {analysisEnvPrompt.envPromptOpen && envPromptStatus && (
-        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4 motion-overlay-enter">
-          <div className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow">
+        <AppDialog
+          onClose={analysisEnvPrompt.handleEnvPromptLater}
+          ariaLabel={t("analysis.envPromptTitle")}
+          isDismissable={!analysisEnvPrompt.envPromptBusy}
+          className="app-material-floating w-full max-w-lg rounded-lg p-4 motion-card-pop motion-panel-glow"
+        >
             <h3 className="text-sm font-semibold text-slate-800">{t("analysis.envPromptTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">
               {envPromptStatus.exists ? t("analysis.envPromptRepairHint") : t("analysis.envPromptCreateHint")}
@@ -410,7 +433,14 @@ export function AppOverlays(props: AppOverlaysProps) {
               <div className="mt-1 break-all font-mono text-xs text-slate-700">{envPromptPath}</div>
             </div>
             {envPromptTaskStatus?.status === "running" ? (
-              <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={envPromptPercent}
+                aria-label={envPromptStageLabel || t("analysis.envPromptProgress")}
+                className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <span className="truncate">{envPromptStageLabel || t("analysis.envPromptProgress")}</span>
                   <span className="shrink-0 tabular-nums">{envPromptPercent}%</span>
@@ -460,8 +490,7 @@ export function AppOverlays(props: AppOverlaysProps) {
                 {envPromptActionLabel}
               </Button>
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
       {themeTransition && (
         <div className="theme-ripple-overlay" aria-hidden>
@@ -485,6 +514,8 @@ export function AppOverlays(props: AppOverlaysProps) {
 
       {toast && (
         <div
+          role={toast.type === "info" ? "status" : "alert"}
+          aria-live={toast.type === "info" ? "polite" : "assertive"}
           className={cn(
             "fixed bottom-4 right-4 z-[440] rounded-md px-4 py-2 text-sm text-white shadow-soft motion-card-pop motion-hover-rise",
             toast.type === "info" ? "bg-emerald-600" : "bg-rose-600",

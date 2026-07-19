@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "../../../i18n";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
+import { AppDialog } from "../../../components/ui/dialog";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import { runtimeDiagnosticsBundleExport } from "../../../shared/api/runtime";
@@ -327,8 +328,11 @@ export function DiagnosticsSettingsSection(props: {
       </div>
 
       {clearLogConfirmOpen && (
-        <div className="app-overlay-backdrop fixed inset-0 z-[430] flex items-center justify-center p-4">
-          <div className="app-material-floating w-full max-w-md rounded-lg p-4">
+        <AppDialog
+          onClose={() => setClearLogConfirmOpen(false)}
+          ariaLabel={t("settings.logClearModalTitle")}
+          className="app-material-floating w-full max-w-md rounded-lg p-4"
+        >
             <h3 className="text-sm font-semibold text-slate-800">{t("settings.logClearModalTitle")}</h3>
             <p className="mt-2 text-xs text-slate-600">{t("settings.logClearModalDesc")}</p>
             <div className="mt-4 flex justify-end gap-2">
@@ -349,8 +353,7 @@ export function DiagnosticsSettingsSection(props: {
                 {t("settings.logClearModalConfirm")}
               </Button>
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
     </div>
   );

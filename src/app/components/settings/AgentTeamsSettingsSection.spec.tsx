@@ -54,7 +54,7 @@ describe("AgentTeamsSettingsSection", () => {
       editButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const dialog = container.querySelector("[role='dialog']");
+    const dialog = document.body.querySelector("[role='dialog']");
     expect(dialog).not.toBeNull();
     expect(dialog?.textContent).toContain("settings.agentTeamsEditorTitle");
 
@@ -65,7 +65,7 @@ describe("AgentTeamsSettingsSection", () => {
       roleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(container.querySelector("[role='dialog']")?.textContent).toContain(
+    expect(document.body.querySelector("[role='dialog']")?.textContent).toContain(
       "settings.agentTeamsRoleConfigTitle",
     );
 
