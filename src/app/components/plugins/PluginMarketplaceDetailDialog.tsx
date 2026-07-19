@@ -61,6 +61,20 @@ function DetailField(props: { label: string; value: string | null | undefined })
   );
 }
 
+function trustStateLabel(state: string | null | undefined, t: TranslationFn): string | null {
+  if (!state) {
+    return null;
+  }
+  const key = state === "builtin_trusted"
+    ? "plugins.detail.trust.builtin"
+    : state === "user_approved"
+      ? "plugins.detail.trust.userApproved"
+      : state === "legacy_unverified"
+        ? "plugins.detail.trust.legacy"
+        : "plugins.detail.trust.catalog";
+  return t(key as any);
+}
+
 export function PluginMarketplaceDetailDialog(props: {
   entry: PluginCatalogEntry;
   installedPlugin: InstalledPlugin | undefined;
@@ -166,6 +180,18 @@ export function PluginMarketplaceDetailDialog(props: {
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <DetailField label={t("plugins.detail.pluginId")} value={plugin.id} />
               <DetailField label={t("plugins.detail.source")} value={entry.sourceName} />
+              <DetailField
+                label={t("plugins.detail.trustState")}
+                value={trustStateLabel(installedPlugin?.trustState, t)}
+              />
+              <DetailField
+                label={t("plugins.detail.integrity")}
+                value={installedPlugin
+                  ? installedPlugin.integrityVerified
+                    ? t("plugins.detail.integrityVerified")
+                    : t("plugins.detail.integrityUnverified")
+                  : null}
+              />
               <DetailField label={t("plugins.detail.publisher")} value={plugin.publisher} />
               <DetailField label={t("plugins.detail.version")} value={plugin.version} />
               <DetailField label={t("plugins.detail.homepage")} value={plugin.homepage ?? null} />

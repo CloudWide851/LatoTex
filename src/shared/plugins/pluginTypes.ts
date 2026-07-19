@@ -316,6 +316,9 @@ export type InstalledPlugin = {
   enabled: boolean;
   installedAt: string;
   source: string;
+  trustState?: string;
+  integrityVerified?: boolean;
+  approvedPermissions?: string[];
   validationIssues?: PluginValidationIssue[];
 };
 

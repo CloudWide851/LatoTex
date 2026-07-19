@@ -173,13 +173,14 @@ export function libraryCitationSummaryRemote(
 export function libraryResolvePdfPreview(
   projectId: string,
   relativePath: string,
-  options?: { bustCache?: boolean },
+  options?: { bustCache?: boolean; allowHttpOnce?: boolean },
 ): Promise<LibraryPdfPreview> {
   return invokeCommand<LibraryPdfPreview>("library_resolve_pdf_preview", {
     input: {
       projectId,
       relativePath,
       bustCache: options?.bustCache ?? false,
+      allowHttpOnce: options?.allowHttpOnce ?? false,
     },
   });
 }

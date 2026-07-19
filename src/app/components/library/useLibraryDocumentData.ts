@@ -297,12 +297,13 @@ export function useLibraryDocumentData(params: {
     requestId: number;
     cacheKey: string;
     bustCache?: boolean;
+    allowHttpOnce?: boolean;
   }) => {
-    const { requestId, cacheKey, bustCache = false } = options;
+    const { requestId, cacheKey, bustCache = false, allowHttpOnce = false } = options;
     if (!projectId || !selectedPath) {
       return null;
     }
-    const requestKey = `${projectId}:${selectedPath}:${bustCache ? "1" : "0"}`;
+    const requestKey = `${projectId}:${selectedPath}:${bustCache ? "1" : "0"}:${allowHttpOnce ? "1" : "0"}`;
     if (previewRequestRef.current?.key === requestKey) {
       try {
         const preview = await previewRequestRef.current.promise;
@@ -318,7 +319,10 @@ export function useLibraryDocumentData(params: {
       }
     }
     const promise = (async () => {
-      return await libraryResolvePdfPreview(projectId, selectedPath, { bustCache });
+      return await libraryResolvePdfPreview(projectId, selectedPath, {
+        bustCache,
+        ...(allowHttpOnce ? { allowHttpOnce: true } : {}),
+      });
     })();
     previewRequestRef.current = { key: requestKey, promise };
     try {
@@ -435,7 +439,10 @@ export function useLibraryDocumentData(params: {
     }
   }, [applyState, mergeRemoteCitationSummary, projectId, reset, resolveRemotePdfPreview, selectedPath]);
 
-  const ensurePdfPreviewLoaded = useCallback(async (options?: { bustCache?: boolean }) => {
+  const ensurePdfPreviewLoaded = useCallback(async (options?: {
+    bustCache?: boolean;
+    allowHttpOnce?: boolean;
+  }) => {
     if (!projectId || !selectedPath) {
       return null;
     }
@@ -461,6 +468,7 @@ export function useLibraryDocumentData(params: {
       requestId,
       cacheKey,
       bustCache: options?.bustCache ?? false,
+      allowHttpOnce: options?.allowHttpOnce ?? false,
     });
   }, [projectId, resolveRemotePdfPreview, selectedPath]);
 

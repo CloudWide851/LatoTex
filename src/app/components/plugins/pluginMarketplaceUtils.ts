@@ -20,6 +20,17 @@ import type {
 
 export type TranslationFn = (key: any) => string;
 
+export const HIGH_RISK_PLUGIN_PERMISSIONS = new Set([
+  "workspace.write",
+  "process.spawn",
+  "shell",
+  "network.fetch",
+  "env.read",
+  "secrets.read",
+  "mcp",
+  "plugin.command",
+]);
+
 export function localeOf(settingsLanguage: string | null | undefined): string {
   if (settingsLanguage === "zh-CN" || settingsLanguage === "es-ES" || settingsLanguage === "ja-JP") {
     return settingsLanguage;
@@ -138,6 +149,15 @@ export function describeValidationIssue(issue: PluginValidationIssue, t: Transla
   if (issue.code === "plugin.permission.high_risk") {
     const permission = issue.params?.permission || legacyHighRiskPermission(issue.message) || "";
     return t("plugins.validationIssue.permissionHighRisk").replace("{permission}", permission || "-");
+  }
+  if (issue.code === "plugin.manifest.download_https_required") {
+    return t("plugins.validationIssue.downloadHttpsRequired");
+  }
+  if (issue.code === "plugin.manifest.sha256_missing") {
+    return t("plugins.validationIssue.sha256Missing");
+  }
+  if (issue.code === "plugin.manifest.sha256_invalid") {
+    return t("plugins.validationIssue.sha256Invalid");
   }
   return issue.message || t("plugins.validationIssue.generic").replace("{code}", issue.code);
 }

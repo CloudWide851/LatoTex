@@ -7,23 +7,22 @@ use super::plugins_install_validation::{
 use super::plugins_policy::{
     ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, SAFE_COMMAND_REFS,
 };
+#[path = "plugins_catalog.rs"]
+mod catalog;
 use crate::models::{
-    Ack, InstalledPlugin, PluginCatalogEntry, PluginCatalogInput, PluginCatalogResponse,
-    PluginCatalogSource, PluginInstallInput, PluginManifest, PluginRefInput, PluginSetEnabledInput,
-    PluginValidationIssue, PluginValidationResult,
+    Ack, InstalledPlugin, PluginCatalogInput, PluginCatalogResponse, PluginInstallInput,
+    PluginManifest, PluginRefInput, PluginSetEnabledInput, PluginValidationIssue,
+    PluginValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
+pub(crate) use catalog::read_registry;
+use catalog::{load_remote_catalog, merge_catalog, normalize_sources, write_registry};
 use std::collections::HashSet;
-use std::fs;
-use std::path::{Path, PathBuf};
 use tauri::State;
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
 const CATALOG_SCHEMA: &str = "latotex.marketplace.v1";
-fn registry_path(runtime_root: &Path) -> PathBuf {
-    runtime_root.join("plugins").join("registry.json")
-}
 fn issue(code: &str, severity: &str, message: &str) -> PluginValidationIssue {
     PluginValidationIssue {
         code: code.to_string(),
@@ -63,6 +62,69 @@ fn is_http_url(value: &Option<String>) -> bool {
         .unwrap_or(true)
 }
 
+fn is_https_url(value: &str) -> bool {
+    value.trim().starts_with("https://")
+}
+
+fn sha256_is_valid(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.len() == 64 && trimmed.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn high_risk_permissions(manifest: &PluginManifest) -> HashSet<&str> {
+    let high_risk = HashSet::from([
+        "workspace.write",
+        "process.spawn",
+        "shell",
+        "network.fetch",
+        "env.read",
+        "secrets.read",
+        "mcp",
+        "plugin.command",
+    ]);
+    manifest
+        .permissions
+        .iter()
+        .map(String::as_str)
+        .filter(|permission| high_risk.contains(permission))
+        .collect()
+}
+
+pub(crate) fn apply_plugin_enabled_policy(
+    plugin: &mut InstalledPlugin,
+    enabled: bool,
+    approved_permissions: &[String],
+) -> Result<(), String> {
+    if enabled {
+        let required = high_risk_permissions(&plugin.manifest);
+        let approved = plugin
+            .approved_permissions
+            .iter()
+            .chain(approved_permissions.iter())
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        let mut missing = required
+            .into_iter()
+            .filter(|permission| !approved.contains(permission))
+            .collect::<Vec<_>>();
+        missing.sort_unstable();
+        if !missing.is_empty() {
+            return Err(format!(
+                "plugin.permission.approval_required:{}",
+                missing.join(",")
+            ));
+        }
+        for permission in approved_permissions {
+            if !plugin.approved_permissions.contains(permission) {
+                plugin.approved_permissions.push(permission.clone());
+            }
+        }
+        plugin.trust_state = "user_approved".to_string();
+    }
+    plugin.enabled = enabled;
+    Ok(())
+}
+
 pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationResult {
     let mut issues = Vec::new();
     if manifest.schema != PLUGIN_SCHEMA {
@@ -90,14 +152,11 @@ pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationRe
             "Manifest requires name, publisher, version, and description.",
         ));
     }
-    if !is_http_url(&manifest.homepage)
-        || !is_http_url(&manifest.repository)
-        || !is_http_url(&manifest.download_url)
-    {
+    if !is_http_url(&manifest.homepage) || !is_http_url(&manifest.repository) {
         issues.push(issue(
             "plugin.manifest.invalid_url",
             "error",
-            "Plugin URLs must use http or https.",
+            "Plugin homepage and repository URLs must use http or https.",
         ));
     }
     if manifest
@@ -132,18 +191,39 @@ pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationRe
         .map(str::trim)
         .filter(|item| !item.is_empty())
         .is_some();
-    let has_hash = manifest
+    let hash = manifest
         .sha256
         .as_deref()
         .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .is_some();
-    if has_download && !has_hash {
+        .filter(|item| !item.is_empty());
+    if has_download
+        && !manifest
+            .download_url
+            .as_deref()
+            .map(is_https_url)
+            .unwrap_or(false)
+    {
+        issues.push(issue(
+            "plugin.manifest.download_https_required",
+            "error",
+            "Downloadable plugins must use HTTPS.",
+        ));
+    }
+    if has_download && hash.is_none() {
         issues.push(issue(
             "plugin.manifest.sha256_missing",
-            "warning",
-            "Downloadable plugins should declare sha256.",
+            "error",
+            "Downloadable plugins must declare sha256.",
         ));
+    }
+    if let Some(value) = hash {
+        if !sha256_is_valid(value) {
+            issues.push(issue(
+                "plugin.manifest.sha256_invalid",
+                "error",
+                "Plugin sha256 must contain exactly 64 hexadecimal characters.",
+            ));
+        }
     }
     validate_permissions(manifest, &mut issues);
     validate_contributions(manifest, &mut issues);
@@ -152,16 +232,7 @@ pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationRe
 }
 
 fn validate_permissions(manifest: &PluginManifest, issues: &mut Vec<PluginValidationIssue>) {
-    let high_risk = HashSet::from([
-        "workspace.write",
-        "process.spawn",
-        "shell",
-        "network.fetch",
-        "env.read",
-        "secrets.read",
-        "mcp",
-        "plugin.command",
-    ]);
+    let high_risk = high_risk_permissions(manifest);
     for permission in &manifest.permissions {
         if high_risk.contains(permission.as_str()) {
             let mut params = std::collections::HashMap::new();
@@ -274,160 +345,6 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
     }
 }
 
-pub(crate) fn read_registry(runtime_root: &Path) -> Result<Vec<InstalledPlugin>, String> {
-    let path = registry_path(runtime_root);
-    if !path.is_file() {
-        return Ok(Vec::new());
-    }
-    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    serde_json::from_str::<Vec<InstalledPlugin>>(&content).map_err(|e| e.to_string())
-}
-
-fn write_registry(runtime_root: &Path, plugins: &[InstalledPlugin]) -> Result<(), String> {
-    let path = registry_path(runtime_root);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(
-        path,
-        serde_json::to_string_pretty(plugins).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())
-}
-
-fn manifest_from_value(value: serde_json::Value) -> Result<PluginManifest, String> {
-    serde_json::from_value::<PluginManifest>(value).map_err(|e| e.to_string())
-}
-
-fn parse_catalog_items(value: serde_json::Value) -> Vec<serde_json::Value> {
-    value
-        .get("items")
-        .and_then(|item| item.as_array())
-        .cloned()
-        .or_else(|| value.as_array().cloned())
-        .unwrap_or_default()
-}
-
-fn load_remote_catalog(source: &PluginCatalogSource) -> Result<Vec<PluginCatalogEntry>, String> {
-    let response = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(12))
-        .build()
-        .map_err(|e| e.to_string())?
-        .get(source.url.trim())
-        .send()
-        .map_err(|e| format!("plugin.catalog.fetch_failed:{}:{e}", source.id))?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "plugin.catalog.http:{}:{}",
-            source.id,
-            response.status()
-        ));
-    }
-    let value: serde_json::Value = response.json().map_err(|e| e.to_string())?;
-    let mut entries = Vec::new();
-    for (index, item) in parse_catalog_items(value).into_iter().enumerate() {
-        match manifest_from_value(item) {
-            Ok(manifest) => {
-                let validation = validate_manifest(&manifest);
-                entries.push(PluginCatalogEntry {
-                    manifest,
-                    source_id: source.id.clone(),
-                    source_name: source.name.clone(),
-                    validation,
-                });
-            }
-            Err(error) => {
-                let manifest = PluginManifest {
-                    schema: PLUGIN_SCHEMA.to_string(),
-                    id: format!("{}.__invalid_{index}", source.id),
-                    name: "Invalid plugin manifest".to_string(),
-                    display_name: None,
-                    publisher: source.name.clone(),
-                    version: "0.0.0".to_string(),
-                    description: error.clone(),
-                    categories: vec!["Invalid".to_string()],
-                    icon: None,
-                    download_url: None,
-                    sha256: None,
-                    homepage: None,
-                    repository: None,
-                    license: None,
-                    keywords: Vec::new(),
-                    engines: None,
-                    activation_events: Vec::new(),
-                    capabilities: None,
-                    permissions: Vec::new(),
-                    contributions: Vec::new(),
-                    localized: None,
-                };
-                entries.push(PluginCatalogEntry {
-                    manifest,
-                    source_id: source.id.clone(),
-                    source_name: source.name.clone(),
-                    validation: PluginValidationResult {
-                        ok: false,
-                        issues: vec![issue(
-                            "plugin.manifest.parse_failed",
-                            "error",
-                            &format!("Catalog entry could not be parsed: {error}"),
-                        )],
-                    },
-                });
-            }
-        }
-    }
-    Ok(entries)
-}
-
-fn normalize_sources(input: &PluginCatalogInput) -> Vec<PluginCatalogSource> {
-    let mut sources = input.catalog_sources.clone().unwrap_or_default();
-    if let Some(url) = input
-        .catalog_url
-        .as_deref()
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-    {
-        sources.push(PluginCatalogSource {
-            id: "custom".to_string(),
-            name: "Custom".to_string(),
-            url: url.to_string(),
-            enabled: Some(true),
-        });
-    }
-    sources
-        .into_iter()
-        .map(|source| PluginCatalogSource {
-            id: source.id.trim().to_string(),
-            name: source.name.trim().to_string(),
-            url: source.url.trim().to_string(),
-            enabled: source.enabled,
-        })
-        .filter(|source| source.enabled.unwrap_or(true) && !source.url.is_empty())
-        .collect()
-}
-
-fn merge_catalog(
-    entries: Vec<PluginCatalogEntry>,
-    warnings: &mut Vec<String>,
-) -> Vec<PluginCatalogEntry> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
-    for entry in entries {
-        let id = entry.manifest.id.trim().to_string();
-        if id.is_empty() {
-            out.push(entry);
-            continue;
-        }
-        if seen.contains(&id) {
-            warnings.push(format!("plugin.catalog.duplicate:{id}"));
-            continue;
-        }
-        seen.insert(id);
-        out.push(entry);
-    }
-    out
-}
-
 #[tauri::command]
 pub fn plugin_validate_manifest(
     input: PluginInstallInput,
@@ -444,7 +361,7 @@ pub fn plugin_marketplace_catalog(
     let mut warnings = Vec::new();
     let mut items = built_in_catalog();
     for source in normalize_sources(&input) {
-        if !source.url.starts_with("https://") && !source.url.starts_with("http://") {
+        if !source.url.starts_with("https://") {
             warnings.push(format!("plugin.catalog.invalid_url:{}", source.id));
             continue;
         }
@@ -479,9 +396,12 @@ pub fn plugin_install(
     plugins.retain(|item| item.manifest.id != input.manifest.id);
     let installed = InstalledPlugin {
         manifest: input.manifest,
-        enabled: true,
+        enabled: false,
         installed_at: storage::now_iso(),
         source: input.source.unwrap_or_else(|| "catalog".to_string()),
+        trust_state: "catalog_declared".to_string(),
+        integrity_verified: false,
+        approved_permissions: Vec::new(),
         validation_issues: validation.issues,
     };
     plugins.push(installed.clone());
@@ -518,7 +438,7 @@ pub fn plugin_set_enabled(
     else {
         return Err("plugin.not_installed".to_string());
     };
-    plugin.enabled = input.enabled;
+    apply_plugin_enabled_policy(plugin, input.enabled, &input.approved_permissions)?;
     let updated = plugin.clone();
     write_registry(&state.runtime_root, &plugins)?;
     Ok(updated)

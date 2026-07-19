@@ -168,12 +168,14 @@ pub async fn library_resolve_pdf_preview(
     let project_id = input.project_id;
     let relative_path = input.relative_path;
     let bust_cache = input.bust_cache.unwrap_or(false);
+    let allow_http_once = input.allow_http_once.unwrap_or(false);
     spawn_blocking(move || {
         storage::library_resolve_pdf_preview_runtime(
             &app_state,
             &project_id,
             &relative_path,
             bust_cache,
+            allow_http_once,
         )
     })
     .await

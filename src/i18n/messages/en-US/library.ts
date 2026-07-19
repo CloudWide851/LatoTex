@@ -124,6 +124,8 @@ export const enUS_library = {
   "library.viewer.sourcePdf": "Source PDF",
   "library.viewer.translatedPdf": "Translated PDF",
   "library.viewer.remoteSource": "Remote Source",
+  "library.viewer.remotePdfHttpBlocked": "This PDF uses an unencrypted HTTP source. Review the source before retrying.",
+  "library.viewer.remotePdfHttpConfirm": "This PDF will be downloaded over unencrypted HTTP. Continue once for this document?",
   "library.viewer.state.ready": "Ready",
   "library.viewer.state.pending": "Downloading",
   "library.viewer.state.error": "Error",

@@ -141,66 +141,6 @@ fn temp_cache_path(cache_target: &Path) -> PathBuf {
     cache_target.with_file_name(format!("{file_name}.download"))
 }
 
-fn cache_remote_pdf_file<F>(
-    cache_target: &Path,
-    source_url: &str,
-    mut on_progress: F,
-) -> Result<(), String>
-where
-    F: FnMut(u64, Option<u64>),
-{
-    use std::io::{Read, Write};
-
-    let client = reqwest::blocking::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(20))
-        .timeout(std::time::Duration::from_secs(180))
-        .user_agent("LatoTex/0.1.0")
-        .build()
-        .map_err(|e| e.to_string())?;
-    let mut response = client.get(source_url).send().map_err(|e| e.to_string())?;
-    let status = response.status();
-    if !status.is_success() {
-        return Err(format!("HTTP {status}"));
-    }
-
-    if let Some(parent) = cache_target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let temp_path = temp_cache_path(cache_target);
-    let mut file = std::fs::File::create(&temp_path).map_err(|e| e.to_string())?;
-    let total_bytes = response.content_length();
-    let mut downloaded_bytes = 0_u64;
-    let mut header = Vec::<u8>::with_capacity(32);
-    let mut buffer = [0_u8; 64 * 1024];
-    on_progress(downloaded_bytes, total_bytes);
-
-    loop {
-        let read = response.read(&mut buffer).map_err(|e| e.to_string())?;
-        if read == 0 {
-            break;
-        }
-        file.write_all(&buffer[..read]).map_err(|e| e.to_string())?;
-        if header.len() < 32 {
-            let remaining = 32_usize.saturating_sub(header.len());
-            header.extend_from_slice(&buffer[..read.min(remaining)]);
-        }
-        downloaded_bytes = downloaded_bytes.saturating_add(read as u64);
-        on_progress(downloaded_bytes, total_bytes);
-    }
-
-    file.flush().map_err(|e| e.to_string())?;
-    if !pdf_bytes_valid(&header) {
-        let _ = fs::remove_file(&temp_path);
-        return Err("Remote file is not a valid PDF stream".to_string());
-    }
-    fs::rename(&temp_path, cache_target).map_err(|e| {
-        let _ = fs::remove_file(&temp_path);
-        e.to_string()
-    })?;
-    on_progress(downloaded_bytes, total_bytes);
-    Ok(())
-}
-
 fn to_library_relative_path_from_workspace(workspace_relative: &str) -> Option<String> {
     let normalized = workspace_relative
         .trim()
@@ -220,7 +160,8 @@ fn resolve_translated_pdf_workspace_path(
     papers_root: &Path,
     source_workspace_relative: &str,
 ) -> Option<String> {
-    let source_library_relative = to_library_relative_path_from_workspace(source_workspace_relative)?;
+    let source_library_relative =
+        to_library_relative_path_from_workspace(source_workspace_relative)?;
     let translated_relative = translation_pdf_relative_path(&source_library_relative);
     let translated_abs = papers_root.join(Path::new(&translated_relative));
     if !translated_abs.exists() || !translated_abs.is_file() {
@@ -230,7 +171,9 @@ fn resolve_translated_pdf_workspace_path(
 }
 
 fn clear_pdf_cache_entry(
-    tasks: &std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, crate::state::LibraryPdfCacheTask>>>,
+    tasks: &std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<String, crate::state::LibraryPdfCacheTask>>,
+    >,
     task_key: &str,
     cache_path: &Path,
 ) {
@@ -290,7 +233,10 @@ fn remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Result<PathB
 }
 
 fn legacy_remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, String> {
-    legacy_remote_pdf_cache_binding_path_for_relative_path(&ctx.papers_root, &ctx.normalized_relative)
+    legacy_remote_pdf_cache_binding_path_for_relative_path(
+        &ctx.papers_root,
+        &ctx.normalized_relative,
+    )
 }
 
 fn clear_cache_file_artifacts(cache_path: &Path) {
@@ -363,13 +309,19 @@ fn resolve_cached_remote_pdf_path(
     }
 
     let legacy_cache_path = build_legacy_remote_cache_path(ctx, source_url)?;
-    if let Some(cache_file_name) = binding_cache_file_name.map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(cache_file_name) = binding_cache_file_name
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         let referenced_cache_path = cache_dir.join(cache_file_name);
         if referenced_cache_path != stable_cache_path {
             if cached_pdf_file_ready(&referenced_cache_path) {
                 if referenced_cache_path == legacy_cache_path {
-                    return move_cache_file_to_stable_path(&referenced_cache_path, &stable_cache_path)
-                        .map(Some);
+                    return move_cache_file_to_stable_path(
+                        &referenced_cache_path,
+                        &stable_cache_path,
+                    )
+                    .map(Some);
                 }
                 return Ok(Some(referenced_cache_path));
             }
@@ -381,7 +333,8 @@ fn resolve_cached_remote_pdf_path(
 
     if legacy_cache_path != stable_cache_path {
         if cached_pdf_file_ready(&legacy_cache_path) {
-            return move_cache_file_to_stable_path(&legacy_cache_path, &stable_cache_path).map(Some);
+            return move_cache_file_to_stable_path(&legacy_cache_path, &stable_cache_path)
+                .map(Some);
         }
         if legacy_cache_path.exists() {
             clear_cache_file_artifacts(&legacy_cache_path);
@@ -439,9 +392,7 @@ fn write_remote_cache_binding(
     fs::write(remote_pdf_cache_binding_path(ctx)?, payload).map_err(|e| e.to_string())
 }
 
-fn read_remote_cache_binding(
-    ctx: &LibraryPdfPreviewContext,
-) -> Option<(String, PathBuf)> {
+fn read_remote_cache_binding(ctx: &LibraryPdfPreviewContext) -> Option<(String, PathBuf)> {
     let stable_binding_path = remote_pdf_cache_binding_path(ctx).ok()?;
     let legacy_binding_path = legacy_remote_pdf_cache_binding_path(ctx).ok()?;
     for (binding_path, is_legacy_binding) in [

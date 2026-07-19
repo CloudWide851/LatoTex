@@ -488,6 +488,12 @@ pub struct InstalledPlugin {
     pub installed_at: String,
     pub source: String,
     #[serde(default)]
+    pub trust_state: String,
+    #[serde(default)]
+    pub integrity_verified: bool,
+    #[serde(default)]
+    pub approved_permissions: Vec<String>,
+    #[serde(default)]
     pub validation_issues: Vec<PluginValidationIssue>,
 }
 
@@ -527,6 +533,8 @@ pub struct PluginRefInput {
 pub struct PluginSetEnabledInput {
     pub plugin_id: String,
     pub enabled: bool,
+    #[serde(default)]
+    pub approved_permissions: Vec<String>,
 }
 
 include!("models_plugins_toolchains.rs");

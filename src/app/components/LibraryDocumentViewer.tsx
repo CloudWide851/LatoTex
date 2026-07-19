@@ -176,7 +176,14 @@ export function LibraryDocumentViewer(props: {
   const pageTextBoxCount = useMemo(() => annotationTextBoxes.filter((item) => item.page === currentPage).length, [annotationTextBoxes, currentPage]);
   const hasComparePair = Boolean(hasPdf && translatedPdfUrl);
   const hasTranslatedArtifact = Boolean(translatedSessionPath || translatedPdfRelativePath);
-  const pdfOpenError = pdfPreviewError ?? pdfObjectUrlError;
+  const httpApprovalRequired = pdfPreviewError?.startsWith("remote.http_approval_required") ?? false;
+  const pdfOpenError = httpApprovalRequired
+    ? t("library.viewer.remotePdfHttpBlocked")
+    : pdfPreviewError ?? pdfObjectUrlError;
+  const confirmHttpDownload = useCallback(
+    () => window.confirm(t("library.viewer.remotePdfHttpConfirm")),
+    [t],
+  );
 
   useLibraryTranslationDriftRefresh({
     projectId,
@@ -334,6 +341,7 @@ export function LibraryDocumentViewer(props: {
     pdfCacheState,
     sourcePdfRelativePath,
     ensurePdfPreviewLoaded,
+    confirmHttpDownload,
     applyViewMode,
     runTranslation,
   });

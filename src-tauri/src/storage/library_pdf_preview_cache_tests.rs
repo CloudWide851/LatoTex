@@ -1,6 +1,6 @@
 use super::*;
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Condvar, Mutex};
@@ -57,7 +57,8 @@ fn create_runtime_fixture(name: &str) -> (crate::state::AppState, String, PathBu
     fs::write(&session_log_path, b"").unwrap();
 
     crate::storage::initialize_database(&db_path).unwrap();
-    let snapshot = crate::storage::create_project(&db_path, &projects_dir, "Library Runtime Test").unwrap();
+    let snapshot =
+        crate::storage::create_project(&db_path, &projects_dir, "Library Runtime Test").unwrap();
     let project_id = snapshot.summary.id;
     let project_root = PathBuf::from(snapshot.summary.root_path);
 
@@ -122,13 +123,19 @@ fn runtime_preview_returns_cached_remote_binding_without_remote_lookup() {
     let cache_path = cache_dir.join("cached-paper.pdf");
     fs::write(&cache_path, b"%PDF-1.7\ncached\n").unwrap();
 
-    let ctx = prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
+    let ctx =
+        prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
     write_remote_cache_binding(&ctx, "https://example.com/cached-paper.pdf", &cache_path).unwrap();
 
-    let preview = library_resolve_pdf_preview_runtime(&state, &project_id, source_relative, false).unwrap();
+    let preview =
+        library_resolve_pdf_preview_runtime(&state, &project_id, source_relative, false, false)
+            .unwrap();
 
     assert_eq!(preview.cache_state, LIBRARY_PDF_CACHE_STATE_READY);
-    assert_eq!(preview.source_url.as_deref(), Some("https://example.com/cached-paper.pdf"));
+    assert_eq!(
+        preview.source_url.as_deref(),
+        Some("https://example.com/cached-paper.pdf")
+    );
     assert_eq!(
         preview.relative_path.as_deref(),
         Some(".latotex/papers/.cache/remote-pdf/cached-paper.pdf")
@@ -147,7 +154,8 @@ fn runtime_preview_migrates_legacy_binding_and_cache_to_stable_names() {
     let source_url = "https://example.com/legacy-paper.pdf";
     write_library_source(&papers_root, source_relative);
 
-    let ctx = prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
+    let ctx =
+        prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
     let legacy_cache_path = build_legacy_remote_cache_path(&ctx, source_url).unwrap();
     if let Some(parent) = legacy_cache_path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -155,15 +163,26 @@ fn runtime_preview_migrates_legacy_binding_and_cache_to_stable_names() {
     fs::write(&legacy_cache_path, b"%PDF-1.7\nlegacy\n").unwrap();
 
     let legacy_binding_path =
-        legacy_remote_pdf_cache_binding_path_for_relative_path(&papers_root, source_relative).unwrap();
+        legacy_remote_pdf_cache_binding_path_for_relative_path(&papers_root, source_relative)
+            .unwrap();
     let legacy_binding = RemotePdfCacheBinding {
         source_url: source_url.to_string(),
-        cache_file_name: legacy_cache_path.file_name().unwrap().to_string_lossy().to_string(),
+        cache_file_name: legacy_cache_path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string(),
         updated_at_unix_ms: current_unix_ms(),
     };
-    fs::write(&legacy_binding_path, serde_json::to_string(&legacy_binding).unwrap()).unwrap();
+    fs::write(
+        &legacy_binding_path,
+        serde_json::to_string(&legacy_binding).unwrap(),
+    )
+    .unwrap();
 
-    let preview = library_resolve_pdf_preview_runtime(&state, &project_id, source_relative, false).unwrap();
+    let preview =
+        library_resolve_pdf_preview_runtime(&state, &project_id, source_relative, false, false)
+            .unwrap();
     let stable_cache_path = build_remote_cache_path(&ctx, source_url).unwrap();
     let stable_binding_path = remote_pdf_cache_binding_path(&ctx).unwrap();
     let expected_relative_path = format!(
@@ -173,7 +192,10 @@ fn runtime_preview_migrates_legacy_binding_and_cache_to_stable_names() {
 
     assert_eq!(preview.cache_state, LIBRARY_PDF_CACHE_STATE_READY);
     assert_eq!(preview.source_url.as_deref(), Some(source_url));
-    assert_eq!(preview.relative_path.as_deref(), Some(expected_relative_path.as_str()));
+    assert_eq!(
+        preview.relative_path.as_deref(),
+        Some(expected_relative_path.as_str())
+    );
     assert!(stable_cache_path.exists());
     assert!(!legacy_cache_path.exists());
     assert!(stable_binding_path.exists());
@@ -192,7 +214,8 @@ fn runtime_preview_reuses_legacy_cache_without_binding_and_writes_stable_binding
     let source_url = "https://example.com/legacy-cache-only.pdf";
     write_library_source(&papers_root, source_relative);
 
-    let ctx = prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
+    let ctx =
+        prepare_library_pdf_preview_context(&state.db_path, &project_id, source_relative).unwrap();
     let legacy_cache_path = build_legacy_remote_cache_path(&ctx, source_url).unwrap();
     if let Some(parent) = legacy_cache_path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -200,7 +223,8 @@ fn runtime_preview_reuses_legacy_cache_without_binding_and_writes_stable_binding
     fs::write(&legacy_cache_path, b"%PDF-1.7\nlegacy-only\n").unwrap();
 
     let summary = build_test_summary(source_relative, source_url);
-    let preview = resolve_runtime_remote_preview(&state, &ctx, &project_id, &summary, false).unwrap();
+    let preview =
+        resolve_runtime_remote_preview(&state, &ctx, &project_id, &summary, false, false).unwrap();
     let stable_cache_path = build_remote_cache_path(&ctx, source_url).unwrap();
     let stable_binding_path = remote_pdf_cache_binding_path(&ctx).unwrap();
 

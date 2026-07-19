@@ -17,6 +17,8 @@ pub struct LibraryPdfPreviewInput {
     pub project_id: String,
     pub relative_path: String,
     pub bust_cache: Option<bool>,
+    #[serde(default)]
+    pub allow_http_once: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -29,7 +29,12 @@ import { cn } from "../../../lib/utils";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
 import { PluginMarketplaceDetailDialog } from "./PluginMarketplaceDetailDialog";
 import { installedPluginForMarketplaceEntry } from "./pluginMarketplaceInstallState";
-import { localeOf, localizedPlugin, type TranslationFn } from "./pluginMarketplaceUtils";
+import {
+  HIGH_RISK_PLUGIN_PERMISSIONS,
+  localeOf,
+  localizedPlugin,
+  type TranslationFn,
+} from "./pluginMarketplaceUtils";
 import { notifyPluginsChanged } from "./usePluginFileInterfaces";
 
 export function PluginMarketplace(props: {
@@ -130,10 +135,10 @@ export function PluginMarketplace(props: {
     }
     setBusyActionId(`${entry.manifest.id}:install`);
     try {
-      const next = await installPlugin(entry.manifest);
+      const next = await installPlugin(entry.manifest, entry.sourceId);
       setInstalled((prev) => [next, ...prev.filter((item) => item.manifest.id !== entry.manifest.id)]);
       notifyPluginsChanged();
-      setStatus(t("plugins.installDone"));
+      setStatus(t("plugins.installDisabledDone"));
     } catch (error) {
       setStatus(String(error));
     } finally {
@@ -147,7 +152,24 @@ export function PluginMarketplace(props: {
     }
     setBusyActionId(`${plugin.manifest.id}:toggle`);
     try {
-      const next = await setPluginEnabled(plugin.manifest.id, !plugin.enabled);
+      const enabling = !plugin.enabled;
+      const approved = new Set(plugin.approvedPermissions ?? []);
+      const missingHighRisk = plugin.manifest.permissions.filter(
+        (permission) => HIGH_RISK_PLUGIN_PERMISSIONS.has(permission) && !approved.has(permission),
+      );
+      if (enabling && missingHighRisk.length > 0) {
+        const confirmed = window.confirm(
+          `${t("plugins.highRiskEnableConfirm")}\n\n${missingHighRisk.join("\n")}`,
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+      const next = await setPluginEnabled(
+        plugin.manifest.id,
+        enabling,
+        enabling ? missingHighRisk : [],
+      );
       setInstalled((prev) => prev.map((item) => (item.manifest.id === next.manifest.id ? next : item)));
       notifyPluginsChanged();
     } catch (error) {

@@ -1,6 +1,7 @@
 mod commands;
 mod logging;
 mod models;
+mod remote_network;
 mod secure;
 mod single_instance;
 mod smoke;

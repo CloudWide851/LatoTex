@@ -21,7 +21,8 @@ export function useLibraryPdfViewController(params: {
   pdfObjectUrlError: string | null;
   pdfCacheState: string;
   sourcePdfRelativePath: string | null;
-  ensurePdfPreviewLoaded: (options?: { bustCache?: boolean }) => Promise<unknown>;
+  ensurePdfPreviewLoaded: (options?: { bustCache?: boolean; allowHttpOnce?: boolean }) => Promise<unknown>;
+  confirmHttpDownload: () => boolean;
   applyViewMode: (mode: ViewMode) => void;
   runTranslation: () => void;
 }) {
@@ -45,6 +46,7 @@ export function useLibraryPdfViewController(params: {
     pdfCacheState,
     sourcePdfRelativePath,
     ensurePdfPreviewLoaded,
+    confirmHttpDownload,
     applyViewMode,
     runTranslation,
   } = params;
@@ -183,9 +185,16 @@ export function useLibraryPdfViewController(params: {
   ]);
 
   const retryPdfOpen = useCallback(() => {
+    const needsHttpApproval = pdfPreviewError?.startsWith("remote.http_approval_required") ?? false;
+    if (needsHttpApproval && !confirmHttpDownload()) {
+      return;
+    }
     setPendingPdfOpen(true);
-    void ensurePdfPreviewLoaded({ bustCache: true });
-  }, [ensurePdfPreviewLoaded]);
+    void ensurePdfPreviewLoaded({
+      bustCache: true,
+      ...(needsHttpApproval ? { allowHttpOnce: true } : {}),
+    });
+  }, [confirmHttpDownload, ensurePdfPreviewLoaded, pdfPreviewError]);
 
   return {
     pendingPdfOpen,

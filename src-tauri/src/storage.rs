@@ -32,6 +32,7 @@ include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
 include!("storage/library_citation_resolver.rs");
 include!("storage/library_pdf_preview_core.rs");
+include!("storage/library_pdf_remote_download.rs");
 include!("storage/library_pdf_preview_cache.rs");
 include!("storage/library_pdf_download_queue.rs");
 include!("storage/library_translation_engine.rs");

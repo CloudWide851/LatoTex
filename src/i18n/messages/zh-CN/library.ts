@@ -124,6 +124,8 @@ export const zhCN_library = {
   "library.viewer.sourcePdf": "原始 PDF",
   "library.viewer.translatedPdf": "翻译 PDF",
   "library.viewer.remoteSource": "远程来源",
+  "library.viewer.remotePdfHttpBlocked": "此 PDF 使用未加密的 HTTP 来源，请确认来源可信后再重试。",
+  "library.viewer.remotePdfHttpConfirm": "此 PDF 将通过未加密的 HTTP 下载。是否仅为当前文档放行一次？",
   "library.viewer.state.ready": "已就绪",
   "library.viewer.state.pending": "下载中",
   "library.viewer.state.error": "错误",

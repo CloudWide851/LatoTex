@@ -18,8 +18,8 @@ export function listInstalledPlugins(): Promise<InstalledPlugin[]> {
   return invokeCommand<InstalledPlugin[]>("plugin_installed_list");
 }
 
-export function installPlugin(manifest: PluginManifest): Promise<InstalledPlugin> {
-  return invokeCommand<InstalledPlugin>("plugin_install", { input: { manifest } });
+export function installPlugin(manifest: PluginManifest, source: string): Promise<InstalledPlugin> {
+  return invokeCommand<InstalledPlugin>("plugin_install", { input: { manifest, source } });
 }
 
 export function validatePluginManifest(manifest: PluginManifest): Promise<PluginValidationResult> {
@@ -30,8 +30,12 @@ export function uninstallPlugin(pluginId: string): Promise<Ack> {
   return invokeCommand<Ack>("plugin_uninstall", { input: { pluginId } });
 }
 
-export function setPluginEnabled(pluginId: string, enabled: boolean): Promise<InstalledPlugin> {
+export function setPluginEnabled(
+  pluginId: string,
+  enabled: boolean,
+  approvedPermissions: string[] = [],
+): Promise<InstalledPlugin> {
   return invokeCommand<InstalledPlugin>("plugin_set_enabled", {
-    input: { pluginId, enabled },
+    input: { pluginId, enabled, approvedPermissions },
   });
 }

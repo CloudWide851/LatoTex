@@ -1,12 +1,12 @@
-use super::plugins::validate_manifest;
+use super::plugins::{apply_plugin_enabled_policy, read_registry, validate_manifest};
 use super::plugins_builtin::built_in_catalog;
 use crate::models::{
-    PluginAgentContextPack, PluginCommandPaletteItem, PluginCommandRef, PluginContribution,
-    PluginFileOpenHandler, PluginFileTemplate, PluginLanguageSupport, PluginManifest, PluginPanel,
-    PluginPreviewProvider, PluginProblemMatcher, PluginResourceClassifier,
-    PluginRuntimeAssetDetector, PluginSettingsSchema, PluginSettingsSchemaField, PluginSidebarView,
-    PluginSnippet, PluginSnippetProvider, PluginToolchainInstaller, PluginToolchainProbe,
-    PluginTreeDecoration,
+    InstalledPlugin, PluginAgentContextPack, PluginCommandPaletteItem, PluginCommandRef,
+    PluginContribution, PluginFileOpenHandler, PluginFileTemplate, PluginLanguageSupport,
+    PluginManifest, PluginPanel, PluginPreviewProvider, PluginProblemMatcher,
+    PluginResourceClassifier, PluginRuntimeAssetDetector, PluginSettingsSchema,
+    PluginSettingsSchemaField, PluginSidebarView, PluginSnippet, PluginSnippetProvider,
+    PluginToolchainInstaller, PluginToolchainProbe, PluginTreeDecoration,
 };
 
 fn manifest_with_contribution(contribution: PluginContribution) -> PluginManifest {
@@ -69,6 +69,103 @@ fn base_contribution(kind: &str) -> PluginContribution {
         command_palette_item: None,
         localized: None,
     }
+}
+
+fn manifest_without_contributions() -> PluginManifest {
+    let mut manifest = manifest_with_contribution(base_contribution("toolbarButton"));
+    manifest.contributions.clear();
+    manifest
+}
+
+#[test]
+fn downloadable_plugin_requires_https_and_valid_sha256() {
+    let mut http_manifest = manifest_without_contributions();
+    http_manifest.download_url = Some("http://example.com/plugin.zip".to_string());
+    http_manifest.sha256 = Some("a".repeat(64));
+    let http_validation = validate_manifest(&http_manifest);
+    assert!(!http_validation.ok);
+    assert!(http_validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.manifest.download_https_required"));
+
+    let mut missing_hash = manifest_without_contributions();
+    missing_hash.download_url = Some("https://example.com/plugin.zip".to_string());
+    let missing_validation = validate_manifest(&missing_hash);
+    assert!(!missing_validation.ok);
+    assert!(missing_validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.manifest.sha256_missing"));
+
+    let mut invalid_hash = manifest_without_contributions();
+    invalid_hash.download_url = Some("https://example.com/plugin.zip".to_string());
+    invalid_hash.sha256 = Some("not-a-sha256".to_string());
+    let invalid_validation = validate_manifest(&invalid_hash);
+    assert!(!invalid_validation.ok);
+    assert!(invalid_validation
+        .issues
+        .iter()
+        .any(|issue| issue.code == "plugin.manifest.sha256_invalid"));
+}
+
+#[test]
+fn legacy_registry_plugins_are_quarantined_and_persisted() {
+    let root = std::env::temp_dir().join(format!(
+        "latotex-plugin-registry-test-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let registry_path = root.join("plugins").join("registry.json");
+    std::fs::create_dir_all(registry_path.parent().unwrap()).unwrap();
+    let legacy = serde_json::json!([{
+        "manifest": manifest_without_contributions(),
+        "enabled": true,
+        "installedAt": "2026-01-01T00:00:00Z",
+        "source": "catalog",
+        "validationIssues": []
+    }]);
+    std::fs::write(&registry_path, serde_json::to_vec_pretty(&legacy).unwrap()).unwrap();
+
+    let plugins = read_registry(&root).unwrap();
+    assert_eq!(plugins.len(), 1);
+    assert!(!plugins[0].enabled);
+    assert_eq!(plugins[0].trust_state, "legacy_unverified");
+    assert!(!plugins[0].integrity_verified);
+
+    let persisted = std::fs::read_to_string(&registry_path).unwrap();
+    assert!(persisted.contains("legacy_unverified"));
+    assert!(persisted.contains("\"enabled\": false"));
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn high_risk_plugin_cannot_enable_without_matching_approval() {
+    let mut manifest = manifest_without_contributions();
+    manifest.permissions = vec!["workspace.write".to_string(), "network.fetch".to_string()];
+    let mut plugin = InstalledPlugin {
+        manifest,
+        enabled: false,
+        installed_at: "2026-01-01T00:00:00Z".to_string(),
+        source: "catalog".to_string(),
+        trust_state: "catalog_declared".to_string(),
+        integrity_verified: false,
+        approved_permissions: Vec::new(),
+        validation_issues: Vec::new(),
+    };
+
+    let error = apply_plugin_enabled_policy(&mut plugin, true, &["workspace.write".to_string()])
+        .expect_err("partial approval must fail");
+    assert_eq!(error, "plugin.permission.approval_required:network.fetch");
+    assert!(!plugin.enabled);
+
+    apply_plugin_enabled_policy(
+        &mut plugin,
+        true,
+        &["workspace.write".to_string(), "network.fetch".to_string()],
+    )
+    .unwrap();
+    assert!(plugin.enabled);
+    assert_eq!(plugin.trust_state, "user_approved");
 }
 
 #[test]

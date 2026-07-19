@@ -43,7 +43,7 @@ pub fn queue_library_pdf_download(
     project_id: &str,
     relative_path: &str,
 ) -> Result<LibraryPdfPreviewResponse, String> {
-    library_resolve_pdf_preview_runtime(state, project_id, relative_path, false)
+    library_resolve_pdf_preview_runtime(state, project_id, relative_path, false, false)
 }
 
 pub fn resume_library_pdf_downloads(
