@@ -36,10 +36,18 @@ pub struct ProjectSnapshot {
     pub main_file: String,
 }
 
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProjectTemplate {
+    ResearchPaper,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateProjectInput {
     pub name: String,
+    #[serde(default)]
+    pub template: Option<ProjectTemplate>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -596,6 +604,17 @@ pub struct UiPrefs {
     pub mcp_servers: Option<Vec<McpServerConfig>>,
     pub enabled_skills: Option<Vec<String>>,
     pub hidden_skills: Option<Vec<String>>,
+    pub onboarding: Option<OnboardingPrefs>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct OnboardingPrefs {
+    pub version: u32,
+    pub status: String,
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub completed_steps: Vec<String>,
 }
 
 include!("models_settings.rs");

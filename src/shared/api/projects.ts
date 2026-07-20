@@ -13,8 +13,13 @@ export function listProjects(): Promise<ProjectSummary[]> {
   return invokeCommand<ProjectSummary[]>("project_list");
 }
 
-export function createProject(name: string): Promise<ProjectSnapshot> {
-  return invokeCommand<ProjectSnapshot>("project_create", { input: { name } });
+export function createProject(
+  name: string,
+  options?: { template?: "research-paper" },
+): Promise<ProjectSnapshot> {
+  return invokeCommand<ProjectSnapshot>("project_create", {
+    input: { name, template: options?.template },
+  });
 }
 
 export function initProjectFromFolder(): Promise<ProjectSnapshot | null> {

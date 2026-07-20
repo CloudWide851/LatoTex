@@ -248,7 +248,9 @@ fn migrate_legacy_provider_profiles(conn: &Connection) -> Result<(), String> {
         .prepare("SELECT provider, base_url FROM provider_profiles")
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|e| e.to_string())?;
 
     for row in rows {
@@ -265,9 +267,17 @@ fn migrate_legacy_provider_profiles(conn: &Connection) -> Result<(), String> {
 
 fn seed_default_protocols(conn: &Connection) -> Result<(), String> {
     let defaults = [
-        ("openai-compatible", "OpenAI-Compatible", "https://api.openai.com/v1"),
+        (
+            "openai-compatible",
+            "OpenAI-Compatible",
+            "https://api.openai.com/v1",
+        ),
         ("anthropic", "Anthropic", "https://api.anthropic.com"),
-        ("gemini", "Gemini", "https://generativelanguage.googleapis.com"),
+        (
+            "gemini",
+            "Gemini",
+            "https://generativelanguage.googleapis.com",
+        ),
     ];
 
     for (id, display_name, base_url) in defaults {
@@ -317,7 +327,10 @@ fn prune_seeded_model_defaults(conn: &Connection) -> Result<(), String> {
 }
 
 fn ensure_model_catalog_capabilities_column(conn: &Connection) -> Result<(), String> {
-    match conn.execute("ALTER TABLE model_catalog ADD COLUMN capabilities_json TEXT", []) {
+    match conn.execute(
+        "ALTER TABLE model_catalog ADD COLUMN capabilities_json TEXT",
+        [],
+    ) {
         Ok(_) => Ok(()),
         Err(error) => {
             let message = error.to_string().to_lowercase();
@@ -401,12 +414,25 @@ fn seed_default_providers(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-pub fn create_project(db_path: &Path, projects_dir: &Path, name: &str) -> Result<ProjectSnapshot, String> {
+pub fn create_project(
+    db_path: &Path,
+    projects_dir: &Path,
+    name: &str,
+) -> Result<ProjectSnapshot, String> {
+    create_project_with_template(db_path, projects_dir, name, None)
+}
+
+pub fn create_project_with_template(
+    db_path: &Path,
+    projects_dir: &Path,
+    name: &str,
+    template: Option<ProjectTemplate>,
+) -> Result<ProjectSnapshot, String> {
     let project_id = Uuid::new_v4().to_string();
     let now = now_iso();
     let root_dir = projects_dir.join(&project_id);
     fs::create_dir_all(&root_dir).map_err(|e| e.to_string())?;
-    ensure_workspace_bootstrap_files(&root_dir)?;
+    ensure_workspace_bootstrap_files_with_template(&root_dir, template)?;
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     conn.execute(
@@ -423,5 +449,3 @@ pub fn create_project(db_path: &Path, projects_dir: &Path, name: &str) -> Result
 
     project_snapshot(db_path, &project_id)
 }
-
-

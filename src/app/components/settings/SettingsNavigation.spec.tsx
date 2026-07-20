@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyExternalSettingsSectionRequest,
   buildSettingsNavigationProjection,
+  isAdvancedSettingsSection,
   SettingsNavigation,
 } from "./SettingsNavigation";
 
@@ -16,7 +17,9 @@ const labels: Record<string, string> = {
   "settings.navigation.group.workspace": "Workspace",
   "settings.navigation.group.intelligence": "Intelligence",
   "settings.navigation.group.extensions": "Extensions",
-  "settings.navigation.group.support": "Support",
+  "settings.navigation.group.advanced": "Advanced",
+  "settings.navigation.advancedShow": "Show advanced settings",
+  "settings.navigation.advancedHide": "Hide advanced settings",
   "settings.section.general": "General",
   "settings.section.appearance": "Appearance",
   "settings.section.models": "Model Management",
@@ -99,7 +102,8 @@ describe("SettingsNavigation", () => {
       );
     });
 
-    const values = Array.from(container.querySelectorAll("option")).map((option) => option.value);
+    const compatibilitySelect = container.querySelector("select.pointer-events-none");
+    const values = Array.from(compatibilitySelect?.querySelectorAll("option") ?? []).map((option) => option.value);
     expect(values).toEqual(["diagnostics", "models"]);
     expect(container.querySelector('button[aria-current="page"]')).toBeNull();
   });
@@ -110,5 +114,29 @@ describe("SettingsNavigation", () => {
     applyExternalSettingsSectionRequest("channels", clearQuery, onSectionChange);
     expect(clearQuery).toHaveBeenCalledTimes(1);
     expect(onSectionChange).toHaveBeenCalledWith("channels");
+  });
+
+  it("keeps advanced sections collapsed until requested", async () => {
+    await act(async () => {
+      root.render(
+        <SettingsNavigation
+          selectedSection="general"
+          query=""
+          onQueryChange={vi.fn()}
+          onSectionChange={vi.fn()}
+          t={t}
+        />,
+      );
+    });
+
+    const disclosure = container.querySelector<HTMLButtonElement>('button[aria-controls="settings-advanced-sections"]');
+    expect(disclosure?.getAttribute("aria-expanded")).toBe("false");
+    expect(container.querySelector("#settings-advanced-sections")).toBeNull();
+
+    await act(async () => disclosure?.click());
+    expect(disclosure?.getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector("#settings-advanced-sections")?.textContent).toContain("Doctor");
+    expect(isAdvancedSettingsSection("diagnostics")).toBe(true);
+    expect(isAdvancedSettingsSection("appearance")).toBe(false);
   });
 });

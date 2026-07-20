@@ -898,6 +898,9 @@ video {
 .top-3 {
   top: 0.75rem;
 }
+.top-4 {
+  top: 1rem;
+}
 .top-8 {
   top: 2rem;
 }
@@ -1014,6 +1017,12 @@ video {
   margin-top: 0.125rem;
   margin-bottom: 0.125rem;
 }
+.-mr-1 {
+  margin-right: -0.25rem;
+}
+.-mt-1 {
+  margin-top: -0.25rem;
+}
 .mb-0\.5 {
   margin-bottom: 0.125rem;
 }
@@ -1058,6 +1067,9 @@ video {
 }
 .mt-1 {
   margin-top: 0.25rem;
+}
+.mt-1\.5 {
+  margin-top: 0.375rem;
 }
 .mt-2 {
   margin-top: 0.5rem;
@@ -1446,6 +1458,9 @@ video {
 .w-\[360px\] {
   width: 360px;
 }
+.w-\[min\(21rem\2c calc\(100\%-2rem\)\)\] {
+  width: min(21rem, calc(100% - 2rem));
+}
 .w-\[min\(264px\2c 72vw\)\] {
   width: min(264px, 72vw);
 }
@@ -1466,6 +1481,9 @@ video {
 }
 .w-\[min\(92vw\2c 560px\)\] {
   width: min(92vw, 560px);
+}
+.w-\[var\(--trigger-width\)\] {
+  width: var(--trigger-width);
 }
 .w-fit {
   width: -moz-fit-content;
@@ -1661,10 +1679,6 @@ video {
 }
 .-translate-y-1\/2 {
   --tw-translate-y: -50%;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-.-rotate-180 {
-  --tw-rotate: -180deg;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 .rotate-180 {
@@ -2129,6 +2143,9 @@ video {
 }
 .border-none {
   border-style: none;
+}
+.border-\[color\:var\(--app-accent\)\] {
+  border-color: var(--app-accent);
 }
 .border-\[color\:var\(--app-material-border\)\] {
   border-color: var(--app-material-border);
@@ -3102,6 +3119,9 @@ video {
 .underline {
   text-decoration-line: underline;
 }
+.line-through {
+  text-decoration-line: line-through;
+}
 .decoration-primary-400 {
   text-decoration-color: #4fbe9f;
 }
@@ -3213,6 +3233,9 @@ video {
   --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
   --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+}
+.ring-inset {
+  --tw-ring-inset: inset;
 }
 .ring-\[color\:var\(--app-accent\)\] {
   --tw-ring-color: var(--app-accent);
@@ -3652,9 +3675,6 @@ video {
 }
 .group:hover .group-hover\:flex {
   display: flex;
-}
-.group:hover .group-hover\:text-\[color\:var\(--control-text\)\] {
-  color: var(--control-text);
 }
 .group:hover .group-hover\:opacity-100 {
   opacity: 1;

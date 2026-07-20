@@ -9,7 +9,6 @@ const extensions = new Set([".rs", ".ts", ".tsx"]);
 
 const legacyExemptions = new Set([
   "src/app/AppContainer.tsx",
-  "src/app/components/AppWorkspaceShell.tsx",
   "src/app/components/chat/ChatWorkspace.tsx",
   "src/app/components/ExplorerTree.spec.tsx",
   "src/app/hooks/useAppContainerWorkspaceActions.ts",

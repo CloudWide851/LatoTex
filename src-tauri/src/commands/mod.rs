@@ -21,6 +21,8 @@ mod plugins_declarative_validation_more;
 mod plugins_install_validation;
 mod plugins_policy;
 #[cfg(test)]
+mod plugins_validation_command_tests;
+#[cfg(test)]
 mod plugins_validation_tests;
 pub mod projects;
 pub mod projects_translation;

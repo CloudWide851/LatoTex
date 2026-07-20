@@ -42,6 +42,9 @@ export function AppContainerView(props: AppContainerViewProps) {
     setProjectSearchResults,
     setProjectSearchSearched,
     handleInitProjectFromFolderWithGuard,
+    handleCreateSampleProject,
+    handleOnboardingDismiss,
+    handlePdfViewed,
     handleWindowControlWithGuard,
     shareSession,
     shareBusy,
@@ -420,6 +423,9 @@ export function AppContainerView(props: AppContainerViewProps) {
                 onAgentRejectProposal={handleRejectAgentProposal}
                 onAgentPendingActionResolve={handleResolveAgentPendingAction}
                 onOpenFolder={handleInitProjectFromFolderWithGuard}
+                onCreateSample={handleCreateSampleProject}
+                onOnboardingDismiss={handleOnboardingDismiss}
+                onPdfViewed={handlePdfViewed}
                 onSaveFile={handleSaveActiveFile}
                 onWriteSelectedFileContent={handleWriteSelectedFileContent}
                 onCompile={handleCompile}

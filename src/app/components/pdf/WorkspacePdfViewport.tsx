@@ -25,6 +25,7 @@ export function WorkspacePdfViewport(props: {
   pdfFallbackProjectId?: string | null;
   pdfFallbackRelativePath?: string | null;
   focusRequest?: { page: number; token: number } | null;
+  onDocumentLoadSuccess?: () => void;
   t: TranslationFn;
 }) {
   const {
@@ -35,6 +36,7 @@ export function WorkspacePdfViewport(props: {
     pdfFallbackProjectId,
     pdfFallbackRelativePath,
     focusRequest,
+    onDocumentLoadSuccess,
     t,
   } = props;
   const viewerRef = useRef<LibraryPdfScrollViewerHandle | null>(null);
@@ -97,6 +99,7 @@ export function WorkspacePdfViewport(props: {
       onDocumentLoadError={() => {
         void tryFallbackToBlob();
       }}
+      onDocumentLoadSuccess={() => onDocumentLoadSuccess?.()}
       t={t}
     />
   );

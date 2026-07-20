@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isCompiledPdfPreview,
   isWorkspaceUnsupportedPreviewPath,
   resolveWorkspacePreviewFlags,
   resolveWorkspacePreviewMode,
@@ -30,6 +31,24 @@ describe("workspacePreviewMode", () => {
     expect(modeFor("figure.svg")).toBe("svg");
     expect(modeFor("figure.png", { selectedImagePreviewUrl: "blob:figure" })).toBe("image");
     expect(modeFor("main.tex", { compiledPdfUrl: "blob:pdf" })).toBe("pdf");
+  });
+
+  it("distinguishes a compiled manuscript PDF from an opened PDF file", () => {
+    expect(isCompiledPdfPreview({
+      previewMode: "pdf",
+      selectedIsPdf: false,
+      compiledPdfRelativePath: "main.pdf",
+    })).toBe(true);
+    expect(isCompiledPdfPreview({
+      previewMode: "pdf",
+      selectedIsPdf: true,
+      compiledPdfRelativePath: "main.pdf",
+    })).toBe(false);
+    expect(isCompiledPdfPreview({
+      previewMode: "empty",
+      selectedIsPdf: false,
+      compiledPdfRelativePath: null,
+    })).toBe(false);
   });
 
   it("routes DOCX away from text preview without treating it as unsupported", () => {

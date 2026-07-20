@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback } from "react";
 import type { Locale } from "../../i18n";
-import { initProjectFromFolder, projectPrepareSearchIndex } from "../../shared/api/projects";
+import { projectPrepareSearchIndex } from "../../shared/api/projects";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
   getWorkspaceTree,
@@ -25,6 +25,7 @@ import type { UseAppHandlersParams } from "./useAppHandlers.types";
 import { signalWindowTransition } from "./windowTransitionSignal";
 import { useProjectSearchHandlers } from "./useProjectSearchHandlers";
 import { useFsActionHandlers } from "./useFsActionHandlers";
+import { useProjectCreationActions } from "./useProjectCreationActions";
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -94,6 +95,17 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     upsertProject,
     runAnalysisFromAgent,
   } = params;
+  const { handleInitProjectFromFolder, handleCreateSampleProject } = useProjectCreationActions({
+    setBusy,
+    setProjects,
+    setActiveProjectId,
+    setTree,
+    setSelectedFile,
+    setSettings,
+    setToast,
+    upsertProject,
+    t,
+  });
   const {
     handleGitAction,
     handleGitInstallerDownloadStart,
@@ -224,28 +236,6 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     setToast,
     t,
   ]);
-  const handleInitProjectFromFolder = useCallback(async () => {
-    setBusy(true);
-    try {
-      const snapshot = await initProjectFromFolder();
-      if (!snapshot) {
-        return;
-      }
-      setProjects((prev) => upsertProject(prev, snapshot.summary));
-      setActiveProjectId(snapshot.summary.id);
-      setTree(snapshot.tree);
-      setSelectedFile(snapshot.mainFile);
-      setSettings((prev) =>
-        prev ? { ...prev, activeProjectId: snapshot.summary.id } : prev,
-      );
-      setToast({ type: "info", message: t("toast.projectCreated") });
-      await runtimeLogWrite("INFO", `project initialized from folder: ${snapshot.summary.rootPath}`);
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
-    } finally {
-      setBusy(false);
-    }
-  }, [setBusy, setProjects, upsertProject, setActiveProjectId, setTree, setSelectedFile, setSettings, setToast, t]);
   const handleSaveFile = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
       return false;
@@ -501,6 +491,7 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     handleWindowControl,
     handleWindowCloseDecision,
     handleInitProjectFromFolder,
+    handleCreateSampleProject,
     handleSaveFile,
     handleWriteSelectedFileContent,
     handleCompile,

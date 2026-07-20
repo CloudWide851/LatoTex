@@ -1,13 +1,14 @@
 use crate::models::{
-    Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput, DrawExportAssetResponse,
-    EventBatch, EventQuery, FileReadBinaryResponse, FileReadResponse, FileWriteInput,
-    FsOperationInput, FsOperationResult,
-    LibraryCitationDuplicateKey, LibraryCitationIndexIssue, LibraryCitationIndexStatus,
-    LibraryCitationResolveResponse, LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
-    LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput, ModelProtocol,
-    ModelProtocolInput, ProjectDeleteResponse, ProjectIntegrityStatus, ProjectSearchBatch, ProjectSearchHit,
-    ProjectSearchIncrementalInput, ProjectSearchInput, ProjectSnapshot, ProjectSummary,
-    ResourceNode, SettingsUpdateInput, SwarmEvent, UiPrefs,
+    Ack, AgentModelBinding, AppSettings, CompileRecord, CompileRecordInput,
+    DrawExportAssetResponse, EventBatch, EventQuery, FileReadBinaryResponse, FileReadResponse,
+    FileWriteInput, FsOperationInput, FsOperationResult, LibraryCitationDuplicateKey,
+    LibraryCitationIndexIssue, LibraryCitationIndexStatus, LibraryCitationResolveResponse,
+    LibraryCitationSummaryResponse, LibraryLinkImportResponse, LibraryPdfImportResponse,
+    LibraryPdfPreviewResponse, LibraryPdfResumeResponse, ModelCatalogItem, ModelCatalogItemInput,
+    ModelProtocol, ModelProtocolInput, ProjectDeleteResponse, ProjectIntegrityStatus,
+    ProjectSearchBatch, ProjectSearchHit, ProjectSearchIncrementalInput, ProjectSearchInput,
+    ProjectSnapshot, ProjectSummary, ProjectTemplate, ResourceNode, SettingsUpdateInput,
+    SwarmEvent, UiPrefs,
 };
 use crate::secure;
 use chrono::Utc;
@@ -19,6 +20,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 include!("storage/storage_bootstrap.rs");
+include!("storage/project_templates.rs");
 include!("storage/project_snapshot_tree.rs");
 include!("storage/search_index.rs");
 include!("storage/search_index_queries.rs");

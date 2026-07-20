@@ -31,6 +31,7 @@ export function WorkspaceEditorPreviewPanel(props: {
   onZoomReset: () => void;
   onPreviewZoomChange: (nextZoom: number) => void;
   previewFocusRequest: PreviewFocusRequest;
+  onPdfViewed?: () => void;
   t: (key: any) => string;
 }) {
   return (
@@ -61,6 +62,7 @@ export function WorkspaceEditorPreviewPanel(props: {
       onZoomReset={props.onZoomReset}
       onPreviewZoomChange={props.onPreviewZoomChange}
       previewFocusRequest={props.previewFocusRequest}
+      onPdfViewed={props.onPdfViewed}
       t={props.t}
     />
   );

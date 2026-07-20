@@ -52,6 +52,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     lensActive: controlledLensActive,
     onLensActiveChange,
     onDocumentLoadError,
+    onDocumentLoadSuccess,
     t,
   } = props;
 
@@ -78,6 +79,7 @@ export const LibraryPdfScrollViewer = forwardRef<
   const onScrollAnchorChangeRef = useRef(onScrollAnchorChange);
   const onScrollRatioChangeRef = useRef(onScrollRatioChange);
   const onDocumentLoadErrorRef = useRef(onDocumentLoadError);
+  const onDocumentLoadSuccessRef = useRef(onDocumentLoadSuccess);
   const [viewportWidth, setViewportWidth] = useState(920);
   const [documentPages, setDocumentPages] = useState(Math.max(1, pageCount));
   const [documentLoadError, setDocumentLoadError] = useState<string | null>(null);
@@ -97,7 +99,9 @@ export const LibraryPdfScrollViewer = forwardRef<
   onVisiblePageChangeRef.current = onVisiblePageChange;
   onPageCountChangeRef.current = onPageCountChange;
   onScrollAnchorChangeRef.current = onScrollAnchorChange;
-  onScrollRatioChangeRef.current = onScrollRatioChange; onDocumentLoadErrorRef.current = onDocumentLoadError;
+  onScrollRatioChangeRef.current = onScrollRatioChange;
+  onDocumentLoadErrorRef.current = onDocumentLoadError;
+  onDocumentLoadSuccessRef.current = onDocumentLoadSuccess;
   const pages = useMemo(() => Array.from({ length: Math.max(1, documentPages) }, (_, index) => index + 1), [documentPages]);
   const frameWidth = useMemo(() => Math.floor(Math.max(360, Math.floor((viewportWidth - 42) * 0.92)) * zoom), [viewportWidth, zoom]);
   const annotationScale = useMemo(() => frameWidth / ANNOTATION_REFERENCE_WIDTH, [frameWidth]);
@@ -431,6 +435,7 @@ export const LibraryPdfScrollViewer = forwardRef<
     const next = Math.max(1, numPages || 1);
     setDocumentPages(next);
     onPageCountChangeRef.current(next);
+    onDocumentLoadSuccessRef.current?.(next);
     if (lastVisiblePageRef.current > next) {
       lastVisiblePageRef.current = 1;
       onVisiblePageChangeRef.current(1);

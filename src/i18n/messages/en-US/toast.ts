@@ -9,6 +9,7 @@ export const enUS_toast = {
   "toast.compileTexOnly": "Select a .tex file before compiling.",
   "toast.settingsSaved": "Settings saved.",
   "toast.projectCreated": "Project created.",
+  "toast.projectCreateFailed": "The project could not be created. Check logs and try again.",
   "toast.pdfSaved": "PDF has been saved into the project.",
   "toast.pdfNotReady": "No compiled PDF available to export yet.",
   "toast.protocolOk": "Protocol test succeeded.",

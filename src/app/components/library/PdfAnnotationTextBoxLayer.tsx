@@ -180,6 +180,11 @@ export function PdfAnnotationTextBoxLayer(props: {
                 onMouseDown={(event) => event.stopPropagation()}
                 onMouseUp={(event) => event.stopPropagation()}
                 onBlur={(event) => {
+                  const nextTarget = event.relatedTarget as HTMLElement | null;
+                  if (nextTarget?.closest("[data-textbox-menu='true']")) {
+                    commitTextBoxEditing(box.id, { deleteIfEmpty: false });
+                    return;
+                  }
                   const html = sanitizeRichTextHtml((event.currentTarget as HTMLDivElement).innerHTML);
                   const targetContent = richHtmlToPlainText(html || box.html || box.content || "");
                   if (recentlyCreatedTextBoxIdRef.current === box.id && targetContent.trim().length === 0) {

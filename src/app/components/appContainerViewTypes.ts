@@ -121,6 +121,9 @@ export type AppContainerViewProps = WorkspaceValueProps
     setProjectSearchResults: Dispatch<SetStateAction<ProjectSearchHit[]>>;
     setProjectSearchSearched: Dispatch<SetStateAction<boolean>>;
     handleInitProjectFromFolderWithGuard: AppTopbarProps["onOpenFolder"];
+    handleCreateSampleProject: AppWorkspaceShellProps["onCreateSample"];
+    handleOnboardingDismiss: AppWorkspaceShellProps["onOnboardingDismiss"];
+    handlePdfViewed: AppWorkspaceShellProps["onPdfViewed"];
     handleWindowControlWithGuard: AppTopbarProps["onWindowControl"];
 
     handleShareStart: AppWorkspaceShellProps["onShareStart"];

@@ -291,7 +291,9 @@ describe("PdfAnnotationLayer rich text menu", () => {
     document.dispatchEvent(new Event("selectionchange"));
 
     await act(async () => {
-      const fontFamilyTrigger = document.querySelector("[role='combobox']") as HTMLButtonElement | null;
+      const fontFamilyTrigger = document.querySelector(
+        "[data-textbox-menu='true'] button[aria-haspopup='listbox']",
+      ) as HTMLButtonElement | null;
       expect(fontFamilyTrigger).toBeTruthy();
       fontFamilyTrigger?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
@@ -301,6 +303,7 @@ describe("PdfAnnotationLayer rich text menu", () => {
       const arialOption = Array.from(document.querySelectorAll<HTMLButtonElement>("[role='option']"))
         .find((item) => item.textContent?.includes("Arial"));
       expect(arialOption).toBeTruthy();
+      arialOption?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       arialOption?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       await Promise.resolve();
     });

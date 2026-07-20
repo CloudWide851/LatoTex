@@ -1,9 +1,13 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const rootStyles = fs.readFileSync(new URL("../../index.css", import.meta.url), "utf8");
-const controlStyles = fs.readFileSync(new URL("../../styles/control-system.css", import.meta.url), "utf8");
-const shareStyles = fs.readFileSync(new URL("../../share-page/index.css", import.meta.url), "utf8");
+function readStyles(path: string): string {
+  return fs.readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+}
+
+const rootStyles = readStyles("../../index.css");
+const controlStyles = readStyles("../../styles/control-system.css");
+const shareStyles = readStyles("../../share-page/index.css");
 
 describe("material ownership", () => {
   it("keeps blur on top-level material owners and suppresses nested panel blur", () => {

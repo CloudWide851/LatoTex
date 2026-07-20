@@ -42,6 +42,7 @@ import { PluginSourcesSettingsSection } from "./settings/PluginSourcesSettingsSe
 import { DEFAULT_AGENT_TEAM_PREFS } from "../settings/agentTeamDefaults";
 import { subscribeSettingsSectionRequests } from "../settings/settingsNavigation";
 import { applyExternalSettingsSectionRequest, SettingsNavigation } from "./settings/SettingsNavigation";
+import { OnboardingSettingsCard } from "./settings/OnboardingSettingsCard";
 
 type TranslationFn = (key: any) => string;
 
@@ -217,6 +218,12 @@ export function SettingsPanel(props: {
 
         {settingsSection === "general" && (
           <div className="grid gap-3">
+            <OnboardingSettingsCard
+              activeProjectId={activeProjectId}
+              settings={localSettings}
+              setSettings={setSettings}
+              t={t}
+            />
             <SettingsSelectRow
               title={t("settings.languageTitle")}
               value={locale}

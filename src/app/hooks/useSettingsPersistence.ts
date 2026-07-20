@@ -276,6 +276,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
               .map((skill) => String(skill ?? "").trim())
               .filter((skill) => skill.length > 0),
           )),
+          onboarding: nextSettings.uiPrefs?.onboarding,
         },
       });
 

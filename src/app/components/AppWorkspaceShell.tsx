@@ -7,10 +7,10 @@ import {
   detectCompileAssistCjkIssue,
 } from "./editor/compileAssistCjk";
 import { buildCompileAssistHint, prioritizeCompileDiagnostics } from "./editor/compileAssistHint";
-import { LatexWorkspaceEditorPanel } from "./editor/LatexWorkspaceEditorPanel";
 import { WorkspaceEditorPreviewPanel } from "./editor/WorkspaceEditorPreviewPanel";
 import { configureLatexCompletionRuntime } from "./editor/latexCompletion";
 import { NoProjectPanel } from "./workspace/NoProjectPanel";
+import { WorkspaceLatexEditorSurface } from "./workspace/WorkspaceLatexEditorSurface";
 import { WorkspacePageLayout } from "./workspace/WorkspacePageLayout";
 import {
   LazyDrawWorkspace,
@@ -23,6 +23,7 @@ import {
 import type { AppWorkspaceShellProps } from "./workspace/workspaceShellTypes";
 import { emitWorkspaceLayoutRefresh } from "../hooks/workspaceLayoutRefresh";
 import {
+  isCompiledPdfPreview,
   resolveWorkspacePreviewFlags,
   resolveWorkspacePreviewMode,
   type WorkspacePreviewMode,
@@ -43,10 +44,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     pageRailItems,
     activeProjectId,
     busy,
-    suspended = false,
     shellLayout,
     latexLayout,
-    latexTerminalLayout,
     analysisLayout,
     libraryLayout,
     libraryBibLayout,
@@ -57,7 +56,6 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     fileList,
     editorContent,
     editorTabs,
-    activeTabId,
     dirtyByPath,
     compiledPdfUrl,
     compiledPdfRelativePath,
@@ -69,66 +67,26 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     compileDiagnostics,
     compileInstallProgress,
     agentCollapsed,
-    agentPhase,
-    agentStatusKey,
-    agentPrompt,
-    agentMessages,
-    agentProposal,
-    agentPendingAction,
-    agentRunId,
-    agentSessions,
-    agentSessionPickerOpen,
-    agentSessionPickerIndex,
-    agentRollbackVisible,
-    events,
     explorerGitDecorations,
     shellMin,
     settings,
     settingsPanel,
     gitPanel,
     analysisPanel,
-    shareSession,
-    shareBusy,
-    shareSyncing,
-    shareConflict,
-    shareComments,
-    shareEditAnnotations,
-    channelPrefs,
-    shareMode,
-    shareSessionName,
-    onShareModeChange,
-    onShareSessionNameChange,
     onPageChange,
-    onShareStart,
-    onShareStop,
-    onShareRefresh,
-    onShareConflictResolve,
     onSelectFile,
     onSelectLibraryPath,
     onTabSelect,
-    onTabClose,
-    onTabCloseAction,
-    onTabPin,
     onEditorChange,
-    onEditorMount,
     onChatReviewRequest,
-    onAgentPromptChange,
     onAgentToggle,
     onAgentRun,
-    onAgentSessionPickerOpenChange,
-    onAgentSessionPickerIndexChange,
-    onAgentSessionConfirm,
-    onAgentRollback,
-    onAgentAcceptProposal,
-    onAgentRejectProposal,
-    onAgentPendingActionResolve,
     onOpenFolder,
-    onSaveFile,
+    onCreateSample,
+    onPdfViewed,
     onWriteSelectedFileContent,
     onCompile,
     onExportPdf,
-    onEditorUndo,
-    onEditorRedo,
     onOpenLogs,
     onLibraryRescan,
     onLibraryImportPdf,
@@ -143,9 +101,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     onWorkspaceRescan,
     onSavePanelLayout,
     previewDefaultZoom,
-    fontScale,
     completionModelId,
-    chatAgentModelId,
     translationModelId,
     paperBriefEngine,
     workspaceExplorerDefaultExpanded,
@@ -415,6 +371,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       onZoomReset={() => setPreviewZoom(clampPreviewZoom(previewDefaultZoom || 1))}
       onPreviewZoomChange={(nextZoom) => setPreviewZoom(clampPreviewZoom(nextZoom))}
       previewFocusRequest={previewFocusRequest}
+      onPdfViewed={isCompiledPdfPreview({ previewMode, selectedIsPdf, compiledPdfRelativePath })
+        ? onPdfViewed
+        : undefined}
       t={t}
     />
   );
@@ -437,10 +396,10 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       );
     }
     if (page === "library") {
-      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
+      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
     }
     if (page === "git") {
-      return activeProjectId ? gitPanel : <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
+      return activeProjectId ? gitPanel : <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
     }
     if (page === "settings") {
       return settingsPanel;
@@ -449,47 +408,17 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return <LazyPluginMarketplaceSurface settings={settings} t={t} />;
     }
     if (!activeProjectId) {
-      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} t={t} />;
+      return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
     }
     const renderModeSwitcher = () => (
       <LatexWorkspaceModeSwitcher mode={latexMode} onModeChange={setLatexMode} t={t} />
     );
     const renderTexWorkspace = () => (
-      <LatexWorkspaceEditorPanel
-        activeProjectId={activeProjectId}
-        busy={busy}
-        suspended={suspended}
-        selectedFile={selectedFile}
+      <WorkspaceLatexEditorSurface
+        shell={props}
         selectedIsDraw={selectedIsDraw}
         selectedIsExcel={selectedIsExcel}
         selectedCodeLanguage={selectedCodeLanguage}
-        editorContent={editorContent}
-        fileList={fileList}
-        editorTabs={editorTabs}
-        activeTabId={activeTabId}
-        dirtyByPath={dirtyByPath}
-        shareSession={shareSession}
-        shareBusy={shareBusy}
-        shareSyncing={shareSyncing}
-        shareConflict={shareConflict}
-        shareMode={shareMode}
-        shareSessionName={shareSessionName}
-        shareComments={shareComments}
-        shareEditAnnotations={shareEditAnnotations}
-        channelPrefs={channelPrefs}
-        agentCollapsed={agentCollapsed}
-        agentPhase={agentPhase}
-        agentStatusKey={agentStatusKey}
-        agentPrompt={agentPrompt}
-        agentMessages={agentMessages}
-        agentProposal={agentProposal}
-        agentPendingAction={agentPendingAction}
-        agentRunId={agentRunId}
-        agentSessions={agentSessions}
-        agentSessionPickerOpen={agentSessionPickerOpen}
-        agentSessionPickerIndex={agentSessionPickerIndex}
-        agentRollbackVisible={agentRollbackVisible}
-        events={events}
         showChatWorkspace={showChatWorkspace}
         chatTabOpen={chatTabOpen}
         chatTabTitle={chatTabTitle}
@@ -498,24 +427,11 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         compileAssistHint={compileAssistHint}
         compileAssistAutoFixBusy={compileAssistAutoFixBusy}
         terminalVisible={terminalVisible}
-        terminalLayout={latexTerminalLayout}
-        fontScale={fontScale}
         modeSwitcher={renderModeSwitcher()}
-        onTerminalLayoutChange={(layout) => onSavePanelLayout("latexTerminal", layout)}
         onTerminalToggle={() => setTerminalVisible((prev) => !prev)}
-        onShareModeChange={onShareModeChange}
-        onShareSessionNameChange={onShareSessionNameChange}
-        onShareStart={onShareStart}
-        onShareStop={onShareStop}
-        onShareRefresh={onShareRefresh}
-        onShareConflictResolve={onShareConflictResolve}
         onCreateChatTab={handleCreateChatTab}
         onOpenChatTab={handleOpenChatTab}
         onChatTabTitleChange={setChatTabTitle}
-        onEditorUndo={onEditorUndo}
-        onEditorRedo={onEditorRedo}
-        onSaveFile={onSaveFile}
-        onPageChange={onPageChange}
         onCompileClick={() => {
           void handleCompileClick();
         }}
@@ -526,24 +442,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         onSelectEditorTab={handleSelectEditorTab}
         onCloseChatTab={handleCloseChatTab}
         onActivateChatTab={() => setChatTabActive(true)}
-        onTabClose={onTabClose}
-        onTabCloseAction={onTabCloseAction}
-        onTabPin={onTabPin}
-        onAgentAcceptProposal={onAgentAcceptProposal}
-        onAgentRejectProposal={onAgentRejectProposal}
-        onAgentToggle={onAgentToggle}
         onChatReviewRequest={handleChatReviewRequest}
-        onEditorChange={onEditorChange}
-        onEditorMount={onEditorMount}
-        onAgentPromptChange={onAgentPromptChange}
-        onAgentRun={onAgentRun}
-        onAgentSessionPickerOpenChange={onAgentSessionPickerOpenChange}
-        onAgentSessionPickerIndexChange={onAgentSessionPickerIndexChange}
-        onAgentSessionConfirm={onAgentSessionConfirm}
-        onAgentRollback={onAgentRollback}
-        onAgentPendingActionResolve={onAgentPendingActionResolve}
-        chatAgentModelId={chatAgentModelId}
-        t={t}
       />
     );
     return (

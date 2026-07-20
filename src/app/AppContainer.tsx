@@ -35,6 +35,7 @@ import { useTextContentCacheBridge } from "./hooks/useTextContentCacheBridge";
 import { useLibraryAnalysisNavigator } from "./hooks/useLibraryAnalysisNavigator";
 import { useCompiledPreviewResetOnProjectChange, useTrayLabelSync } from "./hooks/useAppContainerRuntimeEffects";
 import { useShareSession } from "./hooks/useShareSession";
+import { useOnboardingController } from "./hooks/useOnboardingController";
 import type { ProjectDeleteConfirmIntent } from "./components/ProjectDeleteConfirmDialog";
 
 type IntegrityIssue = {
@@ -320,6 +321,14 @@ export function AppContainer() {
     setLocale,
     upsertProject,
     runAnalysisFromAgent: analysisWorkspace.runAnalysisWithPrompt,
+  });
+
+  const onboarding = useOnboardingController({
+    activeProjectId: s.activeProjectId,
+    selectedTextFileReadyPath: s.selectedTextFileReadyPath,
+    onboarding: s.settings?.uiPrefs?.onboarding,
+    setSettings: s.setSettings,
+    onCompile: handlers.handleCompile,
   });
 
   const handleCloseBehaviorDialogResolve = useCallback((behavior: "tray" | "exit") => {
@@ -676,6 +685,9 @@ export function AppContainer() {
       setProjectSearchResults={s.setProjectSearchResults}
       setProjectSearchSearched={s.setProjectSearchSearched}
       handleInitProjectFromFolderWithGuard={workspaceActions.handleInitProjectFromFolderWithGuard}
+      handleCreateSampleProject={handlers.handleCreateSampleProject}
+      handleOnboardingDismiss={onboarding.handleDismiss}
+      handlePdfViewed={onboarding.handlePdfViewed}
       handleWindowControlWithGuard={workspaceActions.handleWindowControlWithGuard}
       shareSession={shareSession.shareSession}
       shareBusy={shareSession.shareBusy}
@@ -741,7 +753,7 @@ export function AppContainer() {
       handleAcceptAgentProposal={handlers.handleAcceptAgentProposal}
       handleRejectAgentProposal={handlers.handleRejectAgentProposal}
       handleSaveActiveFile={workspaceActions.handleSaveActiveFile}
-      handleCompile={handlers.handleCompile}
+      handleCompile={onboarding.handleCompile}
       handleExportCompiledPdf={handlers.handleExportCompiledPdf}
       handleEditorUndo={handlers.handleEditorUndo}
       handleEditorRedo={handlers.handleEditorRedo}

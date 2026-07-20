@@ -83,6 +83,16 @@ export function resolveWorkspacePreviewMode(input: {
   return "empty";
 }
 
+export function isCompiledPdfPreview(input: {
+  previewMode: WorkspacePreviewMode;
+  selectedIsPdf: boolean;
+  compiledPdfRelativePath: string | null;
+}): boolean {
+  return input.previewMode === "pdf"
+    && !input.selectedIsPdf
+    && Boolean(input.compiledPdfRelativePath);
+}
+
 export function isWorkspaceUnsupportedPreviewPath(path: string | null): boolean {
   if (!path) {
     return false;

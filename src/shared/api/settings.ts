@@ -17,6 +17,7 @@ import type {
   ModelDraftTestInput,
   ModelTestResult,
   ModelProtocolInput,
+  OnboardingState,
   PanelLayoutPrefs,
   ProtocolHealth,
   ProtocolTestInput,
@@ -100,6 +101,7 @@ export function updateSettings(input: {
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
     hiddenSkills?: string[];
+    onboarding?: OnboardingState;
   };
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });

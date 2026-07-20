@@ -55,6 +55,13 @@ pub fn initialize_project_from_folder(
 }
 
 fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
+    ensure_workspace_bootstrap_files_with_template(root, None)
+}
+
+fn ensure_workspace_bootstrap_files_with_template(
+    root: &Path,
+    template: Option<ProjectTemplate>,
+) -> Result<(), String> {
     let latotex_dir = root.join(".latotex");
     fs::create_dir_all(&latotex_dir).map_err(|e| e.to_string())?;
     fs::create_dir_all(library_root(root)).map_err(|e| e.to_string())?;
@@ -91,65 +98,7 @@ fn ensure_workspace_bootstrap_files(root: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     }
 
-    let main_path = root.join("main.tex");
-    if !main_path.exists() {
-        let content = r#"% !TeX program = xelatex
-% !TeX encoding = UTF-8 Unicode
-% LatoTex starter template
-\documentclass[11pt,a4paper]{article}
-\usepackage{amsmath,amssymb}
-\usepackage{booktabs}
-\usepackage{hyperref}
-\usepackage{xcolor}
-
-\title{LatoTex Quick Start}
-\author{LatoTex User}
-\date{\today}
-
-\begin{document}
-\maketitle
-
-\section{Welcome to LatoTex}
-LatoTex provides \textbf{agent-assisted writing} and \textbf{native LaTeX compilation}.
-
-\subsection{Equation example}
-\begin{equation}
-  \int_0^1 x^2\,dx = \frac{1}{3}
-\end{equation}
-
-\subsection{Table example}
-\begin{table}[h]
-  \centering
-  \begin{tabular}{lcc}
-    \toprule
-    Metric & Value A & Value B \\
-    \midrule
-    Sample 1 & 12.3 & 45.6 \\
-    Sample 2 & 78.9 & 10.1 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Default LatoTex template sample}
-\end{table}
-
-\subsection{Next steps}
-Create new files from the explorer, then use the Agent panel to iterate on your document.
-
-\end{document}
-"#;
-        fs::write(main_path, content).map_err(|e| e.to_string())?;
-    }
-
-    let readme_path = root.join("README.md");
-    if !readme_path.exists() {
-        let project_name = root
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or_else(|| "LatoTex Project".to_string());
-        let content = format!(
-            "# {project_name}\n\nManaged by LatoTex.\n\n## Structure\n\n- `main.tex`: default LaTeX entry file\n- `.latotex/`: workspace metadata\n"
-        );
-        fs::write(readme_path, content).map_err(|e| e.to_string())?;
-    }
+    write_workspace_template_files(root, template)?;
 
     let gitignore_path = root.join(".gitignore");
     if !gitignore_path.exists() {
@@ -252,7 +201,11 @@ fn library_index_path(project_root: &Path) -> PathBuf {
         .join("papers-index.json")
 }
 
-fn collect_file_index_entries(root: &Path, base: &Path, entries: &mut Vec<Value>) -> Result<(), String> {
+fn collect_file_index_entries(
+    root: &Path,
+    base: &Path,
+    entries: &mut Vec<Value>,
+) -> Result<(), String> {
     if !base.exists() {
         return Ok(());
     }
@@ -513,9 +466,14 @@ mod project_delete_tests {
         assert_eq!(deleted.deleted_project_id, second.summary.id);
         assert!(!deleted.trashed_root);
         assert!(second_root.exists());
-        assert_eq!(deleted.next_active_project_id.as_deref(), Some(first.summary.id.as_str()));
+        assert_eq!(
+            deleted.next_active_project_id.as_deref(),
+            Some(first.summary.id.as_str())
+        );
         let projects = list_projects(&db_path).unwrap();
-        assert!(!projects.iter().any(|project| project.id == second.summary.id));
+        assert!(!projects
+            .iter()
+            .any(|project| project.id == second.summary.id));
         let _ = fs::remove_dir_all(root);
     }
 
@@ -573,4 +531,43 @@ mod project_delete_tests {
     }
 }
 
+#[cfg(test)]
+mod project_template_tests {
+    use super::*;
 
+    #[test]
+    fn research_paper_template_creates_a_complete_offline_sample() {
+        let root = std::env::temp_dir().join(format!(
+            "latotex-research-template-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let db_path = root.join("latotex.db");
+        let projects_dir = root.join("projects");
+        fs::create_dir_all(&projects_dir).unwrap();
+        initialize_database(&db_path).unwrap();
+
+        let snapshot = create_project_with_template(
+            &db_path,
+            &projects_dir,
+            "Research sample",
+            Some(ProjectTemplate::ResearchPaper),
+        )
+        .unwrap();
+        let project_root = PathBuf::from(snapshot.summary.root_path);
+        let main = fs::read_to_string(project_root.join("main.tex")).unwrap();
+
+        assert_eq!(snapshot.main_file, "main.tex");
+        assert!(main.contains("\\begin{abstract}"));
+        assert!(main.contains("\\begin{thebibliography}"));
+        assert!(project_root.join("references.bib").is_file());
+        assert!(project_root.join("QUICKSTART.md").is_file());
+        assert!(fs::read_to_string(project_root.join("references.bib"))
+            .unwrap()
+            .contains("lamport1994"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+}

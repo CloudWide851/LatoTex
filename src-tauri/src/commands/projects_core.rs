@@ -1,7 +1,6 @@
 use crate::models::{
-    CreateProjectInput, FileReadInput, FileReadResponse, ProjectDeleteInput,
-    ProjectDeleteResponse, ProjectIntegrityStatus, ProjectRefInput, ProjectSnapshot,
-    ProjectSummary, ResourceNode,
+    CreateProjectInput, FileReadInput, FileReadResponse, ProjectDeleteInput, ProjectDeleteResponse,
+    ProjectIntegrityStatus, ProjectRefInput, ProjectSnapshot, ProjectSummary, ResourceNode,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -27,7 +26,12 @@ pub fn project_create(
         return Err("Project name cannot be empty".to_string());
     }
     state.log("INFO", &format!("project_create: {}", trimmed));
-    storage::create_project(&state.db_path, &state.projects_dir, trimmed)
+    storage::create_project_with_template(
+        &state.db_path,
+        &state.projects_dir,
+        trimmed,
+        input.template,
+    )
 }
 
 #[tauri::command]

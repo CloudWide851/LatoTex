@@ -9,6 +9,7 @@ export const zhCN_toast = {
   "toast.compileTexOnly": "请先选择一个 .tex 文件再编译。",
   "toast.settingsSaved": "设置已保存。",
   "toast.projectCreated": "项目已创建。",
+  "toast.projectCreateFailed": "无法创建项目，请查看日志后重试。",
   "toast.pdfSaved": "PDF 已保存到项目中。",
   "toast.pdfNotReady": "当前没有可导出的编译 PDF。",
   "toast.protocolOk": "协议测试成功。",
