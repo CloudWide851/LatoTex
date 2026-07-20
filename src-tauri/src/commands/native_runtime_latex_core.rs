@@ -1,4 +1,4 @@
-use super::native_runtime_common::{configure_hidden_process, safe_relative_path, sanitize_log_lines};
+use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines};
 use super::native_runtime_latex_warmup::{
     ensure_tectonic_runtime_warmup_with_progress, resolve_tectonic_paths,
     TECTONIC_NOT_FOUND_DIAGNOSTIC,
@@ -28,18 +28,28 @@ fn write_compile_workspace(
     main_path: &str,
     entry_content: &str,
 ) -> Result<(), String> {
+    let total_bytes = file_map
+        .values()
+        .map(|content| content.len() as u64)
+        .sum::<u64>()
+        .saturating_add(entry_content.len() as u64);
+    if total_bytes > storage::WORKSPACE_COMPILE_TOTAL_LIMIT {
+        return Err("compile.workspace.too_large".to_string());
+    }
     for (relative, content) in file_map {
-        let target = root.join(safe_relative_path(relative)?);
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        fs::write(target, content).map_err(|e| e.to_string())?;
+        storage::atomic_write_under_root(
+            root,
+            relative,
+            content.as_bytes(),
+            storage::WORKSPACE_TEXT_FILE_LIMIT,
+        )?;
     }
-    let main_target = root.join(safe_relative_path(main_path)?);
-    if let Some(parent) = main_target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(main_target, entry_content).map_err(|e| e.to_string())?;
+    storage::atomic_write_under_root(
+        root,
+        main_path,
+        entry_content.as_bytes(),
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
     Ok(())
 }
 
@@ -53,32 +63,46 @@ fn to_project_relative_path(project_root: &Path, path: &Path) -> Option<String> 
     })
 }
 
-fn copy_if_exists(source: &Path, target: &Path) -> Result<Option<()>, String> {
+fn copy_if_exists(
+    source: &Path,
+    project_root: &Path,
+    target_relative: &str,
+    limit: u64,
+) -> Result<Option<()>, String> {
     if !source.exists() {
         return Ok(None);
     }
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    if storage::workspace_path_is_link_or_reparse(source)? {
+        return Err("workspace.path.reparse_denied".to_string());
     }
-    fs::copy(source, target).map_err(|e| e.to_string())?;
+    let bytes = storage::read_file_with_limit(source, limit)?;
+    storage::atomic_write_under_root(project_root, target_relative, &bytes, limit)?;
     Ok(Some(()))
 }
 
 fn persist_compile_log(
     main_log: &Path,
-    artifact_log: &Path,
+    project_root: &Path,
+    artifact_relative: &str,
     combined_log: &str,
 ) -> Result<Option<()>, String> {
     if main_log.exists() {
-        return copy_if_exists(main_log, artifact_log);
+        return copy_if_exists(
+            main_log,
+            project_root,
+            artifact_relative,
+            storage::WORKSPACE_TEXT_FILE_LIMIT,
+        );
     }
     if combined_log.trim().is_empty() {
         return Ok(None);
     }
-    if let Some(parent) = artifact_log.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(artifact_log, combined_log).map_err(|e| e.to_string())?;
+    storage::atomic_write_under_root(
+        project_root,
+        artifact_relative,
+        combined_log.as_bytes(),
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
     Ok(Some(()))
 }
 
@@ -224,12 +248,19 @@ where
     F: FnMut(f64, &str, Option<&str>, Option<&str>),
 {
     let project_root = storage::load_project_root(db_path, &input.project_id)?;
-    let compile_root = project_root.join(".latotex/build/native");
     let run_id = Uuid::new_v4().to_string();
-    let run_root = compile_root.join(&run_id);
-    fs::create_dir_all(&run_root).map_err(|e| e.to_string())?;
+    let run_root = storage::prepare_workspace_mutation_path(
+        &project_root,
+        &format!(".latotex/build/native/{run_id}"),
+    )?;
+    fs::create_dir_all(&run_root).map_err(|_| "workspace.operation.failed".to_string())?;
 
-    on_progress(6.0, "warming_resources", Some(&input.main_path), Some("warming_resources"));
+    on_progress(
+        6.0,
+        "warming_resources",
+        Some(&input.main_path),
+        Some("warming_resources"),
+    );
     ensure_tectonic_runtime_warmup_with_progress(
         runtime_root,
         app_data_dir,
@@ -239,7 +270,12 @@ where
         },
     )?;
 
-    on_progress(16.0, "materializing_workspace", Some(&input.main_path), None);
+    on_progress(
+        16.0,
+        "materializing_workspace",
+        Some(&input.main_path),
+        None,
+    );
     write_compile_workspace(
         &run_root,
         &input.file_map,
@@ -247,13 +283,17 @@ where
         &input.entry_content,
     )?;
 
-    let normalized_main = safe_relative_path(&input.main_path)?;
+    let normalized_main = storage::normalize_workspace_path(&input.main_path)?;
     let normalized_main_text = normalized_main.to_string_lossy().to_string();
     let main_pdf = run_root.join(&normalized_main).with_extension("pdf");
     let main_log = run_root.join(&normalized_main).with_extension("log");
     let artifact_root = project_root.join(".latotex/build/native-output");
     let artifact_pdf = artifact_root.join(&normalized_main).with_extension("pdf");
     let artifact_log = artifact_root.join(&normalized_main).with_extension("log");
+    let artifact_pdf_relative = to_project_relative_path(&project_root, &artifact_pdf)
+        .ok_or_else(|| "workspace.path.outside_root".to_string())?;
+    let artifact_log_relative = to_project_relative_path(&project_root, &artifact_log)
+        .ok_or_else(|| "workspace.path.outside_root".to_string())?;
 
     let started = Instant::now();
     let run = match run_compile_command_with_progress(
@@ -291,7 +331,10 @@ where
     combined_log.push('\n');
     combined_log.push_str(&run.stderr);
     if main_log.exists() {
-        let log_text = fs::read_to_string(&main_log).unwrap_or_default();
+        let log_text = storage::read_file_with_limit(&main_log, storage::WORKSPACE_TEXT_FILE_LIMIT)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_default();
         if !log_text.is_empty() {
             combined_log.push('\n');
             combined_log.push_str(&log_text);
@@ -301,12 +344,25 @@ where
     let diagnostics = sanitize_log_lines(&combined_log);
     let success = main_pdf.exists() && run.success;
 
-    let pdf_relative_path = copy_if_exists(&main_pdf, &artifact_pdf)?
-        .and_then(|_| to_project_relative_path(&project_root, &artifact_pdf));
-    let log_relative_path = persist_compile_log(&main_log, &artifact_log, &combined_log)?
-        .and_then(|_| to_project_relative_path(&project_root, &artifact_log));
+    let pdf_relative_path = copy_if_exists(
+        &main_pdf,
+        &project_root,
+        &artifact_pdf_relative,
+        storage::WORKSPACE_BINARY_FILE_LIMIT,
+    )?
+    .map(|_| artifact_pdf_relative);
+    let log_relative_path = persist_compile_log(
+        &main_log,
+        &project_root,
+        &artifact_log_relative,
+        &combined_log,
+    )?
+    .map(|_| artifact_log_relative);
     let pdf_bytes = if success && input.include_pdf_bytes.unwrap_or(false) {
-        Some(fs::read(&main_pdf).map_err(|e| e.to_string())?)
+        Some(storage::read_file_with_limit(
+            &main_pdf,
+            storage::WORKSPACE_BINARY_FILE_LIMIT,
+        )?)
     } else {
         None
     };
@@ -342,8 +398,3 @@ pub(crate) fn compile_blocking(
         |_percent, _stage, _current_item, _latest_log_line| {},
     )
 }
-
-
-
-
-

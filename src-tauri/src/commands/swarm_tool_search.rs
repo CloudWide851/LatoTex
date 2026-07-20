@@ -196,20 +196,24 @@ pub(super) fn run_stage_tool_search(
 ) -> Result<String, String> {
     ensure_not_cancelled(cancel_flag)?;
     let settings = crate::storage::load_settings(db_path, runtime_root)?;
-    let web_enabled = settings.ui_prefs.as_ref().map(|prefs| {
-        let legacy_enabled = prefs
-            .agent_tool_prefs
-            .as_ref()
-            .and_then(|prefs| prefs.web_search_enabled)
-            .unwrap_or(true);
-        let permission_enabled = prefs
-            .agent_permission_prefs
-            .as_ref()
-            .and_then(|prefs| prefs.web_search.as_deref())
-            .map(|mode| mode != "deny")
-            .unwrap_or(true);
-        legacy_enabled && permission_enabled
-    }).unwrap_or(true);
+    let web_enabled = settings
+        .ui_prefs
+        .as_ref()
+        .map(|prefs| {
+            let legacy_enabled = prefs
+                .agent_tool_prefs
+                .as_ref()
+                .and_then(|prefs| prefs.web_search_enabled)
+                .unwrap_or(true);
+            let permission_enabled = prefs
+                .agent_permission_prefs
+                .as_ref()
+                .and_then(|prefs| prefs.web_search.as_deref())
+                .map(|mode| mode != "deny")
+                .unwrap_or(true);
+            legacy_enabled && permission_enabled
+        })
+        .unwrap_or(true);
     if !web_enabled {
         return Ok("[tool_search.compact.v1]\nweb_search=disabled_by_settings".to_string());
     }
@@ -236,7 +240,10 @@ pub(super) fn run_stage_tool_search(
         "tool_search",
         "running",
         "",
-        EventMetadata { actions: Some(&running_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&running_actions),
+            ..metadata
+        },
     )?;
     let (queries, compact_context, evidence_count) = build_tool_search_context(prompt);
     ensure_not_cancelled(cancel_flag)?;
@@ -259,10 +266,12 @@ pub(super) fn run_stage_tool_search(
         "success",
         &format!(
             "queries={}, evidence={}, token_mode=compact",
-            query_count,
-            evidence_count
+            query_count, evidence_count
         ),
-        EventMetadata { actions: Some(&result_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&result_actions),
+            ..metadata
+        },
     )?;
 
     let estimated_saved =

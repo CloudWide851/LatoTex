@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use super::call_provider_with_retry_streaming;
 use super::swarm_events::{
-    emit_response_completed_event, emit_response_delta_event, emit_response_event, emit_stage_event,
-    emit_tool_event, EventMetadata,
+    emit_response_completed_event, emit_response_delta_event, emit_response_event,
+    emit_stage_event, emit_tool_event, EventMetadata,
 };
 use super::swarm_workflows::{WorkflowDefinition, WorkflowStep};
 

@@ -146,8 +146,8 @@ pub fn import_library_pdf(
     }
 
     let project_root = load_project_root(db_path, project_id)?;
-    let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    let papers_root = ensure_mutation_path(&project_root, ".latotex/papers")?;
+    fs::create_dir_all(&papers_root).map_err(|_| "workspace.operation.failed".to_string())?;
 
     let stem = source_path
         .file_stem()
@@ -155,7 +155,8 @@ pub fn import_library_pdf(
         .unwrap_or("paper");
     let normalized_stem = slugify_name(stem, "paper");
     let target_pdf = unique_path_with_extension(&papers_root, &normalized_stem, "pdf");
-    fs::copy(source_path, &target_pdf).map_err(|e| e.to_string())?;
+    let source_bytes = read_file_with_limit(source_path, WORKSPACE_BINARY_FILE_LIMIT)?;
+    atomic_write_file(&target_pdf, &source_bytes)?;
 
     let citation_key = sanitize_citation_key(
         target_pdf
@@ -167,7 +168,7 @@ pub fn import_library_pdf(
     let bib_entry = format!(
         "@misc{{{citation_key},\n  title = {{{title}}},\n  note = {{Imported from local PDF by LatoTex}}\n}}\n"
     );
-    fs::write(target_pdf.with_extension("bib"), bib_entry).map_err(|e| e.to_string())?;
+    atomic_write_file(&target_pdf.with_extension("bib"), bib_entry.as_bytes())?;
 
     refresh_workspace_index(&project_root)?;
     refresh_library_index(&project_root)?;
@@ -198,8 +199,8 @@ pub fn import_library_link(
     }
 
     let project_root = load_project_root(db_path, project_id)?;
-    let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    let papers_root = ensure_mutation_path(&project_root, ".latotex/papers")?;
+    fs::create_dir_all(&papers_root).map_err(|_| "workspace.operation.failed".to_string())?;
 
     let (stem, citation_key, bib_entry) = if let Some(zotero_target) =
         parse_zotero_target(trimmed, zotero_scope, zotero_owner_id)
@@ -249,7 +250,7 @@ pub fn import_library_link(
     } else {
         format!("@misc{{{citation_key},\n  url = {{{trimmed}}}\n}}\n")
     };
-    fs::write(&bib_path, final_entry).map_err(|e| e.to_string())?;
+    atomic_write_file(&bib_path, final_entry.as_bytes())?;
 
     refresh_workspace_index(&project_root)?;
     refresh_library_index(&project_root)?;
@@ -402,7 +403,11 @@ fn build_local_citation_summary(
     let mut bib_relative_path = None;
 
     if let Some(bib_path) = bib_candidate {
-        let bib_content = fs::read_to_string(&bib_path).map_err(|e| e.to_string())?;
+        let bib_content = String::from_utf8(read_file_with_limit(
+            &bib_path,
+            WORKSPACE_TEXT_FILE_LIMIT,
+        )?)
+        .map_err(|_| "workspace.file_read.invalid_utf8".to_string())?;
         citation_key = extract_bib_entry_key(&bib_content);
         title = extract_bib_field_value(&bib_content, "title");
         authors = extract_bib_authors(&bib_content);
@@ -466,8 +471,8 @@ pub fn library_citation_summary(
     relative_path: &str,
 ) -> Result<LibraryCitationSummaryResponse, String> {
     let project_root = load_project_root(db_path, project_id)?;
-    let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    let papers_root = ensure_mutation_path(&project_root, ".latotex/papers")?;
+    fs::create_dir_all(&papers_root).map_err(|_| "workspace.operation.failed".to_string())?;
 
     let normalized_relative = relative_path.trim().replace('\\', "/");
     if normalized_relative.is_empty() {

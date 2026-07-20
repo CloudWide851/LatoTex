@@ -250,6 +250,40 @@ fn cached_pdf_file_ready_accepts_valid_pdf_header() {
 }
 
 #[test]
+fn remote_cache_binding_rejects_traversal_cache_file_names() {
+    let project_root = temp_test_dir("binding-traversal");
+    let papers_root = project_root.join(".latotex").join("papers");
+    fs::create_dir_all(&papers_root).unwrap();
+    let source = papers_root.join("paper.bib");
+    fs::write(&source, "@article{paper}\n").unwrap();
+    let outside = project_root.join("outside.pdf");
+    fs::write(&outside, b"%PDF-1.7\noutside\n").unwrap();
+    let ctx = LibraryPdfPreviewContext {
+        project_root: project_root.clone(),
+        papers_root,
+        normalized_relative: "paper.bib".to_string(),
+        source,
+    };
+    let binding_path = remote_pdf_cache_binding_path(&ctx).unwrap();
+    fs::write(
+        &binding_path,
+        serde_json::json!({
+            "sourceUrl": "https://example.test/paper.pdf",
+            "cacheFileName": "../../../outside.pdf",
+            "updatedAtUnixMs": 1
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    assert!(read_remote_cache_binding(&ctx).is_none());
+    assert!(outside.exists());
+    assert!(!binding_path.exists());
+
+    let _ = fs::remove_dir_all(project_root);
+}
+
+#[test]
 fn clear_pdf_cache_entry_removes_temp_download_and_task() {
     let dir = temp_test_dir("clear-cache-entry");
     let cache_path = dir.join("paper.pdf");

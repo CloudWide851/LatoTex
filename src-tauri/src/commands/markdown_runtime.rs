@@ -31,11 +31,17 @@ fn normalize_language(language: &str) -> String {
 
 fn clamp_text(value: &[u8]) -> (String, bool) {
     let truncated = value.len() > MAX_OUTPUT_BYTES;
-    let slice = if truncated { &value[..MAX_OUTPUT_BYTES] } else { value };
+    let slice = if truncated {
+        &value[..MAX_OUTPUT_BYTES]
+    } else {
+        value
+    };
     (String::from_utf8_lossy(slice).to_string(), truncated)
 }
 
-fn command_output_with_timeout(mut command: Command) -> Result<(Vec<u8>, Vec<u8>, Option<i32>), String> {
+fn command_output_with_timeout(
+    mut command: Command,
+) -> Result<(Vec<u8>, Vec<u8>, Option<i32>), String> {
     configure_hidden_process(&mut command);
     let mut child = command
         .stdout(Stdio::piped())
@@ -64,17 +70,30 @@ fn command_output_with_timeout(mut command: Command) -> Result<(Vec<u8>, Vec<u8>
     }
 }
 
-fn run_python(state: &AppState, input: &MarkdownRunCodeInput, run_dir: &Path) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
+fn run_python(
+    state: &AppState,
+    input: &MarkdownRunCodeInput,
+    run_dir: &Path,
+) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
     let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let python_path = find_managed_toolchain_executable(&["python"], &["python.exe", "Scripts/python.exe", "bin/python.exe"], &state.runtime_root)
-        .or_else(|| find_local_toolchain_executable("python"))
-        .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
+    let python_path = find_managed_toolchain_executable(
+        &["python"],
+        &["python.exe", "Scripts/python.exe", "bin/python.exe"],
+        &state.runtime_root,
+    )
+    .or_else(|| find_local_toolchain_executable("python"))
+    .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let script = run_dir.join("snippet.py");
     fs::write(&script, &input.code).map_err(|e| e.to_string())?;
     let mut command = Command::new(&python_path);
     command.current_dir(project_root).arg(script);
     let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
-    Ok((stdout, stderr, exit_code, python_path.to_string_lossy().to_string()))
+    Ok((
+        stdout,
+        stderr,
+        exit_code,
+        python_path.to_string_lossy().to_string(),
+    ))
 }
 
 fn run_c_family(
@@ -84,30 +103,67 @@ fn run_c_family(
     runtime_root: &Path,
 ) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
     let compiler = if language == "c" {
-        find_managed_toolchain_executable(&["c"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe", "bin/clang.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable("c"))
+        find_managed_toolchain_executable(
+            &["c"],
+            &[
+                "llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe",
+                "bin/clang.exe",
+            ],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable("c"))
     } else {
-        find_managed_toolchain_executable(&["cpp"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe", "bin/clang++.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable("cpp"))
+        find_managed_toolchain_executable(
+            &["cpp"],
+            &[
+                "llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe",
+                "bin/clang++.exe",
+            ],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable("cpp"))
     }
     .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
-    let source = run_dir.join(if language == "c" { "snippet.c" } else { "snippet.cpp" });
+    let source = run_dir.join(if language == "c" {
+        "snippet.c"
+    } else {
+        "snippet.cpp"
+    });
     let binary = run_dir.join("snippet.exe");
     fs::write(&source, &input.code).map_err(|e| e.to_string())?;
     let mut compile = Command::new(&compiler);
     if compiler.file_name().and_then(|value| value.to_str()) == Some("cl.exe") {
-        compile.current_dir(run_dir).arg("/nologo").arg(&source).arg(format!("/Fe:{}", binary.to_string_lossy()));
+        compile
+            .current_dir(run_dir)
+            .arg("/nologo")
+            .arg(&source)
+            .arg(format!("/Fe:{}", binary.to_string_lossy()));
     } else {
-        compile.current_dir(run_dir).arg(&source).arg("-O0").arg("-o").arg(&binary);
+        compile
+            .current_dir(run_dir)
+            .arg(&source)
+            .arg("-O0")
+            .arg("-o")
+            .arg(&binary);
     }
     let (compile_out, compile_err, compile_code) = command_output_with_timeout(compile)?;
     if compile_code != Some(0) {
-        return Ok((compile_out, compile_err, compile_code, compiler.to_string_lossy().to_string()));
+        return Ok((
+            compile_out,
+            compile_err,
+            compile_code,
+            compiler.to_string_lossy().to_string(),
+        ));
     }
     let mut run = Command::new(&binary);
     run.current_dir(run_dir);
     let (stdout, stderr, exit_code) = command_output_with_timeout(run)?;
-    Ok((stdout, stderr, exit_code, compiler.to_string_lossy().to_string()))
+    Ok((
+        stdout,
+        stderr,
+        exit_code,
+        compiler.to_string_lossy().to_string(),
+    ))
 }
 
 fn run_go(
@@ -115,15 +171,24 @@ fn run_go(
     run_dir: &Path,
     runtime_root: &Path,
 ) -> Result<(Vec<u8>, Vec<u8>, Option<i32>, String), String> {
-    let runner = find_managed_toolchain_executable(&["go"], &["go/bin/go.exe", "bin/go.exe", "go.exe"], runtime_root)
-        .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"]))
-        .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
+    let runner = find_managed_toolchain_executable(
+        &["go"],
+        &["go/bin/go.exe", "bin/go.exe", "go.exe"],
+        runtime_root,
+    )
+    .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"]))
+    .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let source = run_dir.join("snippet.go");
     fs::write(&source, &input.code).map_err(|e| e.to_string())?;
     let mut command = Command::new(&runner);
     command.current_dir(run_dir).arg("run").arg(&source);
     let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
-    Ok((stdout, stderr, exit_code, runner.to_string_lossy().to_string()))
+    Ok((
+        stdout,
+        stderr,
+        exit_code,
+        runner.to_string_lossy().to_string(),
+    ))
 }
 
 fn run_rust(
@@ -136,15 +201,29 @@ fn run_rust(
     let binary = run_dir.join("snippet.exe");
     fs::write(&source, &input.code).map_err(|e| e.to_string())?;
     let mut compile = Command::new(&compiler);
-    compile.current_dir(run_dir).arg(&source).arg("-o").arg(&binary);
+    compile
+        .current_dir(run_dir)
+        .arg(&source)
+        .arg("-o")
+        .arg(&binary);
     let (compile_out, compile_err, compile_code) = command_output_with_timeout(compile)?;
     if compile_code != Some(0) {
-        return Ok((compile_out, compile_err, compile_code, compiler.to_string_lossy().to_string()));
+        return Ok((
+            compile_out,
+            compile_err,
+            compile_code,
+            compiler.to_string_lossy().to_string(),
+        ));
     }
     let mut run = Command::new(&binary);
     run.current_dir(run_dir);
     let (stdout, stderr, exit_code) = command_output_with_timeout(run)?;
-    Ok((stdout, stderr, exit_code, compiler.to_string_lossy().to_string()))
+    Ok((
+        stdout,
+        stderr,
+        exit_code,
+        compiler.to_string_lossy().to_string(),
+    ))
 }
 
 fn run_zig(
@@ -158,29 +237,64 @@ fn run_zig(
     let mut command = Command::new(&runner);
     command.current_dir(run_dir).arg("run").arg(&source);
     let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
-    Ok((stdout, stderr, exit_code, runner.to_string_lossy().to_string()))
+    Ok((
+        stdout,
+        stderr,
+        exit_code,
+        runner.to_string_lossy().to_string(),
+    ))
 }
 
 fn capability_for_language(runtime_root: &Path, language: &str) -> MarkdownRunCodeCapability {
     let executable = match language {
-        "python" => find_managed_toolchain_executable(&["python"], &["python.exe", "Scripts/python.exe", "bin/python.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable("python")),
-        "c" => find_managed_toolchain_executable(&["c"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe", "bin/clang.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable("c")),
-        "cpp" => find_managed_toolchain_executable(&["cpp"], &["llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe", "bin/clang++.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable("cpp")),
-        "go" => find_managed_toolchain_executable(&["go"], &["go/bin/go.exe", "bin/go.exe", "go.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"])),
-        "rust" => find_managed_toolchain_executable(&["rust"], &["rustc.exe", "bin/rustc.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable_from_names(&["rustc.exe"])),
-        "zig" => find_managed_toolchain_executable(&["zig"], &["zig.exe", "bin/zig.exe"], runtime_root)
-            .or_else(|| find_local_toolchain_executable_from_names(&["zig.exe"])),
+        "python" => find_managed_toolchain_executable(
+            &["python"],
+            &["python.exe", "Scripts/python.exe", "bin/python.exe"],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable("python")),
+        "c" => find_managed_toolchain_executable(
+            &["c"],
+            &[
+                "llvm-mingw-20260519-ucrt-x86_64/bin/clang.exe",
+                "bin/clang.exe",
+            ],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable("c")),
+        "cpp" => find_managed_toolchain_executable(
+            &["cpp"],
+            &[
+                "llvm-mingw-20260519-ucrt-x86_64/bin/clang++.exe",
+                "bin/clang++.exe",
+            ],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable("cpp")),
+        "go" => find_managed_toolchain_executable(
+            &["go"],
+            &["go/bin/go.exe", "bin/go.exe", "go.exe"],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"])),
+        "rust" => find_managed_toolchain_executable(
+            &["rust"],
+            &["rustc.exe", "bin/rustc.exe"],
+            runtime_root,
+        )
+        .or_else(|| find_local_toolchain_executable_from_names(&["rustc.exe"])),
+        "zig" => {
+            find_managed_toolchain_executable(&["zig"], &["zig.exe", "bin/zig.exe"], runtime_root)
+                .or_else(|| find_local_toolchain_executable_from_names(&["zig.exe"]))
+        }
         _ => None,
     };
     MarkdownRunCodeCapability {
         language: language.to_string(),
         available: executable.is_some(),
-        runner: executable.as_ref().map(|path| path.to_string_lossy().to_string()),
+        runner: executable
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string()),
         message: if executable.is_some() {
             "markdown.run.toolchain_ready".to_string()
         } else {
@@ -228,7 +342,10 @@ pub async fn markdown_run_code(
     let state_snapshot = state.inner().clone();
     spawn_blocking(move || {
         let language = normalize_language(&input.language);
-        if !matches!(language.as_str(), "python" | "c" | "cpp" | "go" | "rust" | "zig") {
+        if !matches!(
+            language.as_str(),
+            "python" | "c" | "cpp" | "go" | "rust" | "zig"
+        ) {
             return Err("markdown.run.language_unsupported".to_string());
         }
         let run_dir = state_snapshot
@@ -251,7 +368,11 @@ pub async fn markdown_run_code(
         let (stderr, stderr_truncated) = clamp_text(&stderr_raw);
         Ok(MarkdownRunCodeResponse {
             language,
-            status: if exit_code == Some(0) { "completed".to_string() } else { "failed".to_string() },
+            status: if exit_code == Some(0) {
+                "completed".to_string()
+            } else {
+                "failed".to_string()
+            },
             stdout,
             stderr,
             exit_code,
@@ -278,7 +399,8 @@ mod tests {
 
     #[test]
     fn capability_probe_reports_requested_language_without_preparing_env() {
-        let capability = capability_for_language(Path::new("target/nonexistent-runtime-root"), "python");
+        let capability =
+            capability_for_language(Path::new("target/nonexistent-runtime-root"), "python");
         assert_eq!(capability.language, "python");
         assert!(matches!(
             capability.message.as_str(),

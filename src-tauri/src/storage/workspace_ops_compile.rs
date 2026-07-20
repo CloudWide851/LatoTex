@@ -1,24 +1,58 @@
-fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
-    if source.is_dir() {
-        fs::create_dir_all(target).map_err(|e| e.to_string())?;
-        for item in fs::read_dir(source).map_err(|e| e.to_string())? {
-            let item = item.map_err(|e| e.to_string())?;
+fn validate_recursive_tree_without_links(path: &Path) -> Result<(), String> {
+    let metadata =
+        fs::symlink_metadata(path).map_err(|_| "workspace.path.unavailable".to_string())?;
+    if metadata_is_link_or_reparse(&metadata) {
+        return Err("workspace.path.reparse_denied".to_string());
+    }
+    if metadata.is_dir() {
+        for item in fs::read_dir(path).map_err(|_| "workspace.path.unavailable".to_string())? {
+            let item = item.map_err(|_| "workspace.path.unavailable".to_string())?;
+            validate_recursive_tree_without_links(&item.path())?;
+        }
+    } else if !metadata.is_file() {
+        return Err("workspace.path.unsupported_target".to_string());
+    }
+    Ok(())
+}
+
+fn copy_recursively_inner(source: &Path, target: &Path) -> Result<(), String> {
+    let source_metadata =
+        fs::symlink_metadata(source).map_err(|_| "workspace.path.unavailable".to_string())?;
+    if metadata_is_link_or_reparse(&source_metadata) {
+        return Err("workspace.path.reparse_denied".to_string());
+    }
+    ensure_not_link_or_reparse_if_present(target)?;
+    if source_metadata.is_dir() {
+        fs::create_dir_all(target).map_err(|_| "workspace.operation.failed".to_string())?;
+        for item in fs::read_dir(source).map_err(|_| "workspace.path.unavailable".to_string())? {
+            let item = item.map_err(|_| "workspace.path.unavailable".to_string())?;
             let from = item.path();
             let to = target.join(item.file_name());
-            copy_recursively(&from, &to)?;
+            copy_recursively_inner(&from, &to)?;
         }
         return Ok(());
     }
 
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent).map_err(|_| "workspace.operation.failed".to_string())?;
     }
-    fs::copy(source, target).map_err(|e| e.to_string())?;
+    fs::copy(source, target).map_err(|_| "workspace.operation.failed".to_string())?;
     Ok(())
 }
+
+fn copy_recursively(source: &Path, target: &Path) -> Result<(), String> {
+    validate_recursive_tree_without_links(source)?;
+    if target.exists() {
+        validate_recursive_tree_without_links(target)?;
+    }
+    copy_recursively_inner(source, target)
+}
+
 fn move_recursively(source: &Path, target: &Path) -> Result<(), String> {
+    ensure_not_link_or_reparse_if_present(source)?;
+    ensure_not_link_or_reparse_if_present(target)?;
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent).map_err(|_| "workspace.operation.failed".to_string())?;
     }
     match fs::rename(source, target) {
         Ok(_) => Ok(()),
@@ -26,13 +60,15 @@ fn move_recursively(source: &Path, target: &Path) -> Result<(), String> {
             if error.kind() == io::ErrorKind::CrossesDevices {
                 copy_recursively(source, target)?;
                 if source.is_dir() {
-                    fs::remove_dir_all(source).map_err(|e| e.to_string())?;
+                    fs::remove_dir_all(source)
+                        .map_err(|_| "workspace.operation.failed".to_string())?;
                 } else {
-                    fs::remove_file(source).map_err(|e| e.to_string())?;
+                    fs::remove_file(source)
+                        .map_err(|_| "workspace.operation.failed".to_string())?;
                 }
                 Ok(())
             } else {
-                Err(error.to_string())
+                Err("workspace.operation.failed".to_string())
             }
         }
     }
@@ -63,20 +99,30 @@ fn is_git_workspace(project_root: &Path) -> bool {
 }
 
 fn is_tracked_git_path(project_root: &Path, relative_path: &str) -> bool {
-    run_git_command(project_root, &["ls-files", "--error-unmatch", "--", relative_path])
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    run_git_command(
+        project_root,
+        &["ls-files", "--error-unmatch", "--", relative_path],
+    )
+    .map(|output| output.status.success())
+    .unwrap_or(false)
 }
 
-fn try_git_move(project_root: &Path, source_relative: &str, target_relative: &str) -> Result<bool, String> {
+fn try_git_move(
+    project_root: &Path,
+    source_relative: &str,
+    target_relative: &str,
+) -> Result<bool, String> {
     if !is_git_workspace(project_root) || !is_tracked_git_path(project_root, source_relative) {
         return Ok(false);
     }
     let target_path = project_root.join(target_relative);
     if let Some(parent) = target_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent).map_err(|_| "workspace.operation.failed".to_string())?;
     }
-    let output = run_git_command(project_root, &["mv", "--", source_relative, target_relative])?;
+    let output = run_git_command(
+        project_root,
+        &["mv", "--", source_relative, target_relative],
+    )?;
     Ok(output.status.success())
 }
 
@@ -84,11 +130,11 @@ fn scope_root(project_root: &Path, scope: &str) -> Result<PathBuf, String> {
     match scope {
         "workspace" => Ok(project_root.to_path_buf()),
         "library" => {
-            let root = library_root(project_root);
-            fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+            let root = ensure_mutation_path(project_root, ".latotex/papers")?;
+            fs::create_dir_all(&root).map_err(|_| "workspace.operation.failed".to_string())?;
             Ok(root)
         }
-        _ => Err("Unsupported scope".to_string()),
+        _ => Err("workspace.scope.unsupported".to_string()),
     }
 }
 
@@ -147,7 +193,11 @@ struct LibraryBibMetadataTransfer {
 }
 
 fn normalize_relative_path(relative_path: &str) -> String {
-    relative_path.trim().replace('\\', "/").trim_matches('/').to_string()
+    relative_path
+        .trim()
+        .replace('\\', "/")
+        .trim_matches('/')
+        .to_string()
 }
 
 fn join_relative_path(base: &str, suffix: &str) -> String {
@@ -181,12 +231,19 @@ fn collect_library_bib_relative_paths(
     let mut pending = vec![(source_path.to_path_buf(), normalized_source.clone())];
     let mut collected = Vec::new();
     while let Some((current_path, current_relative)) = pending.pop() {
-        for entry in fs::read_dir(&current_path).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
+        for entry in
+            fs::read_dir(&current_path).map_err(|_| "workspace.path.unavailable".to_string())?
+        {
+            let entry = entry.map_err(|_| "workspace.path.unavailable".to_string())?;
             let entry_path = entry.path();
             let entry_name = entry.file_name().to_string_lossy().to_string();
             let entry_relative = join_relative_path(&current_relative, &entry_name);
-            if entry_path.is_dir() {
+            let metadata = fs::symlink_metadata(&entry_path)
+                .map_err(|_| "workspace.path.unavailable".to_string())?;
+            if metadata_is_link_or_reparse(&metadata) {
+                return Err("workspace.path.reparse_denied".to_string());
+            }
+            if metadata.is_dir() {
                 pending.push((entry_path, entry_relative));
                 continue;
             }
@@ -234,21 +291,29 @@ fn apply_library_bib_metadata_transfer(
     transfer: &LibraryBibMetadataTransfer,
     action: &str,
 ) -> Result<(), String> {
-    let annotation_source = safe_join(
+    let annotation_source = ensure_mutation_path(
         papers_root,
         &to_library_annotation_relative_path(&transfer.source_relative),
     )?;
     let binding_source =
         remote_pdf_cache_binding_path_for_relative_path(papers_root, &transfer.source_relative)?;
-    let annotation_target = transfer.target_relative.as_ref().map(|target_relative| {
-        safe_join(
-            papers_root,
-            &to_library_annotation_relative_path(target_relative),
-        )
-    }).transpose()?;
-    let binding_target = transfer.target_relative.as_ref().map(|target_relative| {
-        remote_pdf_cache_binding_path_for_relative_path(papers_root, target_relative)
-    }).transpose()?;
+    let annotation_target = transfer
+        .target_relative
+        .as_ref()
+        .map(|target_relative| {
+            ensure_mutation_path(
+                papers_root,
+                &to_library_annotation_relative_path(target_relative),
+            )
+        })
+        .transpose()?;
+    let binding_target = transfer
+        .target_relative
+        .as_ref()
+        .map(|target_relative| {
+            remote_pdf_cache_binding_path_for_relative_path(papers_root, target_relative)
+        })
+        .transpose()?;
 
     match action {
         "rename" | "move" => {
@@ -277,10 +342,12 @@ fn apply_library_bib_metadata_transfer(
         }
         "delete" => {
             if annotation_source.exists() {
-                trash::delete(&annotation_source).map_err(|e| e.to_string())?;
+                trash::delete(&annotation_source)
+                    .map_err(|_| "workspace.operation.failed".to_string())?;
             }
             if binding_source.exists() {
-                trash::delete(&binding_source).map_err(|e| e.to_string())?;
+                trash::delete(&binding_source)
+                    .map_err(|_| "workspace.operation.failed".to_string())?;
             }
         }
         _ => {}
@@ -293,7 +360,7 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
     let project_root = load_project_root(db_path, &input.project_id)?;
     let scope = input.scope.trim().to_string();
     let root = scope_root(&project_root, &scope)?;
-    let path = safe_join(&root, &input.path)?;
+    let path = ensure_mutation_path(&root, &input.path)?;
     let target_relative = input.target_path.clone();
     let is_library_bib = scope == "library" && is_library_bib_relative_path(&input.path);
     let library_bib_metadata_transfers = if scope == "library" {
@@ -309,20 +376,28 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
 
     match input.action.as_str() {
         "create_file" => {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            fs::write(&path, input.content.unwrap_or_default()).map_err(|e| e.to_string())?;
+            atomic_write_under_root(
+                &root,
+                &input.path,
+                input.content.unwrap_or_default().as_bytes(),
+                WORKSPACE_TEXT_FILE_LIMIT,
+            )?;
         }
         "create_folder" => {
-            fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+            if path.exists() && !path.is_dir() {
+                return Err("workspace.directory.not_directory".to_string());
+            }
+            fs::create_dir_all(&path).map_err(|_| "workspace.operation.failed".to_string())?;
         }
         "rename" | "move" => {
-            let target_relative = target_relative
-                .ok_or_else(|| "targetPath is required".to_string())?;
-            let target = safe_join(&root, &target_relative)?;
-            let used_git_move = scope == "workspace"
-                && try_git_move(&project_root, &input.path, &target_relative)?;
+            let target_relative =
+                target_relative.ok_or_else(|| "workspace.target.required".to_string())?;
+            let target = ensure_mutation_path(&root, &target_relative)?;
+            if path.is_dir() && target.starts_with(&path) {
+                return Err("workspace.path.recursive_target".to_string());
+            }
+            let used_git_move =
+                scope == "workspace" && try_git_move(&project_root, &input.path, &target_relative)?;
             if !used_git_move {
                 move_recursively(&path, &target)?;
             }
@@ -336,9 +411,12 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
             }
         }
         "copy" => {
-            let target_relative = target_relative
-                .ok_or_else(|| "targetPath is required".to_string())?;
-            let target = safe_join(&root, &target_relative)?;
+            let target_relative =
+                target_relative.ok_or_else(|| "workspace.target.required".to_string())?;
+            let target = ensure_mutation_path(&root, &target_relative)?;
+            if path.is_dir() && target.starts_with(&path) {
+                return Err("workspace.path.recursive_target".to_string());
+            }
             copy_recursively(&path, &target)?;
             if let Some(companion) = companion_pdf_path.as_ref() {
                 if companion.exists() && companion.is_file() {
@@ -351,18 +429,20 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
         }
         "delete" => {
             if path.exists() {
-                trash::delete(&path).map_err(|e| e.to_string())?;
+                trash::delete(&path).map_err(|_| "workspace.operation.failed".to_string())?;
             }
             if let Some(companion) = companion_pdf_path.as_ref() {
                 if companion.exists() {
-                    trash::delete(companion).map_err(|e| e.to_string())?;
+                    ensure_not_link_or_reparse_if_present(companion)?;
+                    trash::delete(companion)
+                        .map_err(|_| "workspace.operation.failed".to_string())?;
                 }
             }
             for transfer in &library_bib_metadata_transfers {
                 apply_library_bib_metadata_transfer(&root, transfer, input.action.as_str())?;
             }
         }
-        _ => return Err("Unsupported file action".to_string()),
+        _ => return Err("workspace.action.unsupported".to_string()),
     }
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;

@@ -6,7 +6,6 @@ use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::fs;
-use std::path::Path;
 use std::time::SystemTime;
 use tauri::State;
 #[path = "analysis_search.rs"]
@@ -144,15 +143,6 @@ fn unix_ms(value: SystemTime) -> i64 {
         .unwrap_or(0)
 }
 
-fn ensure_inside_root(root: &Path, path: &Path) -> Result<(), String> {
-    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
-    let canonical_path = path.canonicalize().map_err(|e| e.to_string())?;
-    if !canonical_path.starts_with(canonical_root) {
-        return Err("Path traversal detected".to_string());
-    }
-    Ok(())
-}
-
 #[tauri::command]
 pub fn reference_check(
     state: State<'_, AppState>,
@@ -178,55 +168,45 @@ pub fn analysis_save_report(
     input: AnalysisSaveReportInput,
 ) -> Result<AnalysisSaveReportResponse, String> {
     let root = storage::load_project_root(&state.db_path, &input.project_id)?;
-    let analysis_root = root.join(".latotex").join("analysis");
-    fs::create_dir_all(&analysis_root).map_err(|e| e.to_string())?;
-
     let default_run_id = chrono::Utc::now().format("%Y%m%d-%H%M%S").to_string();
     let run_id = sanitize_file_name(input.run_id.as_deref().unwrap_or(&default_run_id));
-    let run_dir = analysis_root.join(&run_id);
-    let images_dir = run_dir.join("images");
-    fs::create_dir_all(&images_dir).map_err(|e| e.to_string())?;
+    let run_dir_relative = format!(".latotex/analysis/{run_id}");
 
     let title = input.title.unwrap_or_else(|| "Analysis Report".to_string());
     let html = input.report_html;
-    let report_path = run_dir.join("report.html");
-    fs::write(&report_path, html).map_err(|e| e.to_string())?;
-    let meta_path = run_dir.join("meta.json");
-    fs::write(
-        &meta_path,
-        serde_json::to_string_pretty(&serde_json::json!({
-            "title": title,
-            "runId": run_id,
-            "updatedAt": chrono::Utc::now().to_rfc3339(),
-        }))
-        .map_err(|e| e.to_string())?,
-    )
+    let report_relative_path = format!("{run_dir_relative}/report.html");
+    storage::atomic_write_under_root(
+        &root,
+        &report_relative_path,
+        html.as_bytes(),
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
+    let meta_payload = serde_json::to_vec_pretty(&serde_json::json!({
+        "title": title,
+        "runId": run_id,
+        "updatedAt": chrono::Utc::now().to_rfc3339(),
+    }))
     .map_err(|e| e.to_string())?;
+    storage::atomic_write_under_root(
+        &root,
+        &format!("{run_dir_relative}/meta.json"),
+        &meta_payload,
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
 
     let mut asset_relative_paths = Vec::new();
     for asset in input.assets.unwrap_or_default() {
         let file_name = sanitize_file_name(&asset.file_name);
         let bytes = parse_data_url(&asset.data_url)?;
-        let target_path = images_dir.join(&file_name);
-        fs::write(&target_path, bytes).map_err(|e| e.to_string())?;
-        let rel = target_path
-            .strip_prefix(&root)
-            .map_err(|_| "Failed to resolve relative asset path".to_string())?
-            .to_string_lossy()
-            .replace('\\', "/");
+        let rel = format!("{run_dir_relative}/images/{file_name}");
+        storage::atomic_write_under_root(
+            &root,
+            &rel,
+            &bytes,
+            storage::WORKSPACE_BINARY_FILE_LIMIT,
+        )?;
         asset_relative_paths.push(rel);
     }
-
-    let report_relative_path = report_path
-        .strip_prefix(&root)
-        .map_err(|_| "Failed to resolve report path".to_string())?
-        .to_string_lossy()
-        .replace('\\', "/");
-    let run_dir_relative = run_dir
-        .strip_prefix(&root)
-        .map_err(|_| "Failed to resolve run directory".to_string())?
-        .to_string_lossy()
-        .replace('\\', "/");
 
     state.log(
         "INFO",
@@ -328,11 +308,8 @@ pub fn analysis_export_artifact(
     if relative.is_empty() {
         return Err("Artifact path cannot be empty".to_string());
     }
-    let source_path = root.join(&relative);
-    if !source_path.exists() || !source_path.is_file() {
-        return Err("Artifact file not found".to_string());
-    }
-    ensure_inside_root(&root, &source_path)?;
+    let source_path = storage::safe_join(&root, &relative)?;
+    storage::ensure_workspace_binary_file(&source_path)?;
 
     let default_file_name = input
         .default_file_name
@@ -351,8 +328,9 @@ pub fn analysis_export_artifact(
         return Ok(None);
     };
 
-    let bytes = fs::read(&source_path).map_err(|e| e.to_string())?;
-    fs::write(&save_path, bytes).map_err(|e| e.to_string())?;
+    let bytes =
+        storage::read_binary_under_root(&root, &relative, storage::WORKSPACE_BINARY_FILE_LIMIT)?;
+    storage::atomic_write_file(&save_path, &bytes)?;
     state.log(
         "INFO",
         &format!(

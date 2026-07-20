@@ -45,7 +45,12 @@ fn prompt_terms(prompt: &str) -> Vec<String> {
     out
 }
 
-fn collect_files(root: &Path, current: &Path, depth: usize, out: &mut Vec<PathBuf>) -> Result<(), String> {
+fn collect_files(
+    root: &Path,
+    current: &Path,
+    depth: usize,
+    out: &mut Vec<PathBuf>,
+) -> Result<(), String> {
     if depth > MAX_DEPTH || out.len() >= MAX_FILES * 4 {
         return Ok(());
     }
@@ -96,7 +101,10 @@ fn build_context(db_path: &Path, project_id: &str, prompt: &str) -> Result<Strin
         .filter_map(|path| {
             let content = fs::read_to_string(&path).ok()?;
             let haystack = format!("{} {}", relative(&root, &path), content).to_lowercase();
-            let score = terms.iter().filter(|term| haystack.contains(term.as_str())).count();
+            let score = terms
+                .iter()
+                .filter(|term| haystack.contains(term.as_str()))
+                .count();
             if score == 0 && !relative(&root, &path).ends_with(".bib") {
                 return None;
             }
@@ -155,10 +163,23 @@ pub(super) fn run_stage_workspace_search(
         })
         .unwrap_or(true);
     if !enabled {
-        return Ok("[workspace_search.compact.v1]\nworkspace_read=disabled_by_settings".to_string());
+        return Ok(
+            "[workspace_search.compact.v1]\nworkspace_read=disabled_by_settings".to_string(),
+        );
     }
     let running_actions = json!([{"type":"search","tool":"workspace","status":"running","query":prompt.chars().take(180).collect::<String>()}]);
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "running",
+        title,
+        "",
+        metadata,
+    )?;
     emit_tool_event(
         db_path,
         run_id,
@@ -169,7 +190,10 @@ pub(super) fn run_stage_workspace_search(
         "workspace_search",
         "running",
         "",
-        EventMetadata { actions: Some(&running_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&running_actions),
+            ..metadata
+        },
     )?;
     let context = build_context(db_path, project_id, prompt)?;
     ensure_not_cancelled(cancel_flag)?;
@@ -179,7 +203,8 @@ pub(super) fn run_stage_workspace_search(
         .take(8)
         .map(|path| json!({"path": path}))
         .collect::<Vec<_>>();
-    let success_actions = json!([{"type":"search","tool":"workspace","status":"success","results":files}]);
+    let success_actions =
+        json!([{"type":"search","tool":"workspace","status":"success","results":files}]);
     emit_tool_event(
         db_path,
         run_id,
@@ -190,9 +215,23 @@ pub(super) fn run_stage_workspace_search(
         "workspace_search",
         "success",
         "workspace context collected",
-        EventMetadata { actions: Some(&success_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&success_actions),
+            ..metadata
+        },
     )?;
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "success",
+        title,
+        "",
+        metadata,
+    )?;
     Ok(format!("[workspace_search.compact.v1]\n{context}"))
 }
 
@@ -210,7 +249,8 @@ mod tests {
     use uuid::Uuid;
 
     fn disabled_settings_fixture(name: &str, prefs: serde_json::Value) -> (PathBuf, PathBuf) {
-        let root = std::env::temp_dir().join(format!("latotex-workspace-tool-{name}-{}", Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("latotex-workspace-tool-{name}-{}", Uuid::new_v4()));
         let runtime_root = root.join("runtime");
         let db_path = runtime_root.join("latotex.db");
         fs::create_dir_all(&runtime_root).unwrap();

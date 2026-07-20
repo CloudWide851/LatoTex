@@ -101,7 +101,10 @@ fn skill_manifest_candidates(skill_id: &str) -> Vec<PathBuf> {
 
 fn validate_skill_manifest(path: &Path) -> (bool, Vec<String>) {
     let Ok(content) = std::fs::read_to_string(path) else {
-        return (false, vec!["skill.validation.unreadable_manifest".to_string()]);
+        return (
+            false,
+            vec!["skill.validation.unreadable_manifest".to_string()],
+        );
     };
     let trimmed = content.trim();
     if trimmed.is_empty() {
@@ -121,17 +124,27 @@ fn validate_skill_manifest(path: &Path) -> (bool, Vec<String>) {
             header.push_str(line);
             header.push('\n');
         }
-        if !header.lines().any(|line| line.trim_start().starts_with("name:")) {
+        if !header
+            .lines()
+            .any(|line| line.trim_start().starts_with("name:"))
+        {
             details.push("skill.validation.name_missing".to_string());
         }
-        if !header.lines().any(|line| line.trim_start().starts_with("description:")) {
+        if !header
+            .lines()
+            .any(|line| line.trim_start().starts_with("description:"))
+        {
             details.push("skill.validation.description_missing".to_string());
         }
     }
     (details.is_empty(), details)
 }
 
-fn validate_normalized_skill(db_path: &Path, runtime_root: &Path, skill_id: &str) -> SkillValidationResult {
+fn validate_normalized_skill(
+    db_path: &Path,
+    runtime_root: &Path,
+    skill_id: &str,
+) -> SkillValidationResult {
     let source = if BUILT_IN_SKILLS.iter().any(|item| item == &skill_id) {
         "builtIn"
     } else {
@@ -143,7 +156,11 @@ fn validate_normalized_skill(db_path: &Path, runtime_root: &Path, skill_id: &str
             .into_iter()
             .filter_map(|item| normalize_skill_id(&item))
             .any(|item| item == skill_id);
-        if configured { "configured" } else { "custom" }
+        if configured {
+            "configured"
+        } else {
+            "custom"
+        }
     };
     for candidate in skill_manifest_candidates(skill_id) {
         if !candidate.is_file() {
@@ -208,7 +225,10 @@ mod tests {
     use std::path::PathBuf;
 
     fn temp_manifest_path(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("latotex-skill-test-{name}-{}.md", std::process::id()))
+        std::env::temp_dir().join(format!(
+            "latotex-skill-test-{name}-{}.md",
+            std::process::id()
+        ))
     }
 
     #[test]

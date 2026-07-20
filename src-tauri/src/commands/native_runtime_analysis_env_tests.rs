@@ -1,5 +1,6 @@
 use super::{
     analysis_resource_candidates, runtime_dependency_fingerprint, strip_windows_verbatim_prefix,
+    PDF2ZH_TENCENT_TMT_REQUIREMENT,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -20,6 +21,14 @@ fn strips_windows_verbatim_prefixes() {
     assert_eq!(
         strip_windows_verbatim_prefix("\\\\?\\UNC\\server\\share\\demo"),
         "//server/share/demo"
+    );
+}
+
+#[test]
+fn pdf2zh_runtime_pins_the_compatible_tencent_tmt_api() {
+    assert_eq!(
+        PDF2ZH_TENCENT_TMT_REQUIREMENT,
+        "tencentcloud-sdk-python-tmt<3.1"
     );
 }
 

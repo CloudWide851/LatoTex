@@ -113,6 +113,19 @@ pub struct ShareSessionCreateInput {
     pub session_name: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareOwnerAuthInput {
+    pub session_id: String,
+    pub username: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionSecretInput {
+    pub session_id: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ShareParticipantInfo {
@@ -120,6 +133,13 @@ pub struct ShareParticipantInfo {
     pub username: String,
     pub last_seen_at: String,
     pub last_action: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareOwnerAuth {
+    pub participant_id: String,
+    pub participant_token: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -138,7 +158,6 @@ pub struct ShareSessionInfo {
     pub remote_join_url: Option<String>,
     pub active_join_url: Option<String>,
     pub password_required: Option<bool>,
-    pub password: Option<String>,
     pub expires_at: Option<String>,
     pub status: Option<String>,
     pub pdf_state: Option<String>,
@@ -150,6 +169,20 @@ pub struct ShareSessionInfo {
     pub tunnel_error: Option<String>,
     #[serde(default)]
     pub participants: Vec<ShareParticipantInfo>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionCreateResult {
+    pub session: ShareSessionInfo,
+    pub owner_auth: ShareOwnerAuth,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionPasswordResult {
+    pub password: String,
 }
 
 #[derive(Debug, Deserialize)]

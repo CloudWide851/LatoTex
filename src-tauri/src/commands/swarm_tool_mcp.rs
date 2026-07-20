@@ -35,7 +35,10 @@ fn configured_server(
     server_id: &str,
 ) -> Result<McpServerConfig, String> {
     let settings = storage::load_settings(db_path, runtime_root)?;
-    let prefs = settings.ui_prefs.as_ref().and_then(|prefs| prefs.agent_tool_prefs.as_ref());
+    let prefs = settings
+        .ui_prefs
+        .as_ref()
+        .and_then(|prefs| prefs.agent_tool_prefs.as_ref());
     if prefs.and_then(|prefs| prefs.mcp_enabled).unwrap_or(true) == false {
         return Err("mcp.disabled_by_settings".to_string());
     }
@@ -76,10 +79,21 @@ fn run_json_rpc_probe(server: &McpServerConfig) -> Result<String, String> {
     for (key, value) in server.env.clone().unwrap_or_default() {
         command.env(key, value);
     }
-    command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = command.spawn().map_err(|e| format!("mcp.spawn_failed:{e}"))?;
-    let mut stdin = child.stdin.take().ok_or_else(|| "mcp.stdin_unavailable".to_string())?;
-    let stdout = child.stdout.take().ok_or_else(|| "mcp.stdout_unavailable".to_string())?;
+    command
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("mcp.spawn_failed:{e}"))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "mcp.stdin_unavailable".to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "mcp.stdout_unavailable".to_string())?;
     let (tx, rx) = mpsc::channel::<String>();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
@@ -187,8 +201,20 @@ pub(super) fn run_stage_mcp_call(
     ensure_not_cancelled(cancel_flag)?;
     let server_id = parse_server_id(source);
     let server = configured_server(db_path, runtime_root, &server_id)?;
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
-    let running_actions = json!([{"type":"call","tool":"mcp","status":"running","serverId":server_id.clone()}]);
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "running",
+        title,
+        "",
+        metadata,
+    )?;
+    let running_actions =
+        json!([{"type":"call","tool":"mcp","status":"running","serverId":server_id.clone()}]);
     emit_tool_event(
         db_path,
         run_id,
@@ -199,11 +225,15 @@ pub(super) fn run_stage_mcp_call(
         "mcp_call",
         "running",
         &server_id,
-        EventMetadata { actions: Some(&running_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&running_actions),
+            ..metadata
+        },
     )?;
     let output = run_json_rpc_probe(&server)?;
     ensure_not_cancelled(cancel_flag)?;
-    let success_actions = json!([{"type":"call","tool":"mcp","status":"success","serverId":server_id.clone()}]);
+    let success_actions =
+        json!([{"type":"call","tool":"mcp","status":"success","serverId":server_id.clone()}]);
     emit_tool_event(
         db_path,
         run_id,
@@ -214,9 +244,23 @@ pub(super) fn run_stage_mcp_call(
         "mcp_call",
         "success",
         "mcp server responded",
-        EventMetadata { actions: Some(&success_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&success_actions),
+            ..metadata
+        },
     )?;
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "success",
+        title,
+        "",
+        metadata,
+    )?;
     Ok(format!("[mcp.response.v1]\nserver={server_id}\n{output}"))
 }
 

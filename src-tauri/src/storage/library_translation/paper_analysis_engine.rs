@@ -1,5 +1,5 @@
 use super::{
-    library_citation_summary, library_root, resolve_translation_source_pdf_workspace,
+    PaperRuntimeRunDir, library_citation_summary, resolve_translation_source_pdf_workspace,
     to_library_relative_from_workspace,
 };
 use crate::commands::native_runtime::{
@@ -7,6 +7,7 @@ use crate::commands::native_runtime::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use crate::storage;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,7 +15,6 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use std::{hash::Hash, hash::Hasher};
-use uuid::Uuid;
 
 const PAPER_ANALYSIS_CHUNK_MAX_CHARS: usize = 10_000;
 const PAPER_ANALYSIS_TIMEOUT: Duration = Duration::from_secs(45);
@@ -157,11 +157,8 @@ fn run_extract_bridge(
         "operation": "extract",
         "pdfPath": source_pdf_path,
     });
-    fs::write(
-        &input_path,
-        serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
+    let payload = serde_json::to_vec_pretty(&payload).map_err(|error| error.to_string())?;
+    storage::atomic_write_file(&input_path, &payload)?;
 
     let mut command = Command::new(python_path);
     configure_hidden_process(&mut command);
@@ -185,7 +182,10 @@ fn run_extract_bridge(
                     let output = child
                         .wait_with_output()
                         .map_err(|error| format!("analysis.paper_extract.timeout_wait_failed: {error}"))?;
-                    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                    let stderr = crate::logging::sanitize_log_message_with_limit(
+                        &String::from_utf8_lossy(&output.stderr),
+                        320,
+                    );
                     let detail = if stderr.is_empty() {
                         format!("timed out after {}s", PAPER_ANALYSIS_TIMEOUT.as_secs())
                     } else {
@@ -208,13 +208,23 @@ fn run_extract_bridge(
         .wait_with_output()
         .map_err(|error| format!("analysis.paper_extract.wait_output_failed: {error}"))?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = crate::logging::sanitize_log_message_with_limit(
+            &String::from_utf8_lossy(&output.stderr),
+            320,
+        );
+        let stdout = crate::logging::sanitize_log_message_with_limit(
+            &String::from_utf8_lossy(&output.stdout),
+            320,
+        );
         let detail = if !stderr.is_empty() { stderr } else { stdout };
         return Err(format!("analysis.paper_extract.failed: {detail}"));
     }
 
-    let output_json = fs::read_to_string(&output_path).map_err(|error| error.to_string())?;
+    let output_json = String::from_utf8(storage::read_file_with_limit(
+        &output_path,
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?)
+    .map_err(|_| "workspace.file_read.invalid_utf8".to_string())?;
     serde_json::from_str(&output_json)
         .map_err(|error| format!("analysis.paper_extract.invalid_json: {error}"))
 }
@@ -223,7 +233,7 @@ fn paper_extract_cache_path(
     project_root: &Path,
     source_pdf_path: &Path,
 ) -> Result<PathBuf, String> {
-    let metadata = fs::metadata(source_pdf_path).map_err(|error| error.to_string())?;
+    let metadata = storage::ensure_workspace_binary_file(source_pdf_path)?;
     let modified = metadata
         .modified()
         .ok()
@@ -234,11 +244,11 @@ fn paper_extract_cache_path(
     source_pdf_path.to_string_lossy().hash(&mut hasher);
     metadata.len().hash(&mut hasher);
     modified.hash(&mut hasher);
-    let cache_dir = project_root
-        .join(".latotex")
-        .join("paper-runtime")
-        .join("cache");
-    fs::create_dir_all(&cache_dir).map_err(|error| error.to_string())?;
+    let cache_dir = storage::prepare_workspace_mutation_path(
+        project_root,
+        ".latotex/paper-runtime/cache",
+    )?;
+    fs::create_dir_all(&cache_dir).map_err(|_| "workspace.operation.failed".to_string())?;
     Ok(cache_dir.join(format!("{:016x}.json", hasher.finish())))
 }
 
@@ -248,7 +258,14 @@ fn load_cached_paper_extract(
     if !cache_path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(cache_path).map_err(|error| error.to_string())?;
+    if storage::workspace_path_is_link_or_reparse(cache_path)? {
+        return Err("workspace.path.reparse_denied".to_string());
+    }
+    let content = String::from_utf8(storage::read_file_with_limit(
+        cache_path,
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?)
+    .map_err(|_| "workspace.file_read.invalid_utf8".to_string())?;
     let cached = serde_json::from_str::<crate::models::LibraryPaperExtractResponse>(&content)
         .map_err(|error| format!("analysis.paper_extract.cache_invalid: {error}"))?;
     Ok(Some(cached))
@@ -259,7 +276,7 @@ fn save_cached_paper_extract(
     response: &crate::models::LibraryPaperExtractResponse,
 ) -> Result<(), String> {
     let content = serde_json::to_string(response).map_err(|error| error.to_string())?;
-    fs::write(cache_path, content).map_err(|error| error.to_string())
+    storage::atomic_write_file(cache_path, content.as_bytes())
 }
 
 pub(super) fn extract_library_paper_context(
@@ -270,8 +287,8 @@ pub(super) fn extract_library_paper_context(
     relative_path: &str,
 ) -> Result<crate::models::LibraryPaperExtractResponse, String> {
     let project_root = super::load_project_root(db_path, project_id)?;
-    let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|error| error.to_string())?;
+    let papers_root = storage::prepare_workspace_mutation_path(&project_root, ".latotex/papers")?;
+    fs::create_dir_all(&papers_root).map_err(|_| "workspace.operation.failed".to_string())?;
 
     let normalized_relative = relative_path.trim().replace('\\', "/");
     if normalized_relative.is_empty() {
@@ -283,10 +300,8 @@ pub(super) fn extract_library_paper_context(
             .map_err(|error| error.status_message())?;
     let source_pdf_relative = to_library_relative_from_workspace(&preview_relative_path)
         .map_err(|error| error.status_message())?;
-    let source_pdf_path = papers_root.join(Path::new(&source_pdf_relative));
-    if !source_pdf_path.exists() || !source_pdf_path.is_file() {
-        return Err("translation.source_pdf_not_found".to_string());
-    }
+    let source_pdf_path = storage::safe_join(&papers_root, &source_pdf_relative)?;
+    storage::ensure_workspace_binary_file(&source_pdf_path)?;
     let cache_path = paper_extract_cache_path(&project_root, &source_pdf_path)?;
     if let Some(cached) = load_cached_paper_extract(&cache_path)? {
         return Ok(cached);
@@ -307,13 +322,10 @@ pub(super) fn extract_library_paper_context(
     );
     let runtime_root = resolve_analysis_runtime_root()
         .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
-    let run_root = project_root
-        .join(".latotex")
-        .join("paper-runtime")
-        .join(Uuid::new_v4().to_string());
-    fs::create_dir_all(&run_root).map_err(|error| error.to_string())?;
+    let run_dir = PaperRuntimeRunDir::create(app_runtime_root)?;
+    let run_root = run_dir.path();
 
-    let extraction = run_extract_bridge(&python_path, &runtime_root, &run_root, &source_pdf_path)?;
+    let extraction = run_extract_bridge(&python_path, &runtime_root, run_root, &source_pdf_path)?;
     let citation = library_citation_summary(db_path, project_id, &normalized_relative)?;
     let title = citation
         .title

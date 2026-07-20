@@ -1,5 +1,5 @@
 use super::{
-    LibraryTranslateFailure, TranslationModelCandidate, library_root, refresh_library_index,
+    LibraryTranslateFailure, PaperRuntimeRunDir, TranslationModelCandidate, refresh_library_index,
     refresh_workspace_index, resolve_translation_model_candidates,
     resolve_translation_source_pdf_workspace, to_library_relative_from_workspace,
     to_library_workspace_relative, touch_project_updated_at, translation_pdf_relative_path,
@@ -8,6 +8,7 @@ use crate::commands::native_runtime::{
     configure_hidden_process, ensure_analysis_env_blocking, resolve_analysis_runtime_root,
 };
 use crate::secure;
+use crate::storage;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::fs;
@@ -17,7 +18,6 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
-use uuid::Uuid;
 
 #[derive(Clone)]
 struct PdfMathTranslateServiceConfig {
@@ -93,13 +93,10 @@ fn summarize_output(label: &str, bytes: &[u8]) -> Option<String> {
     if text.is_empty() {
         return None;
     }
-    let compact = text.replace('\r', " ").replace('\n', " | ");
-    let tail = if compact.len() > 600 {
-        compact[compact.len() - 600..].to_string()
-    } else {
-        compact
-    };
-    Some(format!("{label}={tail}"))
+    Some(crate::logging::sanitize_log_message_with_limit(
+        &format!("{label}={text}"),
+        640,
+    ))
 }
 
 fn normalize_runtime_path_text(path: &Path) -> String {
@@ -150,9 +147,12 @@ fn resolve_service_configs(
             });
             continue;
         }
-        diagnostics.push(format!(
-            "use model={model_label}: provider=openai-compatible base_url={}",
-            candidate.base_url
+        diagnostics.push(crate::logging::sanitize_log_message_with_limit(
+            &format!(
+                "use model={model_label}: provider=openai-compatible base_url={}",
+                candidate.base_url
+            ),
+            320,
         ));
         configs.push(PdfMathTranslateServiceConfig {
             kind: "openai".to_string(),
@@ -173,13 +173,27 @@ fn resolve_service_configs(
     Ok(configs)
 }
 
-fn copy_generated_pdf(source: &Path, target: &Path) -> Result<(), LibraryTranslateFailure> {
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new()))?;
+fn copy_generated_pdf(
+    source: &Path,
+    papers_root: &Path,
+    target_relative: &str,
+) -> Result<(), LibraryTranslateFailure> {
+    if storage::workspace_path_is_link_or_reparse(source)
+        .map_err(LibraryTranslateFailure::from_message)?
+    {
+        return Err(LibraryTranslateFailure::from_message(
+            "workspace.path.reparse_denied",
+        ));
     }
-    fs::copy(source, target)
-        .map_err(|error| LibraryTranslateFailure::new("translation.fs.copy_failed", error.to_string(), Vec::new()))?;
+    let bytes = storage::read_file_with_limit(source, storage::WORKSPACE_BINARY_FILE_LIMIT)
+        .map_err(LibraryTranslateFailure::from_message)?;
+    storage::atomic_write_under_root(
+        papers_root,
+        target_relative,
+        &bytes,
+        storage::WORKSPACE_BINARY_FILE_LIMIT,
+    )
+    .map_err(LibraryTranslateFailure::from_message)?;
     Ok(())
 }
 
@@ -201,14 +215,22 @@ fn parse_runtime_failure(
         return None;
     }
     let error = serde_json::from_value::<PaperRuntimeErrorPayload>(value.get("error")?.clone()).ok()?;
-    let mut diagnostics = error.diagnostics;
+    let mut diagnostics = error
+        .diagnostics
+        .iter()
+        .map(|item| crate::logging::sanitize_log_message_with_limit(item, 320))
+        .collect::<Vec<_>>();
     if let Some(item) = summarize_output("stdout", stdout) {
         diagnostics.push(item);
     }
     if let Some(item) = summarize_output("stderr", stderr) {
         diagnostics.push(item);
     }
-    Some(LibraryTranslateFailure::new(error.code, error.message, diagnostics))
+    Some(LibraryTranslateFailure::new(
+        error.code,
+        crate::logging::sanitize_log_message_with_limit(&error.message, 320),
+        diagnostics,
+    ))
 }
 
 fn run_pdfmathtranslate_bridge<F>(
@@ -242,13 +264,11 @@ where
             "model": service.model,
         }
     });
-    fs::write(
-        &input_path,
-        serde_json::to_string_pretty(&payload).map_err(|error| {
+    let payload = serde_json::to_vec_pretty(&payload).map_err(|error| {
             LibraryTranslateFailure::new("translation.payload.serialize_failed", error.to_string(), Vec::new())
-        })?,
-    )
-    .map_err(|error| LibraryTranslateFailure::new("translation.fs.write_failed", error.to_string(), Vec::new()))?;
+        })?;
+    storage::atomic_write_file(&input_path, &payload)
+        .map_err(LibraryTranslateFailure::from_message)?;
 
     let mut command = Command::new(python_path);
     configure_hidden_process(&mut command);
@@ -325,7 +345,9 @@ where
         .map(|value| value.clone())
         .unwrap_or_default();
 
-    let output_json = fs::read_to_string(&output_path).ok();
+    let output_json = storage::read_file_with_limit(&output_path, storage::WORKSPACE_TEXT_FILE_LIMIT)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok());
     if !status.success() {
         if let Some(failure) = parse_runtime_failure(output_json.as_deref(), &stdout, &stderr) {
             return Err(failure);
@@ -407,19 +429,18 @@ where
 {
     let project_root = super::load_project_root(db_path, project_id)
         .map_err(LibraryTranslateFailure::from_message)?;
-    let papers_root = library_root(&project_root);
+    let papers_root = storage::prepare_workspace_mutation_path(&project_root, ".latotex/papers")
+        .map_err(LibraryTranslateFailure::from_message)?;
     fs::create_dir_all(&papers_root)
-        .map_err(|error| LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new()))?;
+        .map_err(|_| LibraryTranslateFailure::from_message("workspace.operation.failed"))?;
 
     let source_pdf_workspace_relative =
         resolve_translation_source_pdf_workspace(db_path, project_id, relative_path)?;
     let source_pdf_relative = to_library_relative_from_workspace(&source_pdf_workspace_relative)?;
-    let source_pdf_path = papers_root.join(Path::new(&source_pdf_relative));
-    if !source_pdf_path.exists() || !source_pdf_path.is_file() {
-        return Err(LibraryTranslateFailure::from_message(
-            "translation.source_pdf_not_found",
-        ));
-    }
+    let source_pdf_path = storage::safe_join(&papers_root, &source_pdf_relative)
+        .map_err(LibraryTranslateFailure::from_message)?;
+    storage::ensure_workspace_binary_file(&source_pdf_path)
+        .map_err(LibraryTranslateFailure::from_message)?;
 
     on_progress(0, 0, "preparing");
     let env_status = ensure_analysis_env_blocking(
@@ -442,12 +463,9 @@ where
     })?;
     let target_language = preferred_target_language(target_language);
     let service_configs = resolve_service_configs(db_path, app_runtime_root, model_override)?;
-    let run_root = project_root
-        .join(".latotex")
-        .join("paper-runtime")
-        .join(Uuid::new_v4().to_string());
-    fs::create_dir_all(&run_root)
-        .map_err(|error| LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new()))?;
+    let run_dir = PaperRuntimeRunDir::create(app_runtime_root)
+        .map_err(LibraryTranslateFailure::from_message)?;
+    let run_root = run_dir.path();
 
     let mut last_error = None;
     for service in service_configs {
@@ -458,7 +476,7 @@ where
         match run_pdfmathtranslate_bridge(
             &python_path,
             &analysis_runtime_root,
-            &run_root,
+            run_root,
             &source_pdf_path,
             &target_language,
             &service,
@@ -469,18 +487,15 @@ where
                     LibraryTranslateFailure::from_message("translation.pdfmathtranslate.mono_missing")
                 })?);
                 let translated_relative = translation_pdf_relative_path(&source_pdf_relative);
-                let translated_abs = papers_root.join(Path::new(&translated_relative));
-
                 on_progress(0, translated.page_count.max(1), "rendering");
-                copy_generated_pdf(&mono_pdf, &translated_abs)?;
+                copy_generated_pdf(&mono_pdf, &papers_root, &translated_relative)?;
 
                 let mut artifact_paths = Vec::<String>::new();
                 if let Some(dual_pdf) = translated.dual_pdf.as_ref() {
                     let dual_abs = PathBuf::from(dual_pdf);
                     if dual_abs.exists() {
                         let dual_relative = dual_pdf_relative_path(&source_pdf_relative);
-                        let dual_target = papers_root.join(Path::new(&dual_relative));
-                        copy_generated_pdf(&dual_abs, &dual_target)?;
+                        copy_generated_pdf(&dual_abs, &papers_root, &dual_relative)?;
                         artifact_paths.push(to_library_workspace_relative(&dual_relative));
                     }
                 }
@@ -526,76 +541,8 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        dual_pdf_relative_path, is_anthropic_candidate, is_gemini_candidate,
-        normalize_runtime_path_text, parse_runtime_progress_line, preferred_target_language,
-    };
-    use crate::storage::TranslationModelCandidate;
-    use std::path::Path;
-
-    fn candidate(base_url: &str, model_name: &str) -> TranslationModelCandidate {
-        TranslationModelCandidate {
-            model_id: "model-1".to_string(),
-            base_url: base_url.to_string(),
-            model_name: model_name.to_string(),
-        }
-    }
-
-    #[test]
-    fn defaults_target_language_to_simplified_chinese() {
-        assert_eq!(preferred_target_language(None), "Chinese (Simplified)");
-        assert_eq!(preferred_target_language(Some("  ")), "Chinese (Simplified)");
-    }
-
-    #[test]
-    fn detects_gemini_candidates_by_url_or_model_name() {
-        assert!(is_gemini_candidate(&candidate(
-            "https://generativelanguage.googleapis.com/v1beta",
-            "custom-model"
-        )));
-        assert!(is_gemini_candidate(&candidate(
-            "https://example.invalid/v1",
-            "gemini-2.5-pro"
-        )));
-    }
-
-    #[test]
-    fn detects_anthropic_candidates_by_url_or_model_name() {
-        assert!(is_anthropic_candidate(&candidate(
-            "https://api.anthropic.com/v1",
-            "custom-model"
-        )));
-        assert!(is_anthropic_candidate(&candidate(
-            "https://example.invalid/v1",
-            "claude-3-7-sonnet"
-        )));
-    }
-
-    #[test]
-    fn keeps_dual_pdf_path_aligned_with_translated_path() {
-        let dual = dual_pdf_relative_path("library/papers/example.pdf");
-        assert!(dual.ends_with(".dual.pdf"));
-        assert!(!dual.contains(".translated.pdf"));
-    }
-
-    #[test]
-    fn strips_windows_verbatim_prefix_from_runtime_paths() {
-        let normalized = normalize_runtime_path_text(Path::new("\\\\?\\C:\\papers\\demo.pdf"));
-        assert_eq!(normalized, "C:\\papers\\demo.pdf");
-    }
-
-    #[test]
-    fn parses_runtime_progress_lines() {
-        let parsed = parse_runtime_progress_line(
-            "LATOTEX_PROGRESS {\"stage\":\"translating\",\"currentPage\":3,\"totalPages\":12,\"message\":null}",
-        )
-        .expect("progress payload");
-        assert_eq!(parsed.0, 3);
-        assert_eq!(parsed.1, 12);
-        assert_eq!(parsed.2, "translating");
-    }
-}
+#[path = "paper_translation_engine_tests.rs"]
+mod tests;
 
 fn parse_runtime_progress_line(line: &str) -> Option<(u32, u32, String)> {
     let payload = line.strip_prefix(PAPER_RUNTIME_PROGRESS_PREFIX)?.trim();

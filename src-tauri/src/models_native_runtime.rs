@@ -28,6 +28,15 @@ pub struct LatexCompileResponse {
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct NativeRuntimeFailure {
+    pub code: String,
+    pub stage: String,
+    pub retryable: bool,
+    pub diagnostics: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalysisEnvStatusResponse {
     pub ready: bool,
     pub exists: bool,
@@ -35,18 +44,27 @@ pub struct AnalysisEnvStatusResponse {
     pub managed_root: String,
     pub uv_path: Option<String>,
     pub uv_version: Option<String>,
+    pub uv_source: Option<String>,
     pub python_path: Option<String>,
     pub python_version: Option<String>,
     pub pdf_math_translate_version: Option<String>,
     pub venv_path: String,
     pub runtime_root: String,
     pub last_error: Option<String>,
+    pub failure: Option<NativeRuntimeFailure>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisEnvPrepareStartResponse {
     pub task_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisEnvPrepareInput {
+    pub project_id: String,
+    pub retry: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,6 +84,7 @@ pub struct AnalysisEnvPrepareStatusResponse {
     pub current_item: Option<String>,
     pub error: Option<String>,
     pub diagnostics: Vec<String>,
+    pub failure: Option<NativeRuntimeFailure>,
     pub result: Option<AnalysisEnvStatusResponse>,
 }
 

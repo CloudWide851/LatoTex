@@ -116,7 +116,10 @@ fn venv_env_pairs(venv_path: &Path) -> Vec<(String, String)> {
         .and_then(|value| value.to_str())
         .unwrap_or("venv");
     vec![
-        ("VIRTUAL_ENV".to_string(), venv_path.to_string_lossy().to_string()),
+        (
+            "VIRTUAL_ENV".to_string(),
+            venv_path.to_string_lossy().to_string(),
+        ),
         ("VIRTUAL_ENV_PROMPT".to_string(), format!("({prompt}) ")),
         ("PATH".to_string(), next_path),
         ("TERM".to_string(), "xterm-256color".to_string()),
@@ -563,7 +566,10 @@ mod tests {
         if cfg!(target_os = "windows") {
             assert!(powershell.shell.to_lowercase().contains("powershell"));
             assert!(powershell.args.iter().any(|arg| arg == "-NoProfile"));
-            assert!(powershell.args.iter().any(|arg| arg.contains("Activate.ps1")));
+            assert!(powershell
+                .args
+                .iter()
+                .any(|arg| arg.contains("Activate.ps1")));
             let cmd = terminal_shell_command("cmd", &cwd, &venv);
             assert!(cmd.args.iter().any(|arg| arg.contains("activate.bat")));
         } else {

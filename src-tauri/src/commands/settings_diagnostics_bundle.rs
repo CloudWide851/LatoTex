@@ -58,25 +58,7 @@ struct ResourceStatus {
 }
 
 fn sanitize_log_line(line: &str) -> String {
-    let lower = line.to_ascii_lowercase();
-    let sensitive = [
-        "api_key",
-        "apikey",
-        "authorization",
-        "bearer ",
-        "password",
-        "secret",
-        "token",
-        "x-api-key",
-    ];
-    if sensitive.iter().any(|needle| lower.contains(needle)) {
-        return "[redacted sensitive log line]".to_string();
-    }
-    let mut out = line.chars().take(LOG_LINE_LIMIT).collect::<String>();
-    if line.chars().count() > LOG_LINE_LIMIT {
-        out.push_str("...");
-    }
-    out
+    crate::logging::sanitize_log_message_with_limit(line, LOG_LINE_LIMIT)
 }
 
 fn read_log_tail(path: &Path) -> Vec<String> {

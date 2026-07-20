@@ -27,5 +27,8 @@ pub(super) fn normalize_share_comment_quote(value: &str) -> String {
 }
 
 pub(super) fn normalize_share_sync_update(value: &str) -> String {
-    value.chars().take(MAX_SHARE_SYNC_UPDATE_CHARS).collect::<String>()
+    value
+        .chars()
+        .take(MAX_SHARE_SYNC_UPDATE_CHARS)
+        .collect::<String>()
 }

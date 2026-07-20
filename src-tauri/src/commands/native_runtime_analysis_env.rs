@@ -1,7 +1,12 @@
+use super::native_runtime_analysis_coord::coordinate_analysis_env_prepare;
+use super::native_runtime_analysis_install::{
+    install_python_package, install_python_requirement, PDF2ZH_TENCENT_TMT_REQUIREMENT,
+};
 use super::native_runtime_analysis_uv::{
-    configure_uv_command, ensure_managed_python, resolve_uv_path, MANAGED_PYTHON_VERSION,
+    configure_uv_command, ensure_managed_python, resolve_uv, ResolvedUv, MANAGED_PYTHON_VERSION,
 };
 use super::native_runtime_common::{configure_hidden_process, try_version_command};
+use super::native_runtime_failure::public_native_runtime_error;
 use crate::models::AnalysisEnvStatusResponse;
 use crate::storage;
 use ring::digest::{digest, SHA256};
@@ -38,7 +43,8 @@ pub(crate) fn resolve_pdfmathtranslate_vendor_root() -> Option<PathBuf> {
     analysis_resource_candidates("resources/python/vendor/pdf2zh")
         .into_iter()
         .find(|candidate| {
-            candidate.join("pyproject.toml").exists() && candidate.join("pdf2zh/__init__.py").exists()
+            candidate.join("pyproject.toml").exists()
+                && candidate.join("pdf2zh/__init__.py").exists()
         })
 }
 
@@ -137,15 +143,16 @@ pub(crate) fn resolve_analysis_env_paths(
     let env_key = project_env_key(project_root)?;
     let install_root = managed_analysis_root(runtime_root);
     let legacy_root = legacy_managed_analysis_root(app_data_dir);
-    let base_root = configured_analysis_base_root(db_path, runtime_root, project_id).unwrap_or_else(|| {
-        if install_root.join(&env_key).exists() {
-            install_root.clone()
-        } else if legacy_root.join(&env_key).exists() {
-            legacy_root
-        } else {
-            install_root.clone()
-        }
-    });
+    let base_root = configured_analysis_base_root(db_path, runtime_root, project_id)
+        .unwrap_or_else(|| {
+            if install_root.join(&env_key).exists() {
+                install_root.clone()
+            } else if legacy_root.join(&env_key).exists() {
+                legacy_root
+            } else {
+                install_root.clone()
+            }
+        });
     let managed_root = base_root.join(&env_key);
     let venv_path = managed_root.join("venv");
     let python_path = venv_python_path_from_venv_root(&venv_path);
@@ -256,61 +263,6 @@ fn pdf2zh_entry_ready(python_path: &Path) -> bool {
     }
 }
 
-fn install_python_package(
-    uv_path: &Path,
-    runtime_root: &Path,
-    python_path: &Path,
-    package_spec: &Path,
-    editable: bool,
-) -> Result<(), String> {
-    let mut command = Command::new(uv_path);
-    configure_uv_command(&mut command, runtime_root);
-    command
-        .arg("pip")
-        .arg("install")
-        .arg("--python")
-        .arg(python_path);
-    if editable {
-        command.arg("-e");
-    }
-    let output = command
-        .arg(package_spec)
-        .output()
-        .map_err(|e| format!("python.env.install_spawn_failed: {e}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        return Err(format!("python.env.install_failed: {detail}"));
-    }
-    Ok(())
-}
-
-fn install_python_requirement(
-    uv_path: &Path,
-    runtime_root: &Path,
-    python_path: &Path,
-    requirement: &str,
-) -> Result<(), String> {
-    let mut command = Command::new(uv_path);
-    configure_uv_command(&mut command, runtime_root);
-    let output = command
-        .arg("pip")
-        .arg("install")
-        .arg("--python")
-        .arg(python_path)
-        .arg(requirement)
-        .output()
-        .map_err(|e| format!("python.env.install_spawn_failed: {e}"))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let detail = if !stderr.is_empty() { stderr } else { stdout };
-        return Err(format!("python.env.install_failed: {detail}"));
-    }
-    Ok(())
-}
-
 fn ensure_runtime_packages<F>(
     uv_path: &Path,
     app_runtime_root: &Path,
@@ -325,21 +277,52 @@ where
 {
     let fingerprint = runtime_dependency_fingerprint(runtime_root, vendor_root)?;
     let stamp_path = runtime_dependency_stamp_path(managed_root);
-    if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str()) {
+    if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str())
+        && python_module_version(python_path, "pdf2zh").is_some()
+        && pdf2zh_entry_ready(python_path)
+    {
         on_progress(92.0, "verifying", Some("runtime-cache-hit"));
         return Ok(());
     }
 
     if let Some(vendor_root) = vendor_root {
-        on_progress(52.0, "installing_pdf2zh", vendor_root.file_name().and_then(|value| value.to_str()));
+        on_progress(
+            46.0,
+            "installing_pdf2zh",
+            Some(PDF2ZH_TENCENT_TMT_REQUIREMENT),
+        );
+        install_python_requirement(
+            uv_path,
+            app_runtime_root,
+            python_path,
+            PDF2ZH_TENCENT_TMT_REQUIREMENT,
+        )?;
+        on_progress(
+            52.0,
+            "installing_pdf2zh",
+            vendor_root.file_name().and_then(|value| value.to_str()),
+        );
         install_python_package(uv_path, app_runtime_root, python_path, vendor_root, false)?;
     } else {
+        install_python_requirement(
+            uv_path,
+            app_runtime_root,
+            python_path,
+            PDF2ZH_TENCENT_TMT_REQUIREMENT,
+        )?;
         on_progress(52.0, "installing_pdf2zh", Some("pdf2zh>=1.9.11,<2"));
         install_python_requirement(uv_path, app_runtime_root, python_path, "pdf2zh>=1.9.11,<2")?;
     }
-    on_progress(78.0, "installing_runtime", runtime_root.file_name().and_then(|value| value.to_str()));
+    on_progress(
+        78.0,
+        "installing_runtime",
+        runtime_root.file_name().and_then(|value| value.to_str()),
+    );
     install_python_package(uv_path, app_runtime_root, python_path, runtime_root, true)?;
-    fs::write(stamp_path, fingerprint).map_err(|e| e.to_string())?;
+    if python_module_version(python_path, "pdf2zh").is_none() || !pdf2zh_entry_ready(python_path) {
+        return Err("python.env.runtime_verification_failed".to_string());
+    }
+    storage::atomic_write_file(&stamp_path, fingerprint.as_bytes())?;
     Ok(())
 }
 
@@ -368,8 +351,9 @@ fn build_env_status(
     env_paths: &ResolvedAnalysisEnvPaths,
     runtime_root: &Path,
     vendor_root: Option<&Path>,
-    uv_path: Option<&Path>,
+    uv: Option<&ResolvedUv>,
     last_error: Option<String>,
+    failure: Option<crate::models::NativeRuntimeFailure>,
 ) -> AnalysisEnvStatusResponse {
     let exists = env_paths.managed_root.exists() || env_paths.venv_path.exists();
     let python_exists = env_paths.python_path.exists();
@@ -380,7 +364,7 @@ fn build_env_status(
         &env_paths.python_path,
     )
     .unwrap_or(false);
-    let uv_version = uv_path.and_then(|path| try_version_command(path, &["--version"]));
+    let uv_version = uv.map(|resolved| resolved.version.clone());
     let python_version = if python_exists {
         try_version_command(&env_paths.python_path, &["--version"])
     } else {
@@ -397,8 +381,9 @@ fn build_env_status(
         exists,
         env_key: env_paths.env_key.clone(),
         managed_root: env_paths.managed_root.to_string_lossy().to_string(),
-        uv_path: uv_path.map(|path| path.to_string_lossy().to_string()),
+        uv_path: uv.map(|resolved| resolved.path.to_string_lossy().to_string()),
         uv_version,
+        uv_source: uv.map(|resolved| resolved.source.to_string()),
         python_path: if python_exists {
             Some(env_paths.python_path.to_string_lossy().to_string())
         } else {
@@ -409,6 +394,7 @@ fn build_env_status(
         venv_path: env_paths.venv_path.to_string_lossy().to_string(),
         runtime_root: runtime_root.to_string_lossy().to_string(),
         last_error,
+        failure,
     }
 }
 
@@ -420,9 +406,9 @@ pub(crate) fn analysis_env_status_blocking(
     project_root: &Path,
 ) -> Result<AnalysisEnvStatusResponse, String> {
     let analysis_runtime_root = resolve_analysis_runtime_root()
-        .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
+        .ok_or_else(|| "python.env.runtime_resource_missing".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
-    let uv_path = resolve_uv_path(Some(runtime_root));
+    let uv = resolve_uv(Some(runtime_root));
     let env_paths = resolve_analysis_env_paths(
         db_path,
         runtime_root,
@@ -439,8 +425,9 @@ pub(crate) fn analysis_env_status_blocking(
         &env_paths,
         &analysis_runtime_root,
         vendor_root.as_deref(),
-        uv_path.as_deref(),
+        uv.as_ref(),
         last_error,
+        None,
     );
     if !status.ready && status.last_error.is_none() {
         status.last_error = Some("python.env.runtime_missing".to_string());
@@ -448,7 +435,7 @@ pub(crate) fn analysis_env_status_blocking(
     Ok(status)
 }
 
-pub(crate) fn ensure_analysis_env_with_progress_blocking<F>(
+fn prepare_analysis_env_with_progress_blocking<F>(
     db_path: &Path,
     runtime_root: &Path,
     app_data_dir: &Path,
@@ -460,9 +447,10 @@ where
     F: FnMut(f64, &str, Option<&str>),
 {
     let analysis_runtime_root = resolve_analysis_runtime_root()
-        .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
+        .ok_or_else(|| "python.env.runtime_resource_missing".to_string())?;
     let vendor_root = resolve_pdfmathtranslate_vendor_root();
-    let uv_path = resolve_uv_path(Some(runtime_root)).ok_or_else(|| "uv executable was not found".to_string())?;
+    let uv = resolve_uv(Some(runtime_root)).ok_or_else(|| "python.env.uv_missing".to_string())?;
+    let uv_path = uv.path.clone();
     let env_paths = resolve_analysis_env_paths(
         db_path,
         runtime_root,
@@ -492,7 +480,10 @@ where
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let detail = if !stderr.is_empty() { stderr } else { stdout };
-            return Err(format!("python.env.prepare_failed: {detail}"));
+            return Err(format!(
+                "python.env.prepare_failed: {}",
+                crate::logging::sanitize_log_message_with_limit(&detail, 320)
+            ));
         }
     } else {
         on_progress(28.0, "creating_venv", Some("venv-ready"));
@@ -512,7 +503,8 @@ where
         &env_paths,
         &analysis_runtime_root,
         vendor_root.as_deref(),
-        Some(&uv_path),
+        Some(&uv),
+        None,
         None,
     );
     if !status.ready {
@@ -523,6 +515,31 @@ where
     Ok(status)
 }
 
+pub(crate) fn ensure_analysis_env_with_progress_blocking<F>(
+    db_path: &Path,
+    runtime_root: &Path,
+    app_data_dir: &Path,
+    project_id: &str,
+    project_root: &Path,
+    explicit_retry: bool,
+    mut on_progress: F,
+) -> Result<AnalysisEnvStatusResponse, String>
+where
+    F: FnMut(f64, &str, Option<&str>),
+{
+    let env_key = project_env_key(project_root)?;
+    coordinate_analysis_env_prepare(&env_key, explicit_retry, || {
+        prepare_analysis_env_with_progress_blocking(
+            db_path,
+            runtime_root,
+            app_data_dir,
+            project_id,
+            project_root,
+            |percent, stage, item| on_progress(percent, stage, item),
+        )
+    })
+}
+
 pub(crate) fn ensure_analysis_env_blocking(
     db_path: &Path,
     runtime_root: &Path,
@@ -530,14 +547,18 @@ pub(crate) fn ensure_analysis_env_blocking(
     project_id: &str,
     project_root: &Path,
 ) -> Result<AnalysisEnvStatusResponse, String> {
-    ensure_analysis_env_with_progress_blocking(
-        db_path,
-        runtime_root,
-        app_data_dir,
-        project_id,
-        project_root,
-        |_percent, _stage, _current_item| {},
-    )
+    let env_key = project_env_key(project_root)?;
+    coordinate_analysis_env_prepare(&env_key, false, || {
+        prepare_analysis_env_with_progress_blocking(
+            db_path,
+            runtime_root,
+            app_data_dir,
+            project_id,
+            project_root,
+            |_percent, _stage, _current_item| {},
+        )
+    })
+    .map_err(|error| public_native_runtime_error(&error))
 }
 #[cfg(test)]
 mod native_runtime_analysis_env_tests;

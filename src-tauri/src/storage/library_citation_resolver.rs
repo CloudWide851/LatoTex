@@ -24,7 +24,11 @@ fn collect_library_files_by_ext(root: &Path, ext: &str, out: &mut Vec<PathBuf>) 
         if name == ".cache" {
             continue;
         }
-        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|_| "workspace.path.unavailable".to_string())?;
+        if metadata_is_link_or_reparse(&metadata) {
+            return Err("workspace.path.reparse_denied".to_string());
+        }
         if metadata.is_dir() {
             collect_library_files_by_ext(&path, ext, out)?;
             continue;
@@ -51,8 +55,8 @@ fn normalized_library_lookup(value: &str) -> String {
 }
 
 fn citation_index_status_for_root(project_root: &Path) -> Result<LibraryCitationIndexStatus, String> {
-    let papers_root = library_root(project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    let papers_root = ensure_mutation_path(project_root, ".latotex/papers")?;
+    fs::create_dir_all(&papers_root).map_err(|_| "workspace.operation.failed".to_string())?;
     let mut bib_paths = Vec::new();
     let mut pdf_paths = Vec::new();
     collect_library_files_by_ext(&papers_root, "bib", &mut bib_paths)?;
@@ -65,7 +69,11 @@ fn citation_index_status_for_root(project_root: &Path) -> Result<LibraryCitation
 
     for bib_path in &bib_paths {
         let relative = library_relative_from_path(&papers_root, bib_path)?;
-        match fs::read_to_string(bib_path) {
+        match read_file_with_limit(bib_path, WORKSPACE_SCAN_FILE_LIMIT)
+            .and_then(|bytes| {
+                String::from_utf8(bytes)
+                    .map_err(|_| "workspace.file_read.invalid_utf8".to_string())
+            }) {
             Ok(content) => {
                 if let Some(key) = extract_bib_entry_key(&content) {
                     indexed_entries = indexed_entries.saturating_add(1);
@@ -79,7 +87,7 @@ fn citation_index_status_for_root(project_root: &Path) -> Result<LibraryCitation
             }
             Err(error) => invalid_bib_files.push(LibraryCitationIndexIssue {
                 path: relative.clone(),
-                message: error.to_string(),
+                message: error,
             }),
         }
         let pdf_candidate = bib_path.with_extension("pdf");
@@ -140,15 +148,13 @@ pub fn library_citation_index_rebuild(
     let project_root = load_project_root(db_path, project_id)?;
     refresh_library_index(&project_root)?;
     let status = citation_index_status_for_root(&project_root)?;
-    let index_path = citation_index_path(&project_root);
-    if let Some(parent) = index_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(
-        &index_path,
-        serde_json::to_string_pretty(&status).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+    let payload = serde_json::to_vec_pretty(&status).map_err(|e| e.to_string())?;
+    atomic_write_under_root(
+        &project_root,
+        ".latotex/index/papers-citation-index.json",
+        &payload,
+        WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
     citation_index_status_for_root(&project_root)
 }
 
@@ -180,7 +186,10 @@ fn resolve_library_query_path(
             .unwrap_or(false)
     }) {
         let relative = library_relative_from_path(papers_root, candidate)?;
-        let content = fs::read_to_string(candidate).unwrap_or_default();
+        let content = read_file_with_limit(candidate, WORKSPACE_SCAN_FILE_LIMIT)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .unwrap_or_default();
         if extract_bib_entry_key(&content)
             .map(|key| key.eq_ignore_ascii_case(query.trim()))
             .unwrap_or(false)

@@ -364,4 +364,68 @@ mod workspace_ops_compile_tests {
 
         let _ = fs::remove_dir_all(temp_root);
     }
+
+    #[test]
+    fn workspace_operation_rejects_recursive_targets() {
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("recursive-target");
+        fs::create_dir_all(project_root.join("source")).unwrap();
+        fs::write(project_root.join("source/main.tex"), "content").unwrap();
+
+        let error = fs_operation(
+            &db_path,
+            FsOperationInput {
+                project_id,
+                scope: "workspace".to_string(),
+                action: "copy".to_string(),
+                path: "source".to_string(),
+                target_path: Some("source/nested".to_string()),
+                content: None,
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "workspace.path.recursive_target");
+        assert!(!project_root.join("source/nested").exists());
+        let _ = fs::remove_dir_all(temp_root);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn workspace_copy_rejects_nested_junctions_without_partial_target() {
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("nested-junction");
+        let outside = unique_temp_dir("junction-outside");
+        let source = project_root.join("source");
+        let junction = source.join("linked");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("main.tex"), "content").unwrap();
+        fs::write(outside.join("secret.tex"), "outside").unwrap();
+        let status = Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&junction)
+            .arg(&outside)
+            .status()
+            .unwrap();
+        assert!(status.success());
+
+        let error = fs_operation(
+            &db_path,
+            FsOperationInput {
+                project_id,
+                scope: "workspace".to_string(),
+                action: "copy".to_string(),
+                path: "source".to_string(),
+                target_path: Some("copy".to_string()),
+                content: None,
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "workspace.path.reparse_denied");
+        assert!(!project_root.join("copy").exists());
+        fs::remove_dir(&junction).unwrap();
+        let _ = fs::remove_dir_all(temp_root);
+        let _ = fs::remove_dir_all(outside);
+    }
 }

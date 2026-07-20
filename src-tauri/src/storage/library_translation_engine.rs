@@ -5,6 +5,29 @@ mod library_translation_paper_analysis_engine;
 
 const LIBRARY_WORKSPACE_PREFIX: &str = ".latotex/papers";
 
+pub(super) struct PaperRuntimeRunDir {
+    path: PathBuf,
+}
+
+impl PaperRuntimeRunDir {
+    pub(super) fn create(runtime_root: &Path) -> Result<Self, String> {
+        let relative = format!("paper-runtime/{}", Uuid::new_v4());
+        let path = prepare_workspace_mutation_path(runtime_root, &relative)?;
+        fs::create_dir_all(&path).map_err(|_| "workspace.operation.failed".to_string())?;
+        Ok(Self { path })
+    }
+
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for PaperRuntimeRunDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LibraryTranslateFailure {
     pub code: String,
@@ -279,4 +302,26 @@ pub fn extract_library_paper_context(
         project_id,
         relative_path,
     )
+}
+
+#[cfg(test)]
+mod paper_runtime_run_dir_tests {
+    use super::PaperRuntimeRunDir;
+
+    #[test]
+    fn paper_runtime_run_directory_is_removed_on_drop() {
+        let runtime_root = std::env::temp_dir().join(format!(
+            "latotex-paper-runtime-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&runtime_root).unwrap();
+        let path = {
+            let run_dir = PaperRuntimeRunDir::create(&runtime_root).unwrap();
+            let path = run_dir.path().to_path_buf();
+            assert!(path.exists());
+            path
+        };
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(runtime_root);
+    }
 }

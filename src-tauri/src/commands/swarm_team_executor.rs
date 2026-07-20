@@ -9,8 +9,8 @@ use super::swarm_executor::{
     emit_supervisor_trace, run_execute_pipeline_supervisor, run_workflow_step,
 };
 use super::swarm_runtime::resolve_model_connection;
-use super::swarm_tool_skills;
 use super::swarm_supervisor::requires_write_checkpoint;
+use super::swarm_tool_skills;
 use super::swarm_workflows::{timeout_for_workflow, WorkflowDefinition, WorkflowStep};
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
@@ -124,7 +124,10 @@ fn default_agent_team() -> AgentTeamConfig {
 }
 
 fn callsite_supports_team(callsite: &str) -> bool {
-    matches!(callsite, "latex.overlay" | "analysis.workspace" | "chat.workspace")
+    matches!(
+        callsite,
+        "latex.overlay" | "analysis.workspace" | "chat.workspace"
+    )
 }
 
 pub(super) fn select_agent_team(
@@ -137,7 +140,10 @@ pub(super) fn select_agent_team(
     }
     let settings = storage::load_settings(db_path, runtime_root).ok()?;
     let prefs = settings.ui_prefs.and_then(|prefs| prefs.agent_team_prefs);
-    let enabled = prefs.as_ref().and_then(|prefs| prefs.enabled).unwrap_or(true);
+    let enabled = prefs
+        .as_ref()
+        .and_then(|prefs| prefs.enabled)
+        .unwrap_or(true);
     if !enabled {
         return None;
     }
@@ -156,8 +162,7 @@ pub(super) fn select_agent_team(
         .filter(|team| team.enabled.unwrap_or(true))
         .filter(|team| {
             let callsites = team.callsites.clone().unwrap_or_default();
-            callsites.is_empty()
-                || callsites.iter().any(|item| item == callsite || item == "*")
+            callsites.is_empty() || callsites.iter().any(|item| item == callsite || item == "*")
         })
         .cloned()
 }
@@ -222,7 +227,11 @@ fn build_role_prompt(
     .join("\n")
 }
 
-fn step_metadata<'a>(workflow_id: &'a str, step_id: &'a str, callsite: &'a str) -> EventMetadata<'a> {
+fn step_metadata<'a>(
+    workflow_id: &'a str,
+    step_id: &'a str,
+    callsite: &'a str,
+) -> EventMetadata<'a> {
     EventMetadata::base(workflow_id, step_id, callsite)
 }
 
@@ -245,7 +254,15 @@ pub(super) fn run_execute_pipeline_team(
         .filter(|role| role.enabled.unwrap_or(true))
         .collect::<Vec<_>>();
     if active_roles.is_empty() {
-        return run_execute_pipeline_supervisor(db_path, runtime_root, app_data_dir, run_id, cancel_flag, input, workflow);
+        return run_execute_pipeline_supervisor(
+            db_path,
+            runtime_root,
+            app_data_dir,
+            run_id,
+            cancel_flag,
+            input,
+            workflow,
+        );
     }
 
     let plan_content = format!(
@@ -254,7 +271,11 @@ pub(super) fn run_execute_pipeline_team(
         team.parallelism.unwrap_or(1).clamp(1, 4),
         active_roles
             .iter()
-            .map(|role| format!("{}:{}", role.id, role.phase.as_deref().unwrap_or("research")))
+            .map(|role| format!(
+                "{}:{}",
+                role.id,
+                role.phase.as_deref().unwrap_or("research")
+            ))
             .collect::<Vec<_>>()
             .join(", ")
     );
@@ -284,8 +305,16 @@ pub(super) fn run_execute_pipeline_team(
         if Instant::now() >= deadline {
             return Err("agent.run.timeout.total".to_string());
         }
-        let role_id = if role.id.trim().is_empty() { "role" } else { role.id.as_str() };
-        let role_name = if role.name.trim().is_empty() { role_id } else { role.name.as_str() };
+        let role_id = if role.id.trim().is_empty() {
+            "role"
+        } else {
+            role.id.as_str()
+        };
+        let role_name = if role.name.trim().is_empty() {
+            role_id
+        } else {
+            role.name.as_str()
+        };
         let role_node_id = format!("team:{role_id}");
         let connection = resolve_model_connection(
             db_path,
@@ -294,7 +323,8 @@ pub(super) fn run_execute_pipeline_team(
             workflow,
             input.model_override.as_deref().or(role.model_id.as_deref()),
         )?;
-        let mut prompt = build_role_prompt(db_path, runtime_root, input, &team, &role, &role_outputs);
+        let mut prompt =
+            build_role_prompt(db_path, runtime_root, input, &team, &role, &role_outputs);
         for tool in role_tools(&role) {
             ensure_not_cancelled(cancel_flag)?;
             let (kind, title, source) = match tool.as_str() {

@@ -1,4 +1,7 @@
-use super::{copy_runtime_candidates, resolve_runtime_root, should_migrate_runtime_data};
+use super::{
+    copy_runtime_candidates, persist_runtime_root_pointer, read_runtime_root_pointer,
+    resolve_runtime_root, should_migrate_runtime_data,
+};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -79,4 +82,35 @@ fn runtime_migration_is_disabled_for_smoke_and_override_roots() {
     assert!(!should_migrate_runtime_data(true, false));
     assert!(!should_migrate_runtime_data(false, true));
     assert!(should_migrate_runtime_data(false, false));
+}
+
+#[test]
+fn runtime_pointer_rejects_smoke_roots_without_mutating_pointer() {
+    let app_data = unique_temp_dir("app-data");
+    let smoke_root = unique_temp_dir("smoke-pointer");
+    fs::write(smoke_root.join("tauri-smoke-boot.json"), "{}").unwrap();
+    persist_runtime_root_pointer(&app_data, &smoke_root).unwrap();
+    let pointer_path = app_data.join("runtime-root.json");
+    let before = fs::read(&pointer_path).unwrap();
+
+    assert_eq!(read_runtime_root_pointer(&app_data), None);
+    assert_eq!(fs::read(pointer_path).unwrap(), before);
+
+    let _ = fs::remove_dir_all(app_data);
+    let _ = fs::remove_dir_all(smoke_root);
+}
+
+#[test]
+fn runtime_pointer_accepts_normal_existing_root() {
+    let app_data = unique_temp_dir("app-data-normal");
+    let runtime_root = unique_temp_dir("runtime-normal");
+    persist_runtime_root_pointer(&app_data, &runtime_root).unwrap();
+
+    assert_eq!(
+        read_runtime_root_pointer(&app_data),
+        Some(runtime_root.clone())
+    );
+
+    let _ = fs::remove_dir_all(app_data);
+    let _ = fs::remove_dir_all(runtime_root);
 }

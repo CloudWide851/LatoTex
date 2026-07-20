@@ -8,8 +8,7 @@ pub fn arg_flag(name: &str) -> bool {
 
 pub fn arg_value(name: &str) -> Option<String> {
     let prefix = format!("{name}=");
-    std::env::args()
-        .find_map(|arg| arg.strip_prefix(&prefix).map(|value| value.to_string()))
+    std::env::args().find_map(|arg| arg.strip_prefix(&prefix).map(|value| value.to_string()))
 }
 
 pub fn enabled() -> bool {
@@ -64,7 +63,11 @@ pub fn write_progress(stage: &str, status: &str, detail: Option<serde_json::Valu
         "status": status,
         "detail": detail,
     });
-    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
         if let Ok(line) = serde_json::to_string(&payload) {
             let _ = writeln!(file, "{line}");
         }

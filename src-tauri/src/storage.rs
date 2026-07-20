@@ -15,7 +15,7 @@ use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -24,6 +24,7 @@ include!("storage/project_templates.rs");
 include!("storage/project_snapshot_tree.rs");
 include!("storage/search_index.rs");
 include!("storage/search_index_queries.rs");
+include!("storage/workspace_fs_policy.rs");
 include!("storage/workspace_files_search.rs");
 include!("storage/events_settings_models.rs");
 include!("storage/agent_runs.rs");

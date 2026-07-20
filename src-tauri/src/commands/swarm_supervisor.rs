@@ -42,7 +42,10 @@ pub(super) fn build_supervisor_plan(
 ) -> String {
     let mut lines = vec![
         format!("workflow={} callsite={}", workflow.id, callsite),
-        format!("execution_mode={}", execution_mode_label(workflow, callsite)),
+        format!(
+            "execution_mode={}",
+            execution_mode_label(workflow, callsite)
+        ),
         format!("steps={}", workflow.steps.len()),
     ];
     if !context_refs.is_empty() {
@@ -196,8 +199,8 @@ pub(super) fn execution_mode_label(workflow: &WorkflowDefinition, callsite: &str
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_supervisor_evaluation, requires_write_checkpoint};
     use super::super::swarm_workflows::{WorkflowConstraints, WorkflowDefinition};
+    use super::{parse_supervisor_evaluation, requires_write_checkpoint};
 
     fn sample_workflow() -> WorkflowDefinition {
         WorkflowDefinition {
@@ -228,4 +231,3 @@ mod tests {
         assert!(requires_write_checkpoint(&sample_workflow()));
     }
 }
-

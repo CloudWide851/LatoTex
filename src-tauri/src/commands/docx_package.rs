@@ -1,26 +1,43 @@
-use super::docx_images::{
-    append_image_relationships, patch_content_types, DocxImageAsset,
-};
+use super::docx_images::{append_image_relationships, patch_content_types, DocxImageAsset};
 use regex::Regex;
 use std::collections::HashMap;
 use std::io::{Cursor, Read, Write};
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 fn xml_escape(value: &str) -> String {
-    value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn html_escape(value: &str) -> String {
-    value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn html_unescape(value: &str) -> String {
-    value.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
+    value
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
 }
 
 fn attr_value(tag: &str, name: &str) -> Option<String> {
-    let re = Regex::new(&format!(r#"(?is)\b{}\s*=\s*["']([^"']+)["']"#, regex::escape(name))).ok()?;
-    re.captures(tag).and_then(|capture| capture.get(1)).map(|item| html_unescape(item.as_str()))
+    let re = Regex::new(&format!(
+        r#"(?is)\b{}\s*=\s*["']([^"']+)["']"#,
+        regex::escape(name)
+    ))
+    .ok()?;
+    re.captures(tag)
+        .and_then(|capture| capture.get(1))
+        .map(|item| html_unescape(item.as_str()))
 }
 
 fn strip_tags(value: &str) -> String {
@@ -63,11 +80,19 @@ fn run_props(style: InlineStyle) -> String {
     } else if style.heading == 2 {
         props.push_str(r#"<w:sz w:val="26"/>"#);
     }
-    if props.is_empty() { String::new() } else { format!("<w:rPr>{props}</w:rPr>") }
+    if props.is_empty() {
+        String::new()
+    } else {
+        format!("<w:rPr>{props}</w:rPr>")
+    }
 }
 
 fn text_run(text: &str, style: InlineStyle) -> String {
-    format!(r#"<w:r>{}<w:t xml:space="preserve">{}</w:t></w:r>"#, run_props(style), xml_escape(text))
+    format!(
+        r#"<w:r>{}<w:t xml:space="preserve">{}</w:t></w:r>"#,
+        run_props(style),
+        xml_escape(text)
+    )
 }
 
 fn image_drawing_xml(rel_id: &str) -> String {
@@ -77,10 +102,18 @@ fn image_drawing_xml(rel_id: &str) -> String {
     )
 }
 
-fn inline_html_to_runs(inline: &str, heading: u8, prefix: Option<&str>, images: &HashMap<String, String>) -> String {
+fn inline_html_to_runs(
+    inline: &str,
+    heading: u8,
+    prefix: Option<&str>,
+    images: &HashMap<String, String>,
+) -> String {
     let tag_re = Regex::new(r#"(?is)<[^>]+>"#).unwrap();
     let href_re = Regex::new(r#"(?is)href=["']([^"']+)["']"#).unwrap();
-    let mut style = InlineStyle { heading, ..InlineStyle::default() };
+    let mut style = InlineStyle {
+        heading,
+        ..InlineStyle::default()
+    };
     let mut runs = String::new();
     if let Some(value) = prefix {
         runs.push_str(&text_run(value, style));
@@ -137,7 +170,10 @@ fn inline_html_to_runs(inline: &str, heading: u8, prefix: Option<&str>, images: 
         } else if lower.starts_with("</sup") {
             style.superscript = false;
         } else if lower.starts_with("<a") {
-            if let Some(url) = href_re.captures(tag.as_str()).and_then(|capture| capture.get(1)) {
+            if let Some(url) = href_re
+                .captures(tag.as_str())
+                .and_then(|capture| capture.get(1))
+            {
                 runs.push_str(&format!(
                     r#"<w:hyperlink w:history="1"><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK "{}" </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>"#,
                     xml_escape(url.as_str())
@@ -154,16 +190,28 @@ fn inline_html_to_runs(inline: &str, heading: u8, prefix: Option<&str>, images: 
     if !tail.is_empty() {
         runs.push_str(&text_run(&html_unescape(tail), style));
     }
-    if runs.is_empty() { "<w:r><w:t></w:t></w:r>".to_string() } else { runs }
+    if runs.is_empty() {
+        "<w:r><w:t></w:t></w:r>".to_string()
+    } else {
+        runs
+    }
 }
 
-fn paragraph_xml(body: &str, heading: u8, prefix: Option<&str>, images: &HashMap<String, String>) -> String {
+fn paragraph_xml(
+    body: &str,
+    heading: u8,
+    prefix: Option<&str>,
+    images: &HashMap<String, String>,
+) -> String {
     let props = match heading {
         1 => r#"<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>"#,
         2 => r#"<w:pPr><w:pStyle w:val="Heading2"/></w:pPr>"#,
         _ => "",
     };
-    format!("<w:p>{props}{}</w:p>", inline_html_to_runs(body, heading, prefix, images))
+    format!(
+        "<w:p>{props}{}</w:p>",
+        inline_html_to_runs(body, heading, prefix, images)
+    )
 }
 
 fn table_xml(table: &str, images: &HashMap<String, String>) -> String {
@@ -186,7 +234,10 @@ fn table_xml(table: &str, images: &HashMap<String, String>) -> String {
 }
 
 fn blocks_from_html(html: &str, images: &HashMap<String, String>) -> Vec<String> {
-    let block_re = Regex::new(r"(?is)<table\b[^>]*>.*?</table>|<(h1|h2|h3|p|div|li)\b[^>]*>(.*?)</(?:h1|h2|h3|p|div|li)>").unwrap();
+    let block_re = Regex::new(
+        r"(?is)<table\b[^>]*>.*?</table>|<(h1|h2|h3|p|div|li)\b[^>]*>(.*?)</(?:h1|h2|h3|p|div|li)>",
+    )
+    .unwrap();
     let mut out = Vec::new();
     let mut ordered_index = 1_u32;
     for block in block_re.captures_iter(html) {
@@ -195,9 +246,15 @@ fn blocks_from_html(html: &str, images: &HashMap<String, String>) -> Vec<String>
             out.push(table_xml(full, images));
             continue;
         }
-        let tag = block.get(1).map(|item| item.as_str().to_ascii_lowercase()).unwrap_or_default();
+        let tag = block
+            .get(1)
+            .map(|item| item.as_str().to_ascii_lowercase())
+            .unwrap_or_default();
         let body = block.get(2).map(|item| item.as_str()).unwrap_or("");
-        if full.to_ascii_lowercase().contains("data-docx-page-break=\"true\"") {
+        if full
+            .to_ascii_lowercase()
+            .contains("data-docx-page-break=\"true\"")
+        {
             out.push("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>".to_string());
             continue;
         }
@@ -228,33 +285,59 @@ fn blocks_from_html(html: &str, images: &HashMap<String, String>) -> Vec<String>
 }
 
 pub(super) fn document_xml_from_html(html: &str, images: &HashMap<String, String>) -> String {
-    let blocks = blocks_from_html(html, images).into_iter().collect::<String>();
+    let blocks = blocks_from_html(html, images)
+        .into_iter()
+        .collect::<String>();
     format!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>{blocks}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>"#
     )
 }
 
-pub(super) fn minimal_docx_bytes(document_xml: &str, images: &[DocxImageAsset]) -> Result<Vec<u8>, String> {
+pub(super) fn minimal_docx_bytes(
+    document_xml: &str,
+    images: &[DocxImageAsset],
+) -> Result<Vec<u8>, String> {
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    writer.start_file("[Content_Types].xml", options).map_err(|e| e.to_string())?;
+    writer
+        .start_file("[Content_Types].xml", options)
+        .map_err(|e| e.to_string())?;
     writer.write_all(patch_content_types(String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#), images).as_bytes()).map_err(|e| e.to_string())?;
-    writer.start_file("_rels/.rels", options).map_err(|e| e.to_string())?;
+    writer
+        .start_file("_rels/.rels", options)
+        .map_err(|e| e.to_string())?;
     writer.write_all(br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#).map_err(|e| e.to_string())?;
-    writer.start_file("word/document.xml", options).map_err(|e| e.to_string())?;
-    writer.write_all(document_xml.as_bytes()).map_err(|e| e.to_string())?;
+    writer
+        .start_file("word/document.xml", options)
+        .map_err(|e| e.to_string())?;
+    writer
+        .write_all(document_xml.as_bytes())
+        .map_err(|e| e.to_string())?;
     if !images.is_empty() {
-        writer.start_file("word/_rels/document.xml.rels", options).map_err(|e| e.to_string())?;
-        writer.write_all(append_image_relationships(None, images).as_bytes()).map_err(|e| e.to_string())?;
+        writer
+            .start_file("word/_rels/document.xml.rels", options)
+            .map_err(|e| e.to_string())?;
+        writer
+            .write_all(append_image_relationships(None, images).as_bytes())
+            .map_err(|e| e.to_string())?;
         for image in images {
-            writer.start_file(format!("word/media/{}", image.media_name), options).map_err(|e| e.to_string())?;
+            writer
+                .start_file(format!("word/media/{}", image.media_name), options)
+                .map_err(|e| e.to_string())?;
             writer.write_all(&image.bytes).map_err(|e| e.to_string())?;
         }
     }
-    writer.finish().map_err(|e| e.to_string()).map(|cursor| cursor.into_inner())
+    writer
+        .finish()
+        .map_err(|e| e.to_string())
+        .map(|cursor| cursor.into_inner())
 }
 
-pub(super) fn replace_document_xml(original: &[u8], document_xml: &str, images: &[DocxImageAsset]) -> Result<Vec<u8>, String> {
+pub(super) fn replace_document_xml(
+    original: &[u8],
+    document_xml: &str,
+    images: &[DocxImageAsset],
+) -> Result<Vec<u8>, String> {
     let mut archive = ZipArchive::new(Cursor::new(original)).map_err(|e| e.to_string())?;
     let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
@@ -265,25 +348,38 @@ pub(super) fn replace_document_xml(original: &[u8], document_xml: &str, images: 
         let mut file = archive.by_index(index).map_err(|e| e.to_string())?;
         let name = file.name().to_string();
         if name.ends_with('/') {
-            writer.add_directory(name, options).map_err(|e| e.to_string())?;
+            writer
+                .add_directory(name, options)
+                .map_err(|e| e.to_string())?;
             continue;
         }
-        if images.iter().any(|image| name == format!("word/media/{}", image.media_name)) {
+        if images
+            .iter()
+            .any(|image| name == format!("word/media/{}", image.media_name))
+        {
             continue;
         }
-        writer.start_file(name.clone(), options).map_err(|e| e.to_string())?;
+        writer
+            .start_file(name.clone(), options)
+            .map_err(|e| e.to_string())?;
         if name == "word/document.xml" {
-            writer.write_all(document_xml.as_bytes()).map_err(|e| e.to_string())?;
+            writer
+                .write_all(document_xml.as_bytes())
+                .map_err(|e| e.to_string())?;
             replaced = true;
         } else if name == "word/_rels/document.xml.rels" {
             let mut text = String::new();
             file.read_to_string(&mut text).map_err(|e| e.to_string())?;
-            writer.write_all(append_image_relationships(Some(text), images).as_bytes()).map_err(|e| e.to_string())?;
+            writer
+                .write_all(append_image_relationships(Some(text), images).as_bytes())
+                .map_err(|e| e.to_string())?;
             rels_replaced = true;
         } else if name == "[Content_Types].xml" {
             let mut text = String::new();
             file.read_to_string(&mut text).map_err(|e| e.to_string())?;
-            writer.write_all(patch_content_types(text, images).as_bytes()).map_err(|e| e.to_string())?;
+            writer
+                .write_all(patch_content_types(text, images).as_bytes())
+                .map_err(|e| e.to_string())?;
             content_types_replaced = true;
         } else {
             let mut bytes = Vec::new();
@@ -292,23 +388,38 @@ pub(super) fn replace_document_xml(original: &[u8], document_xml: &str, images: 
         }
     }
     if !replaced {
-        writer.start_file("word/document.xml", options).map_err(|e| e.to_string())?;
-        writer.write_all(document_xml.as_bytes()).map_err(|e| e.to_string())?;
+        writer
+            .start_file("word/document.xml", options)
+            .map_err(|e| e.to_string())?;
+        writer
+            .write_all(document_xml.as_bytes())
+            .map_err(|e| e.to_string())?;
     }
     if !rels_replaced && !images.is_empty() {
-        writer.start_file("word/_rels/document.xml.rels", options).map_err(|e| e.to_string())?;
-        writer.write_all(append_image_relationships(None, images).as_bytes()).map_err(|e| e.to_string())?;
+        writer
+            .start_file("word/_rels/document.xml.rels", options)
+            .map_err(|e| e.to_string())?;
+        writer
+            .write_all(append_image_relationships(None, images).as_bytes())
+            .map_err(|e| e.to_string())?;
     }
     if !content_types_replaced && !images.is_empty() {
-        writer.start_file("[Content_Types].xml", options).map_err(|e| e.to_string())?;
+        writer
+            .start_file("[Content_Types].xml", options)
+            .map_err(|e| e.to_string())?;
         writer.write_all(patch_content_types(String::from(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#), images).as_bytes()).map_err(|e| e.to_string())?;
     }
     for image in images {
         let _ = &image.resource_path;
-        writer.start_file(format!("word/media/{}", image.media_name), options).map_err(|e| e.to_string())?;
+        writer
+            .start_file(format!("word/media/{}", image.media_name), options)
+            .map_err(|e| e.to_string())?;
         writer.write_all(&image.bytes).map_err(|e| e.to_string())?;
     }
-    writer.finish().map_err(|e| e.to_string()).map(|cursor| cursor.into_inner())
+    writer
+        .finish()
+        .map_err(|e| e.to_string())
+        .map(|cursor| cursor.into_inner())
 }
 
 #[cfg(test)]

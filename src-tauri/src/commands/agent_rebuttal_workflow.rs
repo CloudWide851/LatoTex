@@ -37,7 +37,8 @@ fn resolve_context_refs(db_path: &Path, project_id: &str, context_paths: &[Strin
         if relative_path.is_empty() {
             continue;
         }
-        let Ok(target) = storage::resolve_project_relative_path(db_path, project_id, &relative_path)
+        let Ok(target) =
+            storage::resolve_project_relative_path(db_path, project_id, &relative_path)
         else {
             continue;
         };
@@ -111,10 +112,7 @@ pub fn latex_rebuttal_reply_start(
     for reference in resolve_context_refs(&state.db_path, &input.project_id, &input.context_paths) {
         dedupe_push(&mut context_refs, reference);
     }
-    let prompt = build_rebuttal_reply_prompt(
-        selected_file,
-        &input.editor_content,
-        &input.review_comments,
-    );
+    let prompt =
+        build_rebuttal_reply_prompt(selected_file, &input.editor_content, &input.review_comments);
     start_rebuttal_workflow(&state, input, prompt, context_refs)
 }

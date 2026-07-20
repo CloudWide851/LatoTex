@@ -4,7 +4,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-const MAX_DEPENDENCY_SCAN_BYTES: u64 = 2_000_000;
 const TEXT_EXTENSIONS: &[&str] = &["tex", "bib", "sty", "cls", "bst"];
 const FIGURE_EXTENSIONS: &[&str] = &["pdf", "png", "jpg", "jpeg"];
 const IGNORED_DIRS: &[&str] = &[".git", ".latotex", "node_modules", "target", "dist"];
@@ -35,27 +34,12 @@ pub(super) fn normalize_relative_path(input: &str) -> Result<String, String> {
 
 pub(super) fn safe_join(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
     let normalized = normalize_relative_path(relative_path)?;
-    let candidate = root.join(&normalized);
-    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
-    let normalized_candidate = if candidate.exists() {
-        candidate.canonicalize().map_err(|e| e.to_string())?
-    } else {
-        let mut existing_parent = candidate.as_path();
-        while !existing_parent.exists() {
-            existing_parent = existing_parent
-                .parent()
-                .ok_or_else(|| "submissionPack.invalidPath".to_string())?;
+    crate::storage::safe_join(root, &normalized).map_err(|error| match error.as_str() {
+        "workspace.path.outside_root" | "workspace.path.reparse_denied" => {
+            "submissionPack.pathOutsideProject".to_string()
         }
-        let canonical_existing = existing_parent.canonicalize().map_err(|e| e.to_string())?;
-        let stripped = candidate
-            .strip_prefix(existing_parent)
-            .map_err(|e| e.to_string())?;
-        canonical_existing.join(stripped)
-    };
-    if !normalized_candidate.starts_with(&canonical_root) {
-        return Err("submissionPack.pathOutsideProject".to_string());
-    }
-    Ok(normalized_candidate)
+        _ => "submissionPack.invalidPath".to_string(),
+    })
 }
 
 fn to_project_relative(root: &Path, path: &Path) -> Result<String, String> {
@@ -105,11 +89,9 @@ pub(super) fn issue(
 }
 
 fn read_text_if_small(path: &Path) -> Option<String> {
-    let metadata = fs::metadata(path).ok()?;
-    if !metadata.is_file() || metadata.len() > MAX_DEPENDENCY_SCAN_BYTES {
-        return None;
-    }
-    fs::read_to_string(path).ok()
+    crate::storage::read_file_with_limit(path, crate::storage::WORKSPACE_SCAN_FILE_LIMIT)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
 }
 
 fn collect_braced_values(source: &str, pattern: &str) -> Vec<String> {
@@ -164,26 +146,11 @@ fn dependency_candidates(base: &Path, value: &str, default_extensions: &[&str]) 
 
 fn normalize_candidate(root: &Path, candidate: &Path) -> Result<PathBuf, String> {
     let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
-    let normalized = if candidate.exists() {
-        candidate.canonicalize().map_err(|e| e.to_string())?
-    } else {
-        let mut existing_parent = candidate;
-        while !existing_parent.exists() {
-            existing_parent = existing_parent
-                .parent()
-                .ok_or_else(|| "submissionPack.invalidPath".to_string())?;
-        }
-        let canonical_existing = existing_parent.canonicalize().map_err(|e| e.to_string())?;
-        let stripped = candidate
-            .strip_prefix(existing_parent)
-            .map_err(|e| e.to_string())?;
-        canonical_existing.join(stripped)
-    };
-    if normalized.starts_with(canonical_root) {
-        Ok(normalized)
-    } else {
-        Err("submissionPack.pathOutsideProject".to_string())
-    }
+    let relative = candidate
+        .strip_prefix(&canonical_root)
+        .or_else(|_| candidate.strip_prefix(root))
+        .map_err(|_| "submissionPack.pathOutsideProject".to_string())?;
+    safe_join(&canonical_root, &relative.to_string_lossy())
 }
 
 fn add_existing_dependency(
@@ -430,6 +397,15 @@ pub(super) fn collect_pack_files(
             })
         })
         .collect::<Vec<_>>();
+    let total_size = files.iter().map(|file| file.size_bytes).sum::<u64>();
+    if total_size > crate::storage::WORKSPACE_SUBMISSION_TOTAL_LIMIT {
+        blockers.push(issue(
+            "submissionPack.totalTooLarge",
+            "error",
+            None,
+            Some(total_size.to_string()),
+        ));
+    }
     (files, skipped, blockers, warnings)
 }
 
@@ -446,7 +422,19 @@ fn collect_project_allowlist_files(
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
-            if path.is_dir() {
+            let Ok(metadata) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if crate::storage::workspace_path_is_link_or_reparse(&path).unwrap_or(true) {
+                if let Ok(relative) = path.strip_prefix(root) {
+                    skipped.push(SubmissionPackSkippedFile {
+                        path: relative.to_string_lossy().replace('\\', "/"),
+                        reason: "linkNotFollowed".to_string(),
+                    });
+                }
+                continue;
+            }
+            if metadata.is_dir() {
                 if !is_ignored_dir(&name) {
                     pending.push(path);
                 }

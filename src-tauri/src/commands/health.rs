@@ -60,11 +60,17 @@ pub fn runtime_clear_volatile_cache_and_restart(
     for target in targets {
         if target.exists() {
             fs::remove_dir_all(&target).map_err(|error| {
-                format!("runtime.cache_clear_failed:{}:{error}", target.to_string_lossy())
+                format!(
+                    "runtime.cache_clear_failed:{}:{error}",
+                    target.to_string_lossy()
+                )
             })?;
         }
         fs::create_dir_all(&target).map_err(|error| {
-            format!("runtime.cache_recreate_failed:{}:{error}", target.to_string_lossy())
+            format!(
+                "runtime.cache_recreate_failed:{}:{error}",
+                target.to_string_lossy()
+            )
         })?;
     }
     state.log("WARN", "runtime volatile cache cleared; restart requested");

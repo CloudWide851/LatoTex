@@ -8,14 +8,13 @@ use std::thread;
 use uuid::Uuid;
 
 use super::swarm_events::{append_protocol_event, run_envelope, EventMetadata};
-use super::swarm_executor::{
-    build_run_terminal_payload, build_slot_failure_payload, run_execute_pipeline_async,
-};
+use super::swarm_executor::run_execute_pipeline_async;
 use super::swarm_harness::{
     apply_harness_prompt, harness_should_use_team, resolve_harness_profile,
 };
 use super::swarm_permissions::{preflight_permissions, PermissionPreflight};
 use super::swarm_team_executor::{select_agent_team, should_use_team};
+use super::swarm_terminal_payload::{build_run_terminal_payload, build_slot_failure_payload};
 use super::swarm_workflows::{
     load_registry_for_project, resolve_workflow, validate_invocation, validate_step_tools,
     WorkflowDefinition,
@@ -145,11 +144,7 @@ fn terminalize_run(
     }
 }
 
-fn append_approval_resolution(
-    state: &AppState,
-    context: &AgentApprovalContext,
-    decision: &str,
-) {
+fn append_approval_resolution(state: &AppState, context: &AgentApprovalContext, decision: &str) {
     let callsite = serde_json::from_str::<AgentExecuteRequest>(&context.request_json)
         .map(|input| input.callsite)
         .unwrap_or_else(|_| "agent.approval".to_string());
@@ -159,12 +154,7 @@ fn append_approval_resolution(
         &context.approval.project_id,
         &context.approval.workflow_id,
         "agent.approval.resolved",
-        approval_payload(
-            &context.approval,
-            &callsite,
-            "resolved",
-            Some(decision),
-        ),
+        approval_payload(&context.approval, &callsite, "resolved", Some(decision)),
     );
 }
 
@@ -451,8 +441,7 @@ pub(super) fn cancel_agent_execution(state: &AppState, run_id: &str) -> Result<A
     }
     let approval_context =
         storage::get_pending_agent_approval_context_by_run(&state.db_path, run_id)?;
-    if approval_context.is_some()
-        && storage::cancel_pending_agent_approval(&state.db_path, run_id)?
+    if approval_context.is_some() && storage::cancel_pending_agent_approval(&state.db_path, run_id)?
     {
         let record = storage::get_agent_run_record(&state.db_path, run_id)?
             .ok_or_else(|| "agent run not found".to_string())?;

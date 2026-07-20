@@ -63,6 +63,7 @@ pub struct AnalysisEnvPrepareTask {
     pub percent_basis_points: Arc<AtomicU64>,
     pub error: Arc<Mutex<Option<String>>>,
     pub diagnostics: Arc<Mutex<Vec<String>>>,
+    pub failure: Arc<Mutex<Option<crate::models::NativeRuntimeFailure>>>,
     pub result: Arc<Mutex<Option<crate::models::AnalysisEnvStatusResponse>>>,
 }
 
@@ -141,10 +142,16 @@ struct RuntimeRootPointer {
 impl AppState {
     pub fn bootstrap(app: &AppHandle) -> Result<Self, String> {
         let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-        let previous_runtime_root = read_runtime_root_pointer(&app_data_dir);
+        let smoke_mode = crate::smoke::enabled();
         let runtime_root_overridden = runtime_root_override_present();
+        let isolated_runtime = smoke_mode || runtime_root_overridden;
+        let previous_runtime_root = if isolated_runtime {
+            None
+        } else {
+            read_runtime_root_pointer(&app_data_dir)
+        };
         let runtime_root = resolve_runtime_root(previous_runtime_root.as_ref())?;
-        if should_migrate_runtime_data(crate::smoke::enabled(), runtime_root_overridden) {
+        if should_migrate_runtime_data(smoke_mode, runtime_root_overridden) {
             migrate_legacy_data_if_needed(&app_data_dir, &runtime_root)?;
             migrate_previous_runtime_data_if_needed(previous_runtime_root.as_ref(), &runtime_root)?;
         }
@@ -162,9 +169,13 @@ impl AppState {
         logging::install_panic_hook(logs_dir.clone(), session_log_path.clone());
 
         let app_version = env!("CARGO_PKG_VERSION").to_string();
-        let install_mode =
-            detect_install_mode_and_persist(&runtime_root, &app_data_dir, &app_version)?;
-        let _ = persist_runtime_root_pointer(&app_data_dir, &runtime_root);
+        let install_mode = if isolated_runtime {
+            "isolated-runtime".to_string()
+        } else {
+            let mode = detect_install_mode_and_persist(&runtime_root, &app_data_dir, &app_version)?;
+            persist_runtime_root_pointer(&app_data_dir, &runtime_root)?;
+            mode
+        };
 
         let state = Self {
             app_name: "LatoTex".to_string(),
@@ -187,7 +198,9 @@ impl AppState {
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };
         #[cfg(target_os = "windows")]
-        schedule_windows_shortcut_sync(&state);
+        if !isolated_runtime {
+            schedule_windows_shortcut_sync(&state);
+        }
         state.log("INFO", "application startup completed");
         Ok(state)
     }
@@ -415,11 +428,23 @@ fn read_runtime_root_pointer(app_data_dir: &PathBuf) -> Option<PathBuf> {
     let raw = fs::read_to_string(pointer_path).ok()?;
     let pointer = serde_json::from_str::<RuntimeRootPointer>(&raw).ok()?;
     let runtime_root = PathBuf::from(pointer.runtime_root);
-    if runtime_root.exists() {
+    if runtime_root.exists() && !is_smoke_runtime_root(&runtime_root) {
         Some(runtime_root)
     } else {
         None
     }
+}
+
+fn is_smoke_runtime_root(runtime_root: &Path) -> bool {
+    if runtime_root.join("tauri-smoke-boot.json").is_file() {
+        return true;
+    }
+    let name = runtime_root
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    name.starts_with("latotex-smoke-") || name.starts_with("latotex-runtime-override-")
 }
 
 fn persist_runtime_root_pointer(

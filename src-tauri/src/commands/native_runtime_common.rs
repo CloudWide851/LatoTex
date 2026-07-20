@@ -1,4 +1,4 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[cfg(target_os = "windows")]
@@ -14,44 +14,17 @@ pub(crate) fn configure_hidden_process(command: &mut Command) {
     }
 }
 
-pub(crate) fn safe_relative_path(input: &str) -> Result<PathBuf, String> {
-    let mut out = PathBuf::new();
-    for component in Path::new(input).components() {
-        match component {
-            Component::Normal(value) => out.push(value),
-            Component::CurDir => {}
-            _ => return Err(format!("Unsupported relative path: {input}")),
-        }
-    }
-    if out.as_os_str().is_empty() {
-        return Err("Relative path cannot be empty".to_string());
-    }
-    Ok(out)
-}
-
-fn is_noise_log_line(line: &str) -> bool {
-    let normalized = line.trim();
-    normalized.is_empty()
-        || normalized.starts_with("This is ")
-        || normalized.starts_with("entering extended mode")
-        || normalized.starts_with("Initial Win CP for")
-        || normalized.starts_with("I changed them all to CP")
-        || normalized.starts_with("Rc files read:")
-        || normalized.starts_with("Latexmk: This is Latexmk")
-        || normalized.starts_with("No existing .aux file")
-}
-
 pub(crate) fn sanitize_log_lines(text: &str) -> Vec<String> {
     let mut lines = Vec::new();
     for raw in text.lines() {
-        let line = raw.trim();
-        if is_noise_log_line(line) {
+        let sanitized = crate::logging::sanitize_log_message_with_limit(raw, 320);
+        if sanitized.is_empty() {
             continue;
         }
-        if lines.iter().any(|item: &String| item == line) {
+        if lines.iter().any(|item: &String| item == &sanitized) {
             continue;
         }
-        lines.push(line.to_string());
+        lines.push(sanitized);
     }
     lines.truncate(24);
     lines
@@ -80,4 +53,20 @@ pub(crate) fn try_version_command(program: &Path, args: &[&str]) -> Option<Strin
 
 pub(crate) fn command_from_path_or_name(value: &str) -> PathBuf {
     PathBuf::from(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_log_lines;
+
+    #[test]
+    fn process_summary_redacts_without_dropping_keyword_lines() {
+        let lines = sanitize_log_lines(
+            "This is a compiler line token=secret\nhttps://example.test/run?q=private",
+        );
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("This is a compiler line"));
+        assert!(!lines.join(" ").contains("secret"));
+        assert!(!lines.join(" ").contains("private"));
+    }
 }

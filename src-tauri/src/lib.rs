@@ -8,11 +8,11 @@ mod smoke;
 mod state;
 mod storage;
 
+use commands::agent_rebuttal_workflow::latex_rebuttal_reply_start;
 use commands::agent_workflows::{
     chat_workflow_start, completion_latex_start, git_summary_workflow_start, latex_edit_start,
     latex_paper_analyze_start, latex_reference_check_start, latex_review_fix_start,
 };
-use commands::agent_rebuttal_workflow::latex_rebuttal_reply_start;
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
@@ -23,6 +23,7 @@ use commands::channels_dingtalk::{
 use commands::channels_email::{
     channels_email_fetch_submission, channels_email_password_save_verified, channels_email_test,
 };
+use commands::docx::{docx_read, docx_write};
 use commands::git::{
     git_branches, git_check_installed, git_checkout, git_commit, git_commit_files, git_diff_file,
     git_download_cancel, git_download_installer_start, git_download_status, git_fetch,
@@ -33,13 +34,16 @@ use commands::health::{
     app_exit, app_smoke_config, app_smoke_finish, app_smoke_progress, health_check,
     runtime_clear_volatile_cache_and_restart, tray_set_labels, window_sync_icon,
 };
-use commands::docx::{docx_read, docx_write};
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
 use commands::markdown_runtime::{markdown_run_code, markdown_run_code_capabilities};
 use commands::native_runtime::{
     analysis_env_pick_directory, analysis_env_prepare, analysis_env_prepare_start,
     analysis_env_prepare_status, analysis_env_status, analysis_run_python, latex_compile_native,
     latex_compile_start, latex_compile_status,
+};
+use commands::plugins::{
+    plugin_install, plugin_installed_list, plugin_marketplace_catalog, plugin_set_enabled,
+    plugin_uninstall, plugin_validate_manifest,
 };
 use commands::projects::{
     draw_export_asset, file_read, file_read_binary, file_write, file_write_binary, fs_operation,
@@ -56,9 +60,8 @@ use commands::projects_translation::{
     library_extract_paper_context, library_translate_document, library_translate_start,
     library_translate_status,
 };
-use commands::plugins::{
-    plugin_install, plugin_installed_list, plugin_marketplace_catalog, plugin_set_enabled,
-    plugin_uninstall, plugin_validate_manifest,
+use commands::runtime_assets::{
+    runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
 };
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test,
@@ -68,11 +71,11 @@ use commands::settings::{
     settings_get, settings_pick_background_image, settings_read_background_image,
     settings_remove_background_image, settings_update,
 };
-use commands::share::{share_session_create, share_session_status, share_session_stop};
-use commands::submission_pack::submission_pack_build;
-use commands::runtime_assets::{
-    runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
+use commands::share::{
+    share_session_create, share_session_owner_auth, share_session_password_reveal,
+    share_session_status, share_session_stop,
 };
+use commands::submission_pack::submission_pack_build;
 use commands::swarm::{
     agent_approval_list, agent_approval_resolve, agent_execute_cancel, agent_execute_start,
     agent_mcp_validate, agent_permission_grant_revoke, agent_permission_grants_list,
@@ -98,9 +101,11 @@ const TRAY_ID: &str = "latotex-tray";
 
 fn run_native_smoke_fallback_if_requested() -> bool {
     let smoke_mode = smoke::enabled();
-    let native_fallback =
-        std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK").ok().as_deref() == Some("1")
-            || smoke::arg_flag("--latotex-smoke-native-fallback");
+    let native_fallback = std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK")
+        .ok()
+        .as_deref()
+        == Some("1")
+        || smoke::arg_flag("--latotex-smoke-native-fallback");
     if !smoke_mode || !native_fallback {
         return false;
     }
@@ -116,8 +121,8 @@ fn write_native_smoke_report(
     steps: Vec<serde_json::Value>,
     error: Option<String>,
 ) -> Result<(), String> {
-    let report_path =
-        smoke::report_path(None).ok_or_else(|| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
+    let report_path = smoke::report_path(None)
+        .ok_or_else(|| "LATOTEX_SMOKE_REPORT_PATH is required".to_string())?;
     if let Some(parent) = report_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -306,15 +311,14 @@ pub fn run() {
         )
         .setup(move |app| {
             smoke::write_progress("tauri.setup.start", "ok", None);
-            let app_state = state::AppState::bootstrap(app.handle())
-                .map_err(|e| {
-                    smoke::write_progress(
-                        "tauri.setup.error",
-                        "error",
-                        Some(serde_json::json!({ "message": e })),
-                    );
-                    std::io::Error::new(std::io::ErrorKind::Other, e)
-                })?;
+            let app_state = state::AppState::bootstrap(app.handle()).map_err(|e| {
+                smoke::write_progress(
+                    "tauri.setup.error",
+                    "error",
+                    Some(serde_json::json!({ "message": e })),
+                );
+                std::io::Error::new(std::io::ErrorKind::Other, e)
+            })?;
             app.manage(app_state);
             let tray_menu = MenuBuilder::new(app)
                 .text(TRAY_MENU_SHOW_ID, "Show LatoTex")
@@ -405,6 +409,8 @@ pub fn run() {
             library_citation_summary_remote,
             library_resolve_pdf_preview,
             share_session_create,
+            share_session_owner_auth,
+            share_session_password_reveal,
             share_session_status,
             share_session_stop,
             submission_pack_build,

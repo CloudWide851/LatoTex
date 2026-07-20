@@ -1,6 +1,6 @@
 use super::{
-    handle_local_resource_request, normalize_workspace_relative_path, workspace_file_response,
-    set_local_resource_origin, LOCAL_RESOURCE_SCHEME,
+    handle_local_resource_request, normalize_workspace_relative_path, set_local_resource_origin,
+    workspace_file_response, LOCAL_RESOURCE_SCHEME,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -123,10 +123,16 @@ fn register_test_drawio_runtime(fixture: &TestFixture) {
     write_test_asset(&root.join("drawio-version.json"), b"{\"tag\":\"test\"}");
     write_test_asset(&root.join("vendor/index.html"), b"<html>vendor</html>");
     write_test_asset(&root.join("vendor/js/app.min.js"), b"window.App = {};");
-    write_test_asset(&root.join("vendor/js/bootstrap.js"), b"console.log('bootstrap');");
+    write_test_asset(
+        &root.join("vendor/js/bootstrap.js"),
+        b"console.log('bootstrap');",
+    );
     write_test_asset(&root.join("vendor/mxgraph/css/common.css"), b".mxgraph{}");
     write_test_asset(&root.join("vendor/mxgraph/images/maximize.gif"), b"GIF89a");
-    write_test_asset(&root.join("vendor/math4/es5/startup.js"), b"console.log('math');");
+    write_test_asset(
+        &root.join("vendor/math4/es5/startup.js"),
+        b"console.log('math');",
+    );
     write_test_asset(&root.join("vendor/resources/dia.txt"), b"dia");
     write_test_asset(&root.join("vendor/images/github-logo.svg"), b"<svg></svg>");
 
@@ -163,17 +169,9 @@ fn register_test_drawio_runtime(fixture: &TestFixture) {
 fn workspace_file_response_does_not_emit_wildcard_cors_for_pdf_reads() {
     set_local_resource_origin(None);
     let path = temp_workspace_file_path("sample.pdf", b"%PDF-demo");
-    let response = workspace_file_response(
-        &Method::GET,
-        &path,
-        "application/pdf",
-        None,
-    );
+    let response = workspace_file_response(&Method::GET, &path, "application/pdf", None);
     assert_eq!(response.status(), 200);
-    assert_eq!(
-        response.headers().get("Access-Control-Allow-Origin"),
-        None
-    );
+    assert_eq!(response.headers().get("Access-Control-Allow-Origin"), None);
     assert_eq!(
         response.headers().get("Accept-Ranges"),
         Some(&HeaderValue::from_static("bytes"))
@@ -189,7 +187,11 @@ fn workspace_file_response_does_not_emit_wildcard_cors_for_pdf_reads() {
 fn handle_local_resource_request_allows_known_app_origin() {
     let fixture = create_test_fixture("allowed-origin");
     let relative_path = ".latotex/papers/origin-check.pdf";
-    let pdf_path = fixture.project_root.join(".latotex").join("papers").join("origin-check.pdf");
+    let pdf_path = fixture
+        .project_root
+        .join(".latotex")
+        .join("papers")
+        .join("origin-check.pdf");
     fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
     fs::write(&pdf_path, b"%PDF-origin").unwrap();
 
@@ -218,7 +220,11 @@ fn handle_local_resource_request_allows_known_app_origin() {
 fn handle_local_resource_request_rejects_unknown_origin_header() {
     let fixture = create_test_fixture("unknown-origin");
     let relative_path = ".latotex/papers/origin-reject.pdf";
-    let pdf_path = fixture.project_root.join(".latotex").join("papers").join("origin-reject.pdf");
+    let pdf_path = fixture
+        .project_root
+        .join(".latotex")
+        .join("papers")
+        .join("origin-reject.pdf");
     fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
     fs::write(&pdf_path, b"%PDF-origin").unwrap();
 
@@ -244,12 +250,8 @@ fn handle_local_resource_request_rejects_unknown_origin_header() {
 fn workspace_file_response_supports_single_byte_ranges() {
     set_local_resource_origin(None);
     let path = temp_workspace_file_path("range.pdf", b"0123456789");
-    let response = workspace_file_response(
-        &Method::GET,
-        &path,
-        "application/pdf",
-        Some("bytes=2-5"),
-    );
+    let response =
+        workspace_file_response(&Method::GET, &path, "application/pdf", Some("bytes=2-5"));
     assert_eq!(response.status(), 206);
     assert_eq!(response.body(), b"2345");
     assert_eq!(
@@ -263,12 +265,8 @@ fn workspace_file_response_supports_single_byte_ranges() {
 fn workspace_file_response_rejects_unsatisfiable_ranges() {
     set_local_resource_origin(None);
     let path = temp_workspace_file_path("unsat.pdf", b"0123");
-    let response = workspace_file_response(
-        &Method::GET,
-        &path,
-        "application/pdf",
-        Some("bytes=99-120"),
-    );
+    let response =
+        workspace_file_response(&Method::GET, &path, "application/pdf", Some("bytes=99-120"));
     assert_eq!(response.status(), 416);
     assert_eq!(
         response.headers().get("Content-Range"),
@@ -281,12 +279,7 @@ fn workspace_file_response_rejects_unsatisfiable_ranges() {
 fn workspace_file_response_head_reports_real_content_length() {
     set_local_resource_origin(None);
     let path = temp_workspace_file_path("head.pdf", b"%PDF-1.7\npayload");
-    let response = workspace_file_response(
-        &Method::HEAD,
-        &path,
-        "application/pdf",
-        None,
-    );
+    let response = workspace_file_response(&Method::HEAD, &path, "application/pdf", None);
     assert_eq!(response.status(), 200);
     assert!(response.body().is_empty());
     assert_eq!(
@@ -305,7 +298,11 @@ fn normalize_workspace_relative_path_rejects_traversal() {
 fn handle_local_resource_request_serves_library_pdf_from_workspace_route() {
     let fixture = create_test_fixture("library-pdf");
     let relative_path = ".latotex/papers/Deep Learning Survey 2026.pdf";
-    let pdf_path = fixture.project_root.join(".latotex").join("papers").join("Deep Learning Survey 2026.pdf");
+    let pdf_path = fixture
+        .project_root
+        .join(".latotex")
+        .join("papers")
+        .join("Deep Learning Survey 2026.pdf");
     fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
     fs::write(&pdf_path, b"%PDF-library-preview").unwrap();
 
@@ -334,7 +331,11 @@ fn handle_local_resource_request_serves_library_pdf_from_workspace_route() {
 fn handle_local_resource_request_preserves_head_and_range_for_library_pdf() {
     let fixture = create_test_fixture("library-range");
     let relative_path = ".latotex/papers/range-check.pdf";
-    let pdf_path = fixture.project_root.join(".latotex").join("papers").join("range-check.pdf");
+    let pdf_path = fixture
+        .project_root
+        .join(".latotex")
+        .join("papers")
+        .join("range-check.pdf");
     fs::create_dir_all(pdf_path.parent().unwrap()).unwrap();
     fs::write(&pdf_path, b"%PDF-range-check").unwrap();
 
@@ -418,7 +419,9 @@ fn handle_local_resource_request_serves_drawio_runtime_script() {
     assert_eq!(response.status(), 200);
     assert_eq!(
         response.headers().get("Content-Type"),
-        Some(&HeaderValue::from_static("application/javascript; charset=utf-8"))
+        Some(&HeaderValue::from_static(
+            "application/javascript; charset=utf-8"
+        ))
     );
     assert!(
         !response.body().is_empty(),
@@ -433,7 +436,10 @@ fn handle_local_resource_request_serves_required_drawio_support_assets() {
     for (request_path, expected_content_type) in [
         ("vendor/mxgraph/css/common.css", "text/css; charset=utf-8"),
         ("vendor/mxgraph/images/maximize.gif", "image/gif"),
-        ("vendor/math4/es5/startup.js", "application/javascript; charset=utf-8"),
+        (
+            "vendor/math4/es5/startup.js",
+            "application/javascript; charset=utf-8",
+        ),
         ("vendor/resources/dia.txt", "application/octet-stream"),
         ("vendor/images/github-logo.svg", "image/svg+xml"),
     ] {
@@ -448,7 +454,11 @@ fn handle_local_resource_request_serves_required_drawio_support_assets() {
 
         let response = handle_local_resource_request(&fixture.state, &request);
 
-        assert_eq!(response.status(), 200, "expected {request_path} to be served");
+        assert_eq!(
+            response.status(),
+            200,
+            "expected {request_path} to be served"
+        );
         assert_eq!(
             response.headers().get("Content-Type"),
             Some(&HeaderValue::from_str(expected_content_type).unwrap())
@@ -467,7 +477,11 @@ fn managed_drawio_detection_rejects_registry_paths_outside_runtime_assets() {
     fs::create_dir_all(external_root.join("vendor/js")).unwrap();
     fs::write(external_root.join("index.html"), b"<html></html>").unwrap();
     fs::write(external_root.join("vendor/index.html"), b"<html></html>").unwrap();
-    fs::write(external_root.join("vendor/js/app.min.js"), b"console.log('drawio')").unwrap();
+    fs::write(
+        external_root.join("vendor/js/app.min.js"),
+        b"console.log('drawio')",
+    )
+    .unwrap();
 
     let registry_path = fixture
         .state

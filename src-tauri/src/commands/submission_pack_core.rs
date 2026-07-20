@@ -1,4 +1,4 @@
-use super::submission_pack_collect::{collect_pack_files, issue, safe_join};
+use super::submission_pack_collect::{collect_pack_files, issue};
 use super::submission_pack_profiles::{canonical_profile_id, parse_profile};
 use crate::models::{
     SubmissionPackBuildInput, SubmissionPackBuildResponse, SubmissionPackFile, SubmissionPackIssue,
@@ -6,8 +6,8 @@ use crate::models::{
 };
 use crate::storage;
 use serde::Serialize;
-use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::fs;
+use std::io::{self, Read};
 use std::path::Path;
 use zip::{write::SimpleFileOptions, ZipWriter};
 
@@ -38,27 +38,60 @@ fn from_gate_issue(input: &SubmissionPackIssueInput) -> SubmissionPackIssue {
     )
 }
 
-fn write_manifest(path: &Path, manifest: &SubmissionPackManifest) -> Result<(), String> {
+fn write_manifest(
+    root: &Path,
+    relative_path: &str,
+    manifest: &SubmissionPackManifest,
+) -> Result<(), String> {
     let payload = serde_json::to_vec_pretty(manifest).map_err(|e| e.to_string())?;
-    fs::write(path, payload).map_err(|e| e.to_string())
+    storage::atomic_write_under_root(
+        root,
+        relative_path,
+        &payload,
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )
+    .map(|_| ())
 }
 
-fn write_zip(root: &Path, output_path: &Path, files: &[SubmissionPackFile]) -> Result<(), String> {
-    let file = File::create(output_path).map_err(|e| e.to_string())?;
-    let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-    let mut buffer = Vec::<u8>::new();
-    for item in files {
-        let source = root.join(&item.path);
-        let mut input = File::open(&source).map_err(|e| e.to_string())?;
-        buffer.clear();
-        input.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
-        zip.start_file(&item.path, options)
-            .map_err(|e| e.to_string())?;
-        zip.write_all(&buffer).map_err(|e| e.to_string())?;
-    }
-    zip.finish().map_err(|e| e.to_string())?;
-    Ok(())
+fn write_zip(
+    root: &Path,
+    output_relative: &str,
+    files: &[SubmissionPackFile],
+) -> Result<(), String> {
+    storage::atomic_write_stream_under_root(
+        root,
+        output_relative,
+        storage::WORKSPACE_SUBMISSION_TOTAL_LIMIT,
+        |output| {
+            let mut zip = ZipWriter::new(output);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            for item in files {
+                let source = storage::safe_join(root, &item.path)?;
+                if storage::workspace_path_is_link_or_reparse(&source)? {
+                    return Err("workspace.path.reparse_denied".to_string());
+                }
+                let metadata = storage::ensure_workspace_binary_file(&source)?;
+                if metadata.len() != item.size_bytes {
+                    return Err("submissionPack.sourceChanged".to_string());
+                }
+                let mut input = fs::File::open(&source)
+                    .map_err(|_| "workspace.path.unavailable".to_string())?;
+                zip.start_file(&item.path, options)
+                    .map_err(|_| "submissionPack.zipWriteFailed".to_string())?;
+                let mut limited = Read::take(&mut input, storage::WORKSPACE_BINARY_FILE_LIMIT + 1);
+                let copied = io::copy(&mut limited, &mut zip)
+                    .map_err(|_| "submissionPack.zipWriteFailed".to_string())?;
+                if copied != item.size_bytes || copied > storage::WORKSPACE_BINARY_FILE_LIMIT {
+                    return Err("workspace.file_read.too_large".to_string());
+                }
+            }
+            zip.finish()
+                .map_err(|_| "submissionPack.zipWriteFailed".to_string())?;
+            Ok(())
+        },
+    )
+    .map(|_| ())
 }
 
 pub(super) fn build_submission_pack(
@@ -92,12 +125,10 @@ pub(super) fn build_submission_pack(
     let generated_at = storage::now_iso();
     let folder_stamp = generated_at.replace([':', '.'], "-").replace('+', "Z");
     let output_relative_dir = format!(".latotex/submissions/{folder_stamp}-{profile_id}");
-    let output_dir = safe_join(&project_root, &output_relative_dir)?;
-    fs::create_dir_all(&output_dir).map_err(|e| e.to_string())?;
+    let output_dir = storage::prepare_workspace_mutation_path(&project_root, &output_relative_dir)?;
+    fs::create_dir_all(&output_dir).map_err(|_| "workspace.operation.failed".to_string())?;
     let manifest_relative = format!("{output_relative_dir}/submission-manifest.json");
-    let manifest_path = output_dir.join("submission-manifest.json");
     let zip_relative = format!("{output_relative_dir}/source.zip");
-    let zip_path = output_dir.join("source.zip");
     let status = if blockers.is_empty() {
         "ready"
     } else {
@@ -106,7 +137,7 @@ pub(super) fn build_submission_pack(
     .to_string();
 
     if status == "ready" {
-        write_zip(&project_root, &zip_path, &included_files)?;
+        write_zip(&project_root, &zip_relative, &included_files)?;
     }
 
     let manifest = SubmissionPackManifest {
@@ -126,7 +157,7 @@ pub(super) fn build_submission_pack(
         included_files: included_files.clone(),
         skipped_files: skipped_files.clone(),
     };
-    write_manifest(&manifest_path, &manifest)?;
+    write_manifest(&project_root, &manifest_relative, &manifest)?;
 
     Ok(SubmissionPackBuildResponse {
         status,

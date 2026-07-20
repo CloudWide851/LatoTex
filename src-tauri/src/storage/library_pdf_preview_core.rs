@@ -117,6 +117,9 @@ fn pdf_bytes_valid(bytes: &[u8]) -> bool {
 }
 
 fn cached_pdf_file_ready(cache_path: &Path) -> bool {
+    if ensure_not_link_or_reparse_if_present(cache_path).is_err() {
+        return false;
+    }
     let Ok(mut file) = std::fs::File::open(cache_path) else {
         return false;
     };
@@ -177,15 +180,14 @@ fn clear_pdf_cache_entry(
     task_key: &str,
     cache_path: &Path,
 ) {
-    let _ = fs::remove_file(cache_path);
-    let _ = fs::remove_file(temp_cache_path(cache_path));
+    clear_cache_file_artifacts(cache_path);
     if let Ok(mut tasks_guard) = tasks.lock() {
         tasks_guard.remove(task_key);
     }
 }
 
 fn remote_pdf_cache_dir(ctx: &LibraryPdfPreviewContext) -> Result<PathBuf, String> {
-    let cache_dir = ctx.papers_root.join(".cache").join("remote-pdf");
+    let cache_dir = ensure_mutation_path(&ctx.papers_root, ".cache/remote-pdf")?;
     fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
     Ok(cache_dir)
 }
@@ -204,7 +206,7 @@ fn remote_pdf_cache_binding_path_with_hash(
     use_legacy_hash: bool,
 ) -> Result<PathBuf, String> {
     let normalized_relative = normalize_library_relative_path(relative_path)?;
-    let cache_dir = papers_root.join(".cache").join("remote-pdf");
+    let cache_dir = ensure_mutation_path(papers_root, ".cache/remote-pdf")?;
     fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
     let hash = if use_legacy_hash {
         legacy_hash_cache_key(&normalized_relative)
@@ -240,8 +242,13 @@ fn legacy_remote_pdf_cache_binding_path(ctx: &LibraryPdfPreviewContext) -> Resul
 }
 
 fn clear_cache_file_artifacts(cache_path: &Path) {
-    let _ = fs::remove_file(cache_path);
-    let _ = fs::remove_file(temp_cache_path(cache_path));
+    if ensure_not_link_or_reparse_if_present(cache_path).is_ok() {
+        let _ = fs::remove_file(cache_path);
+    }
+    let temporary = temp_cache_path(cache_path);
+    if ensure_not_link_or_reparse_if_present(&temporary).is_ok() {
+        let _ = fs::remove_file(temporary);
+    }
 }
 
 fn move_cache_file_to_stable_path(from: &Path, to: &Path) -> Result<PathBuf, String> {
@@ -252,6 +259,8 @@ fn move_cache_file_to_stable_path(from: &Path, to: &Path) -> Result<PathBuf, Str
         clear_cache_file_artifacts(from);
         return Ok(to.to_path_buf());
     }
+    ensure_not_link_or_reparse_if_present(from)?;
+    ensure_not_link_or_reparse_if_present(to)?;
     if let Some(parent) = to.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -294,6 +303,25 @@ fn build_legacy_remote_cache_path(
     build_remote_cache_path_with_hash(ctx, source_url, true)
 }
 
+fn bound_remote_cache_path(cache_dir: &Path, cache_file_name: &str) -> Option<PathBuf> {
+    let normalized = cache_file_name.trim();
+    let path = Path::new(normalized);
+    if normalized.is_empty()
+        || normalized.len() > 255
+        || normalized.contains('\0')
+        || path.components().count() != 1
+        || !matches!(path.components().next(), Some(std::path::Component::Normal(_)))
+    {
+        return None;
+    }
+    let stem = path.file_stem()?.to_str()?;
+    let extension = path.extension()?.to_str()?;
+    if stem.is_empty() || !extension.eq_ignore_ascii_case("pdf") {
+        return None;
+    }
+    Some(cache_dir.join(normalized))
+}
+
 fn resolve_cached_remote_pdf_path(
     ctx: &LibraryPdfPreviewContext,
     source_url: &str,
@@ -313,7 +341,10 @@ fn resolve_cached_remote_pdf_path(
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        let referenced_cache_path = cache_dir.join(cache_file_name);
+        let Some(referenced_cache_path) = bound_remote_cache_path(&cache_dir, cache_file_name)
+        else {
+            return Ok(None);
+        };
         if referenced_cache_path != stable_cache_path {
             if cached_pdf_file_ready(&referenced_cache_path) {
                 if referenced_cache_path == legacy_cache_path {
@@ -366,7 +397,8 @@ fn clear_remote_cache_variants(ctx: &LibraryPdfPreviewContext, source_url: &str)
 }
 
 fn read_remote_cache_binding_payload(binding_path: &Path) -> Option<RemotePdfCacheBinding> {
-    let raw = fs::read_to_string(binding_path).ok()?;
+    let bytes = read_file_with_limit(binding_path, WORKSPACE_SCAN_FILE_LIMIT).ok()?;
+    let raw = String::from_utf8(bytes).ok()?;
     serde_json::from_str::<RemotePdfCacheBinding>(&raw).ok()
 }
 
@@ -389,7 +421,7 @@ fn write_remote_cache_binding(
         updated_at_unix_ms: current_unix_ms(),
     };
     let payload = serde_json::to_string(&binding).map_err(|e| e.to_string())?;
-    fs::write(remote_pdf_cache_binding_path(ctx)?, payload).map_err(|e| e.to_string())
+    atomic_write_file(&remote_pdf_cache_binding_path(ctx)?, payload.as_bytes())
 }
 
 fn read_remote_cache_binding(ctx: &LibraryPdfPreviewContext) -> Option<(String, PathBuf)> {
@@ -415,8 +447,11 @@ fn read_remote_cache_binding(ctx: &LibraryPdfPreviewContext) -> Option<(String, 
         let Some(cache_path) =
             resolve_cached_remote_pdf_path(ctx, &source_url, Some(&cache_file_name)).ok()?
         else {
-            let referenced_cache_path = remote_pdf_cache_dir(ctx).ok()?.join(cache_file_name);
-            clear_cache_file_artifacts(&referenced_cache_path);
+            if let Some(referenced_cache_path) =
+                bound_remote_cache_path(&remote_pdf_cache_dir(ctx).ok()?, &cache_file_name)
+            {
+                clear_cache_file_artifacts(&referenced_cache_path);
+            }
             let _ = fs::remove_file(binding_path);
             continue;
         };

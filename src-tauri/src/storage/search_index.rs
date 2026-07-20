@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 
-const SEARCH_MAX_FILE_SIZE_BYTES: u64 = 8 * 1024 * 1024;
 const SEARCH_INDEX_SCHEMA_VERSION: i64 = 2;
 const SEARCH_DOCUMENT_REQUIRED_COLUMNS: &[&str] = &[
     "relative_path",
@@ -30,13 +29,6 @@ struct SearchIndexedEntry {
     modified_epoch_sec: i64,
 }
 
-fn search_index_path(project_root: &Path) -> PathBuf {
-    project_root
-        .join(".latotex")
-        .join("index")
-        .join("search-index.sqlite3")
-}
-
 fn search_index_lock_map() -> &'static Mutex<HashMap<String, Arc<Mutex<()>>>> {
     static LOCKS: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
     LOCKS.get_or_init(|| Mutex::new(HashMap::new()))
@@ -56,7 +48,7 @@ fn search_index_project_lock(project_root: &Path) -> Result<Arc<Mutex<()>>, Stri
 }
 
 fn open_search_index(project_root: &Path) -> Result<Connection, String> {
-    let index_path = search_index_path(project_root);
+    let index_path = ensure_mutation_path(project_root, ".latotex/index/search-index.sqlite3")?;
     if let Some(parent) = index_path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -228,7 +220,11 @@ fn collect_search_scan_entries(
         let item = item.map_err(|e| e.to_string())?;
         let path = item.path();
         let name = item.file_name().to_string_lossy().to_string();
-        let is_dir = path.is_dir();
+        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        if metadata_is_link_or_reparse(&metadata) {
+            continue;
+        }
+        let is_dir = metadata.is_dir();
         if !should_index_search_entry(&path, &name, is_dir) {
             continue;
         }
@@ -236,7 +232,6 @@ fn collect_search_scan_entries(
             collect_search_scan_entries(root, &path, entries)?;
             continue;
         }
-        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
         entries.push(SearchScanEntry {
             relative_path: path
                 .strip_prefix(root)
@@ -284,10 +279,16 @@ fn load_searchable_file_content(
     path: &Path,
     size_bytes: u64,
 ) -> Result<(bool, Option<String>, Option<String>), String> {
-    if size_bytes > SEARCH_MAX_FILE_SIZE_BYTES {
+    if size_bytes > WORKSPACE_SCAN_FILE_LIMIT {
         return Ok((false, None, None));
     }
-    let bytes = fs::read(path).map_err(|e| e.to_string())?;
+    let bytes = match read_file_with_limit(path, WORKSPACE_SCAN_FILE_LIMIT) {
+        Ok(bytes) => bytes,
+        Err(code) if code == "workspace.file_read.too_large" => {
+            return Ok((false, None, None));
+        }
+        Err(error) => return Err(error),
+    };
     if bytes.contains(&0) {
         return Ok((false, None, None));
     }
@@ -364,8 +365,14 @@ fn collect_focused_search_entries(
         if relative_path.is_empty() {
             continue;
         }
+        let lexical_target = canonical_root.join(normalize_workspace_path(&relative_path)?);
+        let lexical_metadata = match fs::symlink_metadata(&lexical_target) {
+            Ok(metadata) => Some(metadata),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error.to_string()),
+        };
         let target = safe_join(project_root, &relative_path)?;
-        if !target.exists() {
+        if lexical_metadata.is_none() || !target.exists() {
             missing_paths.push(relative_path);
             continue;
         }
@@ -374,6 +381,14 @@ fn collect_focused_search_entries(
             .map(|value| value.to_string_lossy().to_string())
             .unwrap_or_default();
         let is_dir = target.is_dir();
+        if is_dir
+            && lexical_metadata
+                .as_ref()
+                .is_some_and(metadata_is_link_or_reparse)
+        {
+            missing_paths.push(relative_path);
+            continue;
+        }
         if !should_index_search_entry(&target, &name, is_dir) {
             missing_paths.push(relative_path);
             continue;

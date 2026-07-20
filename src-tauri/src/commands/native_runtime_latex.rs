@@ -228,7 +228,9 @@ pub fn latex_compile_start(
                     if let Ok(mut result_slot) = task_ref.result.lock() {
                         *result_slot = Some(result.clone());
                     }
-                    task_ref.percent_basis_points.store(10_000, Ordering::Relaxed);
+                    task_ref
+                        .percent_basis_points
+                        .store(10_000, Ordering::Relaxed);
                 });
                 append_runtime_log(
                     &session_log_path,

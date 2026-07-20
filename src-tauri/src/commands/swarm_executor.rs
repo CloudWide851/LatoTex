@@ -1,10 +1,9 @@
 use crate::models::AgentExecuteRequest;
-use serde_json::json;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::swarm_events::{emit_stage_event, run_envelope, EventMetadata};
+use super::swarm_events::{emit_stage_event, EventMetadata};
 use super::swarm_runtime::{resolve_model_connection, run_provider_step, ModelConnection};
 use super::swarm_supervisor::{
     build_context_summary, build_evaluator_prompt, build_revision_prompt, build_supervisor_plan,
@@ -12,11 +11,11 @@ use super::swarm_supervisor::{
 };
 use super::swarm_team_executor::{run_execute_pipeline_team, select_agent_team, should_use_team};
 use super::swarm_tool_search;
-use super::{swarm_tool_mcp, swarm_tool_python, swarm_tool_skills, swarm_tool_workspace};
 use super::swarm_workflows::{
     execution_mode_for_workflow, max_iterations_for_workflow, max_steps_for_workflow,
     timeout_for_workflow, WorkflowDefinition, WorkflowStep,
 };
+use super::{swarm_tool_mcp, swarm_tool_python, swarm_tool_skills, swarm_tool_workspace};
 
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
@@ -94,8 +93,16 @@ pub(super) fn run_workflow_step(
             &input.project_id,
             &workflow.id,
             &step.id,
-            if step.source.trim().is_empty() { "workflow" } else { step.source.as_str() },
-            if step.title.trim().is_empty() { "Workspace Search" } else { step.title.as_str() },
+            if step.source.trim().is_empty() {
+                "workflow"
+            } else {
+                step.source.as_str()
+            },
+            if step.title.trim().is_empty() {
+                "Workspace Search"
+            } else {
+                step.title.as_str()
+            },
             prompt,
             cancel_flag,
             metadata,
@@ -108,8 +115,16 @@ pub(super) fn run_workflow_step(
             &input.project_id,
             &workflow.id,
             &step.id,
-            if step.source.trim().is_empty() { "workflow" } else { step.source.as_str() },
-            if step.title.trim().is_empty() { "Python Analysis" } else { step.title.as_str() },
+            if step.source.trim().is_empty() {
+                "workflow"
+            } else {
+                step.source.as_str()
+            },
+            if step.title.trim().is_empty() {
+                "Python Analysis"
+            } else {
+                step.title.as_str()
+            },
             prompt,
             cancel_flag,
             metadata,
@@ -121,8 +136,16 @@ pub(super) fn run_workflow_step(
             &input.project_id,
             &workflow.id,
             &step.id,
-            if step.source.trim().is_empty() { "stitch:tools/list" } else { step.source.as_str() },
-            if step.title.trim().is_empty() { "MCP Call" } else { step.title.as_str() },
+            if step.source.trim().is_empty() {
+                "stitch:tools/list"
+            } else {
+                step.source.as_str()
+            },
+            if step.title.trim().is_empty() {
+                "MCP Call"
+            } else {
+                step.title.as_str()
+            },
             cancel_flag,
             metadata,
         ),
@@ -185,7 +208,11 @@ fn run_execute_pipeline_single(
         if Instant::now() >= deadline {
             return Err("agent.run.timeout.total".to_string());
         }
-        let step_id = if step.id.trim().is_empty() { "step" } else { step.id.as_str() };
+        let step_id = if step.id.trim().is_empty() {
+            "step"
+        } else {
+            step.id.as_str()
+        };
         let node_id = format!("step:{step_id}");
         let metadata = EventMetadata {
             phase: Some("execute"),
@@ -209,7 +236,10 @@ fn run_execute_pipeline_single(
         )?;
         if step.kind != "provider.generate" && !output.trim().is_empty() {
             tool_context.push(output.clone());
-            step_prompt = format!("{base_prompt}\n\n[Previous Tool Output]\n{}", tool_context.join("\n\n"));
+            step_prompt = format!(
+                "{base_prompt}\n\n[Previous Tool Output]\n{}",
+                tool_context.join("\n\n")
+            );
         }
     }
 
@@ -306,7 +336,11 @@ pub(super) fn run_execute_pipeline_supervisor(
         if Instant::now() >= deadline {
             return Err("agent.run.timeout.total".to_string());
         }
-        let base_step_id = if step.id.trim().is_empty() { "step" } else { step.id.as_str() };
+        let base_step_id = if step.id.trim().is_empty() {
+            "step"
+        } else {
+            step.id.as_str()
+        };
         let base_node_id = format!("step:{base_step_id}");
 
         if step.kind == "provider.generate" {
@@ -385,7 +419,8 @@ pub(super) fn run_execute_pipeline_supervisor(
                     evaluator_metadata,
                 )?;
                 let evaluation = parse_supervisor_evaluation(&evaluator_raw, workflow);
-                let evaluator_summary_node = format!("evaluate:{base_step_id}:{}:summary", iteration + 1);
+                let evaluator_summary_node =
+                    format!("evaluate:{base_step_id}:{}:summary", iteration + 1);
                 let summary_metadata = EventMetadata {
                     phase: Some("evaluate"),
                     node_id: Some(evaluator_summary_node.as_str()),
@@ -449,7 +484,10 @@ pub(super) fn run_execute_pipeline_supervisor(
         )?;
         if !output.trim().is_empty() {
             tool_context.push(output.clone());
-            step_prompt = format!("{base_prompt}\n\n[Previous Tool Output]\n{}", tool_context.join("\n\n"));
+            step_prompt = format!(
+                "{base_prompt}\n\n[Previous Tool Output]\n{}",
+                tool_context.join("\n\n")
+            );
         }
     }
 
@@ -531,62 +569,3 @@ pub(super) fn run_execute_pipeline_async(
         ),
     }
 }
-
-pub(super) fn build_slot_failure_payload(
-    run_id: &str,
-    workflow_id: &str,
-    callsite: &str,
-    context_refs: &[String],
-    message: &str,
-) -> serde_json::Value {
-    run_envelope(
-        run_id,
-        "error",
-        "Run Failed",
-        message,
-        &format!("{run_id}:run:failed"),
-        EventMetadata {
-            phase: Some("run"),
-            node_id: Some("run:failed"),
-            parent_node_id: None,
-            artifact_refs: Some(context_refs),
-            ..EventMetadata::base(workflow_id, "run", callsite)
-        },
-    )
-}
-
-pub(super) fn build_run_terminal_payload(
-    run_id: &str,
-    workflow_id: &str,
-    callsite: &str,
-    kind: &str,
-    content: &str,
-) -> serde_json::Value {
-    let (status, title, node_id) = match kind {
-        "agent.run.completed" => ("success", "Run Completed", "run:completed"),
-        "agent.run.cancelled" => ("cancelled", "Run Cancelled", "run:cancelled"),
-        _ => ("error", "Run Failed", "run:failed"),
-    };
-    let mut payload = run_envelope(
-        run_id,
-        status,
-        title,
-        content,
-        &format!("{run_id}:{node_id}"),
-        EventMetadata {
-            phase: Some("run"),
-            node_id: Some(node_id),
-            parent_node_id: None,
-            artifact_refs: None,
-            ..EventMetadata::base(workflow_id, "run", callsite)
-        },
-    );
-    if kind == "agent.run.completed" {
-        if let Some(object) = payload.as_object_mut() {
-            object.insert("output".to_string(), json!(content));
-        }
-    }
-    payload
-}
-
-

@@ -35,15 +35,35 @@ fn share_header(name: &str, value: &str) -> Header {
         .unwrap_or_else(|_| Header::from_bytes(name.as_bytes(), value.as_bytes()).unwrap())
 }
 
-fn is_allowed_share_origin(origin: &str) -> bool {
-    let normalized = origin.trim().to_ascii_lowercase();
-    if normalized == "http://tauri.localhost" || normalized == "http://latotex-resource.localhost" {
-        return true;
+fn normalize_origin(value: &str) -> String {
+    value.trim().trim_end_matches('/').to_ascii_lowercase()
+}
+
+pub(super) fn allowed_share_origin(
+    origin: Option<&str>,
+    local_url: &str,
+    tunnel_url: Option<&str>,
+) -> Option<String> {
+    let requested = origin
+        .map(normalize_origin)
+        .filter(|value| !value.is_empty())?;
+    let mut allowed = vec![
+        "http://tauri.localhost".to_string(),
+        "http://latotex-resource.localhost".to_string(),
+        normalize_origin(local_url),
+    ];
+    #[cfg(debug_assertions)]
+    allowed.extend([
+        "http://localhost:1420".to_string(),
+        "http://127.0.0.1:1420".to_string(),
+    ]);
+    if let Some(tunnel) = tunnel_url {
+        allowed.push(normalize_origin(tunnel));
     }
-    if normalized.starts_with("http://localhost:") || normalized.starts_with("http://127.0.0.1:") {
-        return true;
-    }
-    normalized.ends_with(".trycloudflare.com") || normalized.ends_with(".cloudflareaccess.com")
+    allowed
+        .iter()
+        .any(|candidate| candidate == &requested)
+        .then_some(requested)
 }
 
 pub(super) fn request_origin(request: &Request) -> Option<String> {
@@ -74,10 +94,7 @@ pub(super) fn with_share_cors_for_origin<T: std::io::Read + Send + 'static>(
         .fold(response, |acc, (name, value)| {
             acc.with_header(share_header(name, value))
         });
-    match origin
-        .map(str::trim)
-        .filter(|value| is_allowed_share_origin(value))
-    {
+    match origin.map(str::trim).filter(|value| !value.is_empty()) {
         Some(allowed_origin) => {
             response.with_header(share_header("Access-Control-Allow-Origin", allowed_origin))
         }
@@ -141,12 +158,17 @@ mod tests {
 
     #[test]
     fn options_response_includes_share_cors_headers_for_allowed_origin() {
-        let response = share_options_response(Some("http://localhost:1420"));
+        let allowed = allowed_share_origin(
+            Some("http://127.0.0.1:43123"),
+            "http://127.0.0.1:43123",
+            None,
+        );
+        let response = share_options_response(allowed.as_deref());
 
         assert_eq!(response.status_code().0, 204);
         assert_eq!(
             find_header(&response, "Access-Control-Allow-Origin"),
-            Some("http://localhost:1420")
+            Some("http://127.0.0.1:43123")
         );
         assert_eq!(
             find_header(&response, "Access-Control-Allow-Methods"),
@@ -160,12 +182,14 @@ mod tests {
 
     #[test]
     fn share_cors_wrapper_preserves_response_headers_without_wildcard_origin() {
+        let allowed =
+            allowed_share_origin(Some("https://evil.example"), "http://127.0.0.1:43123", None);
         let response = with_share_headers_for_origin(
             Response::from_string("ok")
                 .with_status_code(StatusCode(200))
                 .with_header(json_header())
                 .with_header(no_cache_header()),
-            Some("https://evil.example"),
+            allowed.as_deref(),
         );
 
         assert_eq!(
@@ -180,21 +204,40 @@ mod tests {
     }
 
     #[test]
-    fn share_cors_never_uses_wildcard_for_allowed_origins() {
+    fn share_cors_accepts_only_the_exact_active_tunnel_origin() {
+        let tunnel = "https://exact-share.trycloudflare.com";
+        let allowed = allowed_share_origin(Some(tunnel), "http://127.0.0.1:43123", Some(tunnel));
         let response = with_share_headers_for_origin(
             Response::from_string("ok").with_status_code(StatusCode(200)),
-            Some("https://example.trycloudflare.com"),
+            allowed.as_deref(),
         );
 
         assert_eq!(
             find_header(&response, "Access-Control-Allow-Origin"),
-            Some("https://example.trycloudflare.com")
+            Some(tunnel)
         );
         assert_ne!(
             find_header(&response, "Access-Control-Allow-Origin"),
             Some("*")
         );
         assert_eq!(find_header(&response, "Vary"), Some("Origin"));
+
+        assert_eq!(
+            allowed_share_origin(
+                Some("https://forged.trycloudflare.com"),
+                "http://127.0.0.1:43123",
+                Some(tunnel),
+            ),
+            None
+        );
+        assert_eq!(
+            allowed_share_origin(
+                Some("http://127.0.0.1:43124"),
+                "http://127.0.0.1:43123",
+                Some(tunnel),
+            ),
+            None
+        );
     }
 
     #[test]

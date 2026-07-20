@@ -1,7 +1,7 @@
+use serde_json::json;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use serde_json::json;
 
 use super::swarm_events::{emit_stage_event, emit_tool_event, EventMetadata};
 use crate::commands::native_runtime::ensure_analysis_env_blocking;
@@ -49,7 +49,18 @@ pub(super) fn run_stage_python_probe(
     if !enabled {
         return Ok("[python_analysis.runtime.v1]\npython=disabled_by_settings".to_string());
     }
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "running", title, "", metadata)?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "running",
+        title,
+        "",
+        metadata,
+    )?;
     let running_actions = json!([{"type":"run","tool":"python","status":"running"}]);
     emit_tool_event(
         db_path,
@@ -61,7 +72,10 @@ pub(super) fn run_stage_python_probe(
         "python_analysis",
         "running",
         "",
-        EventMetadata { actions: Some(&running_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&running_actions),
+            ..metadata
+        },
     )?;
     let project_root = crate::storage::load_project_root(db_path, project_id)?;
     let env_status = ensure_analysis_env_blocking(
@@ -104,9 +118,23 @@ pub(super) fn run_stage_python_probe(
         "python_analysis",
         "success",
         &content,
-        EventMetadata { actions: Some(&success_actions), ..metadata },
+        EventMetadata {
+            actions: Some(&success_actions),
+            ..metadata
+        },
     )?;
-    emit_stage_event(db_path, run_id, project_id, event_scope, source, stage, "success", title, "", metadata)?;
+    emit_stage_event(
+        db_path,
+        run_id,
+        project_id,
+        event_scope,
+        source,
+        stage,
+        "success",
+        title,
+        "",
+        metadata,
+    )?;
     Ok(content)
 }
 

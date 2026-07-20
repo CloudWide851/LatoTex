@@ -3,8 +3,9 @@ use super::native_runtime_analysis_env::{
     ensure_analysis_env_with_progress_blocking, project_env_key, resolve_analysis_env_paths,
     resolve_analysis_runtime_root,
 };
-use super::native_runtime_analysis_uv::resolve_uv_path;
-use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines, try_version_command};
+use super::native_runtime_analysis_uv::{resolve_uv, uv_source_policy_label};
+use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines};
+use super::native_runtime_failure::{native_runtime_failure, public_native_runtime_error};
 use crate::models::{
     AnalysisEnvPrepareStartResponse, AnalysisEnvPrepareStatusResponse, AnalysisEnvStatusResponse,
     AnalysisRunPythonInput, AnalysisRunPythonResponse, NativeTaskStatusInput,
@@ -12,7 +13,6 @@ use crate::models::{
 use crate::state::{AnalysisEnvPrepareTask, AppState};
 use crate::storage;
 use rfd::FileDialog;
-use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -60,6 +60,11 @@ fn snapshot_analysis_env_prepare_task(
             .lock()
             .map_err(|_| "analysis.env.task_lock_failed".to_string())?
             .clone(),
+        failure: task
+            .failure
+            .lock()
+            .map_err(|_| "analysis.env.task_lock_failed".to_string())?
+            .clone(),
         result: task
             .result
             .lock()
@@ -70,7 +75,7 @@ fn snapshot_analysis_env_prepare_task(
 #[tauri::command]
 pub async fn analysis_env_prepare(
     state: State<'_, AppState>,
-    input: crate::models::ProjectRefInput,
+    input: crate::models::AnalysisEnvPrepareInput,
 ) -> Result<AnalysisEnvStatusResponse, String> {
     state.log(
         "INFO",
@@ -80,15 +85,19 @@ pub async fn analysis_env_prepare(
     let app_data_dir = state.app_data_dir.clone();
     let runtime_root = state.runtime_root.clone();
     let project_id = input.project_id;
+    let explicit_retry = input.retry.unwrap_or(false);
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &project_id)?;
-        ensure_analysis_env_blocking(
+        ensure_analysis_env_with_progress_blocking(
             &db_path,
             &runtime_root,
             &app_data_dir,
             &project_id,
             &project_root,
+            explicit_retry,
+            |_percent, _stage, _item| {},
         )
+        .map_err(|error| public_native_runtime_error(&error))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -97,12 +106,13 @@ pub async fn analysis_env_prepare(
 #[tauri::command]
 pub fn analysis_env_prepare_start(
     state: State<'_, AppState>,
-    input: crate::models::ProjectRefInput,
+    input: crate::models::AnalysisEnvPrepareInput,
 ) -> Result<AnalysisEnvPrepareStartResponse, String> {
     state.log(
         "INFO",
         &format!("analysis_env_prepare_start: project={}", input.project_id),
     );
+    let explicit_retry = input.retry.unwrap_or(false);
     let project_id = input.project_id;
     let project_root = storage::load_project_root(&state.db_path, &project_id)?;
     let env_key = project_env_key(&project_root)?;
@@ -147,6 +157,7 @@ pub fn analysis_env_prepare_start(
         percent_basis_points: Arc::new(AtomicU64::new(0)),
         error: Arc::new(Mutex::new(None)),
         diagnostics: Arc::new(Mutex::new(Vec::new())),
+        failure: Arc::new(Mutex::new(None)),
         result: Arc::new(Mutex::new(None)),
     };
     state
@@ -171,12 +182,15 @@ pub fn analysis_env_prepare_start(
             }
         };
         let mut last_progress = String::new();
+        let mut last_stage = "queued".to_string();
         append_runtime_log(
             &session_log_path,
             "INFO",
             format!(
-                "analysis_env_prepare.task.start: task_id={}, project={}",
-                task_id_for_thread, project_id
+                "analysis_env_prepare.task.start: task_id={}, project={}, source_policy={}",
+                task_id_for_thread,
+                project_id,
+                uv_source_policy_label()
             ),
         );
         match ensure_analysis_env_with_progress_blocking(
@@ -185,11 +199,14 @@ pub fn analysis_env_prepare_start(
             &app_data_dir,
             &project_id,
             &project_root,
+            explicit_retry,
             |percent, stage, current_item| {
+                last_stage = stage.to_string();
                 with_task(&|task_ref| {
-                    task_ref
-                        .percent_basis_points
-                        .store((percent.clamp(0.0, 100.0) * 100.0).round() as u64, Ordering::Relaxed);
+                    task_ref.percent_basis_points.store(
+                        (percent.clamp(0.0, 100.0) * 100.0).round() as u64,
+                        Ordering::Relaxed,
+                    );
                     if let Ok(mut stage_slot) = task_ref.stage.lock() {
                         *stage_slot = Some(stage.to_string());
                     }
@@ -233,12 +250,17 @@ pub fn analysis_env_prepare_start(
                     if let Ok(mut current_item_slot) = task_ref.current_item.lock() {
                         *current_item_slot = Some(status.venv_path.clone());
                     }
-                    task_ref.percent_basis_points.store(10_000, Ordering::Relaxed);
+                    task_ref
+                        .percent_basis_points
+                        .store(10_000, Ordering::Relaxed);
                     if let Ok(mut error_slot) = task_ref.error.lock() {
                         *error_slot = None;
                     }
                     if let Ok(mut diagnostics_slot) = task_ref.diagnostics.lock() {
                         diagnostics_slot.clear();
+                    }
+                    if let Ok(mut failure_slot) = task_ref.failure.lock() {
+                        *failure_slot = None;
                     }
                     if let Ok(mut result_slot) = task_ref.result.lock() {
                         *result_slot = Some(status.clone());
@@ -254,6 +276,7 @@ pub fn analysis_env_prepare_start(
                 );
             }
             Err(error) => {
+                let failure = native_runtime_failure(&error, &last_stage);
                 with_task(&|task_ref| {
                     if let Ok(mut status_slot) = task_ref.status.lock() {
                         *status_slot = "failed".to_string();
@@ -262,21 +285,27 @@ pub fn analysis_env_prepare_start(
                         *stage_slot = Some("failed".to_string());
                     }
                     if let Ok(mut message_slot) = task_ref.message.lock() {
-                        *message_slot = Some(error.clone());
+                        *message_slot = Some(failure.code.clone());
                     }
                     if let Ok(mut error_slot) = task_ref.error.lock() {
-                        *error_slot = Some(error.clone());
+                        *error_slot = Some(failure.code.clone());
                     }
                     if let Ok(mut diagnostics_slot) = task_ref.diagnostics.lock() {
-                        *diagnostics_slot = vec![error.clone()];
+                        *diagnostics_slot = failure.diagnostics.clone();
+                    }
+                    if let Ok(mut failure_slot) = task_ref.failure.lock() {
+                        *failure_slot = Some(failure.clone());
                     }
                 });
                 append_runtime_log(
                     &session_log_path,
                     "ERROR",
                     format!(
-                        "analysis_env_prepare.task.failed: task_id={}, error={}",
-                        task_id_for_thread, error
+                        "analysis_env_prepare.task.failed: task_id={}, code={}, stage={}, diagnostics={}",
+                        task_id_for_thread,
+                        failure.code,
+                        failure.stage,
+                        failure.diagnostics.join(" | ")
                     ),
                 );
             }
@@ -340,16 +369,17 @@ pub async fn analysis_env_status(
                         .as_ref()
                         .map(|paths| paths.env_key.clone())
                         .unwrap_or_else(|| {
-                            project_env_key(&project_root)
-                                .unwrap_or_else(|_| "unknown".to_string())
+                            project_env_key(&project_root).unwrap_or_else(|_| "unknown".to_string())
                         }),
                     managed_root: resolved_paths
                         .as_ref()
                         .map(|paths| paths.managed_root.to_string_lossy().to_string())
                         .unwrap_or_default(),
-                    uv_path: resolve_uv_path(Some(&runtime_root)).map(|path| path.to_string_lossy().to_string()),
-                    uv_version: resolve_uv_path(Some(&runtime_root))
-                        .and_then(|path| try_version_command(&path, &["--version"])),
+                    uv_path: resolve_uv(Some(&runtime_root))
+                        .map(|resolved| resolved.path.to_string_lossy().to_string()),
+                    uv_version: resolve_uv(Some(&runtime_root)).map(|resolved| resolved.version),
+                    uv_source: resolve_uv(Some(&runtime_root))
+                        .map(|resolved| resolved.source.to_string()),
                     python_path: None,
                     python_version: None,
                     pdf_math_translate_version: None,
@@ -360,7 +390,8 @@ pub async fn analysis_env_status(
                     runtime_root: resolve_analysis_runtime_root()
                         .map(|path| path.to_string_lossy().to_string())
                         .unwrap_or_default(),
-                    last_error: Some(error),
+                    last_error: Some(public_native_runtime_error(&error)),
+                    failure: Some(native_runtime_failure(&error, "status")),
                 })
             }
         }
@@ -394,6 +425,7 @@ pub async fn analysis_run_python(
     let db_path = state.db_path.clone();
     let app_data_dir = state.app_data_dir.clone();
     let runtime_root = state.runtime_root.clone();
+    let session_log_path = state.session_log_path.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let project_root = storage::load_project_root(&db_path, &input.project_id)?;
         let env_status = ensure_analysis_env_blocking(
@@ -410,18 +442,24 @@ pub async fn analysis_run_python(
                 .ok_or_else(|| "python.env.python_missing".to_string())?,
         );
         let runtime_root = resolve_analysis_runtime_root()
-            .ok_or_else(|| "Python analysis runtime resources were not found".to_string())?;
-        let run_root = project_root.join(".latotex/analysis-runtime").join(
-            input
-                .task_id
-                .clone()
-                .unwrap_or_else(|| Uuid::new_v4().to_string()),
-        );
-        fs::create_dir_all(&run_root).map_err(|e| e.to_string())?;
-        let input_path = run_root.join("input.json");
-        let output_path = run_root.join("output.json");
+            .ok_or_else(|| "python.env.runtime_resource_missing".to_string())?;
+        let run_key = input
+            .task_id
+            .as_deref()
+            .map(normalize_analysis_run_key)
+            .transpose()?
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let run_relative = format!(".latotex/analysis-runtime/{run_key}");
+        let input_relative = format!("{run_relative}/input.json");
+        let output_relative = format!("{run_relative}/output.json");
         let payload = serde_json::to_string_pretty(&input).map_err(|e| e.to_string())?;
-        fs::write(&input_path, payload).map_err(|e| e.to_string())?;
+        let input_path = storage::atomic_write_under_root(
+            &project_root,
+            &input_relative,
+            payload.as_bytes(),
+            storage::WORKSPACE_TEXT_FILE_LIMIT,
+        )?;
+        let output_path = project_root.join(&output_relative);
 
         let mut command = Command::new(&python_path);
         configure_hidden_process(&mut command);
@@ -435,20 +473,28 @@ pub async fn analysis_run_python(
             .map_err(|e| format!("python.run.spawn_failed: {e}"))?;
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        let sanitized_stdout = sanitize_log_lines(&stdout).join("\n");
+        let sanitized_stderr = sanitize_log_lines(&stderr).join("\n");
+        let diagnostics = sanitize_log_lines(&format!("{}\n{}", stdout, stderr));
         let output_json = if output_path.exists() {
-            fs::read_to_string(&output_path).map_err(|e| e.to_string())?
+            storage::read_text_under_root(
+                &project_root,
+                &output_relative,
+                storage::WORKSPACE_TEXT_FILE_LIMIT,
+            )?
         } else {
             String::new()
         };
         if !output.status.success() {
-            let diagnostics = sanitize_log_lines(&format!("{}\n{}", stdout, stderr));
-            return Err(format!(
-                "python.run.failed: {}",
-                diagnostics
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "analysis runner failed".to_string())
-            ));
+            let _ = crate::logging::append_log_line(
+                &session_log_path,
+                "ERROR",
+                &format!(
+                    "analysis_run_python.failed: code=python.run.failed diagnostics={}",
+                    diagnostics.join(" | ")
+                ),
+            );
+            return Err("python.run.failed".to_string());
         }
         let profile_json = if output_json.trim().is_empty() {
             serde_json::json!({
@@ -465,9 +511,9 @@ pub async fn analysis_run_python(
             runtime_source: "uv".to_string(),
             python_path: python_path.to_string_lossy().to_string(),
             venv_path: env_status.venv_path,
-            stdout: stdout.trim().to_string(),
-            stderr: stderr.trim().to_string(),
-            diagnostics: sanitize_log_lines(&format!("{}\n{}", stdout, stderr)),
+            stdout: sanitized_stdout,
+            stderr: sanitized_stderr,
+            diagnostics,
             profile_json,
         })
     })
@@ -475,6 +521,33 @@ pub async fn analysis_run_python(
     .map_err(|e| e.to_string())?
 }
 
+fn normalize_analysis_run_key(value: &str) -> Result<String, String> {
+    let normalized = value.trim();
+    if normalized.is_empty()
+        || normalized.len() > 128
+        || !normalized
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+    {
+        return Err("python.run.invalid_task_id".to_string());
+    }
+    Ok(normalized.to_string())
+}
 
+#[cfg(test)]
+mod analysis_run_python_tests {
+    use super::normalize_analysis_run_key;
 
-
+    #[test]
+    fn analysis_run_key_rejects_path_components() {
+        assert!(normalize_analysis_run_key("analysis-abc_123").is_ok());
+        assert_eq!(
+            normalize_analysis_run_key("../outside").unwrap_err(),
+            "python.run.invalid_task_id"
+        );
+        assert_eq!(
+            normalize_analysis_run_key(r"folder\outside").unwrap_err(),
+            "python.run.invalid_task_id"
+        );
+    }
+}

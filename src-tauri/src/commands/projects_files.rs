@@ -5,7 +5,7 @@ use crate::models::{
 };
 use crate::state::AppState;
 use crate::storage;
-use latotex_workspace::{ensure_within_workspace_root, normalize_export_pdf_file_name};
+use latotex_workspace::normalize_export_pdf_file_name;
 use rfd::FileDialog;
 use std::fs;
 use tauri::{async_runtime::spawn_blocking, State};
@@ -146,15 +146,18 @@ pub fn workspace_export_pdf(
     if save_path.extension().is_none() {
         save_path.set_extension("pdf");
     }
-    ensure_within_workspace_root(&project_root, &save_path)?;
-    fs::write(&save_path, &input.bytes).map_err(|e| e.to_string())?;
-
     let canonical_root = project_root.canonicalize().map_err(|e| e.to_string())?;
     let saved_relative = save_path
         .strip_prefix(&canonical_root)
-        .map_err(|_| "Saved file is outside project root".to_string())?
+        .map_err(|_| "workspace.path.outside_root".to_string())?
         .to_string_lossy()
         .replace('\\', "/");
+    storage::atomic_write_under_root(
+        &project_root,
+        &saved_relative,
+        &input.bytes,
+        storage::WORKSPACE_BINARY_FILE_LIMIT,
+    )?;
     let file_name = save_path
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
@@ -190,8 +193,9 @@ pub fn workspace_export_asset(
     let default_dir = if default_relative_dir.is_empty() {
         project_root.clone()
     } else {
-        let target = project_root.join(&default_relative_dir);
-        fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+        let target =
+            storage::prepare_workspace_mutation_path(&project_root, &default_relative_dir)?;
+        fs::create_dir_all(&target).map_err(|_| "workspace.operation.failed".to_string())?;
         target
     };
 
@@ -212,20 +216,23 @@ pub fn workspace_export_asset(
         save_path.set_extension(ext);
     }
 
-    ensure_within_workspace_root(&project_root, &save_path)?;
-    fs::write(&save_path, &input.bytes).map_err(|e| e.to_string())?;
-
-    let metadata = fs::metadata(&save_path).map_err(|e| e.to_string())?;
-    if !metadata.is_file() || metadata.len() == 0 {
-        return Err("Export verification failed".to_string());
-    }
-
     let canonical_root = project_root.canonicalize().map_err(|e| e.to_string())?;
     let saved_relative = save_path
         .strip_prefix(&canonical_root)
-        .map_err(|_| "Saved file is outside project root".to_string())?
+        .map_err(|_| "workspace.path.outside_root".to_string())?
         .to_string_lossy()
         .replace('\\', "/");
+    storage::atomic_write_under_root(
+        &project_root,
+        &saved_relative,
+        &input.bytes,
+        storage::WORKSPACE_BINARY_FILE_LIMIT,
+    )?;
+
+    let metadata = storage::ensure_workspace_binary_file(&save_path)?;
+    if metadata.len() == 0 {
+        return Err("workspace.file_write.verification_failed".to_string());
+    }
     let file_name = save_path
         .file_name()
         .map(|value| value.to_string_lossy().to_string())

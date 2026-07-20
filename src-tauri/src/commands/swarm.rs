@@ -16,6 +16,8 @@ mod swarm_runtime;
 mod swarm_supervisor;
 #[path = "swarm_team_executor.rs"]
 mod swarm_team_executor;
+#[path = "swarm_terminal_payload.rs"]
+mod swarm_terminal_payload;
 #[path = "swarm_tool_mcp.rs"]
 mod swarm_tool_mcp;
 #[path = "swarm_tool_python.rs"]

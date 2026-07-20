@@ -42,10 +42,17 @@ where
     }
 
     if let Some(parent) = cache_target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent).map_err(|_| "workspace.operation.failed".to_string())?;
     }
+    ensure_not_link_or_reparse_if_present(cache_target)?;
     let temp_path = temp_cache_path(cache_target);
-    let mut file = std::fs::File::create(&temp_path).map_err(|e| e.to_string())?;
+    ensure_not_link_or_reparse_if_present(&temp_path)?;
+    let _ = fs::remove_file(&temp_path);
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temp_path)
+        .map_err(|_| "workspace.file.atomic_write_failed".to_string())?;
     let total_bytes = declared_length;
     let mut downloaded_bytes = 0_u64;
     let mut header = Vec::<u8>::with_capacity(32);
@@ -62,9 +69,9 @@ where
             let _ = fs::remove_file(&temp_path);
             return Err("remote.pdf_too_large".to_string());
         }
-        file.write_all(&buffer[..read]).map_err(|error| {
+        file.write_all(&buffer[..read]).map_err(|_| {
             let _ = fs::remove_file(&temp_path);
-            error.to_string()
+            "workspace.file.atomic_write_failed".to_string()
         })?;
         if header.len() < 32 {
             let remaining = 32_usize.saturating_sub(header.len());
@@ -73,9 +80,13 @@ where
         on_progress(downloaded_bytes, total_bytes);
     }
 
-    file.flush().map_err(|error| {
+    file.flush().map_err(|_| {
         let _ = fs::remove_file(&temp_path);
-        error.to_string()
+        "workspace.file.atomic_write_failed".to_string()
+    })?;
+    file.sync_all().map_err(|_| {
+        let _ = fs::remove_file(&temp_path);
+        "workspace.file.atomic_write_failed".to_string()
     })?;
     if declared_length
         .map(|value| value != downloaded_bytes)
@@ -88,9 +99,10 @@ where
         let _ = fs::remove_file(&temp_path);
         return Err("remote.pdf_invalid".to_string());
     }
-    fs::rename(&temp_path, cache_target).map_err(|e| {
+    drop(file);
+    atomic_replace_file(&temp_path, cache_target).map_err(|_| {
         let _ = fs::remove_file(&temp_path);
-        e.to_string()
+        "workspace.file.atomic_replace_failed".to_string()
     })?;
     on_progress(downloaded_bytes, total_bytes);
     Ok(())

@@ -1,4 +1,8 @@
-use crate::models::{Ack, ShareParticipantInfo, ShareSessionCreateInput, ShareSessionInfo};
+use crate::models::{
+    Ack, ShareOwnerAuth, ShareOwnerAuthInput, ShareParticipantInfo, ShareSessionCreateInput,
+    ShareSessionCreateResult, ShareSessionInfo, ShareSessionPasswordResult,
+    ShareSessionSecretInput,
+};
 use crate::state::AppState;
 use crate::storage;
 use chrono::{Duration as ChronoDuration, Utc};
@@ -35,6 +39,8 @@ mod share_http_server;
 mod share_http_static;
 #[path = "share_limits.rs"]
 mod share_limits;
+#[path = "share_participants.rs"]
+mod share_participants;
 #[path = "share_payloads.rs"]
 mod share_payloads;
 #[path = "share_pdf.rs"]
@@ -50,6 +56,9 @@ mod share_tests;
 mod share_tunnel;
 use share_http_response::with_share_headers;
 use share_limits::*;
+use share_participants::{
+    participant_public_list, prune_participants, rotate_owner_auth, upsert_participant,
+};
 use share_payloads::*;
 use share_pdf::share_pdf_ready;
 use share_security::{new_share_password, resolve_share_target_path, JoinAttemptLimiter};
@@ -95,6 +104,7 @@ struct ShareRuntime {
     expires_unix: i64,
     next_seq: u64,
     sync_events: Vec<ShareSyncEvent>,
+    owner_participant_id: String,
     participants: HashMap<String, ShareParticipantState>,
     join_attempt_limiter: JoinAttemptLimiter,
     compile_requested: bool,
@@ -202,64 +212,6 @@ fn find_free_port() -> Result<u16, String> {
 fn is_session_expired(runtime: &ShareRuntime) -> bool {
     Utc::now().timestamp() > runtime.expires_unix
 }
-fn prune_participants(runtime: &mut ShareRuntime) {
-    let cutoff = Utc::now().timestamp() - SHARE_PARTICIPANT_IDLE_SECS;
-    runtime
-        .participants
-        .retain(|_, value| value.last_seen_unix >= cutoff);
-}
-fn upsert_participant(
-    runtime: &mut ShareRuntime,
-    participant_id: &str,
-    username: &str,
-    action: Option<&str>,
-) {
-    if participant_id.trim().is_empty() || username.trim().is_empty() {
-        return;
-    }
-    let now_unix = Utc::now().timestamp();
-    let now = now_iso();
-    let next_action = action
-        .map(normalize_share_action)
-        .filter(|value| !value.is_empty());
-    if let Some(existing) = runtime.participants.get_mut(participant_id) {
-        if !username.trim().is_empty() {
-            existing.username = normalize_share_username(username);
-        }
-        existing.last_seen_unix = now_unix;
-        existing.last_seen_at = now;
-        if next_action.is_some() {
-            existing.last_action = next_action;
-        }
-    } else {
-        runtime.participants.insert(
-            participant_id.to_string(),
-            ShareParticipantState {
-                participant_id: participant_id.to_string(),
-                username: normalize_share_username(username),
-                auth_token: new_participant_token(),
-                last_seen_unix: now_unix,
-                last_seen_at: now,
-                last_action: next_action,
-            },
-        );
-    }
-    prune_participants(runtime);
-}
-fn participant_public_list(runtime: &ShareRuntime) -> Vec<ShareParticipantInfo> {
-    let mut participants: Vec<ShareParticipantInfo> = runtime
-        .participants
-        .values()
-        .map(|item| ShareParticipantInfo {
-            participant_id: item.participant_id.clone(),
-            username: item.username.clone(),
-            last_seen_at: item.last_seen_at.clone(),
-            last_action: item.last_action.clone(),
-        })
-        .collect();
-    participants.sort_by(|a, b| b.last_seen_at.cmp(&a.last_seen_at));
-    participants
-}
 fn build_public_join_url(base_url: &str, session_id: &str) -> String {
     format!("{}/?sid={}", base_url.trim_end_matches('/'), session_id)
 }
@@ -295,7 +247,6 @@ fn build_session_info(runtime: &ShareRuntime) -> ShareSessionInfo {
         remote_join_url,
         active_join_url,
         password_required: Some(true),
-        password: Some(runtime.password.clone()),
         expires_at: Some(runtime.expires_at.clone()),
         status: Some(runtime.status.clone()),
         pdf_state: Some(if share_pdf_ready(runtime) {
@@ -327,7 +278,6 @@ fn inactive_share_session_info() -> ShareSessionInfo {
         remote_join_url: None,
         active_join_url: None,
         password_required: None,
-        password: None,
         expires_at: None,
         status: None,
         pdf_state: None,
@@ -402,7 +352,9 @@ fn stop_runtime(runtime: &Arc<Mutex<ShareRuntime>>) {
             let _ = child.kill();
         }
         if let Some(path) = guard.pdf_cache_path.take() {
-            let _ = fs::remove_file(path);
+            if matches!(storage::workspace_path_is_link_or_reparse(&path), Ok(false)) {
+                let _ = fs::remove_file(path);
+            }
         }
         guard.password.clear();
         guard.participants.clear();
@@ -451,7 +403,7 @@ fn start_http_server(runtime: Arc<Mutex<ShareRuntime>>) -> Result<(), String> {
 pub fn share_session_create(
     state: State<'_, AppState>,
     input: ShareSessionCreateInput,
-) -> Result<ShareSessionInfo, String> {
+) -> Result<ShareSessionCreateResult, String> {
     let project_root = storage::load_project_root(&state.db_path, &input.project_id)?;
     let (target_path, _) = resolve_share_target_path(&project_root, &input.target_path)?;
     let local_port = find_free_port()?;
@@ -464,7 +416,22 @@ pub fn share_session_create(
     let mode = normalize_share_mode(input.mode.clone());
     let local_url = format!("http://127.0.0.1:{local_port}");
     let is_local_mode = mode == "local";
-    let comments_store = ShareCommentsStore::new(&project_root, &session_id);
+    let owner_participant_id = format!("owner-{session_id}");
+    let owner_token = new_participant_token();
+    let owner_seen_at = now_iso();
+    let mut participants = HashMap::new();
+    participants.insert(
+        owner_participant_id.clone(),
+        ShareParticipantState {
+            participant_id: owner_participant_id.clone(),
+            username: "Desktop".to_string(),
+            auth_token: owner_token.clone(),
+            last_seen_at: owner_seen_at,
+            last_seen_unix: Utc::now().timestamp(),
+            last_action: Some("editing".to_string()),
+        },
+    );
+    let comments_store = ShareCommentsStore::new(&project_root, &session_id)?;
     let comments = comments_store.load_comments();
     let runtime = Arc::new(Mutex::new(ShareRuntime {
         session_id: session_id.clone(),
@@ -493,7 +460,8 @@ pub fn share_session_create(
         expires_unix,
         next_seq: 1,
         sync_events: Vec::new(),
-        participants: HashMap::new(),
+        owner_participant_id: owner_participant_id.clone(),
+        participants,
         join_attempt_limiter: JoinAttemptLimiter::new(),
         compile_requested: false,
         pdf_cache_path: None,
@@ -518,11 +486,18 @@ pub fn share_session_create(
             input.project_id, target_path
         ),
     );
-    let info = runtime
+    let session = runtime
         .lock()
         .map(|guard| build_session_info(&guard))
         .map_err(|_| "failed to lock share runtime".to_string())?;
-    Ok(info)
+    Ok(ShareSessionCreateResult {
+        session,
+        owner_auth: ShareOwnerAuth {
+            participant_id: owner_participant_id,
+            participant_token: owner_token,
+        },
+        password,
+    })
 }
 #[tauri::command]
 pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionInfo, String> {
@@ -546,6 +521,60 @@ pub fn share_session_status(_state: State<'_, AppState>) -> Result<ShareSessionI
     // Avoid aggressively marking the session as failed here to prevent
     // transient status polling races from tearing down an otherwise recoverable session.
     Ok(build_session_info(&guard))
+}
+
+#[tauri::command]
+pub fn share_session_owner_auth(
+    state: State<'_, AppState>,
+    input: ShareOwnerAuthInput,
+) -> Result<ShareOwnerAuth, String> {
+    let runtime = share_runtime_slot()
+        .lock()
+        .map_err(|_| "share.runtime.lock_failed".to_string())?
+        .clone()
+        .ok_or_else(|| "share.session.inactive".to_string())?;
+    let mut guard = runtime
+        .lock()
+        .map_err(|_| "share.runtime.lock_failed".to_string())?;
+    if is_session_expired(&guard) {
+        drop(guard);
+        clear_runtime();
+        return Err("share.session.expired".to_string());
+    }
+    if guard.session_id != input.session_id.trim() {
+        return Err("share.session.mismatch".to_string());
+    }
+    let username = normalize_share_username(input.username.as_deref().unwrap_or("Desktop"));
+    let owner_auth = rotate_owner_auth(&mut guard, &username);
+    state.log("INFO", "share_session_owner_auth: owner token rotated");
+    Ok(owner_auth)
+}
+
+#[tauri::command]
+pub fn share_session_password_reveal(
+    state: State<'_, AppState>,
+    input: ShareSessionSecretInput,
+) -> Result<ShareSessionPasswordResult, String> {
+    let runtime = share_runtime_slot()
+        .lock()
+        .map_err(|_| "share.runtime.lock_failed".to_string())?
+        .clone()
+        .ok_or_else(|| "share.session.inactive".to_string())?;
+    let guard = runtime
+        .lock()
+        .map_err(|_| "share.runtime.lock_failed".to_string())?;
+    if is_session_expired(&guard) {
+        drop(guard);
+        clear_runtime();
+        return Err("share.session.expired".to_string());
+    }
+    if guard.session_id != input.session_id.trim() {
+        return Err("share.session.mismatch".to_string());
+    }
+    state.log("INFO", "share_session_password_reveal: explicit reveal");
+    Ok(ShareSessionPasswordResult {
+        password: guard.password.clone(),
+    })
 }
 #[tauri::command]
 pub fn share_session_stop(state: State<'_, AppState>) -> Result<Ack, String> {

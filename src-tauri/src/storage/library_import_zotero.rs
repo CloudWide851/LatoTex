@@ -223,8 +223,8 @@ pub fn sync_zotero_library(
         .map_err(|e| e.to_string())?;
 
     let project_root = load_project_root(db_path, project_id)?;
-    let papers_root = library_root(&project_root);
-    fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
+    let papers_root = ensure_mutation_path(&project_root, ".latotex/papers")?;
+    fs::create_dir_all(&papers_root).map_err(|_| "workspace.operation.failed".to_string())?;
 
     let mut start: u32 = 0;
     let limit: u32 = 100;
@@ -303,7 +303,7 @@ pub fn sync_zotero_library(
         Utc::now().format("%Y%m%d%H%M%S")
     );
     let target_bib = unique_path_with_extension(&papers_root, &stem, "bib");
-    fs::write(&target_bib, aggregated).map_err(|e| e.to_string())?;
+    atomic_write_file(&target_bib, aggregated.as_bytes())?;
 
     refresh_workspace_index(&project_root)?;
     refresh_library_index(&project_root)?;

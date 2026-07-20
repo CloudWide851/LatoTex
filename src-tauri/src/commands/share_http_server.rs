@@ -3,16 +3,10 @@ use super::share_security::read_share_target;
 use super::*;
 use tiny_http::Method;
 pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<ShareRuntime>>) {
-    let origin = share_http_response::request_origin(&request);
-    share_http_response::set_request_origin(origin.clone());
+    let requested_origin = share_http_response::request_origin(&request);
+    share_http_response::set_request_origin(None);
     let method = request.method().clone();
     let (path, query) = split_url_path_query(request.url());
-    if method == Method::Options {
-        let _ = request.respond(share_http_response::share_options_response(
-            origin.as_deref(),
-        ));
-        return;
-    }
     let runtime_snapshot = if let Ok(guard) = runtime.lock() {
         guard
     } else {
@@ -22,6 +16,19 @@ pub(super) fn serve_share_request(mut request: Request, runtime: &Arc<Mutex<Shar
         ));
         return;
     };
+    let allowed_origin = share_http_response::allowed_share_origin(
+        requested_origin.as_deref(),
+        &runtime_snapshot.local_url,
+        runtime_snapshot.tunnel_url.as_deref(),
+    );
+    share_http_response::set_request_origin(allowed_origin.clone());
+    if method == Method::Options {
+        drop(runtime_snapshot);
+        let _ = request.respond(share_http_response::share_options_response(
+            allowed_origin.as_deref(),
+        ));
+        return;
+    }
     if is_session_expired(&runtime_snapshot) {
         let _ = request.respond(json_response(
             StatusCode(410),

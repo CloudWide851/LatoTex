@@ -10,33 +10,6 @@ pub fn load_project_root(db_path: &Path, project_id: &str) -> Result<PathBuf, St
     .map_err(|e| e.to_string())
 }
 
-fn safe_join(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
-    let sanitized = relative_path.replace('\\', "/");
-    let candidate = root.join(&sanitized);
-    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
-
-    let normalized_candidate = if candidate.exists() {
-        candidate.canonicalize().map_err(|e| e.to_string())?
-    } else {
-        let mut existing_parent = candidate.as_path();
-        while !existing_parent.exists() {
-            existing_parent = existing_parent
-                .parent()
-                .ok_or_else(|| "Invalid target path".to_string())?;
-        }
-        let canonical_existing = existing_parent.canonicalize().map_err(|e| e.to_string())?;
-        let stripped = candidate
-            .strip_prefix(existing_parent)
-            .map_err(|e| e.to_string())?;
-        canonical_existing.join(stripped)
-    };
-
-    if !normalized_candidate.starts_with(&canonical_root) {
-        return Err("Path traversal detected".to_string());
-    }
-    Ok(normalized_candidate)
-}
-
 pub fn resolve_project_relative_path(
     db_path: &Path,
     project_id: &str,
@@ -52,10 +25,7 @@ pub fn read_project_file(
     relative_path: &str,
 ) -> Result<FileReadResponse, String> {
     let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
-    let metadata = fs::metadata(&target).map_err(map_workspace_read_error)?;
-    if !metadata.is_file() {
-        return Err("workspace.file_read.not_file".to_string());
-    }
+    ensure_file_with_limit(&target, WORKSPACE_TEXT_FILE_LIMIT)?;
     let content = fs::read_to_string(target).map_err(map_workspace_read_error)?;
     Ok(FileReadResponse {
         relative_path: relative_path.to_string(),
@@ -69,10 +39,7 @@ pub fn read_project_file_binary(
     relative_path: &str,
 ) -> Result<FileReadBinaryResponse, String> {
     let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
-    let metadata = fs::metadata(&target).map_err(map_workspace_read_error)?;
-    if !metadata.is_file() {
-        return Err("workspace.file_read.not_file".to_string());
-    }
+    ensure_file_with_limit(&target, WORKSPACE_BINARY_FILE_LIMIT)?;
     let bytes = fs::read(target).map_err(map_workspace_read_error)?;
     Ok(FileReadBinaryResponse {
         relative_path: relative_path.to_string(),
@@ -90,11 +57,12 @@ fn map_workspace_read_error(error: io::Error) -> String {
 
 pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, String> {
     let project_root = load_project_root(db_path, &input.project_id)?;
-    let target = resolve_project_relative_path(db_path, &input.project_id, &input.relative_path)?;
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(target, input.content).map_err(|e| e.to_string())?;
+    atomic_write_under_root(
+        &project_root,
+        &input.relative_path,
+        input.content.as_bytes(),
+        WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     conn.execute(
@@ -117,11 +85,12 @@ pub fn write_project_file_binary(
     bytes: &[u8],
 ) -> Result<Ack, String> {
     let project_root = load_project_root(db_path, project_id)?;
-    let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(target, bytes).map_err(|e| e.to_string())?;
+    atomic_write_under_root(
+        &project_root,
+        relative_path,
+        bytes,
+        WORKSPACE_BINARY_FILE_LIMIT,
+    )?;
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     conn.execute(
@@ -144,19 +113,19 @@ pub fn save_draw_export_asset(
     bytes: &[u8],
 ) -> Result<DrawExportAssetResponse, String> {
     if bytes.is_empty() {
-        return Err("Draw export bytes are empty".to_string());
+        return Err("workspace.file_write.empty".to_string());
     }
 
     let project_root = load_project_root(db_path, project_id)?;
-    let target = resolve_project_relative_path(db_path, project_id, relative_path)?;
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(&target, bytes).map_err(|e| e.to_string())?;
-
-    let metadata = fs::metadata(&target).map_err(|e| e.to_string())?;
-    if !metadata.is_file() || metadata.len() == 0 {
-        return Err("Draw export verification failed".to_string());
+    let target = atomic_write_under_root(
+        &project_root,
+        relative_path,
+        bytes,
+        WORKSPACE_BINARY_FILE_LIMIT,
+    )?;
+    let metadata = ensure_file_with_limit(&target, WORKSPACE_BINARY_FILE_LIMIT)?;
+    if metadata.len() == 0 {
+        return Err("workspace.file_write.verification_failed".to_string());
     }
 
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;

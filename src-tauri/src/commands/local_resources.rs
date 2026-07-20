@@ -109,6 +109,11 @@ fn normalize_relative_asset_path(request_path: &str) -> Result<PathBuf, String> 
     Ok(out)
 }
 
+#[cfg(test)]
+fn normalize_workspace_relative_path(request_path: &str) -> Result<PathBuf, String> {
+    storage::normalize_workspace_path(request_path)
+}
+
 fn mime_type_for_path(path: &Path) -> &'static str {
     match path
         .extension()
@@ -322,7 +327,7 @@ fn workspace_file_response(
     mime: &str,
     range_header: Option<&str>,
 ) -> Response<Vec<u8>> {
-    let total_len = match fs::metadata(asset_path) {
+    let total_len = match storage::ensure_workspace_binary_file(asset_path) {
         Ok(metadata) => metadata.len() as usize,
         Err(error) => {
             return build_text_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
@@ -372,26 +377,6 @@ fn workspace_file_response(
     }
 }
 
-fn normalize_workspace_relative_path(relative_path: &str) -> Result<PathBuf, String> {
-    let normalized = relative_path.trim().replace('\\', "/");
-    let trimmed = normalized.trim_start_matches('/');
-    if trimmed.is_empty() {
-        return Err("resource.path.invalid".to_string());
-    }
-    let mut out = PathBuf::new();
-    for component in Path::new(trimmed).components() {
-        match component {
-            Component::Normal(value) => out.push(value),
-            Component::CurDir => {}
-            _ => return Err("resource.path.invalid".to_string()),
-        }
-    }
-    if out.as_os_str().is_empty() {
-        return Err("resource.path.invalid".to_string());
-    }
-    Ok(out)
-}
-
 fn resolve_workspace_file_request(state: &AppState, request_path: &str) -> Result<PathBuf, String> {
     let tail = request_path
         .trim()
@@ -407,12 +392,7 @@ fn resolve_workspace_file_request(state: &AppState, request_path: &str) -> Resul
     let relative_path = decode(relative_path_raw)
         .map_err(|_| "resource.path.invalid".to_string())?
         .into_owned();
-    let safe_relative_path = normalize_workspace_relative_path(&relative_path)?;
-    storage::resolve_project_relative_path(
-        &state.db_path,
-        &project_id,
-        &safe_relative_path.to_string_lossy(),
-    )
+    storage::resolve_project_relative_path(&state.db_path, &project_id, &relative_path)
 }
 
 fn serve_workspace_file(state: &AppState, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {

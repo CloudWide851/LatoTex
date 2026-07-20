@@ -222,7 +222,9 @@ pub fn library_translate_start(
                     } else {
                         stage_value.clone()
                     };
-                    task_ref.current_page.store(current as u64, Ordering::Relaxed);
+                    task_ref
+                        .current_page
+                        .store(current as u64, Ordering::Relaxed);
                     task_ref.total_pages.store(total as u64, Ordering::Relaxed);
                     if let Ok(mut stage_slot) = task_ref.stage.lock() {
                         *stage_slot = Some(stage_key);
@@ -231,7 +233,10 @@ pub fn library_translate_start(
                         *message = Some(stage_value.clone());
                     }
                 });
-                let stage_log = format!("stage={} current_page={} total_pages={}", stage, current, total);
+                let stage_log = format!(
+                    "stage={} current_page={} total_pages={}",
+                    stage, current, total
+                );
                 if last_stage_log != stage_log {
                     append_runtime_log(
                         &session_log_path,
@@ -364,7 +369,3 @@ pub fn library_translate_status(
         result,
     })
 }
-
-
-
-

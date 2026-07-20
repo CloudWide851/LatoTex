@@ -1,5 +1,5 @@
-use super::*;
 use super::super::docx::docx_bytes_to_html;
+use super::*;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use zip::ZipArchive;

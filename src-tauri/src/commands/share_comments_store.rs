@@ -1,7 +1,6 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -38,21 +37,35 @@ pub struct ShareCommentRecord {
 
 #[derive(Debug, Clone)]
 pub struct ShareCommentsStore {
-    file_path: PathBuf,
+    project_root: PathBuf,
+    relative_path: String,
 }
 
 impl ShareCommentsStore {
-    pub fn new(project_root: &Path, session_id: &str) -> Self {
-        let file_path = project_root
-            .join(".latotex")
-            .join("share")
-            .join("comments")
-            .join(format!("{}.json", session_id.trim()));
-        Self { file_path }
+    pub fn new(project_root: &Path, session_id: &str) -> Result<Self, String> {
+        let session_key = session_id.trim();
+        if session_key.is_empty()
+            || session_key.len() > 128
+            || !session_key.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+            })
+        {
+            return Err("share.comments.invalid_session".to_string());
+        }
+        let relative_path = format!(".latotex/share/comments/{session_key}.json");
+        crate::storage::prepare_workspace_mutation_path(project_root, &relative_path)?;
+        Ok(Self {
+            project_root: project_root.to_path_buf(),
+            relative_path,
+        })
     }
 
     pub fn load_comments(&self) -> Vec<ShareCommentRecord> {
-        let raw = match fs::read_to_string(&self.file_path) {
+        let raw = match crate::storage::read_text_under_root(
+            &self.project_root,
+            &self.relative_path,
+            crate::storage::WORKSPACE_TEXT_FILE_LIMIT,
+        ) {
             Ok(content) => content,
             Err(_) => return Vec::new(),
         };
@@ -71,15 +84,18 @@ impl ShareCommentsStore {
     }
 
     pub fn persist_comments(&self, comments: &[ShareCommentRecord]) -> Result<(), String> {
-        if let Some(parent) = self.file_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
         let payload = json!({
             "version": 1,
             "comments": comments,
         });
         let serialized = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
-        fs::write(&self.file_path, serialized).map_err(|e| e.to_string())
+        crate::storage::atomic_write_under_root(
+            &self.project_root,
+            &self.relative_path,
+            serialized.as_bytes(),
+            crate::storage::WORKSPACE_TEXT_FILE_LIMIT,
+        )
+        .map(|_| ())
     }
 }
 
@@ -180,11 +196,15 @@ mod tests {
                 "page": 2,
             }),
             "Guest",
-        ).expect("comment should normalize");
+        )
+        .expect("comment should normalize");
 
         assert_eq!(comment.username.chars().count(), MAX_STORED_USERNAME_CHARS);
         assert_eq!(comment.text.chars().count(), MAX_STORED_COMMENT_TEXT_CHARS);
-        assert_eq!(comment.quote.chars().count(), MAX_STORED_COMMENT_QUOTE_CHARS);
+        assert_eq!(
+            comment.quote.chars().count(),
+            MAX_STORED_COMMENT_QUOTE_CHARS
+        );
         assert_eq!(comment.source, "pdf");
         assert_eq!(comment.page, Some(2));
     }
