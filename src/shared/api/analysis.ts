@@ -54,15 +54,15 @@ export function analysisExportArtifact(
   });
 }
 
-export function analysisEnvPrepare(projectId: string): Promise<AnalysisEnvStatus> {
+export function analysisEnvPrepare(projectId: string, retry = false): Promise<AnalysisEnvStatus> {
   return invokeCommand<AnalysisEnvStatus>("analysis_env_prepare", {
-    input: { projectId },
+    input: { projectId, retry },
   });
 }
 
-export function analysisEnvPrepareStart(projectId: string): Promise<{ taskId: string }> {
+export function analysisEnvPrepareStart(projectId: string, retry = false): Promise<{ taskId: string }> {
   return invokeCommand<{ taskId: string }>("analysis_env_prepare_start", {
-    input: { projectId },
+    input: { projectId, retry },
   });
 }
 

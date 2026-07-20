@@ -85,7 +85,24 @@ export const zhCN_analysis = {
   "analysis.envPromptStage.installing_runtime": "正在安装分析运行时",
   "analysis.envPromptStage.verifying": "正在校验运行时",
   "analysis.envPromptStage.completed": "环境已就绪",
-  "analysis.envPromptStage.failed": "环境准备失败",} as const;
+  "analysis.envPromptStage.failed": "环境准备失败",
+  "analysis.envPromptUvSource": "uv 来源",
+  "analysis.envPromptUvSource.bundled": "随包运行时",
+  "analysis.envPromptUvSource.managed": "托管运行时资源",
+  "analysis.envPromptUvSource.path": "系统 PATH",
+  "analysis.envPromptRetrySafe": "该步骤可以安全地由你明确重试。",
+  "analysis.envPromptRetryBlocked": "修复配置或随包运行时之前，暂不允许重试。",
+  "analysis.envPromptDoctorHint": "可前往“设置 > Doctor”查看受限诊断信息。",
+  "analysis.envPromptError.uvMissing": "无法验证随包或托管的 uv 运行时。",
+  "analysis.envPromptError.runtimeResourceMissing": "缺少必要的随包 Python 资源。",
+  "analysis.envPromptError.pathInvalid": "选择的环境位置无效或不可用。",
+  "analysis.envPromptError.coordinator": "Python 初始化无法取得协调锁。",
+  "analysis.envPromptError.pythonInstall": "无法安装托管 Python 运行时。",
+  "analysis.envPromptError.packageInstall": "无法安装所需的 Python 依赖。",
+  "analysis.envPromptError.verification": "Python 环境已创建，但验证未通过。",
+  "analysis.envPromptError.pathSelection": "无法保存环境位置。",
+  "analysis.envPromptError.generic": "无法准备 Python 环境，请在 Doctor 中查看诊断。",
+} as const;
 
 
 

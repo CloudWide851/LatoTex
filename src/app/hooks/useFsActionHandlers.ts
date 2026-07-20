@@ -7,6 +7,7 @@ import type { AppSettings, FsAction, FsScope, ResourceNode } from "../../shared/
 import { applyOptimisticFsAction } from "./fsTreeOptimistic";
 import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 import type { DeleteIntent, TranslationFn } from "./useAppHandlers.types";
+import { workspaceFsFailureMessage } from "./workspaceFsFailure";
 
 export function useFsActionHandlers(params: {
   activeProjectId: string | null;
@@ -77,7 +78,7 @@ export function useFsActionHandlers(params: {
       setToast({ type: "info", message: t("toast.fsUpdated") });
       return true;
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      setToast({ type: "error", message: workspaceFsFailureMessage(error, t) });
       return false;
     }
   };

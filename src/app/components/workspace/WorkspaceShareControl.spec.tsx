@@ -27,6 +27,7 @@ describe("WorkspaceShareControl", () => {
         <WorkspaceShareControl
           selectedFile="main.tex"
           shareSession={null}
+          sharePassword={null}
           shareBusy
           shareSyncing={false}
           shareConflict={null}
@@ -37,6 +38,7 @@ describe("WorkspaceShareControl", () => {
           onShareStart={() => undefined}
           onShareStop={() => undefined}
           onShareRefresh={() => undefined}
+          onSharePasswordReveal={async () => "password"}
           onShareConflictResolve={() => undefined}
           t={(key) => String(key)}
         />,
@@ -74,6 +76,7 @@ describe("WorkspaceShareControl", () => {
             status: "failed",
             tunnelError: "cloudflared: bearer token secret leaked",
           }}
+          sharePassword={null}
           shareBusy={false}
           shareSyncing={false}
           shareConflict={null}
@@ -84,6 +87,7 @@ describe("WorkspaceShareControl", () => {
           onShareStart={() => undefined}
           onShareStop={() => undefined}
           onShareRefresh={() => undefined}
+          onSharePasswordReveal={async () => "password"}
           onShareConflictResolve={() => undefined}
           t={(key) => String(key)}
         />,

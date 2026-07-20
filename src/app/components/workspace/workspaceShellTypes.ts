@@ -78,6 +78,7 @@ export type AppWorkspaceShellProps = {
   gitPanel: React.ReactNode;
   analysisPanel: React.ReactNode;
   shareSession: ShareSessionInfo | null;
+  sharePassword: string | null;
   shareBusy: boolean;
   shareSyncing: boolean;
   shareConflict: ShareConflict | null;
@@ -92,6 +93,7 @@ export type AppWorkspaceShellProps = {
   onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
+  onSharePasswordReveal: () => Promise<string>;
   onShareConflictResolve: (resolution: ShareConflictResolution) => void;
   onSelectFile: (path: string | null) => void;
   onSelectLibraryPath: (path: string | null) => void;

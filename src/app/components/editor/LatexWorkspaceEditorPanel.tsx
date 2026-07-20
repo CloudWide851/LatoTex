@@ -62,6 +62,7 @@ export function LatexWorkspaceEditorPanel(props: {
   activeTabId: string | null;
   dirtyByPath: Record<string, boolean>;
   shareSession: any;
+  sharePassword: string | null;
   shareBusy: boolean;
   shareSyncing: boolean;
   shareConflict: ShareConflict | null;
@@ -101,6 +102,7 @@ export function LatexWorkspaceEditorPanel(props: {
   onShareStart: () => void;
   onShareStop: () => void;
   onShareRefresh: () => void;
+  onSharePasswordReveal: () => Promise<string>;
   onShareConflictResolve: (resolution: ShareConflictResolution) => void;
   onCreateChatTab: () => void;
   onOpenChatTab: () => void;
@@ -148,6 +150,7 @@ export function LatexWorkspaceEditorPanel(props: {
     activeTabId,
     dirtyByPath,
     shareSession,
+    sharePassword,
     shareBusy,
     shareSyncing,
     shareConflict,
@@ -187,6 +190,7 @@ export function LatexWorkspaceEditorPanel(props: {
     onShareStart,
     onShareStop,
     onShareRefresh,
+    onSharePasswordReveal,
     onShareConflictResolve,
     onCreateChatTab,
     onOpenChatTab,
@@ -416,6 +420,7 @@ export function LatexWorkspaceEditorPanel(props: {
             <WorkspaceShareControl
               selectedFile={selectedFile}
               shareSession={shareSession}
+              sharePassword={sharePassword}
               shareBusy={shareBusy}
               shareSyncing={shareSyncing}
               shareConflict={shareConflict}
@@ -426,6 +431,7 @@ export function LatexWorkspaceEditorPanel(props: {
               onShareStart={onShareStart}
               onShareStop={onShareStop}
               onShareRefresh={onShareRefresh}
+              onSharePasswordReveal={onSharePasswordReveal}
               onShareConflictResolve={onShareConflictResolve}
               t={t}
             />

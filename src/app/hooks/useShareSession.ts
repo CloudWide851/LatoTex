@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
-import { shareSessionCreate, shareSessionStatus, shareSessionStop } from "../../shared/api/desktop";
+import {
+  shareSessionCreate,
+  shareSessionPasswordReveal,
+  shareSessionStatus,
+  shareSessionStop,
+} from "../../shared/api/share";
 import type { ShareSessionInfo } from "../../shared/types/app";
-import { authenticatedDesktopShareFetch, clearDesktopShareAuth } from "./shareHttpAuth";
+import {
+  authenticatedDesktopShareFetch,
+  clearDesktopShareAuth,
+  primeDesktopShareAuth,
+} from "./shareHttpAuth";
 
 type TranslationFn = (key: any) => string;
 
@@ -52,6 +61,7 @@ export function useShareSession(params: {
     t,
   } = params;
   const [shareSession, setShareSession] = useState<ShareSessionInfo | null>(null);
+  const [sharePassword, setSharePassword] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -65,17 +75,15 @@ export function useShareSession(params: {
   const uploadingPdfRef = useRef(false);
   const lastUploadedPdfUrlRef = useRef<string | null>(null);
 
-  const active = Boolean(shareSession?.active && shareSession?.localUrl && shareSession?.password);
+  const active = Boolean(shareSession?.active && shareSession?.localUrl);
   const activeTarget = shareSession?.targetPath ?? null;
   const localUrl = shareSession?.localUrl ?? "";
   const sessionId = shareSession?.sessionId ?? "";
-  const sessionPwd = shareSession?.password ?? "";
   const shareConnection = useMemo(() => ({
     active,
     localUrl,
     sessionId,
-    password: sessionPwd,
-  }), [active, localUrl, sessionId, sessionPwd]);
+  }), [active, localUrl, sessionId]);
   const collabEnabled = Boolean(
     active && selectedFile && activeTarget && selectedFile.replace(/\\/g, "/") === activeTarget.replace(/\\/g, "/"),
   );
@@ -83,14 +91,17 @@ export function useShareSession(params: {
   const refreshShareStatus = useCallback(async () => {
     try {
       const status = await shareSessionStatus();
-      setShareSession(status.active ? status : null);
-      if (!status.active) {
+      setShareSession(status.sessionId ? status : null);
+      if (!status.sessionId) {
         clearDesktopShareAuth();
+        setSharePassword(null);
+      } else if (status.sessionId !== shareSession?.sessionId) {
+        setSharePassword(null);
       }
     } catch (error) {
       setToast({ type: "error", message: String(error) });
     }
-  }, [setToast]);
+  }, [setToast, shareSession?.sessionId]);
 
   const startShare = useCallback(async () => {
     if (!activeProjectId || !selectedFile) {
@@ -105,7 +116,9 @@ export function useShareSession(params: {
     try {
       clearDesktopShareAuth();
       const created = await shareSessionCreate(activeProjectId, selectedFile);
-      setShareSession(created.active ? created : null);
+      primeDesktopShareAuth(created.session, created.ownerAuth);
+      setShareSession(created.session);
+      setSharePassword(created.password);
       setToast({ type: "info", message: t("share.started") });
     } catch (error) {
       setToast({ type: "error", message: String(error) });
@@ -120,6 +133,7 @@ export function useShareSession(params: {
       await shareSessionStop();
       clearDesktopShareAuth();
       setShareSession(null);
+      setSharePassword(null);
       setToast({ type: "info", message: t("share.stopped") });
     } catch (error) {
       setToast({ type: "error", message: String(error) });
@@ -133,7 +147,7 @@ export function useShareSession(params: {
   }, [refreshShareStatus]);
 
   useEffect(() => {
-    if (!active) {
+    if (!shareSession?.sessionId) {
       return;
     }
     const timer = window.setInterval(() => {
@@ -142,10 +156,10 @@ export function useShareSession(params: {
     return () => {
       window.clearInterval(timer);
     };
-  }, [active, refreshShareStatus]);
+  }, [refreshShareStatus, shareSession?.sessionId]);
 
   useEffect(() => {
-    if (!collabEnabled || !localUrl || !sessionId || !sessionPwd) {
+    if (!collabEnabled || !localUrl || !sessionId) {
       setSyncing(false);
       yDocRef.current = null;
       yTextRef.current = null;
@@ -265,7 +279,7 @@ export function useShareSession(params: {
       yTextRef.current = null;
       doc.destroy();
     };
-  }, [collabEnabled, editorContent, localUrl, sessionId, sessionPwd, setEditorContent, setToast, shareConnection, t]);
+  }, [collabEnabled, editorContent, localUrl, sessionId, setEditorContent, setToast, shareConnection, t]);
 
   useEffect(() => {
     if (!collabEnabled || applyingRemoteRef.current) {
@@ -287,7 +301,7 @@ export function useShareSession(params: {
   }, [collabEnabled, editorContent]);
 
   useEffect(() => {
-    if (!active || !localUrl || !sessionId || !sessionPwd || compilePollRef.current) {
+    if (!active || !localUrl || !sessionId || compilePollRef.current) {
       return;
     }
     compilePollRef.current = Number(window.setInterval(() => {
@@ -315,10 +329,10 @@ export function useShareSession(params: {
         compilePollRef.current = null;
       }
     };
-  }, [active, localUrl, onCompile, sessionId, sessionPwd, shareConnection, t]);
+  }, [active, localUrl, onCompile, sessionId, shareConnection, t]);
 
   useEffect(() => {
-    if (!active || !localUrl || !sessionId || !sessionPwd || !compiledPdfUrl) {
+    if (!active || !localUrl || !sessionId || !compiledPdfUrl) {
       return;
     }
     if (uploadingPdfRef.current || lastUploadedPdfUrlRef.current === compiledPdfUrl) {
@@ -348,17 +362,28 @@ export function useShareSession(params: {
       .finally(() => {
         uploadingPdfRef.current = false;
       });
-  }, [active, compiledPdfUrl, localUrl, sessionId, sessionPwd, shareConnection, t]);
+  }, [active, compiledPdfUrl, localUrl, sessionId, shareConnection, t]);
+
+  const revealSharePassword = useCallback(async () => {
+    if (!sessionId) {
+      throw new Error("share.session_not_ready");
+    }
+    const result = await shareSessionPasswordReveal(sessionId);
+    setSharePassword(result.password);
+    return result.password;
+  }, [sessionId]);
 
   return useMemo(
     () => ({
       shareSession,
+      sharePassword,
       shareBusy,
       shareSyncing: syncing,
       startShare,
       stopShare,
       refreshShareStatus,
+      revealSharePassword,
     }),
-    [refreshShareStatus, shareBusy, shareSession, startShare, stopShare, syncing],
+    [refreshShareStatus, revealSharePassword, shareBusy, sharePassword, shareSession, startShare, stopShare, syncing],
   );
 }

@@ -15,6 +15,7 @@ import type {
   SwarmEvent,
 } from "../../shared/types/app";
 import type { DeleteIntent, LogTab, OverlayType, ThemeTransition, Toast } from "../app-config";
+import { nativeRuntimeFailureMessageKey, normalizeNativeRuntimeFailure } from "../hooks/analysisEnvFailure";
 
 type TranslationFn = (key: any) => string;
 
@@ -192,6 +193,14 @@ export function AppOverlays(props: AppOverlaysProps) {
     envPromptTaskStatus?.stage,
     envPromptTaskStatus?.message ?? null,
   );
+  const envPromptFailure = envPromptTaskStatus?.failure
+    ?? envPromptStatus?.failure
+    ?? (envPromptStatus?.lastError
+      ? normalizeNativeRuntimeFailure(envPromptStatus.lastError, envPromptTaskStatus?.stage ?? "failed")
+      : null);
+  const envPromptFailureMessage = envPromptFailure
+    ? t(nativeRuntimeFailureMessageKey(envPromptFailure))
+    : null;
 
   return (
     <>
@@ -431,6 +440,11 @@ export function AppOverlays(props: AppOverlaysProps) {
                 {t("analysis.envPromptPathLabel")}
               </div>
               <div className="mt-1 break-all font-mono text-xs text-slate-700">{envPromptPath}</div>
+              {envPromptStatus.uvSource ? (
+                <div className="mt-1 text-[11px] text-slate-500">
+                  {t("analysis.envPromptUvSource")}: {t(`analysis.envPromptUvSource.${envPromptStatus.uvSource}`)}
+                </div>
+              ) : null}
             </div>
             {envPromptTaskStatus?.status === "running" ? (
               <div
@@ -456,9 +470,15 @@ export function AppOverlays(props: AppOverlaysProps) {
                 </div>
               </div>
             ) : null}
-            {envPromptStatus.lastError && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                {envPromptStatus.lastError}
+            {envPromptFailureMessage && (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="alert">
+                <div>{envPromptFailureMessage}</div>
+                <div className="mt-1 text-[11px]">
+                  {t(envPromptFailure?.retryable
+                    ? "analysis.envPromptRetrySafe"
+                    : "analysis.envPromptRetryBlocked")}
+                </div>
+                <div className="mt-1 text-[11px] text-amber-700">{t("analysis.envPromptDoctorHint")}</div>
               </div>
             )}
             <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -485,7 +505,7 @@ export function AppOverlays(props: AppOverlaysProps) {
                 onClick={() => {
                   void analysisEnvPrompt.handleEnvPromptCreate();
                 }}
-                disabled={analysisEnvPrompt.envPromptBusy}
+                disabled={analysisEnvPrompt.envPromptBusy || envPromptFailure?.retryable === false}
               >
                 {envPromptActionLabel}
               </Button>

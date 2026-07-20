@@ -1,4 +1,5 @@
-import type { ShareSessionInfo } from "../../shared/types/app";
+import { shareSessionOwnerAuth } from "../../shared/api/share";
+import type { ShareOwnerAuth, ShareSessionInfo } from "../../shared/types/app";
 
 export type DesktopShareAuth = {
   participantId: string;
@@ -9,7 +10,6 @@ type ShareConnection = {
   active?: boolean | null;
   localUrl?: string | null;
   sessionId?: string | null;
-  password?: string | null;
 };
 
 const authBySession = new Map<string, DesktopShareAuth>();
@@ -18,16 +18,25 @@ const authFlightBySession = new Map<string, Promise<DesktopShareAuth>>();
 function requireConnection(session: ShareConnection | ShareSessionInfo | null | undefined) {
   const localUrl = session?.localUrl?.trim().replace(/\/$/, "");
   const sessionId = session?.sessionId?.trim();
-  const password = session?.password?.trim();
-  if (!session?.active || !localUrl || !sessionId || !password) {
+  if (!session?.active || !localUrl || !sessionId) {
     throw new Error("share.session_not_ready");
   }
   return {
     key: `${localUrl}|${sessionId}`,
     localUrl,
     sessionId,
-    password,
   };
+}
+
+export function primeDesktopShareAuth(
+  session: ShareConnection | ShareSessionInfo,
+  ownerAuth: ShareOwnerAuth,
+) {
+  const connection = requireConnection(session);
+  if (!ownerAuth.participantId.trim() || !ownerAuth.participantToken.trim()) {
+    throw new Error("share.auth_failed");
+  }
+  authBySession.set(connection.key, ownerAuth);
 }
 
 export function clearDesktopShareAuth(session?: ShareConnection | ShareSessionInfo | null) {
@@ -59,20 +68,7 @@ export async function ensureDesktopShareAuth(
   if (activeFlight) {
     return activeFlight;
   }
-  const flight = fetch(`${connection.localUrl}/api/join`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sid: connection.sessionId,
-      pwd: connection.password,
-      clientId: "desktop-owner",
-      username,
-    }),
-  }).then(async (response) => {
-    if (!response.ok) {
-      throw new Error((await response.text()) || `HTTP ${response.status}`);
-    }
-    const payload = await response.json() as Partial<DesktopShareAuth>;
+  const flight = shareSessionOwnerAuth(connection.sessionId, username).then((payload) => {
     const participantId = String(payload.participantId || "").trim();
     const participantToken = String(payload.participantToken || "").trim();
     if (!participantId || !participantToken) {

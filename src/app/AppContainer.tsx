@@ -690,11 +690,13 @@ export function AppContainer() {
       handlePdfViewed={onboarding.handlePdfViewed}
       handleWindowControlWithGuard={workspaceActions.handleWindowControlWithGuard}
       shareSession={shareSession.shareSession}
+      sharePassword={shareSession.sharePassword}
       shareBusy={shareSession.shareBusy}
       shareSyncing={shareSession.shareSyncing}
       handleShareStart={shareSession.startShare}
       handleShareStop={shareSession.stopShare}
       handleShareRefresh={shareSession.refreshShareStatus}
+      handleSharePasswordReveal={shareSession.revealSharePassword}
       t={t}
       recoverWorkspaceLayout={panels.recoverWorkspaceLayout}
       page={s.page}

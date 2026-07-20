@@ -3,6 +3,7 @@ import { runtimeLogWrite } from "../../shared/api/runtime";
 import { readFile } from "../../shared/api/workspace";
 import { isDocxPath, isExcelPath, isImagePath, isPdfPath } from "../../shared/utils/fileKind";
 import { buildWorkspaceResourceUrl, buildWorkspacePreviewUrl } from "../../shared/utils/workspaceResource";
+import { workspaceFsFailureMessage } from "./workspaceFsFailure";
 
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
 
@@ -41,19 +42,7 @@ export function useSelectedFilePreviewEffects(params: {
   const selectedImageUrlRef = useRef<string | null>(null);
   const textLoadSeqRef = useRef(0);
 
-  const mapReadErrorMessage = (error: unknown): string => {
-    const message = String(error ?? "").trim();
-    if (message === "workspace.file_read.not_file") {
-      return t("toast.fileNotReadable");
-    }
-    if (message === "workspace.file_read.access_denied") {
-      return t("toast.fileAccessDenied");
-    }
-    if (message === "workspace.file_read.invalid_utf8") {
-      return t("toast.fileInvalidTextEncoding");
-    }
-    return message;
-  };
+  const mapReadErrorMessage = (error: unknown): string => workspaceFsFailureMessage(error, t);
 
   useEffect(() => {
     const seq = textLoadSeqRef.current + 1;

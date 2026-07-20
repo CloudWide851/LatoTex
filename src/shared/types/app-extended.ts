@@ -198,6 +198,7 @@ export type AnalysisEnvPrepareTaskStatus = {
   currentItem?: string | null;
   error?: string | null;
   diagnostics: string[];
+  failure?: NativeRuntimeFailure | null;
   result?: AnalysisEnvStatus | null;
 };
 
@@ -221,12 +222,21 @@ export type AnalysisEnvStatus = {
   managedRoot: string;
   uvPath?: string | null;
   uvVersion?: string | null;
+  uvSource?: "bundled" | "managed" | "path" | string | null;
   pythonPath?: string | null;
   pythonVersion?: string | null;
   pdfMathTranslateVersion?: string | null;
   venvPath: string;
   runtimeRoot: string;
   lastError?: string | null;
+  failure?: NativeRuntimeFailure | null;
+};
+
+export type NativeRuntimeFailure = {
+  code: string;
+  stage: string;
+  retryable: boolean;
+  diagnostics: string[];
 };
 
 export type AnalysisNumericSeriesItem = {

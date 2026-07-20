@@ -85,7 +85,24 @@ export const enUS_analysis = {
   "analysis.envPromptStage.installing_runtime": "Installing analysis runtime",
   "analysis.envPromptStage.verifying": "Verifying runtime",
   "analysis.envPromptStage.completed": "Environment ready",
-  "analysis.envPromptStage.failed": "Environment setup failed",} as const;
+  "analysis.envPromptStage.failed": "Environment setup failed",
+  "analysis.envPromptUvSource": "uv source",
+  "analysis.envPromptUvSource.bundled": "Bundled runtime",
+  "analysis.envPromptUvSource.managed": "Managed runtime asset",
+  "analysis.envPromptUvSource.path": "System PATH",
+  "analysis.envPromptRetrySafe": "It is safe to retry this step explicitly.",
+  "analysis.envPromptRetryBlocked": "Retry is disabled until the configuration or bundled runtime is repaired.",
+  "analysis.envPromptDoctorHint": "Open Settings > Doctor for bounded diagnostics.",
+  "analysis.envPromptError.uvMissing": "The bundled or managed uv runtime could not be verified.",
+  "analysis.envPromptError.runtimeResourceMissing": "Required bundled Python resources are missing.",
+  "analysis.envPromptError.pathInvalid": "The selected environment location is invalid or unavailable.",
+  "analysis.envPromptError.coordinator": "Python preparation could not acquire its coordination lock.",
+  "analysis.envPromptError.pythonInstall": "The managed Python runtime could not be installed.",
+  "analysis.envPromptError.packageInstall": "Required Python packages could not be installed.",
+  "analysis.envPromptError.verification": "The Python environment was created but failed verification.",
+  "analysis.envPromptError.pathSelection": "The environment location could not be saved.",
+  "analysis.envPromptError.generic": "The Python environment could not be prepared. Open Doctor for diagnostics.",
+} as const;
 
 
 

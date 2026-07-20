@@ -58,6 +58,9 @@ import type {
   RuntimeLogReadResponse,
   ResourceNode,
   ShareSessionInfo,
+  ShareOwnerAuth,
+  ShareSessionCreateResult,
+  ShareSessionPasswordResult,
   TelegramPollInput,
   TelegramPollResult,
   WorkspaceExportPdfResponse,
@@ -177,14 +180,26 @@ export function shareSessionCreate(
   targetPath: string,
   mode: "local" | "remote" = "remote",
   sessionName?: string,
-): Promise<ShareSessionInfo> {
-  return invoke<ShareSessionInfo>("share_session_create", {
+): Promise<ShareSessionCreateResult> {
+  return invoke<ShareSessionCreateResult>("share_session_create", {
     input: { projectId, targetPath, mode, sessionName },
   });
 }
 
 export function shareSessionStatus(): Promise<ShareSessionInfo> {
   return invoke<ShareSessionInfo>("share_session_status");
+}
+
+export function shareSessionOwnerAuth(sessionId: string, username?: string): Promise<ShareOwnerAuth> {
+  return invoke<ShareOwnerAuth>("share_session_owner_auth", {
+    input: { sessionId, username },
+  });
+}
+
+export function shareSessionPasswordReveal(sessionId: string): Promise<ShareSessionPasswordResult> {
+  return invoke<ShareSessionPasswordResult>("share_session_password_reveal", {
+    input: { sessionId },
+  });
 }
 
 export function shareSessionStop(): Promise<Ack> {

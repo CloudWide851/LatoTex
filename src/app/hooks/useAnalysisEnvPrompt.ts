@@ -7,6 +7,7 @@ import {
   pickAnalysisEnvDirectory,
 } from "../../shared/api/analysis";
 import type { AnalysisEnvPrepareTaskStatus, AnalysisEnvStatus, AppSettings } from "../../shared/types/app";
+import { nativeRuntimeFailureMessageKey, normalizeNativeRuntimeFailure } from "./analysisEnvFailure";
 
 type TranslationFn = (key: any) => string;
 type ToastSetter = (value: { type: "info" | "error"; message: string } | null) => void;
@@ -118,7 +119,7 @@ export function useAnalysisEnvPrompt(params: {
         return status;
       }
       if (status.status === "failed") {
-        throw new Error(String(status.error || status.diagnostics?.[0] || "analysis env prepare failed"));
+        throw status.failure ?? status.error ?? "python.env.prepare_failed";
       }
       await new Promise((resolve) => window.setTimeout(resolve, ENV_PREPARE_POLL_MS));
     }
@@ -147,21 +148,26 @@ export function useAnalysisEnvPrompt(params: {
       );
       dismissedProjectIdsRef.current.delete(envPromptProjectId);
       await reloadStatus(envPromptProjectId);
-    } catch (error) {
-      setToast({ type: "error", message: String(error) });
+    } catch {
+      setToast({ type: "error", message: t("analysis.envPromptError.pathSelection") });
     } finally {
       if (mountedRef.current) {
         setEnvPromptBusy(false);
       }
     }
-  }, [envPromptBusy, envPromptProjectId, persistSettings, reloadStatus, setToast, settings]);
+  }, [envPromptBusy, envPromptProjectId, persistSettings, reloadStatus, setToast, settings, t]);
 
-  const handleEnvPromptCreate = useCallback(async (options?: { openPrompt?: boolean; showReadyToast?: boolean }) => {
+  const handleEnvPromptCreate = useCallback(async (options?: {
+    openPrompt?: boolean;
+    showReadyToast?: boolean;
+    explicitRetry?: boolean;
+  }) => {
     if (!envPromptProjectId || envPromptBusy) {
       return;
     }
     const openPrompt = options?.openPrompt ?? true;
     const showReadyToast = options?.showReadyToast ?? true;
+    const explicitRetry = options?.explicitRetry ?? true;
     setEnvPromptBusy(true);
     setEnvPromptTaskStatus({
       taskId: "pending",
@@ -174,12 +180,12 @@ export function useAnalysisEnvPrompt(params: {
     });
     setEnvPromptOpen(openPrompt);
     try {
-      const started = await analysisEnvPrepareStart(envPromptProjectId);
+      const started = await analysisEnvPrepareStart(envPromptProjectId, explicitRetry);
       if (mountedRef.current) {
         setEnvPromptTaskStatus((prev) => prev ? { ...prev, taskId: started.taskId } : prev);
       }
       const finalTaskStatus = await pollPrepareTask(started.taskId);
-      const finalStatus = finalTaskStatus.result ?? await analysisEnvPrepare(envPromptProjectId);
+      const finalStatus = finalTaskStatus.result ?? await analysisEnvPrepare(envPromptProjectId, false);
       if (!mountedRef.current) {
         return;
       }
@@ -192,26 +198,29 @@ export function useAnalysisEnvPrompt(params: {
         setToast({ type: "info", message: t("analysis.envPromptReady") });
       }
     } catch (error) {
-      const message = String(error);
+      const failure = normalizeNativeRuntimeFailure(error, envPromptTaskStatus?.stage ?? "failed");
+      const message = t(nativeRuntimeFailureMessageKey(failure));
       if (!mountedRef.current) {
         return;
       }
       setEnvPromptTaskStatus((prev) => prev ? {
         ...prev,
         status: "failed",
-        stage: prev.stage ?? "failed",
-        error: message,
-        diagnostics: [message],
+        stage: failure.stage,
+        error: failure.code,
+        diagnostics: failure.diagnostics,
+        failure,
       } : {
         taskId: "failed",
         status: "failed",
-        stage: "failed",
+        stage: failure.stage,
         percent: 0,
-        message,
-        error: message,
-        diagnostics: [message],
+        message: failure.code,
+        error: failure.code,
+        diagnostics: failure.diagnostics,
+        failure,
       });
-      setEnvPromptStatus((prev) => prev ? { ...prev, lastError: message } : prev);
+      setEnvPromptStatus((prev) => prev ? { ...prev, lastError: failure.code, failure } : prev);
       setEnvPromptOpen(true);
       setToast({ type: "error", message });
     } finally {
@@ -219,7 +228,7 @@ export function useAnalysisEnvPrompt(params: {
         setEnvPromptBusy(false);
       }
     }
-  }, [envPromptBusy, envPromptProjectId, envPromptStatus?.managedRoot, envPromptStatus?.venvPath, pollPrepareTask, setToast, t]);
+  }, [envPromptBusy, envPromptProjectId, envPromptStatus?.managedRoot, envPromptStatus?.venvPath, envPromptTaskStatus?.stage, pollPrepareTask, setToast, t]);
 
   useEffect(() => {
     if (!enabled || !activeProjectId || envPromptProjectId !== activeProjectId || !envPromptStatus) {
@@ -235,7 +244,7 @@ export function useAnalysisEnvPrompt(params: {
       return;
     }
     autoStartedProjectIdsRef.current.add(activeProjectId);
-    void handleEnvPromptCreate({ openPrompt: false, showReadyToast: false });
+    void handleEnvPromptCreate({ openPrompt: false, showReadyToast: false, explicitRetry: false });
   }, [
     activeProjectId,
     enabled,

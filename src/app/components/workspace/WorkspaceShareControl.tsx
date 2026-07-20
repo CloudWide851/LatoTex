@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Copy, RefreshCcw, Share2, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Copy, Eye, EyeOff, RefreshCcw, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Select } from "../../../components/ui/select";
 import type { ShareParticipantInfo, ShareSessionInfo } from "../../../shared/types/app";
@@ -143,6 +143,7 @@ function CompactShareStatusBubble(props: {
 export function WorkspaceShareControl(props: {
   selectedFile: string | null;
   shareSession: ShareSessionInfo | null;
+  sharePassword: string | null;
   shareBusy: boolean;
   shareSyncing: boolean;
   shareConflict: ShareConflict | null;
@@ -153,12 +154,14 @@ export function WorkspaceShareControl(props: {
   onShareStart: (mode?: ShareMode) => void | Promise<void>;
   onShareStop: () => void | Promise<void>;
   onShareRefresh: () => void | Promise<void>;
+  onSharePasswordReveal: () => Promise<string>;
   onShareConflictResolve: (resolution: ShareConflictResolution) => void;
   t: TranslationFn;
 }) {
   const {
     selectedFile,
     shareSession,
+    sharePassword,
     shareBusy,
     shareSyncing,
     shareConflict,
@@ -169,6 +172,7 @@ export function WorkspaceShareControl(props: {
     onShareStart,
     onShareStop,
     onShareRefresh,
+    onSharePasswordReveal,
     onShareConflictResolve,
     t,
   } = props;
@@ -177,6 +181,9 @@ export function WorkspaceShareControl(props: {
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [copyDone, setCopyDone] = useState(false);
   const [passwordCopyDone, setPasswordCopyDone] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [passwordActionBusy, setPasswordActionBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const isTexSelected = Boolean(selectedFile && selectedFile.toLowerCase().endsWith(".tex"));
   const sessionExists = Boolean(shareSession?.sessionId);
@@ -189,6 +196,10 @@ export function WorkspaceShareControl(props: {
   );
   const shareLink = shareSession?.activeJoinUrl || "";
   const localJoinLink = shareSession?.localJoinUrl || "";
+  useEffect(() => {
+    setPasswordVisible(false);
+    setPasswordError(null);
+  }, [shareSession?.sessionId]);
   useEffect(() => {
     if (!panelOpen || !shareLink) {
       setQrDataUrl("");
@@ -255,11 +266,41 @@ export function WorkspaceShareControl(props: {
     }
     void navigator.clipboard?.writeText(link).then(() => setCopyDone(true)).catch(() => undefined);
   };
-  const copyPassword = (raw: string) => {
-    if (!raw) {
+  const resolvePassword = async () => sharePassword || onSharePasswordReveal();
+  const copyPassword = async () => {
+    if (passwordActionBusy) {
       return;
     }
-    void navigator.clipboard?.writeText(raw).then(() => setPasswordCopyDone(true)).catch(() => undefined);
+    setPasswordActionBusy(true);
+    try {
+      setPasswordError(null);
+      const raw = await resolvePassword();
+      await navigator.clipboard?.writeText(raw);
+      setPasswordCopyDone(true);
+    } catch {
+      setPasswordError(t("share.passwordRevealFailed"));
+    } finally {
+      setPasswordActionBusy(false);
+    }
+  };
+  const togglePassword = async () => {
+    if (passwordVisible) {
+      setPasswordVisible(false);
+      return;
+    }
+    if (passwordActionBusy) {
+      return;
+    }
+    setPasswordActionBusy(true);
+    try {
+      setPasswordError(null);
+      await resolvePassword();
+      setPasswordVisible(true);
+    } catch {
+      setPasswordError(t("share.passwordRevealFailed"));
+    } finally {
+      setPasswordActionBusy(false);
+    }
   };
   const dotClass = shareSession?.status === "ready"
     ? "bg-[color:var(--app-status-success)]"
@@ -364,16 +405,31 @@ export function WorkspaceShareControl(props: {
                 <div className="app-material-inset rounded-md border p-2">
                   <div className="flex items-center justify-between gap-2">
                     <strong>{t("share.password")}:</strong>
-                    <button
-                      className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border disabled:opacity-50"
-                      disabled={!shareSession?.password}
-                      onClick={() => copyPassword(shareSession?.password || "")}
-                      title={t("share.copyPassword")}
-                    >
-                      {passwordCopyDone ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border disabled:opacity-50"
+                        disabled={!sessionExists || passwordActionBusy}
+                        onClick={() => void togglePassword()}
+                        title={t(passwordVisible ? "share.hidePassword" : "share.showPassword")}
+                        aria-label={t(passwordVisible ? "share.hidePassword" : "share.showPassword")}
+                      >
+                        {passwordVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </button>
+                      <button
+                        className="panel-topbar-btn inline-flex h-6 w-6 items-center justify-center rounded border disabled:opacity-50"
+                        disabled={!sessionExists || passwordActionBusy}
+                        onClick={() => void copyPassword()}
+                        title={t("share.copyPassword")}
+                        aria-label={t("share.copyPassword")}
+                      >
+                        {passwordCopyDone ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-1 break-all">{shareSession?.password || "-"}</div>
+                  <div className="mt-1 break-all">
+                    {passwordVisible ? (sharePassword || t("share.passwordUnavailable")) : t("share.passwordHidden")}
+                  </div>
+                  {passwordError ? <div className="mt-1 text-[11px] text-[color:var(--app-status-danger)]" role="alert">{passwordError}</div> : null}
                 </div>
                 <div className="app-material-inset rounded-md border p-2">
                   <strong>{t("share.expiresAt")}:</strong> {shareSession?.expiresAt || "-"}

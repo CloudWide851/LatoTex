@@ -45,6 +45,7 @@ type WorkspaceValueProps = Pick<
   | "gitPanel"
   | "analysisPanel"
   | "shareSession"
+  | "sharePassword"
   | "shareBusy"
   | "shareSyncing"
   | "analysisRunning"
@@ -129,6 +130,7 @@ export type AppContainerViewProps = WorkspaceValueProps
     handleShareStart: AppWorkspaceShellProps["onShareStart"];
     handleShareStop: AppWorkspaceShellProps["onShareStop"];
     handleShareRefresh: AppWorkspaceShellProps["onShareRefresh"];
+    handleSharePasswordReveal: AppWorkspaceShellProps["onSharePasswordReveal"];
     handleShareModeChange?: AppWorkspaceShellProps["onShareModeChange"];
     handleShareSessionNameChange?: AppWorkspaceShellProps["onShareSessionNameChange"];
     handleShareConflictResolve?: AppWorkspaceShellProps["onShareConflictResolve"];

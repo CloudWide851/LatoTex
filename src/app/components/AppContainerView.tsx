@@ -47,6 +47,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     handlePdfViewed,
     handleWindowControlWithGuard,
     shareSession,
+    sharePassword,
     shareBusy,
     shareSyncing,
     shareConflict = null,
@@ -59,6 +60,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     handleShareStart,
     handleShareStop,
     handleShareRefresh,
+    handleSharePasswordReveal,
     handleShareConflictResolve = () => undefined,
     t,
     recoverWorkspaceLayout,
@@ -382,6 +384,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 analysisPanel={analysisPanel}
                 onPageChange={setPage}
                 shareSession={shareSession}
+                sharePassword={sharePassword}
                 shareBusy={shareBusy}
                 shareSyncing={shareSyncing}
                 shareConflict={shareConflict}
@@ -395,6 +398,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 onShareStart={handleShareStart}
                 onShareStop={handleShareStop}
                 onShareRefresh={handleShareRefresh}
+                onSharePasswordReveal={handleSharePasswordReveal}
                 onShareConflictResolve={handleShareConflictResolve}
                 onSelectFile={handleSelectWorkspacePath}
                 onSelectLibraryPath={setSelectedLibraryPath}

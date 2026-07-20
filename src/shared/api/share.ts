@@ -7,7 +7,10 @@ import type {
   EmailFetchSubmissionInput,
   EmailFetchSubmissionResult,
   EmailPasswordSaveInput,
+  ShareOwnerAuth,
+  ShareSessionCreateResult,
   ShareSessionInfo,
+  ShareSessionPasswordResult,
   TelegramPollInput,
   TelegramPollResult,
   TelegramTestInput,
@@ -19,14 +22,26 @@ export function shareSessionCreate(
   targetPath: string,
   mode: "local" | "remote" = "remote",
   sessionName?: string,
-): Promise<ShareSessionInfo> {
-  return invokeCommand<ShareSessionInfo>("share_session_create", {
+): Promise<ShareSessionCreateResult> {
+  return invokeCommand<ShareSessionCreateResult>("share_session_create", {
     input: { projectId, targetPath, mode, sessionName },
   });
 }
 
 export function shareSessionStatus(): Promise<ShareSessionInfo> {
   return invokeCommand<ShareSessionInfo>("share_session_status");
+}
+
+export function shareSessionOwnerAuth(sessionId: string, username?: string): Promise<ShareOwnerAuth> {
+  return invokeCommand<ShareOwnerAuth>("share_session_owner_auth", {
+    input: { sessionId, username },
+  });
+}
+
+export function shareSessionPasswordReveal(sessionId: string): Promise<ShareSessionPasswordResult> {
+  return invokeCommand<ShareSessionPasswordResult>("share_session_password_reveal", {
+    input: { sessionId },
+  });
 }
 
 export function shareSessionStop(): Promise<Ack> {

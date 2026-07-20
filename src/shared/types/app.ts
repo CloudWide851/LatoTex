@@ -135,7 +135,6 @@ export type ShareSessionInfo = {
   remoteJoinUrl?: string | null;
   activeJoinUrl?: string | null;
   passwordRequired?: boolean | null;
-  password?: string | null;
   expiresAt?: string | null;
   status?: "starting" | "ready" | "failed" | "stopping" | string | null;
   pdfState?: "empty" | "ready" | "uploading" | "error" | string | null;
@@ -146,6 +145,21 @@ export type ShareSessionInfo = {
   tunnelState?: "pending" | "ready" | "failed" | string | null;
   tunnelError?: string | null;
   participants?: ShareParticipantInfo[];
+};
+
+export type ShareOwnerAuth = {
+  participantId: string;
+  participantToken: string;
+};
+
+export type ShareSessionCreateResult = {
+  session: ShareSessionInfo;
+  ownerAuth: ShareOwnerAuth;
+  password: string;
+};
+
+export type ShareSessionPasswordResult = {
+  password: string;
 };
 
 export type ShareParticipantInfo = {
