@@ -21,6 +21,7 @@ import type {
   PanelLayoutPrefs,
   ProtocolHealth,
   ProtocolTestInput,
+  ResearchSkillDescriptor,
 } from "../types/app";
 import type { PluginCatalogSource } from "../plugins/pluginTypes";
 import { invokeCommand } from "./core";
@@ -113,6 +114,10 @@ export function validateMcpServer(input: McpServerConfig): Promise<McpValidation
 
 export function validateAgentSkill(skillId: string): Promise<SkillValidationResult> {
   return invokeCommand<SkillValidationResult>("agent_skill_validate", { input: { skillId } });
+}
+
+export function getAgentSkillCatalog(): Promise<ResearchSkillDescriptor[]> {
+  return invokeCommand<ResearchSkillDescriptor[]>("agent_skill_catalog");
 }
 
 export function pickBackgroundImage(): Promise<AppBackgroundImage | null> {

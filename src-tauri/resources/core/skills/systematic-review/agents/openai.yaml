@@ -1,0 +1,4 @@
+interface:
+  display_name: "Systematic Review"
+  short_description: "Plan transparent reviews and evidence synthesis."
+  default_prompt: "Build a reproducible review protocol, track inclusion decisions, assess bias, and separate evidence from inference."

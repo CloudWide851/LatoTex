@@ -1,5 +1,6 @@
 import type { CodeLanguageInfo } from "../utils/codeLanguage";
 import type { PluginCatalogSource } from "../plugins/pluginTypes";
+import type { TelegramProxyMode } from "./app-extended";
 
 export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings";
 
@@ -371,6 +372,7 @@ export type AppSettings = {
     mcpServers?: McpServerConfig[];
     enabledSkills?: string[];
     hiddenSkills?: string[];
+    skillCatalogVersion?: number;
     onboarding?: OnboardingState;
   };
 };
@@ -466,12 +468,14 @@ export type SkillValidationResult = {
   details?: string[];
 };
 
-export type TelegramTestInput = {
-  token: string;
-  chatId?: string;
-  apiBaseUrl?: string;
-  proxyEnabled?: boolean;
-  text: string;
+export type ResearchSkillDescriptor = {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  hidden: boolean;
+  source: "builtIn" | "configured" | "custom" | string;
+  validation: SkillValidationResult;
 };
 
 export type FeatureModelBindings = {
@@ -485,9 +489,12 @@ export type FeatureModelBindings = {
 
 export type ChannelPrefs = {
   telegramEnabled?: boolean;
-  telegramBotToken?: string;
   telegramChatId?: string;
   telegramApiBaseUrl?: string;
+  telegramProxyMode?: TelegramProxyMode;
+  telegramManualProxyUrl?: string;
+  telegramTokenStored?: boolean;
+  /** Legacy migration field; never populate from the WebView. */
   telegramProxyEnabled?: boolean;
   dingtalkEnabled?: boolean;
   dingtalkClientId?: string;

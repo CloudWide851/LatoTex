@@ -1,0 +1,4 @@
+interface:
+  display_name: "Literature Search"
+  short_description: "Find and synthesize academic evidence with provenance."
+  default_prompt: "Search academic sources, verify identifiers, distinguish evidence levels, and report uncertainty."

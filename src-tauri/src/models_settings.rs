@@ -102,7 +102,7 @@ pub struct SkillValidationInput {
     pub skill_id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillValidationResult {
     pub ok: bool,
@@ -111,6 +111,18 @@ pub struct SkillValidationResult {
     pub source: String,
     pub manifest_path: Option<String>,
     pub details: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchSkillDescriptor {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub enabled: bool,
+    pub hidden: bool,
+    pub source: String,
+    pub validation: SkillValidationResult,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -124,13 +136,19 @@ pub struct FeatureModelBindings {
     pub completion_model_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelPrefs {
     pub telegram_enabled: Option<bool>,
+    /// Legacy plaintext field. It is accepted only for one-time secure migration
+    /// and must be scrubbed before settings are returned to the WebView.
     pub telegram_bot_token: Option<String>,
     pub telegram_chat_id: Option<String>,
     pub telegram_api_base_url: Option<String>,
+    pub telegram_proxy_mode: Option<String>,
+    pub telegram_manual_proxy_url: Option<String>,
+    pub telegram_token_stored: Option<bool>,
+    /// Legacy boolean retained only for migration to telegram_proxy_mode.
     pub telegram_proxy_enabled: Option<bool>,
     pub dingtalk_enabled: Option<bool>,
     pub dingtalk_client_id: Option<String>,
@@ -213,11 +231,32 @@ pub struct TelegramSendInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TelegramTestInput {
-    pub token: String,
-    pub chat_id: Option<String>,
-    pub api_base_url: Option<String>,
-    pub proxy_enabled: Option<bool>,
     pub text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelegramTokenSaveInput {
+    pub token: String,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelFailure {
+    pub code: String,
+    pub stage: String,
+    pub retryable: bool,
+    pub proxy_source: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelegramConnectionResult {
+    pub ok: bool,
+    pub code: String,
+    pub stage: String,
+    pub retryable: bool,
+    pub proxy_source: String,
 }
 
 #[derive(Debug, Deserialize)]

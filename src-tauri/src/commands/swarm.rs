@@ -32,12 +32,18 @@ mod swarm_tool_workspace;
 mod swarm_workflows;
 pub(crate) use swarm_provider::{call_provider_with_retry, call_provider_with_retry_streaming};
 
+pub(crate) fn migrate_research_skill_settings(
+    ui_prefs: &mut Option<crate::models::UiPrefs>,
+) -> bool {
+    swarm_tool_skills::migrate_research_skill_settings(ui_prefs)
+}
+
 use crate::models::{
     Ack, AgentApprovalListInput, AgentApprovalRequest, AgentApprovalResolveInput,
     AgentExecuteCancelInput, AgentExecuteRequest, AgentExecuteStartAccepted, AgentPermissionGrant,
     AgentPermissionGrantRevokeInput, AgentRunsRecoverInput, AgentRunsRecoverResponse,
     CompileRecord, CompileRecordInput, EventBatch, EventQuery, McpServerConfig,
-    McpValidationResult, SkillValidationInput, SkillValidationResult,
+    McpValidationResult, ResearchSkillDescriptor, SkillValidationInput, SkillValidationResult,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -193,6 +199,16 @@ pub fn agent_skill_validate(
     input: SkillValidationInput,
 ) -> Result<SkillValidationResult, String> {
     swarm_tool_skills::validate_skill(&state.db_path, &state.runtime_root, &input.skill_id)
+}
+
+#[tauri::command]
+pub fn agent_skill_catalog(
+    state: State<'_, AppState>,
+) -> Result<Vec<ResearchSkillDescriptor>, String> {
+    Ok(swarm_tool_skills::skill_catalog(
+        &state.db_path,
+        &state.runtime_root,
+    ))
 }
 
 #[tauri::command]

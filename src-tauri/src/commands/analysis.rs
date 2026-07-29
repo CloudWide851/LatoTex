@@ -8,6 +8,8 @@ use std::cmp::Reverse;
 use std::fs;
 use std::time::SystemTime;
 use tauri::State;
+#[path = "analysis_academic_providers.rs"]
+mod analysis_academic_providers;
 #[path = "analysis_search.rs"]
 mod analysis_search;
 
@@ -16,14 +18,43 @@ mod analysis_search;
 pub struct ReferenceCheckInput {
     pub queries: Vec<String>,
     pub limit: Option<u32>,
+    pub project_id: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceEvidence {
+    pub stable_id: String,
     pub title: String,
+    pub authors: Vec<String>,
+    pub year: Option<i32>,
+    pub venue: Option<String>,
+    pub doi: Option<String>,
+    pub arxiv_id: Option<String>,
+    pub open_access: Option<bool>,
+    pub pdf_url: Option<String>,
+    pub landing_url: String,
+    pub citation_count: Option<u64>,
+    pub abstract_text: Option<String>,
+    pub source: String,
+    pub evidence_level: String,
+    pub provenance: Vec<String>,
+    pub original_source_url: String,
+    pub rrf_score: f64,
+    /// Compatibility projection for existing reference-check consumers.
     pub url: String,
+    /// Compatibility projection for existing reference-check consumers.
     pub snippet: String,
+}
+
+pub type AcademicEvidence = ReferenceEvidence;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcademicProviderFailure {
+    pub provider: String,
+    pub code: String,
+    pub retryable: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -33,6 +64,7 @@ pub struct ReferenceCheckItem {
     pub ok: bool,
     pub message: String,
     pub results: Vec<ReferenceEvidence>,
+    pub provider_errors: Vec<AcademicProviderFailure>,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,6 +72,8 @@ pub struct ReferenceCheckItem {
 pub struct ReferenceCheckResponse {
     pub items: Vec<ReferenceCheckItem>,
 }
+
+pub type AcademicSearchResponse = ReferenceCheckResponse;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -152,14 +186,23 @@ pub fn reference_check(
         "INFO",
         &format!("reference_check: {} queries", input.queries.len()),
     );
-    analysis_search::run_reference_check_queries(input.queries, input.limit.unwrap_or(5))
+    let project_root = input
+        .project_id
+        .as_deref()
+        .map(|project_id| storage::load_project_root(&state.db_path, project_id))
+        .transpose()?;
+    analysis_search::run_reference_check_queries(
+        input.queries,
+        input.limit.unwrap_or(5),
+        project_root.as_deref(),
+    )
 }
 
 pub(crate) fn run_reference_check_queries(
     queries: Vec<String>,
     limit: u32,
 ) -> Result<ReferenceCheckResponse, String> {
-    analysis_search::run_reference_check_queries(queries, limit)
+    analysis_search::run_reference_check_queries(queries, limit, None)
 }
 
 #[tauri::command]

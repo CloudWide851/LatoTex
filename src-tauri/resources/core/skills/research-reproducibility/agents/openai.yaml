@@ -1,0 +1,4 @@
+interface:
+  display_name: "Research Reproducibility"
+  short_description: "Capture provenance, parameters, and reproducible outputs."
+  default_prompt: "Record inputs, versions, parameters, exclusions, seeds, outputs, and limitations so the work can be reproduced."

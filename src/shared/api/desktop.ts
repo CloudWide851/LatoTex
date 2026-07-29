@@ -119,9 +119,10 @@ export function projectSearchContent(
 export function referenceCheck(
   queries: string[],
   limit = 5,
+  projectId?: string,
 ): Promise<ReferenceCheckResponse> {
   return invoke<ReferenceCheckResponse>("reference_check", {
-    input: { queries, limit },
+    input: { queries, limit, projectId },
   });
 }
 

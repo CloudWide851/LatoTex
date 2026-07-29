@@ -1,9 +1,9 @@
-import { AlertCircle, CheckCircle2, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, BookOpenCheck, CheckCircle2, Plus, Puzzle, Trash2 } from "lucide-react";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult, SkillValidationResult, SwarmEvent } from "../../../shared/types/app";
+import type { AgentToolPrefs, AppSettings, McpServerConfig, McpValidationResult, ResearchSkillDescriptor, SkillValidationResult, SwarmEvent } from "../../../shared/types/app";
 import { executeWorkflowStart, getEvents } from "../../../shared/api/agent";
 import { getPluginCatalog, listInstalledPlugins } from "../../../shared/api/plugins";
-import { validateAgentSkill, validateMcpServer } from "../../../shared/api/settings";
+import { getAgentSkillCatalog, validateAgentSkill, validateMcpServer } from "../../../shared/api/settings";
 import type { PluginManifest } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -13,8 +13,6 @@ import { AgentTraceCards } from "../agent/AgentTraceCards";
 import { extractEventCards } from "../../hooks/analysisWorkspaceHelpers";
 
 type TranslationFn = (key: any) => string;
-
-const BUILT_IN_SKILLS = ["stitch", "frontend-design", "optimize", "polish"] as const;
 
 function parseArgs(value: string): string[] {
   return value.split(/\s+/).map((item) => item.trim()).filter(Boolean);
@@ -318,12 +316,42 @@ export function SkillsSettingsSection(props: {
   const hiddenSkills = settings.uiPrefs?.hiddenSkills ?? [];
   const [customSkill, setCustomSkill] = useState("");
   const [validationBySkill, setValidationBySkill] = useState<Record<string, SkillValidationResult | undefined>>({});
+  const [skillCatalog, setSkillCatalog] = useState<ResearchSkillDescriptor[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [validatingSkill, setValidatingSkill] = useState<string | null>(null);
   const [agentRunBySkill, setAgentRunBySkill] = useState<Record<string, string | undefined>>({});
   const [agentEventsByRun, setAgentEventsByRun] = useState<Record<string, SwarmEvent[]>>({});
   const [runningSkill, setRunningSkill] = useState<string | null>(null);
   const activeSkillRunIds = Object.values(agentRunBySkill)
     .filter((runId): runId is string => Boolean(runId && !runId.startsWith("error:")));
+
+  useEffect(() => {
+    let disposed = false;
+    setCatalogLoading(true);
+    void getAgentSkillCatalog()
+      .then((catalog) => {
+        if (disposed) {
+          return;
+        }
+        setSkillCatalog(catalog);
+        setValidationBySkill(Object.fromEntries(
+          catalog.map((skill) => [skill.id, skill.validation]),
+        ));
+      })
+      .catch(() => {
+        if (!disposed) {
+          setSkillCatalog([]);
+        }
+      })
+      .finally(() => {
+        if (!disposed) {
+          setCatalogLoading(false);
+        }
+      });
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (activeSkillRunIds.length === 0) {
@@ -372,6 +400,22 @@ export function SkillsSettingsSection(props: {
       return;
     }
     setSkills([...enabledSkills, skill]);
+    setSkillCatalog((current) => current.some((item) => item.id === skill)
+      ? current
+      : [...current, {
+          id: skill,
+          name: skill,
+          description: t("settings.skillCustomDescription"),
+          enabled: true,
+          hidden: false,
+          source: "custom",
+          validation: {
+            ok: false,
+            skillId: skill,
+            message: "skill.validation.manifest_missing",
+            source: "custom",
+          },
+        }]);
     setCustomSkill("");
   };
   const validateSkill = async (skill: string) => {
@@ -408,7 +452,7 @@ export function SkillsSettingsSection(props: {
         prompt: [
           `Use the enabled skill "${skill}" as operating guidance.`,
           "Validate whether the skill format and instructions are suitable for this project.",
-          "If this is a UI/UX skill, produce a concrete before/after improvement plan and identify files that would change.",
+          "Apply it to a concise research question, literature query, or data-analysis scenario and report evidence limits.",
           "Do not write files unless the normal app permission flow asks for confirmation.",
         ].join("\n"),
         contextRefs: [],
@@ -422,13 +466,30 @@ export function SkillsSettingsSection(props: {
       setRunningSkill(null);
     }
   };
-  const visibleSkills = Array.from(new Set([...BUILT_IN_SKILLS, ...enabledSkills]))
-    .filter((skill) => !hiddenSkills.includes(skill));
+  const visibleSkills = [
+    ...skillCatalog,
+    ...enabledSkills
+      .filter((id) => !skillCatalog.some((item) => item.id === id))
+      .map((id): ResearchSkillDescriptor => ({
+        id,
+        name: id,
+        description: t("settings.skillCustomDescription"),
+        enabled: true,
+        hidden: false,
+        source: "custom",
+        validation: validationBySkill[id] ?? {
+          ok: false,
+          skillId: id,
+          message: "skill.validation.manifest_missing",
+          source: "custom",
+        },
+      })),
+  ].filter((skill) => !hiddenSkills.includes(skill.id));
 
   return (
     <div className="grid gap-3">
       <p className="text-xs text-slate-500">{t("settings.agentSkillsHint")}</p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Input value={customSkill} onChange={(event) => setCustomSkill(event.target.value)} placeholder={t("settings.skillAddPlaceholder")} className="h-9 text-xs" />
         <Button size="sm" variant="secondary" onClick={addCustomSkill}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -440,36 +501,56 @@ export function SkillsSettingsSection(props: {
           </Button>
         ) : null}
       </div>
-      <div className="grid gap-2">
+      {catalogLoading ? <div className="text-xs text-slate-500">{t("common.loading")}</div> : null}
+      <div className="grid gap-2 lg:grid-cols-2">
         {visibleSkills.map((skill) => {
-          const validation = validationBySkill[skill];
+          const validation = validationBySkill[skill.id] ?? skill.validation;
+          const builtIn = skill.source === "builtIn";
+          const SkillIcon = builtIn ? BookOpenCheck : Puzzle;
           return (
-            <div key={skill} className="app-material-inset rounded-md border p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <article key={skill.id} className="app-material-inset grid min-w-0 gap-3 rounded-lg border p-3">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span className="rounded-lg border border-[color:var(--app-accent)]/25 bg-[color:var(--app-accent)]/10 p-2 text-[color:var(--app-accent)]">
+                    <SkillIcon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h4 className="truncate text-xs font-semibold text-slate-700">{skill.name}</h4>
+                      <span className="rounded-full border px-1.5 py-0.5 text-[10px] text-slate-500">
+                        {builtIn ? t("settings.skillSourceBuiltIn") : t("settings.skillSourceCustom")}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-500">{skill.description}</p>
+                  </div>
+                </div>
+                <label className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-slate-600">
                   <input
                     type="checkbox"
-                    checked={enabledSkills.includes(skill)}
-                    onChange={(event) => toggleSkill(skill, event.target.checked)}
+                    checked={enabledSkills.includes(skill.id)}
+                    onChange={(event) => toggleSkill(skill.id, event.target.checked)}
                   />
-                  {t(`settings.skill.${skill}`) === `settings.skill.${skill}` ? skill : t(`settings.skill.${skill}`)}
+                  {t("settings.skillEnabled")}
                 </label>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" disabled={validatingSkill === skill} onClick={() => void validateSkill(skill)}>
-                    {validatingSkill === skill ? t("common.loading") : t("settings.skillValidate")}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" disabled={validatingSkill === skill.id} onClick={() => void validateSkill(skill.id)}>
+                    {validatingSkill === skill.id ? t("common.loading") : t("settings.skillValidate")}
                   </Button>
-                  <Button size="sm" variant="secondary" disabled={runningSkill === skill} onClick={() => void runSkillAgent(skill)}>
-                    {runningSkill === skill ? t("common.loading") : t("settings.skillRunAgent")}
+                  <Button size="sm" variant="secondary" disabled={runningSkill === skill.id} onClick={() => void runSkillAgent(skill.id)}>
+                    {runningSkill === skill.id ? t("common.loading") : t("settings.skillRunAgent")}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => {
-                    setSkills(enabledSkills.filter((item) => item !== skill));
-                    if (BUILT_IN_SKILLS.includes(skill as typeof BUILT_IN_SKILLS[number])) {
-                      setHiddenSkills([...hiddenSkills, skill]);
+                    setSkills(enabledSkills.filter((item) => item !== skill.id));
+                    if (builtIn) {
+                      setHiddenSkills([...hiddenSkills, skill.id]);
+                    } else {
+                      setSkillCatalog((current) => current.filter((item) => item.id !== skill.id));
                     }
-                  }}>
-                      <Trash2 className="h-3.5 w-3.5" />
+                  }} aria-label={builtIn ? t("settings.skillHide") : t("settings.skillRemove")}>
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      {builtIn ? t("settings.skillHide") : t("settings.skillRemove")}
                   </Button>
-                </div>
               </div>
               {validation ? (
                 <div className={cn("mt-2 grid gap-1 rounded border px-2 py-1 text-[11px]", statusTone(validation))}>
@@ -482,16 +563,16 @@ export function SkillsSettingsSection(props: {
                   ) : null}
                 </div>
               ) : null}
-              {agentRunBySkill[skill] ? (
+              {agentRunBySkill[skill.id] ? (
                 <div className="app-material-content mt-2 rounded border px-2 py-1 text-[11px] text-slate-600">
-                  {agentRunBySkill[skill]?.startsWith("error:")
-                    ? agentRunBySkill[skill]?.slice(6)
-                    : t("settings.skillRunStarted").replace("{runId}", agentRunBySkill[skill] ?? "")}
+                  {agentRunBySkill[skill.id]?.startsWith("error:")
+                    ? agentRunBySkill[skill.id]?.slice(6)
+                    : t("settings.skillRunStarted").replace("{runId}", agentRunBySkill[skill.id] ?? "")}
                 </div>
               ) : null}
-              {agentRunBySkill[skill] && !agentRunBySkill[skill]?.startsWith("error:") ? (
+              {agentRunBySkill[skill.id] && !agentRunBySkill[skill.id]?.startsWith("error:") ? (
                 <AgentTraceCards
-                  cards={extractEventCards(agentEventsByRun[agentRunBySkill[skill] ?? ""] ?? [], [agentRunBySkill[skill] ?? ""])}
+                  cards={extractEventCards(agentEventsByRun[agentRunBySkill[skill.id] ?? ""] ?? [], [agentRunBySkill[skill.id] ?? ""])}
                   title={t("settings.skillRunTrace")}
                   t={t}
                   className="app-material-content mt-2 rounded border px-2 py-2"
@@ -499,7 +580,7 @@ export function SkillsSettingsSection(props: {
                   compact
                 />
               ) : null}
-            </div>
+            </article>
           );
         })}
       </div>

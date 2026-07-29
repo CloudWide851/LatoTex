@@ -71,8 +71,13 @@ fn default_team_roles() -> Vec<AgentTeamRolePrefs> {
                 "python".to_string(),
                 "mcp".to_string(),
             ]),
-            mcp_server_ids: Some(vec!["stitch".to_string()]),
-            skill_ids: Some(vec!["stitch".to_string()]),
+            mcp_server_ids: None,
+            skill_ids: Some(vec![
+                "literature-search".to_string(),
+                "systematic-review".to_string(),
+                "statistical-analysis".to_string(),
+                "research-reproducibility".to_string(),
+            ]),
             color: Some("#0f766e".to_string()),
             enabled: Some(true),
         },
@@ -184,18 +189,20 @@ fn build_role_prompt(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
     input: &AgentExecuteRequest,
+    workflow: &WorkflowDefinition,
     team: &AgentTeamConfig,
     role: &AgentTeamRolePrefs,
     previous_outputs: &[String],
 ) -> String {
-    let mut skills = swarm_tool_skills::enabled_skill_ids(db_path, runtime_root);
-    for skill in role.skill_ids.clone().unwrap_or_default() {
-        if let Some(normalized) = swarm_tool_skills::normalize_skill_id(&skill) {
-            if !skills.iter().any(|item| item == &normalized) {
-                skills.push(normalized);
-            }
-        }
-    }
+    let role_skill_ids = role.skill_ids.clone().unwrap_or_default();
+    let skill_context = swarm_tool_skills::build_workflow_skills_prompt(
+        db_path,
+        runtime_root,
+        &workflow.id,
+        &input.callsite,
+        &input.prompt,
+        &role_skill_ids,
+    );
     let mcp = role.mcp_server_ids.clone().unwrap_or_default();
     [
         format!("[team]\nid={}\nname={}", team.id, team.name),
@@ -208,11 +215,11 @@ fn build_role_prompt(
         ),
         format!("tools={}", role_tools(role).join(",")),
         format!("mcp_servers={}", mcp.join(",")),
-        format!("skills={}", skills.join(",")),
-        if skills.is_empty() {
+        format!("skill_ids={}", role_skill_ids.join(",")),
+        if skill_context.is_empty() {
             "[skill_context]\nNo validated skills enabled for this role.".to_string()
         } else {
-            "[skill_context]\nUse these skill constraints when relevant. Do not claim to execute unavailable skills.".to_string()
+            format!("[skill_context]\n{skill_context}")
         },
         "[identity]".to_string(),
         role_identity(role),
@@ -323,8 +330,15 @@ pub(super) fn run_execute_pipeline_team(
             workflow,
             input.model_override.as_deref().or(role.model_id.as_deref()),
         )?;
-        let mut prompt =
-            build_role_prompt(db_path, runtime_root, input, &team, &role, &role_outputs);
+        let mut prompt = build_role_prompt(
+            db_path,
+            runtime_root,
+            input,
+            workflow,
+            &team,
+            &role,
+            &role_outputs,
+        );
         for tool in role_tools(&role) {
             ensure_not_cancelled(cancel_flag)?;
             let (kind, title, source) = match tool.as_str() {

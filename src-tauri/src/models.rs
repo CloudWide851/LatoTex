@@ -580,7 +580,7 @@ pub struct AppSettings {
     pub ui_prefs: Option<UiPrefs>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPrefs {
     pub language: Option<String>,
@@ -637,6 +637,7 @@ pub struct UiPrefs {
     pub mcp_servers: Option<Vec<McpServerConfig>>,
     pub enabled_skills: Option<Vec<String>>,
     pub hidden_skills: Option<Vec<String>>,
+    pub skill_catalog_version: Option<u32>,
     pub onboarding: Option<OnboardingPrefs>,
 }
 

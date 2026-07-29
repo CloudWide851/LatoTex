@@ -1,0 +1,4 @@
+interface:
+  display_name: "Statistical Analysis"
+  short_description: "Choose defensible tests and report effect sizes."
+  default_prompt: "Inspect data quality, choose tests from the declared design, quantify uncertainty, and avoid unsupported causal claims."

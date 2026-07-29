@@ -159,10 +159,25 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
                     evidence_count += 1;
                     let title = truncate_text(&evidence.title, 120);
                     let url = truncate_text(&evidence.url, 180);
-                    lines.push(format!("  - {} ({})", title, url));
+                    lines.push(format!(
+                        "  - [{}; providers={}] {} ({})",
+                        evidence.evidence_level,
+                        evidence.provenance.join(","),
+                        title,
+                        url
+                    ));
+                }
+                for failure in item.provider_errors.iter().take(3) {
+                    lines.push(format!(
+                        "  - provider_unavailable={} code={} retryable={}",
+                        failure.provider, failure.code, failure.retryable
+                    ));
                 }
             }
-            let mut with_meta = vec![format!("query_source={query_source}")];
+            let mut with_meta = vec![
+                format!("query_source={query_source}"),
+                "Evidence rules: distinguish confirmed facts from metadata-only support, model inference, and unresolved uncertainty. Never infer paper conclusions from a title or metadata record; abstract evidence supports only claims stated in the abstract.".to_string(),
+            ];
             with_meta.extend(lines);
             (queries, with_meta.join("\n"), evidence_count)
         }

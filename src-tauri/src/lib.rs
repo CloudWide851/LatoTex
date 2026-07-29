@@ -1,6 +1,7 @@
 mod commands;
 mod logging;
 mod models;
+mod outbound_http;
 mod remote_network;
 mod secure;
 mod single_instance;
@@ -79,7 +80,8 @@ use commands::submission_pack::submission_pack_build;
 use commands::swarm::{
     agent_approval_list, agent_approval_resolve, agent_execute_cancel, agent_execute_start,
     agent_mcp_validate, agent_permission_grant_revoke, agent_permission_grants_list,
-    agent_runs_recover, agent_skill_validate, events_subscribe, latex_compile_record,
+    agent_runs_recover, agent_skill_catalog, agent_skill_validate, events_subscribe,
+    latex_compile_record,
 };
 use commands::terminal::{
     terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
@@ -433,6 +435,7 @@ pub fn run() {
             agent_permission_grants_list,
             agent_permission_grant_revoke,
             agent_mcp_validate,
+            agent_skill_catalog,
             agent_skill_validate,
             latex_edit_start,
             latex_review_fix_start,

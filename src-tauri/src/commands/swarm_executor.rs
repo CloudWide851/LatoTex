@@ -198,7 +198,14 @@ fn run_execute_pipeline_single(
     let timeout_ms = timeout_for_workflow(workflow);
     let deadline = Instant::now() + Duration::from_millis(timeout_ms);
     let mut output = String::new();
-    let skill_context = swarm_tool_skills::build_enabled_skills_prompt(db_path, runtime_root);
+    let skill_context = swarm_tool_skills::build_workflow_skills_prompt(
+        db_path,
+        runtime_root,
+        &workflow.id,
+        &input.callsite,
+        &input.prompt,
+        &[],
+    );
     let base_prompt = swarm_tool_skills::append_skill_context(&input.prompt, &skill_context);
     let mut step_prompt = base_prompt.clone();
     let mut tool_context = Vec::<String>::new();
@@ -321,7 +328,14 @@ pub(super) fn run_execute_pipeline_supervisor(
     }
 
     let mut output = String::new();
-    let skill_context = swarm_tool_skills::build_enabled_skills_prompt(db_path, runtime_root);
+    let skill_context = swarm_tool_skills::build_workflow_skills_prompt(
+        db_path,
+        runtime_root,
+        &workflow.id,
+        &input.callsite,
+        &input.prompt,
+        &[],
+    );
     let base_prompt = swarm_tool_skills::append_skill_context(&input.prompt, &skill_context);
     let mut step_prompt = base_prompt.clone();
     let mut tool_context = Vec::<String>::new();

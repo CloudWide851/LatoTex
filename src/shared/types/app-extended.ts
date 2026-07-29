@@ -254,6 +254,18 @@ export type AnalysisSourceSnapshotInput = {
   numericSeries?: AnalysisNumericSeriesItem[];
 };
 
+export type AnalysisMissingValueStrategy = "complete_case" | "report_only";
+
+export type AnalysisPlan = {
+  intent: string;
+  inputFiles: string[];
+  targetColumns: string[];
+  groupColumn?: string;
+  paired?: boolean;
+  missingValueStrategy: AnalysisMissingValueStrategy;
+  alpha: number;
+};
+
 export type AnalysisRunPythonResponse = {
   status: string;
   runtimeSource: string;
@@ -274,10 +286,36 @@ export type CompileRecord = {
   createdAt: string;
 };
 
-export type ReferenceEvidence = {
+export type AcademicEvidence = {
+  stableId: string;
   title: string;
+  authors: string[];
+  year?: number;
+  venue?: string;
+  doi?: string;
+  arxivId?: string;
+  openAccess?: boolean;
+  pdfUrl?: string;
+  landingUrl: string;
+  citationCount?: number;
+  abstractText?: string;
+  source: string;
+  evidenceLevel: "metadata" | "abstract" | "fulltext";
+  provenance: string[];
+  originalSourceUrl: string;
+  rrfScore: number;
+  /** Compatibility projection for existing consumers. */
   url: string;
+  /** Compatibility projection for existing consumers. */
   snippet: string;
+};
+
+export type ReferenceEvidence = AcademicEvidence;
+
+export type AcademicProviderFailure = {
+  provider: string;
+  code: string;
+  retryable: boolean;
 };
 
 export type ReferenceCheckItem = {
@@ -285,11 +323,14 @@ export type ReferenceCheckItem = {
   ok: boolean;
   message: string;
   results: ReferenceEvidence[];
+  providerErrors: AcademicProviderFailure[];
 };
 
 export type ReferenceCheckResponse = {
   items: ReferenceCheckItem[];
 };
+
+export type AcademicSearchResponse = ReferenceCheckResponse;
 
 export type AnalysisAssetInput = {
   fileName: string;
@@ -463,6 +504,31 @@ export type GitDiffResponse = {
 export type Ack = {
   ok: boolean;
   message: string;
+};
+
+export type TelegramProxyMode = "system" | "manual" | "direct";
+
+export type ChannelFailure = {
+  code: string;
+  stage: string;
+  retryable: boolean;
+  proxySource: string;
+};
+
+export type TelegramConnectionResult = {
+  ok: boolean;
+  code: string;
+  stage: string;
+  retryable: boolean;
+  proxySource: string;
+};
+
+export type TelegramTestInput = {
+  text: string;
+};
+
+export type TelegramTokenSaveInput = {
+  token: string;
 };
 
 export type GitInitProgress = {
