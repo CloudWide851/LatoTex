@@ -13,7 +13,9 @@ import type {
   ShareSessionPasswordResult,
   TelegramPollInput,
   TelegramPollResult,
+  TelegramConnectionResult,
   TelegramTestInput,
+  TelegramTokenSaveInput,
 } from "../types/app";
 import { invokeCommand } from "./core";
 
@@ -60,8 +62,16 @@ export function channelsTelegramSend(input: {
   return invokeCommand<Ack>("channels_telegram_send", { input });
 }
 
-export function channelsTelegramTest(input: TelegramTestInput): Promise<Ack> {
-  return invokeCommand<Ack>("channels_telegram_test", { input });
+export function channelsTelegramTest(input: TelegramTestInput): Promise<TelegramConnectionResult> {
+  return invokeCommand<TelegramConnectionResult>("channels_telegram_test", { input });
+}
+
+export function channelsTelegramTokenSaveVerified(input: TelegramTokenSaveInput): Promise<Ack> {
+  return invokeCommand<Ack>("channels_telegram_token_save_verified", { input });
+}
+
+export function channelsTelegramTokenClear(): Promise<Ack> {
+  return invokeCommand<Ack>("channels_telegram_token_clear");
 }
 
 export function channelsDingTalkPoll(input: DingTalkPollInput = {}): Promise<DingTalkPollResult> {

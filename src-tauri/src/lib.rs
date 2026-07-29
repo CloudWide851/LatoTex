@@ -17,12 +17,17 @@ use commands::agent_workflows::{
 use commands::analysis::{
     analysis_export_artifact, analysis_list_reports, analysis_save_report, reference_check,
 };
-use commands::channels::{channels_telegram_poll, channels_telegram_send, channels_telegram_test};
 use commands::channels_dingtalk::{
     channels_dingtalk_poll, channels_dingtalk_send, channels_dingtalk_test,
 };
 use commands::channels_email::{
     channels_email_fetch_submission, channels_email_password_save_verified, channels_email_test,
+};
+use commands::channels_telegram::{
+    channels_telegram_poll, channels_telegram_send, channels_telegram_test,
+};
+use commands::channels_telegram_secure::{
+    channels_telegram_token_clear, channels_telegram_token_save_verified,
 };
 use commands::docx::{docx_read, docx_write};
 use commands::git::{
@@ -419,6 +424,8 @@ pub fn run() {
             channels_telegram_poll,
             channels_telegram_send,
             channels_telegram_test,
+            channels_telegram_token_save_verified,
+            channels_telegram_token_clear,
             channels_dingtalk_poll,
             channels_dingtalk_send,
             channels_dingtalk_test,

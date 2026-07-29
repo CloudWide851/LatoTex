@@ -103,7 +103,10 @@ pub fn events_since(db_path: &Path, query: EventQuery) -> Result<EventBatch, Str
         next_cursor = event.seq;
         events.push(event);
     }
-    Ok(EventBatch { next_cursor, events })
+    Ok(EventBatch {
+        next_cursor,
+        events,
+    })
 }
 const FIXED_AGENT_ROLES: [&str; 8] = [
     "plan",
@@ -225,12 +228,8 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
         let (role, provider, model, model_id) = row.map_err(|e| e.to_string())?;
         let resolved_model_id = if model_id.trim().is_empty() {
             let protocol_id = legacy_provider_to_protocol(&provider);
-            let generated_model_id = upsert_catalog_for_legacy_binding(
-                &conn,
-                &protocol_id,
-                &model,
-                &model,
-            )?;
+            let generated_model_id =
+                upsert_catalog_for_legacy_binding(&conn, &protocol_id, &model, &model)?;
             conn.execute(
                 "UPDATE agent_bindings SET provider = ?1, model = ?2, model_id = ?3 WHERE role = ?4",
                 params![protocol_id, model, generated_model_id, role],
@@ -253,6 +252,20 @@ pub fn load_settings(db_path: &Path, runtime_root: &Path) -> Result<AppSettings,
         agent_bindings,
         ui_prefs,
     })
+}
+pub fn persist_ui_prefs(db_path: &Path, ui_prefs: &Option<UiPrefs>) -> Result<(), String> {
+    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    let serialized = ui_prefs
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
+        params![serialized],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 pub fn update_settings(
     db_path: &Path,
@@ -278,7 +291,10 @@ pub fn update_settings(
     tx.commit().map_err(|e| e.to_string())?;
     load_settings(db_path, runtime_root)
 }
-fn update_model_protocols(conn: &Connection, protocols: Vec<ModelProtocolInput>) -> Result<(), String> {
+fn update_model_protocols(
+    conn: &Connection,
+    protocols: Vec<ModelProtocolInput>,
+) -> Result<(), String> {
     conn.execute("DELETE FROM model_protocols", [])
         .map_err(|e| e.to_string())?;
     conn.execute(
@@ -355,7 +371,10 @@ fn update_model_catalog(
     }
     Ok(())
 }
-fn update_agent_bindings(conn: &Connection, bindings: Vec<AgentModelBinding>) -> Result<(), String> {
+fn update_agent_bindings(
+    conn: &Connection,
+    bindings: Vec<AgentModelBinding>,
+) -> Result<(), String> {
     conn.execute("DELETE FROM agent_bindings", [])
         .map_err(|e| e.to_string())?;
     for binding in bindings {
@@ -483,11 +502,7 @@ fn heuristic_reasoning_model(model_name: &str) -> bool {
         || lower.contains("qwq")
 }
 #[allow(dead_code)]
-pub fn model_supports_reasoning(
-    db_path: &Path,
-    role: &str,
-    model_override: Option<&str>,
-) -> bool {
+pub fn model_supports_reasoning(db_path: &Path, role: &str, model_override: Option<&str>) -> bool {
     let Ok(conn) = Connection::open(db_path) else {
         return false;
     };
@@ -562,8 +577,3 @@ mod tests {
         assert_eq!(review.map(|item| item.model_id.as_str()), Some(""));
     }
 }
-
-
-
-
-

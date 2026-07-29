@@ -1943,6 +1943,9 @@ video {
 .gap-2 {
   gap: 0.5rem;
 }
+.gap-2\.5 {
+  gap: 0.625rem;
+}
 .gap-3 {
   gap: 0.75rem;
 }
@@ -2223,10 +2226,6 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(5 150 105 / var(--tw-border-opacity, 1));
 }
-.border-primary-100 {
-  --tw-border-opacity: 1;
-  border-color: rgb(213 246 235 / var(--tw-border-opacity, 1));
-}
 .border-primary-200 {
   --tw-border-opacity: 1;
   border-color: rgb(172 233 214 / var(--tw-border-opacity, 1));
@@ -2329,9 +2328,6 @@ video {
 }
 .border-white\/15 {
   border-color: rgb(255 255 255 / 0.15);
-}
-.border-white\/70 {
-  border-color: rgb(255 255 255 / 0.7);
 }
 .bg-\[\#05080f\] {
   --tw-bg-opacity: 1;
@@ -2436,9 +2432,6 @@ video {
 }
 .bg-primary-50\/30 {
   background-color: rgb(238 252 248 / 0.3);
-}
-.bg-primary-50\/40 {
-  background-color: rgb(238 252 248 / 0.4);
 }
 .bg-primary-50\/50 {
   background-color: rgb(238 252 248 / 0.5);
@@ -2556,9 +2549,6 @@ video {
 }
 .bg-white\/20 {
   background-color: rgb(255 255 255 / 0.2);
-}
-.bg-white\/70 {
-  background-color: rgb(255 255 255 / 0.7);
 }
 .bg-white\/80 {
   background-color: rgb(255 255 255 / 0.8);
@@ -2900,6 +2890,9 @@ video {
 .tracking-\[0\.22em\] {
   letter-spacing: 0.22em;
 }
+.tracking-\[0\.2em\] {
+  letter-spacing: 0.2em;
+}
 .tracking-tight {
   letter-spacing: -0.025em;
 }
@@ -3133,9 +3126,6 @@ video {
 }
 .opacity-100 {
   opacity: 1;
-}
-.opacity-30 {
-  opacity: 0.3;
 }
 .opacity-45 {
   opacity: 0.45;
@@ -3448,9 +3438,6 @@ video {
 .hover\:border-slate-500:hover {
   --tw-border-opacity: 1;
   border-color: rgb(100 116 139 / var(--tw-border-opacity, 1));
-}
-.hover\:bg-\[color\:var\(--app-material-inset\)\]:hover {
-  background-color: var(--app-material-inset);
 }
 .hover\:bg-\[color\:var\(--app-surface-muted\)\]:hover {
   background-color: var(--app-surface-muted);
@@ -3881,6 +3868,10 @@ video {
 
   .lg\:col-span-3 {
     grid-column: span 3 / span 3;
+  }
+
+  .lg\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .lg\:grid-cols-3 {

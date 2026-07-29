@@ -37,19 +37,47 @@ pub use settings_runtime_logs::{
 #[tauri::command]
 pub async fn settings_get(state: State<'_, AppState>) -> Result<AppSettings, String> {
     state.log("INFO", "settings_get");
-    let db_path = state.db_path.clone();
-    let runtime_root = state.runtime_root.clone();
-    spawn_blocking(move || storage::load_settings(&db_path, &runtime_root))
-        .await
-        .map_err(|e| e.to_string())?
+    let app_state = state.inner().clone();
+    spawn_blocking(move || {
+        let mut settings = storage::load_settings(&app_state.db_path, &app_state.runtime_root)?;
+        let mut changed = super::swarm::migrate_research_skill_settings(&mut settings.ui_prefs);
+        match super::channels_telegram_secure::migrate_telegram_settings(&app_state, &mut settings)
+        {
+            Ok(migrated) => changed |= migrated,
+            Err(code) => app_state.log(
+                "WARN",
+                &format!("settings_get: telegram secure migration deferred code={code}"),
+            ),
+        }
+        if changed {
+            storage::persist_ui_prefs(&app_state.db_path, &settings.ui_prefs)?;
+        }
+        super::channels_telegram_secure::scrub_telegram_secret(&mut settings);
+        Ok(settings)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 #[tauri::command]
 pub fn settings_update(
     state: State<'_, AppState>,
-    input: SettingsUpdateInput,
+    mut input: SettingsUpdateInput,
 ) -> Result<AppSettings, String> {
     state.log("INFO", "settings_update");
-    storage::update_settings(&state.db_path, &state.runtime_root, input)
+    let existing = storage::load_settings(&state.db_path, &state.runtime_root)?;
+    super::channels_telegram_secure::preserve_legacy_telegram_token(&existing, &mut input.ui_prefs);
+    super::swarm::migrate_research_skill_settings(&mut input.ui_prefs);
+    let mut settings = storage::update_settings(&state.db_path, &state.runtime_root, input)?;
+    match super::channels_telegram_secure::migrate_telegram_settings(&state, &mut settings) {
+        Ok(true) => storage::persist_ui_prefs(&state.db_path, &settings.ui_prefs)?,
+        Ok(false) => {}
+        Err(code) => state.log(
+            "WARN",
+            &format!("settings_update: telegram secure migration deferred code={code}"),
+        ),
+    }
+    super::channels_telegram_secure::scrub_telegram_secret(&mut settings);
+    Ok(settings)
 }
 #[tauri::command]
 pub fn protocol_test(

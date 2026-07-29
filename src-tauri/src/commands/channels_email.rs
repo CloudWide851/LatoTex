@@ -451,14 +451,6 @@ mod tests {
     #[test]
     fn email_password_is_not_part_of_channel_preferences() {
         let prefs = ChannelPrefs {
-            telegram_enabled: None,
-            telegram_bot_token: None,
-            telegram_chat_id: None,
-            telegram_api_base_url: None,
-            telegram_proxy_enabled: None,
-            dingtalk_enabled: None,
-            dingtalk_client_id: None,
-            dingtalk_client_secret: None,
             email_enabled: Some(true),
             email_address: Some("author@example.test".to_string()),
             email_imap_host: Some("imap.example.test".to_string()),
@@ -468,6 +460,7 @@ mod tests {
             email_mailbox: Some("INBOX".to_string()),
             email_search_keywords: Some("submission,decision".to_string()),
             email_max_results: Some(20),
+            ..Default::default()
         };
         let serialized = serde_json::to_string(&prefs).expect("serialize prefs");
         assert!(!serialized.contains("password"));
