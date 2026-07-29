@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 const validationSteps = [
   ["pnpm", ["arch:check"]],
   ["pnpm", ["typecheck"]],
-  ["pnpm", ["test:unit"]],
+  ["pnpm", ["test:unit", "--pool=forks", "--maxWorkers=1"]],
   ["pnpm", ["test:e2e"]],
   ["pnpm", ["build"]],
   ["pnpm", ["perf:baseline"]],

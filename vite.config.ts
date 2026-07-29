@@ -8,6 +8,9 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 function resolveManualChunk(id: string) {
   const normalized = id.replace(/\\/g, "/");
 
+  if (normalized.includes("/src/i18n/messages/")) {
+    return "app-i18n";
+  }
   if (!normalized.includes("node_modules")) {
     return undefined;
   }
@@ -75,6 +78,7 @@ export default defineConfig({
     minify: "esbuild",
     sourcemap: false,
     copyPublicDir: false,
+    emptyOutDir: true,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
