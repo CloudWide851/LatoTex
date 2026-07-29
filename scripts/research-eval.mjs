@@ -50,6 +50,58 @@ function submissionPackAllowedFiles(root) {
   return listRelativeFiles(root).filter((item) => submissionPackAllowlist.has(path.extname(item).toLowerCase()));
 }
 
+function normalizeDoi(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/^https?:\/\/doi\.org\//i, "")
+    .replace(/^doi:/i, "")
+    .toLowerCase();
+}
+
+function academicEvidenceKey(item) {
+  const doi = normalizeDoi(item.doi);
+  if (doi) return `doi:${doi}`;
+  if (item.arxivId) return `arxiv:${String(item.arxivId).toLowerCase()}`;
+  return `title:${String(item.title).toLowerCase().replaceAll(/[^a-z0-9]+/g, "")}`;
+}
+
+function mergeAcademicFixture(providerLists) {
+  const merged = new Map();
+  for (const list of providerLists) {
+    list.forEach((item, rank) => {
+      const score = 1 / (60 + rank + 1);
+      const key = academicEvidenceKey(item);
+      const existing = merged.get(key);
+      if (existing) {
+        existing.rrfScore += score;
+        if (!existing.provenance.includes(item.source)) existing.provenance.push(item.source);
+      } else {
+        merged.set(key, { ...item, provenance: [item.source], rrfScore: score });
+      }
+    });
+  }
+  return [...merged.values()].sort((left, right) =>
+    right.rrfScore - left.rrfScore
+    || left.title.localeCompare(right.title)
+    || left.stableId.localeCompare(right.stableId));
+}
+
+function mean(values) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function sampleVariance(values) {
+  const average = mean(values);
+  return values.reduce((sum, value) => sum + ((value - average) ** 2), 0) / (values.length - 1);
+}
+
+function hedgesG(left, right) {
+  const pooled = (((left.length - 1) * sampleVariance(left)) + ((right.length - 1) * sampleVariance(right)))
+    / (left.length + right.length - 2);
+  const correction = 1 - (3 / (4 * (left.length + right.length) - 9));
+  return correction * (mean(left) - mean(right)) / Math.sqrt(pooled);
+}
+
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-research-eval-"));
 try {
   const basicProject = path.join(tempRoot, "basic-paper");
@@ -128,6 +180,28 @@ try {
   const compileResult = compileTex(basicProject, "main.tex");
   assert.ok(["success", "failed", "toolchain_missing"].includes(compileResult.status));
 
+  const academicFixture = JSON.parse(
+    fs.readFileSync(path.join(fixtureRoot, "academic-evidence.json"), "utf8"),
+  );
+  const mergedAcademic = mergeAcademicFixture(academicFixture.providerLists);
+  assert.equal(mergedAcademic.length, 2);
+  assert.deepEqual(mergedAcademic[0].provenance, ["openalex", "crossref"]);
+  assert.equal(mergedAcademic[0].stableId, academicFixture.expectedFirstStableId);
+
+  const statisticalFixture = JSON.parse(
+    fs.readFileSync(path.join(fixtureRoot, "statistical-analysis.json"), "utf8"),
+  );
+  assert.equal(mean(statisticalFixture.groupB) - mean(statisticalFixture.groupA), 10);
+  assert.ok(Math.abs(hedgesG(statisticalFixture.groupA, statisticalFixture.groupB)) > 2);
+  assert.equal(statisticalFixture.missingRows, 2);
+  const analysisRunnerSource = fs.readFileSync(
+    path.join(repoRoot, "src-tauri", "resources", "python", "analysis_runtime", "analysis_runner.py"),
+    "utf8",
+  );
+  assert.match(analysisRunnerSource, /BOOTSTRAP_SEED\s*=\s*20260729/);
+  assert.match(analysisRunnerSource, /BOOTSTRAP_ITERATIONS\s*=\s*2_000/);
+  assert.match(analysisRunnerSource, /multipletests\(.*method="fdr_bh"/s);
+
   console.log(JSON.stringify({
     status: "ok",
     checks: [
@@ -138,6 +212,8 @@ try {
       "mcp-tools",
       "write-gate",
       "compile-smoke",
+      "academic-evidence-merge",
+      "deterministic-statistics-fixture",
     ],
   }, null, 2));
 } finally {

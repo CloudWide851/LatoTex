@@ -4,9 +4,9 @@ import type {
   AnalysisEnvStatus,
   AnalysisExportArtifactResponse,
   AnalysisListReportsResponse,
+  AnalysisPlan,
   AnalysisRunPythonResponse,
   AnalysisSaveReportResponse,
-  AnalysisSourceSnapshotInput,
   ReferenceCheckResponse,
 } from "../types/app";
 import { invokeCommand } from "./core";
@@ -14,9 +14,10 @@ import { invokeCommand } from "./core";
 export function referenceCheck(
   queries: string[],
   limit = 5,
+  projectId?: string,
 ): Promise<ReferenceCheckResponse> {
   return invokeCommand<ReferenceCheckResponse>("reference_check", {
-    input: { queries, limit },
+    input: { queries, limit, projectId },
   });
 }
 
@@ -87,7 +88,7 @@ export function analysisRunPython(input: {
   taskId?: string;
   prompt: string;
   outputLanguage: string;
-  snapshots: AnalysisSourceSnapshotInput[];
+  plan: AnalysisPlan;
 }): Promise<AnalysisRunPythonResponse> {
   return invokeCommand<AnalysisRunPythonResponse>("analysis_run_python", {
     input: {
@@ -95,7 +96,7 @@ export function analysisRunPython(input: {
       taskId: input.taskId,
       prompt: input.prompt,
       outputLanguage: input.outputLanguage,
-      snapshots: input.snapshots,
+      plan: input.plan,
     },
   });
 }

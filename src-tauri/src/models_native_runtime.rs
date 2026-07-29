@@ -128,6 +128,30 @@ pub struct AnalysisSourceSnapshotInput {
     pub numeric_series: Option<Vec<AnalysisNumericSeriesItem>>,
 }
 
+fn default_analysis_missing_value_strategy() -> String {
+    "complete_case".to_string()
+}
+
+fn default_analysis_alpha() -> f64 {
+    0.05
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisPlanInput {
+    pub intent: String,
+    #[serde(default)]
+    pub input_files: Vec<String>,
+    #[serde(default)]
+    pub target_columns: Vec<String>,
+    pub group_column: Option<String>,
+    pub paired: Option<bool>,
+    #[serde(default = "default_analysis_missing_value_strategy")]
+    pub missing_value_strategy: String,
+    #[serde(default = "default_analysis_alpha")]
+    pub alpha: f64,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisRunPythonInput {
@@ -135,7 +159,7 @@ pub struct AnalysisRunPythonInput {
     pub task_id: Option<String>,
     pub prompt: String,
     pub output_language: String,
-    pub snapshots: Vec<AnalysisSourceSnapshotInput>,
+    pub plan: AnalysisPlanInput,
 }
 
 #[derive(Debug, Serialize)]

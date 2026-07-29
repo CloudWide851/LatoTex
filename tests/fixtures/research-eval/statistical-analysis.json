@@ -1,0 +1,8 @@
+{
+  "groupA": [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+  "groupB": [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+  "missingRows": 2,
+  "alpha": 0.05,
+  "bootstrapSeed": 20260729,
+  "bootstrapIterations": 2000
+}

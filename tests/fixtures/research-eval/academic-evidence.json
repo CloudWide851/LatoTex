@@ -1,0 +1,29 @@
+{
+  "providerLists": [
+    [
+      {
+        "stableId": "doi:10.1000/fixture",
+        "doi": "10.1000/Fixture",
+        "title": "A Reproducible Fixture",
+        "source": "openalex"
+      }
+    ],
+    [
+      {
+        "stableId": "crossref:fixture",
+        "doi": "https://doi.org/10.1000/FIXTURE",
+        "title": "A Reproducible Fixture",
+        "source": "crossref"
+      }
+    ],
+    [
+      {
+        "stableId": "arxiv:2607.01234",
+        "arxivId": "2607.01234",
+        "title": "Bounded Academic Evidence",
+        "source": "arxiv"
+      }
+    ]
+  ],
+  "expectedFirstStableId": "doi:10.1000/fixture"
+}

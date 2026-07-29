@@ -16,7 +16,10 @@ import { upsertRun } from "./analysisWorkspaceHelpers";
 import { exportAnalysisArtifact, revealAnalysisArtifact, runPaperAnalysisTask } from "./analysisWorkspaceActions";
 import type { UseAnalysisWorkspaceParams } from "./useAnalysisWorkspace.types";
 import { useAnalysisLiveState } from "./useAnalysisLiveState";
-import { runAnalysisWorkspacePrompt } from "./analysisWorkspaceRunner";
+import {
+  runAnalysisWorkspacePrompt,
+  type RunAnalysisWorkspacePromptOptions,
+} from "./analysisWorkspaceRunner";
 import { applyAnalysisPreflightAnswers, buildAnalysisPreflight } from "./analysisPreflight";
 
 export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
@@ -390,13 +393,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
   }, [ensureStageCache, projectId]);
   const runAnalysisForPrompt = useCallback(async (
     inputPrompt: string,
-    options?: {
-      forcedTaskId?: string;
-      taskSnapshot?: AnalysisTask;
-      savePrompt?: boolean;
-      teamMode?: AgentTeamMode;
-      skipPreflight?: boolean;
-    },
+    options?: RunAnalysisWorkspacePromptOptions,
   ) => {
     const normalizedPrompt = inputPrompt.trim();
     if (suspended) {
@@ -426,6 +423,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
       }));
       return;
     }
+    let executionOptions = options;
     if (!options?.skipPreflight && task.sourceType !== "paper") {
       try {
         const result = await buildAnalysisPreflight({
@@ -438,13 +436,20 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
         if (result.questions.length > 0) {
           const answers = Object.fromEntries(result.questions.map((question) => [
             question.id,
-            question.multiple
-              ? question.options.map((option) => option.id)
-              : question.options.slice(0, 1).map((option) => option.id),
+            question.defaultValues ?? question.options.slice(0, 1).map((option) => option.id),
           ]));
-          setPreflight({ prompt: normalizedPrompt, questions: result.questions, answers });
+          setPreflight({
+            prompt: normalizedPrompt,
+            plan: result.plan,
+            questions: result.questions,
+            answers,
+          });
           return;
         }
+        executionOptions = {
+          ...options,
+          analysisPlan: result.plan,
+        };
       } catch (error) {
         await runtimeLogWrite("WARN", `analysis preflight skipped: ${String(error)}`).catch(() => undefined);
       }
@@ -454,7 +459,7 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     runGenerationRef.current = runGeneration;
     await runAnalysisWorkspacePrompt({
       inputPrompt: normalizedPrompt,
-      options,
+      options: executionOptions,
       suspended,
       projectId,
       activeTaskId,
@@ -521,9 +526,12 @@ export function useAnalysisWorkspace(params: UseAnalysisWorkspaceParams) {
     if (!preflight) {
       return;
     }
-    const nextPrompt = applyAnalysisPreflightAnswers(preflight);
+    const resolved = applyAnalysisPreflightAnswers(preflight);
     setPreflight(null);
-    await runAnalysisForPrompt(nextPrompt, { skipPreflight: true });
+    await runAnalysisForPrompt(resolved.prompt, {
+      skipPreflight: true,
+      analysisPlan: resolved.plan,
+    });
   }, [preflight, runAnalysisForPrompt]);
   const cancelPreflight = useCallback(() => {
     setPreflight(null);

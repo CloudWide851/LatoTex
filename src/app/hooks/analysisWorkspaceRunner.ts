@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { Locale } from "../../i18n";
-import type { AgentTeamMode } from "../../shared/types/app";
+import type { AgentTeamMode, AnalysisPlan } from "../../shared/types/app";
 import { analysisEnvPrepare, analysisRunPython, analysisSaveReport } from "../../shared/api/analysis";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import {
@@ -54,6 +54,8 @@ export type RunAnalysisWorkspacePromptOptions = {
   taskSnapshot?: AnalysisTask;
   savePrompt?: boolean;
   teamMode?: AgentTeamMode;
+  analysisPlan?: AnalysisPlan;
+  skipPreflight?: boolean;
 };
 
 export type RunAnalysisWorkspacePromptParams = {
@@ -321,7 +323,11 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       } else {
         const promptRefs = resolvePromptInputFiles(normalizedPrompt, candidateFiles);
         const defaultInputFiles = csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles;
-        const chosenFiles = promptRefs.resolved.length > 0 ? promptRefs.resolved : defaultInputFiles;
+        const chosenFiles = options?.analysisPlan?.inputFiles?.length
+          ? options.analysisPlan.inputFiles
+          : promptRefs.resolved.length > 0
+            ? promptRefs.resolved
+            : defaultInputFiles;
         if (promptRefs.unresolved.length > 0 && promptRefs.resolved.length === 0) {
           throw new Error(`${t("analysis.error.invalidInputRefs")}: ${promptRefs.unresolved.join(", ")}`);
         }
@@ -346,39 +352,36 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
           stageCache,
           pythonProfileCacheKey,
         );
-        try {
-          let pythonProfile: ReturnType<typeof trimCachedPythonProfile>;
-          if (cachedPythonProfile) {
-            pythonProfile = cachedPythonProfile;
-            await runtimeLogWrite(
-              "INFO",
-              `analysis cache hit: python profile, files=${snapshots.length}`,
-            ).catch(() => undefined);
-          } else {
-            const envStatus = await analysisEnvPrepare(projectId);
-            pythonProfile = trimCachedPythonProfile(await analysisRunPython({
-              projectId,
-              taskId: task.id,
-              prompt: normalizedPrompt,
-              outputLanguage: outputLanguageLabel,
-              snapshots,
-            }));
-            await runtimeLogWrite(
-              "INFO",
-              `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`,
-            ).catch(() => undefined);
-            await persistStageCacheEntry(pythonProfileCacheKey, pythonProfile);
-          }
-          pythonProfileText = JSON.stringify(pythonProfile.profileJson, null, 2).slice(0, 12000);
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : String(error);
-          pythonProfileText = JSON.stringify({
-            runtimeSource: "uv",
-            status: "unavailable",
-            error: reason,
-          });
-          await runtimeLogWrite("WARN", `analysis python profile failed: ${reason}`).catch(() => undefined);
+        let pythonProfile: ReturnType<typeof trimCachedPythonProfile>;
+        if (cachedPythonProfile) {
+          pythonProfile = cachedPythonProfile;
+          await runtimeLogWrite(
+            "INFO",
+            `analysis cache hit: python profile, files=${snapshots.length}`,
+          ).catch(() => undefined);
+        } else {
+          const envStatus = await analysisEnvPrepare(projectId);
+          const analysisPlan: AnalysisPlan = options?.analysisPlan ?? {
+            intent: normalizedPrompt,
+            inputFiles: resolvedInputFiles,
+            targetColumns: [],
+            missingValueStrategy: "complete_case",
+            alpha: 0.05,
+          };
+          pythonProfile = trimCachedPythonProfile(await analysisRunPython({
+            projectId,
+            taskId: task.id,
+            prompt: normalizedPrompt,
+            outputLanguage: outputLanguageLabel,
+            plan: analysisPlan,
+          }));
+          await runtimeLogWrite(
+            "INFO",
+            `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`,
+          ).catch(() => undefined);
+          await persistStageCacheEntry(pythonProfileCacheKey, pythonProfile);
         }
+        pythonProfileText = JSON.stringify(pythonProfile.profileJson, null, 2).slice(0, 12000);
         sourceBlock = [
           snapshotSummary,
           "Structured profile (python/uv):",

@@ -204,7 +204,9 @@ fn atomic_replace_file(source: &Path, target: &Path) -> Result<(), String> {
             .map_err(|_| "workspace.file.atomic_replace_failed".to_string());
     }
     use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::ReplaceFileW;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MoveFileExW, ReplaceFileW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+    };
     let target_wide = target
         .as_os_str()
         .encode_wide()
@@ -225,11 +227,20 @@ fn atomic_replace_file(source: &Path, target: &Path) -> Result<(), String> {
             std::ptr::null_mut(),
         )
     };
-    if replaced == 0 {
-        Err("workspace.file.atomic_replace_failed".to_string())
-    } else {
-        Ok(())
+    if replaced != 0 {
+        return Ok(());
     }
+    let moved = unsafe {
+        MoveFileExW(
+            source_wide.as_ptr(),
+            target_wide.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if moved != 0 {
+        return Ok(());
+    }
+    Err("workspace.file.atomic_replace_failed".to_string())
 }
 
 #[cfg(not(target_os = "windows"))]

@@ -1,20 +1,16 @@
 use super::native_runtime_analysis_env::{
-    analysis_env_status_blocking, ensure_analysis_env_blocking,
-    ensure_analysis_env_with_progress_blocking, project_env_key, resolve_analysis_env_paths,
-    resolve_analysis_runtime_root,
+    analysis_env_status_blocking, ensure_analysis_env_with_progress_blocking, project_env_key,
+    resolve_analysis_env_paths, resolve_analysis_runtime_root,
 };
 use super::native_runtime_analysis_uv::{resolve_uv, uv_source_policy_label};
-use super::native_runtime_common::{configure_hidden_process, sanitize_log_lines};
 use super::native_runtime_failure::{native_runtime_failure, public_native_runtime_error};
 use crate::models::{
     AnalysisEnvPrepareStartResponse, AnalysisEnvPrepareStatusResponse, AnalysisEnvStatusResponse,
-    AnalysisRunPythonInput, AnalysisRunPythonResponse, NativeTaskStatusInput,
+    NativeTaskStatusInput,
 };
 use crate::state::{AnalysisEnvPrepareTask, AppState};
 use crate::storage;
 use rfd::FileDialog;
-use std::path::PathBuf;
-use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -406,148 +402,4 @@ pub fn analysis_env_pick_directory(state: State<'_, AppState>) -> Result<Option<
     Ok(FileDialog::new()
         .pick_folder()
         .map(|path| path.to_string_lossy().to_string()))
-}
-
-#[tauri::command]
-pub async fn analysis_run_python(
-    state: State<'_, AppState>,
-    input: AnalysisRunPythonInput,
-) -> Result<AnalysisRunPythonResponse, String> {
-    state.log(
-        "INFO",
-        &format!(
-            "analysis_run_python: project={}, task={}, snapshots={}",
-            input.project_id,
-            input.task_id.as_deref().unwrap_or("-"),
-            input.snapshots.len()
-        ),
-    );
-    let db_path = state.db_path.clone();
-    let app_data_dir = state.app_data_dir.clone();
-    let runtime_root = state.runtime_root.clone();
-    let session_log_path = state.session_log_path.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let project_root = storage::load_project_root(&db_path, &input.project_id)?;
-        let env_status = ensure_analysis_env_blocking(
-            &db_path,
-            &runtime_root,
-            &app_data_dir,
-            &input.project_id,
-            &project_root,
-        )?;
-        let python_path = PathBuf::from(
-            env_status
-                .python_path
-                .clone()
-                .ok_or_else(|| "python.env.python_missing".to_string())?,
-        );
-        let runtime_root = resolve_analysis_runtime_root()
-            .ok_or_else(|| "python.env.runtime_resource_missing".to_string())?;
-        let run_key = input
-            .task_id
-            .as_deref()
-            .map(normalize_analysis_run_key)
-            .transpose()?
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
-        let run_relative = format!(".latotex/analysis-runtime/{run_key}");
-        let input_relative = format!("{run_relative}/input.json");
-        let output_relative = format!("{run_relative}/output.json");
-        let payload = serde_json::to_string_pretty(&input).map_err(|e| e.to_string())?;
-        let input_path = storage::atomic_write_under_root(
-            &project_root,
-            &input_relative,
-            payload.as_bytes(),
-            storage::WORKSPACE_TEXT_FILE_LIMIT,
-        )?;
-        let output_path = project_root.join(&output_relative);
-
-        let mut command = Command::new(&python_path);
-        configure_hidden_process(&mut command);
-        let output = command
-            .arg(runtime_root.join("analysis_runner.py"))
-            .arg("--input")
-            .arg(&input_path)
-            .arg("--output")
-            .arg(&output_path)
-            .output()
-            .map_err(|e| format!("python.run.spawn_failed: {e}"))?;
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let sanitized_stdout = sanitize_log_lines(&stdout).join("\n");
-        let sanitized_stderr = sanitize_log_lines(&stderr).join("\n");
-        let diagnostics = sanitize_log_lines(&format!("{}\n{}", stdout, stderr));
-        let output_json = if output_path.exists() {
-            storage::read_text_under_root(
-                &project_root,
-                &output_relative,
-                storage::WORKSPACE_TEXT_FILE_LIMIT,
-            )?
-        } else {
-            String::new()
-        };
-        if !output.status.success() {
-            let _ = crate::logging::append_log_line(
-                &session_log_path,
-                "ERROR",
-                &format!(
-                    "analysis_run_python.failed: code=python.run.failed diagnostics={}",
-                    diagnostics.join(" | ")
-                ),
-            );
-            return Err("python.run.failed".to_string());
-        }
-        let profile_json = if output_json.trim().is_empty() {
-            serde_json::json!({
-                "runtimeSource": "uv",
-                "status": "empty"
-            })
-        } else {
-            serde_json::from_str(&output_json)
-                .map_err(|e| format!("python.run.invalid_json: {e}"))?
-        };
-
-        Ok(AnalysisRunPythonResponse {
-            status: "completed".to_string(),
-            runtime_source: "uv".to_string(),
-            python_path: python_path.to_string_lossy().to_string(),
-            venv_path: env_status.venv_path,
-            stdout: sanitized_stdout,
-            stderr: sanitized_stderr,
-            diagnostics,
-            profile_json,
-        })
-    })
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-fn normalize_analysis_run_key(value: &str) -> Result<String, String> {
-    let normalized = value.trim();
-    if normalized.is_empty()
-        || normalized.len() > 128
-        || !normalized
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
-    {
-        return Err("python.run.invalid_task_id".to_string());
-    }
-    Ok(normalized.to_string())
-}
-
-#[cfg(test)]
-mod analysis_run_python_tests {
-    use super::normalize_analysis_run_key;
-
-    #[test]
-    fn analysis_run_key_rejects_path_components() {
-        assert!(normalize_analysis_run_key("analysis-abc_123").is_ok());
-        assert_eq!(
-            normalize_analysis_run_key("../outside").unwrap_err(),
-            "python.run.invalid_task_id"
-        );
-        assert_eq!(
-            normalize_analysis_run_key(r"folder\outside").unwrap_err(),
-            "python.run.invalid_task_id"
-        );
-    }
 }

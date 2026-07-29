@@ -263,6 +263,21 @@ fn pdf2zh_entry_ready(python_path: &Path) -> bool {
     }
 }
 
+const ANALYSIS_RUNTIME_PACKAGES: [&str; 6] = [
+    "latotex-analysis-runtime",
+    "numpy",
+    "pandas",
+    "scipy",
+    "statsmodels",
+    "openpyxl",
+];
+
+fn analysis_runtime_packages_ready(python_path: &Path) -> bool {
+    ANALYSIS_RUNTIME_PACKAGES
+        .iter()
+        .all(|package_name| python_module_version(python_path, package_name).is_some())
+}
+
 fn ensure_runtime_packages<F>(
     uv_path: &Path,
     app_runtime_root: &Path,
@@ -280,6 +295,7 @@ where
     if fs::read_to_string(&stamp_path).ok().as_deref() == Some(fingerprint.as_str())
         && python_module_version(python_path, "pdf2zh").is_some()
         && pdf2zh_entry_ready(python_path)
+        && analysis_runtime_packages_ready(python_path)
     {
         on_progress(92.0, "verifying", Some("runtime-cache-hit"));
         return Ok(());
@@ -319,7 +335,10 @@ where
         runtime_root.file_name().and_then(|value| value.to_str()),
     );
     install_python_package(uv_path, app_runtime_root, python_path, runtime_root, true)?;
-    if python_module_version(python_path, "pdf2zh").is_none() || !pdf2zh_entry_ready(python_path) {
+    if python_module_version(python_path, "pdf2zh").is_none()
+        || !pdf2zh_entry_ready(python_path)
+        || !analysis_runtime_packages_ready(python_path)
+    {
         return Err("python.env.runtime_verification_failed".to_string());
     }
     storage::atomic_write_file(&stamp_path, fingerprint.as_bytes())?;
@@ -344,7 +363,9 @@ fn runtime_packages_ready(
     if !stamp_matches {
         return Ok(false);
     }
-    Ok(python_module_version(python_path, "pdf2zh").is_some() && pdf2zh_entry_ready(python_path))
+    Ok(python_module_version(python_path, "pdf2zh").is_some()
+        && pdf2zh_entry_ready(python_path)
+        && analysis_runtime_packages_ready(python_path))
 }
 
 fn build_env_status(

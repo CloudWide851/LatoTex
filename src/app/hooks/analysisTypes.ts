@@ -1,3 +1,5 @@
+import type { AnalysisPlan } from "../../shared/types/app";
+
 export type AnalysisOutputLanguage = "zh-CN" | "en-US";
 
 export type AnalysisSourceType = "data" | "paper";
@@ -54,11 +56,13 @@ export type AnalysisPreflightQuestion = {
   title: string;
   description: string;
   multiple?: boolean;
+  defaultValues?: string[];
   options: Array<{ id: string; label: string; detail?: string }>;
 };
 
 export type AnalysisPreflightState = {
   prompt: string;
+  plan: AnalysisPlan;
   questions: AnalysisPreflightQuestion[];
   answers: Record<string, string[]>;
 };

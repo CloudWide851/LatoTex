@@ -7,7 +7,13 @@ name = "latotex-analysis-runtime"
 version = "0.1.0"
 description = "Native analysis runtime for LatoTex"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+  "numpy>=2.1,<3",
+  "pandas>=2.2,<3",
+  "scipy>=1.14,<2",
+  "statsmodels>=0.14,<1",
+  "openpyxl>=3.1,<4",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["latotex_analysis_runtime"]
