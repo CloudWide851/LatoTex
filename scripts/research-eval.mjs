@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { build } from "esbuild";
 import {
   auditCitations,
   checkSubmission,
@@ -62,7 +63,9 @@ function academicEvidenceKey(item) {
   const doi = normalizeDoi(item.doi);
   if (doi) return `doi:${doi}`;
   if (item.arxivId) return `arxiv:${String(item.arxivId).toLowerCase()}`;
-  return `title:${String(item.title).toLowerCase().replaceAll(/[^a-z0-9]+/g, "")}`;
+  const title = String(item.title).toLowerCase().replaceAll(/[^a-z0-9]+/g, "");
+  const firstAuthor = String(item.authors?.[0] ?? "").toLowerCase().replaceAll(/[^a-z0-9]+/g, "");
+  return `title:${title}|${firstAuthor}|${item.year ?? ""}`;
 }
 
 function mergeAcademicFixture(providerLists) {
@@ -84,6 +87,14 @@ function mergeAcademicFixture(providerLists) {
     right.rrfScore - left.rrfScore
     || left.title.localeCompare(right.title)
     || left.stableId.localeCompare(right.stableId));
+}
+
+function mergeWebFixture(providerLists) {
+  return providerLists.flatMap((list) => list).map((item) => ({
+    ...item,
+    provenance: [item.source],
+    rrfScore: 0,
+  }));
 }
 
 function mean(values) {
@@ -183,10 +194,69 @@ try {
   const academicFixture = JSON.parse(
     fs.readFileSync(path.join(fixtureRoot, "academic-evidence.json"), "utf8"),
   );
-  const mergedAcademic = mergeAcademicFixture(academicFixture.providerLists);
-  assert.equal(mergedAcademic.length, 2);
-  assert.deepEqual(mergedAcademic[0].provenance, ["openalex", "crossref"]);
-  assert.equal(mergedAcademic[0].stableId, academicFixture.expectedFirstStableId);
+  const mergedAcademic = mergeAcademicFixture(academicFixture.academicProviderLists);
+  const repeatedMerge = mergeAcademicFixture(academicFixture.academicProviderLists);
+  const mergedWeb = mergeWebFixture(academicFixture.webProviderLists);
+  assert.deepEqual(
+    mergedAcademic.map((item) => item.stableId),
+    academicFixture.expectedAcademicStableIds,
+  );
+  assert.deepEqual(
+    mergedAcademic.map(({ stableId, provenance, rrfScore }) => ({ stableId, provenance, rrfScore })),
+    repeatedMerge.map(({ stableId, provenance, rrfScore }) => ({ stableId, provenance, rrfScore })),
+  );
+  assert.deepEqual(mergedAcademic[0].provenance, ["openalex", "crossref", "semantic_scholar"]);
+  assert.deepEqual(mergedAcademic[1].provenance, ["arxiv", "semantic_scholar"]);
+  assert.ok(mergedAcademic.some((item) => item.source === "europe_pmc"));
+  assert.deepEqual(mergedWeb.map((item) => item.source), ["duckduckgo", "wikipedia"]);
+  assert.ok(mergedWeb.every((item) => item.rrfScore === 0));
+
+  const analysisResearchPlanBundle = path.join(tempRoot, "analysis-research-plan.mjs");
+  await build({
+    entryPoints: [path.join(repoRoot, "src", "app", "hooks", "analysisResearchPlan.ts")],
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node18",
+    outfile: analysisResearchPlanBundle,
+    logLevel: "silent",
+  });
+  const {
+    buildAnalysisResearchPlan,
+    buildEvidenceBibtex,
+    buildResearchEvidenceContext,
+    initialResearchStages,
+  } = await import(pathToFileURL(analysisResearchPlanBundle).href);
+  const localPlan = buildAnalysisResearchPlan({
+    prompt: "Summarize missing values and distributions in @data.csv",
+    sourceType: "data",
+    inputFiles: ["data.csv"],
+  });
+  assert.equal(localPlan.networkRequirement, "not_needed");
+  assert.equal(localPlan.networkReasonCode, "local_data_sufficient");
+  assert.equal(
+    initialResearchStages(localPlan).find((stage) => stage.id === "evidence")?.status,
+    "skipped",
+  );
+  const categorizedResponse = {
+    items: [{
+      query: "fixture",
+      ok: true,
+      message: "academic.search.complete",
+      results: mergedAcademic,
+      academicResults: mergedAcademic,
+      webResults: mergedWeb,
+      providerErrors: [],
+      providerHealth: [],
+      networkUsed: true,
+    }],
+  };
+  const evidenceContext = buildResearchEvidenceContext(categorizedResponse);
+  assert.match(evidenceContext, /\[academic; abstract_support/);
+  assert.match(evidenceContext, /\[general_web; provider=wikipedia; contextual_only]/);
+  const evidenceBibtex = buildEvidenceBibtex(mergedAcademic);
+  assert.match(evidenceBibtex, /Evidence level: abstract; providers: openalex, crossref, semantic_scholar/);
+  assert.match(evidenceBibtex, /Evidence level: metadata; providers: arxiv, semantic_scholar/);
 
   const statisticalFixture = JSON.parse(
     fs.readFileSync(path.join(fixtureRoot, "statistical-analysis.json"), "utf8"),
@@ -212,7 +282,11 @@ try {
       "mcp-tools",
       "write-gate",
       "compile-smoke",
-      "academic-evidence-merge",
+      "academic-web-evidence-categorization",
+      "semantic-scholar-europe-pmc-fixtures",
+      "identifier-first-stable-academic-rrf",
+      "local-data-network-skip",
+      "bibtex-evidence-levels",
       "deterministic-statistics-fixture",
     ],
   }, null, 2));

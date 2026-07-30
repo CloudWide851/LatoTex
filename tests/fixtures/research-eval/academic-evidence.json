@@ -1,11 +1,17 @@
 {
-  "providerLists": [
+  "academicProviderLists": [
     [
       {
         "stableId": "doi:10.1000/fixture",
         "doi": "10.1000/Fixture",
         "title": "A Reproducible Fixture",
-        "source": "openalex"
+        "authors": ["Ada Researcher"],
+        "year": 2025,
+        "venue": "Open Research",
+        "landingUrl": "https://openalex.org/W1",
+        "source": "openalex",
+        "evidenceLevel": "abstract",
+        "originalSourceUrl": "https://openalex.org/W1"
       }
     ],
     [
@@ -13,7 +19,13 @@
         "stableId": "crossref:fixture",
         "doi": "https://doi.org/10.1000/FIXTURE",
         "title": "A Reproducible Fixture",
-        "source": "crossref"
+        "authors": ["Ada Researcher"],
+        "year": 2025,
+        "venue": "Open Research",
+        "landingUrl": "https://doi.org/10.1000/fixture",
+        "source": "crossref",
+        "evidenceLevel": "metadata",
+        "originalSourceUrl": "https://api.crossref.org/works/10.1000/fixture"
       }
     ],
     [
@@ -21,9 +33,83 @@
         "stableId": "arxiv:2607.01234",
         "arxivId": "2607.01234",
         "title": "Bounded Academic Evidence",
-        "source": "arxiv"
+        "authors": ["Ben Analyst"],
+        "year": 2026,
+        "venue": "arXiv",
+        "landingUrl": "https://arxiv.org/abs/2607.01234",
+        "source": "arxiv",
+        "evidenceLevel": "metadata",
+        "originalSourceUrl": "https://export.arxiv.org/api/query"
+      }
+    ],
+    [
+      {
+        "stableId": "semantic:doi-fixture",
+        "doi": "10.1000/fixture",
+        "title": "A Reproducible Fixture",
+        "authors": ["Ada Researcher"],
+        "year": 2025,
+        "venue": "Open Research",
+        "landingUrl": "https://www.semanticscholar.org/paper/fixture",
+        "source": "semantic_scholar",
+        "evidenceLevel": "abstract",
+        "originalSourceUrl": "https://api.semanticscholar.org/graph/v1/paper/search"
+      },
+      {
+        "stableId": "semantic:arxiv-fixture",
+        "arxivId": "2607.01234",
+        "title": "Bounded Academic Evidence",
+        "authors": ["Ben Analyst"],
+        "year": 2026,
+        "venue": "arXiv",
+        "landingUrl": "https://www.semanticscholar.org/paper/arxiv-fixture",
+        "source": "semantic_scholar",
+        "evidenceLevel": "abstract",
+        "originalSourceUrl": "https://api.semanticscholar.org/graph/v1/paper/search"
+      }
+    ],
+    [
+      {
+        "stableId": "doi:10.2000/pmc",
+        "doi": "10.2000/PMC",
+        "title": "Biomedical Evidence Fixture",
+        "authors": ["Cara Reviewer"],
+        "year": 2024,
+        "venue": "Fixture Medicine",
+        "landingUrl": "https://europepmc.org/article/MED/123",
+        "source": "europe_pmc",
+        "evidenceLevel": "abstract",
+        "originalSourceUrl": "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
       }
     ]
   ],
-  "expectedFirstStableId": "doi:10.1000/fixture"
+  "webProviderLists": [
+    [
+      {
+        "stableId": "web:duckduckgo:1",
+        "title": "General context result",
+        "authors": [],
+        "landingUrl": "https://example.org/context",
+        "source": "duckduckgo",
+        "evidenceLevel": "metadata",
+        "originalSourceUrl": "https://duckduckgo.com/"
+      }
+    ],
+    [
+      {
+        "stableId": "web:wikipedia:1",
+        "title": "Background topic",
+        "authors": [],
+        "landingUrl": "https://en.wikipedia.org/wiki/Research",
+        "source": "wikipedia",
+        "evidenceLevel": "metadata",
+        "originalSourceUrl": "https://en.wikipedia.org/w/api.php"
+      }
+    ]
+  ],
+  "expectedAcademicStableIds": [
+    "doi:10.1000/fixture",
+    "arxiv:2607.01234",
+    "doi:10.2000/pmc"
+  ]
 }

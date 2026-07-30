@@ -10,8 +10,12 @@ use std::time::SystemTime;
 use tauri::State;
 #[path = "analysis_academic_providers.rs"]
 mod analysis_academic_providers;
+#[path = "analysis_research_providers.rs"]
+mod analysis_research_providers;
 #[path = "analysis_search.rs"]
 mod analysis_search;
+#[path = "analysis_search_coordinator.rs"]
+mod analysis_search_coordinator;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,9 +23,84 @@ pub struct ReferenceCheckInput {
     pub queries: Vec<String>,
     pub limit: Option<u32>,
     pub project_id: Option<String>,
+    pub unpaywall_contact_email: Option<String>,
+    pub research_plan: Option<AnalysisResearchPlanInput>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisResearchPlanInput {
+    pub intent: String,
+    pub queries: Vec<String>,
+    pub inclusion_criteria: Vec<String>,
+    pub exclusion_criteria: Vec<String>,
+    pub data_checks: Vec<String>,
+    pub expected_validations: Vec<String>,
+    pub network_requirement: String,
+    pub network_reason_code: String,
+}
+
+fn validate_research_plan(plan: &AnalysisResearchPlanInput) -> Result<(), String> {
+    if plan.intent.trim().is_empty() || plan.intent.chars().count() > 1_200 {
+        return Err("analysis.research_plan.invalid_intent".to_string());
+    }
+    if plan.queries.is_empty()
+        || plan.queries.len() > 8
+        || plan
+            .queries
+            .iter()
+            .any(|query| query.trim().is_empty() || query.chars().count() > 512)
+    {
+        return Err("analysis.research_plan.invalid_queries".to_string());
+    }
+    if !matches!(
+        plan.network_requirement.as_str(),
+        "required" | "optional" | "not_needed"
+    ) || plan.network_reason_code.trim().is_empty()
+        || plan.inclusion_criteria.len() > 16
+        || plan.exclusion_criteria.len() > 16
+        || plan.data_checks.len() > 16
+        || plan.expected_validations.len() > 16
+    {
+        return Err("analysis.research_plan.invalid_policy".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod research_plan_tests {
+    use super::{validate_research_plan, AnalysisResearchPlanInput};
+
+    fn plan() -> AnalysisResearchPlanInput {
+        AnalysisResearchPlanInput {
+            intent: "Compare evidence".to_string(),
+            queries: vec!["evidence query".to_string()],
+            inclusion_criteria: vec!["topic-match".to_string()],
+            exclusion_criteria: vec!["missing-title".to_string()],
+            data_checks: vec!["schema".to_string()],
+            expected_validations: vec!["review-gate".to_string()],
+            network_requirement: "required".to_string(),
+            network_reason_code: "explicit_research_evidence".to_string(),
+        }
+    }
+
+    #[test]
+    fn research_plan_validation_accepts_bounded_contract() {
+        assert!(validate_research_plan(&plan()).is_ok());
+    }
+
+    #[test]
+    fn research_plan_validation_rejects_unknown_network_policy() {
+        let mut value = plan();
+        value.network_requirement = "always".to_string();
+        assert_eq!(
+            validate_research_plan(&value).unwrap_err(),
+            "analysis.research_plan.invalid_policy"
+        );
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceEvidence {
     pub stable_id: String,
@@ -49,7 +128,7 @@ pub struct ReferenceEvidence {
 
 pub type AcademicEvidence = ReferenceEvidence;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AcademicProviderFailure {
     pub provider: String,
@@ -57,17 +136,34 @@ pub struct AcademicProviderFailure {
     pub retryable: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcademicProviderHealth {
+    pub provider: String,
+    pub category: String,
+    pub status: String,
+    pub result_count: usize,
+    pub cache_age_seconds: Option<u64>,
+    pub code: Option<String>,
+    pub retryable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceCheckItem {
     pub query: String,
     pub ok: bool,
     pub message: String,
+    /// Compatibility projection. Academic evidence is listed before general-web evidence.
     pub results: Vec<ReferenceEvidence>,
+    pub academic_results: Vec<ReferenceEvidence>,
+    pub web_results: Vec<ReferenceEvidence>,
     pub provider_errors: Vec<AcademicProviderFailure>,
+    pub provider_health: Vec<AcademicProviderHealth>,
+    pub network_used: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReferenceCheckResponse {
     pub items: Vec<ReferenceCheckItem>,
@@ -186,23 +282,51 @@ pub fn reference_check(
         "INFO",
         &format!("reference_check: {} queries", input.queries.len()),
     );
-    let project_root = input
-        .project_id
-        .as_deref()
-        .map(|project_id| storage::load_project_root(&state.db_path, project_id))
-        .transpose()?;
-    analysis_search::run_reference_check_queries(
-        input.queries,
+    let queries = if let Some(plan) = input.research_plan.as_ref() {
+        validate_research_plan(plan)?;
+        plan.queries.clone()
+    } else {
+        input.queries
+    };
+    run_reference_check_queries_for_project(
+        &state.db_path,
+        &state.runtime_root,
+        input.project_id.as_deref(),
+        queries,
         input.limit.unwrap_or(5),
-        project_root.as_deref(),
+        input.unpaywall_contact_email.as_deref(),
     )
 }
 
-pub(crate) fn run_reference_check_queries(
+pub(crate) fn run_reference_check_queries_for_project(
+    db_path: &std::path::Path,
+    runtime_root: &std::path::Path,
+    project_id: Option<&str>,
     queries: Vec<String>,
     limit: u32,
+    unpaywall_contact_email: Option<&str>,
 ) -> Result<ReferenceCheckResponse, String> {
-    analysis_search::run_reference_check_queries(queries, limit, None)
+    let project_root = project_id
+        .map(|value| storage::load_project_root(db_path, value))
+        .transpose()?;
+    let configured_email = unpaywall_contact_email
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            storage::load_settings(db_path, runtime_root)
+                .ok()?
+                .ui_prefs?
+                .unpaywall_contact_email
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        });
+    analysis_search::run_reference_check_queries(
+        queries,
+        limit,
+        project_root.as_deref(),
+        configured_email.as_deref(),
+    )
 }
 
 #[tauri::command]

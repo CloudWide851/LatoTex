@@ -1,4 +1,4 @@
-use crate::commands::analysis::run_reference_check_queries;
+use crate::commands::analysis::{run_reference_check_queries_for_project, ReferenceCheckResponse};
 use serde_json::json;
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
@@ -125,7 +125,38 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
     output
 }
 
-fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
+fn build_tool_search_context(
+    db_path: &Path,
+    runtime_root: &Path,
+    project_id: &str,
+    raw_prompt: &str,
+) -> (Vec<String>, String, usize) {
+    build_tool_search_context_with(
+        db_path,
+        runtime_root,
+        project_id,
+        raw_prompt,
+        run_reference_check_queries_for_project,
+    )
+}
+
+fn build_tool_search_context_with<F>(
+    db_path: &Path,
+    runtime_root: &Path,
+    project_id: &str,
+    raw_prompt: &str,
+    search: F,
+) -> (Vec<String>, String, usize)
+where
+    F: FnOnce(
+        &Path,
+        &Path,
+        Option<&str>,
+        Vec<String>,
+        u32,
+        Option<&str>,
+    ) -> Result<ReferenceCheckResponse, String>,
+{
     let explicit_queries = extract_explicit_tool_search_queries(raw_prompt);
     let query_source = if explicit_queries.is_empty() {
         "heuristic"
@@ -144,7 +175,14 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
             0,
         );
     }
-    let result = run_reference_check_queries(queries.clone(), 4);
+    let result = search(
+        db_path,
+        runtime_root,
+        Some(project_id),
+        queries.clone(),
+        4,
+        None,
+    );
     match result {
         Ok(response) => {
             let mut lines = Vec::new();
@@ -155,16 +193,25 @@ fn build_tool_search_context(raw_prompt: &str) -> (Vec<String>, String, usize) {
                     continue;
                 }
                 lines.push(format!("- {} => {}", item.query, item.message));
-                for evidence in item.results.iter().take(3) {
+                for evidence in item.academic_results.iter().take(3) {
                     evidence_count += 1;
                     let title = truncate_text(&evidence.title, 120);
                     let url = truncate_text(&evidence.url, 180);
                     lines.push(format!(
-                        "  - [{}; providers={}] {} ({})",
+                        "  - [academic; {}; providers={}] {} ({})",
                         evidence.evidence_level,
                         evidence.provenance.join(","),
                         title,
                         url
+                    ));
+                }
+                for evidence in item.web_results.iter().take(2) {
+                    evidence_count += 1;
+                    lines.push(format!(
+                        "  - [general_web; provider={}] {} ({})",
+                        evidence.source,
+                        truncate_text(&evidence.title, 120),
+                        truncate_text(&evidence.url, 180)
                     ));
                 }
                 for failure in item.provider_errors.iter().take(3) {
@@ -260,7 +307,8 @@ pub(super) fn run_stage_tool_search(
             ..metadata
         },
     )?;
-    let (queries, compact_context, evidence_count) = build_tool_search_context(prompt);
+    let (queries, compact_context, evidence_count) =
+        build_tool_search_context(db_path, runtime_root, project_id, prompt);
     ensure_not_cancelled(cancel_flag)?;
     let query_count = queries.len();
     let result_actions = json!([{
@@ -368,8 +416,11 @@ pub(super) fn run_stage_tool_search(
 
 #[cfg(test)]
 mod tests {
-    use super::run_stage_tool_search;
     use super::EventMetadata;
+    use super::{build_tool_search_context_with, run_stage_tool_search};
+    use crate::commands::analysis::{
+        ReferenceCheckItem, ReferenceCheckResponse, ReferenceEvidence,
+    };
     use crate::storage;
     use rusqlite::{params, Connection};
     use serde_json::json;
@@ -425,5 +476,63 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn agent_search_forwards_project_scope_and_keeps_local_bib_evidence() {
+        let db_path = PathBuf::from("fixture.db");
+        let runtime_root = PathBuf::from("fixture-runtime");
+        let project_id = "project-local-bib";
+        let (_, context, evidence_count) = build_tool_search_context_with(
+            &db_path,
+            &runtime_root,
+            project_id,
+            "[tool_search.queries.v1]\n- reproducible local evidence",
+            |received_db, received_runtime, received_project, queries, limit, email| {
+                assert_eq!(received_db, db_path.as_path());
+                assert_eq!(received_runtime, runtime_root.as_path());
+                assert_eq!(received_project, Some(project_id));
+                assert_eq!(queries, vec!["reproducible local evidence"]);
+                assert_eq!(limit, 4);
+                assert_eq!(email, None);
+                let local = ReferenceEvidence {
+                    stable_id: "bib:fixture2026".to_string(),
+                    title: "Local Bib Fixture".to_string(),
+                    authors: vec!["A. Researcher".to_string()],
+                    year: Some(2026),
+                    venue: None,
+                    doi: None,
+                    arxiv_id: None,
+                    open_access: None,
+                    pdf_url: None,
+                    landing_url: "refs.bib#fixture2026".to_string(),
+                    citation_count: None,
+                    abstract_text: None,
+                    source: "local_bib".to_string(),
+                    evidence_level: "metadata".to_string(),
+                    provenance: vec!["local_bib".to_string()],
+                    original_source_url: "refs.bib#fixture2026".to_string(),
+                    rrf_score: 0.0,
+                    url: "refs.bib#fixture2026".to_string(),
+                    snippet: String::new(),
+                };
+                Ok(ReferenceCheckResponse {
+                    items: vec![ReferenceCheckItem {
+                        query: "reproducible local evidence".to_string(),
+                        ok: true,
+                        message: "academic.search.complete".to_string(),
+                        results: vec![local.clone()],
+                        academic_results: vec![local],
+                        web_results: Vec::new(),
+                        provider_errors: Vec::new(),
+                        provider_health: Vec::new(),
+                        network_used: true,
+                    }],
+                })
+            },
+        );
+
+        assert_eq!(evidence_count, 1);
+        assert!(context.contains("[academic; metadata; providers=local_bib] Local Bib Fixture"));
     }
 }

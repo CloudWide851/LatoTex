@@ -266,6 +266,32 @@ export type AnalysisPlan = {
   alpha: number;
 };
 
+export type AnalysisNetworkRequirement = "required" | "optional" | "not_needed";
+
+export type AnalysisResearchPlan = {
+  intent: string;
+  queries: string[];
+  inclusionCriteria: string[];
+  exclusionCriteria: string[];
+  dataChecks: string[];
+  expectedValidations: string[];
+  networkRequirement: AnalysisNetworkRequirement;
+  networkReasonCode: string;
+};
+
+export type AnalysisResearchStageId =
+  | "plan"
+  | "evidence"
+  | "analysis"
+  | "review"
+  | "conclusion";
+
+export type AnalysisResearchStage = {
+  id: AnalysisResearchStageId;
+  status: "pending" | "running" | "completed" | "skipped" | "failed";
+  detailCode?: string;
+};
+
 export type AnalysisRunPythonResponse = {
   status: string;
   runtimeSource: string;
@@ -318,12 +344,27 @@ export type AcademicProviderFailure = {
   retryable: boolean;
 };
 
+export type AcademicProviderHealth = {
+  provider: string;
+  category: "academic" | "web" | "local";
+  status: "live" | "fresh_cache" | "stale_cache" | "failed" | "circuit_open" | "disabled";
+  resultCount: number;
+  cacheAgeSeconds?: number;
+  code?: string;
+  retryable: boolean;
+};
+
 export type ReferenceCheckItem = {
   query: string;
   ok: boolean;
   message: string;
+  /** Compatibility projection; academic results are listed first. */
   results: ReferenceEvidence[];
+  academicResults: ReferenceEvidence[];
+  webResults: ReferenceEvidence[];
   providerErrors: AcademicProviderFailure[];
+  providerHealth: AcademicProviderHealth[];
+  networkUsed: boolean;
 };
 
 export type ReferenceCheckResponse = {

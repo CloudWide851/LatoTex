@@ -620,6 +620,7 @@ pub struct UiPrefs {
     pub panel_border_contrast: Option<String>,
     pub memory_guard_prefs: Option<MemoryGuardPrefs>,
     pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
+    pub unpaywall_contact_email: Option<String>,
     pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
     pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
     pub workspace_explorer_default_expanded: Option<bool>,

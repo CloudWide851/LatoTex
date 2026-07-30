@@ -1,4 +1,10 @@
-import type { AnalysisPlan } from "../../shared/types/app";
+import type {
+  AcademicEvidence,
+  AcademicProviderHealth,
+  AnalysisPlan,
+  AnalysisResearchPlan,
+  AnalysisResearchStage,
+} from "../../shared/types/app";
 
 export type AnalysisOutputLanguage = "zh-CN" | "en-US";
 
@@ -28,6 +34,11 @@ export type AnalysisTaskRun = {
   outputLanguage: AnalysisOutputLanguage;
   agentRunId?: string;
   eventRunIds?: string[];
+  researchPlan?: AnalysisResearchPlan;
+  researchStages?: AnalysisResearchStage[];
+  academicEvidence?: AcademicEvidence[];
+  webEvidence?: AcademicEvidence[];
+  providerHealth?: AcademicProviderHealth[];
   createdAt: string;
   updatedAt: string;
 };

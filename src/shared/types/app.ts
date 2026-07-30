@@ -341,6 +341,7 @@ export type AppSettings = {
     panelBorderContrast?: "soft" | "normal" | "strong";
     memoryGuardPrefs?: MemoryGuardPrefs;
     analysisEnvRootsByProject?: Record<string, string>;
+    unpaywallContactEmail?: string;
     librarySelectedPathByProject?: Record<string, string>;
     libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
     workspaceExplorerDefaultExpanded?: boolean;

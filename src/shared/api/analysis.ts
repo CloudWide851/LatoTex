@@ -5,6 +5,7 @@ import type {
   AnalysisExportArtifactResponse,
   AnalysisListReportsResponse,
   AnalysisPlan,
+  AnalysisResearchPlan,
   AnalysisRunPythonResponse,
   AnalysisSaveReportResponse,
   ReferenceCheckResponse,
@@ -15,9 +16,11 @@ export function referenceCheck(
   queries: string[],
   limit = 5,
   projectId?: string,
+  unpaywallContactEmail?: string,
+  researchPlan?: AnalysisResearchPlan,
 ): Promise<ReferenceCheckResponse> {
   return invokeCommand<ReferenceCheckResponse>("reference_check", {
-    input: { queries, limit, projectId },
+    input: { queries, limit, projectId, unpaywallContactEmail, researchPlan },
   });
 }
 

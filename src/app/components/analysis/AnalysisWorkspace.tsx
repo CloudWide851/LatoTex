@@ -5,6 +5,7 @@ import { AnalysisLiveRail } from "./AnalysisLiveRail";
 import { AnalysisPromptOverlay } from "./AnalysisPromptOverlay";
 import { AnalysisPreflightPanel } from "./AnalysisPreflightPanel";
 import { AnalysisRunTimeline, type AnalysisTimelineCard } from "./AnalysisRunTimeline";
+import { AnalysisResearchAuditPanel } from "./AnalysisResearchAuditPanel";
 import { AnalysisTaskTabs } from "./AnalysisTaskTabs";
 import type { AnalysisPreflightState } from "../../hooks/analysisTypes";
 
@@ -213,8 +214,11 @@ export function AnalysisWorkspace(props: {
                   )}
                 </div>
               </section>
-              <aside className="min-h-0 overflow-hidden">
-                <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact />
+              <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
+                <AnalysisResearchAuditPanel run={activeRun} onExportArtifact={onExportArtifact} t={t} />
+                <div className="min-h-0">
+                  <AnalysisRunTimeline cards={displayTimelineCards} t={t} compact />
+                </div>
               </aside>
             </div>
           ) : !activeRun ? (
@@ -296,8 +300,11 @@ export function AnalysisWorkspace(props: {
                 )}
               </div>
 
-              <aside className="min-h-0 overflow-hidden">
-                <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
+              <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden">
+                <AnalysisResearchAuditPanel run={activeRun} onExportArtifact={onExportArtifact} t={t} />
+                <div className="min-h-0">
+                  <AnalysisRunTimeline cards={displayTimelineCards} t={t} />
+                </div>
               </aside>
             </div>
           )}

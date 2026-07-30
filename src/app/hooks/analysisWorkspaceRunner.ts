@@ -1,13 +1,12 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { Locale } from "../../i18n";
-import type { AgentTeamMode, AnalysisPlan } from "../../shared/types/app";
-import { analysisEnvPrepare, analysisRunPython, analysisSaveReport } from "../../shared/api/analysis";
+import type {
+  AcademicEvidence, AcademicProviderHealth, AgentTeamMode, AnalysisPlan,
+  AnalysisResearchStage, ReferenceCheckResponse,
+} from "../../shared/types/app";
+import { analysisEnvPrepare, analysisRunPython } from "../../shared/api/analysis";
 import { runtimeLogWrite } from "../../shared/api/runtime";
-import {
-  buildPaperAnalysisContext,
-  loadDataSnapshots,
-  type AnalysisSourceSnapshot,
-} from "./analysisDataSources";
+import { buildPaperAnalysisContext, loadDataSnapshots, type AnalysisSourceSnapshot } from "./analysisDataSources";
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
 import { resolvePromptInputFiles } from "./analysisPromptRefs";
 import { ensureAnalysisTasksLoaded, isRetryableAnalysisProviderError, runRolePromptWithAgent } from "./analysisRunHelpers";
@@ -25,11 +24,7 @@ import {
   type AnalysisCachedChunkSummaries,
   type AnalysisStageCacheStore,
 } from "./analysisStageCache";
-import {
-  parsePayloadJson,
-  summarizeSnapshotsForPrompt,
-  upsertRun,
-} from "./analysisWorkspaceHelpers";
+import { parsePayloadJson, summarizeSnapshotsForPrompt, upsertRun } from "./analysisWorkspaceHelpers";
 import {
   buildAnalysisJsonRepairPrompt,
   buildAnalysisSynthesisPrompt,
@@ -45,10 +40,20 @@ import {
   buildPendingAnalysisRun,
   hasStructuredAnalysisOutput,
 } from "./analysisWorkspaceRunResult";
-
+import {
+  buildAnalysisResearchPlan,
+  buildResearchEvidenceContext,
+  initialResearchStages,
+  updateResearchStage,
+} from "./analysisResearchPlan";
+import {
+  createResearchProgressUpdater,
+  moveResearchToConclusion,
+  runAnalysisResearchEvidence,
+  saveAnalysisResearchReport,
+} from "./analysisResearchWorkflow";
 type ToastSetter = (value: { type: "info" | "error"; message: string }) => void;
 type TranslationFn = (key: any) => string;
-
 export type RunAnalysisWorkspacePromptOptions = {
   forcedTaskId?: string;
   taskSnapshot?: AnalysisTask;
@@ -57,7 +62,6 @@ export type RunAnalysisWorkspacePromptOptions = {
   analysisPlan?: AnalysisPlan;
   skipPreflight?: boolean;
 };
-
 export type RunAnalysisWorkspacePromptParams = {
   inputPrompt: string;
   options?: RunAnalysisWorkspacePromptOptions;
@@ -89,7 +93,6 @@ export type RunAnalysisWorkspacePromptParams = {
   setToast: ToastSetter;
   t: TranslationFn;
 };
-
 export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePromptParams) {
   const {
     inputPrompt,
@@ -163,6 +166,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
     let currentStage = t("analysis.step.agentSynthesis");
     let pendingRunFallback: AnalysisTaskRun | null = null;
     let pendingRunId = "";
+    let researchStages: AnalysisResearchStage[] = [];
     try {
       const setStage = (label: string) => {
         currentStage = label;
@@ -172,10 +176,18 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       const stageCache = await ensureStageCache();
       const outputLanguage = resolveAnalysisLanguage(normalizedPrompt, locale);
       const outputLanguageLabel = languageLabel(outputLanguage);
+      const researchPlan = buildAnalysisResearchPlan({
+        prompt: normalizedPrompt,
+        sourceType: task.sourceType,
+        inputFiles: options?.analysisPlan?.inputFiles ?? candidateFiles,
+      });
+      researchStages = initialResearchStages(researchPlan);
       const nextPendingRun = buildPendingAnalysisRun({
         task,
         prompt: normalizedPrompt,
         outputLanguage,
+        researchPlan,
+        researchStages,
         t,
       });
       pendingRunFallback = nextPendingRun;
@@ -230,7 +242,42 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       let sourceBlock = "";
       let synthesisFallbackSourceBlock: string | null = null;
       let resolvedInputFiles: string[] = [];
-      const steps: string[] = [];
+      const steps: string[] = [t("analysis.research.stage.plan")];
+      let academicEvidence: AcademicEvidence[] = [];
+      let webEvidence: AcademicEvidence[] = [];
+      let providerHealth: AcademicProviderHealth[] = [];
+      const updateResearchProgress = createResearchProgressUpdater({
+        taskId: task.id,
+        runId: pendingRunId,
+        researchPlan,
+        getStages: () => researchStages,
+        updateTaskById,
+      });
+
+      setStage(t("analysis.research.stage.evidence"));
+      steps.push(currentStage);
+      let evidenceResponse: ReferenceCheckResponse | null = null;
+      const evidenceOutcome = await runAnalysisResearchEvidence({
+        projectId,
+        plan: researchPlan,
+        stages: researchStages,
+        onProgress: (outcome) => {
+          researchStages = outcome.stages;
+          updateResearchProgress({
+            academicEvidence: outcome.academicEvidence,
+            webEvidence: outcome.webEvidence,
+            providerHealth: outcome.providerHealth,
+          });
+        },
+      });
+      evidenceResponse = evidenceOutcome.response;
+      researchStages = evidenceOutcome.stages;
+      academicEvidence = evidenceOutcome.academicEvidence;
+      webEvidence = evidenceOutcome.webEvidence;
+      providerHealth = evidenceOutcome.providerHealth;
+      researchStages = updateResearchStage(researchStages, "analysis", "running");
+      updateResearchProgress();
+      steps.push(t("analysis.research.stage.analysis"));
       if (task.sourceType === "paper" && task.sourcePath) {
         setStage(t("analysis.step.paperExtract"));
         steps.push(currentStage);
@@ -388,6 +435,9 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
           pythonProfileText,
         ].join("\n\n");
       }
+      if (evidenceResponse) {
+        sourceBlock = `${sourceBlock}\n\n---\n\n${buildResearchEvidenceContext(evidenceResponse)}`;
+      }
       if (selectedFile && editorContent.trim()) {
         sourceBlock = `${sourceBlock}\n\n---\n\nCurrent editor file (${selectedFile}):\n${editorContent.slice(0, 2200)}`;
       }
@@ -425,6 +475,12 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       if (!hasStructuredAnalysisOutput(parsed)) {
         throw new Error("analysis.output.invalid_json");
       }
+      researchStages = moveResearchToConclusion(researchStages, (id, nextStages) => {
+        researchStages = nextStages;
+        setStage(t(`analysis.research.stage.${id}`));
+        steps.push(currentStage);
+        updateResearchProgress();
+      });
       const completed = buildCompletedAnalysisRun({
         task,
         parsed,
@@ -435,15 +491,26 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
         agentRunId: finalResult.runId,
         prompt: normalizedPrompt,
         steps,
+        researchPlan,
+        researchStages: updateResearchStage(
+          researchStages,
+          "conclusion",
+          "completed",
+          "report_persisted",
+        ),
+        academicEvidence,
+        webEvidence,
+        providerHealth,
         runId: pendingRunId,
         t,
       });
-      const saved = await analysisSaveReport({
+      const saved = await saveAnalysisResearchReport({
         projectId,
         runId: completed.runRecord.id,
         title: completed.runRecord.title,
         reportHtml: completed.reportHtml,
-        assets: [{ fileName: "chart.svg", dataUrl: completed.chartDataUrl }],
+        chartDataUrl: completed.chartDataUrl,
+        academicEvidence,
       });
       const runRecord: AnalysisTaskRun = {
         ...completed.runRecord,
@@ -465,6 +532,8 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       setActiveTaskId(task.id);
       setToast({ type: "info", message: t("analysis.runDone") });
     } catch (error) {
+      researchStages = researchStages.map((stage) =>
+        stage.status === "running" ? { ...stage, status: "failed", detailCode: "run_stopped" } : stage);
       const rawMessage = String(error);
       if (rawMessage === "agent.run.cancelled" && suspended) {
         updateTaskById(task.id, (item) => ({
@@ -479,6 +548,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
               draftOutputText: liveOutput || item.runs.find((candidate) => candidate.id === pendingRunId)?.draftOutputText || "",
               liveStageLabel: currentStage,
               failureMessage: undefined,
+              researchStages,
               updatedAt: nowIso(),
             });
           })(),
@@ -504,6 +574,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
             draftOutputText: liveOutput || item.runs.find((candidate) => candidate.id === pendingRunId)?.draftOutputText || "",
             liveStageLabel: currentStage,
             failureMessage: message,
+            researchStages,
             updatedAt: nowIso(),
           });
         })(),

@@ -15,10 +15,12 @@ export function buildPendingAnalysisRun(input: {
   task: AnalysisTask;
   prompt: string;
   outputLanguage: AnalysisOutputLanguage;
+  researchPlan?: AnalysisTaskRun["researchPlan"];
+  researchStages?: AnalysisTaskRun["researchStages"];
   runId?: string;
   t: TranslationFn;
 }): AnalysisTaskRun {
-  const { task, prompt, outputLanguage, runId, t } = input;
+  const { task, prompt, outputLanguage, researchPlan, researchStages, runId, t } = input;
   const createdAt = nowIso();
   return {
     id: runId ?? newRunId("analysis-run"),
@@ -41,6 +43,11 @@ export function buildPendingAnalysisRun(input: {
     outputLanguage,
     agentRunId: undefined,
     eventRunIds: [],
+    researchPlan,
+    researchStages,
+    academicEvidence: [],
+    webEvidence: [],
+    providerHealth: [],
     createdAt,
     updatedAt: createdAt,
   };
@@ -65,6 +72,11 @@ export function buildCompletedAnalysisRun(input: {
   agentRunId: string;
   prompt: string;
   steps: string[];
+  researchPlan?: AnalysisTaskRun["researchPlan"];
+  researchStages?: AnalysisTaskRun["researchStages"];
+  academicEvidence?: AnalysisTaskRun["academicEvidence"];
+  webEvidence?: AnalysisTaskRun["webEvidence"];
+  providerHealth?: AnalysisTaskRun["providerHealth"];
   runId?: string;
   t: TranslationFn;
 }): { runRecord: AnalysisTaskRun; reportHtml: string; chartDataUrl: string } {
@@ -78,6 +90,11 @@ export function buildCompletedAnalysisRun(input: {
     agentRunId,
     prompt,
     steps,
+    researchPlan,
+    researchStages,
+    academicEvidence,
+    webEvidence,
+    providerHealth,
     runId,
     t,
   } = input;
@@ -140,6 +157,11 @@ export function buildCompletedAnalysisRun(input: {
       outputLanguage,
       agentRunId,
       eventRunIds: Array.from(new Set(eventRunIds)),
+      researchPlan,
+      researchStages,
+      academicEvidence,
+      webEvidence,
+      providerHealth,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     },

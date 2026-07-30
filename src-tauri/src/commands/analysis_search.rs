@@ -1,14 +1,11 @@
-use super::analysis_academic_providers::{
-    search_arxiv, search_crossref, search_duckduckgo, search_openalex, search_wikipedia,
-    ProviderError,
-};
+use super::analysis_search_coordinator::run_remote_providers;
 use super::{
-    AcademicProviderFailure, ReferenceCheckItem, ReferenceCheckResponse, ReferenceEvidence,
+    AcademicProviderHealth, ReferenceCheckItem, ReferenceCheckResponse, ReferenceEvidence,
 };
 use crate::storage;
 use regex::Regex;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -115,6 +112,30 @@ fn reciprocal_rank_merge(
     });
     values.truncate(limit);
     values
+}
+
+fn stable_web_merge(
+    provider_lists: Vec<Vec<ReferenceEvidence>>,
+    limit: usize,
+) -> Vec<ReferenceEvidence> {
+    let mut seen = HashSet::<String>::new();
+    let mut merged = Vec::new();
+    for list in provider_lists {
+        for item in list {
+            let key = if item.landing_url.trim().is_empty() {
+                format!("title:{}", normalized_title(&item.title))
+            } else {
+                format!("url:{}", item.landing_url.trim().to_ascii_lowercase())
+            };
+            if seen.insert(key) {
+                merged.push(item);
+            }
+            if merged.len() >= limit {
+                return merged;
+            }
+        }
+    }
+    merged
 }
 
 fn collect_bib_paths(root: &Path, directory: &Path, depth: usize, paths: &mut Vec<PathBuf>) {
@@ -285,27 +306,11 @@ fn local_bib_search(root: Option<&Path>, query: &str, limit: usize) -> Vec<Refer
         .collect()
 }
 
-fn record_provider(
-    provider: &str,
-    result: Result<Vec<ReferenceEvidence>, ProviderError>,
-    lists: &mut Vec<Vec<ReferenceEvidence>>,
-    errors: &mut Vec<AcademicProviderFailure>,
-) {
-    match result {
-        Ok(items) if !items.is_empty() => lists.push(items),
-        Ok(_) => {}
-        Err(error) => errors.push(AcademicProviderFailure {
-            provider: provider.to_string(),
-            code: error.code,
-            retryable: error.retryable,
-        }),
-    }
-}
-
 pub(crate) fn run_reference_check_queries(
     queries: Vec<String>,
     limit: u32,
     project_root: Option<&Path>,
+    unpaywall_contact_email: Option<&str>,
 ) -> Result<ReferenceCheckResponse, String> {
     let limit = limit.clamp(1, 8) as usize;
     let queries = queries
@@ -325,47 +330,37 @@ pub(crate) fn run_reference_check_queries(
                 ok: false,
                 message: "academic.query.too_long".to_string(),
                 results: Vec::new(),
+                academic_results: Vec::new(),
+                web_results: Vec::new(),
                 provider_errors: Vec::new(),
+                provider_health: Vec::new(),
+                network_used: false,
             });
             continue;
         }
-        let mut lists = Vec::<Vec<ReferenceEvidence>>::new();
+        let mut academic_lists = Vec::<Vec<ReferenceEvidence>>::new();
+        let mut provider_health = Vec::<AcademicProviderHealth>::new();
         let local = local_bib_search(project_root, &query, limit);
+        provider_health.push(AcademicProviderHealth {
+            provider: "local_bib".to_string(),
+            category: "local".to_string(),
+            status: "live".to_string(),
+            result_count: local.len(),
+            cache_age_seconds: None,
+            code: None,
+            retryable: false,
+        });
         if !local.is_empty() {
-            lists.push(local);
+            academic_lists.push(local);
         }
-        let mut provider_errors = Vec::new();
-        record_provider(
-            "openalex",
-            search_openalex(&query, limit),
-            &mut lists,
-            &mut provider_errors,
-        );
-        record_provider(
-            "crossref",
-            search_crossref(&query, limit),
-            &mut lists,
-            &mut provider_errors,
-        );
-        record_provider(
-            "arxiv",
-            search_arxiv(&query, limit),
-            &mut lists,
-            &mut provider_errors,
-        );
-        record_provider(
-            "duckduckgo",
-            search_duckduckgo(&query, limit),
-            &mut lists,
-            &mut provider_errors,
-        );
-        record_provider(
-            "wikipedia",
-            search_wikipedia(&query, limit),
-            &mut lists,
-            &mut provider_errors,
-        );
-        let results = reciprocal_rank_merge(lists, limit);
+        let remote = run_remote_providers(&query, limit, unpaywall_contact_email);
+        academic_lists.extend(remote.academic_lists);
+        provider_health.extend(remote.health);
+        let academic_results = reciprocal_rank_merge(academic_lists, limit);
+        let web_results = stable_web_merge(remote.web_lists, limit);
+        let mut results = academic_results.clone();
+        results.extend(web_results.clone());
+        let provider_errors = remote.failures;
         items.push(ReferenceCheckItem {
             query,
             ok: !results.is_empty(),
@@ -378,7 +373,11 @@ pub(crate) fn run_reference_check_queries(
             }
             .to_string(),
             results,
+            academic_results,
+            web_results,
             provider_errors,
+            provider_health,
+            network_used: true,
         });
     }
     Ok(ReferenceCheckResponse { items })
@@ -386,9 +385,7 @@ pub(crate) fn run_reference_check_queries(
 
 #[cfg(test)]
 mod tests {
-    use super::{evidence_key, reciprocal_rank_merge, record_provider};
-    use crate::commands::analysis::analysis_academic_providers::ProviderError;
-    use crate::commands::analysis::AcademicProviderFailure;
+    use super::{evidence_key, reciprocal_rank_merge, stable_web_merge};
     use crate::commands::analysis::ReferenceEvidence;
 
     fn item(
@@ -462,21 +459,13 @@ mod tests {
     }
 
     #[test]
-    fn provider_failure_does_not_discard_successful_lists() {
-        let mut lists = vec![vec![item("local", None, None, "local_bib")]];
-        let mut errors = Vec::<AcademicProviderFailure>::new();
-        record_provider(
-            "openalex",
-            Err(ProviderError {
-                code: "academic.openalex.timeout".to_string(),
-                retryable: true,
-            }),
-            &mut lists,
-            &mut errors,
-        );
-        assert_eq!(lists.len(), 1);
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].provider, "openalex");
-        assert!(errors[0].retryable);
+    fn web_results_keep_provider_order_without_academic_rrf() {
+        let first = item("web-a", None, None, "duckduckgo");
+        let mut duplicate = item("web-b", None, None, "wikipedia");
+        duplicate.landing_url = first.landing_url.clone();
+        let merged = stable_web_merge(vec![vec![first], vec![duplicate]], 5);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].source, "duckduckgo");
+        assert_eq!(merged[0].rrf_score, 0.0);
     }
 }

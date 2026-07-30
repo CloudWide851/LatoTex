@@ -40,7 +40,7 @@ fn bounded_body(provider: &str, response: Response) -> Result<Vec<u8>, ProviderE
     Ok(bytes)
 }
 
-fn fetch(
+pub(super) fn fetch(
     provider: &str,
     endpoint: &str,
     query: &[(&str, String)],
@@ -85,7 +85,7 @@ fn fetch(
     bounded_body(provider, response)
 }
 
-fn compact(raw: &str) -> String {
+pub(super) fn compact(raw: &str) -> String {
     raw.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -102,7 +102,7 @@ fn strip_tags(raw: &str) -> String {
     )
 }
 
-fn normalize_doi(raw: &str) -> Option<String> {
+pub(super) fn normalize_doi(raw: &str) -> Option<String> {
     let value = raw
         .trim()
         .trim_start_matches("https://doi.org/")
@@ -123,7 +123,7 @@ fn first_string(entry: &Value, key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn evidence(
+pub(super) fn evidence(
     stable_id: String,
     title: String,
     authors: Vec<String>,
