@@ -90,14 +90,16 @@ pub struct TerminalOutputChunk {
 
 pub struct TerminalSession {
     pub cwd: String,
-    pub venv_path: Option<String>,
-    pub env_source: Option<String>,
+    pub shell: String,
+    pub venv_path: Mutex<Option<String>>,
+    pub env_source: Mutex<Option<String>>,
     pub master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     pub child: Mutex<Box<dyn portable_pty::Child + Send>>,
     pub writer: Mutex<Box<dyn Write + Send>>,
     pub output: Mutex<Vec<TerminalOutputChunk>>,
     pub next_seq: AtomicU64,
-    pub status: Mutex<String>,
+    pub status: Mutex<crate::models::TerminalStatus>,
+    pub failure: Mutex<Option<crate::models::TerminalFailure>>,
     pub exit_code: Mutex<Option<i32>>,
 }
 
@@ -119,6 +121,7 @@ pub struct AppState {
     pub analysis_env_prepare_tasks: Arc<Mutex<HashMap<String, AnalysisEnvPrepareTask>>>,
     pub latex_compile_tasks: Arc<Mutex<HashMap<String, LatexCompileTask>>>,
     pub terminal_sessions: Arc<Mutex<HashMap<String, Arc<TerminalSession>>>>,
+    pub terminal_start_cancels: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
     pub agent_slots: Arc<(Mutex<u32>, Condvar)>,
     pub agent_cancel_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
@@ -194,6 +197,7 @@ impl AppState {
             analysis_env_prepare_tasks: Arc::new(Mutex::new(HashMap::new())),
             latex_compile_tasks: Arc::new(Mutex::new(HashMap::new())),
             terminal_sessions: Arc::new(Mutex::new(HashMap::new())),
+            terminal_start_cancels: Arc::new(Mutex::new(HashMap::new())),
             agent_slots: Arc::new((Mutex::new(0), Condvar::new())),
             agent_cancel_flags: Arc::new(Mutex::new(HashMap::new())),
         };

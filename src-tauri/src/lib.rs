@@ -89,7 +89,8 @@ use commands::swarm::{
     latex_compile_record,
 };
 use commands::terminal::{
-    terminal_read, terminal_resize, terminal_start, terminal_stop, terminal_write,
+    terminal_activate_research_env, terminal_cancel_start, terminal_read, terminal_resize,
+    terminal_start, terminal_stop, terminal_write,
 };
 use commands::toolchains::{
     toolchain_install, toolchain_list, toolchain_pick_directory, toolchain_register_local,
@@ -501,6 +502,8 @@ pub fn run() {
             analysis_env_status,
             analysis_run_python,
             terminal_start,
+            terminal_cancel_start,
+            terminal_activate_research_env,
             terminal_write,
             terminal_read,
             terminal_resize,

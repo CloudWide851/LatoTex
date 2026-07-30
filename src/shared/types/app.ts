@@ -82,27 +82,14 @@ export type WorkspaceExportAssetResponse = {
   fileName: string;
 };
 
-export type TerminalStartResponse = {
-  sessionId: string;
-  cwd: string;
-  shell: string;
-  venvPath?: string | null;
-  envSource?: string | null;
-  status: string;
-};
-
-export type TerminalOutputChunk = {
-  seq: number;
-  stream: "stdout" | "stderr" | string;
-  text: string;
-};
-
-export type TerminalReadResponse = {
-  cursor: number;
-  chunks: TerminalOutputChunk[];
-  exitCode?: number | null;
-  status: "running" | "exited" | string;
-};
+export type {
+  TerminalActivateResponse,
+  TerminalFailure,
+  TerminalOutputChunk,
+  TerminalReadResponse,
+  TerminalStartResponse,
+  TerminalStatus,
+} from "./terminal";
 
 export type MarkdownRunCodeResponse = {
   language: string;

@@ -1,15 +1,20 @@
-import { Plus, X } from "lucide-react";
+import { GripVertical, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import {
+  MAX_TERMINAL_RAIL_WIDTH,
+  MIN_TERMINAL_RAIL_WIDTH,
+  clampTerminalRailWidth,
+} from "./terminalPersistence";
 import type { TerminalTab, TranslationFn } from "./terminalTypes";
 
 function terminalStatusClass(tab: TerminalTab) {
-  if (tab.error || tab.status === "failed") {
+  if (tab.failure || tab.status === "failed") {
     return "bg-rose-500";
   }
   if (tab.status === "running") {
     return "bg-emerald-500";
   }
-  if (tab.status === "starting") {
+  if (tab.status === "starting" || tab.status === "activating") {
     return "bg-amber-500";
   }
   return "bg-slate-400";
@@ -22,9 +27,21 @@ export function TerminalSessionRail(props: {
   onClose: (id: string) => void;
   onNew: () => void;
   onReorder: (sourceId: string, targetId: string) => void;
+  width: number;
+  onWidthChange: (width: number) => void;
   t: TranslationFn;
 }) {
-  const { tabs, activeTabId, onSelect, onClose, onNew, onReorder, t } = props;
+  const {
+    tabs,
+    activeTabId,
+    onSelect,
+    onClose,
+    onNew,
+    onReorder,
+    width,
+    onWidthChange,
+    t,
+  } = props;
   const dragRef = useRef<{
     id: string;
     pointerId: number;
@@ -33,11 +50,22 @@ export function TerminalSessionRail(props: {
     active: boolean;
     lastTargetId: string;
   } | null>(null);
+  const resizeRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const suppressClickRef = useRef(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
+      const resize = resizeRef.current;
+      if (resize && event.pointerId === resize.pointerId) {
+        onWidthChange(clampTerminalRailWidth(resize.startWidth + event.clientX - resize.startX));
+        event.preventDefault();
+        return;
+      }
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) {
         return;
@@ -57,6 +85,11 @@ export function TerminalSessionRail(props: {
       event.preventDefault();
     };
     const handleUp = (event: PointerEvent) => {
+      const resize = resizeRef.current;
+      if (resize && event.pointerId === resize.pointerId) {
+        resizeRef.current = null;
+        return;
+      }
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) {
         return;
@@ -76,22 +109,25 @@ export function TerminalSessionRail(props: {
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [onReorder]);
+  }, [onReorder, onWidthChange]);
 
   return (
-    <aside className="flex w-24 shrink-0 flex-col border-r border-[color:var(--editor-shell-divider)] bg-[color:var(--editor-widget-bg)]">
-      <div className="flex min-h-9 items-center justify-between border-b border-[color:var(--editor-shell-divider)] px-2">
+    <aside
+      className="relative flex shrink-0 flex-col border-r border-[color:var(--editor-shell-divider)] bg-[color:var(--editor-widget-bg)]"
+      style={{ width: clampTerminalRailWidth(width) }}
+    >
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-[color:var(--editor-shell-divider)] px-2">
         <span className="truncate text-[11px] font-semibold text-[color:var(--editor-tab-muted)]">
           {t("terminal.title")}
         </span>
         <button
           type="button"
-          className="panel-topbar-btn editor-toolbar-btn h-6 w-6"
+          className="panel-topbar-btn editor-toolbar-btn h-7 w-7"
           onClick={onNew}
           title={t("terminal.new")}
           aria-label={t("terminal.new")}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
         </button>
       </div>
       <div className="hide-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
@@ -130,7 +166,10 @@ export function TerminalSessionRail(props: {
                   }
                 }}
               >
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${terminalStatusClass(tab)}`} />
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${terminalStatusClass(tab)}`}
+                  title={t(`terminal.status.${tab.status}`)}
+                />
                 <span className="min-w-0 flex-1 truncate">{tab.title}</span>
               </button>
               <button
@@ -152,6 +191,45 @@ export function TerminalSessionRail(props: {
           );
         })}
       </div>
+      <button
+        type="button"
+        role="separator"
+        aria-orientation="vertical"
+        className="group absolute inset-y-0 right-[-4px] z-10 flex w-2 cursor-col-resize items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+        aria-label={t("terminal.resizeSessions")}
+        title={t("terminal.resizeSessions")}
+        aria-valuemin={MIN_TERMINAL_RAIL_WIDTH}
+        aria-valuemax={MAX_TERMINAL_RAIL_WIDTH}
+        aria-valuenow={clampTerminalRailWidth(width)}
+        onPointerDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          resizeRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startWidth: clampTerminalRailWidth(width),
+          };
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          event.preventDefault();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            onWidthChange(clampTerminalRailWidth(width - 8));
+          } else if (event.key === "ArrowRight") {
+            onWidthChange(clampTerminalRailWidth(width + 8));
+          } else if (event.key === "Home") {
+            onWidthChange(MIN_TERMINAL_RAIL_WIDTH);
+          } else if (event.key === "End") {
+            onWidthChange(MAX_TERMINAL_RAIL_WIDTH);
+          } else {
+            return;
+          }
+          event.preventDefault();
+        }}
+      >
+        <GripVertical className="h-4 w-4 text-[color:var(--editor-tab-muted)] opacity-0 transition-opacity group-hover:opacity-80 group-focus-visible:opacity-80" />
+      </button>
     </aside>
   );
 }

@@ -1,7 +1,27 @@
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TerminalStatus {
+    Idle,
+    Starting,
+    Running,
+    Exited,
+    Failed,
+    Activating,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalFailure {
+    pub code: String,
+    pub stage: String,
+    pub retryable: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalStartInput {
     pub project_id: String,
+    pub request_id: String,
     pub relative_path: Option<String>,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
@@ -15,7 +35,30 @@ pub struct TerminalStartResponse {
     pub shell: String,
     pub venv_path: Option<String>,
     pub env_source: Option<String>,
-    pub status: String,
+    pub status: TerminalStatus,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalCancelStartInput {
+    pub request_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalActivateInput {
+    pub project_id: String,
+    pub session_id: String,
+    pub retry: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalActivateResponse {
+    pub session_id: String,
+    pub venv_path: String,
+    pub env_source: String,
+    pub status: TerminalStatus,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,7 +89,8 @@ pub struct TerminalReadResponse {
     pub cursor: u64,
     pub chunks: Vec<TerminalOutputChunk>,
     pub exit_code: Option<i32>,
-    pub status: String,
+    pub status: TerminalStatus,
+    pub failure: Option<TerminalFailure>,
 }
 
 #[derive(Debug, Deserialize)]

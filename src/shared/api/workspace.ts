@@ -10,6 +10,7 @@ import type {
   ResourceNode,
   SubmissionPackBuildInput,
   SubmissionPackBuildResponse,
+  TerminalActivateResponse,
   TerminalReadResponse,
   TerminalStartResponse,
   WorkspaceExportAssetResponse,
@@ -35,11 +36,28 @@ export function workspaceOpenTerminal(projectId: string, relativePath?: string):
 
 export function terminalStart(
   projectId: string,
+  requestId: string,
   relativePath?: string | null,
   size?: { cols?: number; rows?: number },
 ): Promise<TerminalStartResponse> {
   return invokeCommand<TerminalStartResponse>("terminal_start", {
-    input: { projectId, relativePath, cols: size?.cols, rows: size?.rows },
+    input: { projectId, requestId, relativePath, cols: size?.cols, rows: size?.rows },
+  });
+}
+
+export function terminalCancelStart(requestId: string): Promise<Ack> {
+  return invokeCommand<Ack>("terminal_cancel_start", {
+    input: { requestId },
+  });
+}
+
+export function terminalActivateResearchEnv(
+  projectId: string,
+  sessionId: string,
+  retry = true,
+): Promise<TerminalActivateResponse> {
+  return invokeCommand<TerminalActivateResponse>("terminal_activate_research_env", {
+    input: { projectId, sessionId, retry },
   });
 }
 

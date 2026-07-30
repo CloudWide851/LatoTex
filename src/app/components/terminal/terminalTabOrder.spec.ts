@@ -6,15 +6,18 @@ function tab(id: string): TerminalTab {
   return {
     id,
     title: id,
+    sequence: 1,
     relativePath: null,
     sessionId: null,
+    startRequestId: null,
+    autoStart: false,
     cwd: "",
     venvPath: null,
     envSource: null,
     status: "running",
     cursor: 0,
     buffer: "",
-    error: null,
+    failure: null,
   };
 }
 

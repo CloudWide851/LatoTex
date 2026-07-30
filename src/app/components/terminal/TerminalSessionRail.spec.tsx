@@ -10,15 +10,18 @@ function tab(id: string, title: string): TerminalTab {
   return {
     id,
     title,
+    sequence: id === "one" ? 1 : 2,
     relativePath: null,
     sessionId: null,
+    startRequestId: null,
+    autoStart: false,
     cwd: "",
     venvPath: null,
     envSource: null,
     status: "running",
     cursor: 0,
     buffer: "",
-    error: null,
+    failure: null,
   };
 }
 
@@ -44,6 +47,7 @@ describe("TerminalSessionRail", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     const onReorder = vi.fn();
+    const onWidthChange = vi.fn();
 
     await act(async () => {
       root.render(
@@ -54,6 +58,8 @@ describe("TerminalSessionRail", () => {
           onClose={() => undefined}
           onNew={() => undefined}
           onReorder={onReorder}
+          width={144}
+          onWidthChange={onWidthChange}
           t={(key) => String(key)}
         />,
       );
@@ -77,6 +83,40 @@ describe("TerminalSessionRail", () => {
     });
 
     expect(onReorder).toHaveBeenCalledWith("one", "two");
+
+    const resizeHandle = container.querySelector(
+      "[aria-label='terminal.resizeSessions']",
+    ) as HTMLElement;
+    await act(async () => {
+      resizeHandle.dispatchEvent(pointerEvent("pointerdown", {
+        bubbles: true,
+        button: 0,
+        pointerId: 2,
+        clientX: 144,
+        clientY: 0,
+      }));
+      window.dispatchEvent(pointerEvent("pointermove", {
+        bubbles: true,
+        pointerId: 2,
+        clientX: 184,
+        clientY: 0,
+      }));
+      window.dispatchEvent(pointerEvent("pointerup", {
+        bubbles: true,
+        pointerId: 2,
+        clientX: 184,
+        clientY: 0,
+      }));
+    });
+    expect(onWidthChange).toHaveBeenCalledWith(184);
+
+    await act(async () => {
+      resizeHandle.dispatchEvent(new KeyboardEvent("keydown", {
+        bubbles: true,
+        key: "ArrowRight",
+      }));
+    });
+    expect(onWidthChange).toHaveBeenCalledWith(152);
 
     await act(async () => {
       root.unmount();

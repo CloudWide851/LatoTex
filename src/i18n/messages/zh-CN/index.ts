@@ -22,6 +22,7 @@ import { zhCN_share } from "./share";
 import { zhCN_toast } from "./toast";
 import { zhCN_log } from "./log";
 import { zhCN_misc } from "./misc";
+import { zhCN_terminal } from "./terminal";
 
 const zhCNRaw = {
   ...zhCN_app,
@@ -47,6 +48,7 @@ const zhCNRaw = {
   ...zhCN_toast,
   ...zhCN_log,
   ...zhCN_misc,
+  ...zhCN_terminal,
 } as const;
 
 export const zhCN: Record<MessageKey, string> = zhCNRaw as Record<MessageKey, string>;

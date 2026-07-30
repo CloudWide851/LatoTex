@@ -32,6 +32,7 @@ pub mod settings;
 pub mod share;
 pub mod submission_pack;
 pub mod swarm;
+#[path = "terminal_io.rs"]
 pub mod terminal;
 pub mod toolchains;
 mod toolchains_local;

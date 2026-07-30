@@ -1,21 +1,27 @@
+import type { TerminalFailure, TerminalStatus } from "../../../shared/types/app";
+
 export type TerminalTab = {
   id: string;
   title: string;
+  sequence: number;
   relativePath: string | null;
   sessionId: string | null;
+  startRequestId: string | null;
+  autoStart: boolean;
   cwd: string;
   venvPath: string | null;
   envSource: string | null;
-  status: string;
+  status: TerminalStatus;
   cursor: number;
   buffer: string;
   history?: string[];
-  error: string | null;
+  failure: TerminalFailure | null;
 };
 
 export type ProjectTerminalState = {
   tabs: TerminalTab[];
   activeTabId: string | null;
+  railWidth: number;
 };
 
 export type TranslationFn = (key: any) => string;
