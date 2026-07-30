@@ -15,13 +15,19 @@ pub mod git;
 pub mod health;
 pub mod local_resources;
 pub mod markdown_runtime;
+mod markdown_runtime_science;
 pub mod native_runtime;
 pub mod plugins;
 mod plugins_builtin;
+mod plugins_builtin_science;
+mod plugins_builtin_science_connectors;
 mod plugins_declarative_validation;
 mod plugins_declarative_validation_more;
 mod plugins_install_validation;
 mod plugins_policy;
+#[cfg(test)]
+mod plugins_scientific_validation_tests;
+mod plugins_trusted_recipes;
 #[cfg(test)]
 mod plugins_validation_command_tests;
 #[cfg(test)]
@@ -29,6 +35,7 @@ mod plugins_validation_tests;
 pub mod projects;
 pub mod projects_translation;
 pub mod runtime_assets;
+pub mod scientific_commands;
 pub mod settings;
 pub mod share;
 pub mod submission_pack;
@@ -38,3 +45,4 @@ pub mod terminal;
 pub mod toolchains;
 mod toolchains_local;
 mod toolchains_register;
+mod toolchains_trusted_installer;

@@ -73,6 +73,7 @@ use commands::projects_translation::{
 use commands::runtime_assets::{
     runtime_asset_install, runtime_asset_list, runtime_asset_remove, runtime_asset_verify,
 };
+use commands::scientific_commands::scientific_command_execute;
 use commands::settings::{
     model_api_key_get, model_api_key_save_verified, model_api_key_set, model_test,
     model_test_draft, protocol_test, runtime_diagnostics_bundle_export,
@@ -521,6 +522,7 @@ pub fn run() {
             terminal_stop,
             markdown_run_code,
             markdown_run_code_capabilities,
+            scientific_command_execute,
             plugin_marketplace_catalog,
             plugin_installed_list,
             plugin_install,

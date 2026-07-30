@@ -109,6 +109,13 @@ export type MarkdownRunCodeCapability = {
   message: string;
 };
 
+export type ScientificCommandResponse = {
+  commandId: string;
+  status: "completed" | "failed" | "opened" | string;
+  message: string;
+  output?: MarkdownRunCodeResponse | null;
+};
+
 export type ShareSessionInfo = {
   active: boolean;
   sessionId?: string | null;

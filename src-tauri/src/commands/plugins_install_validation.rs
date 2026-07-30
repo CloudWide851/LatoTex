@@ -5,6 +5,7 @@ use crate::models::{
 use super::plugins_policy::{
     INSTALLER_TOOLCHAIN_KINDS, PROBE_TOOLCHAIN_KINDS, RUNTIME_ASSET_KINDS,
 };
+use super::plugins_trusted_recipes::{is_cran_r_installer, is_matlab_mcp_asset};
 
 fn issue(code: &str, message: &str) -> PluginValidationIssue {
     PluginValidationIssue {
@@ -43,7 +44,7 @@ pub(crate) fn validate_toolchain_installer(
         ));
         return;
     };
-    let allowed_archives = std::collections::HashSet::from(["zip"]);
+    let allowed_archives = std::collections::HashSet::from(["zip", "exe"]);
     if !validate_identifier(&installer.id, 96)
         || !INSTALLER_TOOLCHAIN_KINDS.contains(&installer.kind.as_str())
         || installer.platform != "windows-x64"
@@ -59,6 +60,12 @@ pub(crate) fn validate_toolchain_installer(
         issues.push(issue(
             "plugin.contribution.toolchain_integrity",
             "Toolchain installer downloads require HTTPS and a SHA-256 hash.",
+        ));
+    }
+    if installer.archive_format == "exe" && !is_cran_r_installer(installer) {
+        issues.push(issue(
+            "plugin.contribution.toolchain_exe_untrusted",
+            "Executable installers are restricted to a pinned built-in recipe.",
         ));
     }
     if let Some(url) = installer
@@ -135,6 +142,12 @@ pub(crate) fn validate_runtime_asset(
         issues.push(issue(
             "plugin.contribution.runtime_asset_integrity",
             "Runtime asset downloads require HTTPS and a SHA-256 hash.",
+        ));
+    }
+    if asset.archive_format == "exe" && !is_matlab_mcp_asset(asset) {
+        issues.push(issue(
+            "plugin.contribution.runtime_asset_exe_untrusted",
+            "Executable runtime assets are restricted to a pinned built-in recipe.",
         ));
     }
     if let Some(url) = asset

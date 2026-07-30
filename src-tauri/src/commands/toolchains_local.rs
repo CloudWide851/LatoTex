@@ -1,7 +1,10 @@
 use super::native_runtime::configure_hidden_process;
 use crate::models::ToolchainStatus;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+const LOCAL_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) fn first_nonempty_version_line(stdout: &[u8], stderr: &[u8]) -> Option<String> {
     [stdout, stderr].into_iter().find_map(|bytes| {
@@ -17,8 +20,24 @@ pub(crate) fn first_nonempty_version_line(stdout: &[u8], stderr: &[u8]) -> Optio
 pub(crate) fn version_of(executable: &Path, arg: Option<&str>) -> Option<String> {
     let mut command = Command::new(executable);
     configure_hidden_process(&mut command);
-    command.arg(arg.unwrap_or("--version"));
-    let output = command.output().ok()?;
+    command
+        .arg(arg.unwrap_or("--version"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = command.spawn().ok()?;
+    let started = Instant::now();
+    loop {
+        if child.try_wait().ok()?.is_some() {
+            break;
+        }
+        if started.elapsed() >= LOCAL_PROBE_TIMEOUT {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    let output = child.wait_with_output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -47,6 +66,18 @@ pub(crate) fn local_toolchain_candidates(kind: &str) -> &'static [&'static str] 
         "cpp" => &["clang++.exe", "g++.exe", "cl.exe"],
         "zig" => &["zig.exe"],
         "rust" => &["rustc.exe", "cargo.exe"],
+        "matlab" => &["matlab.exe"],
+        "octave" => &["octave-cli.exe", "octave.exe"],
+        "r" => &["Rscript.exe", "R.exe"],
+        "julia" => &["julia.exe"],
+        "quarto" => &["quarto.exe"],
+        "jupyter" => &["jupyter.exe", "jupyter-lab.exe"],
+        "zotero" => &["zotero.exe"],
+        "spss" => &["stats.exe"],
+        "sas" => &["sas.exe"],
+        "stata" => &["StataMP-64.exe", "StataSE-64.exe", "Stata-64.exe"],
+        "imagej" => &["ImageJ-win64.exe", "ImageJ.exe"],
+        "qgis" => &["qgis-bin.exe", "qgis.exe"],
         _ => &[],
     }
 }
@@ -104,7 +135,7 @@ pub(crate) fn resolve_executable_in_root(root: &Path, names: &[String]) -> Optio
 
 #[cfg(test)]
 mod tests {
-    use super::first_nonempty_version_line;
+    use super::{first_nonempty_version_line, local_toolchain_candidates};
 
     #[test]
     fn version_line_falls_back_to_stderr_for_java_style_output() {
@@ -116,5 +147,19 @@ mod tests {
     fn version_line_prefers_stdout_when_available() {
         let version = first_nonempty_version_line(b"rustc 1.91.0\nextra", b"ignored");
         assert_eq!(version.as_deref(), Some("rustc 1.91.0"));
+    }
+
+    #[test]
+    fn scientific_runtime_candidates_are_fixed_executable_names() {
+        for kind in [
+            "matlab", "octave", "r", "julia", "quarto", "jupyter", "zotero", "spss", "sas",
+            "stata", "imagej", "qgis",
+        ] {
+            let candidates = local_toolchain_candidates(kind);
+            assert!(!candidates.is_empty(), "{kind}");
+            assert!(candidates
+                .iter()
+                .all(|name| !name.contains('/') && !name.contains('\\')));
+        }
     }
 }

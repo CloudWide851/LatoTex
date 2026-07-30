@@ -4,6 +4,7 @@ use super::downloads::{
 };
 use super::plugins::read_registry;
 use super::plugins_builtin::built_in_catalog;
+use super::plugins_trusted_recipes::is_trusted_runtime_asset;
 use crate::models::{
     PluginContribution, PluginManifest, PluginRuntimeAsset, RuntimeAssetActionInput,
     RuntimeAssetInstallRecord, RuntimeAssetStatus,
@@ -215,6 +216,7 @@ fn find_asset(
                 || !asset.download_url.starts_with("https://")
                 || asset.sha256.len() != 64
                 || !asset.sha256.chars().all(|ch| ch.is_ascii_hexdigit())
+                || !is_trusted_runtime_asset(&manifest.id, &contribution.id, &asset)
             {
                 return Err("runtimeAsset.asset_unsafe".to_string());
             }

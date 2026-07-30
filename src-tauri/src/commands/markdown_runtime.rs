@@ -1,3 +1,6 @@
+use crate::commands::markdown_runtime_science::{
+    run_jupyter_staged, run_quarto, run_scientific_interpreter, scientific_capability,
+};
 use crate::commands::native_runtime::configure_hidden_process;
 use crate::commands::toolchains::{
     find_local_toolchain_executable, find_local_toolchain_executable_from_names,
@@ -21,6 +24,12 @@ const RUN_TIMEOUT: Duration = Duration::from_secs(12);
 fn normalize_language(language: &str) -> String {
     match language.trim().to_ascii_lowercase().as_str() {
         "py" | "python3" => "python".to_string(),
+        "rscript" => "r".to_string(),
+        "m" => "matlab".to_string(),
+        "octave-cli" => "octave".to_string(),
+        "jl" => "julia".to_string(),
+        "qmd" => "quarto".to_string(),
+        "ipynb" => "jupyter".to_string(),
         "c++" | "cc" | "cxx" => "cpp".to_string(),
         "c" => "c".to_string(),
         "golang" => "go".to_string(),
@@ -39,7 +48,7 @@ fn clamp_text(value: &[u8]) -> (String, bool) {
     (String::from_utf8_lossy(slice).to_string(), truncated)
 }
 
-fn command_output_with_timeout(
+pub(super) fn command_output_with_timeout(
     mut command: Command,
 ) -> Result<(Vec<u8>, Vec<u8>, Option<i32>), String> {
     configure_hidden_process(&mut command);
@@ -47,10 +56,13 @@ fn command_output_with_timeout(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("markdown.run.spawn_failed: {e}"))?;
+        .map_err(|_| "markdown.run.spawn_failed".to_string())?;
     let start = Instant::now();
     loop {
-        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|_| "markdown.run.wait_failed".to_string())?
+        {
             let mut stdout = Vec::new();
             let mut stderr = Vec::new();
             if let Some(mut stream) = child.stdout.take() {
@@ -70,7 +82,7 @@ fn command_output_with_timeout(
     }
 }
 
-fn run_python(
+pub(super) fn run_python(
     state: &AppState,
     input: &MarkdownRunCodeInput,
     run_dir: &Path,
@@ -84,7 +96,7 @@ fn run_python(
     .or_else(|| find_local_toolchain_executable("python"))
     .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let script = run_dir.join("snippet.py");
-    fs::write(&script, &input.code).map_err(|e| e.to_string())?;
+    fs::write(&script, &input.code).map_err(|_| "markdown.run.stage_failed".to_string())?;
     let mut command = Command::new(&python_path);
     command.current_dir(project_root).arg(script);
     let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
@@ -130,7 +142,7 @@ fn run_c_family(
         "snippet.cpp"
     });
     let binary = run_dir.join("snippet.exe");
-    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    fs::write(&source, &input.code).map_err(|_| "markdown.run.stage_failed".to_string())?;
     let mut compile = Command::new(&compiler);
     if compiler.file_name().and_then(|value| value.to_str()) == Some("cl.exe") {
         compile
@@ -179,7 +191,7 @@ fn run_go(
     .or_else(|| find_local_toolchain_executable_from_names(&["go.exe"]))
     .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let source = run_dir.join("snippet.go");
-    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    fs::write(&source, &input.code).map_err(|_| "markdown.run.stage_failed".to_string())?;
     let mut command = Command::new(&runner);
     command.current_dir(run_dir).arg("run").arg(&source);
     let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
@@ -199,7 +211,7 @@ fn run_rust(
         .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let source = run_dir.join("snippet.rs");
     let binary = run_dir.join("snippet.exe");
-    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    fs::write(&source, &input.code).map_err(|_| "markdown.run.stage_failed".to_string())?;
     let mut compile = Command::new(&compiler);
     compile
         .current_dir(run_dir)
@@ -233,7 +245,7 @@ fn run_zig(
     let runner = find_local_toolchain_executable_from_names(&["zig.exe"])
         .ok_or_else(|| "markdown.run.toolchain_missing".to_string())?;
     let source = run_dir.join("snippet.zig");
-    fs::write(&source, &input.code).map_err(|e| e.to_string())?;
+    fs::write(&source, &input.code).map_err(|_| "markdown.run.stage_failed".to_string())?;
     let mut command = Command::new(&runner);
     command.current_dir(run_dir).arg("run").arg(&source);
     let (stdout, stderr, exit_code) = command_output_with_timeout(command)?;
@@ -287,6 +299,9 @@ fn capability_for_language(runtime_root: &Path, language: &str) -> MarkdownRunCo
             find_managed_toolchain_executable(&["zig"], &["zig.exe", "bin/zig.exe"], runtime_root)
                 .or_else(|| find_local_toolchain_executable_from_names(&["zig.exe"]))
         }
+        "r" | "matlab" | "octave" | "julia" | "quarto" | "jupyter" => {
+            scientific_capability(runtime_root, language)
+        }
         _ => None,
     };
     MarkdownRunCodeCapability {
@@ -316,6 +331,12 @@ pub async fn markdown_run_code_capabilities(
             capability_for_language(&runtime_root, "go"),
             capability_for_language(&runtime_root, "rust"),
             capability_for_language(&runtime_root, "zig"),
+            capability_for_language(&runtime_root, "r"),
+            capability_for_language(&runtime_root, "matlab"),
+            capability_for_language(&runtime_root, "octave"),
+            capability_for_language(&runtime_root, "julia"),
+            capability_for_language(&runtime_root, "quarto"),
+            capability_for_language(&runtime_root, "jupyter"),
         ])
     })
     .await
@@ -336,53 +357,74 @@ pub async fn markdown_run_code(
             input.language
         ),
     );
+    let state_snapshot = state.inner().clone();
+    spawn_blocking(move || execute_code_blocking(&state_snapshot, input))
+        .await
+        .map_err(|_| "markdown.run.task_failed".to_string())?
+}
+
+pub(super) fn execute_code_blocking(
+    state: &AppState,
+    input: MarkdownRunCodeInput,
+) -> Result<MarkdownRunCodeResponse, String> {
     if input.code.len() > MAX_CODE_BYTES {
         return Err("markdown.run.code_too_large".to_string());
     }
-    let state_snapshot = state.inner().clone();
-    spawn_blocking(move || {
-        let language = normalize_language(&input.language);
-        if !matches!(
-            language.as_str(),
-            "python" | "c" | "cpp" | "go" | "rust" | "zig"
-        ) {
-            return Err("markdown.run.language_unsupported".to_string());
+    let language = normalize_language(&input.language);
+    if !matches!(
+        language.as_str(),
+        "python"
+            | "c"
+            | "cpp"
+            | "go"
+            | "rust"
+            | "zig"
+            | "r"
+            | "matlab"
+            | "octave"
+            | "julia"
+            | "quarto"
+            | "jupyter"
+    ) {
+        return Err("markdown.run.language_unsupported".to_string());
+    }
+    let run_dir = state
+        .runtime_root
+        .join("markdown-runs")
+        .join(Uuid::new_v4().to_string());
+    fs::create_dir_all(&run_dir).map_err(|_| "markdown.run.stage_failed".to_string())?;
+    let started = Instant::now();
+    let result = match language.as_str() {
+        "python" => run_python(state, &input, &run_dir),
+        "c" | "cpp" => run_c_family(&input, &language, &run_dir, &state.runtime_root),
+        "go" => run_go(&input, &run_dir, &state.runtime_root),
+        "rust" => run_rust(&input, &run_dir),
+        "zig" => run_zig(&input, &run_dir),
+        "r" | "matlab" | "octave" | "julia" => {
+            run_scientific_interpreter(state, &input, &language, &run_dir)
         }
-        let run_dir = state_snapshot
-            .runtime_root
-            .join("markdown-runs")
-            .join(Uuid::new_v4().to_string());
-        fs::create_dir_all(&run_dir).map_err(|e| e.to_string())?;
-        let started = Instant::now();
-        let result = match language.as_str() {
-            "python" => run_python(&state_snapshot, &input, &run_dir),
-            "c" | "cpp" => run_c_family(&input, &language, &run_dir, &state_snapshot.runtime_root),
-            "go" => run_go(&input, &run_dir, &state_snapshot.runtime_root),
-            "rust" => run_rust(&input, &run_dir),
-            "zig" => run_zig(&input, &run_dir),
-            _ => Err("markdown.run.language_unsupported".to_string()),
-        };
-        let _ = fs::remove_dir_all(&run_dir);
-        let (stdout_raw, stderr_raw, exit_code, runner) = result?;
-        let (stdout, stdout_truncated) = clamp_text(&stdout_raw);
-        let (stderr, stderr_truncated) = clamp_text(&stderr_raw);
-        Ok(MarkdownRunCodeResponse {
-            language,
-            status: if exit_code == Some(0) {
-                "completed".to_string()
-            } else {
-                "failed".to_string()
-            },
-            stdout,
-            stderr,
-            exit_code,
-            duration_ms: started.elapsed().as_millis(),
-            truncated: stdout_truncated || stderr_truncated,
-            runner,
-        })
+        "quarto" => run_quarto(state, &input, &run_dir),
+        "jupyter" => run_jupyter_staged(state, &input, &run_dir),
+        _ => Err("markdown.run.language_unsupported".to_string()),
+    };
+    let _ = fs::remove_dir_all(&run_dir);
+    let (stdout_raw, stderr_raw, exit_code, runner) = result?;
+    let (stdout, stdout_truncated) = clamp_text(&stdout_raw);
+    let (stderr, stderr_truncated) = clamp_text(&stderr_raw);
+    Ok(MarkdownRunCodeResponse {
+        language,
+        status: if exit_code == Some(0) {
+            "completed".to_string()
+        } else {
+            "failed".to_string()
+        },
+        stdout,
+        stderr,
+        exit_code,
+        duration_ms: started.elapsed().as_millis(),
+        truncated: stdout_truncated || stderr_truncated,
+        runner,
     })
-    .await
-    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]
@@ -395,6 +437,9 @@ mod tests {
         assert_eq!(normalize_language("c++"), "cpp");
         assert_eq!(normalize_language("golang"), "go");
         assert_eq!(normalize_language("rs"), "rust");
+        assert_eq!(normalize_language("rscript"), "r");
+        assert_eq!(normalize_language("m"), "matlab");
+        assert_eq!(normalize_language("jl"), "julia");
     }
 
     #[test]

@@ -9,6 +9,7 @@ export function WorkspaceLatexEditorSurface(props: {
   selectedIsDraw: boolean;
   selectedIsExcel: boolean;
   selectedCodeLanguage: CodeLanguageInfo;
+  scientificPluginIds: string[];
   showChatWorkspace: boolean;
   chatTabOpen: boolean;
   chatTabTitle: string | null;
@@ -43,6 +44,7 @@ export function WorkspaceLatexEditorSurface(props: {
         selectedIsDraw={props.selectedIsDraw}
         selectedIsExcel={props.selectedIsExcel}
         selectedCodeLanguage={props.selectedCodeLanguage}
+        scientificPluginIds={props.scientificPluginIds}
         channelPrefs={shell.channelPrefs ?? null}
         showChatWorkspace={props.showChatWorkspace}
         chatTabOpen={props.chatTabOpen}

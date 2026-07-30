@@ -3,6 +3,8 @@ const BIBTEX_LANGUAGE_ID = "bibtex";
 const CSV_LANGUAGE_ID = "csv";
 const IGNORE_LANGUAGE_ID = "ignore";
 const EDITORCONFIG_LANGUAGE_ID = "editorconfig";
+const MATLAB_LANGUAGE_ID = "matlab";
+const JULIA_LANGUAGE_ID = "julia";
 const registeredMonacoInstances = new WeakSet<object>();
 const loadedDeferredLanguages = new Set<string>();
 
@@ -138,6 +140,63 @@ const EDITORCONFIG_TOKENS = {
   },
 };
 
+const MATLAB_CONFIGURATION = {
+  comments: { lineComment: "%" },
+  brackets: [["(", ")"], ["[", "]"], ["{", "}"]],
+  autoClosingPairs: [
+    { open: "(", close: ")" },
+    { open: "[", close: "]" },
+    { open: "{", close: "}" },
+    { open: "\"", close: "\"" },
+    { open: "'", close: "'" },
+  ],
+};
+
+const MATLAB_TOKENS = {
+  tokenizer: {
+    root: [
+      [/%.*$/, "comment"],
+      [/\b(?:break|case|catch|classdef|continue|else|elseif|end|for|function|global|if|otherwise|parfor|persistent|return|spmd|switch|try|while)\b/, "keyword"],
+      [/\b(?:true|false|NaN|Inf|pi|eps)\b/, "constant"],
+      [/\b(?:readtable|writetable|fitlm|anova|ttest|ranksum|corr|mean|median|std|plot|histogram)\b(?=\s*\()/, "type.identifier"],
+      [/\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/, "number"],
+      [/"(?:[^"\\]|\\.)*"/, "string"],
+      [/'(?:[^']|'')*'/, "string"],
+      [/[+\-*\/\\^=<>~:&|]+/, "operator"],
+      [/[a-zA-Z]\w*/, "identifier"],
+    ],
+  },
+};
+
+const JULIA_CONFIGURATION = {
+  comments: { lineComment: "#", blockComment: ["#=", "=#"] },
+  brackets: [["(", ")"], ["[", "]"], ["{", "}"]],
+  autoClosingPairs: [
+    { open: "(", close: ")" },
+    { open: "[", close: "]" },
+    { open: "{", close: "}" },
+    { open: "\"", close: "\"" },
+  ],
+};
+
+const JULIA_TOKENS = {
+  tokenizer: {
+    root: [
+      [/#=.*?=#/, "comment"],
+      [/#.*$/, "comment"],
+      [/\b(?:baremodule|begin|break|catch|const|continue|do|else|elseif|end|export|finally|for|function|global|if|import|let|local|macro|module|quote|return|struct|try|using|while)\b/, "keyword"],
+      [/\b(?:true|false|nothing|missing|NaN|Inf)\b/, "constant"],
+      [/\b(?:DataFrame|CSV|Statistics|Distributions|GLM|HypothesisTests)\b/, "type.identifier"],
+      [/\d+(?:\.\d+)?(?:[eEfF][+-]?\d+)?/, "number"],
+      [/"""[\s\S]*?"""/, "string"],
+      [/"(?:[^"\\]|\\.)*"/, "string"],
+      [/:[a-zA-Z_]\w*/, "string"],
+      [/[+\-*\/\\^=<>!~:&|]+/, "operator"],
+      [/[a-zA-Z_]\w*[!?]?/, "identifier"],
+    ],
+  },
+};
+
 function ensureLanguage(monaco: any, id: string) {
   const exists = monaco.languages.getLanguages().some((language: { id: string }) => language.id === id);
   if (!exists) {
@@ -158,6 +217,8 @@ export function registerEditorCodeLanguages(monaco: any) {
   ensureLanguage(monaco, CSV_LANGUAGE_ID);
   ensureLanguage(monaco, IGNORE_LANGUAGE_ID);
   ensureLanguage(monaco, EDITORCONFIG_LANGUAGE_ID);
+  ensureLanguage(monaco, MATLAB_LANGUAGE_ID);
+  ensureLanguage(monaco, JULIA_LANGUAGE_ID);
   monaco.languages.setLanguageConfiguration(LATEX_LANGUAGE_ID, LATEX_CONFIGURATION);
   monaco.languages.setMonarchTokensProvider(LATEX_LANGUAGE_ID, LATEX_TOKENS);
   monaco.languages.setLanguageConfiguration(BIBTEX_LANGUAGE_ID, BIBTEX_CONFIGURATION);
@@ -167,6 +228,10 @@ export function registerEditorCodeLanguages(monaco: any) {
   monaco.languages.setMonarchTokensProvider(IGNORE_LANGUAGE_ID, IGNORE_TOKENS);
   monaco.languages.setLanguageConfiguration(EDITORCONFIG_LANGUAGE_ID, EDITORCONFIG_TOKENS);
   monaco.languages.setMonarchTokensProvider(EDITORCONFIG_LANGUAGE_ID, EDITORCONFIG_TOKENS);
+  monaco.languages.setLanguageConfiguration(MATLAB_LANGUAGE_ID, MATLAB_CONFIGURATION);
+  monaco.languages.setMonarchTokensProvider(MATLAB_LANGUAGE_ID, MATLAB_TOKENS);
+  monaco.languages.setLanguageConfiguration(JULIA_LANGUAGE_ID, JULIA_CONFIGURATION);
+  monaco.languages.setMonarchTokensProvider(JULIA_LANGUAGE_ID, JULIA_TOKENS);
 }
 
 export async function loadDeferredEditorLanguage(language: string | null | undefined) {

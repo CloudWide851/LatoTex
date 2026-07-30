@@ -12,13 +12,46 @@ import {
 } from "lucide-react";
 import type {
   PluginContribution,
+  PluginIntegrityPolicy,
+  PluginIntegrationLevel,
   PluginManifest,
+  PluginRuntimeSource,
+  PluginTelemetryPolicy,
   PluginValidationIssue,
   RuntimeAssetStatus,
   ToolchainStatus,
 } from "../../../shared/plugins/pluginTypes";
+import type { TranslationFn } from "../../types/i18n";
 
-export type TranslationFn = (key: any) => string;
+export type { TranslationFn } from "../../types/i18n";
+
+const INTEGRATION_LABEL_KEYS: Record<PluginIntegrationLevel, Parameters<TranslationFn>[0]> = {
+  full: "plugins.integration.full",
+  controlled: "plugins.integration.controlled",
+  connector: "plugins.integration.connector",
+};
+
+const RUNTIME_SOURCE_LABEL_KEYS: Record<PluginRuntimeSource, Parameters<TranslationFn>[0]> = {
+  bundled: "plugins.runtimeSource.bundled",
+  managed: "plugins.runtimeSource.managed",
+  local: "plugins.runtimeSource.local",
+  external: "plugins.runtimeSource.external",
+};
+
+const INTEGRITY_LABEL_KEYS: Record<PluginIntegrityPolicy, Parameters<TranslationFn>[0]> = {
+  bundled: "plugins.integrity.bundled",
+  sha256: "plugins.integrity.sha256",
+  authenticode: "plugins.integrity.authenticode",
+  "sha256+authenticode": "plugins.integrity.sha256Authenticode",
+  "local-probe": "plugins.integrity.localProbe",
+};
+
+const TELEMETRY_LABEL_KEYS: Record<PluginTelemetryPolicy, Parameters<TranslationFn>[0]> = {
+  disabled: "plugins.telemetry.disabled",
+  none: "plugins.telemetry.none",
+  "vendor-controlled": "plugins.telemetry.vendorControlled",
+  "not-applicable": "plugins.telemetry.notApplicable",
+};
 
 export const HIGH_RISK_PLUGIN_PERMISSIONS = new Set([
   "workspace.write",
@@ -48,6 +81,53 @@ export function localizedPlugin(plugin: PluginManifest, locale: string) {
   };
 }
 
+export function marketplaceEntryMatchesFilters(input: {
+  manifest: PluginManifest;
+  sourceName: string;
+  locale: string;
+  query: string;
+  scienceFilter: string;
+  integrationFilter: string;
+}): boolean {
+  const {
+    manifest,
+    sourceName,
+    locale,
+    query,
+    scienceFilter,
+    integrationFilter,
+  } = input;
+  const localized = localizedPlugin(manifest, locale);
+  const needle = query.trim().toLowerCase();
+  const searchMatches = !needle || [
+    localized.name,
+    localized.description,
+    localized.categories.join(" "),
+    localized.keywords.join(" "),
+    manifest.name,
+    manifest.displayName ?? "",
+    manifest.publisher,
+    manifest.description,
+    manifest.id,
+    sourceName,
+    manifest.categories.join(" "),
+    (manifest.keywords ?? []).join(" "),
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(needle);
+  const text = `${manifest.id} ${manifest.categories.join(" ")} ${(manifest.keywords ?? []).join(" ")}`.toLowerCase();
+  const scienceMatches = scienceFilter === "all"
+    || (scienceFilter === "research" && manifest.id.startsWith("latotex.science."))
+    || (scienceFilter === "statistics" && /statistics|statistical|spss|sas|stata|science\.r\b/.test(text))
+    || (scienceFilter === "computing" && /matlab|octave|julia|numerical|scientific computing/.test(text))
+    || (scienceFilter === "publishing" && /quarto|jupyter|zotero|publishing|notebook|references/.test(text))
+    || (scienceFilter === "connectors" && manifest.integrationLevel === "connector");
+  const integrationMatches = integrationFilter === "all"
+    || manifest.integrationLevel === integrationFilter;
+  return searchMatches && scienceMatches && integrationMatches;
+}
+
 export function localizedContributionTitle(contribution: PluginContribution, locale: string): string {
   const localized = contribution.localized?.[locale] ?? contribution.localized?.["en-US"] ?? null;
   return localized?.title || contribution.title;
@@ -63,6 +143,22 @@ export function localizedContribution(contribution: PluginContribution, locale: 
 
 export function contributionSummary(plugin: PluginManifest, locale: string): string {
   return plugin.contributions.map((item) => localizedContributionTitle(item, locale)).filter(Boolean).join(", ");
+}
+
+export function integrationLevelLabel(plugin: PluginManifest, t: TranslationFn): string | null {
+  return plugin.integrationLevel ? t(INTEGRATION_LABEL_KEYS[plugin.integrationLevel]) : null;
+}
+
+export function runtimeSourceLabel(plugin: PluginManifest, t: TranslationFn): string | null {
+  return plugin.runtimeSource ? t(RUNTIME_SOURCE_LABEL_KEYS[plugin.runtimeSource]) : null;
+}
+
+export function integrityPolicyLabel(plugin: PluginManifest, t: TranslationFn): string | null {
+  return plugin.integrity ? t(INTEGRITY_LABEL_KEYS[plugin.integrity]) : null;
+}
+
+export function telemetryPolicyLabel(plugin: PluginManifest, t: TranslationFn): string | null {
+  return plugin.telemetry ? t(TELEMETRY_LABEL_KEYS[plugin.telemetry]) : null;
 }
 
 export function describeToolchainStatus(

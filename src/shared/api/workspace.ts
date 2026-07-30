@@ -8,6 +8,7 @@ import type {
   MarkdownRunCodeResponse,
   MarkdownRunCodeCapability,
   ResourceNode,
+  ScientificCommandResponse,
   SubmissionPackBuildInput,
   SubmissionPackBuildResponse,
   TerminalActivateResponse,
@@ -96,6 +97,16 @@ export function markdownRunCode(input: {
 
 export function markdownRunCodeCapabilities(): Promise<MarkdownRunCodeCapability[]> {
   return invokeCommand<MarkdownRunCodeCapability[]>("markdown_run_code_capabilities");
+}
+
+export function executeScientificCommand(input: {
+  projectId: string;
+  pluginId: string;
+  commandId: "scientific.runFile" | "scientific.runSelection" | "scientific.openExternal";
+  relativePath: string;
+  code?: string;
+}): Promise<ScientificCommandResponse> {
+  return invokeCommand<ScientificCommandResponse>("scientific_command_execute", { input });
 }
 
 export function readFile(projectId: string, relativePath: string): Promise<FileReadResponse> {

@@ -14,8 +14,10 @@ import {
   describeRuntimeAssetStatus,
   describeToolchainStatus,
   iconFor,
+  integrationLevelLabel,
   issueTone,
   localizedPlugin,
+  runtimeSourceLabel,
   type TranslationFn,
 } from "./pluginMarketplaceUtils";
 
@@ -77,6 +79,8 @@ export function PluginMarketplaceCard(props: {
       : t("plugins.notInstalled");
   const runtimeDetail = describeRuntimeAssetStatus(runtimeAssetStatus, t);
   const toolchainDetail = describeToolchainStatus(toolchain, toolchainStatus, t);
+  const integrationLabel = integrationLevelLabel(plugin, t);
+  const sourceLabel = runtimeSourceLabel(plugin, t);
 
   return (
     <article className="app-material-inset group grid min-h-[156px] min-w-0 grid-rows-[auto_auto_1fr_auto] overflow-hidden rounded-md border transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-soft">
@@ -112,6 +116,16 @@ export function PluginMarketplaceCard(props: {
       <div className="space-y-1.5 px-2.5 pb-1.5">
         <p className="line-clamp-2 min-h-8 text-xs leading-4 text-slate-600">{localized.description}</p>
         <div className="flex flex-wrap gap-1">
+          {integrationLabel ? (
+            <span className="rounded-full border border-[color:var(--app-accent)]/30 bg-[color:var(--app-accent-soft)] px-2 py-0.5 text-[10px] text-[color:var(--app-accent-strong)]">
+              {integrationLabel}
+            </span>
+          ) : null}
+          {sourceLabel ? (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
+              {sourceLabel}
+            </span>
+          ) : null}
           {localized.categories.slice(0, 2).map((category) => (
             <span key={category} className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
               {category}

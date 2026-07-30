@@ -5,6 +5,16 @@ export type PluginMcpServerTemplate = {
   env?: Record<string, string>;
 };
 
+export type PluginIntegrationLevel = "full" | "controlled" | "connector";
+export type PluginRuntimeSource = "bundled" | "managed" | "local" | "external";
+export type PluginIntegrityPolicy =
+  | "bundled"
+  | "sha256"
+  | "authenticode"
+  | "sha256+authenticode"
+  | "local-probe";
+export type PluginTelemetryPolicy = "disabled" | "none" | "vendor-controlled" | "not-applicable";
+
 export type PluginCommandTemplate = {
   id: string;
   title: string;
@@ -273,6 +283,10 @@ export type PluginManifest = {
   homepage?: string | null;
   repository?: string | null;
   license?: string | null;
+  integrationLevel?: PluginIntegrationLevel | null;
+  runtimeSource?: PluginRuntimeSource | null;
+  integrity?: PluginIntegrityPolicy | null;
+  telemetry?: PluginTelemetryPolicy | null;
   keywords?: string[];
   engines?: { latotex?: string | null } | null;
   activationEvents?: string[];

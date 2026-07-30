@@ -24,5 +24,6 @@ export const zhCN_preview = {
   "preview.codeToolchainMissing": "未检测到本地工具链。",
   "preview.codeOutputTruncated": "输出已截断。",
   "preview.codeRunCancelled": "运行已取消。",
+  "preview.codeRunFailed": "代码无法运行，请检查运行时后重试。",
 } as const;
 

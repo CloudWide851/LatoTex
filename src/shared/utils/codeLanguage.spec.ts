@@ -49,6 +49,10 @@ describe("codeLanguage", () => {
       monaco: "ruby",
       highlight: "ruby",
     });
+    expect(resolveCodeLanguage("analysis/model.m").monaco).toBe("matlab");
+    expect(resolveCodeLanguage("analysis/model.jl").monaco).toBe("julia");
+    expect(resolveCodeLanguage("analysis/report.Rmd").monaco).toBe("markdown");
+    expect(resolveCodeLanguage("analysis/report.qmd").monaco).toBe("markdown");
     expect(resolveCodeLanguage("README.unknown")).toEqual({
       monaco: "plaintext",
       highlight: null,

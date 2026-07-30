@@ -25,9 +25,13 @@ import {
   describeToolchainStatus,
   describeValidationIssue,
   iconFor,
+  integrationLevelLabel,
+  integrityPolicyLabel,
   issueTone,
   localizedContribution,
   localizedPlugin,
+  runtimeSourceLabel,
+  telemetryPolicyLabel,
   type TranslationFn,
 } from "./pluginMarketplaceUtils";
 
@@ -195,6 +199,22 @@ export function PluginMarketplaceDetailDialog(props: {
               <DetailField label={t("plugins.detail.version")} value={plugin.version} />
               <DetailField label={t("plugins.detail.homepage")} value={plugin.homepage ?? null} />
               <DetailField label={t("plugins.detail.license")} value={plugin.license ?? null} />
+              <DetailField
+                label={t("plugins.detail.integrationLevel")}
+                value={integrationLevelLabel(plugin, t)}
+              />
+              <DetailField
+                label={t("plugins.detail.runtimeSource")}
+                value={runtimeSourceLabel(plugin, t)}
+              />
+              <DetailField
+                label={t("plugins.detail.integrityPolicy")}
+                value={integrityPolicyLabel(plugin, t)}
+              />
+              <DetailField
+                label={t("plugins.detail.telemetryPolicy")}
+                value={telemetryPolicyLabel(plugin, t)}
+              />
             </div>
           </section>
 

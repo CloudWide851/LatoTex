@@ -25,6 +25,7 @@ import {
 import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
 import { isTexPath } from "../../../shared/utils/fileKind";
 import { markFirstEditableTex } from "./editorStartupPerformance";
+import { ScientificEditorRunControl } from "./ScientificEditorRunControl";
 
 type TranslationFn = (key: any) => string;
 const MONACO_OVERFLOW_WIDGET_ROOT_ID = "latotex-monaco-overflow-root";
@@ -56,6 +57,7 @@ export function LatexWorkspaceEditorPanel(props: {
   selectedIsDraw: boolean;
   selectedIsExcel: boolean;
   selectedCodeLanguage: CodeLanguageInfo;
+  scientificPluginIds: string[];
   editorContent: string;
   fileList: string[];
   editorTabs: any[];
@@ -144,6 +146,7 @@ export function LatexWorkspaceEditorPanel(props: {
     selectedIsDraw,
     selectedIsExcel,
     selectedCodeLanguage,
+    scientificPluginIds,
     editorContent,
     fileList,
     editorTabs,
@@ -444,6 +447,18 @@ export function LatexWorkspaceEditorPanel(props: {
             />
           </div>
           <div className="editor-toolbar-action-group flex min-w-max items-center justify-end gap-2">
+            <ScientificEditorRunControl
+              projectId={activeProjectId ?? ""}
+              selectedFile={selectedFile}
+              editorContent={editorContent}
+              enabledPluginIds={scientificPluginIds}
+              getSelectedCode={() => {
+                const editor = editorInstanceRef.current;
+                const selection = editor?.getSelection?.();
+                return selection ? editor?.getModel?.()?.getValueInRange?.(selection) ?? "" : "";
+              }}
+              t={t}
+            />
             <button
               className="panel-topbar-btn editor-toolbar-btn motion-hover-rise disabled:opacity-50"
               onClick={onEditorUndo}

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 const PLUGIN_SCHEMA: &str = "latotex.plugin.v1";
 
-fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
+pub(super) fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginContribution {
     PluginContribution {
         kind: kind.to_string(),
         id: id.to_string(),
@@ -208,7 +208,7 @@ fn apply_builtin_localization(mut manifest: PluginManifest) -> PluginManifest {
     manifest
 }
 
-fn entry(manifest: PluginManifest) -> PluginCatalogEntry {
+pub(super) fn entry(manifest: PluginManifest) -> PluginCatalogEntry {
     let manifest = apply_builtin_localization(manifest);
     let validation = validate_manifest(&manifest);
     PluginCatalogEntry {
@@ -219,7 +219,12 @@ fn entry(manifest: PluginManifest) -> PluginCatalogEntry {
     }
 }
 
-fn base_manifest(id: &str, name: &str, description: &str, categories: Vec<&str>) -> PluginManifest {
+pub(super) fn base_manifest(
+    id: &str,
+    name: &str,
+    description: &str,
+    categories: Vec<&str>,
+) -> PluginManifest {
     let localized = localized_manifest(
         name,
         description,
@@ -243,6 +248,10 @@ fn base_manifest(id: &str, name: &str, description: &str, categories: Vec<&str>)
         homepage: None,
         repository: Some("https://github.com".to_string()),
         license: Some("Bundled template".to_string()),
+        integration_level: None,
+        runtime_source: None,
+        integrity: None,
+        telemetry: None,
         keywords: Vec::new(),
         engines: Some(PluginEngines {
             latotex: Some(">=0.1.0".to_string()),
@@ -300,6 +309,10 @@ fn docx_manifest() -> PluginManifest {
         homepage: None,
         repository: Some("https://github.com".to_string()),
         license: Some("Bundled".to_string()),
+        integration_level: None,
+        runtime_source: Some("bundled".to_string()),
+        integrity: Some("bundled".to_string()),
+        telemetry: Some("none".to_string()),
         keywords: vec!["docx".to_string(), "word".to_string(), "office".to_string()],
         engines: Some(PluginEngines {
             latotex: Some(">=0.1.0".to_string()),
@@ -329,7 +342,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
     let go_sha = "20d2ceafb4ed41b96b879010927b28bc92a5be57a7c1801ce365a9ca51d3224a";
     let git_url = "https://github.com/git-for-windows/git/releases/download/v2.54.0.windows.1/MinGit-2.54.0-64-bit.zip";
     let git_sha = "04f937e1f0918b17b9be6f2294cb2bb66e96e1d9832d1c298e2de088a1d0e668";
-    vec![
+    let mut catalog = vec![
         entry(runtime_asset_manifest(
             "latotex.drawio-runtime",
             "DrawIO Runtime",
@@ -529,5 +542,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
             vec!["onCommand:toolchain.verify.rust"],
             vec!["rust", "cargo", "rustc"],
         )),
-    ]
+    ];
+    catalog.extend(super::plugins_builtin_science::science_catalog());
+    catalog
 }

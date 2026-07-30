@@ -17,7 +17,11 @@ type RunState = {
   error?: string | null;
 };
 
-const RUNNABLE = new Set(["javascript", "js", "typescript", "ts", "python", "py", "c", "cpp", "c++", "cc", "cxx", "go", "golang", "rust", "rs", "zig"]);
+const RUNNABLE = new Set([
+  "javascript", "js", "typescript", "ts", "python", "py", "c", "cpp", "c++", "cc",
+  "cxx", "go", "golang", "rust", "rs", "zig", "r", "rscript", "matlab", "m",
+  "octave", "octave-cli", "julia", "jl",
+]);
 
 function languageFromClass(className?: string): string {
   return (className ?? "").split(/\s+/).find((item) => item.startsWith("language-"))?.replace("language-", "") ?? "";
@@ -164,8 +168,11 @@ export function MarkdownPreviewPane(props: {
         ...prev,
         [blockKey]: { status: output.status === "completed" ? "completed" : "failed", output },
       }));
-    } catch (error) {
-      setRuns((prev) => ({ ...prev, [blockKey]: { status: "failed", error: String(error) } }));
+    } catch {
+      setRuns((prev) => ({
+        ...prev,
+        [blockKey]: { status: "failed", error: t("preview.codeRunFailed") },
+      }));
     }
   };
 

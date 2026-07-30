@@ -5,7 +5,7 @@ use super::plugins_install_validation::{
     validate_runtime_asset, validate_toolchain_installer, validate_toolchain_probe,
 };
 use super::plugins_policy::{
-    ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, SAFE_COMMAND_REFS,
+    ALLOWED_CONTRIBUTION_KINDS, DECLARATIVE_COMMAND_KINDS, SAFE_COMMAND_REFS, SAFE_MCP_COMMANDS,
 };
 #[path = "plugins_catalog.rs"]
 mod catalog;
@@ -51,6 +51,20 @@ fn validate_identifier(value: &str, max_len: usize) -> bool {
         && trimmed
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+}
+
+fn validate_optional_manifest_value(
+    field: Option<&str>,
+    allowed: &[&str],
+    code: &str,
+    message: &str,
+    issues: &mut Vec<PluginValidationIssue>,
+) {
+    if let Some(value) = field.map(str::trim).filter(|value| !value.is_empty()) {
+        if !allowed.contains(&value) {
+            issues.push(issue(code, "error", message));
+        }
+    }
 }
 
 fn is_http_url(value: &Option<String>) -> bool {
@@ -185,6 +199,40 @@ pub(crate) fn validate_manifest(manifest: &PluginManifest) -> PluginValidationRe
             "A plugin should declare a repository.",
         ));
     }
+    validate_optional_manifest_value(
+        manifest.integration_level.as_deref(),
+        &["full", "controlled", "connector"],
+        "plugin.manifest.integration_level_invalid",
+        "Integration level must be full, controlled, or connector.",
+        &mut issues,
+    );
+    validate_optional_manifest_value(
+        manifest.runtime_source.as_deref(),
+        &["bundled", "managed", "local", "external"],
+        "plugin.manifest.runtime_source_invalid",
+        "Runtime source must be bundled, managed, local, or external.",
+        &mut issues,
+    );
+    validate_optional_manifest_value(
+        manifest.integrity.as_deref(),
+        &[
+            "bundled",
+            "sha256",
+            "authenticode",
+            "sha256+authenticode",
+            "local-probe",
+        ],
+        "plugin.manifest.integrity_invalid",
+        "Integrity policy is not supported.",
+        &mut issues,
+    );
+    validate_optional_manifest_value(
+        manifest.telemetry.as_deref(),
+        &["disabled", "none", "vendor-controlled", "not-applicable"],
+        "plugin.manifest.telemetry_invalid",
+        "Telemetry policy is not supported.",
+        &mut issues,
+    );
     let has_download = manifest
         .download_url
         .as_deref()
@@ -306,11 +354,15 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
                 ));
                 continue;
             };
-            if !validate_identifier(&server.id, 96) || server.command.trim().is_empty() {
+            if !validate_identifier(&server.id, 96)
+                || !SAFE_MCP_COMMANDS.contains(&server.command.trim())
+                || server.args.as_ref().is_some_and(|args| !args.is_empty())
+                || server.env.as_ref().is_some_and(|env| !env.is_empty())
+            {
                 issues.push(issue(
                     "plugin.contribution.mcp_invalid",
                     "error",
-                    "MCP server template requires id and command.",
+                    "MCP server templates must use an allowlisted managed runtime without manifest-supplied arguments or environment.",
                 ));
             }
         }
@@ -323,11 +375,14 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
                 ));
                 continue;
             };
-            if !validate_identifier(&command.id, 96) || command.command.trim().is_empty() {
+            if !validate_identifier(&command.id, 96)
+                || !SAFE_COMMAND_REFS.contains(&command.command.trim())
+                || command.args.as_ref().is_some_and(|args| !args.is_empty())
+            {
                 issues.push(issue(
                     "plugin.contribution.command_invalid",
                     "error",
-                    "Command contribution requires id and command.",
+                    "Command contributions must reference an allowlisted structured command without raw arguments.",
                 ));
             }
         }

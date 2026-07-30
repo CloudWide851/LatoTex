@@ -127,12 +127,20 @@ pub(crate) const SAFE_COMMAND_REFS: &[&str] = &[
     "toolchain.configure.java",
     "toolchain.configure.zig",
     "toolchain.configure.rust",
+    "scientific.runFile",
+    "scientific.runSelection",
+    "scientific.openExternal",
 ];
 
-pub(crate) const INSTALLER_TOOLCHAIN_KINDS: &[&str] =
-    &["git", "go", "python", "node", "java", "c", "cpp", "zig"];
+pub(crate) const INSTALLER_TOOLCHAIN_KINDS: &[&str] = &[
+    "git", "go", "python", "node", "java", "c", "cpp", "zig", "r",
+];
 pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] = &[
-    "git", "go", "python", "node", "java", "c", "cpp", "zig", "rust",
+    "git", "go", "python", "node", "java", "c", "cpp", "zig", "rust", "matlab", "octave", "r",
+    "julia", "quarto", "jupyter", "zotero", "spss", "sas", "stata", "imagej", "qgis",
 ];
 
-pub(crate) const RUNTIME_ASSET_KINDS: &[&str] = &["drawio", "uv", "tectonic", "cloudflared"];
+pub(crate) const RUNTIME_ASSET_KINDS: &[&str] =
+    &["drawio", "uv", "tectonic", "cloudflared", "matlab-mcp"];
+
+pub(crate) const SAFE_MCP_COMMANDS: &[&str] = &["runtimeAsset:matlab-mcp"];

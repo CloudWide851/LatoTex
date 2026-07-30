@@ -4,8 +4,10 @@ use super::downloads::{
 };
 use super::plugins::read_registry;
 use super::plugins_builtin::built_in_catalog;
+use super::plugins_trusted_recipes::is_trusted_toolchain_installer;
 use super::toolchains_local::{verify_local_toolchain, version_of};
 use super::toolchains_register::register_local_blocking;
+use super::toolchains_trusted_installer::install_trusted_executable;
 use crate::models::{
     PluginContribution, PluginManifest, PluginToolchainInstaller, PluginToolchainProbe,
     ToolchainActionInput, ToolchainInstallRecord, ToolchainLocalRegisterInput, ToolchainStatus,
@@ -159,10 +161,11 @@ fn find_installer(
                 .clone()
                 .ok_or_else(|| "toolchain.installer_missing".to_string())?;
             if installer.platform != "windows-x64"
-                || installer.archive_format != "zip"
+                || !matches!(installer.archive_format.as_str(), "zip" | "exe")
                 || !installer.download_url.starts_with("https://")
                 || installer.sha256.len() != 64
                 || !installer.sha256.chars().all(|ch| ch.is_ascii_hexdigit())
+                || !is_trusted_toolchain_installer(&manifest.id, &contribution.id, &installer)
             {
                 return Err("toolchain.installer_unsafe".to_string());
             }
@@ -279,7 +282,11 @@ fn install_blocking(
         fs::remove_dir_all(&staging).map_err(|e| e.to_string())?;
     }
     let bytes = download_archive(runtime_root, &installer)?;
-    extract_zip(&bytes, &staging)?;
+    if installer.archive_format == "exe" {
+        install_trusted_executable(&installer, &bytes, &staging)?;
+    } else {
+        extract_zip(&bytes, &staging)?;
+    }
     let executable = resolve_installed_file(
         &staging,
         &installer.executable,

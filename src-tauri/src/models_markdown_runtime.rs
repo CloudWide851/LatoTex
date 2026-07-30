@@ -28,3 +28,23 @@ pub struct MarkdownRunCodeCapability {
     pub runner: Option<String>,
     pub message: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScientificCommandInput {
+    pub project_id: String,
+    pub plugin_id: String,
+    pub command_id: String,
+    pub relative_path: String,
+    #[serde(default)]
+    pub code: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScientificCommandResponse {
+    pub command_id: String,
+    pub status: String,
+    pub message: String,
+    pub output: Option<MarkdownRunCodeResponse>,
+}

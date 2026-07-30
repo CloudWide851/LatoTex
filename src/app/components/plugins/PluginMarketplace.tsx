@@ -25,6 +25,7 @@ import type { AppSettings } from "../../../shared/types/app";
 import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
+import { Select } from "../../../components/ui/select";
 import { cn } from "../../../lib/utils";
 import { PluginMarketplaceCard } from "./PluginMarketplaceCard";
 import { PluginMarketplaceDetailDialog } from "./PluginMarketplaceDetailDialog";
@@ -32,7 +33,7 @@ import { installedPluginForMarketplaceEntry } from "./pluginMarketplaceInstallSt
 import {
   HIGH_RISK_PLUGIN_PERMISSIONS,
   localeOf,
-  localizedPlugin,
+  marketplaceEntryMatchesFilters,
   type TranslationFn,
 } from "./pluginMarketplaceUtils";
 import { notifyPluginsChanged } from "./usePluginFileInterfaces";
@@ -44,6 +45,8 @@ export function PluginMarketplace(props: {
   const { settings, t } = props;
   const locale = localeOf(settings?.uiPrefs?.language);
   const [query, setQuery] = useState("");
+  const [scienceFilter, setScienceFilter] = useState("all");
+  const [integrationFilter, setIntegrationFilter] = useState("all");
   const [catalog, setCatalog] = useState<PluginCatalogEntry[]>([]);
   const [installed, setInstalled] = useState<InstalledPlugin[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -64,31 +67,15 @@ export function PluginMarketplace(props: {
     [installed],
   );
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) {
-      return catalog;
-    }
-    return catalog.filter(({ manifest, sourceName }) => {
-      const localized = localizedPlugin(manifest, locale);
-      return [
-        localized.name,
-        localized.description,
-        localized.categories.join(" "),
-        localized.keywords.join(" "),
-        manifest.name,
-        manifest.displayName ?? "",
-        manifest.publisher,
-        manifest.description,
-        manifest.id,
-        sourceName,
-        manifest.categories.join(" "),
-        (manifest.keywords ?? []).join(" "),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle);
-    });
-  }, [catalog, locale, query]);
+    return catalog.filter(({ manifest, sourceName }) => marketplaceEntryMatchesFilters({
+      manifest,
+      sourceName,
+      locale,
+      query,
+      scienceFilter,
+      integrationFilter,
+    }));
+  }, [catalog, integrationFilter, locale, query, scienceFilter]);
   const detailEntry = useMemo(
     () => detailKey
       ? catalog.find((entry) => `${entry.sourceId}:${entry.manifest.id}` === detailKey) ?? null
@@ -113,8 +100,8 @@ export function PluginMarketplace(props: {
       setInstalled(nextInstalled);
       setToolchains(nextToolchains);
       setRuntimeAssets(nextRuntimeAssets);
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setRefreshing(false);
       setLoaded(true);
@@ -139,8 +126,8 @@ export function PluginMarketplace(props: {
       setInstalled((prev) => [next, ...prev.filter((item) => item.manifest.id !== entry.manifest.id)]);
       notifyPluginsChanged();
       setStatus(t("plugins.installDisabledDone"));
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -172,8 +159,8 @@ export function PluginMarketplace(props: {
       );
       setInstalled((prev) => prev.map((item) => (item.manifest.id === next.manifest.id ? next : item)));
       notifyPluginsChanged();
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -189,8 +176,8 @@ export function PluginMarketplace(props: {
       setInstalled((prev) => prev.filter((item) => item.manifest.id !== pluginId));
       notifyPluginsChanged();
       setStatus(t("plugins.uninstallDone"));
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -220,8 +207,8 @@ export function PluginMarketplace(props: {
           : await removeToolchain(pluginId, contributionId);
       setToolchains((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
       setStatus(t(`plugins.toolchain.${action}Done`));
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -240,8 +227,8 @@ export function PluginMarketplace(props: {
       const next = await registerLocalToolchain(pluginId, contributionId, rootDir);
       setToolchains((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
       setStatus(t("plugins.toolchain.localDone"));
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -264,8 +251,8 @@ export function PluginMarketplace(props: {
           : await removeRuntimeAsset(pluginId, contributionId);
       setRuntimeAssets((prev) => [next, ...prev.filter((item) => item.pluginId !== pluginId || item.contributionId !== contributionId)]);
       setStatus(t(`plugins.runtimeAsset.${action}Done`));
-    } catch (error) {
-      setStatus(String(error));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
     } finally {
       setBusyActionId(null);
     }
@@ -297,6 +284,32 @@ export function PluginMarketplace(props: {
             <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <Input className="app-material-inset h-9 rounded-full pl-9 text-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("plugins.search")} />
           </label>
+          <Select
+            uiSize="sm"
+            wrapperClassName="w-44"
+            value={scienceFilter}
+            onChange={(event) => setScienceFilter(event.target.value)}
+            aria-label={t("plugins.filter.category")}
+          >
+            <option value="all">{t("plugins.filter.all")}</option>
+            <option value="research">{t("plugins.filter.research")}</option>
+            <option value="statistics">{t("plugins.filter.statistics")}</option>
+            <option value="computing">{t("plugins.filter.computing")}</option>
+            <option value="publishing">{t("plugins.filter.publishing")}</option>
+            <option value="connectors">{t("plugins.filter.connectors")}</option>
+          </Select>
+          <Select
+            uiSize="sm"
+            wrapperClassName="w-44"
+            value={integrationFilter}
+            onChange={(event) => setIntegrationFilter(event.target.value)}
+            aria-label={t("plugins.filter.integration")}
+          >
+            <option value="all">{t("plugins.filter.integrationAll")}</option>
+            <option value="full">{t("plugins.integration.full")}</option>
+            <option value="controlled">{t("plugins.integration.controlled")}</option>
+            <option value="connector">{t("plugins.integration.connector")}</option>
+          </Select>
           <span className="app-material-inset rounded-full border px-3 py-1.5 text-[11px] text-slate-500">
             {t("plugins.sourcesSummary").replace("{count}", String(catalogSources.length + 1))}
           </span>

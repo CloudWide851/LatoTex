@@ -189,6 +189,12 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
 
   const previewSelectedPath = previewOverridePath || selectedFile;
   const pluginFileManifests = usePluginFileManifests(Boolean(activeProjectId));
+  const scientificPluginIds = useMemo(
+    () => pluginFileManifests
+      .map((manifest) => manifest.id)
+      .filter((id) => id.startsWith("latotex.science.")),
+    [pluginFileManifests],
+  );
   const pluginFileInterface = usePluginFileInterface(previewSelectedPath, pluginFileManifests);
   const pluginPreviewMode = textBackedPluginPreviewMode(pluginFileInterface.previewMode);
   const previewFlags = useMemo(() => {
@@ -423,6 +429,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         selectedIsDraw={selectedIsDraw}
         selectedIsExcel={selectedIsExcel}
         selectedCodeLanguage={selectedCodeLanguage}
+        scientificPluginIds={scientificPluginIds}
         showChatWorkspace={showChatWorkspace}
         chatTabOpen={chatTabOpen}
         chatTabTitle={chatTabTitle}

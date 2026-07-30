@@ -24,5 +24,6 @@ export const enUS_preview = {
   "preview.codeToolchainMissing": "Local toolchain not detected.",
   "preview.codeOutputTruncated": "Output truncated.",
   "preview.codeRunCancelled": "Run cancelled.",
+  "preview.codeRunFailed": "The code could not be run. Check the runtime and try again.",
 } as const;
 

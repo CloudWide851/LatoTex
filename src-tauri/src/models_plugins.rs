@@ -426,6 +426,14 @@ pub struct PluginManifest {
     #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]
+    pub integration_level: Option<String>,
+    #[serde(default)]
+    pub runtime_source: Option<String>,
+    #[serde(default)]
+    pub integrity: Option<String>,
+    #[serde(default)]
+    pub telemetry: Option<String>,
+    #[serde(default)]
     pub keywords: Vec<String>,
     #[serde(default)]
     pub engines: Option<PluginEngines>,
