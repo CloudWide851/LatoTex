@@ -73,6 +73,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     settingsPanel,
     gitPanel,
     analysisPanel,
+    agentPanel,
     onPageChange,
     onSelectFile,
     onSelectLibraryPath,
@@ -381,6 +382,9 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const renderMainPanel = () => {
     if (page === "analysis") {
       return <section className="h-full min-h-0">{analysisPanel}</section>;
+    }
+    if (page === "agents") {
+      return <section className="h-full min-h-0">{agentPanel}</section>;
     }
     if (page === "draw") {
       return (

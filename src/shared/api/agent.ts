@@ -9,6 +9,13 @@ import type {
   EventBatch,
 } from "../types/app";
 import { invokeCommand } from "./core";
+import type {
+  AgentBinding,
+  AgentControlCatalog,
+  AgentControlDeleteResponse,
+  AgentGraphTemplate,
+  AgentProfile,
+} from "../types/agentControl";
 
 export function executeWorkflowStart(input: {
   projectId: string;
@@ -20,6 +27,8 @@ export function executeWorkflowStart(input: {
   bypassCache?: boolean;
   teamMode?: AgentTeamMode;
   harnessProfileId?: string;
+  profileId?: string;
+  graphTemplateId?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invokeCommand<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -32,7 +41,47 @@ export function executeWorkflowStart(input: {
       bypassCache: input.bypassCache ?? false,
       teamMode: input.teamMode ?? "auto",
       harnessProfileId: input.harnessProfileId,
+      profileId: input.profileId,
+      graphTemplateId: input.graphTemplateId,
     },
+  });
+}
+
+export function getAgentControlCatalog(projectId?: string | null): Promise<AgentControlCatalog> {
+  return invokeCommand<AgentControlCatalog>("agent_control_catalog", {
+    input: { projectId: projectId ?? null },
+  });
+}
+
+export function saveAgentProfile(profile: AgentProfile): Promise<AgentProfile> {
+  return invokeCommand<AgentProfile>("agent_profile_upsert", { input: { profile } });
+}
+
+export function deleteAgentProfile(profileId: string): Promise<AgentControlDeleteResponse> {
+  return invokeCommand<AgentControlDeleteResponse>("agent_profile_delete", {
+    input: { profileId },
+  });
+}
+
+export function saveAgentBinding(binding: AgentBinding): Promise<AgentBinding> {
+  return invokeCommand<AgentBinding>("agent_binding_upsert", { input: { binding } });
+}
+
+export function deleteAgentBinding(projectId: string | null, callsite: string): Promise<Ack> {
+  return invokeCommand<Ack>("agent_binding_delete", {
+    input: { projectId, callsite },
+  });
+}
+
+export function saveAgentGraph(graphTemplate: AgentGraphTemplate): Promise<AgentGraphTemplate> {
+  return invokeCommand<AgentGraphTemplate>("agent_graph_upsert", {
+    input: { graphTemplate },
+  });
+}
+
+export function deleteAgentGraph(graphTemplateId: string): Promise<AgentControlDeleteResponse> {
+  return invokeCommand<AgentControlDeleteResponse>("agent_graph_delete", {
+    input: { graphTemplateId },
   });
 }
 

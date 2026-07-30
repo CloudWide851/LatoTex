@@ -172,6 +172,8 @@ mod agent_runs_tests {
             bypass_cache: false,
             team_mode: None,
             harness_profile_id: None,
+            profile_id: None,
+            graph_template_id: None,
         }
     }
 

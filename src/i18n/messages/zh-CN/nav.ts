@@ -2,6 +2,7 @@ export const zhCN_nav = {
   "nav.latex": "论文稿",
   "nav.chat": "对话",
   "nav.analysis": "审稿台",
+  "nav.agents": "Agent",
   "nav.draw": "图表",
   "nav.library": "论文库",
   "nav.git": "版本",

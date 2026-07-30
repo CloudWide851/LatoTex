@@ -22,6 +22,7 @@ import { enUS_toast } from "./toast";
 import { enUS_log } from "./log";
 import { enUS_misc } from "./misc";
 import { enUS_terminal } from "./terminal";
+import { enUS_agentControl } from "./agentControl";
 
 export const enUS = {
   ...enUS_app,
@@ -48,6 +49,7 @@ export const enUS = {
   ...enUS_log,
   ...enUS_misc,
   ...enUS_terminal,
+  ...enUS_agentControl,
 } as const;
 
 export type MessageKey = keyof typeof enUS;

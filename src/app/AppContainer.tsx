@@ -610,6 +610,7 @@ export function AppContainer() {
     settings: s.settings,
     locale,
     page: s.page,
+    setPage: s.setPage,
     t,
     busy: s.busy,
     activeProjectId: s.activeProjectId,
@@ -736,6 +737,7 @@ export function AppContainer() {
       settingsPanel={panels.settingsPanel}
       gitPanel={panels.gitPanel}
       analysisPanel={panels.analysisPanel}
+      agentPanel={panels.agentPanel}
       setPage={s.setPage}
       handleSelectWorkspacePath={workspaceActions.handleSelectWorkspacePath}
       setSelectedLibraryPath={s.setSelectedLibraryPath}

@@ -373,6 +373,8 @@ export function executeWorkflowStart(input: {
   bypassCache?: boolean;
   teamMode?: AgentTeamMode;
   harnessProfileId?: string;
+  profileId?: string;
+  graphTemplateId?: string;
 }): Promise<AgentExecuteStartAccepted> {
   return invoke<AgentExecuteStartAccepted>("agent_execute_start", {
     input: {
@@ -385,6 +387,8 @@ export function executeWorkflowStart(input: {
       bypassCache: input.bypassCache ?? false,
       teamMode: input.teamMode ?? "auto",
       harnessProfileId: input.harnessProfileId,
+      profileId: input.profileId,
+      graphTemplateId: input.graphTemplateId,
     },
   });
 }

@@ -84,6 +84,53 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             UNIQUE(project_id, capability, resource)
         );
 
+        CREATE TABLE IF NOT EXISTS agent_profiles (
+            profile_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            color TEXT NOT NULL,
+            model_id TEXT,
+            identity_prompt TEXT NOT NULL,
+            skill_ids_json TEXT NOT NULL,
+            mcp_server_ids_json TEXT NOT NULL,
+            tool_ids_json TEXT NOT NULL,
+            read_scopes_json TEXT NOT NULL,
+            write_scopes_json TEXT NOT NULL,
+            tool_call_budget INTEGER NOT NULL,
+            token_budget INTEGER NOT NULL,
+            timeout_ms INTEGER NOT NULL,
+            built_in INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_profile_bindings (
+            project_scope TEXT NOT NULL,
+            callsite TEXT NOT NULL,
+            profile_id TEXT NOT NULL,
+            graph_template_id TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(project_scope, callsite)
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_graph_templates (
+            graph_template_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            nodes_json TEXT NOT NULL,
+            edges_json TEXT NOT NULL,
+            max_parallelism INTEGER NOT NULL,
+            built_in INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_control_meta (
+            meta_key TEXT PRIMARY KEY,
+            meta_value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS provider_profiles (
             provider TEXT PRIMARY KEY,
             base_url TEXT NOT NULL,
@@ -143,6 +190,10 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
           ON agent_approval_requests(status, project_id, expires_at);
         CREATE INDEX IF NOT EXISTS idx_agent_permission_grants_project
           ON agent_permission_grants(project_id, capability, resource);
+        CREATE INDEX IF NOT EXISTS idx_agent_profile_bindings_profile
+          ON agent_profile_bindings(profile_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_profile_bindings_graph
+          ON agent_profile_bindings(graph_template_id);
         CREATE INDEX IF NOT EXISTS idx_translation_terms_lookup
           ON translation_terms(project_id, target_language, updated_at DESC);
         ",
@@ -164,6 +215,8 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
     prune_seeded_model_defaults(&conn)?;
     backfill_legacy_agent_bindings(&conn)?;
     seed_default_providers(&conn)?;
+    seed_agent_control_registry(&conn)?;
+    migrate_legacy_agent_teams(&conn)?;
     Ok(())
 }
 

@@ -23,6 +23,7 @@ import { zhCN_toast } from "./toast";
 import { zhCN_log } from "./log";
 import { zhCN_misc } from "./misc";
 import { zhCN_terminal } from "./terminal";
+import { zhCN_agentControl } from "./agentControl";
 
 const zhCNRaw = {
   ...zhCN_app,
@@ -49,6 +50,7 @@ const zhCNRaw = {
   ...zhCN_log,
   ...zhCN_misc,
   ...zhCN_terminal,
+  ...zhCN_agentControl,
 } as const;
 
 export const zhCN: Record<MessageKey, string> = zhCNRaw as Record<MessageKey, string>;

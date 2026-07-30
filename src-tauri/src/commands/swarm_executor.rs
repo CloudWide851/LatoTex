@@ -9,7 +9,7 @@ use super::swarm_supervisor::{
     build_context_summary, build_evaluator_prompt, build_revision_prompt, build_supervisor_plan,
     execution_mode_label, parse_supervisor_evaluation, requires_write_checkpoint,
 };
-use super::swarm_team_executor::{run_execute_pipeline_team, select_agent_team, should_use_team};
+use super::swarm_team_executor::{run_execute_pipeline_team, should_use_team};
 use super::swarm_tool_search;
 use super::swarm_workflows::{
     execution_mode_for_workflow, max_iterations_for_workflow, max_steps_for_workflow,
@@ -549,18 +549,15 @@ pub(super) fn run_execute_pipeline_async(
     workflow: WorkflowDefinition,
 ) -> Result<String, String> {
     if should_use_team(&input) {
-        if let Some(team) = select_agent_team(&db_path, &runtime_root, &input.callsite) {
-            return run_execute_pipeline_team(
-                &db_path,
-                &runtime_root,
-                &app_data_dir,
-                &run_id,
-                &cancel_flag,
-                &input,
-                &workflow,
-                team,
-            );
-        }
+        return run_execute_pipeline_team(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &run_id,
+            &cancel_flag,
+            &input,
+            &workflow,
+        );
     }
     match execution_mode_for_workflow(&workflow, &input.callsite) {
         "single" => run_execute_pipeline_single(

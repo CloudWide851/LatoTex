@@ -31,6 +31,11 @@ const LazyAnalysisWorkspace = lazy(async () => {
   return { default: module.AnalysisWorkspace };
 });
 
+const LazyAgentControlCenter = lazy(async () => {
+  const module = await import("../components/agents/AgentControlCenter");
+  return { default: module.AgentControlCenter };
+});
+
 const LazySettingsPanel = lazy(async () => {
   const module = await import("../components/SettingsPanel");
   return { default: module.SettingsPanel };
@@ -41,6 +46,7 @@ export function useAppPanelNodes(params: any) {
     settings,
     locale,
     page,
+    setPage,
     t,
     busy,
     activeProjectId,
@@ -281,6 +287,16 @@ export function useAppPanelNodes(params: any) {
     </Suspense>
   );
 
+  const agentPanel = (
+    <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
+      <LazyAgentControlCenter
+        projectId={activeProjectId}
+        models={activeModelCatalog}
+        t={t}
+      />
+    </Suspense>
+  );
+
   const recoverWorkspaceLayout = useCallback(() => {
     if (activeProjectId) {
       clearLatexWorkspaceSession(activeProjectId);
@@ -335,6 +351,7 @@ export function useAppPanelNodes(params: any) {
       modelTestActiveId={modelTestActiveId}
       modelTestById={modelTestById}
       onSettingsSectionChange={setSettingsSection}
+      onOpenAgentControl={() => setPage("agents")}
       onLocaleChange={handleLocaleChange}
       onThemeModeChange={handleThemeModeChange}
       onOpenModelModal={openModelModal}
@@ -457,6 +474,7 @@ export function useAppPanelNodes(params: any) {
     sessionLogName,
     compileErrorLine,
     analysisPanel,
+    agentPanel,
     settingsPanel,
     gitPanel,
     libraryBibLayout,

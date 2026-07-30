@@ -71,11 +71,12 @@ export const FIXED_AGENT_ROLES = [
 
 export const PAGE_ITEMS: Array<{
   id: WorkspacePage;
-  key: "nav.latex" | "nav.analysis" | "nav.draw" | "nav.library" | "nav.git" | "nav.plugins" | "nav.settings";
+  key: "nav.latex" | "nav.analysis" | "nav.agents" | "nav.draw" | "nav.library" | "nav.git" | "nav.plugins" | "nav.settings";
   icon: typeof FileCode2;
 }> = [
   { id: "latex", key: "nav.latex", icon: FileCode2 },
   { id: "analysis", key: "nav.analysis", icon: SearchCode },
+  { id: "agents", key: "nav.agents", icon: UsersRound },
   { id: "draw", key: "nav.draw", icon: PenTool },
   { id: "library", key: "nav.library", icon: Library },
   { id: "git", key: "nav.git", icon: GitBranch },

@@ -1,8 +1,10 @@
 import { enUS, type MessageKey } from "../en-US/index";
 import { esES_terminal } from "./terminal";
+import { esES_agentControl } from "./agentControl";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_terminal,
+  ...esES_agentControl,
   "settings.agentSkillsTitle": "Skills de investigación",
   "settings.agentSkillsHint": "La guía validada se carga solo en flujos relevantes de literatura y análisis de datos.",
   "settings.skillCustomDescription": "Guía personalizada desde un directorio aprobado de Skills de Codex o Agent.",

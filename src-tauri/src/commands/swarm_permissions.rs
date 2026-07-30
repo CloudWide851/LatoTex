@@ -1,4 +1,4 @@
-use crate::models::{AgentApprovalCapability, AgentExecuteRequest, AgentTeamConfig, AppSettings};
+use crate::models::{AgentApprovalCapability, AgentExecuteRequest, AgentProfile, AppSettings};
 use crate::storage;
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -119,37 +119,25 @@ fn collect_workflow_requirements(
     }
 }
 
-fn collect_team_requirements(
-    team: Option<&AgentTeamConfig>,
+fn collect_profile_requirements(
+    profile: &AgentProfile,
     requirements: &mut BTreeSet<(String, String)>,
 ) {
-    let Some(team) = team else {
-        return;
-    };
-    for role in team.roles.clone().unwrap_or_default() {
-        if role.enabled == Some(false) {
-            continue;
-        }
-        for tool in role.tool_access.unwrap_or_default() {
-            match tool.as_str() {
-                "web" => insert_requirement(requirements, "webSearch", "web"),
-                "workspace" => insert_requirement(requirements, "workspaceRead", "workspace"),
-                "python" => insert_requirement(requirements, "python", "managed"),
-                "mcp" => {
-                    let servers = role
-                        .mcp_server_ids
-                        .clone()
-                        .unwrap_or_else(|| vec!["stitch".to_string()]);
-                    for server in servers {
-                        insert_requirement(requirements, "mcp", server);
-                    }
+    for tool in &profile.tool_ids {
+        match tool.as_str() {
+            "web" => insert_requirement(requirements, "webSearch", "web"),
+            "workspace" => insert_requirement(requirements, "workspaceRead", "workspace"),
+            "python" => insert_requirement(requirements, "python", "managed"),
+            "mcp" => {
+                for server in &profile.mcp_server_ids {
+                    insert_requirement(requirements, "mcp", server.clone());
                 }
-                _ => {}
             }
+            _ => {}
         }
-        for skill in role.skill_ids.unwrap_or_default() {
-            insert_requirement(requirements, "skills", skill);
-        }
+    }
+    for skill in &profile.skill_ids {
+        insert_requirement(requirements, "skills", skill.clone());
     }
 }
 
@@ -172,12 +160,22 @@ pub(super) fn preflight_permissions(
     runtime_root: &Path,
     input: &AgentExecuteRequest,
     workflow: &WorkflowDefinition,
-    team: Option<&AgentTeamConfig>,
+    selection: &storage::AgentExecutionSelection,
 ) -> Result<PermissionPreflight, String> {
     let settings = storage::load_settings(db_path, runtime_root)?;
     let mut requirements = BTreeSet::<(String, String)>::new();
     collect_workflow_requirements(input, workflow, &mut requirements);
-    collect_team_requirements(team, &mut requirements);
+    collect_profile_requirements(&selection.profile, &mut requirements);
+    if let Some(graph) = &selection.graph_template {
+        for node in &graph.nodes {
+            let profile = node
+                .profile_id
+                .as_deref()
+                .and_then(|id| storage::get_agent_profile(db_path, id).ok().flatten())
+                .unwrap_or_else(|| selection.profile.clone());
+            collect_profile_requirements(&profile, &mut requirements);
+        }
+    }
     let mut pending = Vec::new();
     for (capability, resource) in requirements {
         if legacy_tool_disabled(&settings, &capability) {

@@ -9,6 +9,10 @@ mod smoke;
 mod state;
 mod storage;
 
+use commands::agent_control::{
+    agent_binding_delete, agent_binding_upsert, agent_control_catalog, agent_graph_delete,
+    agent_graph_upsert, agent_profile_delete, agent_profile_upsert,
+};
 use commands::agent_rebuttal_workflow::latex_rebuttal_reply_start;
 use commands::agent_workflows::{
     chat_workflow_start, completion_latex_start, git_summary_workflow_start, latex_edit_start,
@@ -436,6 +440,13 @@ pub fn run() {
             fs_operation,
             latex_compile_record,
             agent_execute_start,
+            agent_control_catalog,
+            agent_profile_upsert,
+            agent_profile_delete,
+            agent_binding_upsert,
+            agent_binding_delete,
+            agent_graph_upsert,
+            agent_graph_delete,
             agent_execute_cancel,
             agent_runs_recover,
             agent_approval_list,

@@ -2,6 +2,7 @@ export const enUS_nav = {
   "nav.latex": "Manuscript",
   "nav.chat": "Chat",
   "nav.analysis": "Review Lab",
+  "nav.agents": "Agents",
   "nav.draw": "Figures",
   "nav.library": "Papers",
   "nav.git": "Versions",

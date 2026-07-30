@@ -77,6 +77,7 @@ export type AppWorkspaceShellProps = {
   settingsPanel: React.ReactNode;
   gitPanel: React.ReactNode;
   analysisPanel: React.ReactNode;
+  agentPanel: React.ReactNode;
   shareSession: ShareSessionInfo | null;
   sharePassword: string | null;
   shareBusy: boolean;

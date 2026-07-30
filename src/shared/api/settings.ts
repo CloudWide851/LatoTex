@@ -93,7 +93,7 @@ export function updateSettings(input: {
     editorResizeRefreshDelayMs?: number;
     workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
     libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
-    sidebarPageOrder?: Array<"latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings">;
+    sidebarPageOrder?: Array<"latex" | "analysis" | "agents" | "draw" | "library" | "git" | "plugins" | "settings">;
     agentToolPrefs?: AgentToolPrefs;
     agentPermissionPrefs?: AgentPermissionPrefs;
     agentTeamPrefs?: AgentTeamPrefs;

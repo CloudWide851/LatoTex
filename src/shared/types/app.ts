@@ -2,7 +2,7 @@ import type { CodeLanguageInfo } from "../utils/codeLanguage";
 import type { PluginCatalogSource } from "../plugins/pluginTypes";
 import type { TelegramProxyMode } from "./app-extended";
 
-export type WorkspacePage = "latex" | "analysis" | "draw" | "library" | "git" | "plugins" | "settings";
+export type WorkspacePage = "latex" | "analysis" | "agents" | "draw" | "library" | "git" | "plugins" | "settings";
 
 export type EditorTab = {
   id: string;

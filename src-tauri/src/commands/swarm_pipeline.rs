@@ -13,7 +13,6 @@ use super::swarm_harness::{
     apply_harness_prompt, harness_should_use_team, resolve_harness_profile,
 };
 use super::swarm_permissions::{preflight_permissions, PermissionPreflight};
-use super::swarm_team_executor::{select_agent_team, should_use_team};
 use super::swarm_terminal_payload::{build_run_terminal_payload, build_slot_failure_payload};
 use super::swarm_workflows::{
     load_registry_for_project, resolve_workflow, validate_invocation, validate_step_tools,
@@ -56,19 +55,30 @@ fn acquire_agent_slot_from(
 fn prepare_harnessed_input(
     input: &AgentExecuteRequest,
     workflow: &WorkflowDefinition,
+    execution_profile: &crate::models::AgentProfile,
 ) -> AgentExecuteRequest {
-    let profile = resolve_harness_profile(input, workflow);
+    let harness_profile = resolve_harness_profile(input, workflow);
     let mut harnessed = input.clone();
-    harnessed.prompt = apply_harness_prompt(&profile, &input.prompt);
-    harnessed.harness_profile_id = Some(profile.id.to_string());
-    harnessed.team_mode = Some(
-        if harness_should_use_team(input, &profile) {
-            "force"
-        } else {
-            "off"
-        }
-        .to_string(),
-    );
+    let harness_prompt = apply_harness_prompt(&harness_profile, &input.prompt);
+    let use_team = harness_should_use_team(input, &harness_profile);
+    harnessed.prompt = if use_team && input.graph_template_id.is_some() {
+        harness_prompt
+    } else {
+        [
+            format!("[agent_profile]\nid={}", execution_profile.id),
+            "[identity]".to_string(),
+            execution_profile.identity_prompt.clone(),
+            format!(
+                "[permission_ceiling]\ntools={}\nwrite_scopes={}",
+                execution_profile.tool_ids.join(","),
+                execution_profile.write_scopes.join(",")
+            ),
+            harness_prompt,
+        ]
+        .join("\n")
+    };
+    harnessed.harness_profile_id = Some(harness_profile.id.to_string());
+    harnessed.team_mode = Some(if use_team { "force" } else { "off" }.to_string());
     harnessed
 }
 
@@ -307,7 +317,7 @@ fn emit_run_accepted(
 
 pub fn agent_execute_start(
     state: &AppState,
-    input: AgentExecuteRequest,
+    mut input: AgentExecuteRequest,
 ) -> Result<AgentExecuteStartAccepted, String> {
     state.log(
         "INFO",
@@ -320,18 +330,28 @@ pub fn agent_execute_start(
     let workflow = resolve_workflow(&registry, &input.workflow_id)?.clone();
     validate_invocation(&workflow, &input.callsite, &input.context_refs)?;
     validate_step_tools(&workflow)?;
-    let harnessed_input = prepare_harnessed_input(&input, &workflow);
-    let team = if should_use_team(&harnessed_input) {
-        select_agent_team(&state.db_path, &state.runtime_root, &input.callsite)
-    } else {
-        None
-    };
+    let selection = storage::resolve_agent_execution_selection(&state.db_path, &input)?;
+    input.profile_id = Some(selection.profile.id.clone());
+    input.graph_template_id = selection
+        .graph_template
+        .as_ref()
+        .map(|graph| graph.id.clone());
+    if selection.graph_template.is_none()
+        && input
+            .model_override
+            .as_deref()
+            .unwrap_or_default()
+            .is_empty()
+    {
+        input.model_override = selection.profile.model_id.clone();
+    }
+    let harnessed_input = prepare_harnessed_input(&input, &workflow, &selection.profile);
     let preflight = preflight_permissions(
         &state.db_path,
         &state.runtime_root,
         &input,
         &workflow,
-        team.as_ref(),
+        &selection,
     )?;
 
     let run_id = Uuid::new_v4().to_string();
@@ -411,7 +431,8 @@ pub(super) fn resolve_agent_approval(
             status: "denied".to_string(),
         });
     }
-    let harnessed_input = prepare_harnessed_input(&input, &workflow);
+    let selection = storage::resolve_agent_execution_selection(&state.db_path, &input)?;
+    let harnessed_input = prepare_harnessed_input(&input, &workflow, &selection.profile);
     storage::update_agent_run_status(&state.db_path, &context.approval.run_id, "accepted", None)?;
     launch_agent_worker(
         state,

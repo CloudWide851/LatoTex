@@ -2,6 +2,8 @@
 mod swarm_events;
 #[path = "swarm_executor.rs"]
 mod swarm_executor;
+#[path = "swarm_graph_executor.rs"]
+mod swarm_graph_executor;
 #[path = "swarm_harness.rs"]
 mod swarm_harness;
 #[path = "swarm_permissions.rs"]

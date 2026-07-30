@@ -44,6 +44,7 @@ type WorkspaceValueProps = Pick<
   | "settingsPanel"
   | "gitPanel"
   | "analysisPanel"
+  | "agentPanel"
   | "shareSession"
   | "sharePassword"
   | "shareBusy"

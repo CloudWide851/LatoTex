@@ -108,6 +108,7 @@ export function AppContainerView(props: AppContainerViewProps) {
     settingsPanel,
     gitPanel,
     analysisPanel,
+    agentPanel,
     setPage,
     handleSelectWorkspacePath,
     setSelectedLibraryPath,
@@ -382,6 +383,7 @@ export function AppContainerView(props: AppContainerViewProps) {
                 settingsPanel={settingsPanel}
                 gitPanel={gitPanel}
                 analysisPanel={analysisPanel}
+                agentPanel={agentPanel}
                 onPageChange={setPage}
                 shareSession={shareSession}
                 sharePassword={sharePassword}

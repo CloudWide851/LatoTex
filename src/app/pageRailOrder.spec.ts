@@ -11,6 +11,7 @@ describe("pageRailOrder", () => {
       "git",
       "latex",
       "analysis",
+      "agents",
       "draw",
       "library",
       "plugins",
@@ -26,6 +27,7 @@ describe("pageRailOrder", () => {
     expect(moveSidebarPageOrderItem(DEFAULT_PAGE_ORDER, "plugins", -1)).toEqual([
       "latex",
       "analysis",
+      "agents",
       "draw",
       "library",
       "plugins",

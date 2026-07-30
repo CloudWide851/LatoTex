@@ -424,6 +424,8 @@ pub struct AgentExecuteRequest {
     pub bypass_cache: bool,
     pub team_mode: Option<String>,
     pub harness_profile_id: Option<String>,
+    pub profile_id: Option<String>,
+    pub graph_template_id: Option<String>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -764,6 +766,7 @@ pub struct ModelTestResult {
 include!("models_library.rs");
 include!("models_git.rs");
 include!("models_agent_workflows.rs");
+include!("models_agent_control.rs");
 include!("models_native_runtime.rs");
 include!("models_resource_warmup.rs");
 include!("models_terminal.rs");

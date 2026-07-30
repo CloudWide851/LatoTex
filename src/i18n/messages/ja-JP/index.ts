@@ -1,8 +1,10 @@
 import { enUS, type MessageKey } from "../en-US/index";
 import { jaJP_terminal } from "./terminal";
+import { jaJP_agentControl } from "./agentControl";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_terminal,
+  ...jaJP_agentControl,
   "settings.agentSkillsTitle": "研究 Skills",
   "settings.agentSkillsHint": "検証済みの研究ガイダンスは、関連する文献・データ分析ワークフローでのみ読み込まれます。",
   "settings.skillCustomDescription": "承認済みの Codex または Agent Skill ディレクトリにあるカスタム研究ガイダンスです。",

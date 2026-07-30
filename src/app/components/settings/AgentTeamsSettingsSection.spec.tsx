@@ -2,11 +2,11 @@
 
 import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSettings } from "../../../shared/types/app";
 import { AgentTeamsSettingsSection } from "./AgentTeamsSettingsSection";
 
-function Harness() {
+function Harness(props: { onOpenAgentControl: () => void }) {
   const [settings, setSettings] = useState<AppSettings | null>({
     activeProjectId: null,
     modelProtocols: [],
@@ -22,6 +22,7 @@ function Harness() {
       settings={settings}
       activeModelCatalog={[]}
       setSettings={setSettings}
+      onOpenAgentControl={props.onOpenAgentControl}
       t={(key) => String(key)}
     />
   );
@@ -38,36 +39,25 @@ describe("AgentTeamsSettingsSection", () => {
     document.body.innerHTML = "";
   });
 
-  it("opens team editing in a dialog and switches to role editing inside the dialog", async () => {
+  it("routes the legacy settings entry to the Agent control center", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
 
+    const onOpenAgentControl = vi.fn();
     await act(async () => {
-      root.render(<Harness />);
+      root.render(<Harness onOpenAgentControl={onOpenAgentControl} />);
     });
 
-    const editButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("settings.agentTeamsEdit"),
+    const openButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("settings.openAgentControl"),
     );
     await act(async () => {
-      editButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    const dialog = document.body.querySelector("[role='dialog']");
-    expect(dialog).not.toBeNull();
-    expect(dialog?.textContent).toContain("settings.agentTeamsEditorTitle");
-
-    const roleButton = Array.from(dialog?.querySelectorAll("button") ?? []).find(
-      (button) => button.textContent?.includes("settings.agentTeamsOpenRole"),
-    );
-    await act(async () => {
-      roleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(document.body.querySelector("[role='dialog']")?.textContent).toContain(
-      "settings.agentTeamsRoleConfigTitle",
-    );
+    expect(onOpenAgentControl).toHaveBeenCalledTimes(1);
+    expect(document.body.querySelector("[role='dialog']")).toBeNull();
 
     await act(async () => {
       root.unmount();

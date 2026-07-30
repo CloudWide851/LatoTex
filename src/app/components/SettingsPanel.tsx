@@ -64,6 +64,7 @@ export function SettingsPanel(props: {
   modelTestActiveId: string | null;
   modelTestById: Record<string, ModelTestResult>;
   onSettingsSectionChange: (value: SettingsSection) => void;
+  onOpenAgentControl: () => void;
   onLocaleChange: (locale: Locale) => void;
   onThemeModeChange: (theme: ThemeMode, event?: { clientX: number; clientY: number }) => void;
   onOpenModelModal: (mode?: "create" | "edit" | "duplicate", model?: ModelCatalogItem | null) => void;
@@ -98,6 +99,7 @@ export function SettingsPanel(props: {
     modelTestActiveId,
     modelTestById,
     onSettingsSectionChange,
+    onOpenAgentControl,
     onLocaleChange,
     onThemeModeChange,
     onOpenModelModal,
@@ -416,6 +418,7 @@ export function SettingsPanel(props: {
             settings={localSettings}
             activeModelCatalog={activeModelCatalog}
             setSettings={setSettings}
+            onOpenAgentControl={onOpenAgentControl}
             t={t}
           />
         )}
