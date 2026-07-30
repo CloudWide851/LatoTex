@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyBundledResourceContract } from "./bundled-resource-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nsisDir = path.join(repoRoot, "src-tauri", "target", "x86_64-pc-windows-msvc", "release", "bundle", "nsis");
@@ -31,9 +32,7 @@ function run(command, args, label, options = {}) {
 function verifyReport(reportPath) {
   const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
   if (report.schema !== "latotex.tauri-smoke.v1" || report.mode !== "webview" || !report.ok) {
-    console.error("[install-smoke-win-x64] installed app smoke failed:");
-    console.error(JSON.stringify(report, null, 2));
-    process.exit(1);
+    throw new Error(`installed app smoke failed: ${JSON.stringify(report)}`);
   }
   console.log(`[install-smoke-win-x64] installed app WebView smoke passed: ${reportPath}`);
 }
@@ -52,22 +51,35 @@ if (!installer) {
 const installRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-install-smoke-app-"));
 const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-install-smoke-runtime-"));
 const reportPath = path.join(runtimeRoot, "tauri-smoke-report.json");
+const processLogPath = path.join(runtimeRoot, "install-smoke-process.log");
 const installedExe = path.join(installRoot, "LatoTex.exe");
 let passed = false;
+let child = null;
+let processLog = null;
+
+function wait(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
 
 try {
   run(installer, ["/S", `/D=${installRoot}`], `install ${path.relative(repoRoot, installer)}`);
   if (!fs.existsSync(installedExe)) {
     throw new Error(`installed exe not found: ${installedExe}`);
   }
+  const resourceVerification = verifyBundledResourceContract(path.join(installRoot, "resources"), {
+    label: "installed bundled resources",
+    verifyExecutables: true,
+  });
+  console.log(`[install-smoke-win-x64] bundled uv verified: ${resourceVerification.versions.uv}`);
 
-  const child = spawn(installedExe, [
+  processLog = fs.openSync(processLogPath, "a");
+  child = spawn(installedExe, [
     "--latotex-smoke",
     `--latotex-runtime-root=${runtimeRoot}`,
     `--latotex-smoke-report=${reportPath}`,
   ], {
     cwd: installRoot,
-    stdio: "ignore",
+    stdio: ["ignore", processLog, processLog],
     env: {
       ...process.env,
       LATOTEX_E2E_RUNTIME_ROOT: runtimeRoot,
@@ -76,9 +88,12 @@ try {
     },
   });
   console.log(`[install-smoke-win-x64] launched installed exe pid=${child.pid}`);
-  let exited = false;
-  child.once("exit", () => {
-    exited = true;
+  let exitResult = null;
+  child.once("error", (error) => {
+    exitResult = { error };
+  });
+  child.once("exit", (code, signal) => {
+    exitResult = { code, signal };
   });
 
   const started = Date.now();
@@ -87,15 +102,23 @@ try {
       verifyReport(reportPath);
       break;
     }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    if (exitResult) {
+      const detail = exitResult.error
+        ? `spawn error=${exitResult.error.message}`
+        : `code=${String(exitResult.code)} signal=${String(exitResult.signal)}`;
+      throw new Error(`installed app exited before smoke report (${detail}); process log: ${processLogPath}`);
+    }
+    await wait(500);
   }
   if (!fs.existsSync(reportPath)) {
-    if (!exited) {
+    if (!exitResult) {
       child.kill();
     }
-    throw new Error(`installed app did not write WebView smoke report within ${startupWindowMs}ms`);
+    throw new Error(
+      `installed app did not write WebView smoke report within ${startupWindowMs}ms; process log: ${processLogPath}`,
+    );
   }
-  if (!exited) {
+  if (!exitResult) {
     child.kill();
   }
 
@@ -108,8 +131,14 @@ try {
 } catch (error) {
   console.error(`[install-smoke-win-x64] ${error instanceof Error ? error.message : String(error)}`);
   console.error(`[install-smoke-win-x64] kept failed runtime root: ${runtimeRoot}`);
-  process.exit(1);
+  process.exitCode = 1;
 } finally {
+  if (child && child.exitCode === null && child.signalCode === null) {
+    child.kill();
+  }
+  if (processLog !== null) {
+    fs.closeSync(processLog);
+  }
   const uninstallExe = path.join(installRoot, "uninstall.exe");
   if (!passed && fs.existsSync(uninstallExe)) {
     spawnSync(uninstallExe, ["/S"], { stdio: "ignore", shell: false });

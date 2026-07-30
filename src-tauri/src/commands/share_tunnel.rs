@@ -11,8 +11,25 @@ use std::time::Instant;
 const SHARE_TUNNEL_READY_TIMEOUT_SECS: u64 = 45;
 const SHARE_TUNNEL_RESTART_MAX: u32 = 4;
 const CLOUDFLARED_TARGET_NAME: &str = "cloudflared.exe";
+const CLOUDFLARED_BUNDLED_NAME: &str = "cloudflared-windows-amd64.exe";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[cfg(target_os = "windows")]
+fn bundled_cloudflared_candidates() -> Vec<PathBuf> {
+    let relative = Path::new("tools").join(CLOUDFLARED_BUNDLED_NAME);
+    let mut candidates = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join(&relative)];
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(exe_dir) = current_exe.parent() {
+            candidates.push(exe_dir.join("resources").join(&relative));
+            candidates.push(exe_dir.join(&relative));
+            candidates.push(exe_dir.join("../resources").join(&relative));
+        }
+    }
+    candidates
+}
 
 #[cfg(target_os = "windows")]
 fn cloudflared_runtime_binary(runtime_root: &Path) -> PathBuf {
@@ -21,6 +38,12 @@ fn cloudflared_runtime_binary(runtime_root: &Path) -> PathBuf {
 
 #[cfg(target_os = "windows")]
 fn ensure_cloudflared_binary(runtime_root: &Path) -> Result<PathBuf, String> {
+    if let Some(binary) = bundled_cloudflared_candidates()
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+    {
+        return Ok(binary);
+    }
     if let Some(binary) = find_runtime_asset_entry(runtime_root, "cloudflared") {
         return Ok(binary);
     }
@@ -228,4 +251,25 @@ pub(super) fn start_cloud_tunnel(_runtime_root: &Path, runtime: Arc<Mutex<ShareR
         &runtime,
         "cloud tunnel is only implemented for Windows runtime",
     );
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::{bundled_cloudflared_candidates, ensure_cloudflared_binary};
+
+    #[test]
+    fn packaged_cloudflared_is_the_first_runtime_candidate() {
+        let candidates = bundled_cloudflared_candidates();
+        assert!(candidates.first().is_some_and(|path| {
+            path.ends_with("resources/tools/cloudflared-windows-amd64.exe")
+        }));
+        if candidates.first().is_some_and(|path| path.is_file()) {
+            let runtime_root =
+                std::env::temp_dir().join(format!("latotex-cloudflared-{}", uuid::Uuid::new_v4()));
+            assert_eq!(
+                ensure_cloudflared_binary(&runtime_root).unwrap(),
+                candidates[0]
+            );
+        }
+    }
 }

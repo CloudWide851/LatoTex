@@ -1,7 +1,10 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+// @ts-expect-error bundled-resource-contract.mjs is shared with release scripts.
+import { REQUIRED_BUNDLED_RESOURCE_DIRECTORIES, REQUIRED_BUNDLED_RESOURCE_FILES, verifyBundledResourceContract } from "../scripts/bundled-resource-contract.mjs";
 // @ts-expect-error release-security-scan.mjs is also the executable CI script.
 import { scanRepository as scanRepositoryUntyped } from "../scripts/release-security-scan.mjs";
 
@@ -90,6 +93,31 @@ function openAiKeyShapedTestValue() {
   return ["sk", "a".repeat(48)].join("-");
 }
 
+function createBundledResourceFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-bundled-resources-"));
+  tempRoots.push(root);
+  for (const relativePath of REQUIRED_BUNDLED_RESOURCE_FILES) {
+    writeFile(root, relativePath, "fixture");
+  }
+  for (const relativePath of REQUIRED_BUNDLED_RESOURCE_DIRECTORIES) {
+    fs.mkdirSync(path.join(root, relativePath), { recursive: true });
+  }
+
+  const cloudflaredContent = "cloudflared-fixture";
+  writeFile(root, "tools/cloudflared-windows-amd64.exe", cloudflaredContent);
+  writeFile(root, "tools/cloudflared-version.json", JSON.stringify({
+    version: "fixture",
+    file: "cloudflared-windows-amd64.exe",
+    size: Buffer.byteLength(cloudflaredContent),
+    sha256: crypto.createHash("sha256").update(cloudflaredContent).digest("hex"),
+  }));
+  writeFile(root, "tools/uv/uv-version.json", JSON.stringify({
+    relativePath: "uv/windows-x64/uv.exe",
+    version: "uv fixture",
+  }));
+  return root;
+}
+
 describe("release-security-scan", () => {
   afterEach(() => {
     while (tempRoots.length > 0) {
@@ -140,5 +168,45 @@ describe("release-security-scan", () => {
       path: "src-tauri/src/secure.rs",
       line: 1,
     });
+  });
+
+  it("keeps the installed-app smoke poll non-blocking and diagnostic", () => {
+    const script = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/install-smoke-win-x64.mjs"),
+      "utf8",
+    );
+
+    expect(script).not.toContain("Atomics.wait");
+    expect(script).toContain("await wait(500)");
+    expect(script).toContain("install-smoke-process.log");
+    expect(script).toContain("installed app exited before smoke report");
+  });
+
+  it("keeps core research and native tool resources inside the NSIS bundle contract", () => {
+    const tauriConfig = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), "src-tauri/tauri.conf.json"), "utf8"),
+    ) as { bundle?: { resources?: string[] } };
+    const installSmoke = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/install-smoke-win-x64.mjs"),
+      "utf8",
+    );
+
+    expect(tauriConfig.bundle?.resources).toEqual(expect.arrayContaining([
+      "resources/core",
+      "resources/tools",
+      "resources/python/analysis_runtime",
+    ]));
+    expect(installSmoke).toContain("verifyBundledResourceContract");
+    expect(installSmoke).toContain("bundled uv verified");
+  });
+
+  it("validates the reusable bundled resource contract and reports missing assets", () => {
+    const resourcesRoot = createBundledResourceFixture();
+    expect(() => verifyBundledResourceContract(resourcesRoot)).not.toThrow();
+
+    fs.rmSync(path.join(resourcesRoot, "core/skills/catalog.json"));
+    expect(() => verifyBundledResourceContract(resourcesRoot)).toThrow(
+      "bundled resources incomplete: core/skills/catalog.json",
+    );
   });
 });

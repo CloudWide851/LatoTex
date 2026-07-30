@@ -28,8 +28,8 @@
     "active": true,
     "targets": "nsis",
     "resources": [
-      "resources/core/share-page",
-      "resources/core/share-vendor",
+      "resources/core",
+      "resources/tools",
       "resources/python/analysis_runtime"
     ],
     "windows": {

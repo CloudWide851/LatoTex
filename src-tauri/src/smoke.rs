@@ -22,6 +22,10 @@ pub fn runtime_root() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+pub fn webview_data_path(runtime_root: &Path) -> PathBuf {
+    runtime_root.join("webview-data")
+}
+
 pub fn report_path(default_root: Option<&Path>) -> Option<PathBuf> {
     arg_value("--latotex-smoke-report")
         .or_else(|| std::env::var("LATOTEX_SMOKE_REPORT_PATH").ok())
@@ -96,4 +100,18 @@ pub fn write_boot_marker() {
         let _ = std::fs::write(path, serialized);
     }
     write_progress("rust.boot", "ok", None);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::webview_data_path;
+    use std::path::Path;
+
+    #[test]
+    fn smoke_webview_data_stays_inside_runtime_root() {
+        assert_eq!(
+            webview_data_path(Path::new(r"C:\Temp\latotex-smoke")),
+            Path::new(r"C:\Temp\latotex-smoke\webview-data")
+        );
+    }
 }

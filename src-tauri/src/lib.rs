@@ -238,6 +238,20 @@ fn show_main_window(app: &AppHandle) {
 
 fn create_smoke_main_window(app: &AppHandle) {
     smoke::write_progress("window.create.start", "ok", None);
+    let Some(state) = app.try_state::<state::AppState>() else {
+        smoke::write_progress("window.data_directory.error", "error", None);
+        return;
+    };
+    let data_directory = smoke::webview_data_path(&state.runtime_root);
+    drop(state);
+    if let Err(error) = std::fs::create_dir_all(&data_directory) {
+        smoke::write_progress(
+            "window.data_directory.error",
+            "error",
+            Some(serde_json::json!({ "message": error.to_string() })),
+        );
+        return;
+    }
     let entry = smoke::scenario()
         .filter(|scenario| {
             scenario
@@ -248,6 +262,7 @@ fn create_smoke_main_window(app: &AppHandle) {
         .unwrap_or_else(|| "index.html".to_string());
     match WebviewWindowBuilder::new(app, "main", WebviewUrl::App(entry.into()))
         .title("LatoTex")
+        .data_directory(data_directory)
         .inner_size(1200.0, 760.0)
         .resizable(true)
         .decorations(false)

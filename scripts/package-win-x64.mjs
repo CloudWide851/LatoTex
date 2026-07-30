@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyBundledResourceContract } from "./bundled-resource-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseDir = path.join(repoRoot, "src-tauri", "target", "x86_64-pc-windows-msvc", "release");
@@ -82,6 +83,10 @@ if (process.platform !== "win32") {
   console.log("[package-win-x64] skipped: Windows x64 packaging must run on Windows.");
   process.exit(0);
 }
+
+verifyBundledResourceContract(path.join(repoRoot, "src-tauri", "resources"), {
+  label: "source bundled resources",
+});
 
 fs.mkdirSync(reportDir, { recursive: true });
 const startedAtMs = Date.now() - 1000;
