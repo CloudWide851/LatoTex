@@ -41,6 +41,8 @@ export const enUS_library = {
   "library.viewer.compareUnavailable": "Translated PDF is not ready yet.",
   "library.viewer.translationReady": "Translation ready",
   "library.viewer.syncScroll": "Sync scroll",
+  "library.viewer.enableSyncScroll": "Enable compare scroll sync",
+  "library.viewer.disableSyncScroll": "Disable compare scroll sync",
   "library.viewer.translating": "Translating...",
   "library.viewer.translateProgress": "Progress",
   "library.viewer.translateTimeout": "Translation timed out. Please retry.",

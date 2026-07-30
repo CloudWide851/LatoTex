@@ -42,6 +42,7 @@ export type LibraryPdfScrollViewerProps = {
   onZoomChange?: (next: number) => void;
   initialScrollAnchor?: PdfScrollAnchor | null;
   onScrollAnchorChange?: (anchor: PdfScrollAnchor) => void;
+  onUserScrollAnchorChange?: (anchor: PdfScrollAnchor) => void;
   initialScrollRatio?: number;
   onScrollRatioChange?: (ratio: number) => void;
   enableLens?: boolean;

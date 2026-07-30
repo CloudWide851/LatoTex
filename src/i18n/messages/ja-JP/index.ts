@@ -59,6 +59,8 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "nav.plugins": "ツール",
   "nav.settings": "設定",
   "library.viewer.remotePdfHttpBlocked": "この PDF は暗号化されていない HTTP 配信元を使用しています。再試行前に配信元を確認してください。",
+  "library.viewer.enableSyncScroll": "対照スクロール同期を有効にする",
+  "library.viewer.disableSyncScroll": "対照スクロール同期を無効にする",
   "library.viewer.remotePdfHttpConfirm": "この PDF を暗号化されていない HTTP でダウンロードします。この文書に限り一度だけ許可しますか？",
   "workspace.agentTitle": "研究アシスタントのプロンプト",
   "workspace.agentPlaceholder": "原稿編集、引用確認、コンパイル修復、論文に基づく書き換えを依頼...",

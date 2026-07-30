@@ -12,6 +12,7 @@ vi.mock("./LibraryPdfScrollViewer", () => ({
     pdfUrl: string;
     strokes?: Array<unknown>;
     textBoxes?: Array<unknown>;
+    syncGroupRef?: unknown;
   }) => (
     <div
       data-testid={`viewer-${props.syncId ?? "viewer"}`}
@@ -19,6 +20,7 @@ vi.mock("./LibraryPdfScrollViewer", () => ({
       data-pdf-url={props.pdfUrl}
       data-strokes={String(props.strokes?.length ?? 0)}
       data-text-boxes={String(props.textBoxes?.length ?? 0)}
+      data-sync-enabled={String(Boolean(props.syncGroupRef))}
     />
   ),
 }));
@@ -27,7 +29,7 @@ vi.mock("./LibraryCitationMetaPanel", () => ({
   LibraryCitationMetaPanel: () => <div data-testid="meta-content">meta</div>,
 }));
 
-function CompareHarness() {
+function CompareHarness(props: { syncEnabled?: boolean } = {}) {
   const [sourceZoom, setSourceZoom] = useState(1);
   const [translatedZoom, setTranslatedZoom] = useState(1);
 
@@ -94,6 +96,7 @@ function CompareHarness() {
       setCompareTranslatedScrollAnchor={() => undefined}
       compareTranslatedScrollRatio={0}
       setCompareTranslatedScrollRatio={() => undefined}
+      compareSyncEnabled={props.syncEnabled ?? true}
       bibScrollRatio={0}
       setBibScrollRatio={() => undefined}
       metaScrollRatio={0}
@@ -162,6 +165,28 @@ describe("LibraryViewerContentPanel", () => {
     await act(async () => {
       root.unmount();
     });
+    container.remove();
+  });
+
+  it("disconnects both compare viewers from the shared group when sync is disabled", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<CompareHarness syncEnabled={false} />);
+    });
+
+    expect(
+      container.querySelector("[data-testid='viewer-source']")
+        ?.getAttribute("data-sync-enabled"),
+    ).toBe("false");
+    expect(
+      container.querySelector("[data-testid='viewer-translated']")
+        ?.getAttribute("data-sync-enabled"),
+    ).toBe("false");
+
+    await act(async () => root.unmount());
     container.remove();
   });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { PdfScrollAnchor } from "./libraryPdfScrollState";
-import type { LibraryViewerSession } from "./libraryViewerSessionStore";
+import type { LibraryComparePane, LibraryViewerSession } from "./libraryViewerSessionStore";
 
 const COMPARE_SCROLL_PERSIST_DELAY_MS = 220;
 
@@ -22,6 +22,7 @@ export function useLibraryCompareScrollDraft(params: {
   const sourceRatioRef = useRef(session.compareSourceScrollRatio);
   const translatedAnchorRef = useRef(session.compareTranslatedScrollAnchor);
   const translatedRatioRef = useRef(session.compareTranslatedScrollRatio);
+  const leaderRef = useRef<LibraryComparePane>(session.compareSyncLeader);
 
   const flushPending = useCallback(() => {
     if (persistTimerRef.current !== null && typeof window !== "undefined") {
@@ -34,6 +35,7 @@ export function useLibraryCompareScrollDraft(params: {
       compareSourceScrollRatio: sourceRatioRef.current,
       compareTranslatedScrollAnchor: translatedAnchorRef.current,
       compareTranslatedScrollRatio: translatedRatioRef.current,
+      compareSyncLeader: leaderRef.current,
     }));
   }, [setSession]);
 
@@ -56,11 +58,13 @@ export function useLibraryCompareScrollDraft(params: {
     sourceRatioRef.current = session.compareSourceScrollRatio;
     translatedAnchorRef.current = session.compareTranslatedScrollAnchor;
     translatedRatioRef.current = session.compareTranslatedScrollRatio;
+    leaderRef.current = session.compareSyncLeader;
   }, [
     session.compareSourceScrollAnchor,
     session.compareSourceScrollRatio,
     session.compareTranslatedScrollAnchor,
     session.compareTranslatedScrollRatio,
+    session.compareSyncLeader,
   ]);
 
   useEffect(() => () => {
@@ -89,10 +93,28 @@ export function useLibraryCompareScrollDraft(params: {
     schedulePersist();
   }, [schedulePersist]);
 
+  const markComparePaneActive = useCallback((pane: LibraryComparePane) => {
+    if (leaderRef.current === pane) {
+      return;
+    }
+    leaderRef.current = pane;
+    schedulePersist();
+  }, [schedulePersist]);
+
+  const getCompareScrollDraft = useCallback(() => ({
+    compareSourceScrollAnchor: sourceAnchorRef.current,
+    compareSourceScrollRatio: sourceRatioRef.current,
+    compareTranslatedScrollAnchor: translatedAnchorRef.current,
+    compareTranslatedScrollRatio: translatedRatioRef.current,
+    compareSyncLeader: leaderRef.current,
+  }), []);
+
   return {
     setCompareSourceScrollAnchor,
     setCompareSourceScrollRatio,
     setCompareTranslatedScrollAnchor,
     setCompareTranslatedScrollRatio,
+    markComparePaneActive,
+    getCompareScrollDraft,
   };
 }

@@ -139,6 +139,10 @@ type LibraryViewerContentPanelProps = {
   setCompareTranslatedScrollAnchor: (next: PdfScrollAnchor) => void;
   compareTranslatedScrollRatio: number;
   setCompareTranslatedScrollRatio: (next: number) => void;
+  compareSyncEnabled?: boolean;
+  compareSyncGroupRef?: MutableRefObject<LibraryPdfScrollSyncGroup | null>;
+  onCompareSourceActive?: () => void;
+  onCompareTranslatedActive?: () => void;
   bibScrollRatio: number;
   setBibScrollRatio: (next: number) => void;
   metaScrollRatio: number;
@@ -230,6 +234,10 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     setCompareTranslatedScrollAnchor,
     compareTranslatedScrollRatio,
     setCompareTranslatedScrollRatio,
+    compareSyncEnabled = true,
+    compareSyncGroupRef: controlledCompareSyncGroupRef,
+    onCompareSourceActive,
+    onCompareTranslatedActive,
     bibScrollRatio,
     setBibScrollRatio,
     metaScrollRatio,
@@ -251,7 +259,8 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
     t,
   } = props;
 
-  const compareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
+  const fallbackCompareSyncGroupRef = useRef<LibraryPdfScrollSyncGroup | null>(null);
+  const compareSyncGroupRef = controlledCompareSyncGroupRef ?? fallbackCompareSyncGroupRef;
   const bibContainerRef = useRef<HTMLElement | null>(null);
   const metaContainerRef = useRef<HTMLElement | null>(null);
   const normalizedBibLayout = normalizeLibraryBibLayout(bibLayout);
@@ -416,12 +425,13 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 onPageCountChange={setPageCount}
                 readOnly
                 syncId="source"
-                syncGroupRef={compareSyncGroupRef}
+                syncGroupRef={compareSyncEnabled ? compareSyncGroupRef : undefined}
                 containerClassName={compareViewerContainerClassName}
                 documentClassName={compareViewerDocumentClassName}
                 onZoomChange={setCompareSourceZoom}
                 initialScrollAnchor={compareSourceScrollAnchor}
                 onScrollAnchorChange={setCompareSourceScrollAnchor}
+                onUserScrollAnchorChange={onCompareSourceActive}
                 initialScrollRatio={compareSourceScrollRatio}
                 onScrollRatioChange={setCompareSourceScrollRatio}
                 enableLens={false}
@@ -455,12 +465,13 @@ export function LibraryViewerContentPanel(props: LibraryViewerContentPanelProps)
                 onPageCountChange={() => undefined}
                 readOnly
                 syncId="translated"
-                syncGroupRef={compareSyncGroupRef}
+                syncGroupRef={compareSyncEnabled ? compareSyncGroupRef : undefined}
                 containerClassName={compareViewerContainerClassName}
                 documentClassName={compareViewerDocumentClassName}
                 onZoomChange={setCompareTranslatedZoom}
                 initialScrollAnchor={compareTranslatedScrollAnchor}
                 onScrollAnchorChange={setCompareTranslatedScrollAnchor}
+                onUserScrollAnchorChange={onCompareTranslatedActive}
                 initialScrollRatio={compareTranslatedScrollRatio}
                 onScrollRatioChange={setCompareTranslatedScrollRatio}
                 enableLens={false}

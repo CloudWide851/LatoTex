@@ -5,7 +5,9 @@ import {
   FileSearch,
   FileText,
   Languages,
+  Link,
   RotateCcw,
+  Unlink,
 } from "lucide-react";
 import { filenameFromPath } from "./viewerUtils";
 
@@ -27,6 +29,8 @@ export function LibraryDocumentToolbar(props: {
   onAnalyzePaper: () => void;
   onCompareAction: () => void;
   onRetranslate: () => void;
+  compareSyncEnabled: boolean;
+  onCompareSyncEnabledChange: (enabled: boolean) => void;
   onOpenLink: () => void;
   onCopyLink: () => void;
   t: TranslationFn;
@@ -46,6 +50,8 @@ export function LibraryDocumentToolbar(props: {
     onAnalyzePaper,
     onCompareAction,
     onRetranslate,
+    compareSyncEnabled,
+    onCompareSyncEnabledChange,
     onOpenLink,
     onCopyLink,
     t,
@@ -124,6 +130,23 @@ export function LibraryDocumentToolbar(props: {
         >
           <RotateCcw className={`h-3.5 w-3.5 ${translationBusy ? "motion-rotate-soft" : ""}`} />
         </button>
+        {viewMode === "compare" ? (
+          <button
+            className={`${actionBtnClass} ${compareSyncEnabled ? "border-primary-300 bg-primary-50 text-primary-900" : ""}`}
+            onClick={() => onCompareSyncEnabledChange(!compareSyncEnabled)}
+            aria-pressed={compareSyncEnabled}
+            aria-label={t(compareSyncEnabled
+              ? "library.viewer.disableSyncScroll"
+              : "library.viewer.enableSyncScroll")}
+            title={t(compareSyncEnabled
+              ? "library.viewer.disableSyncScroll"
+              : "library.viewer.enableSyncScroll")}
+          >
+            {compareSyncEnabled
+              ? <Link className="h-3.5 w-3.5" />
+              : <Unlink className="h-3.5 w-3.5" />}
+          </button>
+        ) : null}
         {viewMode === "pdf" ? (
           <>
             <button

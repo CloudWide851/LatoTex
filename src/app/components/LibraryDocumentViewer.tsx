@@ -19,7 +19,7 @@ import { useLibraryPaperBrief } from "./library/useLibraryPaperBrief";
 import { useLibraryPdfObjectUrls } from "./library/useLibraryPdfObjectUrls";
 import { useLibraryPdfShortcuts } from "./library/useLibraryPdfShortcuts";
 import { useLibraryPdfViewController } from "./library/useLibraryPdfViewController";
-import { useLibraryCompareScrollDraft } from "./library/useLibraryCompareScrollDraft";
+import { useLibraryCompareSync } from "./library/useLibraryCompareSync";
 import { useLibraryTranslationPanel } from "./library/useLibraryTranslationPanel";
 import { useLibraryTranslationDriftRefresh } from "./library/useLibraryTranslationDriftRefresh";
 import { useLibraryViewerSession } from "./library/useLibraryViewerSession";
@@ -28,7 +28,6 @@ import { LibraryViewerContentPanel } from "./library/LibraryViewerContentPanel";
 type TranslationFn = (key: any) => string;
 type ToolMode = "select" | "highlight" | "eraser" | "textbox";
 type ViewMode = "bib" | "pdf" | "compare";
-
 export function LibraryDocumentViewer(props: {
   projectId: string | null;
   selectedPath: string | null;
@@ -85,7 +84,7 @@ export function LibraryDocumentViewer(props: {
   const currentPage = session.currentPage;
   const pdfZoom = session.pdfZoom;
   const viewMode = session.viewMode;
-  const { setCompareSourceScrollAnchor, setCompareSourceScrollRatio, setCompareTranslatedScrollAnchor, setCompareTranslatedScrollRatio } = useLibraryCompareScrollDraft({
+  const compareSync = useLibraryCompareSync({
     projectId,
     selectedPath,
     session,
@@ -169,7 +168,6 @@ export function LibraryDocumentViewer(props: {
     translationModelId,
     t,
   });
-
   const activeLink = useMemo(() => resolvedLink ?? citation?.urls?.[0] ?? null, [citation?.urls, resolvedLink]);
   const annotationPath = useMemo(() => (selectedPath ? toLibraryAnnotationPath(selectedPath) : null), [selectedPath]);
   const pageStrokeCount = useMemo(() => annotationStrokes.filter((item) => item.page === currentPage).length, [annotationStrokes, currentPage]);
@@ -198,12 +196,10 @@ export function LibraryDocumentViewer(props: {
     ensurePdfPreviewLoaded,
     resetTranslationState,
   });
-
   const applyViewMode = useCallback((nextMode: ViewMode) => {
     setSession({ viewMode: nextMode });
     onPersistViewMode?.(nextMode);
   }, [onPersistViewMode, setSession]);
-
   useEffect(() => {
     setPageInput(String(currentPage));
   }, [currentPage]);
@@ -471,6 +467,8 @@ export function LibraryDocumentViewer(props: {
         onAnalyzePaper={() => onAnalyzePaper(selectedPath)}
         onCompareAction={requestCompareOpen}
         onRetranslate={handleRetranslate}
+        compareSyncEnabled={compareSync.compareSyncEnabled}
+        onCompareSyncEnabledChange={compareSync.setCompareSyncEnabled}
         onOpenLink={() => void handleOpenLink()}
         onCopyLink={() => void handleCopyLink()}
         t={t}
@@ -563,13 +561,17 @@ export function LibraryDocumentViewer(props: {
           pdfScrollRatio={session.pdfScrollRatio}
           setPdfScrollRatio={(next) => setSession({ pdfScrollRatio: next })}
           compareSourceScrollAnchor={session.compareSourceScrollAnchor}
-          setCompareSourceScrollAnchor={setCompareSourceScrollAnchor}
+          setCompareSourceScrollAnchor={compareSync.setCompareSourceScrollAnchor}
           compareSourceScrollRatio={session.compareSourceScrollRatio}
-          setCompareSourceScrollRatio={setCompareSourceScrollRatio}
+          setCompareSourceScrollRatio={compareSync.setCompareSourceScrollRatio}
           compareTranslatedScrollAnchor={session.compareTranslatedScrollAnchor}
-          setCompareTranslatedScrollAnchor={setCompareTranslatedScrollAnchor}
+          setCompareTranslatedScrollAnchor={compareSync.setCompareTranslatedScrollAnchor}
           compareTranslatedScrollRatio={session.compareTranslatedScrollRatio}
-          setCompareTranslatedScrollRatio={setCompareTranslatedScrollRatio}
+          setCompareTranslatedScrollRatio={compareSync.setCompareTranslatedScrollRatio}
+          compareSyncEnabled={compareSync.compareSyncEnabled}
+          compareSyncGroupRef={compareSync.compareSyncGroupRef}
+          onCompareSourceActive={() => compareSync.markComparePaneActive("source")}
+          onCompareTranslatedActive={() => compareSync.markComparePaneActive("translated")}
           bibScrollRatio={session.bibScrollRatio}
           setBibScrollRatio={(next) => setSession({ bibScrollRatio: next })}
           metaScrollRatio={session.metaScrollRatio}

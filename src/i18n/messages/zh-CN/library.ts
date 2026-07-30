@@ -41,6 +41,8 @@ export const zhCN_library = {
   "library.viewer.compareUnavailable": "翻译 PDF 尚未就绪。",
   "library.viewer.translationReady": "翻译已就绪",
   "library.viewer.syncScroll": "同步滚动",
+  "library.viewer.enableSyncScroll": "开启对照滚动同步",
+  "library.viewer.disableSyncScroll": "关闭对照滚动同步",
   "library.viewer.translating": "翻译中...",
   "library.viewer.translateProgress": "翻译进度",
   "library.viewer.translateTimeout": "翻译超时，请重试。",

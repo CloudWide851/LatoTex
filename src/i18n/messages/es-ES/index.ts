@@ -59,6 +59,8 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   "nav.plugins": "Herramientas",
   "nav.settings": "Ajustes",
   "library.viewer.remotePdfHttpBlocked": "Este PDF usa una fuente HTTP sin cifrar. Revisa la fuente antes de reintentarlo.",
+  "library.viewer.enableSyncScroll": "Activar la sincronización de desplazamiento",
+  "library.viewer.disableSyncScroll": "Desactivar la sincronización de desplazamiento",
   "library.viewer.remotePdfHttpConfirm": "Este PDF se descargará mediante HTTP sin cifrar. ¿Continuar una vez para este documento?",
   "workspace.agentTitle": "Prompt del asistente de investigación",
   "workspace.agentPlaceholder": "Pide una edición del manuscrito, revisión de citas, reparación de compilación o reescritura basada en artículos...",

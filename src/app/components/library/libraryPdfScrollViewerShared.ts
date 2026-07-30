@@ -40,6 +40,26 @@ export function ensurePdfScrollSyncGroup(
   return syncGroupRef.current;
 }
 
+export function publishPdfScrollSync(
+  group: LibraryPdfScrollSyncGroup,
+  sourceId: string,
+  anchor: PdfScrollAnchor,
+): LibraryPdfScrollSyncMessage {
+  const message: LibraryPdfScrollSyncMessage = {
+    revision: group.nextRevision,
+    sourceId,
+    anchor,
+  };
+  group.nextRevision += 1;
+  group.lastMessage = message;
+  for (const [viewerId, applyMessage] of group.viewers.entries()) {
+    if (viewerId !== sourceId) {
+      applyMessage(message);
+    }
+  }
+  return message;
+}
+
 export function collectPdfPageMetrics(
   pageRefs: Record<number, HTMLDivElement | null>,
   pageCount: number,

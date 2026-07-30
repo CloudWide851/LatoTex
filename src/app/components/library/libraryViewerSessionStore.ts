@@ -1,4 +1,5 @@
 type ViewMode = "bib" | "pdf" | "compare";
+export type LibraryComparePane = "source" | "translated";
 type PdfScrollAnchor = {
   page: number;
   pageFocusRatio: number;
@@ -17,6 +18,8 @@ export type LibraryViewerSession = {
   pdfScrollRatio: number;
   compareSourceScrollRatio: number;
   compareTranslatedScrollRatio: number;
+  compareSyncEnabled: boolean;
+  compareSyncLeader: LibraryComparePane;
   bibScrollRatio: number;
   metaScrollRatio: number;
   updatedAt: string;
@@ -84,6 +87,8 @@ export function defaultLibraryViewerSession(
     pdfScrollRatio: 0,
     compareSourceScrollRatio: 0,
     compareTranslatedScrollRatio: 0,
+    compareSyncEnabled: true,
+    compareSyncLeader: "source",
     bibScrollRatio: 0,
     metaScrollRatio: 0,
     updatedAt: nowIso(),
@@ -106,6 +111,9 @@ function sanitizeSession(
   const pdfScrollRatio = clampRatio(source.pdfScrollRatio);
   const compareSourceScrollRatio = clampRatio(source.compareSourceScrollRatio);
   const compareTranslatedScrollRatio = clampRatio(source.compareTranslatedScrollRatio);
+  const compareSyncLeader: LibraryComparePane = source.compareSyncLeader === "translated"
+    ? "translated"
+    : "source";
   return {
     viewMode,
     currentPage,
@@ -118,6 +126,8 @@ function sanitizeSession(
     pdfScrollRatio,
     compareSourceScrollRatio,
     compareTranslatedScrollRatio,
+    compareSyncEnabled: source.compareSyncEnabled !== false,
+    compareSyncLeader,
     bibScrollRatio: clampRatio(source.bibScrollRatio),
     metaScrollRatio: clampRatio(source.metaScrollRatio),
     updatedAt: typeof source.updatedAt === "string" && source.updatedAt.trim()
