@@ -1,4 +1,5 @@
 use reqwest::redirect::Policy;
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +22,69 @@ pub struct OutboundFailure {
     pub stage: String,
     pub retryable: bool,
     pub proxy_source: String,
+}
+
+fn public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(value) => {
+            !(value.is_private()
+                || value.is_loopback()
+                || value.is_link_local()
+                || value.is_broadcast()
+                || value.is_documentation()
+                || value.is_multicast()
+                || value.is_unspecified())
+        }
+        IpAddr::V6(value) => {
+            let segments = value.segments();
+            !(value.is_loopback()
+                || value.is_unspecified()
+                || value.is_multicast()
+                || (segments[0] & 0xfe00) == 0xfc00
+                || (segments[0] & 0xffc0) == 0xfe80)
+                && value
+                    .to_ipv4()
+                    .map(|mapped| public_ip(IpAddr::V4(mapped)))
+                    .unwrap_or(true)
+        }
+    }
+}
+
+fn resolve_public_https_target(raw: &str) -> Result<(reqwest::Url, Vec<SocketAddr>), String> {
+    let mut url =
+        reqwest::Url::parse(raw.trim()).map_err(|_| "network.target.invalid".to_string())?;
+    if url.scheme() != "https"
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.host_str().is_none()
+    {
+        return Err("network.target.invalid".to_string());
+    }
+    url.set_fragment(None);
+    let host = url
+        .host_str()
+        .ok_or_else(|| "network.target.invalid".to_string())?;
+    let normalized_host = host.trim_end_matches('.').to_ascii_lowercase();
+    if normalized_host == "localhost"
+        || normalized_host.ends_with(".localhost")
+        || normalized_host.ends_with(".local")
+    {
+        return Err("network.target.private".to_string());
+    }
+    let port = url.port_or_known_default().unwrap_or(443);
+    let addresses = (host, port)
+        .to_socket_addrs()
+        .map_err(|_| "network.target.resolve_failed".to_string())?
+        .collect::<Vec<_>>();
+    if addresses.is_empty() || addresses.iter().any(|address| !public_ip(address.ip())) {
+        return Err("network.target.private".to_string());
+    }
+    Ok((url, addresses))
+}
+
+#[cfg(test)]
+pub fn validate_public_https_url(raw: &str) -> Result<reqwest::Url, String> {
+    resolve_public_https_target(raw).map(|(url, _)| url)
 }
 
 fn normalize_proxy_url(raw: &str) -> Result<String, String> {
@@ -410,6 +474,28 @@ pub fn build_blocking_client(
     Ok((client, resolution))
 }
 
+pub fn build_public_blocking_client(
+    target_url: &str,
+    mode: &OutboundProxyMode,
+    timeout: Duration,
+) -> Result<(reqwest::blocking::Client, reqwest::Url, ProxyResolution), String> {
+    let (url, addresses) = resolve_public_https_target(target_url)?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "network.target.invalid".to_string())?
+        .to_string();
+    let resolution = resolve_proxy(url.as_str(), mode)?;
+    let builder = reqwest::blocking::Client::builder()
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(timeout)
+        .redirect(Policy::none())
+        .resolve_to_addrs(&host, &addresses);
+    let client = apply_blocking_proxy(builder, &resolution)?
+        .build()
+        .map_err(|_| "network.client.build_failed".to_string())?;
+    Ok((client, url, resolution))
+}
+
 pub fn classify_transport_failure(error: &reqwest::Error, proxy_source: &str) -> OutboundFailure {
     let detail = error.to_string().to_ascii_lowercase();
     let (code, stage, retryable) = if error.is_timeout() {
@@ -433,7 +519,10 @@ pub fn classify_transport_failure(error: &reqwest::Error, proxy_source: &str) ->
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_proxy_url, select_windows_proxy, windows_bypass_matches};
+    use super::{
+        normalize_proxy_url, select_windows_proxy, validate_public_https_url,
+        windows_bypass_matches,
+    };
 
     #[test]
     fn validates_manual_proxy_without_credentials_or_query() {
@@ -457,5 +546,13 @@ mod tests {
             "<local>;*.example.org",
             &reqwest::Url::parse("https://api.example.org").unwrap()
         ));
+    }
+
+    #[test]
+    fn rejects_private_or_credentialed_research_targets() {
+        assert!(validate_public_https_url("https://127.0.0.1/paper").is_err());
+        assert!(validate_public_https_url("https://[::1]/paper").is_err());
+        assert!(validate_public_https_url("http://example.org/paper").is_err());
+        assert!(validate_public_https_url("https://user:pass@example.org/paper").is_err());
     }
 }

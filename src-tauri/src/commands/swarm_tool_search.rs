@@ -11,6 +11,16 @@ use super::swarm_events::{
     EventMetadata,
 };
 
+struct ToolSearchContext {
+    queries: Vec<String>,
+    compact_context: String,
+    evidence_count: usize,
+    local_evidence_ids: HashSet<String>,
+    network_urls: HashSet<String>,
+}
+
+include!("swarm_tool_search_citations.rs");
+
 fn ensure_not_cancelled(cancel_flag: &Arc<AtomicBool>) -> Result<(), String> {
     if cancel_flag.load(Ordering::Relaxed) {
         return Err("agent.run.cancelled".to_string());
@@ -125,17 +135,63 @@ fn truncate_text(value: &str, max_chars: usize) -> String {
     output
 }
 
-fn build_tool_search_context(
+fn build_local_knowledge_context(
     db_path: &Path,
     runtime_root: &Path,
     project_id: &str,
+    queries: &[String],
+) -> (Vec<String>, HashSet<String>) {
+    let mut lines = Vec::new();
+    let mut seen = HashSet::<String>::new();
+    for query in queries.iter().take(6) {
+        let result = crate::storage::search_knowledge(
+            db_path,
+            runtime_root,
+            &crate::models::KnowledgeSearchInput {
+                project_id: project_id.to_string(),
+                project_ids: None,
+                query: query.clone(),
+                limit: Some(4),
+                deep: Some(true),
+                run_id: None,
+                semantic: Some(true),
+            },
+        );
+        let Ok(response) = result else {
+            continue;
+        };
+        for hit in response.hits {
+            if !seen.insert(hit.evidence_id.clone()) {
+                continue;
+            }
+            lines.push(format!(
+                "- [local_knowledge; evidence_id={}; anchor={}; source={}] {} — {}",
+                hit.evidence_id,
+                hit.anchor.value,
+                hit.relative_path,
+                truncate_text(&hit.title, 120),
+                truncate_text(&hit.snippet, 360)
+            ));
+        }
+    }
+    (lines, seen)
+}
+
+fn build_tool_search_context(
+    db_path: &Path,
+    runtime_root: &Path,
+    app_data_dir: Option<&Path>,
+    project_id: &str,
     raw_prompt: &str,
-) -> (Vec<String>, String, usize) {
+    network_enabled: bool,
+) -> ToolSearchContext {
     build_tool_search_context_with(
         db_path,
         runtime_root,
+        app_data_dir,
         project_id,
         raw_prompt,
+        network_enabled,
         run_reference_check_queries_for_project,
     )
 }
@@ -143,18 +199,22 @@ fn build_tool_search_context(
 fn build_tool_search_context_with<F>(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: Option<&Path>,
     project_id: &str,
     raw_prompt: &str,
+    network_enabled: bool,
     search: F,
-) -> (Vec<String>, String, usize)
+) -> ToolSearchContext
 where
     F: FnOnce(
         &Path,
         &Path,
+        Option<&Path>,
         Option<&str>,
         Vec<String>,
         u32,
         Option<&str>,
+        bool,
     ) -> Result<ReferenceCheckResponse, String>,
 {
     let explicit_queries = extract_explicit_tool_search_queries(raw_prompt);
@@ -169,24 +229,48 @@ where
         explicit_queries
     };
     if queries.is_empty() {
-        return (
-            Vec::new(),
-            "tool_search produced no valid query terms.".to_string(),
-            0,
-        );
+        return ToolSearchContext {
+            queries: Vec::new(),
+            compact_context: "tool_search produced no valid query terms.".to_string(),
+            evidence_count: 0,
+            local_evidence_ids: HashSet::new(),
+            network_urls: HashSet::new(),
+        };
+    }
+    let (knowledge_lines, local_evidence_ids) =
+        build_local_knowledge_context(db_path, runtime_root, project_id, &queries);
+    if !network_enabled {
+        let mut lines = vec![
+            format!("query_source={query_source}"),
+            "web_search=disabled_by_settings; local knowledge retrieval remains enabled."
+                .to_string(),
+            "Evidence rules: every factual sentence must cite a local evidence_id. If no local evidence supports a claim, label it unconfirmed.".to_string(),
+        ];
+        lines.extend(knowledge_lines);
+        return ToolSearchContext {
+            queries,
+            compact_context: lines.join("\n"),
+            evidence_count: local_evidence_ids.len(),
+            local_evidence_ids,
+            network_urls: HashSet::new(),
+        };
     }
     let result = search(
         db_path,
         runtime_root,
+        app_data_dir,
         Some(project_id),
         queries.clone(),
         4,
         None,
+        true,
     );
     match result {
         Ok(response) => {
             let mut lines = Vec::new();
-            let mut evidence_count = 0_usize;
+            let mut evidence_count = local_evidence_ids.len();
+            let mut network_urls = HashSet::new();
+            lines.extend(knowledge_lines);
             for item in response.items.iter().take(6) {
                 if !item.ok {
                     lines.push(format!("- {} => {}", item.query, item.message));
@@ -197,6 +281,9 @@ where
                     evidence_count += 1;
                     let title = truncate_text(&evidence.title, 120);
                     let url = truncate_text(&evidence.url, 180);
+                    if let Some(canonical) = canonical_network_url(&evidence.url) {
+                        network_urls.insert(canonical);
+                    }
                     lines.push(format!(
                         "  - [academic; {}; providers={}] {} ({})",
                         evidence.evidence_level,
@@ -207,6 +294,9 @@ where
                 }
                 for evidence in item.web_results.iter().take(2) {
                     evidence_count += 1;
+                    if let Some(canonical) = canonical_network_url(&evidence.url) {
+                        network_urls.insert(canonical);
+                    }
                     lines.push(format!(
                         "  - [general_web; provider={}] {} ({})",
                         evidence.source,
@@ -223,16 +313,32 @@ where
             }
             let mut with_meta = vec![
                 format!("query_source={query_source}"),
-                "Evidence rules: distinguish confirmed facts from metadata-only support, model inference, and unresolved uncertainty. Never infer paper conclusions from a title or metadata record; abstract evidence supports only claims stated in the abstract.".to_string(),
+                "Evidence rules: distinguish confirmed facts from metadata-only support, model inference, and unresolved uncertainty. Every factual sentence must cite a local evidence_id or a canonical HTTPS URL. Never infer paper conclusions from a title or metadata record; abstract evidence supports only claims stated in the abstract.".to_string(),
             ];
             with_meta.extend(lines);
-            (queries, with_meta.join("\n"), evidence_count)
+            ToolSearchContext {
+                queries,
+                compact_context: with_meta.join("\n"),
+                evidence_count,
+                local_evidence_ids,
+                network_urls,
+            }
         }
-        Err(error) => (
-            queries,
-            format!("tool_search error: {}", truncate_text(&error, 220)),
-            0,
-        ),
+        Err(error) => {
+            let mut lines = vec![
+                format!("query_source={query_source}"),
+                "Network providers failed; local knowledge evidence remains usable.".to_string(),
+            ];
+            lines.extend(knowledge_lines);
+            lines.push(format!("tool_search error: {}", truncate_text(&error, 220)));
+            ToolSearchContext {
+                queries,
+                compact_context: lines.join("\n"),
+                evidence_count: local_evidence_ids.len(),
+                local_evidence_ids,
+                network_urls: HashSet::new(),
+            }
+        }
     }
 }
 
@@ -240,6 +346,7 @@ where
 pub(super) fn run_stage_tool_search(
     db_path: &Path,
     runtime_root: &Path,
+    app_data_dir: Option<&Path>,
     run_id: &str,
     project_id: &str,
     event_scope: &str,
@@ -276,9 +383,6 @@ pub(super) fn run_stage_tool_search(
             legacy_enabled && permission_enabled
         })
         .unwrap_or(true);
-    if !web_enabled {
-        return Ok("[tool_search.compact.v1]\nweb_search=disabled_by_settings".to_string());
-    }
     emit_stage_event(
         db_path,
         run_id,
@@ -307,16 +411,22 @@ pub(super) fn run_stage_tool_search(
             ..metadata
         },
     )?;
-    let (queries, compact_context, evidence_count) =
-        build_tool_search_context(db_path, runtime_root, project_id, prompt);
+    let search_context = build_tool_search_context(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
+        prompt,
+        web_enabled,
+    );
     ensure_not_cancelled(cancel_flag)?;
-    let query_count = queries.len();
+    let query_count = search_context.queries.len();
     let result_actions = json!([{
         "type": "search",
-        "tool": "web",
+        "tool": if web_enabled { "web+knowledge" } else { "knowledge" },
         "status": "success",
-        "queries": queries,
-        "evidenceCount": evidence_count
+        "queries": search_context.queries,
+        "evidenceCount": search_context.evidence_count
     }]);
     emit_tool_event(
         db_path,
@@ -329,7 +439,7 @@ pub(super) fn run_stage_tool_search(
         "success",
         &format!(
             "queries={}, evidence={}, token_mode=compact",
-            query_count, evidence_count
+            query_count, search_context.evidence_count
         ),
         EventMetadata {
             actions: Some(&result_actions),
@@ -337,8 +447,9 @@ pub(super) fn run_stage_tool_search(
         },
     )?;
 
-    let estimated_saved =
-        ((query_count.saturating_mul(850)) as i64 - (compact_context.len() as i64 / 4)).max(0);
+    let estimated_saved = ((query_count.saturating_mul(850)) as i64
+        - (search_context.compact_context.len() as i64 / 4))
+        .max(0);
     let mut stats_payload = run_envelope(
         run_id,
         "success",
@@ -369,16 +480,17 @@ pub(super) fn run_stage_tool_search(
         "Tool protocol: ison-tool-call.v1",
         "A tool named `tool_search` has already been executed by the runtime.",
         "Do not ask to call tools again. Produce the final answer from compact evidence below.",
+        "Separate confirmed facts, inference, and uncertainty. End every factual sentence with its local [evidence_id] or a Markdown link to the canonical HTTPS source URL. If no evidence supports a factual claim, label it unconfirmed instead of presenting it as fact.",
         "",
         "[tool_search.compact.v1]",
-        compact_context.as_str(),
+        search_context.compact_context.as_str(),
         "",
         "[user_request]",
         prompt,
     ]
     .join("\n");
 
-    let output = call_model_output(
+    let draft = call_model_output(
         db_path,
         protocol_id,
         base_url,
@@ -388,6 +500,43 @@ pub(super) fn run_stage_tool_search(
         context_refs,
         bypass_cache,
     )?;
+    let unsupported = unsupported_research_lines(&draft, &search_context);
+    let output = if unsupported.is_empty() {
+        draft
+    } else {
+        let repair_prompt = [
+            "Repair the draft exactly once. The listed line numbers contain factual text without an allowed citation.",
+            "Use only local evidence IDs and canonical HTTPS URLs from the compact evidence. Do not invent citations.",
+            "If evidence is unavailable, explicitly label the line Unconfirmed, Inference, or Uncertainty.",
+            &format!(
+                "Unsupported line numbers: {}",
+                unsupported
+                    .iter()
+                    .map(|index| (index + 1).to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            "",
+            "[compact_evidence]",
+            search_context.compact_context.as_str(),
+            "",
+            "[draft]",
+            draft.as_str(),
+        ]
+        .join("\n");
+        let repaired = call_model_output(
+            db_path,
+            protocol_id,
+            base_url,
+            api_key,
+            model_name,
+            &repair_prompt,
+            context_refs,
+            true,
+        )
+        .unwrap_or(draft);
+        downgrade_unsupported_research_lines(&repaired, &search_context)
+    };
     ensure_not_cancelled(cancel_flag)?;
     emit_response_event(
         db_path,
@@ -415,124 +564,4 @@ pub(super) fn run_stage_tool_search(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::EventMetadata;
-    use super::{build_tool_search_context_with, run_stage_tool_search};
-    use crate::commands::analysis::{
-        ReferenceCheckItem, ReferenceCheckResponse, ReferenceEvidence,
-    };
-    use crate::storage;
-    use rusqlite::{params, Connection};
-    use serde_json::json;
-    use std::fs;
-    use std::path::PathBuf;
-    use std::sync::atomic::AtomicBool;
-    use std::sync::Arc;
-    use uuid::Uuid;
-
-    fn disabled_settings_fixture() -> (PathBuf, PathBuf) {
-        let root = std::env::temp_dir().join(format!("latotex-search-tool-{}", Uuid::new_v4()));
-        let runtime_root = root.join("runtime");
-        let db_path = runtime_root.join("latotex.db");
-        fs::create_dir_all(&runtime_root).unwrap();
-        storage::initialize_database(&db_path).unwrap();
-        let conn = Connection::open(&db_path).unwrap();
-        conn.execute(
-            "UPDATE app_settings SET ui_prefs_json = ?1 WHERE id = 1",
-            params![json!({"agentToolPrefs":{"webSearchEnabled":false}}).to_string()],
-        )
-        .unwrap();
-        (db_path, runtime_root)
-    }
-
-    #[test]
-    fn web_search_disabled_returns_without_events_or_provider_call() {
-        let (db_path, runtime_root) = disabled_settings_fixture();
-        let cancel_flag = Arc::new(AtomicBool::new(false));
-        let result = run_stage_tool_search(
-            &db_path,
-            &runtime_root,
-            "run-disabled-web",
-            "missing-project",
-            "unit",
-            "search",
-            "web",
-            "Web",
-            "query",
-            &[],
-            &cancel_flag,
-            "missing-protocol",
-            "https://example.invalid",
-            "missing-key",
-            "missing-model",
-            false,
-            EventMetadata::base("wf", "step", "test"),
-        )
-        .unwrap();
-
-        assert!(result.contains("web_search=disabled_by_settings"));
-        let conn = Connection::open(&db_path).unwrap();
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM swarm_events", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn agent_search_forwards_project_scope_and_keeps_local_bib_evidence() {
-        let db_path = PathBuf::from("fixture.db");
-        let runtime_root = PathBuf::from("fixture-runtime");
-        let project_id = "project-local-bib";
-        let (_, context, evidence_count) = build_tool_search_context_with(
-            &db_path,
-            &runtime_root,
-            project_id,
-            "[tool_search.queries.v1]\n- reproducible local evidence",
-            |received_db, received_runtime, received_project, queries, limit, email| {
-                assert_eq!(received_db, db_path.as_path());
-                assert_eq!(received_runtime, runtime_root.as_path());
-                assert_eq!(received_project, Some(project_id));
-                assert_eq!(queries, vec!["reproducible local evidence"]);
-                assert_eq!(limit, 4);
-                assert_eq!(email, None);
-                let local = ReferenceEvidence {
-                    stable_id: "bib:fixture2026".to_string(),
-                    title: "Local Bib Fixture".to_string(),
-                    authors: vec!["A. Researcher".to_string()],
-                    year: Some(2026),
-                    venue: None,
-                    doi: None,
-                    arxiv_id: None,
-                    open_access: None,
-                    pdf_url: None,
-                    landing_url: "refs.bib#fixture2026".to_string(),
-                    citation_count: None,
-                    abstract_text: None,
-                    source: "local_bib".to_string(),
-                    evidence_level: "metadata".to_string(),
-                    provenance: vec!["local_bib".to_string()],
-                    original_source_url: "refs.bib#fixture2026".to_string(),
-                    rrf_score: 0.0,
-                    url: "refs.bib#fixture2026".to_string(),
-                    snippet: String::new(),
-                };
-                Ok(ReferenceCheckResponse {
-                    items: vec![ReferenceCheckItem {
-                        query: "reproducible local evidence".to_string(),
-                        ok: true,
-                        message: "academic.search.complete".to_string(),
-                        results: vec![local.clone()],
-                        academic_results: vec![local],
-                        web_results: Vec::new(),
-                        provider_errors: Vec::new(),
-                        provider_health: Vec::new(),
-                        network_used: true,
-                    }],
-                })
-            },
-        );
-
-        assert_eq!(evidence_count, 1);
-        assert!(context.contains("[academic; metadata; providers=local_bib] Local Bib Fixture"));
-    }
-}
+include!("swarm_tool_search_tests.rs");

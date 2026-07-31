@@ -326,6 +326,7 @@ pub(super) fn run_execute_pipeline_team(
             let search_output = swarm_tool_search::run_stage_tool_search(
                 db_path,
                 runtime_root,
+                None,
                 run_id,
                 &input.project_id,
                 &workflow.id,

@@ -119,7 +119,14 @@ export async function runAnalysisResearchEvidence(input: {
   };
   publish();
   try {
-    const response = await search(input.plan.queries, 6, input.projectId, undefined, input.plan);
+    const response = await search(
+      input.plan.queries,
+      6,
+      input.projectId,
+      undefined,
+      input.plan,
+      true,
+    );
     const collected = collectResearchEvidence(response);
     outcome = {
       response,

@@ -10,6 +10,10 @@ use std::time::SystemTime;
 use tauri::State;
 #[path = "analysis_academic_providers.rs"]
 mod analysis_academic_providers;
+#[path = "analysis_domain_providers.rs"]
+mod analysis_domain_providers;
+#[path = "analysis_fulltext.rs"]
+mod analysis_fulltext;
 #[path = "analysis_research_providers.rs"]
 mod analysis_research_providers;
 #[path = "analysis_search.rs"]
@@ -25,6 +29,7 @@ pub struct ReferenceCheckInput {
     pub project_id: Option<String>,
     pub unpaywall_contact_email: Option<String>,
     pub research_plan: Option<AnalysisResearchPlanInput>,
+    pub deep: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -291,20 +296,24 @@ pub fn reference_check(
     run_reference_check_queries_for_project(
         &state.db_path,
         &state.runtime_root,
+        Some(&state.app_data_dir),
         input.project_id.as_deref(),
         queries,
         input.limit.unwrap_or(5),
         input.unpaywall_contact_email.as_deref(),
+        input.deep.unwrap_or(false),
     )
 }
 
 pub(crate) fn run_reference_check_queries_for_project(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
+    app_data_dir: Option<&std::path::Path>,
     project_id: Option<&str>,
     queries: Vec<String>,
     limit: u32,
     unpaywall_contact_email: Option<&str>,
+    deep: bool,
 ) -> Result<ReferenceCheckResponse, String> {
     let project_root = project_id
         .map(|value| storage::load_project_root(db_path, value))
@@ -322,10 +331,15 @@ pub(crate) fn run_reference_check_queries_for_project(
                 .filter(|value| !value.is_empty())
         });
     analysis_search::run_reference_check_queries(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        project_id,
         queries,
         limit,
         project_root.as_deref(),
         configured_email.as_deref(),
+        deep,
     )
 }
 

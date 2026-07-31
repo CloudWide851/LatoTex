@@ -37,6 +37,63 @@ pub(super) fn search_semantic_scholar(
     parse_semantic_scholar(&bytes, limit)
 }
 
+fn semantic_scholar_evidence(entry: &Value) -> Option<ReferenceEvidence> {
+    let title = entry.get("title").and_then(Value::as_str).map(compact)?;
+    if title.is_empty() {
+        return None;
+    }
+    let external_ids = entry.get("externalIds").unwrap_or(&Value::Null);
+    let doi = external_ids
+        .get("DOI")
+        .and_then(Value::as_str)
+        .and_then(normalize_doi);
+    let arxiv_id = external_ids
+        .get("ArXiv")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let paper_id = entry.get("paperId").and_then(Value::as_str)?;
+    let landing = entry
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("https://www.semanticscholar.org/paper/{paper_id}"));
+    let pdf_url = entry
+        .get("openAccessPdf")
+        .and_then(|value| value.get("url"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Some(evidence(
+        doi.as_ref()
+            .map(|value| format!("doi:{value}"))
+            .or_else(|| arxiv_id.as_ref().map(|value| format!("arxiv:{value}")))
+            .unwrap_or_else(|| format!("semantic_scholar:{paper_id}")),
+        title,
+        entry
+            .get("authors")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|author| author.get("name").and_then(Value::as_str).map(compact))
+            .collect(),
+        entry
+            .get("year")
+            .and_then(Value::as_i64)
+            .map(|year| year as i32),
+        entry.get("venue").and_then(Value::as_str).map(compact),
+        doi,
+        arxiv_id,
+        pdf_url.as_ref().map(|_| true),
+        pdf_url,
+        landing,
+        entry.get("citationCount").and_then(Value::as_u64),
+        entry
+            .get("abstract")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        "semantic_scholar",
+    ))
+}
+
 fn parse_semantic_scholar(
     bytes: &[u8],
     limit: usize,
@@ -48,63 +105,133 @@ fn parse_semantic_scholar(
         .into_iter()
         .flatten()
         .take(limit)
-        .filter_map(|entry| {
-            let title = entry.get("title").and_then(Value::as_str).map(compact)?;
-            if title.is_empty() {
-                return None;
-            }
-            let external_ids = entry.get("externalIds").unwrap_or(&Value::Null);
-            let doi = external_ids
-                .get("DOI")
-                .and_then(Value::as_str)
-                .and_then(normalize_doi);
-            let arxiv_id = external_ids
-                .get("ArXiv")
-                .and_then(Value::as_str)
-                .map(str::to_string);
-            let paper_id = entry.get("paperId").and_then(Value::as_str)?;
-            let landing = entry
-                .get("url")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .unwrap_or_else(|| format!("https://www.semanticscholar.org/paper/{paper_id}"));
-            let pdf_url = entry
-                .get("openAccessPdf")
-                .and_then(|value| value.get("url"))
-                .and_then(Value::as_str)
-                .map(str::to_string);
-            Some(evidence(
-                doi.as_ref()
-                    .map(|value| format!("doi:{value}"))
-                    .or_else(|| arxiv_id.as_ref().map(|value| format!("arxiv:{value}")))
-                    .unwrap_or_else(|| format!("semantic_scholar:{paper_id}")),
-                title,
-                entry
-                    .get("authors")
-                    .and_then(Value::as_array)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|author| author.get("name").and_then(Value::as_str).map(compact))
-                    .collect(),
-                entry
-                    .get("year")
-                    .and_then(Value::as_i64)
-                    .map(|year| year as i32),
-                entry.get("venue").and_then(Value::as_str).map(compact),
-                doi,
-                arxiv_id,
-                pdf_url.as_ref().map(|_| true),
-                pdf_url,
-                landing,
-                entry.get("citationCount").and_then(Value::as_u64),
-                entry
-                    .get("abstract")
-                    .and_then(Value::as_str)
-                    .map(str::to_string),
-                "semantic_scholar",
-            ))
-        })
+        .filter_map(semantic_scholar_evidence)
         .collect())
+}
+
+fn semantic_scholar_identifier(evidence: &ReferenceEvidence) -> Option<String> {
+    evidence
+        .doi
+        .as_deref()
+        .and_then(normalize_doi)
+        .map(|doi| format!("DOI:{doi}"))
+        .or_else(|| {
+            evidence
+                .arxiv_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| format!("ARXIV:{value}"))
+        })
+        .or_else(|| {
+            evidence
+                .stable_id
+                .strip_prefix("semantic_scholar:")
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        })
+}
+
+fn parse_semantic_scholar_related(
+    bytes: &[u8],
+    nested_key: &str,
+    provenance: &str,
+    limit: usize,
+) -> Result<Vec<ReferenceEvidence>, ProviderError> {
+    let payload = parse_json("semantic_scholar", bytes)?;
+    Ok(payload
+        .get("data")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get(nested_key))
+        .filter_map(semantic_scholar_evidence)
+        .map(|mut item| {
+            item.provenance.push(provenance.to_string());
+            item
+        })
+        .take(limit)
+        .collect())
+}
+
+fn search_semantic_scholar_related(
+    evidence: &ReferenceEvidence,
+    relation: &str,
+    nested_key: &str,
+    limit: usize,
+) -> Result<Vec<ReferenceEvidence>, ProviderError> {
+    let identifier = semantic_scholar_identifier(evidence)
+        .ok_or_else(|| provider_error("semantic_scholar", "identifier_missing", false))?;
+    let endpoint = format!(
+        "https://api.semanticscholar.org/graph/v1/paper/{}/{}",
+        encode(&identifier),
+        relation
+    );
+    let bytes = fetch(
+        "semantic_scholar",
+        &endpoint,
+        &[
+            ("limit", limit.clamp(1, 8).to_string()),
+            (
+                "fields",
+                "paperId,title,authors,year,venue,externalIds,openAccessPdf,citationCount,abstract,url"
+                    .to_string(),
+            ),
+        ],
+    )?;
+    parse_semantic_scholar_related(
+        &bytes,
+        nested_key,
+        &format!("semantic_scholar_{relation}"),
+        limit,
+    )
+}
+
+pub(super) fn expand_semantic_scholar_related(
+    evidence: &[ReferenceEvidence],
+    limit: usize,
+) -> Vec<Vec<ReferenceEvidence>> {
+    let requests = evidence
+        .iter()
+        .take(5)
+        .filter(|item| semantic_scholar_identifier(item).is_some())
+        .flat_map(|item| {
+            [
+                (item.clone(), "references", "citedPaper"),
+                (item.clone(), "citations", "citingPaper"),
+            ]
+        })
+        .collect::<Vec<_>>();
+    let mut expanded = Vec::new();
+    for batch in requests.chunks(3) {
+        let outcomes = std::thread::scope(|scope| {
+            batch
+                .iter()
+                .cloned()
+                .map(|(item, relation, nested_key)| {
+                    scope.spawn(move || {
+                        search_semantic_scholar_related(
+                            &item,
+                            relation,
+                            nested_key,
+                            limit.clamp(1, 4),
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .filter_map(|handle| handle.join().ok())
+                .collect::<Vec<_>>()
+        });
+        expanded.extend(
+            outcomes
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(|items| !items.is_empty()),
+        );
+    }
+    expanded
 }
 
 pub(super) fn search_europe_pmc(
@@ -313,7 +440,10 @@ fn parse_unpaywall(bytes: &[u8]) -> Result<Vec<ReferenceEvidence>, ProviderError
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_europe_pmc, parse_semantic_scholar, parse_unpaywall, unpaywall_enabled};
+    use super::{
+        parse_europe_pmc, parse_semantic_scholar, parse_semantic_scholar_related, parse_unpaywall,
+        semantic_scholar_identifier, unpaywall_enabled,
+    };
 
     #[test]
     fn parses_semantic_scholar_fixture() {
@@ -322,6 +452,30 @@ mod tests {
         assert_eq!(items[0].stable_id, "doi:10.1000/test");
         assert_eq!(items[0].evidence_level, "abstract");
         assert_eq!(items[0].citation_count, Some(7));
+    }
+
+    #[test]
+    fn parses_semantic_scholar_reference_and_citation_fixtures() {
+        let base_payload = br#"{"data":[{"paperId":"p1","title":"Seed","externalIds":{"ArXiv":"2401.12345"},"authors":[]}]}"#;
+        let base = parse_semantic_scholar(base_payload, 1).unwrap();
+        assert_eq!(
+            semantic_scholar_identifier(&base[0]).as_deref(),
+            Some("ARXIV:2401.12345")
+        );
+
+        let related_payload = br#"{"data":[{"citedPaper":{"paperId":"p2","title":"Referenced evidence","externalIds":{"DOI":"10.4000/REF"},"authors":[{"name":"R. Author"}],"abstract":"Reference abstract"}},{"citedPaper":null}]}"#;
+        let related = parse_semantic_scholar_related(
+            related_payload,
+            "citedPaper",
+            "semantic_scholar_references",
+            4,
+        )
+        .unwrap();
+        assert_eq!(related.len(), 1);
+        assert_eq!(related[0].stable_id, "doi:10.4000/ref");
+        assert!(related[0]
+            .provenance
+            .contains(&"semantic_scholar_references".to_string()));
     }
 
     #[test]

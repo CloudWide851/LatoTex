@@ -62,6 +62,7 @@ pub(super) fn run_workflow_step(
         "tool.search" => swarm_tool_search::run_stage_tool_search(
             db_path,
             runtime_root,
+            Some(app_data_dir),
             run_id,
             &input.project_id,
             &workflow.id,

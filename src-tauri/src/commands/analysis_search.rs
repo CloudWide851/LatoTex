@@ -1,3 +1,5 @@
+use super::analysis_fulltext::{enrich_academic_fulltext, FulltextRuntimeContext};
+use super::analysis_research_providers::expand_semantic_scholar_related;
 use super::analysis_search_coordinator::run_remote_providers;
 use super::{
     AcademicProviderHealth, ReferenceCheckItem, ReferenceCheckResponse, ReferenceEvidence,
@@ -307,10 +309,15 @@ fn local_bib_search(root: Option<&Path>, query: &str, limit: usize) -> Vec<Refer
 }
 
 pub(crate) fn run_reference_check_queries(
+    cache_db_path: &Path,
+    app_runtime_root: &Path,
+    app_data_dir: Option<&Path>,
+    project_id: Option<&str>,
     queries: Vec<String>,
     limit: u32,
     project_root: Option<&Path>,
     unpaywall_contact_email: Option<&str>,
+    deep: bool,
 ) -> Result<ReferenceCheckResponse, String> {
     let limit = limit.clamp(1, 8) as usize;
     let queries = queries
@@ -353,10 +360,28 @@ pub(crate) fn run_reference_check_queries(
         if !local.is_empty() {
             academic_lists.push(local);
         }
-        let remote = run_remote_providers(&query, limit, unpaywall_contact_email);
+        let remote = run_remote_providers(cache_db_path, &query, limit, unpaywall_contact_email);
         academic_lists.extend(remote.academic_lists);
         provider_health.extend(remote.health);
+        if deep {
+            let preliminary = reciprocal_rank_merge(academic_lists.clone(), limit);
+            academic_lists.extend(expand_semantic_scholar_related(&preliminary, limit));
+        }
         let academic_results = reciprocal_rank_merge(academic_lists, limit);
+        let academic_results = if deep {
+            let context = app_data_dir.zip(project_id).zip(project_root).map(
+                |((app_data_dir, project_id), project_root)| FulltextRuntimeContext {
+                    db_path: cache_db_path,
+                    app_runtime_root,
+                    app_data_dir,
+                    project_id,
+                    project_root,
+                },
+            );
+            enrich_academic_fulltext(academic_results, context)
+        } else {
+            academic_results
+        };
         let web_results = stable_web_merge(remote.web_lists, limit);
         let mut results = academic_results.clone();
         results.extend(web_results.clone());

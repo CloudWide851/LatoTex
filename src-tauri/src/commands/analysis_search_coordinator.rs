@@ -2,6 +2,7 @@ use super::analysis_academic_providers::{
     search_arxiv, search_crossref, search_duckduckgo, search_openalex, search_wikipedia,
     ProviderError,
 };
+use super::analysis_domain_providers::{search_dblp, search_doaj, search_openaire, search_pubmed};
 use super::analysis_research_providers::{
     search_europe_pmc, search_semantic_scholar, search_unpaywall, unpaywall_enabled,
 };
@@ -53,50 +54,91 @@ struct ProviderSpec {
     index: usize,
     name: &'static str,
     category: ProviderCategory,
+    domain: ProviderDomain,
 }
 
-const PROVIDERS: [ProviderSpec; 7] = [
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProviderDomain {
+    General,
+    Biomedical,
+    Computing,
+    OpenAccess,
+}
+
+const PROVIDERS: [ProviderSpec; 11] = [
     ProviderSpec {
         index: 0,
         name: "openalex",
         category: ProviderCategory::Academic,
+        domain: ProviderDomain::General,
     },
     ProviderSpec {
         index: 1,
         name: "crossref",
         category: ProviderCategory::Academic,
+        domain: ProviderDomain::General,
     },
     ProviderSpec {
         index: 2,
         name: "arxiv",
         category: ProviderCategory::Academic,
+        domain: ProviderDomain::General,
     },
     ProviderSpec {
         index: 3,
         name: "semantic_scholar",
         category: ProviderCategory::Academic,
+        domain: ProviderDomain::General,
     },
     ProviderSpec {
         index: 4,
         name: "europe_pmc",
         category: ProviderCategory::Academic,
+        domain: ProviderDomain::Biomedical,
     },
     ProviderSpec {
         index: 5,
         name: "duckduckgo",
         category: ProviderCategory::Web,
+        domain: ProviderDomain::General,
     },
     ProviderSpec {
         index: 6,
         name: "wikipedia",
         category: ProviderCategory::Web,
+        domain: ProviderDomain::General,
+    },
+    ProviderSpec {
+        index: 7,
+        name: "pubmed",
+        category: ProviderCategory::Academic,
+        domain: ProviderDomain::Biomedical,
+    },
+    ProviderSpec {
+        index: 8,
+        name: "doaj",
+        category: ProviderCategory::Academic,
+        domain: ProviderDomain::OpenAccess,
+    },
+    ProviderSpec {
+        index: 9,
+        name: "dblp",
+        category: ProviderCategory::Academic,
+        domain: ProviderDomain::Computing,
+    },
+    ProviderSpec {
+        index: 10,
+        name: "openaire",
+        category: ProviderCategory::Academic,
+        domain: ProviderDomain::OpenAccess,
     },
 ];
 
 const UNPAYWALL: ProviderSpec = ProviderSpec {
-    index: 7,
+    index: 11,
     name: "unpaywall",
     category: ProviderCategory::Academic,
+    domain: ProviderDomain::OpenAccess,
 };
 
 #[derive(Clone)]
@@ -104,6 +146,8 @@ struct CacheEntry {
     stored_at: Instant,
     result: Result<Vec<ReferenceEvidence>, ProviderError>,
 }
+
+include!("analysis_search_cache.rs");
 
 #[derive(Default)]
 struct CircuitState {
@@ -153,21 +197,6 @@ fn lock_cache() -> std::sync::MutexGuard<'static, HashMap<String, CacheEntry>> {
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap_or_else(|error| error.into_inner())
-}
-
-fn cache_key(spec: ProviderSpec, query: &str, limit: usize, contact_email: Option<&str>) -> String {
-    let normalized_query = query
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase();
-    let email_scope = contact_email
-        .map(|value| value.trim().to_ascii_lowercase())
-        .unwrap_or_default();
-    format!(
-        "{}|{}|{}|{}",
-        spec.name, limit, normalized_query, email_scope
-    )
 }
 
 fn acquire_provider_permit() -> ProviderPermit {
@@ -227,6 +256,46 @@ fn record_circuit_result(
     }
 }
 
+fn provider_relevant(spec: ProviderSpec, query: &str) -> bool {
+    let normalized = query.to_lowercase();
+    match spec.domain {
+        ProviderDomain::General | ProviderDomain::OpenAccess => true,
+        ProviderDomain::Biomedical => [
+            "pmid",
+            "patient",
+            "clinical",
+            "disease",
+            "gene",
+            "protein",
+            "biomedical",
+            "randomized",
+            "cohort",
+            "pico",
+            "医学",
+            "临床",
+            "疾病",
+            "基因",
+        ]
+        .iter()
+        .any(|term| normalized.contains(term)),
+        ProviderDomain::Computing => [
+            "algorithm",
+            "computer",
+            "software",
+            "database",
+            "machine learning",
+            "neural",
+            "information retrieval",
+            "算法",
+            "计算机",
+            "软件",
+            "机器学习",
+        ]
+        .iter()
+        .any(|term| normalized.contains(term)),
+    }
+}
+
 fn call_live_provider(
     spec: ProviderSpec,
     query: &str,
@@ -239,6 +308,10 @@ fn call_live_provider(
         "arxiv" => search_arxiv(query, limit),
         "semantic_scholar" => search_semantic_scholar(query, limit),
         "europe_pmc" => search_europe_pmc(query, limit),
+        "pubmed" => search_pubmed(query, limit),
+        "doaj" => search_doaj(query, limit),
+        "dblp" => search_dblp(query, limit),
+        "openaire" => search_openaire(query, limit),
         "duckduckgo" => search_duckduckgo(query, limit),
         "wikipedia" => search_wikipedia(query, limit),
         "unpaywall" => search_unpaywall(query, contact_email.unwrap_or_default()),
@@ -250,6 +323,7 @@ fn call_live_provider(
 }
 
 fn execute_provider_single_flight(
+    db_path: &std::path::Path,
     spec: ProviderSpec,
     query: String,
     limit: usize,
@@ -293,6 +367,7 @@ fn execute_provider_single_flight(
         call_live_provider(spec, &query, limit, contact_email.as_deref())
     };
     record_circuit_result(spec, &result);
+    persist_provider_cache(db_path, &key, spec, &result);
     lock_cache().insert(
         key.clone(),
         CacheEntry {
@@ -366,13 +441,19 @@ fn outcome(
 }
 
 fn resolve_provider(
+    db_path: &std::path::Path,
     spec: ProviderSpec,
     query: String,
     limit: usize,
     contact_email: Option<String>,
 ) -> ProviderOutcome {
     let key = cache_key(spec, &query, limit, contact_email.as_deref());
-    if let Some(entry) = lock_cache().get(&key).cloned() {
+    let cached = lock_cache()
+        .get(&key)
+        .cloned()
+        .or_else(|| load_provider_cache(db_path, &key));
+    if let Some(entry) = cached {
+        lock_cache().insert(key.clone(), entry.clone());
         let age = entry.stored_at.elapsed();
         let age_seconds = Some(age.as_secs());
         match &entry.result {
@@ -382,9 +463,15 @@ fn resolve_provider(
             Ok(_) if age < spec.category.stale_ttl() => {
                 let refresh_query = query.clone();
                 let refresh_email = contact_email.clone();
+                let refresh_db_path = db_path.to_path_buf();
                 std::thread::spawn(move || {
-                    let _ =
-                        execute_provider_single_flight(spec, refresh_query, limit, refresh_email);
+                    let _ = execute_provider_single_flight(
+                        &refresh_db_path,
+                        spec,
+                        refresh_query,
+                        limit,
+                        refresh_email,
+                    );
                 });
                 return outcome(spec, entry.result, "stale_cache", age_seconds);
             }
@@ -396,24 +483,28 @@ fn resolve_provider(
     }
     outcome(
         spec,
-        execute_provider_single_flight(spec, query, limit, contact_email),
+        execute_provider_single_flight(db_path, spec, query, limit, contact_email),
         "live",
         None,
     )
 }
 
 pub(super) fn run_remote_providers(
+    db_path: &std::path::Path,
     query: &str,
     limit: usize,
     contact_email: Option<&str>,
 ) -> RemoteSearchBundle {
     let (sender, receiver) = std::sync::mpsc::channel::<ProviderOutcome>();
     std::thread::scope(|scope| {
-        for spec in PROVIDERS {
+        for spec in PROVIDERS
+            .into_iter()
+            .filter(|spec| provider_relevant(*spec, query))
+        {
             let sender = sender.clone();
             let query = query.to_string();
             scope.spawn(move || {
-                let _ = sender.send(resolve_provider(spec, query, limit, None));
+                let _ = sender.send(resolve_provider(db_path, spec, query, limit, None));
             });
         }
         if unpaywall_enabled(query, contact_email) {
@@ -422,6 +513,7 @@ pub(super) fn run_remote_providers(
             let contact_email = contact_email.map(str::to_string);
             scope.spawn(move || {
                 let _ = sender.send(resolve_provider(
+                    db_path,
                     UNPAYWALL,
                     query,
                     limit.min(1),
@@ -451,6 +543,20 @@ pub(super) fn run_remote_providers(
             ProviderCategory::Web => web_lists.push(entry.items),
         }
     }
+    for spec in PROVIDERS
+        .into_iter()
+        .filter(|spec| !provider_relevant(*spec, query))
+    {
+        health.push(AcademicProviderHealth {
+            provider: spec.name.to_string(),
+            category: spec.category.as_str().to_string(),
+            status: "skipped".to_string(),
+            result_count: 0,
+            cache_age_seconds: None,
+            code: Some("academic.provider.domain_irrelevant".to_string()),
+            retryable: false,
+        });
+    }
     if !unpaywall_enabled(query, contact_email) {
         health.push(AcademicProviderHealth {
             provider: "unpaywall".to_string(),
@@ -471,74 +577,4 @@ pub(super) fn run_remote_providers(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        cache_key, outcome, record_circuit_result, ProviderCategory, ProviderError, ProviderSpec,
-        ACADEMIC_FRESH_TTL, ACADEMIC_STALE_TTL, WEB_FRESH_TTL, WEB_STALE_TTL,
-    };
-
-    #[test]
-    fn cache_policies_match_research_source_classes() {
-        assert_eq!(ProviderCategory::Academic.fresh_ttl(), ACADEMIC_FRESH_TTL);
-        assert_eq!(ProviderCategory::Academic.stale_ttl(), ACADEMIC_STALE_TTL);
-        assert_eq!(ProviderCategory::Web.fresh_ttl(), WEB_FRESH_TTL);
-        assert_eq!(ProviderCategory::Web.stale_ttl(), WEB_STALE_TTL);
-        assert!(ACADEMIC_STALE_TTL > ACADEMIC_FRESH_TTL);
-        assert!(WEB_STALE_TTL > WEB_FRESH_TTL);
-    }
-
-    #[test]
-    fn cache_key_normalizes_query_without_logging_it() {
-        let spec = ProviderSpec {
-            index: 99,
-            name: "fixture",
-            category: ProviderCategory::Academic,
-        };
-        assert_eq!(
-            cache_key(spec, "  Stable   Query ", 5, None),
-            cache_key(spec, "stable query", 5, None)
-        );
-    }
-
-    #[test]
-    fn retryable_failures_open_a_bounded_circuit() {
-        let spec = ProviderSpec {
-            index: 98,
-            name: "fixture_circuit",
-            category: ProviderCategory::Academic,
-        };
-        let failure = Err(ProviderError {
-            code: "academic.fixture.timeout".to_string(),
-            retryable: true,
-        });
-        for _ in 0..3 {
-            record_circuit_result(spec, &failure);
-        }
-        let result = super::execute_provider_single_flight(spec, "query".to_string(), 1, None);
-        assert!(result
-            .unwrap_err()
-            .code
-            .ends_with("fixture_circuit.circuit_open"));
-    }
-
-    #[test]
-    fn provider_failures_keep_stable_health_metadata() {
-        let spec = ProviderSpec {
-            index: 97,
-            name: "fixture_health",
-            category: ProviderCategory::Web,
-        };
-        let value = outcome(
-            spec,
-            Err(ProviderError {
-                code: "academic.fixture_health.timeout".to_string(),
-                retryable: true,
-            }),
-            "live",
-            None,
-        );
-        assert_eq!(value.health.category, "web");
-        assert_eq!(value.health.status, "failed");
-        assert!(value.failure.unwrap().retryable);
-    }
-}
+include!("analysis_search_coordinator_tests.rs");
