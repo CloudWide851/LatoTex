@@ -140,7 +140,13 @@ pub(crate) const PROBE_TOOLCHAIN_KINDS: &[&str] = &[
     "julia", "quarto", "jupyter", "zotero", "spss", "sas", "stata", "imagej", "qgis",
 ];
 
-pub(crate) const RUNTIME_ASSET_KINDS: &[&str] =
-    &["drawio", "uv", "tectonic", "cloudflared", "matlab-mcp"];
+pub(crate) const RUNTIME_ASSET_KINDS: &[&str] = &[
+    "drawio",
+    "uv",
+    "tectonic",
+    "cloudflared",
+    "matlab-mcp",
+    "knowledge-embedding-model",
+];
 
 pub(crate) const SAFE_MCP_COMMANDS: &[&str] = &["runtimeAsset:matlab-mcp"];

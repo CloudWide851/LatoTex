@@ -44,6 +44,13 @@ use commands::health::{
     app_exit, app_smoke_config, app_smoke_finish, app_smoke_progress, health_check,
     runtime_clear_volatile_cache_and_restart, tray_set_labels, window_sync_icon,
 };
+use commands::knowledge::{
+    knowledge_archive, knowledge_embedding_job_status, knowledge_embedding_pause,
+    knowledge_embedding_rebuild, knowledge_embedding_resume, knowledge_embedding_status,
+    knowledge_fetch, knowledge_graph_expand, knowledge_list, knowledge_mutation_preview,
+    knowledge_reindex, knowledge_search, knowledge_search_cancel, knowledge_topic_list,
+    knowledge_topic_mutate, knowledge_unarchive, research_answer_validate,
+};
 use commands::local_resources::{handle_local_resource_request, LOCAL_RESOURCE_SCHEME};
 use commands::markdown_runtime::{markdown_run_code, markdown_run_code_capabilities};
 use commands::native_runtime::{
@@ -174,6 +181,7 @@ fn run_native_smoke_fallback() -> Result<(), String> {
             relative_path: "main.tex".to_string(),
             content: "\\documentclass{article}\n\\begin{document}\nSmoke path\n\\end{document}\n"
                 .to_string(),
+            knowledge_approval_token: None,
         },
     )?;
     steps.push(serde_json::json!({"name":"native.file.write","ok":true}));
@@ -403,6 +411,23 @@ pub fn run() {
             project_search_content,
             project_search_content_incremental,
             project_prepare_search_index,
+            knowledge_archive,
+            knowledge_reindex,
+            knowledge_unarchive,
+            knowledge_list,
+            knowledge_search,
+            knowledge_search_cancel,
+            knowledge_fetch,
+            knowledge_graph_expand,
+            knowledge_topic_list,
+            knowledge_topic_mutate,
+            knowledge_mutation_preview,
+            knowledge_embedding_status,
+            knowledge_embedding_job_status,
+            knowledge_embedding_rebuild,
+            knowledge_embedding_pause,
+            knowledge_embedding_resume,
+            research_answer_validate,
             reference_check,
             analysis_save_report,
             analysis_list_reports,

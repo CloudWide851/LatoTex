@@ -1,8 +1,8 @@
 use super::{
-    LibraryTranslateFailure, PaperRuntimeRunDir, TranslationModelCandidate, refresh_library_index,
-    refresh_workspace_index, resolve_translation_model_candidates,
+    refresh_library_index, refresh_workspace_index, resolve_translation_model_candidates,
     resolve_translation_source_pdf_workspace, to_library_relative_from_workspace,
     to_library_workspace_relative, touch_project_updated_at, translation_pdf_relative_path,
+    LibraryTranslateFailure, PaperRuntimeRunDir, TranslationModelCandidate,
 };
 use crate::commands::native_runtime::{
     configure_hidden_process, ensure_analysis_env_blocking, resolve_analysis_runtime_root,
@@ -10,12 +10,12 @@ use crate::commands::native_runtime::{
 use crate::secure;
 use crate::storage;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -134,7 +134,9 @@ fn resolve_service_configs(
             continue;
         }
         if is_anthropic_candidate(&candidate) {
-            diagnostics.push(format!("skip model={model_label}: unsupported_provider=anthropic"));
+            diagnostics.push(format!(
+                "skip model={model_label}: unsupported_provider=anthropic"
+            ));
             continue;
         }
         if is_gemini_candidate(&candidate) {
@@ -214,7 +216,8 @@ fn parse_runtime_failure(
     if value.get("status").and_then(|item| item.as_str()) != Some("failed") {
         return None;
     }
-    let error = serde_json::from_value::<PaperRuntimeErrorPayload>(value.get("error")?.clone()).ok()?;
+    let error =
+        serde_json::from_value::<PaperRuntimeErrorPayload>(value.get("error")?.clone()).ok()?;
     let mut diagnostics = error
         .diagnostics
         .iter()
@@ -249,7 +252,11 @@ where
     let output_path = run_root.join("paper-runtime-output.json");
     let generated_dir = run_root.join("generated");
     fs::create_dir_all(&generated_dir).map_err(|error| {
-        LibraryTranslateFailure::new("translation.fs.create_dir_failed", error.to_string(), Vec::new())
+        LibraryTranslateFailure::new(
+            "translation.fs.create_dir_failed",
+            error.to_string(),
+            Vec::new(),
+        )
     })?;
 
     let payload = json!({
@@ -265,8 +272,12 @@ where
         }
     });
     let payload = serde_json::to_vec_pretty(&payload).map_err(|error| {
-            LibraryTranslateFailure::new("translation.payload.serialize_failed", error.to_string(), Vec::new())
-        })?;
+        LibraryTranslateFailure::new(
+            "translation.payload.serialize_failed",
+            error.to_string(),
+            Vec::new(),
+        )
+    })?;
     storage::atomic_write_file(&input_path, &payload)
         .map_err(LibraryTranslateFailure::from_message)?;
 
@@ -345,9 +356,10 @@ where
         .map(|value| value.clone())
         .unwrap_or_default();
 
-    let output_json = storage::read_file_with_limit(&output_path, storage::WORKSPACE_TEXT_FILE_LIMIT)
-        .ok()
-        .and_then(|bytes| String::from_utf8(bytes).ok());
+    let output_json =
+        storage::read_file_with_limit(&output_path, storage::WORKSPACE_TEXT_FILE_LIMIT)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok());
     if !status.success() {
         if let Some(failure) = parse_runtime_failure(output_json.as_deref(), &stdout, &stderr) {
             return Err(failure);
@@ -451,9 +463,12 @@ where
         &project_root,
     )
     .map_err(LibraryTranslateFailure::from_message)?;
-    let python_path = PathBuf::from(env_status.python_path.clone().ok_or_else(|| {
-        LibraryTranslateFailure::from_message("python.env.python_missing")
-    })?);
+    let python_path = PathBuf::from(
+        env_status
+            .python_path
+            .clone()
+            .ok_or_else(|| LibraryTranslateFailure::from_message("python.env.python_missing"))?,
+    );
     let analysis_runtime_root = resolve_analysis_runtime_root().ok_or_else(|| {
         LibraryTranslateFailure::new(
             "translation.python.runtime_root_missing",
@@ -484,7 +499,9 @@ where
         ) {
             Ok(translated) => {
                 let mono_pdf = PathBuf::from(translated.mono_pdf.clone().ok_or_else(|| {
-                    LibraryTranslateFailure::from_message("translation.pdfmathtranslate.mono_missing")
+                    LibraryTranslateFailure::from_message(
+                        "translation.pdfmathtranslate.mono_missing",
+                    )
                 })?);
                 let translated_relative = translation_pdf_relative_path(&source_pdf_relative);
                 on_progress(0, translated.page_count.max(1), "rendering");
@@ -500,14 +517,21 @@ where
                     }
                 }
 
-                refresh_workspace_index(&project_root).map_err(LibraryTranslateFailure::from_message)?;
-                refresh_library_index(&project_root).map_err(LibraryTranslateFailure::from_message)?;
-                touch_project_updated_at(db_path, project_id).map_err(LibraryTranslateFailure::from_message)?;
+                refresh_workspace_index(&project_root)
+                    .map_err(LibraryTranslateFailure::from_message)?;
+                refresh_library_index(&project_root)
+                    .map_err(LibraryTranslateFailure::from_message)?;
+                touch_project_updated_at(db_path, project_id)
+                    .map_err(LibraryTranslateFailure::from_message)?;
 
                 let translated_pdf_workspace_relative =
                     to_library_workspace_relative(&translated_relative);
 
-                on_progress(translated.page_count, translated.page_count.max(1), "completed");
+                on_progress(
+                    translated.page_count,
+                    translated.page_count.max(1),
+                    "completed",
+                );
                 return Ok(crate::models::LibraryTranslateResponse {
                     relative_path: translated_pdf_workspace_relative.clone(),
                     source_kind: "pdf".to_string(),
@@ -522,7 +546,9 @@ where
                     source_pdf_relative_path: source_pdf_workspace_relative,
                     page_count: translated.page_count,
                     ocr_page_count: translated.ocr_page_count,
-                    layout_mode: translated.layout_mode.unwrap_or_else(|| "near-original".to_string()),
+                    layout_mode: translated
+                        .layout_mode
+                        .unwrap_or_else(|| "near-original".to_string()),
                 });
             }
             Err(error) => {

@@ -407,7 +407,8 @@ pub fn project_snapshot(db_path: &Path, project_id: &str) -> Result<ProjectSnaps
 
     let root_path = PathBuf::from(&summary.root_path);
     ensure_workspace_bootstrap_files(&root_path)?;
-    let tree = list_workspace_tree(&root_path)?;
+    let mut tree = list_workspace_tree(&root_path)?;
+    enrich_tree_with_knowledge(&root_path, &mut tree, "")?;
     Ok(ProjectSnapshot {
         summary,
         tree,

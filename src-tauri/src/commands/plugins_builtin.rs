@@ -543,6 +543,7 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
             vec!["rust", "cargo", "rustc"],
         )),
     ];
+    catalog.extend(super::plugins_builtin_knowledge::knowledge_catalog());
     catalog.extend(super::plugins_builtin_science::science_catalog());
     catalog
 }

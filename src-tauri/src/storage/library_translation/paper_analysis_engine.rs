@@ -1,13 +1,14 @@
 use super::{
-    PaperRuntimeRunDir, library_citation_summary, resolve_translation_source_pdf_workspace,
-    to_library_relative_from_workspace,
+    library_citation_summary, resolve_translation_source_pdf_workspace,
+    to_library_relative_from_workspace, PaperRuntimeRunDir, ReadyPaperExtractRuntime,
 };
 use crate::commands::native_runtime::{
-    configure_hidden_process, ensure_analysis_env_blocking, resolve_analysis_runtime_root,
+    analysis_env_status_blocking, configure_hidden_process, ensure_analysis_env_blocking,
+    resolve_analysis_runtime_root,
 };
+use crate::storage;
 use serde::Deserialize;
 use serde_json::json;
-use crate::storage;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,6 +19,8 @@ use std::{hash::Hash, hash::Hasher};
 
 const PAPER_ANALYSIS_CHUNK_MAX_CHARS: usize = 10_000;
 const PAPER_ANALYSIS_TIMEOUT: Duration = Duration::from_secs(45);
+const NETWORK_PDF_BODY_LIMIT: usize = 64 * 1024 * 1024;
+const NETWORK_PDF_TEXT_LIMIT: usize = 100_000;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,7 +43,10 @@ struct PaperRuntimeExtractResult {
 
 fn build_library_metadata_block(summary: &crate::models::LibraryCitationSummaryResponse) -> String {
     [
-        format!("Title: {}", summary.title.clone().unwrap_or_else(|| "-".to_string())),
+        format!(
+            "Title: {}",
+            summary.title.clone().unwrap_or_else(|| "-".to_string())
+        ),
         format!(
             "Authors: {}",
             if summary.authors.is_empty() {
@@ -51,9 +57,15 @@ fn build_library_metadata_block(summary: &crate::models::LibraryCitationSummaryR
         ),
         format!(
             "Published: {}",
-            summary.published_at.clone().unwrap_or_else(|| "-".to_string())
+            summary
+                .published_at
+                .clone()
+                .unwrap_or_else(|| "-".to_string())
         ),
-        format!("DOI: {}", summary.doi.clone().unwrap_or_else(|| "-".to_string())),
+        format!(
+            "DOI: {}",
+            summary.doi.clone().unwrap_or_else(|| "-".to_string())
+        ),
         format!(
             "ArXiv: {}",
             summary.arxiv_id.clone().unwrap_or_else(|| "-".to_string())
@@ -179,9 +191,9 @@ fn run_extract_bridge(
             Ok(None) => {
                 if started_at.elapsed() >= PAPER_ANALYSIS_TIMEOUT {
                     let _ = child.kill();
-                    let output = child
-                        .wait_with_output()
-                        .map_err(|error| format!("analysis.paper_extract.timeout_wait_failed: {error}"))?;
+                    let output = child.wait_with_output().map_err(|error| {
+                        format!("analysis.paper_extract.timeout_wait_failed: {error}")
+                    })?;
                     let stderr = crate::logging::sanitize_log_message_with_limit(
                         &String::from_utf8_lossy(&output.stderr),
                         320,
@@ -229,6 +241,129 @@ fn run_extract_bridge(
         .map_err(|error| format!("analysis.paper_extract.invalid_json: {error}"))
 }
 
+pub(super) fn resolve_ready_paper_extract_runtime(
+    db_path: &Path,
+    app_runtime_root: &Path,
+    app_data_dir: &Path,
+    project_id: &str,
+    project_root: &Path,
+) -> Option<ReadyPaperExtractRuntime> {
+    let status = analysis_env_status_blocking(
+        db_path,
+        app_runtime_root,
+        app_data_dir,
+        project_id,
+        project_root,
+    )
+    .ok()?;
+    if !status.ready {
+        return None;
+    }
+    let python_path = PathBuf::from(status.python_path?);
+    let paper_runtime_root = resolve_analysis_runtime_root()?;
+    if !python_path.is_file() || !paper_runtime_root.join("paper_runtime.py").is_file() {
+        return None;
+    }
+    Some(ReadyPaperExtractRuntime {
+        python_path,
+        paper_runtime_root,
+        app_runtime_root: app_runtime_root.to_path_buf(),
+    })
+}
+
+pub(super) fn extract_downloaded_pdf_text(
+    runtime: &ReadyPaperExtractRuntime,
+    bytes: &[u8],
+) -> Result<Option<String>, String> {
+    if bytes.len() > NETWORK_PDF_BODY_LIMIT || !bytes.starts_with(b"%PDF-") {
+        return Ok(None);
+    }
+    let run_dir = PaperRuntimeRunDir::create(&runtime.app_runtime_root)?;
+    let source_path = run_dir.path().join("source.pdf");
+    storage::atomic_write_file(&source_path, bytes)?;
+    let extracted = run_extract_bridge(
+        &runtime.python_path,
+        &runtime.paper_runtime_root,
+        run_dir.path(),
+        &source_path,
+    )?;
+    if extracted.page_count == 0
+        || extracted.ocr_page_count.saturating_mul(2) >= extracted.page_count
+    {
+        return Ok(None);
+    }
+    let text = extracted
+        .blocks
+        .into_iter()
+        .filter(|block| block.role != "metadata")
+        .map(|block| block.text.trim().to_string())
+        .filter(|block| !block.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    if text.chars().count() < 600 {
+        return Ok(None);
+    }
+    Ok(Some(
+        text.chars()
+            .take(NETWORK_PDF_TEXT_LIMIT)
+            .collect::<String>(),
+    ))
+}
+
+pub(super) fn extract_workspace_pdf_pages(
+    db_path: &Path,
+    app_runtime_root: &Path,
+    app_data_dir: &Path,
+    project_id: &str,
+    relative_path: &str,
+) -> Result<Vec<(u32, String)>, String> {
+    let project_root = super::load_project_root(db_path, project_id)?;
+    let normalized = relative_path.trim().replace('\\', "/");
+    let source = storage::safe_join(&project_root, &normalized)?;
+    storage::ensure_workspace_binary_file(&source)?;
+    let env_status = ensure_analysis_env_blocking(
+        db_path,
+        app_runtime_root,
+        app_data_dir,
+        project_id,
+        &project_root,
+    )?;
+    let python_path = PathBuf::from(
+        env_status
+            .python_path
+            .ok_or_else(|| "python.env.python_missing".to_string())?,
+    );
+    let runtime_root =
+        resolve_analysis_runtime_root().ok_or_else(|| "python.env.runtime_missing".to_string())?;
+    let run_dir = PaperRuntimeRunDir::create(app_runtime_root)?;
+    let extracted = run_extract_bridge(&python_path, &runtime_root, run_dir.path(), &source)?;
+    if extracted.page_count == 0
+        || extracted.ocr_page_count.saturating_mul(2) >= extracted.page_count
+    {
+        return Err("knowledge.archive.ocr_required".to_string());
+    }
+    let mut pages = std::collections::BTreeMap::<u32, String>::new();
+    for block in extracted.blocks {
+        if block.role == "metadata" || block.text.trim().is_empty() {
+            continue;
+        }
+        let page = block.page.unwrap_or(1).max(1);
+        let text = pages.entry(page).or_default();
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(block.text.trim());
+    }
+    let usable_chars = pages
+        .values()
+        .map(|value| value.chars().count())
+        .sum::<usize>();
+    if pages.is_empty() || usable_chars < 80 {
+        return Err("knowledge.archive.ocr_required".to_string());
+    }
+    Ok(pages.into_iter().collect())
+}
+
 fn paper_extract_cache_path(
     project_root: &Path,
     source_pdf_path: &Path,
@@ -244,10 +379,8 @@ fn paper_extract_cache_path(
     source_pdf_path.to_string_lossy().hash(&mut hasher);
     metadata.len().hash(&mut hasher);
     modified.hash(&mut hasher);
-    let cache_dir = storage::prepare_workspace_mutation_path(
-        project_root,
-        ".latotex/paper-runtime/cache",
-    )?;
+    let cache_dir =
+        storage::prepare_workspace_mutation_path(project_root, ".latotex/paper-runtime/cache")?;
     fs::create_dir_all(&cache_dir).map_err(|_| "workspace.operation.failed".to_string())?;
     Ok(cache_dir.join(format!("{:016x}.json", hasher.finish())))
 }
@@ -357,6 +490,21 @@ pub(super) fn extract_library_paper_context(
     Ok(response)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{extract_downloaded_pdf_text, ReadyPaperExtractRuntime};
+    use std::path::PathBuf;
 
-
-
+    #[test]
+    fn downloaded_fulltext_rejects_non_pdf_bytes_before_runtime_use() {
+        let runtime = ReadyPaperExtractRuntime {
+            python_path: PathBuf::from("missing-python"),
+            paper_runtime_root: PathBuf::from("missing-runtime"),
+            app_runtime_root: PathBuf::from("missing-app-runtime"),
+        };
+        assert_eq!(
+            extract_downloaded_pdf_text(&runtime, b"<html>not a pdf</html>").unwrap(),
+            None
+        );
+    }
+}

@@ -359,6 +359,17 @@ fn apply_library_bib_metadata_transfer(
 pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperationResult, String> {
     let project_root = load_project_root(db_path, &input.project_id)?;
     let scope = input.scope.trim().to_string();
+    if matches!(input.action.as_str(), "rename" | "move" | "delete") {
+        validate_knowledge_mutation(
+            db_path,
+            &input.project_id,
+            &scope,
+            &input.action,
+            &input.path,
+            input.target_path.as_deref(),
+            input.knowledge_approval_token.as_deref(),
+        )?;
+    }
     let root = scope_root(&project_root, &scope)?;
     let path = ensure_mutation_path(&root, &input.path)?;
     let target_relative = input.target_path.clone();
@@ -453,6 +464,14 @@ pub fn fs_operation(db_path: &Path, input: FsOperationInput) -> Result<FsOperati
     .map_err(|e| e.to_string())?;
 
     mark_search_index_dirty(&project_root)?;
+    sync_knowledge_after_fs_operation(
+        db_path,
+        &input.project_id,
+        &scope,
+        &input.action,
+        &input.path,
+        input.target_path.as_deref(),
+    )?;
 
     Ok(FsOperationResult {
         ok: true,

@@ -19,6 +19,27 @@ pub(crate) const CRAN_R_SIGNER_SUBJECT: &str =
     "CN=Martyn Plummer, O=Martyn Plummer, S=West Midlands, C=GB";
 pub(crate) const CRAN_R_EXECUTABLE: &str = "bin/Rscript.exe";
 
+pub(crate) const KNOWLEDGE_EMBEDDING_PLUGIN_ID: &str = "latotex.research.multilingual-e5-small";
+pub(crate) const KNOWLEDGE_EMBEDDING_CONTRIBUTION_ID: &str =
+    "multilingual-e5-small.int8.windows-x64";
+pub(crate) const KNOWLEDGE_EMBEDDING_REVISION: &str = "761b726dd34fb83930e26aab4e9ac3899aa1fa78";
+pub(crate) const KNOWLEDGE_EMBEDDING_URL: &str =
+    "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/onnx/model_quantized.onnx";
+pub(crate) const KNOWLEDGE_EMBEDDING_URL_CN: &str =
+    "https://www.modelscope.cn/models/Xenova/multilingual-e5-small/resolve/master/onnx/model_quantized.onnx";
+pub(crate) const KNOWLEDGE_EMBEDDING_SHA256: &str =
+    "f80102d3f2a1229f387d3c81909990d8945513e347b0eab049f7de3c6f98c193";
+pub(crate) const KNOWLEDGE_EMBEDDING_SIZE: u64 = 118_308_185;
+pub(crate) const KNOWLEDGE_EMBEDDING_ENTRY: &str = "model_quantized.onnx";
+pub(crate) const KNOWLEDGE_TOKENIZER_URL: &str =
+    "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/tokenizer.json";
+pub(crate) const KNOWLEDGE_TOKENIZER_URL_CN: &str =
+    "https://www.modelscope.cn/models/Xenova/multilingual-e5-small/resolve/master/tokenizer.json";
+pub(crate) const KNOWLEDGE_TOKENIZER_SHA256: &str =
+    "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39";
+pub(crate) const KNOWLEDGE_TOKENIZER_SIZE: u64 = 17_082_730;
+pub(crate) const KNOWLEDGE_TOKENIZER_ENTRY: &str = "tokenizer.json";
+
 pub(crate) fn matlab_mcp_asset() -> PluginRuntimeAsset {
     PluginRuntimeAsset {
         id: "matlab-mcp".to_string(),
@@ -46,6 +67,31 @@ pub(crate) fn cran_r_installer() -> PluginToolchainInstaller {
     }
 }
 
+pub(crate) fn knowledge_embedding_asset() -> PluginRuntimeAsset {
+    PluginRuntimeAsset {
+        id: "multilingual-e5-small".to_string(),
+        kind: "knowledge-embedding-model".to_string(),
+        platform: "windows-x64".to_string(),
+        download_url: KNOWLEDGE_EMBEDDING_URL.to_string(),
+        download_url_cn: Some(KNOWLEDGE_EMBEDDING_URL_CN.to_string()),
+        sha256: KNOWLEDGE_EMBEDDING_SHA256.to_string(),
+        archive_format: "file".to_string(),
+        entry_path: KNOWLEDGE_EMBEDDING_ENTRY.to_string(),
+    }
+}
+
+pub(crate) fn is_knowledge_embedding_asset(asset: &PluginRuntimeAsset) -> bool {
+    let expected = knowledge_embedding_asset();
+    asset.id == expected.id
+        && asset.kind == expected.kind
+        && asset.platform == expected.platform
+        && asset.download_url == expected.download_url
+        && asset.download_url_cn == expected.download_url_cn
+        && asset.sha256.eq_ignore_ascii_case(&expected.sha256)
+        && asset.archive_format == expected.archive_format
+        && asset.entry_path == expected.entry_path
+}
+
 pub(crate) fn is_matlab_mcp_asset(asset: &PluginRuntimeAsset) -> bool {
     let expected = matlab_mcp_asset();
     asset.id == expected.id
@@ -63,10 +109,19 @@ pub(crate) fn is_trusted_runtime_asset(
     contribution_id: &str,
     asset: &PluginRuntimeAsset,
 ) -> bool {
-    asset.archive_format != "exe"
-        || (plugin_id == MATLAB_MCP_PLUGIN_ID
-            && contribution_id == MATLAB_MCP_CONTRIBUTION_ID
-            && is_matlab_mcp_asset(asset))
+    match asset.archive_format.as_str() {
+        "exe" => {
+            plugin_id == MATLAB_MCP_PLUGIN_ID
+                && contribution_id == MATLAB_MCP_CONTRIBUTION_ID
+                && is_matlab_mcp_asset(asset)
+        }
+        "file" => {
+            plugin_id == KNOWLEDGE_EMBEDDING_PLUGIN_ID
+                && contribution_id == KNOWLEDGE_EMBEDDING_CONTRIBUTION_ID
+                && is_knowledge_embedding_asset(asset)
+        }
+        _ => true,
+    }
 }
 
 pub(crate) fn is_cran_r_installer(installer: &PluginToolchainInstaller) -> bool {
@@ -96,14 +151,17 @@ pub(crate) fn is_trusted_toolchain_installer(
 #[cfg(test)]
 mod tests {
     use super::{
-        cran_r_installer, is_cran_r_installer, is_matlab_mcp_asset, is_trusted_runtime_asset,
-        is_trusted_toolchain_installer, matlab_mcp_asset, CRAN_R_CONTRIBUTION_ID, CRAN_R_PLUGIN_ID,
+        cran_r_installer, is_cran_r_installer, is_knowledge_embedding_asset, is_matlab_mcp_asset,
+        is_trusted_runtime_asset, is_trusted_toolchain_installer, knowledge_embedding_asset,
+        matlab_mcp_asset, CRAN_R_CONTRIBUTION_ID, CRAN_R_PLUGIN_ID,
+        KNOWLEDGE_EMBEDDING_CONTRIBUTION_ID, KNOWLEDGE_EMBEDDING_PLUGIN_ID,
         MATLAB_MCP_CONTRIBUTION_ID, MATLAB_MCP_PLUGIN_ID,
     };
 
     #[test]
     fn trusted_recipes_are_exact() {
         assert!(is_matlab_mcp_asset(&matlab_mcp_asset()));
+        assert!(is_knowledge_embedding_asset(&knowledge_embedding_asset()));
         assert!(is_cran_r_installer(&cran_r_installer()));
 
         let mut changed_asset = matlab_mcp_asset();
@@ -142,6 +200,17 @@ mod tests {
             "publisher.custom",
             MATLAB_MCP_CONTRIBUTION_ID,
             &asset
+        ));
+        let model = knowledge_embedding_asset();
+        assert!(is_trusted_runtime_asset(
+            KNOWLEDGE_EMBEDDING_PLUGIN_ID,
+            KNOWLEDGE_EMBEDDING_CONTRIBUTION_ID,
+            &model
+        ));
+        assert!(!is_trusted_runtime_asset(
+            "publisher.custom",
+            KNOWLEDGE_EMBEDDING_CONTRIBUTION_ID,
+            &model
         ));
 
         let installer = cran_r_installer();

@@ -12,7 +12,10 @@ fn is_legacy_draw_export_hidden_asset(path: &Path, name: &str, is_dir: bool) -> 
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
-    if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg") {
+    if !matches!(
+        extension.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg"
+    ) {
         return false;
     }
     let stem = Path::new(name)
@@ -132,6 +135,8 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
             relative_path,
             kind: "directory".to_string(),
             directory_role,
+            knowledge_state: None,
+            knowledge_locked: None,
             children,
         })
     } else {
@@ -140,6 +145,8 @@ fn build_resource_node(root_path: &Path, path: &Path) -> Result<ResourceNode, St
             relative_path,
             kind: "file".to_string(),
             directory_role: None,
+            knowledge_state: None,
+            knowledge_locked: None,
             children: Vec::new(),
         })
     }

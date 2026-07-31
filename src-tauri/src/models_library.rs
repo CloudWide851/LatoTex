@@ -300,6 +300,8 @@ pub struct FsOperationInput {
     pub path: String,
     pub target_path: Option<String>,
     pub content: Option<String>,
+    #[serde(default)]
+    pub knowledge_approval_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

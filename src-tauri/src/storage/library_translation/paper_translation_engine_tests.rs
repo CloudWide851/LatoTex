@@ -16,7 +16,10 @@ fn candidate(base_url: &str, model_name: &str) -> TranslationModelCandidate {
 #[test]
 fn defaults_target_language_to_simplified_chinese() {
     assert_eq!(preferred_target_language(None), "Chinese (Simplified)");
-    assert_eq!(preferred_target_language(Some("  ")), "Chinese (Simplified)");
+    assert_eq!(
+        preferred_target_language(Some("  ")),
+        "Chinese (Simplified)"
+    );
 }
 
 #[test]

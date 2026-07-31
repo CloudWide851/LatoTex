@@ -271,6 +271,7 @@ pub async fn docx_write(state: State<'_, AppState>, input: DocxWriteInput) -> Re
             &input.project_id,
             &input.relative_path,
             &bytes,
+            input.knowledge_approval_token.as_deref(),
         )
     })
     .await

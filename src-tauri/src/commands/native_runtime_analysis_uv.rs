@@ -78,44 +78,7 @@ pub(crate) fn resolve_uv(runtime_root: Option<&Path>) -> Option<ResolvedUv> {
     verified_uv(PathBuf::from("uv"), "path")
 }
 
-fn locale_prefers_cn_source(locale: &str) -> bool {
-    locale
-        .trim()
-        .replace('_', "-")
-        .to_ascii_lowercase()
-        .starts_with("zh")
-}
-
-#[cfg(target_os = "windows")]
-fn system_locale_name() -> Option<String> {
-    use windows_sys::Win32::Globalization::GetUserDefaultLocaleName;
-
-    let mut buffer = [0u16; 85];
-    let length = unsafe { GetUserDefaultLocaleName(buffer.as_mut_ptr(), buffer.len() as i32) };
-    if length <= 1 {
-        return None;
-    }
-    String::from_utf16(&buffer[..length as usize - 1]).ok()
-}
-
-#[cfg(not(target_os = "windows"))]
-fn system_locale_name() -> Option<String> {
-    None
-}
-
-fn prefer_cn_source() -> bool {
-    let explicit_locale = std::env::var("LC_ALL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| {
-            std::env::var("LANG")
-                .ok()
-                .filter(|value| !value.trim().is_empty())
-        });
-    explicit_locale
-        .or_else(system_locale_name)
-        .is_some_and(|locale| locale_prefers_cn_source(&locale))
-}
+use crate::commands::source_locale::prefer_cn_source;
 
 pub(crate) fn uv_source_policy_label() -> &'static str {
     if prefer_cn_source() {
@@ -230,8 +193,8 @@ pub(crate) fn ensure_managed_python(
 mod tests {
     use super::{
         bundled_uv_candidates, configure_uv_command, configure_uv_command_for_policy,
-        first_verified_uv, locale_prefers_cn_source, resolve_uv, uv_source_policies_for_preference,
-        uv_source_policy_label, UvSourcePolicy,
+        first_verified_uv, resolve_uv, uv_source_policies_for_preference, uv_source_policy_label,
+        UvSourcePolicy,
     };
     use std::fs;
     use std::path::PathBuf;
@@ -304,14 +267,6 @@ mod tests {
             uv_source_policies_for_preference(false),
             vec![UvSourcePolicy::OfficialHttps]
         );
-    }
-
-    #[test]
-    fn chinese_locale_detection_accepts_windows_and_posix_shapes() {
-        assert!(locale_prefers_cn_source("zh-CN"));
-        assert!(locale_prefers_cn_source("zh_CN.UTF-8"));
-        assert!(locale_prefers_cn_source(" zh-Hans "));
-        assert!(!locale_prefers_cn_source("en-US"));
     }
 
     #[test]

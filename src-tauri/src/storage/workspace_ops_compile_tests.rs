@@ -29,7 +29,8 @@ mod workspace_ops_compile_tests {
 
         fs::create_dir_all(&projects_dir).unwrap();
         storage::initialize_database(&db_path).unwrap();
-        let snapshot = storage::create_project(&db_path, &projects_dir, "Workspace Op Test").unwrap();
+        let snapshot =
+            storage::create_project(&db_path, &projects_dir, "Workspace Op Test").unwrap();
         let project_id = snapshot.summary.id;
         let project_root = PathBuf::from(snapshot.summary.root_path);
         (temp_root, project_id, project_root, db_path)
@@ -49,12 +50,15 @@ mod workspace_ops_compile_tests {
     }
 
     fn annotation_path_for(papers_root: &Path, relative_path: &str) -> PathBuf {
-        papers_root.join(Path::new(&to_library_annotation_relative_path(relative_path)))
+        papers_root.join(Path::new(&to_library_annotation_relative_path(
+            relative_path,
+        )))
     }
 
     #[test]
     fn workspace_move_prefers_git_mv_for_tracked_files() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("workspace-git-move");
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("workspace-git-move");
         let Some(_) = run_git(&project_root, &["init"]) else {
             let _ = fs::remove_dir_all(temp_root);
             return;
@@ -77,6 +81,7 @@ mod workspace_ops_compile_tests {
                 path: "src/main.tex".to_string(),
                 target_path: Some("archive/main.tex".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
@@ -89,7 +94,8 @@ mod workspace_ops_compile_tests {
 
     #[test]
     fn library_bib_rename_moves_companion_pdf_and_annotation() {
-        let (temp_root, project_id, project_root, db_path) = create_project_fixture("library-bundle");
+        let (temp_root, project_id, project_root, db_path) =
+            create_project_fixture("library-bundle");
         let papers_root = project_root.join(".latotex").join("papers");
         fs::create_dir_all(&papers_root).unwrap();
 
@@ -112,12 +118,19 @@ mod workspace_ops_compile_tests {
                 path: "demo.bib".to_string(),
                 target_path: Some("grouped/demo-renamed.bib".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
 
-        assert!(papers_root.join("grouped").join("demo-renamed.bib").exists());
-        assert!(papers_root.join("grouped").join("demo-renamed.pdf").exists());
+        assert!(papers_root
+            .join("grouped")
+            .join("demo-renamed.bib")
+            .exists());
+        assert!(papers_root
+            .join("grouped")
+            .join("demo-renamed.pdf")
+            .exists());
         let next_annotation = annotation_path_for(&papers_root, "grouped/demo-renamed.bib");
         assert!(next_annotation.exists());
         assert!(!source_bib.exists());
@@ -153,6 +166,7 @@ mod workspace_ops_compile_tests {
                 path: "demo.bib".to_string(),
                 target_path: None,
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
@@ -202,16 +216,15 @@ mod workspace_ops_compile_tests {
                 path: "demo.bib".to_string(),
                 target_path: Some("archive/demo-copy.bib".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
 
         let copied_annotation = annotation_path_for(&papers_root, "archive/demo-copy.bib");
-        let copied_binding = remote_pdf_cache_binding_path_for_relative_path(
-            &papers_root,
-            "archive/demo-copy.bib",
-        )
-        .unwrap();
+        let copied_binding =
+            remote_pdf_cache_binding_path_for_relative_path(&papers_root, "archive/demo-copy.bib")
+                .unwrap();
 
         assert!(source_bib.exists());
         assert!(source_pdf.exists());
@@ -256,6 +269,7 @@ mod workspace_ops_compile_tests {
                 path: "demo.bib".to_string(),
                 target_path: Some("renamed/demo.bib".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
@@ -300,6 +314,7 @@ mod workspace_ops_compile_tests {
                 path: "demo.bib".to_string(),
                 target_path: None,
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
@@ -344,6 +359,7 @@ mod workspace_ops_compile_tests {
                 path: "incoming".to_string(),
                 target_path: Some("archive/incoming".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap();
@@ -355,8 +371,16 @@ mod workspace_ops_compile_tests {
         )
         .unwrap();
 
-        assert!(papers_root.join("archive").join("incoming").join("demo.bib").exists());
-        assert!(papers_root.join("archive").join("incoming").join("demo.pdf").exists());
+        assert!(papers_root
+            .join("archive")
+            .join("incoming")
+            .join("demo.bib")
+            .exists());
+        assert!(papers_root
+            .join("archive")
+            .join("incoming")
+            .join("demo.pdf")
+            .exists());
         assert!(!annotation_path.exists());
         assert!(target_annotation.exists());
         assert!(!source_binding.exists());
@@ -381,6 +405,7 @@ mod workspace_ops_compile_tests {
                 path: "source".to_string(),
                 target_path: Some("source/nested".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap_err();
@@ -418,6 +443,7 @@ mod workspace_ops_compile_tests {
                 path: "source".to_string(),
                 target_path: Some("copy".to_string()),
                 content: None,
+                knowledge_approval_token: None,
             },
         )
         .unwrap_err();

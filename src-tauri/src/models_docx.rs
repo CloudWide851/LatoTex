@@ -19,4 +19,6 @@ pub struct DocxWriteInput {
     pub project_id: String,
     pub relative_path: String,
     pub html: String,
+    #[serde(default)]
+    pub knowledge_approval_token: Option<String>,
 }

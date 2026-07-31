@@ -89,6 +89,7 @@ pub async fn file_write_binary(
             &input.project_id,
             &input.relative_path,
             &input.bytes,
+            input.knowledge_approval_token.as_deref(),
         )
     })
     .await

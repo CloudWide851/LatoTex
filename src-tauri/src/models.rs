@@ -25,6 +25,8 @@ pub struct ResourceNode {
     pub relative_path: String,
     pub kind: String,
     pub directory_role: Option<String>,
+    pub knowledge_state: Option<String>,
+    pub knowledge_locked: Option<bool>,
     pub children: Vec<ResourceNode>,
 }
 
@@ -239,6 +241,8 @@ pub struct FileWriteInput {
     pub project_id: String,
     pub relative_path: String,
     pub content: String,
+    #[serde(default)]
+    pub knowledge_approval_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -247,6 +251,8 @@ pub struct FileWriteBinaryInput {
     pub project_id: String,
     pub relative_path: String,
     pub bytes: Vec<u8>,
+    #[serde(default)]
+    pub knowledge_approval_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -584,6 +590,13 @@ pub struct AppSettings {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct KnowledgeGraphPrefs {
+    pub max_visible_nodes: Option<u32>,
+    pub show_labels: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct UiPrefs {
     pub language: Option<String>,
     pub skip_delete_confirm: Option<bool>,
@@ -621,6 +634,10 @@ pub struct UiPrefs {
     pub memory_guard_prefs: Option<MemoryGuardPrefs>,
     pub analysis_env_roots_by_project: Option<std::collections::HashMap<String, String>>,
     pub unpaywall_contact_email: Option<String>,
+    pub knowledge_semantic_model_reminder_enabled: Option<bool>,
+    pub knowledge_default_scope: Option<String>,
+    pub knowledge_background_index_enabled: Option<bool>,
+    pub knowledge_graph_prefs: Option<KnowledgeGraphPrefs>,
     pub library_selected_path_by_project: Option<std::collections::HashMap<String, String>>,
     pub library_view_mode_by_project: Option<std::collections::HashMap<String, String>>,
     pub workspace_explorer_default_expanded: Option<bool>,
@@ -765,6 +782,7 @@ pub struct ModelTestResult {
     pub message: String,
 }
 include!("models_library.rs");
+include!("models_knowledge.rs");
 include!("models_git.rs");
 include!("models_agent_workflows.rs");
 include!("models_agent_control.rs");

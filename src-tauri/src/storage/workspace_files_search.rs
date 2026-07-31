@@ -57,6 +57,19 @@ fn map_workspace_read_error(error: io::Error) -> String {
 
 pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, String> {
     let project_root = load_project_root(db_path, &input.project_id)?;
+    let was_archived =
+        knowledge_path_is_archived(&project_root, &input.project_id, &input.relative_path)?;
+    if was_archived {
+        validate_knowledge_mutation(
+            db_path,
+            &input.project_id,
+            "workspace",
+            "write",
+            &input.relative_path,
+            None,
+            input.knowledge_approval_token.as_deref(),
+        )?;
+    }
     atomic_write_under_root(
         &project_root,
         &input.relative_path,
@@ -71,6 +84,16 @@ pub fn write_project_file(db_path: &Path, input: FileWriteInput) -> Result<Ack, 
     )
     .map_err(|e| e.to_string())?;
     mark_search_index_dirty(&project_root)?;
+    if was_archived {
+        if matches!(
+            knowledge_source_kind(&input.relative_path),
+            Ok("markdown" | "text")
+        ) {
+            archive_knowledge_item(db_path, &input.project_id, &input.relative_path, None)?;
+        } else {
+            mark_knowledge_source_stale(db_path, &input.project_id, &input.relative_path)?;
+        }
+    }
 
     Ok(Ack {
         ok: true,
@@ -83,8 +106,21 @@ pub fn write_project_file_binary(
     project_id: &str,
     relative_path: &str,
     bytes: &[u8],
+    knowledge_approval_token: Option<&str>,
 ) -> Result<Ack, String> {
     let project_root = load_project_root(db_path, project_id)?;
+    let was_archived = knowledge_path_is_archived(&project_root, project_id, relative_path)?;
+    if was_archived {
+        validate_knowledge_mutation(
+            db_path,
+            project_id,
+            "workspace",
+            "write",
+            relative_path,
+            None,
+            knowledge_approval_token,
+        )?;
+    }
     atomic_write_under_root(
         &project_root,
         relative_path,
@@ -99,6 +135,9 @@ pub fn write_project_file_binary(
     )
     .map_err(|e| e.to_string())?;
     mark_search_index_dirty(&project_root)?;
+    if was_archived {
+        mark_knowledge_source_stale(db_path, project_id, relative_path)?;
+    }
 
     Ok(Ack {
         ok: true,
@@ -151,7 +190,9 @@ pub fn list_library_tree(db_path: &Path, project_id: &str) -> Result<Vec<Resourc
     let root = load_project_root(db_path, project_id)?;
     let papers_root = library_root(&root);
     fs::create_dir_all(&papers_root).map_err(|e| e.to_string())?;
-    list_workspace_tree(&papers_root)
+    let mut tree = list_workspace_tree(&papers_root)?;
+    enrich_tree_with_knowledge(&root, &mut tree, ".latotex/papers")?;
+    Ok(tree)
 }
 
 pub fn rescan_library(db_path: &Path, project_id: &str) -> Result<Ack, String> {
@@ -432,6 +473,7 @@ mod workspace_files_search_tests {
                 project_id: project_id.clone(),
                 relative_path: "notes.txt".to_string(),
                 content: "updated keyword line".to_string(),
+                knowledge_approval_token: None,
             },
         )
         .unwrap();

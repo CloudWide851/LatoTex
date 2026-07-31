@@ -4,7 +4,11 @@ use super::downloads::{
 };
 use super::plugins::read_registry;
 use super::plugins_builtin::built_in_catalog;
-use super::plugins_trusted_recipes::is_trusted_runtime_asset;
+use super::plugins_trusted_recipes::{
+    is_trusted_runtime_asset, KNOWLEDGE_EMBEDDING_SIZE, KNOWLEDGE_TOKENIZER_ENTRY,
+    KNOWLEDGE_TOKENIZER_SHA256, KNOWLEDGE_TOKENIZER_SIZE, KNOWLEDGE_TOKENIZER_URL,
+    KNOWLEDGE_TOKENIZER_URL_CN,
+};
 use crate::models::{
     PluginContribution, PluginManifest, PluginRuntimeAsset, RuntimeAssetActionInput,
     RuntimeAssetInstallRecord, RuntimeAssetStatus,
@@ -41,14 +45,10 @@ fn write_runtime_asset_registry(
     records: &[RuntimeAssetInstallRecord],
 ) -> Result<(), String> {
     let path = registry_path(runtime_root);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(
-        path,
-        serde_json::to_string_pretty(records).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())
+    let payload = serde_json::to_vec_pretty(records)
+        .map_err(|_| "runtimeAsset.registry_write_failed".to_string())?;
+    storage::atomic_write_file(&path, &payload)
+        .map_err(|_| "runtimeAsset.registry_write_failed".to_string())
 }
 
 fn status_from_record(record: &RuntimeAssetInstallRecord) -> RuntimeAssetStatus {
@@ -212,7 +212,7 @@ fn find_asset(
                 .clone()
                 .ok_or_else(|| "runtimeAsset.asset_missing".to_string())?;
             if asset.platform != "windows-x64"
-                || !matches!(asset.archive_format.as_str(), "zip" | "exe")
+                || !matches!(asset.archive_format.as_str(), "zip" | "exe" | "file")
                 || !asset.download_url.starts_with("https://")
                 || asset.sha256.len() != 64
                 || !asset.sha256.chars().all(|ch| ch.is_ascii_hexdigit())
@@ -227,13 +227,31 @@ fn find_asset(
 }
 
 fn download_asset(runtime_root: &Path, asset: &PluginRuntimeAsset) -> Result<Vec<u8>, String> {
-    download_verified(
+    let bytes = download_verified(
         runtime_root,
         "runtimeAsset",
         ordered_download_urls(&asset.download_url, asset.download_url_cn.as_deref()),
         &asset.sha256,
         240,
-    )
+    )?;
+    if asset.kind == "knowledge-embedding-model" && bytes.len() as u64 != KNOWLEDGE_EMBEDDING_SIZE {
+        return Err("runtimeAsset.size_mismatch".to_string());
+    }
+    Ok(bytes)
+}
+
+fn download_knowledge_tokenizer(runtime_root: &Path) -> Result<Vec<u8>, String> {
+    let bytes = download_verified(
+        runtime_root,
+        "runtimeAsset",
+        ordered_download_urls(KNOWLEDGE_TOKENIZER_URL, Some(KNOWLEDGE_TOKENIZER_URL_CN)),
+        KNOWLEDGE_TOKENIZER_SHA256,
+        120,
+    )?;
+    if bytes.len() as u64 != KNOWLEDGE_TOKENIZER_SIZE {
+        return Err("runtimeAsset.size_mismatch".to_string());
+    }
+    Ok(bytes)
 }
 
 fn extract_zip(bytes: &[u8], target_root: &Path) -> Result<(), String> {
@@ -282,12 +300,15 @@ fn install_blocking(
         fs::remove_dir_all(&staging).map_err(|e| e.to_string())?;
     }
     let bytes = download_asset(runtime_root, &asset)?;
-    if asset.archive_format == "exe" {
+    if matches!(asset.archive_format.as_str(), "exe" | "file") {
         let entry = staging.join(&asset.entry_path);
-        if let Some(parent) = entry.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        storage::atomic_write_file(&entry, &bytes)
+            .map_err(|_| "runtimeAsset.entry_write_failed".to_string())?;
+        if asset.kind == "knowledge-embedding-model" {
+            let tokenizer = download_knowledge_tokenizer(runtime_root)?;
+            storage::atomic_write_file(&staging.join(KNOWLEDGE_TOKENIZER_ENTRY), &tokenizer)
+                .map_err(|_| "runtimeAsset.entry_write_failed".to_string())?;
         }
-        fs::write(&entry, bytes).map_err(|e| e.to_string())?;
     } else {
         extract_zip(&bytes, &staging)?;
     }
@@ -506,3 +527,6 @@ pub async fn runtime_asset_remove(
         .await
         .map_err(|e| e.to_string())?
 }
+
+#[cfg(test)]
+include!("runtime_assets_online_tests.rs");
