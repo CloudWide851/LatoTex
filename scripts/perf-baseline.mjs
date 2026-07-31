@@ -203,6 +203,7 @@ for (const scriptName of [
   "test:unit",
   "test:e2e",
   "perf:baseline",
+  "research:knowledge-bench",
   "build",
   "tauri:build:win-x64",
   "release:validate:win-x64",

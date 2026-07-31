@@ -1,0 +1,376 @@
+{
+  "syntheticDistractors": 120,
+  "documents": [
+    {
+      "id": "causal",
+      "path": "knowledge/causal-inference.md",
+      "title": "Target Trial Emulation",
+      "sourceKind": "markdown",
+      "contentHash": "sha256:causal",
+      "chunks": [
+        {
+          "id": "causal:0",
+          "anchor": { "kind": "lines", "value": "1-4", "lineStart": 1, "lineEnd": 4 },
+          "text": "Target Trial Emulation. DOI 10.1234/causal.2026. Bib key Hernan2026.",
+          "concept": "causal-inference"
+        },
+        {
+          "id": "causal:1",
+          "anchor": { "kind": "lines", "value": "5-9", "lineStart": 5, "lineEnd": 9 },
+          "text": "Inverse probability weighting estimates causal effects from an observational cohort when exchangeability assumptions hold.",
+          "concept": "causal-inference"
+        },
+        {
+          "id": "causal:2",
+          "anchor": { "kind": "lines", "value": "10-12", "lineStart": 10, "lineEnd": 12 },
+          "text": "Positivity violations amplify inverse probability weights and increase estimator variance.",
+          "concept": "causal-inference"
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "path": "papers/systematic-review.md",
+      "title": "Transparent Systematic Review Workflow",
+      "sourceKind": "markdown",
+      "contentHash": "sha256:review",
+      "chunks": [
+        {
+          "id": "review:0",
+          "anchor": { "kind": "lines", "value": "1-3", "lineStart": 1, "lineEnd": 3 },
+          "text": "Transparent Systematic Review Workflow. DOI 10.5555/review.2025. Bib key Page2025.",
+          "concept": "systematic-review"
+        },
+        {
+          "id": "review:1",
+          "anchor": { "kind": "lines", "value": "4-8", "lineStart": 4, "lineEnd": 8 },
+          "text": "PRISMA screening uses duplicate independent review and records exclusion reasons.",
+          "concept": "systematic-review"
+        },
+        {
+          "id": "review:2",
+          "anchor": { "kind": "lines", "value": "9-12", "lineStart": 9, "lineEnd": 12 },
+          "text": "Publication bias assessment combines funnel plots with sensitivity analysis.",
+          "concept": "systematic-review"
+        }
+      ]
+    },
+    {
+      "id": "single-cell",
+      "path": "papers/single-cell.pdf",
+      "title": "Single Cell Quality Control",
+      "sourceKind": "pdf",
+      "contentHash": "sha256:single-cell",
+      "chunks": [
+        {
+          "id": "single-cell:0",
+          "anchor": { "kind": "page", "value": "1", "page": 1 },
+          "text": "Single Cell Quality Control. PMID 40123456.",
+          "concept": "single-cell"
+        },
+        {
+          "id": "single-cell:1",
+          "anchor": { "kind": "page", "value": "3", "page": 3 },
+          "text": "Batch correction separates technical variation from stable biological cell states.",
+          "concept": "single-cell"
+        },
+        {
+          "id": "single-cell:2",
+          "anchor": { "kind": "page", "value": "4", "page": 4 },
+          "text": "Doublet detection and mitochondrial read thresholds are reported before clustering.",
+          "concept": "single-cell"
+        }
+      ]
+    },
+    {
+      "id": "climate",
+      "path": "papers/climate-ensemble.pdf",
+      "title": "Climate Ensemble Calibration",
+      "sourceKind": "pdf",
+      "contentHash": "sha256:climate",
+      "chunks": [
+        {
+          "id": "climate:0",
+          "anchor": { "kind": "page", "value": "1", "page": 1 },
+          "text": "Climate Ensemble Calibration. arXiv 2607.01234.",
+          "concept": "climate-model"
+        },
+        {
+          "id": "climate:1",
+          "anchor": { "kind": "page", "value": "6", "page": 6 },
+          "text": "Ensemble projections are calibrated against held-out regional temperature observations.",
+          "concept": "climate-model"
+        },
+        {
+          "id": "climate:2",
+          "anchor": { "kind": "page", "value": "7", "page": 7 },
+          "text": "Aleatoric and scenario uncertainty are reported separately for each region.",
+          "concept": "climate-model"
+        }
+      ]
+    },
+    {
+      "id": "battery",
+      "path": "notes/battery.txt",
+      "title": "Solid Electrolyte Interface Notes",
+      "sourceKind": "text",
+      "contentHash": "sha256:battery",
+      "chunks": [
+        {
+          "id": "battery:0",
+          "anchor": { "kind": "lines", "value": "1-3", "lineStart": 1, "lineEnd": 3 },
+          "text": "Solid Electrolyte Interface Notes. DOI 10.1016/j.jpowsour.2026.001.",
+          "concept": "battery"
+        },
+        {
+          "id": "battery:1",
+          "anchor": { "kind": "lines", "value": "4-8", "lineStart": 4, "lineEnd": 8 },
+          "text": "A stable solid electrolyte interphase limits parasitic lithium consumption.",
+          "concept": "battery"
+        },
+        {
+          "id": "battery:2",
+          "anchor": { "kind": "lines", "value": "9-12", "lineStart": 9, "lineEnd": 12 },
+          "text": "Coulombic efficiency is measured across repeated charge and discharge cycles.",
+          "concept": "battery"
+        }
+      ]
+    },
+    {
+      "id": "microscopy",
+      "path": "papers/microscopy.docx",
+      "title": "Microscopy Resolution Protocol",
+      "sourceKind": "docx",
+      "contentHash": "sha256:microscopy",
+      "chunks": [
+        {
+          "id": "microscopy:0",
+          "anchor": { "kind": "paragraph", "value": "1" },
+          "text": "Microscopy Resolution Protocol. DOI 10.1000/micro.2026.",
+          "concept": "microscopy"
+        },
+        {
+          "id": "microscopy:1",
+          "anchor": { "kind": "paragraph", "value": "5" },
+          "text": "The point spread function is measured with sub-resolution fluorescent beads.",
+          "concept": "microscopy"
+        },
+        {
+          "id": "microscopy:2",
+          "anchor": { "kind": "paragraph", "value": "7" },
+          "text": "Deconvolution settings are fixed before blinded image quantification.",
+          "concept": "microscopy"
+        }
+      ]
+    },
+    {
+      "id": "rag",
+      "path": "knowledge/cited-rag.md",
+      "title": "Citation Grounded Retrieval",
+      "sourceKind": "markdown",
+      "contentHash": "sha256:rag",
+      "chunks": [
+        {
+          "id": "rag:0",
+          "anchor": { "kind": "lines", "value": "1-3", "lineStart": 1, "lineEnd": 3 },
+          "text": "Citation Grounded Retrieval. DOI 10.4242/rag.2026.",
+          "concept": "retrieval-grounding"
+        },
+        {
+          "id": "rag:1",
+          "anchor": { "kind": "lines", "value": "4-8", "lineStart": 4, "lineEnd": 8 },
+          "text": "Retrieval augmented generation selects bounded evidence passages before synthesis.",
+          "concept": "retrieval-grounding"
+        },
+        {
+          "id": "rag:2",
+          "anchor": { "kind": "lines", "value": "9-12", "lineStart": 9, "lineEnd": 12 },
+          "text": "Citation grounding maps each factual sentence to a stable evidence identifier.",
+          "concept": "retrieval-grounding"
+        }
+      ]
+    },
+    {
+      "id": "bayesian",
+      "path": "notes/bayesian-models.md",
+      "title": "Bayesian Model Criticism",
+      "sourceKind": "markdown",
+      "contentHash": "sha256:bayesian",
+      "chunks": [
+        {
+          "id": "bayesian:0",
+          "anchor": { "kind": "lines", "value": "1-3", "lineStart": 1, "lineEnd": 3 },
+          "text": "Bayesian Model Criticism. DOI 10.4321/bayes.2026.",
+          "concept": "bayesian-checks"
+        },
+        {
+          "id": "bayesian:1",
+          "anchor": { "kind": "lines", "value": "4-7", "lineStart": 4, "lineEnd": 7 },
+          "text": "Hierarchical priors partially pool estimates across related experimental groups.",
+          "concept": "bayesian-checks"
+        },
+        {
+          "id": "bayesian:2",
+          "anchor": { "kind": "lines", "value": "8-12", "lineStart": 8, "lineEnd": 12 },
+          "text": "Posterior predictive checks compare replicated observations with the measured distribution.",
+          "concept": "bayesian-checks"
+        }
+      ]
+    },
+    {
+      "id": "repro-cn",
+      "path": "知识/可重复科研.md",
+      "title": "可重复科研工作流",
+      "sourceKind": "markdown",
+      "contentHash": "sha256:repro-cn",
+      "chunks": [
+        {
+          "id": "repro-cn:0",
+          "anchor": { "kind": "lines", "value": "1-3", "lineStart": 1, "lineEnd": 3 },
+          "text": "可重复科研工作流。DOI 10.7788/repro.2026。",
+          "concept": "reproducibility"
+        },
+        {
+          "id": "repro-cn:1",
+          "anchor": { "kind": "lines", "value": "4-7", "lineStart": 4, "lineEnd": 7 },
+          "text": "固定随机种子并记录输入文件哈希，可以让统计分析结果被独立复核。",
+          "concept": "reproducibility"
+        },
+        {
+          "id": "repro-cn:2",
+          "anchor": { "kind": "lines", "value": "8-10", "lineStart": 8, "lineEnd": 10 },
+          "text": "环境指纹应包含 Python 与依赖包版本。",
+          "concept": "reproducibility"
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "exact-title",
+      "query": "Target Trial Emulation",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["causal"],
+      "relevantPassages": ["causal:0"],
+      "relevanceGrades": { "causal:0": 3 }
+    },
+    {
+      "id": "exact-path",
+      "query": "knowledge/causal-inference.md",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["causal"],
+      "relevantPassages": ["causal:0"],
+      "relevanceGrades": { "causal:0": 3 }
+    },
+    {
+      "id": "exact-doi",
+      "query": "10.1234/causal.2026",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["causal"],
+      "relevantPassages": ["causal:0"],
+      "relevanceGrades": { "causal:0": 3 }
+    },
+    {
+      "id": "exact-bib-key",
+      "query": "Page2025",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["review"],
+      "relevantPassages": ["review:0"],
+      "relevanceGrades": { "review:0": 3 }
+    },
+    {
+      "id": "exact-pmid",
+      "query": "40123456",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["single-cell"],
+      "relevantPassages": ["single-cell:0"],
+      "relevanceGrades": { "single-cell:0": 3 }
+    },
+    {
+      "id": "exact-arxiv",
+      "query": "2607.01234",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["climate"],
+      "relevantPassages": ["climate:0"],
+      "relevanceGrades": { "climate:0": 3 }
+    },
+    {
+      "id": "exact-cjk-sentence",
+      "query": "固定随机种子并记录输入文件哈希",
+      "exact": true,
+      "citationRequired": true,
+      "relevantDocuments": ["repro-cn"],
+      "relevantPassages": ["repro-cn:1"],
+      "relevanceGrades": { "repro-cn:1": 3, "repro-cn:2": 1 }
+    },
+    {
+      "id": "causal-breadth",
+      "query": "inverse probability weighting positivity",
+      "semanticConcept": "causal-inference",
+      "citationRequired": true,
+      "relevantDocuments": ["causal"],
+      "relevantPassages": ["causal:1", "causal:2"],
+      "relevanceGrades": { "causal:1": 3, "causal:2": 3, "causal:0": 1 }
+    },
+    {
+      "id": "review-depth",
+      "query": "duplicate screening publication bias",
+      "semanticConcept": "systematic-review",
+      "citationRequired": true,
+      "relevantDocuments": ["review"],
+      "relevantPassages": ["review:1", "review:2"],
+      "relevanceGrades": { "review:1": 3, "review:2": 3, "review:0": 1 }
+    },
+    {
+      "id": "semantic-single-cell",
+      "query": "remove technical noise while preserving biological populations",
+      "semanticConcept": "single-cell",
+      "citationRequired": true,
+      "relevantDocuments": ["single-cell"],
+      "relevantPassages": ["single-cell:1"],
+      "relevanceGrades": { "single-cell:0": 1, "single-cell:1": 3, "single-cell:2": 1 }
+    },
+    {
+      "id": "battery-mechanism",
+      "query": "solid electrolyte interphase coulombic efficiency",
+      "semanticConcept": "battery",
+      "citationRequired": true,
+      "relevantDocuments": ["battery"],
+      "relevantPassages": ["battery:1", "battery:2"],
+      "relevanceGrades": { "battery:1": 3, "battery:2": 3, "battery:0": 2 }
+    },
+    {
+      "id": "microscopy-method",
+      "query": "point spread function deconvolution",
+      "semanticConcept": "microscopy",
+      "citationRequired": true,
+      "relevantDocuments": ["microscopy"],
+      "relevantPassages": ["microscopy:1", "microscopy:2"],
+      "relevanceGrades": { "microscopy:1": 3, "microscopy:2": 3, "microscopy:0": 1 }
+    },
+    {
+      "id": "rag-citations",
+      "query": "retrieval evidence citation grounding",
+      "semanticConcept": "retrieval-grounding",
+      "citationRequired": true,
+      "relevantDocuments": ["rag"],
+      "relevantPassages": ["rag:1", "rag:2"],
+      "relevanceGrades": { "rag:2": 3, "rag:1": 3, "rag:0": 2 }
+    },
+    {
+      "id": "semantic-bayesian",
+      "query": "replicated data checks for hierarchical probabilistic models",
+      "semanticConcept": "bayesian-checks",
+      "citationRequired": true,
+      "relevantDocuments": ["bayesian"],
+      "relevantPassages": ["bayesian:2"],
+      "relevanceGrades": { "bayesian:0": 1, "bayesian:1": 2, "bayesian:2": 3 }
+    }
+  ]
+}

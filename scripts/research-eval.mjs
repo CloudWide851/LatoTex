@@ -12,6 +12,7 @@ import {
   insertCitation,
   searchPapers,
 } from "./latotex-mcp.mjs";
+import { runKnowledgeRetrievalQualityFixture } from "./knowledge-retrieval-eval.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(repoRoot, "tests", "fixtures", "research-eval");
@@ -272,8 +273,13 @@ try {
   assert.match(analysisRunnerSource, /BOOTSTRAP_ITERATIONS\s*=\s*2_000/);
   assert.match(analysisRunnerSource, /multipletests\(.*method="fdr_bh"/s);
 
+  const knowledgeRetrieval = runKnowledgeRetrievalQualityFixture(
+    path.join(fixtureRoot, "knowledge-retrieval.json"),
+  );
+
   console.log(JSON.stringify({
     status: "ok",
+    knowledgeRetrieval,
     checks: [
       "citation-search",
       "citation-audit",
@@ -288,6 +294,11 @@ try {
       "local-data-network-skip",
       "bibtex-evidence-levels",
       "deterministic-statistics-fixture",
+      "knowledge-exact-recall",
+      "knowledge-document-recall-at-20",
+      "knowledge-passage-recall-at-40",
+      "knowledge-ndcg-at-20",
+      "knowledge-citation-coverage",
     ],
   }, null, 2));
 } finally {
