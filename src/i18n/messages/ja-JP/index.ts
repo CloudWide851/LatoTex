@@ -3,12 +3,14 @@ import { jaJP_terminal } from "./terminal";
 import { jaJP_agentControl } from "./agentControl";
 import { jaJP_research } from "./research";
 import { jaJP_scientific } from "./scientific";
+import { jaJP_knowledge } from "./knowledge";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_terminal,
   ...jaJP_agentControl,
   ...jaJP_research,
   ...jaJP_scientific,
+  ...jaJP_knowledge,
   "settings.agentSkillsTitle": "研究 Skills",
   "settings.agentSkillsHint": "検証済みの研究ガイダンスは、関連する文献・データ分析ワークフローでのみ読み込まれます。",
   "settings.skillCustomDescription": "承認済みの Codex または Agent Skill ディレクトリにあるカスタム研究ガイダンスです。",
@@ -56,7 +58,8 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "nav.chat": "チャット",
   "nav.analysis": "査読ラボ",
   "nav.draw": "図表",
-  "nav.library": "論文",
+  "nav.library": "ナレッジ",
+  "library.title": "ナレッジソース",
   "nav.git": "版管理",
   "nav.plugins": "ツール",
   "nav.settings": "設定",

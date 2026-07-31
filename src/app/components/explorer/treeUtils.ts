@@ -3,6 +3,7 @@ export type ExplorerMenuTarget = {
   y: number;
   path: string;
   kind: "file" | "directory" | "blank";
+  knowledgeLocked?: boolean;
 };
 
 export type EditingState =

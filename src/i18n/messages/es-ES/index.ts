@@ -3,12 +3,14 @@ import { esES_terminal } from "./terminal";
 import { esES_agentControl } from "./agentControl";
 import { esES_research } from "./research";
 import { esES_scientific } from "./scientific";
+import { esES_knowledge } from "./knowledge";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_terminal,
   ...esES_agentControl,
   ...esES_research,
   ...esES_scientific,
+  ...esES_knowledge,
   "settings.agentSkillsTitle": "Skills de investigación",
   "settings.agentSkillsHint": "La guía validada se carga solo en flujos relevantes de literatura y análisis de datos.",
   "settings.skillCustomDescription": "Guía personalizada desde un directorio aprobado de Skills de Codex o Agent.",
@@ -56,7 +58,8 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   "nav.chat": "Chat",
   "nav.analysis": "Revisión",
   "nav.draw": "Figuras",
-  "nav.library": "Artículos",
+  "nav.library": "Conocimiento",
+  "library.title": "Fuentes de conocimiento",
   "nav.git": "Versiones",
   "nav.plugins": "Herramientas",
   "nav.settings": "Ajustes",

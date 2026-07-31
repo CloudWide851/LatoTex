@@ -12,6 +12,11 @@ export const LazyLibraryDocumentViewer = lazy(async () => {
   return { default: module.LibraryDocumentViewer };
 });
 
+export const LazyKnowledgeWorkbench = lazy(async () => {
+  const module = await import("../knowledge/KnowledgeWorkbench");
+  return { default: module.KnowledgeWorkbench };
+});
+
 export const LazyChatWorkspace = lazy(async () => {
   const module = await import("../chat/ChatWorkspace");
   return { default: module.ChatWorkspace };

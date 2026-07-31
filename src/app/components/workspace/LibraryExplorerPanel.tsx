@@ -88,9 +88,14 @@ export function LibraryExplorerPanel(props: {
   return (
     <aside className="app-material-panel h-full min-h-0 overflow-hidden rounded-lg border p-1.5">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <button
+          type="button"
+          className="truncate text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-[color:var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+          onClick={() => onSelectLibraryPath(null)}
+          title={t("knowledge.title")}
+        >
           {t("library.title")}
-        </h2>
+        </button>
         <div className="flex items-center gap-1">
           <button
             className="panel-topbar-btn inline-flex h-8 w-8 items-center justify-center rounded border transition disabled:opacity-50"

@@ -429,6 +429,7 @@ export type FsOperationInput = {
   path: string;
   targetPath?: string;
   content?: string;
+  knowledgeApprovalToken?: string;
 };
 
 export type FsOperationResult = {

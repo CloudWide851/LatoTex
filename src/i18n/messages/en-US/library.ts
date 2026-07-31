@@ -1,5 +1,5 @@
 export const enUS_library = {
-  "library.title": "Paper Explorer",
+  "library.title": "Knowledge Sources",
   "library.detailTitle": "Paper Details",
   "library.noSelection": "Select a .bib or PDF in the paper list to read, annotate, or compare it.",
   "library.empty": "No papers yet.",

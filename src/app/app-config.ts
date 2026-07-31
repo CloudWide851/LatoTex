@@ -30,6 +30,7 @@ export type Toast = { type: "info" | "error"; message: string } | null;
 export type SettingsSection =
   | "general"
   | "appearance"
+  | "knowledge"
   | "models"
   | "agents"
   | "agent-teams"
@@ -89,6 +90,7 @@ export const SETTINGS_SECTIONS: Array<{
   key:
     | "settings.section.general"
     | "settings.section.appearance"
+    | "settings.section.knowledge"
     | "settings.section.models"
     | "settings.section.agents"
     | "settings.section.agentTeams"
@@ -104,6 +106,7 @@ export const SETTINGS_SECTIONS: Array<{
 }> = [
   { id: "general", key: "settings.section.general", icon: Languages },
   { id: "appearance", key: "settings.section.appearance", icon: Palette },
+  { id: "knowledge", key: "settings.section.knowledge", icon: Library },
   { id: "models", key: "settings.section.models", icon: Globe },
   { id: "agents", key: "settings.section.agents", icon: Bot },
   { id: "agent-teams", key: "settings.section.agentTeams", icon: UsersRound },

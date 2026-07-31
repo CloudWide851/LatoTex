@@ -120,9 +120,10 @@ export function referenceCheck(
   queries: string[],
   limit = 5,
   projectId?: string,
+  deep = false,
 ): Promise<ReferenceCheckResponse> {
   return invoke<ReferenceCheckResponse>("reference_check", {
-    input: { queries, limit, projectId },
+    input: { queries, limit, projectId, deep },
   });
 }
 

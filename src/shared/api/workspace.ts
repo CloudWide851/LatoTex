@@ -122,9 +122,14 @@ export function readFileBinary(
   });
 }
 
-export function writeFile(projectId: string, relativePath: string, content: string): Promise<Ack> {
+export function writeFile(
+  projectId: string,
+  relativePath: string,
+  content: string,
+  knowledgeApprovalToken?: string,
+): Promise<Ack> {
   return invokeCommand<Ack>("file_write", {
-    input: { projectId, relativePath, content },
+    input: { projectId, relativePath, content, knowledgeApprovalToken },
   });
 }
 
@@ -132,12 +137,14 @@ export function writeFileBinary(
   projectId: string,
   relativePath: string,
   bytes: Uint8Array | number[],
+  knowledgeApprovalToken?: string,
 ): Promise<Ack> {
   return invokeCommand<Ack>("file_write_binary", {
     input: {
       projectId,
       relativePath,
       bytes: Array.from(bytes),
+      knowledgeApprovalToken,
     },
   });
 }

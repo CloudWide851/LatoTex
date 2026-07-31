@@ -21,7 +21,7 @@ const SETTINGS_NAVIGATION_GROUPS: SettingsNavigationGroup[] = [
   {
     id: "intelligence",
     labelKey: "settings.navigation.group.intelligence",
-    sectionIds: ["models", "agents", "agent-teams"],
+    sectionIds: ["knowledge", "models", "agents", "agent-teams"],
   },
   {
     id: "extensions",

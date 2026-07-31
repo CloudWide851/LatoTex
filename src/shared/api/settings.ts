@@ -1,13 +1,9 @@
 import type {
   Ack,
   AgentModelBinding,
-  AgentTeamPrefs,
   AppBackgroundImage,
   AppBackgroundImagePayload,
   AppSettings,
-  AgentToolPrefs,
-  AgentPermissionPrefs,
-  ChannelPrefs,
   CredentialSaveResult,
   McpValidationResult,
   McpServerConfig,
@@ -17,13 +13,10 @@ import type {
   ModelDraftTestInput,
   ModelTestResult,
   ModelProtocolInput,
-  OnboardingState,
-  PanelLayoutPrefs,
   ProtocolHealth,
   ProtocolTestInput,
   ResearchSkillDescriptor,
 } from "../types/app";
-import type { PluginCatalogSource } from "../plugins/pluginTypes";
 import { invokeCommand } from "./core";
 
 export function getSettings(): Promise<AppSettings> {
@@ -35,75 +28,7 @@ export function updateSettings(input: {
   modelProtocols: ModelProtocolInput[];
   modelCatalog: ModelCatalogItemInput[];
   agentBindings: AgentModelBinding[];
-  uiPrefs?: {
-    language?: "en-US" | "zh-CN" | "es-ES" | "ja-JP";
-    skipDeleteConfirm?: boolean;
-    closeToTrayNoticeEnabled?: boolean;
-    theme?: "light" | "dark" | "system";
-    themePreset?: "default" | "graphite" | "paper" | "forest" | "ocean" | "rose" | "amber" | "highContrast";
-    previewDefaultZoom?: number;
-    paperBriefEngine?: "auto" | "pdfjs" | "python";
-    terminalShell?: "powershell" | "cmd" | "system";
-    panelLayout?: PanelLayoutPrefs;
-    featureModelBindings?: {
-      latexAgentModelId?: string;
-      analysisAgentModelId?: string;
-      gitSummaryModelId?: string;
-      chatAgentModelId?: string;
-      translationModelId?: string;
-      completionModelId?: string;
-    };
-    channels?: ChannelPrefs;
-    closeBehavior?: "ask" | "tray" | "exit";
-    closeBehaviorRemember?: boolean;
-    backgroundImagePath?: string;
-    backgroundImagePaths?: string[];
-    backgroundBlurPx?: number;
-    backgroundCropByPath?: Record<string, { x: number; y: number; width: number; height: number }>;
-    editorBackgroundColor?: string;
-    interfaceDensity?: "compact" | "comfortable" | "spacious";
-    accentColor?: "emerald" | "blue" | "violet" | "rose" | "amber" | "custom";
-    accentCustomColor?: string;
-    scrollbarColorMode?: "accent" | "custom";
-    scrollbarWidthPx?: number;
-    scrollbarThumbColor?: string;
-    scrollbarTrackColor?: string;
-    glassOpacity?: number;
-    glassBlurPx?: number;
-    motionLevel?: "full" | "reduced" | "none";
-    fontScale?: number;
-    pdfPageGapPx?: number;
-    logFontSizePx?: number;
-    panelRadiusPx?: number;
-    panelBorderContrast?: "soft" | "normal" | "strong";
-    memoryGuardPrefs?: {
-      enabled?: boolean;
-      highWatermarkMb?: number;
-      criticalWatermarkMb?: number;
-      sampleIntervalSec?: number;
-      criticalAction?: "release" | "sleep";
-    };
-    analysisEnvRootsByProject?: Record<string, string>;
-    librarySelectedPathByProject?: Record<string, string>;
-    libraryViewModeByProject?: Record<string, "bib" | "pdf" | "compare">;
-    workspaceExplorerDefaultExpanded?: boolean;
-    libraryExplorerDefaultExpanded?: boolean;
-    workspaceExplorerScrollbarVisible?: boolean;
-    libraryExplorerScrollbarVisible?: boolean;
-    editorResizeRefreshDelayMs?: number;
-    workspaceExplorerExpandedPathsByProject?: Record<string, string[]>;
-    libraryExplorerExpandedPathsByProject?: Record<string, string[]>;
-    sidebarPageOrder?: Array<"latex" | "analysis" | "agents" | "draw" | "library" | "git" | "plugins" | "settings">;
-    agentToolPrefs?: AgentToolPrefs;
-    agentPermissionPrefs?: AgentPermissionPrefs;
-    agentTeamPrefs?: AgentTeamPrefs;
-    pluginCatalogSources?: PluginCatalogSource[];
-    docxAutoSaveEnabled?: boolean;
-    mcpServers?: McpServerConfig[];
-    enabledSkills?: string[];
-    hiddenSkills?: string[];
-    onboarding?: OnboardingState;
-  };
+  uiPrefs?: AppSettings["uiPrefs"];
 }): Promise<AppSettings> {
   return invokeCommand<AppSettings>("settings_update", { input });
 }

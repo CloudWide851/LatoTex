@@ -498,6 +498,7 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
             dirtyByPath={dirtyByPath}
             explorerGitDecorations={explorerGitDecorations}
             onSelectLibraryPath={onSelectLibraryPath}
+            onPageChange={onPageChange}
             onFsAction={onFsAction}
             onWorkspaceRevealInSystem={onWorkspaceRevealInSystem}
             onWorkspaceOpenTerminal={onWorkspaceOpenTerminal}

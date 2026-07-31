@@ -13,8 +13,13 @@ export function readDocx(projectId: string, relativePath: string): Promise<DocxR
   });
 }
 
-export function writeDocx(projectId: string, relativePath: string, html: string): Promise<Ack> {
+export function writeDocx(
+  projectId: string,
+  relativePath: string,
+  html: string,
+  knowledgeApprovalToken?: string,
+): Promise<Ack> {
   return invokeCommand<Ack>("docx_write", {
-    input: { projectId, relativePath, html },
+    input: { projectId, relativePath, html, knowledgeApprovalToken },
   });
 }

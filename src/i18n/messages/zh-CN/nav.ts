@@ -4,7 +4,7 @@ export const zhCN_nav = {
   "nav.analysis": "审稿台",
   "nav.agents": "Agent",
   "nav.draw": "图表",
-  "nav.library": "论文库",
+  "nav.library": "知识库",
   "nav.git": "版本",
   "nav.plugins": "工具",
   "nav.settings": "设置",

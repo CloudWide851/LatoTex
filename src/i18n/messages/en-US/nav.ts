@@ -4,7 +4,7 @@ export const enUS_nav = {
   "nav.analysis": "Review Lab",
   "nav.agents": "Agents",
   "nav.draw": "Figures",
-  "nav.library": "Papers",
+  "nav.library": "Knowledge",
   "nav.git": "Versions",
   "nav.plugins": "Tools",
   "nav.settings": "Settings",

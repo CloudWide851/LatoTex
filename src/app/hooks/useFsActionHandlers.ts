@@ -8,6 +8,10 @@ import { applyOptimisticFsAction } from "./fsTreeOptimistic";
 import { rewriteSelectionAfterFsAction } from "./librarySelectionState";
 import type { DeleteIntent, TranslationFn } from "./useAppHandlers.types";
 import { workspaceFsFailureMessage } from "./workspaceFsFailure";
+import {
+  knowledgeFailureMessage,
+  requestKnowledgeMutationApproval,
+} from "./knowledgeMutationApproval";
 
 export function useFsActionHandlers(params: {
   activeProjectId: string | null;
@@ -57,7 +61,29 @@ export function useFsActionHandlers(params: {
       return false;
     }
     try {
-      await fsOperation({ projectId: activeProjectId, scope, action, path, targetPath, content });
+      const needsKnowledgeApproval = action === "rename" || action === "move" || action === "delete";
+      const knowledgeApprovalToken = needsKnowledgeApproval
+        ? await requestKnowledgeMutationApproval({
+            projectId: activeProjectId,
+            scope,
+            action,
+            path,
+            targetPath,
+            t,
+          })
+        : undefined;
+      if (knowledgeApprovalToken === null) {
+        return false;
+      }
+      await fsOperation({
+        projectId: activeProjectId,
+        scope,
+        action,
+        path,
+        targetPath,
+        content,
+        knowledgeApprovalToken,
+      });
       if (scope === "workspace") {
         setTree((current) => applyOptimisticFsAction({ tree: current, action, path, targetPath }));
         setSelectedFile((current) => rewriteSelectionAfterFsAction({ selectedPath: current, action, path, targetPath }));
@@ -78,7 +104,10 @@ export function useFsActionHandlers(params: {
       setToast({ type: "info", message: t("toast.fsUpdated") });
       return true;
     } catch (error) {
-      setToast({ type: "error", message: workspaceFsFailureMessage(error, t) });
+      const message = String(error).includes("knowledge.")
+        ? knowledgeFailureMessage(error, t)
+        : workspaceFsFailureMessage(error, t);
+      setToast({ type: "error", message });
       return false;
     }
   };

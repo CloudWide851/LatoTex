@@ -26,6 +26,10 @@ import { signalWindowTransition } from "./windowTransitionSignal";
 import { useProjectSearchHandlers } from "./useProjectSearchHandlers";
 import { useFsActionHandlers } from "./useFsActionHandlers";
 import { useProjectCreationActions } from "./useProjectCreationActions";
+import {
+  knowledgeFailureMessage,
+  requestKnowledgeMutationApproval,
+} from "./knowledgeMutationApproval";
 export function useAppHandlers(params: UseAppHandlersParams) {
   const {
     isTauriRuntime,
@@ -246,7 +250,17 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
     setBusy(true);
     try {
-      await writeFile(activeProjectId, selectedFile, editorContent);
+      const knowledgeApprovalToken = await requestKnowledgeMutationApproval({
+        projectId: activeProjectId,
+        scope: "workspace",
+        action: "write",
+        path: selectedFile,
+        t,
+      });
+      if (knowledgeApprovalToken === null) {
+        return false;
+      }
+      await writeFile(activeProjectId, selectedFile, editorContent, knowledgeApprovalToken);
       await refreshGitWorkspace(activeProjectId).catch(() => undefined);
       await runtimeLogWrite("INFO", `${t("log.fileSaved")}: ${selectedFile}`);
       setToast({ type: "info", message: t("toast.fileSaved") });
@@ -267,7 +281,17 @@ export function useAppHandlers(params: UseAppHandlersParams) {
     }
     setBusy(true);
     try {
-      await writeFile(activeProjectId, selectedFile, nextContent);
+      const knowledgeApprovalToken = await requestKnowledgeMutationApproval({
+        projectId: activeProjectId,
+        scope: "workspace",
+        action: "write",
+        path: selectedFile,
+        t,
+      });
+      if (knowledgeApprovalToken === null) {
+        return false;
+      }
+      await writeFile(activeProjectId, selectedFile, nextContent, knowledgeApprovalToken);
       setEditorContent(nextContent);
       markPathSaved(selectedFile, nextContent);
       await refreshGitWorkspace(activeProjectId).catch(() => undefined);
@@ -275,7 +299,12 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       setToast({ type: "info", message: t("toast.fileSaved") });
       return true;
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      setToast({
+        type: "error",
+        message: String(error).includes("knowledge.")
+          ? knowledgeFailureMessage(error, t)
+          : String(error),
+      });
       return false;
     } finally {
       setBusy(false);
@@ -449,7 +478,12 @@ export function useAppHandlers(params: UseAppHandlersParams) {
       void projectPrepareSearchIndex(activeProjectId).catch(() => undefined);
       await refreshGitWorkspace(activeProjectId).catch(() => undefined);
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      setToast({
+        type: "error",
+        message: String(error).includes("knowledge.")
+          ? knowledgeFailureMessage(error, t)
+          : String(error),
+      });
     } finally {
       setBusy(false);
     }

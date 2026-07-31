@@ -22,6 +22,7 @@ const labels: Record<string, string> = {
   "settings.navigation.advancedHide": "Hide advanced settings",
   "settings.section.general": "General",
   "settings.section.appearance": "Appearance",
+  "settings.section.knowledge": "Knowledge Base",
   "settings.section.models": "Model Management",
   "settings.section.agents": "Agent Routing",
   "settings.section.agentTeams": "Agent Teams",
@@ -35,6 +36,7 @@ const labels: Record<string, string> = {
   "settings.section.diagnostics": "Diagnostics",
   "settings.navigation.keywords.general": "language locale terminal project tray behavior",
   "settings.navigation.keywords.appearance": "theme color accent wallpaper glass motion font",
+  "settings.navigation.keywords.knowledge": "knowledge archive search RAG semantic graph indexing citations",
   "settings.navigation.keywords.models": "model provider api protocol catalog",
   "settings.navigation.keywords.agents": "agent routing binding model",
   "settings.navigation.keywords.agent-teams": "team multi-agent roles orchestration",
@@ -68,11 +70,12 @@ describe("SettingsNavigation", () => {
   it("groups sections and filters by label or operational keyword", () => {
     const allSections = buildSettingsNavigationProjection("", t)
       .flatMap((group) => group.sections.map((item) => item.id));
-    expect(allSections).toHaveLength(13);
-    expect(new Set(allSections).size).toBe(13);
+    expect(allSections).toHaveLength(14);
+    expect(new Set(allSections).size).toBe(14);
     const groups = buildSettingsNavigationProjection("mailbox", t);
     expect(groups.flatMap((group) => group.sections.map((item) => item.id))).toEqual(["channels"]);
     expect(buildSettingsNavigationProjection("Appearance", t)[0]?.sections[0]?.id).toBe("appearance");
+    expect(buildSettingsNavigationProjection("RAG", t)[0]?.sections[0]?.id).toBe("knowledge");
   });
 
   it("matches localized operational synonyms in Chinese, Spanish, and Japanese", () => {

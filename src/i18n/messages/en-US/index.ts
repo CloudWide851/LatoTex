@@ -23,6 +23,7 @@ import { enUS_log } from "./log";
 import { enUS_misc } from "./misc";
 import { enUS_terminal } from "./terminal";
 import { enUS_agentControl } from "./agentControl";
+import { enUS_knowledge } from "./knowledge";
 
 export const enUS = {
   ...enUS_app,
@@ -50,6 +51,7 @@ export const enUS = {
   ...enUS_misc,
   ...enUS_terminal,
   ...enUS_agentControl,
+  ...enUS_knowledge,
 } as const;
 
 export type MessageKey = keyof typeof enUS;

@@ -643,6 +643,19 @@ input[type="range"] {
   border-color: #334155;
 }
 
+.knowledge-workbench {
+  contain: layout paint style;
+}
+
+.knowledge-workbench[data-performance-mode="busy"] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.knowledge-workbench[data-performance-mode="busy"]
+  :where(.motion-fade-in, .motion-slide-up, .motion-page-in) {
+  animation: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .motion-fade-in,

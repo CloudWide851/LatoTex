@@ -35,6 +35,7 @@ import { AgentRoutingSettingsSection } from "./settings/AgentRoutingSettingsSect
 import { AppearanceSettingsSection } from "./settings/AppearanceSettingsSection";
 import { ExplorerDefaultsSection } from "./settings/ExplorerDefaultsSection";
 import { MemoryGuardSettingsSection } from "./settings/MemoryGuardSettingsSection";
+import { KnowledgeSettingsSection } from "./settings/KnowledgeSettingsSection";
 import { SettingsBooleanRow } from "./settings/SettingsBooleanRow";
 import { SettingsSelectRow } from "./settings/SettingsSelectRow";
 import { SidebarPageOrderSettingsSection } from "./settings/SidebarPageOrderSettingsSection";
@@ -159,6 +160,13 @@ export function SettingsPanel(props: {
         criticalWatermarkMb: 760,
         sampleIntervalSec: 25,
         criticalAction: "sleep",
+      },
+      knowledgeSemanticModelReminderEnabled: true,
+      knowledgeDefaultScope: "current",
+      knowledgeBackgroundIndexEnabled: true,
+      knowledgeGraphPrefs: {
+        maxVisibleNodes: 2_000,
+        showLabels: true,
       },
       workspaceExplorerScrollbarVisible: true,
       libraryExplorerScrollbarVisible: true,
@@ -300,6 +308,14 @@ export function SettingsPanel(props: {
             settings={localSettings}
             setSettings={setSettings}
             onThemeModeChange={onThemeModeChange}
+            t={t}
+          />
+        )}
+
+        {settingsSection === "knowledge" && (
+          <KnowledgeSettingsSection
+            settings={localSettings}
+            setSettings={setSettings}
             t={t}
           />
         )}

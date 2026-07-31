@@ -10,6 +10,7 @@ import {
 } from "../appearance/appAppearance";
 import { normalizeLibraryBibLayout } from "../components/library/libraryBibLayout";
 import { normalizeAgentTeamPrefs } from "../settings/agentTeamDefaults";
+import { normalizeKnowledgePrefs } from "../settings/knowledgeSettings";
 import { registerSettingsPersistence } from "../settings/settingsPersistenceBridge";
 
 type SettingsPersistenceParams = {
@@ -158,6 +159,7 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
       const scrollbarColorMode = nextSettings.uiPrefs?.scrollbarColorMode
         ?? (hasCustomScrollbarColors ? "custom" : "accent");
       const normalizedAgentTeamPrefs = normalizeAgentTeamPrefs(nextSettings.uiPrefs?.agentTeamPrefs);
+      const normalizedKnowledgePrefs = normalizeKnowledgePrefs(nextSettings.uiPrefs);
       const normalizedPluginCatalogSources = (nextSettings.uiPrefs?.pluginCatalogSources ?? [])
         .map((source, index) => ({
           id: String(source.id || `catalog-${index + 1}`).trim(),
@@ -221,6 +223,11 @@ export function useSettingsPersistence(params: SettingsPersistenceParams) {
             sampleIntervalSec: nextSettings.uiPrefs?.memoryGuardPrefs?.sampleIntervalSec ?? 25,
             criticalAction: nextSettings.uiPrefs?.memoryGuardPrefs?.criticalAction ?? "sleep",
           },
+          knowledgeSemanticModelReminderEnabled:
+            normalizedKnowledgePrefs.semanticModelReminderEnabled,
+          knowledgeDefaultScope: normalizedKnowledgePrefs.defaultScope,
+          knowledgeBackgroundIndexEnabled: normalizedKnowledgePrefs.backgroundIndexEnabled,
+          knowledgeGraphPrefs: normalizedKnowledgePrefs.graph,
           analysisEnvRootsByProject: normalizedAnalysisEnvRootsByProject,
           librarySelectedPathByProject: normalizedLibrarySelectedPathByProject,
           libraryViewModeByProject: normalizedLibraryViewModeByProject,

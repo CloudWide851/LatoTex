@@ -24,6 +24,7 @@ import {
   resolveDecorationTone,
 } from "./explorer/treeUtils";
 import type { ResourceNode } from "../../shared/types/app";
+import { KnowledgeNodeStatus } from "./explorer/KnowledgeNodeStatus";
 type TranslationFn = (key: any) => string;
 
 export function ExplorerTree(props: {
@@ -44,6 +45,7 @@ export function ExplorerTree(props: {
   onImportLink?: (link: string) => void;
   onRevealInSystem?: (path?: string) => Promise<void> | void;
   onOpenTerminal?: (path?: string) => Promise<void> | void;
+  onArchiveKnowledge?: (path: string) => Promise<void> | void;
   defaultExpanded?: boolean;
   scrollbarVisible?: boolean;
   expandedPaths?: string[];
@@ -65,6 +67,7 @@ export function ExplorerTree(props: {
     onImportLink,
     onRevealInSystem,
     onOpenTerminal,
+    onArchiveKnowledge,
     defaultExpanded = true,
     scrollbarVisible = true,
     expandedPaths,
@@ -335,6 +338,7 @@ export function ExplorerTree(props: {
               y: event.clientY,
               path: node.relativePath,
               kind: node.kind,
+              knowledgeLocked: Boolean(node.knowledgeLocked),
             });
           }}
           onClick={(event) => {
@@ -429,6 +433,11 @@ export function ExplorerTree(props: {
                   aria-label={t("editor.unsaved.title")}
                 />
               ) : null}
+              <KnowledgeNodeStatus
+                locked={node.knowledgeLocked}
+                state={node.knowledgeState}
+                t={t}
+              />
               {!isDirectory && decoration ? (
                 <span
                   className={cn(
@@ -553,6 +562,7 @@ export function ExplorerTree(props: {
         onImportLink={() => setLinkDraft("")}
         onRevealInSystem={onRevealInSystem}
         onOpenTerminal={onOpenTerminal}
+        onArchiveKnowledge={onArchiveKnowledge}
         t={t}
       />
       {dragPreview?.active && typeof document !== "undefined"

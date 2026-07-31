@@ -3,7 +3,11 @@ import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { LibraryExplorerPanel } from "./LibraryExplorerPanel";
 import { WorkspaceExplorerPanel } from "./WorkspaceExplorerPanel";
-import { WorkspacePanelFallback, LazyLibraryDocumentViewer } from "./workspaceShellLazy";
+import {
+  WorkspacePanelFallback,
+  LazyKnowledgeWorkbench,
+  LazyLibraryDocumentViewer,
+} from "./workspaceShellLazy";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 import { emitWorkspaceLayoutRefresh } from "../../hooks/workspaceLayoutRefresh";
 
@@ -23,6 +27,7 @@ type WorkspacePageLayoutProps = Pick<
   | "dirtyByPath"
   | "explorerGitDecorations"
   | "onSelectLibraryPath"
+  | "onPageChange"
   | "onFsAction"
   | "onWorkspaceRevealInSystem"
   | "onWorkspaceOpenTerminal"
@@ -69,6 +74,7 @@ export function WorkspacePageLayout({
   dirtyByPath,
   explorerGitDecorations,
   onSelectLibraryPath,
+  onPageChange,
   onFsAction,
   onWorkspaceRevealInSystem,
   onWorkspaceOpenTerminal,
@@ -154,20 +160,37 @@ export function WorkspacePageLayout({
         <Panel className="min-w-0" id={`library-viewer-${activeProjectId}`} order={2} defaultSize={libraryLayout[1]} minSize={28}>
           <section className="h-full min-h-0 min-w-0 motion-page-in">
             <Suspense fallback={<WorkspacePanelFallback label={t("common.loading")} />}>
-              <LazyLibraryDocumentViewer
-                projectId={activeProjectId}
-                selectedPath={selectedLibraryPath}
-                active
-                onAnalyzePaper={onLibraryAnalyzePaper}
-                analysisRunning={analysisRunning}
-                persistedViewMode={libraryViewMode}
-                onPersistViewMode={onLibraryViewModeChange}
-                translationModelId={translationModelId}
-                paperBriefEngine={paperBriefEngine}
-                bibLayout={libraryBibLayout}
-                onBibLayoutChange={(layout) => handleLayout("libraryBib", layout)}
-                t={t}
-              />
+              {selectedLibraryPath ? (
+                <LazyLibraryDocumentViewer
+                  projectId={activeProjectId}
+                  selectedPath={selectedLibraryPath}
+                  active
+                  onAnalyzePaper={onLibraryAnalyzePaper}
+                  analysisRunning={analysisRunning}
+                  persistedViewMode={libraryViewMode}
+                  onPersistViewMode={onLibraryViewModeChange}
+                  translationModelId={translationModelId}
+                  paperBriefEngine={paperBriefEngine}
+                  bibLayout={libraryBibLayout}
+                  onBibLayoutChange={(layout) => handleLayout("libraryBib", layout)}
+                  t={t}
+                />
+              ) : (
+                <LazyKnowledgeWorkbench
+                  projectId={activeProjectId}
+                  onOpenSource={(item) => {
+                    const paperPrefix = ".latotex/papers/";
+                    if (item.relativePath.startsWith(paperPrefix)) {
+                      onSelectLibraryPath(item.relativePath.slice(paperPrefix.length));
+                      return;
+                    }
+                    onSelectWorkspaceFile(item.relativePath);
+                    onPageChange("latex");
+                  }}
+                  onOpenPlugins={() => onPageChange("plugins")}
+                  t={t}
+                />
+              )}
             </Suspense>
           </section>
         </Panel>

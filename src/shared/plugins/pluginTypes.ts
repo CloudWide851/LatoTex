@@ -41,7 +41,7 @@ export type PluginRuntimeAsset = {
   downloadUrl: string;
   downloadUrlCn?: string | null;
   sha256: string;
-  archiveFormat: "zip" | "exe" | string;
+  archiveFormat: "zip" | "exe" | "file" | string;
   entryPath: string;
 };
 

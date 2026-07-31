@@ -71,6 +71,7 @@ export function AppContainer() {
     savedContentByPathRef: s.savedContentByPathRef,
     workingContentByPathRef: s.workingContentByPathRef,
     activeProjectIdRef: s.activeProjectIdRef,
+    t,
   });
 
   const refreshGitWorkspace = useCallback(

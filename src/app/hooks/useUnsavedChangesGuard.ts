@@ -2,6 +2,10 @@ import { useCallback, useRef, useState } from "react";
 import { runtimeLogWrite } from "../../shared/api/runtime";
 import { writeFile } from "../../shared/api/workspace";
 import type { EditorTab, PendingNavigationIntent, UnsavedChangeItem } from "../../shared/types/app";
+import {
+  knowledgeFailureMessage,
+  requestKnowledgeMutationApproval,
+} from "./knowledgeMutationApproval";
 
 type UnsavedGuardParams = {
   selectedFile: string | null;
@@ -19,6 +23,7 @@ type UnsavedGuardParams = {
   savedContentByPathRef: React.MutableRefObject<Record<string, string>>;
   workingContentByPathRef: React.MutableRefObject<Record<string, string>>;
   activeProjectIdRef: React.MutableRefObject<string | null>;
+  t: (key: any) => string;
 };
 
 export function useUnsavedChangesGuard(params: UnsavedGuardParams) {
@@ -38,6 +43,7 @@ export function useUnsavedChangesGuard(params: UnsavedGuardParams) {
     savedContentByPathRef,
     workingContentByPathRef,
     activeProjectIdRef,
+    t,
   } = params;
 
   const [unsavedDialogOpen, setUnsavedDialogOpen] = useState(false);
@@ -227,7 +233,17 @@ export function useUnsavedChangesGuard(params: UnsavedGuardParams) {
         if (typeof content !== "string") {
           continue;
         }
-        await writeFile(projectId, path, content);
+        const knowledgeApprovalToken = await requestKnowledgeMutationApproval({
+          projectId,
+          scope: "workspace",
+          action: "write",
+          path,
+          t,
+        });
+        if (knowledgeApprovalToken === null) {
+          return;
+        }
+        await writeFile(projectId, path, content, knowledgeApprovalToken);
         await runtimeLogWrite("INFO", `file saved (unsaved-guard): ${path}`);
         markPathSaved(path, content);
       }
@@ -239,11 +255,16 @@ export function useUnsavedChangesGuard(params: UnsavedGuardParams) {
         await action();
       }
     } catch (error) {
-      setToast({ type: "error", message: String(error) });
+      setToast({
+        type: "error",
+        message: String(error).includes("knowledge.")
+          ? knowledgeFailureMessage(error, t)
+          : String(error),
+      });
     } finally {
       setUnsavedDialogBusy(false);
     }
-  }, [activeProjectIdRef, markPathSaved, setToast, workingContentByPathRef]);
+  }, [activeProjectIdRef, markPathSaved, setToast, t, workingContentByPathRef]);
 
   return {
     unsavedDialogOpen,

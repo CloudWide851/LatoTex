@@ -21,6 +21,7 @@ import {
   DEFAULT_GLASS_OPACITY,
   DEFAULT_PANEL_RADIUS_PX,
 } from "../appearance/appAppearance";
+import { normalizeKnowledgePrefs } from "../settings/knowledgeSettings";
 import { writeTauriSmokeProgress } from "../smoke/tauriSmokeProgress";
 
 type TranslationFn = (...args: any[]) => string;
@@ -111,6 +112,7 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
       enabled: source.enabled ?? true,
     }))
     .filter((source) => source.id.length > 0 && source.url.length > 0);
+  const knowledgePrefs = normalizeKnowledgePrefs(appSettings.uiPrefs);
   return {
     ...appSettings,
     agentBindings: normalizeAgentBindings(appSettings.agentBindings ?? []),
@@ -175,6 +177,10 @@ function normalizeSettings(appSettings: AppSettings): AppSettings {
         sampleIntervalSec: appSettings.uiPrefs?.memoryGuardPrefs?.sampleIntervalSec ?? 25,
         criticalAction: appSettings.uiPrefs?.memoryGuardPrefs?.criticalAction ?? "sleep",
       },
+      knowledgeSemanticModelReminderEnabled: knowledgePrefs.semanticModelReminderEnabled,
+      knowledgeDefaultScope: knowledgePrefs.defaultScope,
+      knowledgeBackgroundIndexEnabled: knowledgePrefs.backgroundIndexEnabled,
+      knowledgeGraphPrefs: knowledgePrefs.graph,
       panelLayout: {
         ...DEFAULT_PANEL_LAYOUT,
         ...(appSettings.uiPrefs?.panelLayout ?? {}),

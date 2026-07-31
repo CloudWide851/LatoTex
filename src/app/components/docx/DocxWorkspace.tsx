@@ -7,6 +7,10 @@ import type { ResourceNode } from "../../../shared/types/app";
 import { buildWorkspacePreviewUrl } from "../../../shared/utils/workspaceResource";
 import { DocxRibbonPopup, type RibbonTab } from "./DocxRibbonPopup";
 import {
+  knowledgeFailureMessage,
+  requestKnowledgeMutationApproval,
+} from "../../hooks/knowledgeMutationApproval";
+import {
   countMatches,
   countWords,
   captureSelectionInRoot,
@@ -236,7 +240,21 @@ export function DocxWorkspace(props: {
     setSaving(true);
     setStatus(null);
     try {
-      await writeDocx(projectId, selectedPath, nextHtml);
+      const knowledgeApprovalToken = await requestKnowledgeMutationApproval({
+        projectId,
+        scope: "workspace",
+        action: "write",
+        path: selectedPath,
+        t,
+        confirm: options.auto ? () => false : undefined,
+      });
+      if (knowledgeApprovalToken === null) {
+        if (options.auto) {
+          setStatus(t("knowledge.autoSavePaused"));
+        }
+        return;
+      }
+      await writeDocx(projectId, selectedPath, nextHtml, knowledgeApprovalToken);
       setHtmlSnapshot(nextHtml);
       setDirty(false);
       setStatus(t(options.auto ? "docx.autoSaved" : "docx.saved"));
@@ -244,7 +262,11 @@ export function DocxWorkspace(props: {
         await onRescan();
       }
     } catch (error) {
-      setStatus(mapDocxStatus(String(error), t));
+      setStatus(
+        String(error).includes("knowledge.")
+          ? knowledgeFailureMessage(error, t)
+          : mapDocxStatus(String(error), t),
+      );
     } finally {
       setSaving(false);
     }

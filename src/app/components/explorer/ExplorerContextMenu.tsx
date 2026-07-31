@@ -19,6 +19,7 @@ type ExplorerContextMenuProps = {
   onImportLink?: () => void;
   onRevealInSystem?: (path?: string) => Promise<void> | void;
   onOpenTerminal?: (path?: string) => Promise<void> | void;
+  onArchiveKnowledge?: (path: string) => Promise<void> | void;
   t: TranslationFn;
 };
 
@@ -38,6 +39,7 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
     onImportLink,
     onRevealInSystem,
     onOpenTerminal,
+    onArchiveKnowledge,
     t,
   } = props;
 
@@ -89,6 +91,12 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
       { key: "explorer.action.delete", onClick: () => onDelete(menu.path) },
     );
     if (mode === "workspace") {
+      if (/\.(md|markdown|txt|docx|pdf)$/i.test(menu.path)) {
+        items.push({
+          key: menu.knowledgeLocked ? "knowledge.reindex" : "knowledge.archive",
+          onClick: () => onArchiveKnowledge?.(menu.path),
+        });
+      }
       items.push(
         { key: "explorer.action.move", onClick: () => onTransfer("move", menu.path) },
         { key: "explorer.action.revealInSystem", onClick: () => onRevealInSystem?.(menu.path) },
@@ -103,7 +111,7 @@ export function ExplorerContextMenu(props: ExplorerContextMenuProps) {
       className="app-material-floating fixed z-[260] min-w-40 overflow-hidden rounded-md py-1"
       style={{
         left: Math.max(8, Math.min(menu.x, (typeof window !== "undefined" ? window.innerWidth : menu.x) - 180)),
-        top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 220)),
+        top: Math.max(8, Math.min(menu.y, (typeof window !== "undefined" ? window.innerHeight : menu.y) - 250)),
       }}
     >
       {items.map((item) => (
