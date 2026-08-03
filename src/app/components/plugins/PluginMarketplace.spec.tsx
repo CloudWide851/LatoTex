@@ -30,6 +30,13 @@ const runtimeAssetApiMocks = vi.hoisted(() => ({
   verifyRuntimeAsset: vi.fn(),
 }));
 
+const agentRuntimeApiMocks = vi.hoisted(() => ({
+  detectAgentRuntime: vi.fn(),
+  listAgentRuntimes: vi.fn(),
+  pickAgentRuntimeExecutable: vi.fn(),
+  setAgentRuntimeEnabled: vi.fn(),
+}));
+
 vi.mock("../../../shared/api/plugins", () => ({
   getPluginCatalog: pluginApiMocks.getPluginCatalog,
   installPlugin: pluginApiMocks.installPlugin,
@@ -52,6 +59,13 @@ vi.mock("../../../shared/api/runtimeAssets", () => ({
   listRuntimeAssets: runtimeAssetApiMocks.listRuntimeAssets,
   removeRuntimeAsset: runtimeAssetApiMocks.removeRuntimeAsset,
   verifyRuntimeAsset: runtimeAssetApiMocks.verifyRuntimeAsset,
+}));
+
+vi.mock("../../../shared/api/agent", () => ({
+  detectAgentRuntime: agentRuntimeApiMocks.detectAgentRuntime,
+  listAgentRuntimes: agentRuntimeApiMocks.listAgentRuntimes,
+  pickAgentRuntimeExecutable: agentRuntimeApiMocks.pickAgentRuntimeExecutable,
+  setAgentRuntimeEnabled: agentRuntimeApiMocks.setAgentRuntimeEnabled,
 }));
 
 function sampleToolchainEntry(): PluginCatalogEntry {
@@ -89,6 +103,37 @@ function sampleToolchainEntry(): PluginCatalogEntry {
   };
 }
 
+function sampleAgentRuntimeEntry(): PluginCatalogEntry {
+  return {
+    sourceId: "builtin",
+    sourceName: "Built in",
+    validation: { ok: true, issues: [] },
+    manifest: {
+      schema: "latotex.plugin.v1",
+      id: "latotex.agent.codex-cli",
+      name: "codex-cli",
+      displayName: "Codex CLI Agent",
+      publisher: "LatoTex",
+      version: "1.0.0",
+      description: "Use the official Codex CLI with LatoTex research tools.",
+      categories: ["agent", "research"],
+      keywords: ["codex", "agent"],
+      permissions: ["workspace.read", "process.spawn", "mcp"],
+      contributions: [{
+        kind: "agentRuntime",
+        id: "codex-cli.runtime",
+        title: "Agent runtime",
+        agentRuntimeDetector: {
+          runtimeId: "codex-cli",
+          executable: "codex.exe",
+          versionArgs: ["--version"],
+          authArgs: ["login", "status"],
+        },
+      }],
+    },
+  };
+}
+
 async function flushAsyncUpdates() {
   await Promise.resolve();
   await Promise.resolve();
@@ -116,6 +161,7 @@ describe("PluginMarketplace", () => {
       source: "local",
     });
     runtimeAssetApiMocks.listRuntimeAssets.mockResolvedValue([]);
+    agentRuntimeApiMocks.listAgentRuntimes.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -188,6 +234,62 @@ describe("PluginMarketplace", () => {
       "tectonic.windows-x64",
       "C:\\Tools\\Tectonic",
     );
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("routes a ready trusted runtime to terminal and Agent profiles", async () => {
+    pluginApiMocks.getPluginCatalog.mockResolvedValue({
+      items: [sampleAgentRuntimeEntry()],
+      warnings: [],
+    });
+    agentRuntimeApiMocks.listAgentRuntimes.mockResolvedValue([{
+      id: "codex-cli",
+      displayName: "Codex CLI",
+      source: "path",
+      available: true,
+      authenticated: true,
+      enabled: true,
+      executablePath: "C:\\Tools\\codex.exe",
+      version: "codex-cli 0.146.0",
+      failure: null,
+    }]);
+    const onOpenAgentTerminal = vi.fn();
+    const onOpenAgentControl = vi.fn();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <PluginMarketplace
+          settings={null}
+          onOpenAgentTerminal={onOpenAgentTerminal}
+          onOpenAgentControl={onOpenAgentControl}
+          t={(key) => String(key)}
+        />,
+      );
+      await flushAsyncUpdates();
+    });
+
+    const terminalButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("plugins.agentRuntime.openTerminal")
+    );
+    const profilesButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("plugins.agentRuntime.useForProfiles")
+    );
+    expect(terminalButton?.disabled).toBe(false);
+
+    await act(async () => {
+      terminalButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      profilesButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onOpenAgentTerminal).toHaveBeenCalledWith("codex-cli");
+    expect(onOpenAgentControl).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       root.unmount();

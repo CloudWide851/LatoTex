@@ -1,5 +1,6 @@
 import { terminalCancelStart, terminalStop } from "../../../shared/api/workspace";
 import type { TerminalFailure, TerminalOutputChunk } from "../../../shared/types/app";
+import type { TerminalLaunchKind } from "../../../shared/types/app";
 import {
   DEFAULT_TERMINAL_RAIL_WIDTH,
   clampTerminalRailWidth,
@@ -46,11 +47,14 @@ export function createTerminalTab(
   t: TranslationFn,
   count: number,
   relativePath: string | null = null,
+  launchKind: TerminalLaunchKind = "shell",
+  title?: string,
 ): TerminalTab {
   return {
     id: `term-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    title: localizedTabTitle(t, count),
+    title: title ?? localizedTabTitle(t, count),
     sequence: count,
+    launchKind,
     relativePath,
     sessionId: null,
     startRequestId: null,
@@ -76,20 +80,14 @@ export function snapshotTerminalState(
   const existing = terminalStates.get(projectId);
   if (existing && existing.tabs.length > 0) {
     return {
-      tabs: existing.tabs.map((tab) => ({
-        ...tab,
-        title: localizedTabTitle(t, tab.sequence),
-      })),
+      tabs: existing.tabs.map((tab) => ({ ...tab })),
       activeTabId: existing.activeTabId ?? existing.tabs[0]?.id ?? null,
       railWidth: clampTerminalRailWidth(existing.railWidth),
     };
   }
   const persisted = loadTerminalState(projectId);
   if (persisted?.tabs.length) {
-    const localized = persisted.tabs.map((tab) => ({
-      ...tab,
-      title: localizedTabTitle(t, tab.sequence),
-    }));
+    const localized = persisted.tabs.map((tab) => ({ ...tab }));
     terminalStates.set(projectId, {
       tabs: localized,
       activeTabId: persisted.activeTabId ?? localized[0]?.id ?? null,

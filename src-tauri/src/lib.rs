@@ -14,6 +14,10 @@ use commands::agent_control::{
     agent_graph_upsert, agent_profile_delete, agent_profile_upsert,
 };
 use commands::agent_rebuttal_workflow::latex_rebuttal_reply_start;
+use commands::agent_runtime::{
+    agent_runtime_detect, agent_runtime_list, agent_runtime_pick_executable,
+    agent_runtime_set_enabled,
+};
 use commands::agent_workflows::{
     chat_workflow_start, completion_latex_start, git_summary_workflow_start, latex_edit_start,
     latex_paper_analyze_start, latex_reference_check_start, latex_review_fix_start,
@@ -312,6 +316,9 @@ fn create_smoke_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if commands::agent_mcp_proxy::run_if_requested() {
+        return;
+    }
     smoke::write_boot_marker();
     if run_native_smoke_fallback_if_requested() {
         return;
@@ -484,6 +491,10 @@ pub fn run() {
             agent_control_catalog,
             agent_profile_upsert,
             agent_profile_delete,
+            agent_runtime_list,
+            agent_runtime_detect,
+            agent_runtime_pick_executable,
+            agent_runtime_set_enabled,
             agent_binding_upsert,
             agent_binding_delete,
             agent_graph_upsert,

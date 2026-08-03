@@ -5,6 +5,8 @@ struct RawAgentProfile {
     description: String,
     color: String,
     model_id: Option<String>,
+    runtime_id: String,
+    fallback_runtime_id: String,
     identity_prompt: String,
     skill_ids_json: String,
     mcp_server_ids_json: String,
@@ -28,6 +30,8 @@ impl RawAgentProfile {
             description: self.description,
             color: self.color,
             model_id: self.model_id,
+            runtime_id: self.runtime_id,
+            fallback_runtime_id: self.fallback_runtime_id,
             identity_prompt: self.identity_prompt,
             skill_ids: parse(&self.skill_ids_json)?,
             mcp_server_ids: parse(&self.mcp_server_ids_json)?,
@@ -51,18 +55,20 @@ fn raw_agent_profile(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawAgentProfil
         description: row.get(2)?,
         color: row.get(3)?,
         model_id: row.get(4)?,
-        identity_prompt: row.get(5)?,
-        skill_ids_json: row.get(6)?,
-        mcp_server_ids_json: row.get(7)?,
-        tool_ids_json: row.get(8)?,
-        read_scopes_json: row.get(9)?,
-        write_scopes_json: row.get(10)?,
-        tool_call_budget: row.get(11)?,
-        token_budget: row.get(12)?,
-        timeout_ms: row.get(13)?,
-        built_in: row.get(14)?,
-        created_at: row.get(15)?,
-        updated_at: row.get(16)?,
+        runtime_id: row.get(5)?,
+        fallback_runtime_id: row.get(6)?,
+        identity_prompt: row.get(7)?,
+        skill_ids_json: row.get(8)?,
+        mcp_server_ids_json: row.get(9)?,
+        tool_ids_json: row.get(10)?,
+        read_scopes_json: row.get(11)?,
+        write_scopes_json: row.get(12)?,
+        tool_call_budget: row.get(13)?,
+        token_budget: row.get(14)?,
+        timeout_ms: row.get(15)?,
+        built_in: row.get(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
     })
 }
 
@@ -70,7 +76,7 @@ pub fn list_agent_profiles(db_path: &Path) -> Result<Vec<crate::models::AgentPro
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT profile_id,name,description,color,model_id,identity_prompt,
+            "SELECT profile_id,name,description,color,model_id,runtime_id,fallback_runtime_id,identity_prompt,
                     skill_ids_json,mcp_server_ids_json,tool_ids_json,read_scopes_json,
                     write_scopes_json,tool_call_budget,token_budget,timeout_ms,built_in,
                     created_at,updated_at
@@ -91,7 +97,7 @@ pub fn get_agent_profile(
     let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
     let raw = conn
         .query_row(
-            "SELECT profile_id,name,description,color,model_id,identity_prompt,
+            "SELECT profile_id,name,description,color,model_id,runtime_id,fallback_runtime_id,identity_prompt,
                     skill_ids_json,mcp_server_ids_json,tool_ids_json,read_scopes_json,
                     write_scopes_json,tool_call_budget,token_budget,timeout_ms,built_in,
                     created_at,updated_at
@@ -329,7 +335,40 @@ pub fn upsert_agent_profile(
         .optional()
         .map_err(|e| e.to_string())?
         .unwrap_or(false);
-    if existing_builtin || profile.built_in {
+    if existing_builtin {
+        let stored = get_agent_profile(db_path, &profile.id)?
+            .ok_or_else(|| "agent.profile.not_found".to_string())?;
+        let protected_fields_unchanged = profile.name == stored.name
+            && profile.description == stored.description
+            && profile.color == stored.color
+            && profile.model_id == stored.model_id
+            && profile.identity_prompt == stored.identity_prompt
+            && profile.skill_ids == stored.skill_ids
+            && profile.mcp_server_ids == stored.mcp_server_ids
+            && profile.tool_ids == stored.tool_ids
+            && profile.read_scopes == stored.read_scopes
+            && profile.write_scopes == stored.write_scopes
+            && profile.tool_call_budget == stored.tool_call_budget
+            && profile.token_budget == stored.token_budget
+            && profile.timeout_ms == stored.timeout_ms;
+        if !protected_fields_unchanged {
+            return Err("agent.profile.builtin_readonly".to_string());
+        }
+        conn.execute(
+            "UPDATE agent_profiles SET runtime_id=?2,fallback_runtime_id=?3,updated_at=?4
+             WHERE profile_id=?1 AND built_in=1",
+            params![
+                profile.id,
+                profile.runtime_id,
+                profile.fallback_runtime_id,
+                now_iso()
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+        return get_agent_profile(db_path, &profile.id)?
+            .ok_or_else(|| "agent.profile.not_found".to_string());
+    }
+    if profile.built_in {
         return Err("agent.profile.builtin_readonly".to_string());
     }
     if let Some(model_id) = profile
@@ -535,6 +574,7 @@ pub fn agent_control_catalog(
         graph_templates,
         callsites,
         recent_runs: list_recent_agent_runs(db_path, project_id)?,
+        runtimes: Vec::new(),
     })
 }
 

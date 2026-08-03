@@ -36,6 +36,7 @@ pub(super) fn empty_contribution(kind: &str, id: &str, title: &str) -> PluginCon
         file_template: None,
         snippet_provider: None,
         agent_context_pack: None,
+        agent_runtime_detector: None,
         language_support: None,
         sidebar_view: None,
         tree_decoration: None,
@@ -545,5 +546,6 @@ pub(crate) fn built_in_catalog() -> Vec<PluginCatalogEntry> {
     ];
     catalog.extend(super::plugins_builtin_knowledge::knowledge_catalog());
     catalog.extend(super::plugins_builtin_science::science_catalog());
+    catalog.extend(super::plugins_builtin_agents::agent_runtime_catalog());
     catalog
 }

@@ -9,6 +9,15 @@ pub enum TerminalStatus {
     Activating,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum TerminalLaunchKind {
+    #[default]
+    Shell,
+    CodexCli,
+    ClaudeCodeCli,
+}
+
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalFailure {
@@ -22,6 +31,8 @@ pub struct TerminalFailure {
 pub struct TerminalStartInput {
     pub project_id: String,
     pub request_id: String,
+    #[serde(default)]
+    pub launch_kind: TerminalLaunchKind,
     pub relative_path: Option<String>,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
@@ -33,6 +44,7 @@ pub struct TerminalStartResponse {
     pub session_id: String,
     pub cwd: String,
     pub shell: String,
+    pub launch_kind: TerminalLaunchKind,
     pub venv_path: Option<String>,
     pub env_source: Option<String>,
     pub status: TerminalStatus,

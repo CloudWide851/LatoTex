@@ -16,9 +16,10 @@ import { TerminalToolbar } from "./TerminalToolbar";
 import { buildTerminalSuggestions, nextTerminalInputLine } from "./terminalSuggestions";
 import { getTerminalSurfaceTheme } from "./terminalSurfaceTheme";
 import { reorderTerminalTabs } from "./terminalTabOrder";
-import type { TerminalTab, TranslationFn } from "./terminalTypes";
+import type { AgentTerminalLaunchRequest, TerminalTab, TranslationFn } from "./terminalTypes";
 import {
   createTerminalRequestId,
+  createTerminalTab,
   joinTerminalChunks,
   normalizeTerminalFailure,
   persistTerminalState,
@@ -33,10 +34,20 @@ export function WorkspaceTerminalPanel(props: {
   activeProjectId: string | null;
   selectedFile: string | null;
   active: boolean;
+  launchRequest?: AgentTerminalLaunchRequest | null;
+  onLaunchRequestHandled?: (requestId: number) => void;
   fontScale?: number;
   t: TranslationFn;
 }) {
-  const { activeProjectId, selectedFile, active, fontScale = 1, t } = props;
+  const {
+    activeProjectId,
+    selectedFile,
+    active,
+    launchRequest,
+    onLaunchRequestHandled,
+    fontScale = 1,
+    t,
+  } = props;
   const initialState = useMemo(
     () => snapshotTerminalState(activeProjectId, t),
     [activeProjectId, t],
@@ -51,6 +62,7 @@ export function WorkspaceTerminalPanel(props: {
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const startingRef = useRef(new Set<string>());
+  const handledLaunchRequestRef = useRef<number | null>(null);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef(activeTabId);
   const inputLineRef = useRef(inputLine);
@@ -187,7 +199,7 @@ export function WorkspaceTerminalPanel(props: {
     );
     try {
       const term = xtermRef.current;
-      const response = await terminalStart(activeProjectId, startRequestId, tab.relativePath, {
+      const response = await terminalStart(activeProjectId, startRequestId, tab.relativePath, tab.launchKind, {
         cols: term?.cols ?? 100,
         rows: term?.rows ?? 24,
       });
@@ -198,6 +210,7 @@ export function WorkspaceTerminalPanel(props: {
                 ...item,
                 sessionId: response.sessionId,
                 cwd: response.cwd,
+                launchKind: response.launchKind,
                 venvPath: response.venvPath ?? null,
                 envSource: response.envSource ?? null,
                 status: response.status,
@@ -334,6 +347,29 @@ export function WorkspaceTerminalPanel(props: {
   const reorderTabs = useCallback((sourceId: string, targetId: string) => {
     setTabs((prev) => reorderTerminalTabs(prev, sourceId, targetId));
   }, []);
+
+  useEffect(() => {
+    if (
+      !active
+      || !activeProjectId
+      || !launchRequest
+      || handledLaunchRequestRef.current === launchRequest.requestId
+    ) {
+      return;
+    }
+    handledLaunchRequestRef.current = launchRequest.requestId;
+    const sequence = Math.max(0, ...tabsRef.current.map((tab) => tab.sequence)) + 1;
+    const next = createTerminalTab(
+      t,
+      sequence,
+      null,
+      launchRequest.launchKind,
+      launchRequest.title,
+    );
+    updateTabs((current) => [...current, next]);
+    setActiveTabId(next.id);
+    onLaunchRequestHandled?.(launchRequest.requestId);
+  }, [active, activeProjectId, launchRequest, onLaunchRequestHandled, t, updateTabs]);
 
   useEffect(() => {
     if (!active || !activeTabId) {

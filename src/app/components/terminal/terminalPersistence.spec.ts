@@ -11,6 +11,7 @@ function tab(id: string, history: string[]): TerminalTab {
     id,
     title: id,
     sequence: id === "a" ? 1 : 2,
+    launchKind: "shell",
     relativePath: null,
     sessionId: "live",
     startRequestId: "request-live",
@@ -50,13 +51,32 @@ describe("terminalPersistence", () => {
     expect(restored?.tabs[0].autoStart).toBe(true);
     expect(restored?.tabs[0].history).toEqual(["pnpm build"]);
     expect(restored?.tabs[1].history).toEqual(["cargo test"]);
+    expect(restored?.tabs[0].title).toBe("a");
+    expect(restored?.tabs[0].launchKind).toBe("shell");
     expect(restored?.railWidth).toBe(196);
+  });
+
+  it("persists trusted CLI launch type and a custom title", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    const codexTab = { ...tab("codex", []), title: "Codex CLI", launchKind: "codex-cli" as const };
+
+    saveTerminalState("project-runtime", [codexTab], codexTab.id, 188);
+
+    const restored = loadTerminalState("project-runtime");
+    expect(restored?.tabs[0].title).toBe("Codex CLI");
+    expect(restored?.tabs[0].launchKind).toBe("codex-cli");
   });
 
   it("migrates v1 tabs and applies a safe default rail width", () => {
     const values = new Map<string, string>();
     values.set("latotex.terminal.state.v1:project-legacy", JSON.stringify({
-      tabs: [{ ...tab("legacy", []), sequence: undefined }],
+      tabs: [{ ...tab("legacy", []), sequence: undefined, launchKind: undefined }],
       activeTabId: "legacy",
     }));
     vi.stubGlobal("window", {
@@ -69,6 +89,7 @@ describe("terminalPersistence", () => {
     const restored = loadTerminalState("project-legacy");
 
     expect(restored?.tabs[0].sequence).toBe(1);
+    expect(restored?.tabs[0].launchKind).toBe("shell");
     expect(restored?.railWidth).toBe(DEFAULT_TERMINAL_RAIL_WIDTH);
   });
 });

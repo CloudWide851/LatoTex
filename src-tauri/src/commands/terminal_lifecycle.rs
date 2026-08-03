@@ -53,6 +53,9 @@ pub(super) fn prepare_terminal(
     for (key, value) in terminal_env_pairs() {
         command.env(key, value);
     }
+    for (key, value) in &shell_spec.env {
+        command.env(key, value);
+    }
     let mut child = pair.slave.spawn_command(command).map_err(|error| {
         internal_failure(
             "terminal.failure.shell_start_failed",
@@ -79,6 +82,8 @@ pub(super) fn prepare_terminal(
         child,
         writer,
         reader,
+        launch_kind: shell_spec.launch_kind,
+        resource_lease: shell_spec.resource_lease,
     })
 }
 
@@ -87,7 +92,7 @@ fn terminal_start_blocking(
     input: TerminalStartInput,
     cancel_flag: Arc<AtomicBool>,
 ) -> Result<TerminalStartResponse, String> {
-    let (_project_root, directory) =
+    let (project_root, requested_directory) =
         resolve_terminal_directory(&state, &input.project_id, input.relative_path.as_deref())
             .map_err(|error| {
                 state.log(
@@ -99,8 +104,15 @@ fn terminal_start_blocking(
                 );
                 public_failure_code("terminal.failure.cwd_unavailable", "cwd", false)
             })?;
-    let shell_setting = terminal_shell_pref(&state);
-    let shell_spec = terminal_shell_command(&shell_setting);
+    let (shell_spec, directory) = if input.launch_kind == TerminalLaunchKind::Shell {
+        let shell_setting = terminal_shell_pref(&state);
+        (terminal_shell_command(&shell_setting), requested_directory)
+    } else {
+        (
+            external_runtime::external_terminal_spec(&state, &input, &project_root)?,
+            project_root,
+        )
+    };
     let size = clamp_pty_size(input.cols, input.rows);
     let cols = size.cols;
     let rows = size.rows;
@@ -175,6 +187,7 @@ fn terminal_start_blocking(
         shell: prepared.shell.clone(),
         venv_path: Mutex::new(None),
         env_source: Mutex::new(None),
+        resource_lease: Mutex::new(prepared.resource_lease),
         master: Mutex::new(prepared.master),
         child: Mutex::new(prepared.child),
         writer: Mutex::new(prepared.writer),
@@ -206,12 +219,13 @@ fn terminal_start_blocking(
     state.log(
         "INFO",
         &format!(
-            "terminal_start: project={}, request={}, session={}, cwd={}, shell={}, cols={}, rows={}",
+            "terminal_start: project={}, request={}, session={}, cwd={}, shell={}, launch={:?}, cols={}, rows={}",
             input.project_id,
             input.request_id,
             session_id,
             session.cwd,
             prepared.shell,
+            prepared.launch_kind,
             cols,
             rows,
         ),
@@ -220,6 +234,7 @@ fn terminal_start_blocking(
         session_id,
         cwd: session.cwd.clone(),
         shell: prepared.shell,
+        launch_kind: prepared.launch_kind,
         venv_path: None,
         env_source: None,
         status: TerminalStatus::Running,

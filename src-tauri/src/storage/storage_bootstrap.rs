@@ -90,6 +90,8 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             description TEXT NOT NULL,
             color TEXT NOT NULL,
             model_id TEXT,
+            runtime_id TEXT NOT NULL DEFAULT 'native',
+            fallback_runtime_id TEXT NOT NULL DEFAULT 'native',
             identity_prompt TEXT NOT NULL,
             skill_ids_json TEXT NOT NULL,
             mcp_server_ids_json TEXT NOT NULL,
@@ -102,6 +104,26 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
             built_in INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_runtime_settings (
+            runtime_id TEXT PRIMARY KEY,
+            executable_path TEXT,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_mcp_sessions (
+            session_id TEXT PRIMARY KEY,
+            token_hash TEXT NOT NULL,
+            run_id TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            profile_id TEXT NOT NULL,
+            allowed_tools_json TEXT NOT NULL,
+            read_scopes_json TEXT NOT NULL,
+            write_scopes_json TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS agent_profile_bindings (
@@ -203,6 +225,7 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
     ensure_ui_prefs_column(&conn)?;
     ensure_agent_binding_model_id_column(&conn)?;
     ensure_model_catalog_capabilities_column(&conn)?;
+    ensure_agent_profile_runtime_columns(&conn)?;
 
     conn.execute(
         "INSERT OR IGNORE INTO app_settings (id, active_project_id, ui_prefs_json) VALUES (1, NULL, NULL)",
@@ -218,6 +241,31 @@ pub fn initialize_database(db_path: &Path) -> Result<(), String> {
     seed_agent_control_registry(&conn)?;
     migrate_legacy_agent_teams(&conn)?;
     Ok(())
+}
+
+fn ensure_agent_profile_runtime_columns(conn: &Connection) -> Result<(), String> {
+    ensure_text_column(
+        conn,
+        "ALTER TABLE agent_profiles ADD COLUMN runtime_id TEXT NOT NULL DEFAULT 'native'",
+    )?;
+    ensure_text_column(
+        conn,
+        "ALTER TABLE agent_profiles ADD COLUMN fallback_runtime_id TEXT NOT NULL DEFAULT 'native'",
+    )
+}
+
+fn ensure_text_column(conn: &Connection, statement: &str) -> Result<(), String> {
+    match conn.execute(statement, []) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let message = error.to_string().to_ascii_lowercase();
+            if message.contains("duplicate column name") || message.contains("already exists") {
+                Ok(())
+            } else {
+                Err(error.to_string())
+            }
+        }
+    }
 }
 
 fn ensure_ui_prefs_column(conn: &Connection) -> Result<(), String> {

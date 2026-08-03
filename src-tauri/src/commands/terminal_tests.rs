@@ -2,6 +2,7 @@ use super::{
     clamp_pty_size, public_failure_code, strip_windows_verbatim_prefix,
     terminal_activation_command, terminal_shell_command, venv_bin_dir, TerminalShellSpec,
 };
+use crate::models::TerminalLaunchKind;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -93,6 +94,9 @@ fn cancelled_start_never_creates_a_pty() {
         TerminalShellSpec {
             shell: "powershell.exe".to_string(),
             args: Vec::new(),
+            env: Vec::new(),
+            launch_kind: TerminalLaunchKind::Shell,
+            resource_lease: None,
         },
         PathBuf::from("."),
         clamp_pty_size(None, None),

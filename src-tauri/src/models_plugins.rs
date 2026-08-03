@@ -270,6 +270,19 @@ pub struct PluginAgentContextPack {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginAgentRuntimeDetector {
+    #[serde(default)]
+    pub runtime_id: String,
+    #[serde(default)]
+    pub executable: String,
+    #[serde(default)]
+    pub version_args: Vec<String>,
+    #[serde(default)]
+    pub auth_args: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginLanguageSupport {
     #[serde(default)]
     pub language: String,
@@ -366,6 +379,8 @@ pub struct PluginContribution {
     pub snippet_provider: Option<PluginSnippetProvider>,
     #[serde(default)]
     pub agent_context_pack: Option<PluginAgentContextPack>,
+    #[serde(default)]
+    pub agent_runtime_detector: Option<PluginAgentRuntimeDetector>,
     #[serde(default)]
     pub language_support: Option<PluginLanguageSupport>,
     #[serde(default)]

@@ -15,6 +15,8 @@ import type {
   AgentControlDeleteResponse,
   AgentGraphTemplate,
   AgentProfile,
+  AgentRuntimeDescriptor,
+  AgentRuntimeId,
 } from "../types/agentControl";
 
 export function executeWorkflowStart(input: {
@@ -50,6 +52,31 @@ export function executeWorkflowStart(input: {
 export function getAgentControlCatalog(projectId?: string | null): Promise<AgentControlCatalog> {
   return invokeCommand<AgentControlCatalog>("agent_control_catalog", {
     input: { projectId: projectId ?? null },
+  });
+}
+
+export function listAgentRuntimes(): Promise<AgentRuntimeDescriptor[]> {
+  return invokeCommand<AgentRuntimeDescriptor[]>("agent_runtime_list");
+}
+
+export function detectAgentRuntime(runtimeId: AgentRuntimeId): Promise<AgentRuntimeDescriptor> {
+  return invokeCommand<AgentRuntimeDescriptor>("agent_runtime_detect", { input: { runtimeId } });
+}
+
+export function pickAgentRuntimeExecutable(
+  runtimeId: AgentRuntimeId,
+): Promise<AgentRuntimeDescriptor | null> {
+  return invokeCommand<AgentRuntimeDescriptor | null>("agent_runtime_pick_executable", {
+    input: { runtimeId },
+  });
+}
+
+export function setAgentRuntimeEnabled(
+  runtimeId: AgentRuntimeId,
+  enabled: boolean,
+): Promise<AgentRuntimeDescriptor> {
+  return invokeCommand<AgentRuntimeDescriptor>("agent_runtime_set_enabled", {
+    input: { runtimeId, enabled },
   });
 }
 

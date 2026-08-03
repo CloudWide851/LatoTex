@@ -23,6 +23,7 @@ import {
   WorkspacePanelFallback,
 } from "../workspace/workspaceShellLazy";
 import { WorkspaceTerminalPanel } from "../terminal/WorkspaceTerminalPanel";
+import type { AgentTerminalLaunchRequest } from "../terminal/terminalTypes";
 import { isTexPath } from "../../../shared/utils/fileKind";
 import { markFirstEditableTex } from "./editorStartupPerformance";
 import { ScientificEditorRunControl } from "./ScientificEditorRunControl";
@@ -94,11 +95,13 @@ export function LatexWorkspaceEditorPanel(props: {
   compileAssistHint: string;
   compileAssistAutoFixBusy: boolean;
   terminalVisible: boolean;
+  terminalLaunchRequest: AgentTerminalLaunchRequest | null;
   terminalLayout: number[];
   fontScale: number;
   modeSwitcher?: React.ReactNode;
   onTerminalLayoutChange: (layout: number[]) => void;
   onTerminalToggle: () => void;
+  onTerminalLaunchHandled: (requestId: number) => void;
   onShareModeChange: (mode: any) => void;
   onShareSessionNameChange: (name: string) => void;
   onShareStart: () => void;
@@ -183,11 +186,13 @@ export function LatexWorkspaceEditorPanel(props: {
     compileAssistHint,
     compileAssistAutoFixBusy,
     terminalVisible,
+    terminalLaunchRequest,
     terminalLayout,
     fontScale,
     modeSwitcher,
     onTerminalLayoutChange,
     onTerminalToggle,
+    onTerminalLaunchHandled,
     onShareModeChange,
     onShareSessionNameChange,
     onShareStart,
@@ -571,6 +576,8 @@ export function LatexWorkspaceEditorPanel(props: {
                 activeProjectId={activeProjectId}
                 selectedFile={selectedFile}
                 active={terminalVisible}
+                launchRequest={terminalLaunchRequest}
+                onLaunchRequestHandled={onTerminalLaunchHandled}
                 fontScale={fontScale}
                 t={t}
               />

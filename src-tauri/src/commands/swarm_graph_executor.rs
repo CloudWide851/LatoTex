@@ -180,6 +180,7 @@ fn execute_graph_node(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
     app_data_dir: &std::path::Path,
+    session_log_path: &std::path::Path,
     run_id: &str,
     cancel_flag: &Arc<AtomicBool>,
     input: &AgentExecuteRequest,
@@ -191,13 +192,6 @@ fn execute_graph_node(
 ) -> Result<String, String> {
     ensure_graph_running(cancel_flag, deadline)?;
     let node_deadline = Instant::now() + Duration::from_millis(job.profile.timeout_ms.min(600_000));
-    let connection = resolve_model_connection(
-        db_path,
-        runtime_root,
-        &input.callsite,
-        workflow,
-        graph_node_model_id(input, &job.profile),
-    )?;
     let mut prompt = build_graph_node_prompt(
         db_path,
         runtime_root,
@@ -207,6 +201,48 @@ fn execute_graph_node(
         job,
         repair_feedback,
     );
+    let step_id = format!("graph.{}.{}.respond", graph.id, job.node.id);
+    let step = WorkflowStep {
+        id: step_id.clone(),
+        kind: "provider.generate".to_string(),
+        title: job.node.title.clone(),
+        source: job.node.role.clone(),
+        retryable: Some(true),
+        approval_required: Some(
+            job.profile
+                .write_scopes
+                .iter()
+                .any(|scope| scope != "readonly"),
+        ),
+    };
+    let parent = job
+        .dependency_outputs
+        .last()
+        .map(|(node_id, _)| node_id.as_str())
+        .or(Some("graph:plan"));
+    if let Some(output) = super::swarm_external_dispatch::try_run_external_step(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        session_log_path,
+        run_id,
+        input,
+        workflow,
+        &step,
+        &prompt,
+        cancel_flag,
+        &job.profile,
+        node_event_metadata(&workflow.id, &step_id, input, graph, &job.node, parent),
+    )? {
+        return Ok(output);
+    }
+    let connection = resolve_model_connection(
+        db_path,
+        runtime_root,
+        &input.callsite,
+        workflow,
+        graph_node_model_id(input, &job.profile),
+    )?;
     let tools = job
         .profile
         .tool_ids
@@ -266,25 +302,6 @@ fn execute_graph_node(
         }
     }
     ensure_graph_running(cancel_flag, deadline.min(node_deadline))?;
-    let step_id = format!("graph.{}.{}.respond", graph.id, job.node.id);
-    let step = WorkflowStep {
-        id: step_id.clone(),
-        kind: "provider.generate".to_string(),
-        title: job.node.title.clone(),
-        source: job.node.role.clone(),
-        retryable: Some(true),
-        approval_required: Some(
-            job.profile
-                .write_scopes
-                .iter()
-                .any(|scope| scope != "readonly"),
-        ),
-    };
-    let parent = job
-        .dependency_outputs
-        .last()
-        .map(|(node_id, _)| node_id.as_str())
-        .or(Some("graph:plan"));
     run_workflow_step(
         db_path,
         runtime_root,
@@ -315,6 +332,7 @@ pub(super) fn run_execute_pipeline_graph(
     db_path: &std::path::Path,
     runtime_root: &std::path::Path,
     app_data_dir: &std::path::Path,
+    session_log_path: &std::path::Path,
     run_id: &str,
     cancel_flag: &Arc<AtomicBool>,
     input: &AgentExecuteRequest,
@@ -402,6 +420,7 @@ pub(super) fn run_execute_pipeline_graph(
                             db_path,
                             runtime_root,
                             app_data_dir,
+                            session_log_path,
                             run_id,
                             cancel_flag,
                             input,
@@ -463,6 +482,7 @@ pub(super) fn run_execute_pipeline_graph(
                                     db_path,
                                     runtime_root,
                                     app_data_dir,
+                                    session_log_path,
                                     run_id,
                                     cancel_flag,
                                     input,

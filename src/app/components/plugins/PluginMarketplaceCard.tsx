@@ -9,6 +9,7 @@ import type {
   RuntimeAssetStatus,
   ToolchainStatus,
 } from "../../../shared/plugins/pluginTypes";
+import type { AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
 import {
   contributionSummary,
   describeRuntimeAssetStatus,
@@ -22,6 +23,14 @@ import {
 } from "./pluginMarketplaceUtils";
 
 type RuntimeAction = "install" | "verify" | "remove";
+type AgentRuntimeAction = "detect" | "select" | "enable" | "disable" | "terminal" | "profiles";
+
+function agentRuntimeStatusLabel(runtime: AgentRuntimeDescriptor | null, t: TranslationFn): string {
+  if (!runtime?.available) return t("agents.runtime.unavailable");
+  if (!runtime.enabled) return t("agents.runtime.disabled");
+  if (!runtime.authenticated) return t("agents.runtime.authRequired");
+  return t("agents.runtime.ready");
+}
 
 export function PluginMarketplaceCard(props: {
   entry: PluginCatalogEntry;
@@ -32,12 +41,15 @@ export function PluginMarketplaceCard(props: {
   runtimeAssetStatus: RuntimeAssetStatus | null;
   toolchain: PluginContribution | undefined;
   runtimeAsset: PluginContribution | undefined;
+  agentRuntime: PluginContribution | undefined;
+  agentRuntimeStatus: AgentRuntimeDescriptor | null;
   onDetailsOpen: () => void;
   onInstallPlugin: (entry: PluginCatalogEntry) => void;
   onTogglePlugin: (plugin: InstalledPlugin) => void;
   onRemovePlugin: (pluginId: string) => void;
   onToolchainAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
   onRuntimeAssetAction: (pluginId: string, contributionId: string, action: RuntimeAction) => void;
+  onAgentRuntimeAction: (pluginId: string, runtimeId: AgentRuntimeId, action: AgentRuntimeAction) => void;
   t: TranslationFn;
 }) {
   const {
@@ -49,12 +61,15 @@ export function PluginMarketplaceCard(props: {
     runtimeAssetStatus,
     toolchain,
     runtimeAsset,
+    agentRuntime,
+    agentRuntimeStatus,
     onDetailsOpen,
     onInstallPlugin,
     onTogglePlugin,
     onRemovePlugin,
     onToolchainAction,
     onRuntimeAssetAction,
+    onAgentRuntimeAction,
     t,
   } = props;
   const plugin: PluginManifest = entry.manifest;
@@ -64,13 +79,20 @@ export function PluginMarketplaceCard(props: {
   const warningCount = entry.validation.issues.filter((item) => item.severity === "warning").length;
   const toolchainIsProbe = toolchain?.kind === "toolchainProbe";
   const contributionInstalled = Boolean(toolchainStatus?.installed || runtimeAssetStatus?.installed);
+  const agentRuntimeReady = Boolean(
+    agentRuntimeStatus?.enabled
+      && agentRuntimeStatus.available
+      && agentRuntimeStatus.authenticated,
+  );
   const installedLabel = toolchainStatus?.source === "local" || runtimeAssetStatus?.source === "local"
     ? t("plugins.detectedLocal")
     : runtimeAssetStatus?.source === "bundled"
       ? t("plugins.detectedBundled")
       : t("plugins.enabled");
   const canUseRuntime = entry.sourceId === "builtin" || Boolean(installedPlugin);
-  const statusLabel = installedPlugin?.enabled
+  const statusLabel = agentRuntime
+    ? agentRuntimeStatusLabel(agentRuntimeStatus, t)
+    : installedPlugin?.enabled
     ? installedLabel
     : installedPlugin
       ? t("plugins.disabled")
@@ -101,7 +123,7 @@ export function PluginMarketplaceCard(props: {
         <span
           className={cn(
             "max-w-[5.8rem] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
-            installedPlugin?.enabled || contributionInstalled
+            installedPlugin?.enabled || contributionInstalled || agentRuntimeReady
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
               : installedPlugin
                 ? "border-slate-200 bg-slate-100 text-slate-600"
@@ -152,6 +174,11 @@ export function PluginMarketplaceCard(props: {
           {runtimeAsset ? (
             <span className="min-w-0 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600" title={runtimeDetail}>
               {runtimeAssetStatus?.installed ? statusLabel : t("plugins.runtimeAsset.notInstalled")}
+            </span>
+          ) : null}
+          {agentRuntime ? (
+            <span className="min-w-0 truncate rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600" title={statusLabel}>
+              {agentRuntimeStatus?.version ?? statusLabel}
             </span>
           ) : null}
         </div>
@@ -217,6 +244,34 @@ export function PluginMarketplaceCard(props: {
               {t("plugins.runtimeAsset.install")}
             </Button>
           ) : null
+        ) : null}
+        {agentRuntime?.agentRuntimeDetector ? (
+          <>
+            <Button size="sm" variant="secondary" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "detect")}>
+              {t("plugins.agentRuntime.detect")}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "select")}>
+              {t("plugins.agentRuntime.selectExecutable")}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy || (!agentRuntimeStatus?.enabled && (!agentRuntimeStatus?.available || !agentRuntimeStatus?.authenticated))}
+              onClick={() => onAgentRuntimeAction(
+                plugin.id,
+                agentRuntime.agentRuntimeDetector!.runtimeId,
+                agentRuntimeStatus?.enabled ? "disable" : "enable",
+              )}
+            >
+              {t(agentRuntimeStatus?.enabled ? "plugins.agentRuntime.disable" : "plugins.agentRuntime.enable")}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy || !agentRuntimeReady} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "terminal")}>
+              {t("plugins.agentRuntime.openTerminal")}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAgentRuntimeAction(plugin.id, agentRuntime.agentRuntimeDetector!.runtimeId, "profiles")}>
+              {t("plugins.agentRuntime.useForProfiles")}
+            </Button>
+          </>
         ) : null}
         {installedPlugin ? (
           <>

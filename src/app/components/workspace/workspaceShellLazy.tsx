@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect } from "react";
 import { requestSettingsSection } from "../../settings/settingsNavigation";
+import type { AgentRuntimeId } from "../../../shared/types/agentControl";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 
 export const LazyAgentChatOverlay = lazy(async () => {
@@ -42,10 +43,17 @@ export const LazySubmissionCiWorkspace = lazy(async () => {
   return { default: module.SubmissionCiWorkspace };
 });
 
-export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps, "settings" | "t">) {
+export function LazyPluginMarketplaceSurface(props: Pick<AppWorkspaceShellProps, "settings" | "t" | "onPageChange"> & {
+  onOpenAgentTerminal: (runtimeId: AgentRuntimeId) => void;
+}) {
   return (
     <Suspense fallback={<WorkspacePanelFallback label={props.t("common.loading")} />}>
-      <LazyPluginMarketplace settings={props.settings} t={props.t} />
+      <LazyPluginMarketplace
+        settings={props.settings}
+        onOpenAgentControl={() => props.onPageChange("agents")}
+        onOpenAgentTerminal={props.onOpenAgentTerminal}
+        t={props.t}
+      />
     </Suspense>
   );
 }

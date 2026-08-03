@@ -31,6 +31,8 @@ pub(crate) const ALLOWED_CONTRIBUTION_KINDS: &[&str] = &[
     "fileTemplate",
     "snippetProvider",
     "agentContextPack",
+    "agentRuntime",
+    "agentRuntimeDetector",
     "languageSupport",
     "runtimeAsset",
     "toolchainInstaller",

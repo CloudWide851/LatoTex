@@ -1,4 +1,5 @@
 import type { TerminalStatus } from "../../../shared/types/app";
+import type { TerminalLaunchKind } from "../../../shared/types/app";
 import type { ProjectTerminalState, TerminalTab } from "./terminalTypes";
 
 const PREFIX = "latotex.terminal.state.v2";
@@ -25,6 +26,10 @@ function persistedStatus(value: unknown): TerminalStatus {
   return value === "failed" ? "failed" : "idle";
 }
 
+function persistedLaunchKind(value: unknown): TerminalLaunchKind {
+  return value === "codex-cli" || value === "claude-code-cli" ? value : "shell";
+}
+
 function sanitizeTab(tab: Partial<TerminalTab>, index: number): TerminalTab {
   const sequence = Number.isFinite(Number(tab.sequence))
     ? Math.max(1, Math.round(Number(tab.sequence)))
@@ -33,6 +38,7 @@ function sanitizeTab(tab: Partial<TerminalTab>, index: number): TerminalTab {
     id: String(tab.id ?? `term-restored-${sequence}`),
     title: String(tab.title ?? `Terminal ${sequence}`),
     sequence,
+    launchKind: persistedLaunchKind(tab.launchKind),
     relativePath: typeof tab.relativePath === "string" ? tab.relativePath : null,
     sessionId: null,
     startRequestId: null,

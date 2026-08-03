@@ -1,9 +1,33 @@
+export type AgentRuntimeId = "native" | "codex-cli" | "claude-code-cli";
+
+export type ExternalAgentFailure = {
+  code: string;
+  stage: string;
+  retryable: boolean;
+  diagnostics: string[];
+};
+
+export type AgentRuntimeDescriptor = {
+  id: AgentRuntimeId;
+  pluginId: string;
+  labelKey: string;
+  enabled: boolean;
+  available: boolean;
+  authenticated: boolean;
+  source: "bundled" | "manual" | "path" | "missing" | string;
+  executablePath: string | null;
+  version: string | null;
+  failure: ExternalAgentFailure | null;
+};
+
 export type AgentProfile = {
   id: string;
   name: string;
   description: string;
   color: string;
   modelId: string | null;
+  runtimeId: AgentRuntimeId;
+  fallbackRuntimeId: AgentRuntimeId;
   identityPrompt: string;
   skillIds: string[];
   mcpServerIds: string[];
@@ -87,6 +111,7 @@ export type AgentControlCatalog = {
   graphTemplates: AgentGraphTemplate[];
   callsites: AgentCallsiteDescriptor[];
   recentRuns: AgentRunSummary[];
+  runtimes: AgentRuntimeDescriptor[];
 };
 
 export type AgentControlDeleteResponse = {

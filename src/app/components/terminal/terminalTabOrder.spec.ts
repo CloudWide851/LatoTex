@@ -7,6 +7,7 @@ function tab(id: string): TerminalTab {
     id,
     title: id,
     sequence: 1,
+    launchKind: "shell",
     relativePath: null,
     sessionId: null,
     startRequestId: null,

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PageRail } from "./PageRail";
 import { resolveCodeLanguage } from "../../shared/utils/codeLanguage";
 import {
@@ -37,6 +37,8 @@ import {
 } from "./workspace/LatexWorkspaceModeShell";
 import { isDocxPath } from "../../shared/utils/fileKind";
 import { textBackedPluginPreviewMode } from "../../shared/plugins/pluginFileInterfaces";
+import type { AgentRuntimeId } from "../../shared/types/agentControl";
+import type { AgentTerminalLaunchRequest } from "./terminal/terminalTypes";
 
 export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   const {
@@ -128,6 +130,8 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
   >(null);
   const [compileAssistAutoFixBusy, setCompileAssistAutoFixBusy] = useState(false);
   const [terminalVisible, setTerminalVisible] = useState(false);
+  const [terminalLaunchRequest, setTerminalLaunchRequest] = useState<AgentTerminalLaunchRequest | null>(null);
+  const terminalLaunchSequenceRef = useRef(0);
   const [latexMode, setLatexMode] = useState<LatexWorkspaceMode>("tex");
   const selectedIsDocx = isDocxPath(selectedFile);
 
@@ -350,6 +354,23 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
     emitWorkspaceLayoutRefresh("latex", "panel-layout");
   };
 
+  const openAgentRuntimeTerminal = (runtimeId: AgentRuntimeId) => {
+    if (runtimeId === "native") {
+      return;
+    }
+    terminalLaunchSequenceRef.current += 1;
+    setTerminalLaunchRequest({
+      requestId: terminalLaunchSequenceRef.current,
+      launchKind: runtimeId,
+      title: runtimeId === "codex-cli"
+        ? t("agents.runtime.codexCli")
+        : t("agents.runtime.claudeCodeCli"),
+    });
+    setLatexMode("tex");
+    setTerminalVisible(true);
+    onPageChange("latex");
+  };
+
   const renderPdfPreviewPanel = () => (
     <WorkspaceEditorPreviewPanel
       activeProjectId={activeProjectId}
@@ -415,7 +436,14 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
       return settingsPanel;
     }
     if (page === "plugins") {
-      return <LazyPluginMarketplaceSurface settings={settings} t={t} />;
+      return (
+        <LazyPluginMarketplaceSurface
+          settings={settings}
+          onPageChange={onPageChange}
+          onOpenAgentTerminal={openAgentRuntimeTerminal}
+          t={t}
+        />
+      );
     }
     if (!activeProjectId) {
       return <NoProjectPanel busy={busy} onOpenFolder={onOpenFolder} onCreateSample={onCreateSample} t={t} />;
@@ -438,8 +466,14 @@ export function AppWorkspaceShell(props: AppWorkspaceShellProps) {
         compileAssistHint={compileAssistHint}
         compileAssistAutoFixBusy={compileAssistAutoFixBusy}
         terminalVisible={terminalVisible}
+        terminalLaunchRequest={terminalLaunchRequest}
         modeSwitcher={renderModeSwitcher()}
         onTerminalToggle={() => setTerminalVisible((prev) => !prev)}
+        onTerminalLaunchHandled={(requestId) => {
+          setTerminalLaunchRequest((current) => (
+            current?.requestId === requestId ? null : current
+          ));
+        }}
         onCreateChatTab={handleCreateChatTab}
         onOpenChatTab={handleOpenChatTab}
         onChatTabTitleChange={setChatTabTitle}

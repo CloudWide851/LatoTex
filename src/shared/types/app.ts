@@ -87,6 +87,7 @@ export type WorkspaceExportAssetResponse = {
 export type {
   TerminalActivateResponse,
   TerminalFailure,
+  TerminalLaunchKind,
   TerminalOutputChunk,
   TerminalReadResponse,
   TerminalStartResponse,

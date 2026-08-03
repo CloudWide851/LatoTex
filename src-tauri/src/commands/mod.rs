@@ -1,5 +1,9 @@
 pub mod agent_control;
+pub(crate) mod agent_mcp_broker;
+pub(crate) mod agent_mcp_proxy;
 pub mod agent_rebuttal_workflow;
+pub mod agent_runtime;
+pub(crate) mod agent_runtime_launch;
 pub mod agent_workflows;
 mod agent_workflows_context;
 pub mod analysis;
@@ -20,6 +24,7 @@ mod markdown_runtime_science;
 pub mod native_runtime;
 pub mod plugins;
 mod plugins_builtin;
+mod plugins_builtin_agents;
 mod plugins_builtin_knowledge;
 mod plugins_builtin_science;
 mod plugins_builtin_science_connectors;

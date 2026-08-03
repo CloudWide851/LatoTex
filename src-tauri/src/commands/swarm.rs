@@ -2,6 +2,12 @@
 mod swarm_events;
 #[path = "swarm_executor.rs"]
 mod swarm_executor;
+#[path = "swarm_external_dispatch.rs"]
+mod swarm_external_dispatch;
+#[path = "swarm_external_pipeline.rs"]
+mod swarm_external_pipeline;
+#[path = "swarm_external_runtime.rs"]
+mod swarm_external_runtime;
 #[path = "swarm_graph_executor.rs"]
 mod swarm_graph_executor;
 #[path = "swarm_harness.rs"]

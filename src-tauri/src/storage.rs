@@ -45,6 +45,7 @@ include!("storage/agent_control_validation.rs");
 include!("storage/agent_control_seed.rs");
 include!("storage/agent_control.rs");
 include!("storage/agent_control_delete.rs");
+include!("storage/agent_runtime.rs");
 include!("storage/agent_cache_time.rs");
 include!("storage/library_remote_endpoints.rs");
 include!("storage/library_import_zotero.rs");

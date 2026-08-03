@@ -1,6 +1,12 @@
 import { RefreshCw, Search, Store } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
+  detectAgentRuntime,
+  listAgentRuntimes,
+  pickAgentRuntimeExecutable,
+  setAgentRuntimeEnabled,
+} from "../../../shared/api/agent";
+import {
   getPluginCatalog,
   installPlugin,
   listInstalledPlugins,
@@ -22,6 +28,7 @@ import {
   verifyRuntimeAsset,
 } from "../../../shared/api/runtimeAssets";
 import type { AppSettings } from "../../../shared/types/app";
+import type { AgentRuntimeDescriptor, AgentRuntimeId } from "../../../shared/types/agentControl";
 import type { InstalledPlugin, PluginCatalogEntry, PluginManifest, RuntimeAssetStatus, ToolchainStatus } from "../../../shared/plugins/pluginTypes";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -40,9 +47,11 @@ import { notifyPluginsChanged } from "./usePluginFileInterfaces";
 
 export function PluginMarketplace(props: {
   settings: AppSettings | null;
+  onOpenAgentControl?: () => void;
+  onOpenAgentTerminal?: (runtimeId: AgentRuntimeId) => void;
   t: TranslationFn;
 }) {
-  const { settings, t } = props;
+  const { settings, onOpenAgentControl, onOpenAgentTerminal, t } = props;
   const locale = localeOf(settings?.uiPrefs?.language);
   const [query, setQuery] = useState("");
   const [scienceFilter, setScienceFilter] = useState("all");
@@ -52,6 +61,7 @@ export function PluginMarketplace(props: {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [toolchains, setToolchains] = useState<ToolchainStatus[]>([]);
   const [runtimeAssets, setRuntimeAssets] = useState<RuntimeAssetStatus[]>([]);
+  const [agentRuntimes, setAgentRuntimes] = useState<AgentRuntimeDescriptor[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [busyActionId, setBusyActionId] = useState<string | null>(null);
@@ -87,9 +97,10 @@ export function PluginMarketplace(props: {
     setRefreshing(true);
     setStatus(null);
     try {
-      const [nextCatalog, nextInstalled] = await Promise.all([
+      const [nextCatalog, nextInstalled, nextAgentRuntimes] = await Promise.all([
         getPluginCatalog(catalogSources),
         listInstalledPlugins(),
+        listAgentRuntimes().catch(() => []),
       ]);
       const [nextToolchains, nextRuntimeAssets] = await Promise.all([
         listToolchains().catch(() => []),
@@ -100,6 +111,7 @@ export function PluginMarketplace(props: {
       setInstalled(nextInstalled);
       setToolchains(nextToolchains);
       setRuntimeAssets(nextRuntimeAssets);
+      setAgentRuntimes(nextAgentRuntimes);
     } catch {
       setStatus(t("plugins.actionFailed"));
     } finally {
@@ -185,10 +197,50 @@ export function PluginMarketplace(props: {
 
   const toolchainFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "toolchainInstaller" || item.kind === "toolchainProbe");
   const runtimeAssetFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.kind === "runtimeAsset");
+  const agentRuntimeFor = (plugin: PluginManifest) => plugin.contributions.find((item) => item.agentRuntimeDetector);
   const toolchainStatusFor = (pluginId: string, contributionId: string) =>
     toolchains.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
   const runtimeAssetStatusFor = (pluginId: string, contributionId: string) =>
     runtimeAssets.find((item) => item.pluginId === pluginId && item.contributionId === contributionId);
+  const agentRuntimeStatusFor = (runtimeId: string) =>
+    agentRuntimes.find((item) => item.id === runtimeId);
+
+  const replaceAgentRuntime = (next: AgentRuntimeDescriptor) => {
+    setAgentRuntimes((current) => [
+      next,
+      ...current.filter((item) => item.id !== next.id),
+    ]);
+  };
+
+  const runAgentRuntimeAction = async (
+    pluginId: string,
+    runtimeId: AgentRuntimeId,
+    action: "detect" | "select" | "enable" | "disable" | "terminal" | "profiles",
+  ) => {
+    if (action === "profiles") {
+      onOpenAgentControl?.();
+      return;
+    }
+    if (action === "terminal") {
+      onOpenAgentTerminal?.(runtimeId);
+      return;
+    }
+    if (busyActionId) return;
+    setBusyActionId(`${pluginId}:agent-runtime:${runtimeId}:${action}`);
+    try {
+      const next = action === "detect"
+        ? await detectAgentRuntime(runtimeId)
+        : action === "select"
+          ? await pickAgentRuntimeExecutable(runtimeId)
+          : await setAgentRuntimeEnabled(runtimeId, action === "enable");
+      if (next) replaceAgentRuntime(next);
+      if (next || action !== "select") setStatus(t(`plugins.agentRuntime.${action}Done`));
+    } catch {
+      setStatus(t("plugins.actionFailed"));
+    } finally {
+      setBusyActionId(null);
+    }
+  };
 
   const runToolchainAction = async (
     pluginId: string,
@@ -343,6 +395,10 @@ export function PluginMarketplace(props: {
             const runtimeAsset = runtimeAssetFor(plugin);
             const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
             const runtimeAssetStatus = runtimeAsset ? runtimeAssetStatusFor(plugin.id, runtimeAsset.id) : null;
+            const agentRuntime = agentRuntimeFor(plugin);
+            const agentRuntimeStatus = agentRuntime?.agentRuntimeDetector
+              ? agentRuntimeStatusFor(agentRuntime.agentRuntimeDetector.runtimeId)
+              : null;
             return (
               <PluginMarketplaceCard
                 key={`${entry.sourceId}:${plugin.id}`}
@@ -354,12 +410,15 @@ export function PluginMarketplace(props: {
                 runtimeAssetStatus={runtimeAssetStatus ?? null}
                 toolchain={toolchain}
                 runtimeAsset={runtimeAsset}
+                agentRuntime={agentRuntime}
+                agentRuntimeStatus={agentRuntimeStatus ?? null}
                 onDetailsOpen={() => setDetailKey(`${entry.sourceId}:${plugin.id}`)}
                 onInstallPlugin={(item) => void install(item)}
                 onTogglePlugin={(item) => void toggle(item)}
                 onRemovePlugin={(pluginId) => void remove(pluginId)}
                 onToolchainAction={(pluginId, contributionId, action) => void runToolchainAction(pluginId, contributionId, action)}
                 onRuntimeAssetAction={(pluginId, contributionId, action) => void runRuntimeAssetAction(pluginId, contributionId, action)}
+                onAgentRuntimeAction={(pluginId, runtimeId, action) => void runAgentRuntimeAction(pluginId, runtimeId, action)}
                 t={t}
               />
             );
@@ -375,6 +434,10 @@ export function PluginMarketplace(props: {
       const runtimeAsset = runtimeAssetFor(plugin);
       const toolchainStatus = toolchain ? toolchainStatusFor(plugin.id, toolchain.id) : null;
       const runtimeAssetStatus = runtimeAsset ? runtimeAssetStatusFor(plugin.id, runtimeAsset.id) : null;
+      const agentRuntime = agentRuntimeFor(plugin);
+      const agentRuntimeStatus = agentRuntime?.agentRuntimeDetector
+        ? agentRuntimeStatusFor(agentRuntime.agentRuntimeDetector.runtimeId)
+        : null;
       return (
         <PluginMarketplaceDetailDialog
           entry={detailEntry}
@@ -383,6 +446,8 @@ export function PluginMarketplace(props: {
           busy={Boolean(busyActionId?.startsWith(`${plugin.id}:`))}
           toolchain={toolchain}
           runtimeAsset={runtimeAsset}
+          agentRuntime={agentRuntime}
+          agentRuntimeStatus={agentRuntimeStatus ?? null}
           toolchainStatus={toolchainStatus ?? null}
           runtimeAssetStatus={runtimeAssetStatus ?? null}
           onClose={() => setDetailKey(null)}
@@ -392,6 +457,7 @@ export function PluginMarketplace(props: {
           onToolchainAction={(pluginId, contributionId, action) => void runToolchainAction(pluginId, contributionId, action)}
           onToolchainDirectoryPick={(pluginId, contributionId) => void chooseToolchainDirectory(pluginId, contributionId)}
           onRuntimeAssetAction={(pluginId, contributionId, action) => void runRuntimeAssetAction(pluginId, contributionId, action)}
+          onAgentRuntimeAction={(pluginId, runtimeId, action) => void runAgentRuntimeAction(pluginId, runtimeId, action)}
           t={t}
         />
       );

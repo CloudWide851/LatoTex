@@ -11,6 +11,7 @@ function tab(id: string, title: string): TerminalTab {
     id,
     title,
     sequence: id === "one" ? 1 : 2,
+    launchKind: "shell",
     relativePath: null,
     sessionId: null,
     startRequestId: null,

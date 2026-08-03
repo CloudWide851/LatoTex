@@ -12,6 +12,7 @@ import type {
   SubmissionPackBuildInput,
   SubmissionPackBuildResponse,
   TerminalActivateResponse,
+  TerminalLaunchKind,
   TerminalReadResponse,
   TerminalStartResponse,
   WorkspaceExportAssetResponse,
@@ -39,10 +40,11 @@ export function terminalStart(
   projectId: string,
   requestId: string,
   relativePath?: string | null,
+  launchKind: TerminalLaunchKind = "shell",
   size?: { cols?: number; rows?: number },
 ): Promise<TerminalStartResponse> {
   return invokeCommand<TerminalStartResponse>("terminal_start", {
-    input: { projectId, requestId, relativePath, cols: size?.cols, rows: size?.rows },
+    input: { projectId, requestId, relativePath, launchKind, cols: size?.cols, rows: size?.rows },
   });
 }
 

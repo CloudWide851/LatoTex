@@ -45,6 +45,16 @@ fn validate_agent_profile(profile: &crate::models::AgentProfile) -> Result<(), S
     if profile.tool_call_budget == 0 || profile.tool_call_budget > 64 {
         return Err("agent.profile.invalid_tool_budget".to_string());
     }
+    if !matches!(
+        profile.runtime_id.as_str(),
+        "native" | "codex-cli" | "claude-code-cli"
+    ) || !matches!(
+        profile.fallback_runtime_id.as_str(),
+        "native" | "codex-cli" | "claude-code-cli"
+    ) || (profile.runtime_id != "native" && profile.runtime_id == profile.fallback_runtime_id)
+    {
+        return Err("agent.profile.invalid_runtime".to_string());
+    }
     if profile.token_budget < 1_024 || profile.token_budget > 200_000 {
         return Err("agent.profile.invalid_token_budget".to_string());
     }

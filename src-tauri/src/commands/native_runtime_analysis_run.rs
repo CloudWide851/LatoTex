@@ -158,6 +158,116 @@ fn stage_analysis_inputs(
     )
 }
 
+pub(crate) fn run_analysis_python_blocking(
+    db_path: &Path,
+    runtime_root: &Path,
+    app_data_dir: &Path,
+    session_log_path: &Path,
+    input: AnalysisRunPythonInput,
+) -> Result<AnalysisRunPythonResponse, String> {
+    validate_analysis_plan(&input.plan)?;
+    let project_root = storage::load_project_root(db_path, &input.project_id)?;
+    let env_status = ensure_analysis_env_blocking(
+        db_path,
+        runtime_root,
+        app_data_dir,
+        &input.project_id,
+        &project_root,
+    )?;
+    let python_path = PathBuf::from(
+        env_status
+            .python_path
+            .clone()
+            .ok_or_else(|| "python.env.python_missing".to_string())?,
+    );
+    let analysis_runtime_root = resolve_analysis_runtime_root()
+        .ok_or_else(|| "python.env.runtime_resource_missing".to_string())?;
+    let run_key = input
+        .task_id
+        .as_deref()
+        .map(normalize_analysis_run_key)
+        .transpose()?
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let run_relative = format!(".latotex/analysis-runtime/{run_key}");
+    let input_relative = format!("{run_relative}/input.json");
+    let output_relative = format!("{run_relative}/output.json");
+    let staged_files = stage_analysis_inputs(&project_root, &run_relative, &input.plan)?;
+    let runner_payload = AnalysisRunnerPayload {
+        prompt: &input.prompt,
+        output_language: &input.output_language,
+        plan: &input.plan,
+        staged_files,
+    };
+    let payload = serde_json::to_string_pretty(&runner_payload).map_err(|e| e.to_string())?;
+    let input_path = storage::atomic_write_under_root(
+        &project_root,
+        &input_relative,
+        payload.as_bytes(),
+        storage::WORKSPACE_TEXT_FILE_LIMIT,
+    )?;
+    let output_path = storage::prepare_workspace_mutation_path(&project_root, &output_relative)?;
+
+    let mut command = Command::new(&python_path);
+    configure_hidden_process(&mut command);
+    let output = command
+        .arg(analysis_runtime_root.join("analysis_runner.py"))
+        .arg("--input")
+        .arg(&input_path)
+        .arg("--output")
+        .arg(&output_path)
+        .current_dir(
+            input_path
+                .parent()
+                .ok_or_else(|| "python.run.invalid_staging_root".to_string())?,
+        )
+        .output()
+        .map_err(|error| format!("python.run.spawn_failed: {error}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let sanitized_stdout = sanitize_log_lines(&stdout).join("\n");
+    let sanitized_stderr = sanitize_log_lines(&stderr).join("\n");
+    let diagnostics = sanitize_log_lines(&format!("{stdout}\n{stderr}"));
+    let output_json = if output_path.exists() {
+        storage::read_text_under_root(
+            &project_root,
+            &output_relative,
+            storage::WORKSPACE_TEXT_FILE_LIMIT,
+        )?
+    } else {
+        String::new()
+    };
+    if !output.status.success() {
+        let _ = crate::logging::append_log_line(
+            session_log_path,
+            "ERROR",
+            &format!(
+                "analysis_run_python.failed: code=python.run.failed diagnostics={}",
+                diagnostics.join(" | ")
+            ),
+        );
+        return Err("python.run.failed".to_string());
+    }
+    let profile_json = if output_json.trim().is_empty() {
+        serde_json::json!({
+            "runtimeSource": "uv",
+            "status": "empty"
+        })
+    } else {
+        serde_json::from_str(&output_json).map_err(|_| "python.run.invalid_json".to_string())?
+    };
+
+    Ok(AnalysisRunPythonResponse {
+        status: "completed".to_string(),
+        runtime_source: "uv".to_string(),
+        python_path: python_path.to_string_lossy().to_string(),
+        venv_path: env_status.venv_path,
+        stdout: sanitized_stdout,
+        stderr: sanitized_stderr,
+        diagnostics,
+        profile_json,
+    })
+}
+
 #[tauri::command]
 pub async fn analysis_run_python(
     state: State<'_, AppState>,
@@ -177,108 +287,13 @@ pub async fn analysis_run_python(
     let runtime_root = state.runtime_root.clone();
     let session_log_path = state.session_log_path.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        validate_analysis_plan(&input.plan)?;
-        let project_root = storage::load_project_root(&db_path, &input.project_id)?;
-        let env_status = ensure_analysis_env_blocking(
+        run_analysis_python_blocking(
             &db_path,
             &runtime_root,
             &app_data_dir,
-            &input.project_id,
-            &project_root,
-        )?;
-        let python_path = PathBuf::from(
-            env_status
-                .python_path
-                .clone()
-                .ok_or_else(|| "python.env.python_missing".to_string())?,
-        );
-        let analysis_runtime_root = resolve_analysis_runtime_root()
-            .ok_or_else(|| "python.env.runtime_resource_missing".to_string())?;
-        let run_key = input
-            .task_id
-            .as_deref()
-            .map(normalize_analysis_run_key)
-            .transpose()?
-            .unwrap_or_else(|| Uuid::new_v4().to_string());
-        let run_relative = format!(".latotex/analysis-runtime/{run_key}");
-        let input_relative = format!("{run_relative}/input.json");
-        let output_relative = format!("{run_relative}/output.json");
-        let staged_files = stage_analysis_inputs(&project_root, &run_relative, &input.plan)?;
-        let runner_payload = AnalysisRunnerPayload {
-            prompt: &input.prompt,
-            output_language: &input.output_language,
-            plan: &input.plan,
-            staged_files,
-        };
-        let payload = serde_json::to_string_pretty(&runner_payload).map_err(|e| e.to_string())?;
-        let input_path = storage::atomic_write_under_root(
-            &project_root,
-            &input_relative,
-            payload.as_bytes(),
-            storage::WORKSPACE_TEXT_FILE_LIMIT,
-        )?;
-        let output_path =
-            storage::prepare_workspace_mutation_path(&project_root, &output_relative)?;
-
-        let mut command = Command::new(&python_path);
-        configure_hidden_process(&mut command);
-        let output = command
-            .arg(analysis_runtime_root.join("analysis_runner.py"))
-            .arg("--input")
-            .arg(&input_path)
-            .arg("--output")
-            .arg(&output_path)
-            .current_dir(
-                input_path
-                    .parent()
-                    .ok_or_else(|| "python.run.invalid_staging_root".to_string())?,
-            )
-            .output()
-            .map_err(|error| format!("python.run.spawn_failed: {error}"))?;
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        let sanitized_stdout = sanitize_log_lines(&stdout).join("\n");
-        let sanitized_stderr = sanitize_log_lines(&stderr).join("\n");
-        let diagnostics = sanitize_log_lines(&format!("{stdout}\n{stderr}"));
-        let output_json = if output_path.exists() {
-            storage::read_text_under_root(
-                &project_root,
-                &output_relative,
-                storage::WORKSPACE_TEXT_FILE_LIMIT,
-            )?
-        } else {
-            String::new()
-        };
-        if !output.status.success() {
-            let _ = crate::logging::append_log_line(
-                &session_log_path,
-                "ERROR",
-                &format!(
-                    "analysis_run_python.failed: code=python.run.failed diagnostics={}",
-                    diagnostics.join(" | ")
-                ),
-            );
-            return Err("python.run.failed".to_string());
-        }
-        let profile_json = if output_json.trim().is_empty() {
-            serde_json::json!({
-                "runtimeSource": "uv",
-                "status": "empty"
-            })
-        } else {
-            serde_json::from_str(&output_json).map_err(|_| "python.run.invalid_json".to_string())?
-        };
-
-        Ok(AnalysisRunPythonResponse {
-            status: "completed".to_string(),
-            runtime_source: "uv".to_string(),
-            python_path: python_path.to_string_lossy().to_string(),
-            venv_path: env_status.venv_path,
-            stdout: sanitized_stdout,
-            stderr: sanitized_stderr,
-            diagnostics,
-            profile_json,
-        })
+            &session_log_path,
+            input,
+        )
     })
     .await
     .map_err(|error| error.to_string())?

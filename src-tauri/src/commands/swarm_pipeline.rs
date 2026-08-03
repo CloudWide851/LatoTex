@@ -189,6 +189,7 @@ fn launch_agent_worker(
     let db_path = state.db_path.clone();
     let runtime_root = state.runtime_root.clone();
     let app_data_dir = state.app_data_dir.clone();
+    let session_log_path = state.session_log_path.clone();
     let slots = state.agent_slots.clone();
     let cancel_flags = state.agent_cancel_flags.clone();
     thread::spawn(move || {
@@ -242,6 +243,7 @@ fn launch_agent_worker(
                 db_path.clone(),
                 runtime_root,
                 app_data_dir,
+                session_log_path,
                 run_id.clone(),
                 cancel_flag,
                 input,

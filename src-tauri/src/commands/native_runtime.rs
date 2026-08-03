@@ -34,7 +34,7 @@ pub(crate) use native_runtime_analysis_env::{
     resolve_analysis_runtime_root, resolve_pdfmathtranslate_vendor_root,
 };
 pub use native_runtime_analysis_run::analysis_run_python;
-#[allow(unused_imports)]
+pub(crate) use native_runtime_analysis_run::run_analysis_python_blocking;
 #[allow(unused_imports)]
 pub(crate) use native_runtime_common::{configure_hidden_process, sanitize_log_lines};
 pub use native_runtime_latex::{latex_compile_native, latex_compile_start, latex_compile_status};

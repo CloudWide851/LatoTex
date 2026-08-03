@@ -4,7 +4,7 @@ import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import type { ModelCatalogItem } from "../../../shared/types/app";
-import type { AgentProfile } from "../../../shared/types/agentControl";
+import type { AgentProfile, AgentRuntimeDescriptor } from "../../../shared/types/agentControl";
 
 type TranslationFn = (key: any) => string;
 const TOOL_IDS: AgentProfile["toolIds"] = ["workspace", "web", "python", "mcp"];
@@ -24,16 +24,24 @@ function parseCsv(value: string): string[] {
   );
 }
 
+function runtimeStatusKey(runtime: AgentRuntimeDescriptor | undefined): string {
+  if (!runtime?.available) return "agents.runtime.unavailable";
+  if (!runtime.enabled) return "agents.runtime.disabled";
+  if (!runtime.authenticated) return "agents.runtime.authRequired";
+  return "agents.runtime.ready";
+}
+
 export function AgentProfileEditor(props: {
   profile: AgentProfile | null;
   models: ModelCatalogItem[];
+  runtimes: AgentRuntimeDescriptor[];
   busy: boolean;
   onSave: (profile: AgentProfile) => Promise<void>;
   onDuplicate: (profile: AgentProfile) => void;
   onDelete: (profile: AgentProfile) => void;
   t: TranslationFn;
 }) {
-  const { profile, models, busy, onSave, onDuplicate, onDelete, t } = props;
+  const { profile, models, runtimes, busy, onSave, onDuplicate, onDelete, t } = props;
   const [draft, setDraft] = useState<AgentProfile | null>(profile);
 
   useEffect(() => setDraft(profile), [profile]);
@@ -47,6 +55,7 @@ export function AgentProfileEditor(props: {
   }
 
   const readonly = draft.builtIn;
+  const selectedRuntime = runtimes.find((runtime) => runtime.id === draft.runtimeId);
   const patch = (next: Partial<AgentProfile>) => setDraft((current) => (
     current ? { ...current, ...next } : current
   ));
@@ -60,14 +69,9 @@ export function AgentProfileEditor(props: {
   return (
     <section className="app-material-panel grid gap-3 rounded-lg border p-3" aria-labelledby="agent-profile-editor-title">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 id="agent-profile-editor-title" className="truncate text-sm font-semibold text-slate-900">
-            {t("agents.profile.editorTitle")}
-          </h2>
-          <p className="text-xs text-slate-500">
-            {readonly ? t("agents.profile.builtInReadonly") : t("agents.profile.customHint")}
-          </p>
-        </div>
+        <h2 id="agent-profile-editor-title" className="min-w-0 truncate text-sm font-semibold text-slate-900">
+          {t("agents.profile.editorTitle")}
+        </h2>
         <div className="flex gap-1.5">
           <Button size="sm" variant="secondary" onClick={() => onDuplicate(draft)} disabled={busy}>
             <Copy className="mr-1.5 h-3.5 w-3.5" />
@@ -78,6 +82,39 @@ export function AgentProfileEditor(props: {
               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
               {t("agents.action.delete")}
             </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="app-material-inset grid gap-2 rounded-md border p-2 md:grid-cols-2">
+        <label className="grid gap-1 text-xs text-slate-600">
+          <span>{t("agents.profile.runtime")}</span>
+          <Select
+            value={draft.runtimeId}
+            aria-label={t("agents.profile.runtime")}
+            onChange={(event) => patch({ runtimeId: event.target.value as AgentProfile["runtimeId"] })}
+          >
+            {runtimes.map((runtime) => (
+              <option key={runtime.id} value={runtime.id}>{t(runtime.labelKey)}</option>
+            ))}
+          </Select>
+        </label>
+        <label className="grid gap-1 text-xs text-slate-600">
+          <span>{t("agents.profile.fallbackRuntime")}</span>
+          <Select
+            value={draft.fallbackRuntimeId}
+            aria-label={t("agents.profile.fallbackRuntime")}
+            onChange={(event) => patch({ fallbackRuntimeId: event.target.value as AgentProfile["fallbackRuntimeId"] })}
+          >
+            <option value="native">{t("agents.runtime.native")}</option>
+          </Select>
+        </label>
+        <div className="flex min-h-6 items-center gap-2 md:col-span-2" role="status">
+          <span className="rounded-full border px-2 py-0.5 text-[10px] font-medium text-slate-600">
+            {t(runtimeStatusKey(selectedRuntime))}
+          </span>
+          {selectedRuntime?.version ? (
+            <span className="truncate font-mono text-[10px] text-slate-500">{selectedRuntime.version}</span>
           ) : null}
         </div>
       </div>
@@ -183,14 +220,12 @@ export function AgentProfileEditor(props: {
         </label>
       </div>
 
-      {!readonly ? (
-        <div className="flex justify-end">
-          <Button size="sm" onClick={() => void onSave(draft)} disabled={busy}>
-            <Save className="mr-1.5 h-3.5 w-3.5" />
-            {busy ? t("agents.action.saving") : t("agents.action.saveProfile")}
-          </Button>
-        </div>
-      ) : null}
+      <div className="flex justify-end">
+        <Button size="sm" onClick={() => void onSave(draft)} disabled={busy}>
+          <Save className="mr-1.5 h-3.5 w-3.5" />
+          {busy ? t("agents.action.saving") : t("agents.action.saveProfile")}
+        </Button>
+      </div>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { CodeLanguageInfo } from "../../../shared/utils/codeLanguage";
 import { LatexWorkspaceEditorPanel } from "../editor/LatexWorkspaceEditorPanel";
+import type { AgentTerminalLaunchRequest } from "../terminal/terminalTypes";
 import type { AppWorkspaceShellProps } from "./workspaceShellTypes";
 import { WorkspaceOnboardingChecklist } from "./WorkspaceOnboardingChecklist";
 
@@ -18,8 +19,10 @@ export function WorkspaceLatexEditorSurface(props: {
   compileAssistHint: string;
   compileAssistAutoFixBusy: boolean;
   terminalVisible: boolean;
+  terminalLaunchRequest: AgentTerminalLaunchRequest | null;
   modeSwitcher: ReactNode;
   onTerminalToggle: () => void;
+  onTerminalLaunchHandled: (requestId: number) => void;
   onCreateChatTab: () => void;
   onOpenChatTab: () => void;
   onChatTabTitleChange: (value: string | null) => void;
@@ -54,10 +57,12 @@ export function WorkspaceLatexEditorSurface(props: {
         compileAssistHint={props.compileAssistHint}
         compileAssistAutoFixBusy={props.compileAssistAutoFixBusy}
         terminalVisible={props.terminalVisible}
+        terminalLaunchRequest={props.terminalLaunchRequest}
         terminalLayout={shell.latexTerminalLayout}
         modeSwitcher={props.modeSwitcher}
         onTerminalLayoutChange={(layout) => shell.onSavePanelLayout("latexTerminal", layout)}
         onTerminalToggle={props.onTerminalToggle}
+        onTerminalLaunchHandled={props.onTerminalLaunchHandled}
         onCreateChatTab={props.onCreateChatTab}
         onOpenChatTab={props.onOpenChatTab}
         onChatTabTitleChange={props.onChatTabTitleChange}

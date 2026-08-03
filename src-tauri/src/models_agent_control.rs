@@ -6,6 +6,10 @@ pub struct AgentProfile {
     pub description: String,
     pub color: String,
     pub model_id: Option<String>,
+    #[serde(default = "default_agent_runtime_id")]
+    pub runtime_id: String,
+    #[serde(default = "default_agent_runtime_id")]
+    pub fallback_runtime_id: String,
     pub identity_prompt: String,
     #[serde(default)]
     pub skill_ids: Vec<String>,
@@ -23,6 +27,60 @@ pub struct AgentProfile {
     pub built_in: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+fn default_agent_runtime_id() -> String {
+    "native".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalAgentFailure {
+    pub code: String,
+    pub stage: String,
+    pub retryable: bool,
+    pub diagnostics: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuntimeDescriptor {
+    pub id: String,
+    pub plugin_id: String,
+    pub label_key: String,
+    pub enabled: bool,
+    pub available: bool,
+    pub authenticated: bool,
+    pub source: String,
+    pub executable_path: Option<String>,
+    pub version: Option<String>,
+    pub failure: Option<ExternalAgentFailure>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuntimeInput {
+    pub runtime_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuntimeSetEnabledInput {
+    pub runtime_id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct McpCapabilitySession {
+    pub session_id: String,
+    pub run_id: String,
+    pub project_id: String,
+    pub profile_id: String,
+    pub allowed_tools: Vec<String>,
+    pub read_scopes: Vec<String>,
+    pub write_scopes: Vec<String>,
+    pub expires_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -108,6 +166,7 @@ pub struct AgentControlCatalogResponse {
     pub graph_templates: Vec<AgentGraphTemplate>,
     pub callsites: Vec<AgentCallsiteDescriptor>,
     pub recent_runs: Vec<AgentRunSummary>,
+    pub runtimes: Vec<AgentRuntimeDescriptor>,
 }
 
 #[derive(Debug, Deserialize)]

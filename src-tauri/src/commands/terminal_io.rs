@@ -1,11 +1,11 @@
 use crate::commands::native_runtime::ensure_analysis_env_with_progress_blocking;
 use crate::models::{
     Ack, TerminalActivateInput, TerminalActivateResponse, TerminalCancelStartInput,
-    TerminalFailure, TerminalOutputChunk as TerminalOutputChunkModel, TerminalReadInput,
-    TerminalReadResponse, TerminalResizeInput, TerminalStartInput, TerminalStartResponse,
-    TerminalStatus, TerminalStopInput, TerminalWriteInput,
+    TerminalFailure, TerminalLaunchKind, TerminalOutputChunk as TerminalOutputChunkModel,
+    TerminalReadInput, TerminalReadResponse, TerminalResizeInput, TerminalStartInput,
+    TerminalStartResponse, TerminalStatus, TerminalStopInput, TerminalWriteInput,
 };
-use crate::state::{AppState, TerminalOutputChunk, TerminalSession};
+use crate::state::{AppState, TerminalOutputChunk, TerminalResourceLease, TerminalSession};
 use crate::storage;
 use latotex_workspace::resolve_workspace_target_path;
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
@@ -18,6 +18,8 @@ use std::time::Duration;
 use tauri::State;
 use uuid::Uuid;
 
+#[path = "terminal_external_runtime.rs"]
+mod external_runtime;
 #[path = "terminal_lifecycle.rs"]
 mod lifecycle;
 pub use lifecycle::{terminal_activate_research_env, terminal_cancel_start, terminal_start};
@@ -28,6 +30,9 @@ const TERMINAL_START_TIMEOUT: Duration = Duration::from_secs(8);
 struct TerminalShellSpec {
     shell: String,
     args: Vec<String>,
+    env: Vec<(String, String)>,
+    launch_kind: TerminalLaunchKind,
+    resource_lease: Option<TerminalResourceLease>,
 }
 
 struct PreparedTerminal {
@@ -37,6 +42,8 @@ struct PreparedTerminal {
     child: Box<dyn portable_pty::Child + Send>,
     writer: Box<dyn Write + Send>,
     reader: Box<dyn Read + Send>,
+    launch_kind: TerminalLaunchKind,
+    resource_lease: Option<TerminalResourceLease>,
 }
 
 struct TerminalInternalFailure {
@@ -173,6 +180,9 @@ fn powershell_spec() -> TerminalShellSpec {
     TerminalShellSpec {
         shell: "powershell.exe".to_string(),
         args: vec!["-NoProfile".to_string(), "-NoLogo".to_string()],
+        env: Vec::new(),
+        launch_kind: TerminalLaunchKind::Shell,
+        resource_lease: None,
     }
 }
 
@@ -183,6 +193,9 @@ fn cmd_spec() -> TerminalShellSpec {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "cmd.exe".to_string()),
         args: Vec::new(),
+        env: Vec::new(),
+        launch_kind: TerminalLaunchKind::Shell,
+        resource_lease: None,
     }
 }
 
@@ -212,11 +225,17 @@ fn terminal_shell_command(setting: &str) -> TerminalShellSpec {
         TerminalShellSpec {
             shell,
             args: vec!["-il".to_string()],
+            env: Vec::new(),
+            launch_kind: TerminalLaunchKind::Shell,
+            resource_lease: None,
         }
     } else {
         TerminalShellSpec {
             shell,
             args: vec!["-l".to_string(), "-i".to_string()],
+            env: Vec::new(),
+            launch_kind: TerminalLaunchKind::Shell,
+            resource_lease: None,
         }
     }
 }
@@ -437,6 +456,9 @@ pub fn terminal_stop(state: State<'_, AppState>, input: TerminalStopInput) -> Re
         if let Ok(mut child) = session.child.lock() {
             let _ = child.kill();
             let _ = child.wait();
+        }
+        if let Ok(mut lease) = session.resource_lease.lock() {
+            drop(lease.take());
         }
         state.log(
             "INFO",

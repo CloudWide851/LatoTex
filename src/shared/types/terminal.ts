@@ -6,6 +6,8 @@ export type TerminalStatus =
   | "failed"
   | "activating";
 
+export type TerminalLaunchKind = "shell" | "codex-cli" | "claude-code-cli";
+
 export type TerminalFailure = {
   code: string;
   stage: string;
@@ -16,6 +18,7 @@ export type TerminalStartResponse = {
   sessionId: string;
   cwd: string;
   shell: string;
+  launchKind: TerminalLaunchKind;
   venvPath?: string | null;
   envSource?: string | null;
   status: TerminalStatus;

@@ -14,6 +14,7 @@ describe("terminalSuggestions", () => {
         id: "term-1",
         title: "Terminal 1",
         sequence: 1,
+        launchKind: "shell",
         relativePath: "src/main.tex",
         sessionId: null,
         startRequestId: null,

@@ -33,6 +33,8 @@ fn built_in_agent_profiles(now: &str) -> Vec<crate::models::AgentProfile> {
             description: description.to_string(),
             color: color.to_string(),
             model_id: None,
+            runtime_id: "native".to_string(),
+            fallback_runtime_id: "native".to_string(),
             identity_prompt: identity_prompt.to_string(),
             skill_ids: skill_ids.iter().map(|value| (*value).to_string()).collect(),
             mcp_server_ids: Vec::new(),
@@ -203,7 +205,8 @@ fn insert_agent_profile_with_conn(
     let update = if replace_custom {
         "ON CONFLICT(profile_id) DO UPDATE SET
            name=excluded.name, description=excluded.description, color=excluded.color,
-           model_id=excluded.model_id, identity_prompt=excluded.identity_prompt,
+           model_id=excluded.model_id, runtime_id=excluded.runtime_id,
+           fallback_runtime_id=excluded.fallback_runtime_id, identity_prompt=excluded.identity_prompt,
            skill_ids_json=excluded.skill_ids_json, mcp_server_ids_json=excluded.mcp_server_ids_json,
            tool_ids_json=excluded.tool_ids_json, read_scopes_json=excluded.read_scopes_json,
            write_scopes_json=excluded.write_scopes_json, tool_call_budget=excluded.tool_call_budget,
@@ -216,11 +219,11 @@ fn insert_agent_profile_with_conn(
     conn.execute(
         &format!(
             "INSERT INTO agent_profiles (
-               profile_id, name, description, color, model_id, identity_prompt,
+               profile_id, name, description, color, model_id, runtime_id, fallback_runtime_id, identity_prompt,
                skill_ids_json, mcp_server_ids_json, tool_ids_json, read_scopes_json,
                write_scopes_json, tool_call_budget, token_budget, timeout_ms,
                built_in, created_at, updated_at
-             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17)
+             ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19)
              {update}"
         ),
         params![
@@ -229,6 +232,8 @@ fn insert_agent_profile_with_conn(
             profile.description,
             profile.color,
             profile.model_id,
+            profile.runtime_id,
+            profile.fallback_runtime_id,
             profile.identity_prompt,
             serde_json::to_string(&profile.skill_ids).map_err(|e| e.to_string())?,
             serde_json::to_string(&profile.mcp_server_ids).map_err(|e| e.to_string())?,
@@ -402,6 +407,8 @@ fn migrate_legacy_agent_teams(conn: &Connection) -> Result<(), String> {
                     .and_then(serde_json::Value::as_str)
                     .filter(|value| !value.is_empty())
                     .map(str::to_string),
+                runtime_id: "native".to_string(),
+                fallback_runtime_id: "native".to_string(),
                 identity_prompt: role
                     .get("identityPrompt")
                     .and_then(serde_json::Value::as_str)

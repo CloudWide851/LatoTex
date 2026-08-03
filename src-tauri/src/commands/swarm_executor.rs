@@ -544,16 +544,32 @@ pub(super) fn run_execute_pipeline_async(
     db_path: std::path::PathBuf,
     runtime_root: std::path::PathBuf,
     app_data_dir: std::path::PathBuf,
+    session_log_path: std::path::PathBuf,
     run_id: String,
     cancel_flag: Arc<AtomicBool>,
     input: AgentExecuteRequest,
     workflow: WorkflowDefinition,
 ) -> Result<String, String> {
+    if input.graph_template_id.is_none() {
+        if let Some(output) = super::swarm_external_pipeline::try_run_selected_external_pipeline(
+            &db_path,
+            &runtime_root,
+            &app_data_dir,
+            &session_log_path,
+            &run_id,
+            &cancel_flag,
+            &input,
+            &workflow,
+        )? {
+            return Ok(output);
+        }
+    }
     if should_use_team(&input) {
         return run_execute_pipeline_team(
             &db_path,
             &runtime_root,
             &app_data_dir,
+            &session_log_path,
             &run_id,
             &cancel_flag,
             &input,

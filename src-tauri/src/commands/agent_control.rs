@@ -13,7 +13,9 @@ pub fn agent_control_catalog(
     state: State<'_, AppState>,
     input: AgentControlCatalogInput,
 ) -> Result<AgentControlCatalogResponse, String> {
-    storage::agent_control_catalog(&state.db_path, input.project_id.as_deref())
+    let mut catalog = storage::agent_control_catalog(&state.db_path, input.project_id.as_deref())?;
+    catalog.runtimes = super::agent_runtime::runtime_catalog(&state.db_path);
+    Ok(catalog)
 }
 
 #[tauri::command]

@@ -395,6 +395,43 @@ fn validate_contributions(manifest: &PluginManifest, issues: &mut Vec<PluginVali
         if contribution.kind == "runtimeAsset" {
             validate_runtime_asset(contribution.runtime_asset.as_ref(), issues);
         }
+        if matches!(
+            contribution.kind.as_str(),
+            "agentRuntime" | "agentRuntimeDetector"
+        ) {
+            let allowed_plugin =
+                super::plugins_builtin_agents::is_trusted_agent_runtime_manifest(manifest);
+            let valid_detector =
+                contribution
+                    .agent_runtime_detector
+                    .as_ref()
+                    .is_some_and(|detector| {
+                        matches!(
+                            detector.runtime_id.as_str(),
+                            "codex-cli" | "claude-code-cli"
+                        ) && matches!(detector.executable.as_str(), "codex.exe" | "claude.exe")
+                            && detector.version_args.len() <= 2
+                            && detector.auth_args.len() <= 3
+                            && detector
+                                .version_args
+                                .iter()
+                                .chain(detector.auth_args.iter())
+                                .all(|arg| {
+                                    !arg.is_empty()
+                                        && arg.len() <= 32
+                                        && arg.chars().all(|ch| {
+                                            ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
+                                        })
+                                })
+                    });
+            if !allowed_plugin || !valid_detector {
+                issues.push(issue(
+                    "plugin.contribution.agent_runtime_untrusted",
+                    "error",
+                    "External Agent runtimes are restricted to the signed built-in registry.",
+                ));
+            }
+        }
         validate_safe_contribution_details(contribution, issues);
         validate_more_safe_contribution_details(contribution, issues);
     }
@@ -442,6 +479,14 @@ pub fn plugin_install(
     state: State<'_, AppState>,
     input: PluginInstallInput,
 ) -> Result<InstalledPlugin, String> {
+    if input
+        .manifest
+        .contributions
+        .iter()
+        .any(|contribution| contribution.agent_runtime_detector.is_some())
+    {
+        return Err("plugin.contribution.agent_runtime_untrusted".to_string());
+    }
     let validation = validate_manifest(&input.manifest);
     if !validation.ok {
         return Err("plugin.manifest.validation_failed".to_string());

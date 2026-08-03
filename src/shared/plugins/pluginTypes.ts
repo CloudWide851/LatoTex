@@ -109,6 +109,13 @@ export type PluginRuntimeAssetDetector = {
   filenames: string[];
 };
 
+export type PluginAgentRuntimeDetector = {
+  runtimeId: "codex-cli" | "claude-code-cli";
+  executable: string;
+  versionArgs: string[];
+  authArgs: string[];
+};
+
 export type PluginSettingsSchemaField = {
   key: string;
   fieldKind: "string" | "boolean" | "number" | "select" | "url" | string;
@@ -235,6 +242,8 @@ export type PluginContribution = {
     | "toolchainInstaller"
     | "toolchainProbe"
     | "runtimeAsset"
+    | "agentRuntime"
+    | "agentRuntimeDetector"
     | string;
   id: string;
   title: string;
@@ -260,6 +269,7 @@ export type PluginContribution = {
   commandPaletteItem?: PluginCommandPaletteItem | null;
   settingsQuickAction?: PluginSettingsQuickAction | null;
   runtimeAssetDetector?: PluginRuntimeAssetDetector | null;
+  agentRuntimeDetector?: PluginAgentRuntimeDetector | null;
   settingsSchema?: PluginSettingsSchema | null;
   fileTemplate?: PluginFileTemplate | null;
   snippetProvider?: PluginSnippetProvider | null;

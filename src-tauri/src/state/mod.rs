@@ -88,11 +88,25 @@ pub struct TerminalOutputChunk {
     pub text: String,
 }
 
+pub struct TerminalResourceLease {
+    pub db_path: PathBuf,
+    pub mcp_session_id: String,
+    pub temp_dir: PathBuf,
+}
+
+impl Drop for TerminalResourceLease {
+    fn drop(&mut self) {
+        crate::storage::delete_agent_mcp_session(&self.db_path, &self.mcp_session_id);
+        let _ = std::fs::remove_dir_all(&self.temp_dir);
+    }
+}
+
 pub struct TerminalSession {
     pub cwd: String,
     pub shell: String,
     pub venv_path: Mutex<Option<String>>,
     pub env_source: Mutex<Option<String>>,
+    pub resource_lease: Mutex<Option<TerminalResourceLease>>,
     pub master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     pub child: Mutex<Box<dyn portable_pty::Child + Send>>,
     pub writer: Mutex<Box<dyn Write + Send>>,
