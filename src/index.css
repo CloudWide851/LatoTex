@@ -788,7 +788,17 @@ input[type="range"] {
 }
 
 .editor-tab-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   color: var(--editor-tab-muted);
+}
+
+.editor-tab-action > svg {
+  display: block;
+  flex: none;
+  pointer-events: none;
 }
 
 .editor-tab-action:hover {

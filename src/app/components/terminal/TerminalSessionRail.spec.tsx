@@ -56,7 +56,10 @@ describe("TerminalSessionRail", () => {
           activeTabId="one"
           onSelect={() => undefined}
           onClose={() => undefined}
+          onCloseOthers={() => undefined}
           onNew={() => undefined}
+          onRename={() => undefined}
+          onRestart={() => undefined}
           onReorder={onReorder}
           width={144}
           onWidthChange={onWidthChange}
@@ -121,6 +124,86 @@ describe("TerminalSessionRail", () => {
     await act(async () => {
       root.unmount();
     });
+    container.remove();
+  });
+
+  it("opens a portal menu and supports rename, restart, close, and close-other actions", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onRename = vi.fn();
+    const onRestart = vi.fn();
+    const onClose = vi.fn();
+    const onCloseOthers = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <TerminalSessionRail
+          tabs={[tab("one", "New terminal 1"), tab("two", "New terminal 2")]}
+          activeTabId="one"
+          onSelect={() => undefined}
+          onClose={onClose}
+          onCloseOthers={onCloseOthers}
+          onNew={() => undefined}
+          onRename={onRename}
+          onRestart={onRestart}
+          onReorder={() => undefined}
+          width={144}
+          onWidthChange={() => undefined}
+          t={(key) => String(key)}
+        />,
+      );
+    });
+
+    const first = container.querySelector("[data-terminal-tab-id='one']") as HTMLElement;
+    const openMenu = async () => {
+      await act(async () => {
+        first.dispatchEvent(new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 32,
+          clientY: 48,
+        }));
+      });
+    };
+    const clickMenuItem = async (label: string) => {
+      const item = Array.from(document.body.querySelectorAll<HTMLButtonElement>("[role='menuitem']"))
+        .find((button) => button.textContent?.includes(label));
+      expect(item).toBeTruthy();
+      await act(async () => item?.click());
+    };
+
+    await openMenu();
+    expect(document.body.querySelector("[role='menu']")).not.toBeNull();
+    await clickMenuItem("terminal.rename");
+    const input = container.querySelector("[aria-label='terminal.rename']") as HTMLInputElement;
+    expect(input).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, "Research shell");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+    });
+    expect(onRename).toHaveBeenCalledWith("one", "Research shell");
+
+    await openMenu();
+    await clickMenuItem("terminal.restart");
+    expect(onRestart).toHaveBeenCalledWith("one");
+
+    await openMenu();
+    await clickMenuItem("terminal.closeOthers");
+    expect(onCloseOthers).toHaveBeenCalledWith("one");
+
+    await openMenu();
+    await clickMenuItem("terminal.close");
+    expect(onClose).toHaveBeenCalledWith("one");
+
+    await openMenu();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    });
+    expect(document.body.querySelector("[role='menu']")).toBeNull();
+
+    await act(async () => root.unmount());
     container.remove();
   });
 });

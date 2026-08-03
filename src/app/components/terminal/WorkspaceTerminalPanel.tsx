@@ -8,7 +8,6 @@ import {
   terminalRead,
   terminalResize,
   terminalStart,
-  terminalStop,
   terminalWrite,
 } from "../../../shared/api/workspace";
 import { TerminalSessionRail } from "./TerminalSessionRail";
@@ -20,13 +19,13 @@ import { reorderTerminalTabs } from "./terminalTabOrder";
 import type { TerminalTab, TranslationFn } from "./terminalTypes";
 import {
   createTerminalRequestId,
-  createTerminalTab,
   joinTerminalChunks,
   normalizeTerminalFailure,
   persistTerminalState,
   snapshotTerminalState,
 } from "./terminalWorkspaceState";
 import { useTerminalReleaseHandlers } from "./useTerminalReleaseHandlers";
+import { useTerminalTabActions } from "./useTerminalTabActions";
 
 const TERMINAL_POLL_MS = 180;
 
@@ -237,65 +236,22 @@ export function WorkspaceTerminalPanel(props: {
     }
   }, [activeProjectId, updateTabs]);
 
-  const stopTab = useCallback(async (tabId: string) => {
-    const tab = tabsRef.current.find((item) => item.id === tabId);
-    if (tab?.startRequestId) {
-      await terminalCancelStart(tab.startRequestId).catch(() => undefined);
-    }
-    if (tab?.sessionId) {
-      await terminalStop(tab.sessionId).catch(() => undefined);
-    }
-    updateTabs((prev) =>
-      prev.map((item) =>
-        item.id === tabId
-          ? {
-              ...item,
-              sessionId: null,
-              startRequestId: null,
-              autoStart: false,
-              venvPath: null,
-              envSource: null,
-              status: "idle",
-              cursor: 0,
-              failure: null,
-            }
-          : item,
-      ),
-    );
-    if (tabId === activeTabIdRef.current) {
-      xtermRef.current?.clear();
-    }
-  }, [updateTabs]);
-
-  const closeTab = useCallback(async (tabId: string) => {
-    const tab = tabsRef.current.find((item) => item.id === tabId);
-    if (tab?.startRequestId) {
-      await terminalCancelStart(tab.startRequestId).catch(() => undefined);
-    }
-    if (tab?.sessionId) {
-      await terminalStop(tab.sessionId).catch(() => undefined);
-    }
-    updateTabs((prev) => {
-      const next = prev.filter((item) => item.id !== tabId);
-      if (next.length > 0) {
-        setActiveTabId((activeId) => (activeId === tabId ? next[0].id : activeId));
-        return next;
-      }
-      const replacement = createTerminalTab(t, 1);
-      setActiveTabId(replacement.id);
-      return [replacement];
-    });
-  }, [t, updateTabs]);
-
-  const newTab = useCallback(() => {
-    setTabs((prev) => {
-      const sequence = prev.reduce((highest, tab) => Math.max(highest, tab.sequence), 0) + 1;
-      const next = [...prev, createTerminalTab(t, sequence)];
-      tabsRef.current = next;
-      setActiveTabId(next[next.length - 1].id);
-      return next;
-    });
-  }, [t]);
+  const {
+    closeOtherTabs,
+    closeTab,
+    newTab,
+    renameTab,
+    restartTab,
+    stopTab,
+  } = useTerminalTabActions({
+    tabsRef,
+    activeTabIdRef,
+    updateTabs,
+    setActiveTabId,
+    clearTerminal,
+    startTab,
+    t,
+  });
 
   const cancelStartTab = useCallback(async (tabId: string) => {
     const tab = tabsRef.current.find((item) => item.id === tabId);
@@ -374,13 +330,6 @@ export function WorkspaceTerminalPanel(props: {
       setBusyTabId((prev) => (prev === tabId ? null : prev));
     }
   }, [activeProjectId, updateTabs]);
-
-  const restartTab = useCallback(async (tabId: string) => {
-    await stopTab(tabId);
-    window.setTimeout(() => {
-      void startTab(tabId);
-    }, 0);
-  }, [startTab, stopTab]);
 
   const reorderTabs = useCallback((sourceId: string, targetId: string) => {
     setTabs((prev) => reorderTerminalTabs(prev, sourceId, targetId));
@@ -559,7 +508,14 @@ export function WorkspaceTerminalPanel(props: {
         onClose={(tabId) => {
           void closeTab(tabId);
         }}
+        onCloseOthers={(tabId) => {
+          void closeOtherTabs(tabId);
+        }}
         onNew={newTab}
+        onRename={renameTab}
+        onRestart={(tabId) => {
+          void restartTab(tabId);
+        }}
         onReorder={reorderTabs}
         width={railWidth}
         onWidthChange={setRailWidth}

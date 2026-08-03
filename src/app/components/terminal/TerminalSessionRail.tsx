@@ -5,7 +5,14 @@ import {
   MIN_TERMINAL_RAIL_WIDTH,
   clampTerminalRailWidth,
 } from "./terminalPersistence";
+import { TerminalSessionContextMenu } from "./TerminalSessionContextMenu";
 import type { TerminalTab, TranslationFn } from "./terminalTypes";
+
+type ContextMenuState = {
+  tabId: string;
+  x: number;
+  y: number;
+} | null;
 
 function terminalStatusClass(tab: TerminalTab) {
   if (tab.failure || tab.status === "failed") {
@@ -25,7 +32,10 @@ export function TerminalSessionRail(props: {
   activeTabId: string | null;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  onCloseOthers: (id: string) => void;
   onNew: () => void;
+  onRename: (id: string, title: string) => void;
+  onRestart: (id: string) => void;
   onReorder: (sourceId: string, targetId: string) => void;
   width: number;
   onWidthChange: (width: number) => void;
@@ -36,7 +46,10 @@ export function TerminalSessionRail(props: {
     activeTabId,
     onSelect,
     onClose,
+    onCloseOthers,
     onNew,
+    onRename,
+    onRestart,
     onReorder,
     width,
     onWidthChange,
@@ -56,7 +69,26 @@ export function TerminalSessionRail(props: {
     startWidth: number;
   } | null>(null);
   const suppressClickRef = useRef(false);
+  const renamingRef = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<ContextMenuState>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
+  const startRename = (tab: TerminalTab) => {
+    renamingRef.current = tab.id;
+    setRenamingId(tab.id);
+    setRenameDraft(tab.title);
+  };
+  const finishRename = (commit: boolean) => {
+    const tabId = renamingRef.current;
+    renamingRef.current = null;
+    setRenamingId(null);
+    if (commit && tabId && renameDraft.trim()) {
+      onRename(tabId, renameDraft);
+    }
+    setRenameDraft("");
+  };
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
@@ -143,6 +175,14 @@ export function TerminalSessionRail(props: {
                   : "border-transparent text-[color:var(--editor-tab-muted)] hover:border-[color:var(--editor-widget-border)] hover:bg-[color:var(--editor-paper-bg)]"
               } ${draggingId === tab.id ? "opacity-70 ring-1 ring-primary-300" : ""}`}
               title={tab.cwd || tab.relativePath || tab.title}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                dragRef.current = null;
+                setDraggingId(null);
+                onSelect(tab.id);
+                setMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
+              }}
               onPointerDown={(event) => {
                 if (event.button !== 0) {
                   return;
@@ -157,21 +197,53 @@ export function TerminalSessionRail(props: {
                 };
               }}
             >
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-center gap-1 px-1.5 py-1 text-left"
-                onClick={() => {
-                  if (!suppressClickRef.current) {
-                    onSelect(tab.id);
-                  }
-                }}
-              >
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${terminalStatusClass(tab)}`}
-                  title={t(`terminal.status.${tab.status}`)}
-                />
-                <span className="min-w-0 flex-1 truncate">{tab.title}</span>
-              </button>
+              {renamingId === tab.id ? (
+                <div className="flex min-w-0 flex-1 items-center gap-1 px-1.5 py-1">
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${terminalStatusClass(tab)}`}
+                    title={t(`terminal.status.${tab.status}`)}
+                  />
+                  <input
+                    autoFocus
+                    value={renameDraft}
+                    aria-label={t("terminal.rename")}
+                    placeholder={t("terminal.renamePlaceholder")}
+                    className="h-6 min-w-0 flex-1 rounded border border-[color:var(--editor-widget-border)] bg-[color:var(--editor-widget-bg)] px-1.5 text-[11px] outline-none focus:border-[color:var(--app-accent)]"
+                    onChange={(event) => setRenameDraft(event.target.value)}
+                    onBlur={() => {
+                      if (renamingRef.current === tab.id) {
+                        finishRename(true);
+                      }
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        finishRename(true);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        finishRename(false);
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-1 px-1.5 py-1 text-left"
+                  onClick={() => {
+                    if (!suppressClickRef.current) {
+                      onSelect(tab.id);
+                    }
+                  }}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${terminalStatusClass(tab)}`}
+                    title={t(`terminal.status.${tab.status}`)}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                </button>
+              )}
               <button
                 type="button"
                 className="mr-1 hidden h-4 w-4 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-white/70 hover:text-rose-600 group-hover:flex"
@@ -230,6 +302,22 @@ export function TerminalSessionRail(props: {
       >
         <GripVertical className="h-4 w-4 text-[color:var(--editor-tab-muted)] opacity-0 transition-opacity group-hover:opacity-80 group-focus-visible:opacity-80" />
       </button>
+      {menu ? (
+        <TerminalSessionContextMenu
+          x={menu.x}
+          y={menu.y}
+          canCloseOthers={tabs.length > 1}
+          onRename={() => {
+            const tab = tabs.find((item) => item.id === menu.tabId);
+            if (tab) startRename(tab);
+          }}
+          onRestart={() => onRestart(menu.tabId)}
+          onCloseSession={() => onClose(menu.tabId)}
+          onCloseOthers={() => onCloseOthers(menu.tabId)}
+          onClose={() => setMenu(null)}
+          t={t}
+        />
+      ) : null}
     </aside>
   );
 }

@@ -420,6 +420,10 @@
 }
 
 .panel-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   color: var(--control-text);
   border-color: color-mix(in srgb, var(--control-border) 92%, white 8%);
   background-color: var(--app-material-inset);
@@ -429,6 +433,12 @@
     background-color 150ms var(--motion-ease-out-quart),
     color 150ms var(--motion-ease-out-quart),
     box-shadow 150ms var(--motion-ease-out-quart);
+}
+
+.panel-topbar-btn > svg {
+  display: block;
+  flex: none;
+  pointer-events: none;
 }
 
 .panel-topbar-btn:hover:not(:disabled),
