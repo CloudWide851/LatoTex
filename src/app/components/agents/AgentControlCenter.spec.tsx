@@ -26,6 +26,8 @@ const catalog: AgentControlCatalog = {
     description: "Evidence",
     color: "#0F766E",
     modelId: null,
+    runtimeId: "native",
+    fallbackRuntimeId: "native",
     identityPrompt: "Use evidence.",
     skillIds: ["literature-search"],
     mcpServerIds: [],
@@ -38,6 +40,18 @@ const catalog: AgentControlCatalog = {
     builtIn: true,
     createdAt: "2026-07-30T00:00:00Z",
     updatedAt: "2026-07-30T00:00:00Z",
+  }],
+  runtimes: [{
+    id: "native",
+    pluginId: "latotex.agent.native",
+    labelKey: "agents.runtime.native",
+    enabled: true,
+    available: true,
+    authenticated: true,
+    source: "bundled",
+    executablePath: null,
+    version: "0.1.4",
+    failure: null,
   }],
   bindings: [],
   graphTemplates: [{
@@ -96,7 +110,9 @@ describe("AgentControlCenter", () => {
     expect(getAgentControlCatalog).toHaveBeenCalledWith("project-a");
     expect(container.textContent).toContain("Researcher");
     expect(container.textContent).toContain("Research workflow");
-    expect(container.textContent).toContain("agents.health.systemLocked");
+    expect(container.textContent).toContain("agents.profile.runtime");
+    expect(container.textContent).not.toContain("agents.health.systemLocked");
+    expect(container.textContent).not.toContain("agents.subtitle");
 
     await act(async () => root.unmount());
   });

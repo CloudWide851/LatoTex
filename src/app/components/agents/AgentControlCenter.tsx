@@ -1,4 +1,4 @@
-import { Activity, Bot, Network, Plus, RefreshCw, ShieldCheck, Workflow } from "lucide-react";
+import { Bot, Plus, RefreshCw, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../../../components/ui/button";
 import { Select } from "../../../components/ui/select";
@@ -22,7 +22,7 @@ import { AgentGraphEditor } from "./AgentGraphEditor";
 import { AgentProfileEditor } from "./AgentProfileEditor";
 
 type TranslationFn = (key: any) => string;
-type MobileTab = "profiles" | "workflow" | "health";
+type MobileTab = "profiles" | "workflow";
 
 function agentControlErrorKey(error: unknown): string {
   const code = String(error);
@@ -173,32 +173,20 @@ export function AgentControlCenter(props: {
   const mobileTabs: Array<{ id: MobileTab; icon: typeof Bot }> = [
     { id: "profiles", icon: Bot },
     { id: "workflow", icon: Workflow },
-    { id: "health", icon: Activity },
   ];
   const profiles = catalog?.profiles ?? [];
   const graphs = catalog?.graphTemplates ?? [];
   const busy = Boolean(busyAction);
 
   return (
-    <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden" aria-labelledby="agents-page-title">
-      <header className="app-material-panel flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5">
-        <div className="min-w-0">
-          <h1 id="agents-page-title" className="truncate text-base font-semibold text-slate-900">{t("agents.title")}</h1>
-          <p className="truncate text-xs text-slate-500">{t("agents.subtitle")}</p>
-        </div>
-        <Button size="sm" variant="secondary" onClick={() => void refresh()} disabled={busy}>
-          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
-          {t("agents.refresh")}
-        </Button>
-      </header>
-
+    <section className="flex h-full min-h-0 flex-col gap-2 overflow-hidden" aria-label={t("agents.title")}>
       {errorKey ? (
         <div role="alert" className="app-status-danger rounded-md border px-3 py-2 text-xs">
           {t(errorKey)}
         </div>
       ) : null}
 
-      <nav className="app-material-inset grid grid-cols-3 gap-1 rounded-lg border p-1 xl:hidden" aria-label={t("agents.mobileSections")}>
+      <nav className="app-material-inset grid grid-cols-2 gap-1 rounded-lg border p-1 xl:hidden" aria-label={t("agents.mobileSections")}>
         {mobileTabs.map(({ id, icon: Icon }) => (
           <button
             key={id}
@@ -212,26 +200,35 @@ export function AgentControlCenter(props: {
         ))}
       </nav>
 
-      <div className="grid min-h-0 flex-1 gap-2 overflow-hidden xl:grid-cols-[250px_minmax(420px,1fr)_280px]">
+      <div className="grid min-h-0 flex-1 gap-2 overflow-hidden xl:grid-cols-[250px_minmax(420px,1fr)]">
         <aside className={`${mobileTab === "profiles" ? "flex" : "hidden"} app-material-panel min-h-0 flex-col rounded-lg border xl:flex`}>
           <div className="flex items-center justify-between border-b px-2.5 py-2">
-            <div>
-              <h2 className="text-xs font-semibold text-slate-800">{t("agents.profiles.title")}</h2>
-              <p className="text-[11px] text-slate-500">{t("agents.profiles.hint")}</p>
+            <h2 className="text-xs font-semibold text-slate-800">{t("agents.profiles.title")}</h2>
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={t("agents.refresh")}
+                title={t("agents.refresh")}
+                disabled={busy}
+                onClick={() => void refresh()}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={t("agents.profile.new")}
+                title={t("agents.profile.new")}
+                disabled={busy || profiles.length === 0}
+                onClick={() => {
+                  const template = profiles.find((profile) => profile.id === "builtin-researcher") ?? profiles[0];
+                  if (template) duplicateProfile(template);
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              aria-label={t("agents.profile.new")}
-              title={t("agents.profile.new")}
-              disabled={busy || profiles.length === 0}
-              onClick={() => {
-                const template = profiles.find((profile) => profile.id === "builtin-researcher") ?? profiles[0];
-                if (template) duplicateProfile(template);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-1.5">
             {profiles.map((profile) => (
@@ -261,6 +258,7 @@ export function AgentControlCenter(props: {
             <AgentProfileEditor
               profile={selectedProfile}
               models={models}
+              runtimes={catalog?.runtimes ?? []}
               busy={busy}
               onSave={persistProfile}
               onDuplicate={duplicateProfile}
@@ -311,57 +309,6 @@ export function AgentControlCenter(props: {
           </div>
         </main>
 
-        <aside className={`${mobileTab === "health" ? "block" : "hidden"} min-h-0 overflow-auto xl:block`}>
-          <div className="grid gap-2">
-            <section className="app-material-panel rounded-lg border p-3">
-              <div className="mb-2 flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                <h2 className="text-xs font-semibold text-slate-800">{t("agents.health.permissions")}</h2>
-              </div>
-              <ul className="grid gap-1.5 text-[11px] text-slate-600">
-                <li>{t("agents.health.systemLocked")}</li>
-                <li>{t("agents.health.approvalEnforced")}</li>
-                <li>{t("agents.health.graphBounded")}</li>
-                <li>{t("agents.health.contextScoped")}</li>
-              </ul>
-            </section>
-            <section className="app-material-panel rounded-lg border p-3">
-              <div className="mb-2 flex items-center gap-2">
-                <Network className="h-4 w-4 text-[var(--app-accent)]" />
-                <h2 className="text-xs font-semibold text-slate-800">{t("agents.health.catalog")}</h2>
-              </div>
-              <dl className="grid grid-cols-2 gap-2 text-xs">
-                <div className="app-material-inset rounded border p-2">
-                  <dt className="text-[10px] text-slate-500">{t("agents.health.profiles")}</dt>
-                  <dd className="text-lg font-semibold text-slate-800">{profiles.length}</dd>
-                </div>
-                <div className="app-material-inset rounded border p-2">
-                  <dt className="text-[10px] text-slate-500">{t("agents.health.graphs")}</dt>
-                  <dd className="text-lg font-semibold text-slate-800">{graphs.length}</dd>
-                </div>
-              </dl>
-            </section>
-            <section className="app-material-panel rounded-lg border p-3">
-              <div className="mb-2 flex items-center gap-2">
-                <Activity className="h-4 w-4 text-sky-600" />
-                <h2 className="text-xs font-semibold text-slate-800">{t("agents.health.recentRuns")}</h2>
-              </div>
-              <div className="grid gap-1.5">
-                {(catalog?.recentRuns ?? []).length === 0 ? (
-                  <p className="text-[11px] text-slate-500">{t("agents.health.noRuns")}</p>
-                ) : (catalog?.recentRuns ?? []).map((run) => (
-                  <article key={run.runId} className="app-material-inset rounded border p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[11px] font-medium text-slate-700">{t(`agents.callsite.${run.callsite}.label`)}</span>
-                      <span className="rounded-full border px-1.5 py-0.5 text-[10px] text-slate-500">{t(`agents.run.${run.status}`)}</span>
-                    </div>
-                    <time className="mt-1 block text-[10px] text-slate-500">{new Date(run.updatedAt).toLocaleString()}</time>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </div>
-        </aside>
       </div>
     </section>
   );
