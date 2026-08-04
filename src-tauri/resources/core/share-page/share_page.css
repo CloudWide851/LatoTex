@@ -1347,6 +1347,9 @@ video {
 .min-h-52 {
   min-height: 13rem;
 }
+.min-h-6 {
+  min-height: 1.5rem;
+}
 .min-h-7 {
   min-height: 1.75rem;
 }
@@ -3546,6 +3549,9 @@ video {
 .hover\:bg-\[color\:var\(--control-hover\)\]:hover {
   background-color: var(--control-hover);
 }
+.hover\:bg-\[color\:var\(--control-surface-hover-top\)\]:hover {
+  background-color: var(--control-surface-hover-top);
+}
 .hover\:bg-\[color\:var\(--editor-paper-bg\)\]:hover {
   background-color: var(--editor-paper-bg);
 }
@@ -3701,6 +3707,9 @@ video {
 }
 .focus-visible\:z-10:focus-visible {
   z-index: 10;
+}
+.focus-visible\:bg-\[color\:var\(--control-surface-hover-top\)\]:focus-visible {
+  background-color: var(--control-surface-hover-top);
 }
 .focus-visible\:text-amber-700:focus-visible {
   --tw-text-opacity: 1;
@@ -3975,6 +3984,10 @@ video {
 }
 @media (min-width: 768px) {
 
+  .md\:col-span-2 {
+    grid-column: span 2 / span 2;
+  }
+
   .md\:grid-cols-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -4051,8 +4064,8 @@ video {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .xl\:grid-cols-\[250px_minmax\(420px\2c 1fr\)_280px\] {
-    grid-template-columns: 250px minmax(420px,1fr) 280px;
+  .xl\:grid-cols-\[250px_minmax\(420px\2c 1fr\)\] {
+    grid-template-columns: 250px minmax(420px,1fr);
   }
 
   .xl\:pr-\[324px\] {

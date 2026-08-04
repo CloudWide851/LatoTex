@@ -23,6 +23,8 @@ pub mod markdown_runtime;
 mod markdown_runtime_science;
 pub mod native_runtime;
 pub mod plugins;
+#[cfg(test)]
+mod plugins_agent_runtime_validation_tests;
 mod plugins_builtin;
 mod plugins_builtin_agents;
 mod plugins_builtin_knowledge;

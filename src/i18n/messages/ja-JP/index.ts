@@ -4,6 +4,7 @@ import { jaJP_agentControl } from "./agentControl";
 import { jaJP_research } from "./research";
 import { jaJP_scientific } from "./scientific";
 import { jaJP_knowledge } from "./knowledge";
+import { jaJP_pluginAgents } from "./pluginAgents";
 
 const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_terminal,
@@ -11,6 +12,7 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   ...jaJP_research,
   ...jaJP_scientific,
   ...jaJP_knowledge,
+  ...jaJP_pluginAgents,
   "settings.agentSkillsTitle": "研究 Skills",
   "settings.agentSkillsHint": "検証済みの研究ガイダンスは、関連する文献・データ分析ワークフローでのみ読み込まれます。",
   "settings.skillCustomDescription": "承認済みの Codex または Agent Skill ディレクトリにあるカスタム研究ガイダンスです。",
@@ -416,16 +418,6 @@ const jaJP_overrides: Partial<Record<MessageKey, string>> = {
   "plugins.runtimeAsset.detected": "ローカルリソースを検出: {path}",
   "plugins.runtimeAsset.bundled": "内蔵リソース準備完了: {path}",
   "plugins.runtimeAsset.notInstalled": "リソースは未インストールです。",
-  "plugins.agentRuntime.detect": "検出",
-  "plugins.agentRuntime.selectExecutable": "実行ファイルを選択",
-  "plugins.agentRuntime.enable": "有効化",
-  "plugins.agentRuntime.disable": "無効化",
-  "plugins.agentRuntime.openTerminal": "ターミナルで開く",
-  "plugins.agentRuntime.useForProfiles": "Agent Profile で使用",
-  "plugins.agentRuntime.detectDone": "Agent CLI の検出が完了しました。",
-  "plugins.agentRuntime.selectDone": "Agent CLI 実行ファイルを更新しました。",
-  "plugins.agentRuntime.enableDone": "Agent CLI を有効にしました。",
-  "plugins.agentRuntime.disableDone": "Agent CLI を無効にしました。",
   "topbar.projectRemoveFromList": "一覧から削除",
   "topbar.projectMoveToTrash": "プロジェクトフォルダーをゴミ箱へ移動",
   "topbar.projectRemoveFromListTitle": "プロジェクトを一覧から削除",

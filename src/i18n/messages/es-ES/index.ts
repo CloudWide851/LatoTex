@@ -4,6 +4,7 @@ import { esES_agentControl } from "./agentControl";
 import { esES_research } from "./research";
 import { esES_scientific } from "./scientific";
 import { esES_knowledge } from "./knowledge";
+import { esES_pluginAgents } from "./pluginAgents";
 
 const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_terminal,
@@ -11,6 +12,7 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   ...esES_research,
   ...esES_scientific,
   ...esES_knowledge,
+  ...esES_pluginAgents,
   "settings.agentSkillsTitle": "Skills de investigación",
   "settings.agentSkillsHint": "La guía validada se carga solo en flujos relevantes de literatura y análisis de datos.",
   "settings.skillCustomDescription": "Guía personalizada desde un directorio aprobado de Skills de Codex o Agent.",
@@ -416,16 +418,6 @@ const esES_overrides: Partial<Record<MessageKey, string>> = {
   "plugins.runtimeAsset.detected": "Recurso local detectado: {path}",
   "plugins.runtimeAsset.bundled": "Recurso incluido listo: {path}",
   "plugins.runtimeAsset.notInstalled": "El recurso no está instalado.",
-  "plugins.agentRuntime.detect": "Detectar",
-  "plugins.agentRuntime.selectExecutable": "Elegir ejecutable",
-  "plugins.agentRuntime.enable": "Activar",
-  "plugins.agentRuntime.disable": "Desactivar",
-  "plugins.agentRuntime.openTerminal": "Abrir en terminal",
-  "plugins.agentRuntime.useForProfiles": "Usar en perfiles de agente",
-  "plugins.agentRuntime.detectDone": "Detección del CLI completada.",
-  "plugins.agentRuntime.selectDone": "Ejecutable del CLI actualizado.",
-  "plugins.agentRuntime.enableDone": "CLI de agente activado.",
-  "plugins.agentRuntime.disableDone": "CLI de agente desactivado.",
   "topbar.projectRemoveFromList": "Quitar de la lista",
   "topbar.projectMoveToTrash": "Mover carpeta a la papelera",
   "topbar.projectRemoveFromListTitle": "Quitar proyecto de la lista",
