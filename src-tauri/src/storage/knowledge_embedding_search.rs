@@ -153,7 +153,6 @@ mod knowledge_embedding_search_tests {
         )
         .expect("insert chunk");
         let primary = vec![16_u8; KNOWLEDGE_EMBEDDING_DIMENSIONS];
-        let secondary = vec![224_u8; KNOWLEDGE_EMBEDDING_DIMENSIONS];
         conn.execute(
             "INSERT INTO knowledge_vectors (vector_id, evidence_id, embedding)
              VALUES (7, 'evidence-7', ?1)",
@@ -161,12 +160,13 @@ mod knowledge_embedding_search_tests {
         )
         .expect("insert vector mapping");
 
-        let hnsw = Hnsw::new(8, 2, 16, 32, DistL2 {});
+        // Keep this persistence/mapping contract independent of randomized
+        // multi-point HNSW layer construction; ranking has separate coverage.
+        let hnsw = Hnsw::new(8, 1, 16, 32, DistL2 {});
         hnsw.insert((&primary, 7));
-        hnsw.insert((&secondary, 11));
         write_knowledge_hnsw(&project_root, &hnsw).expect("persist hnsw");
         let loaded = load_knowledge_hnsw(&project_root).expect("reload hnsw");
-        let neighbors = loaded.with_hnsw(|index| index.search(&primary, 2, 32));
+        let neighbors = loaded.with_hnsw(|index| index.search(&primary, 1, 32));
         let evidence = resolve_knowledge_vector_neighbors(
             &conn,
             neighbors
