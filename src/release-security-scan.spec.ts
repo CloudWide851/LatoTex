@@ -25,6 +25,8 @@ const unsignedWindowsWorkflow = [
   "  build:",
   "    runs-on: windows-latest",
   "    steps:",
+  "      - run: pnpm release:prepare-tools:win-x64",
+  "      - run: pnpm release:validate:win-x64",
   "      - run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
   "      - run: pnpm release:package:win-x64",
   "",
@@ -65,6 +67,7 @@ function createFixture(options: { signed?: boolean; workflow?: string } = {}) {
   tempRoots.push(root);
   const scripts = {
     "tauri:build:win-x64": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
+    "release:prepare-tools:win-x64": "pwsh -NoProfile -File scripts/prepare-bundled-tools-win-x64.ps1",
     "release:package:win-x64": "node scripts/release-check-win-x64.mjs --mode=package",
     "release:install-smoke:win-x64": "node scripts/install-smoke-win-x64.mjs",
     ...(options.signed
@@ -132,8 +135,34 @@ describe("release-security-scan", () => {
     expect(scanRepository(createFixture())).toEqual([]);
   });
 
-  it("accepts the unsigned multi-platform release policy", () => {
-    expect(scanRepository(createFixture({ workflow: unsignedMultiPlatformWorkflow }))).toEqual([]);
+  it("rejects a multi-platform release build", () => {
+    const findingIds = scanRepository(createFixture({ workflow: unsignedMultiPlatformWorkflow })).map((finding) => finding.id);
+    expect(findingIds).toContain("release-workflow-non-windows-build");
+  });
+
+  it("fails when bundled tools are not prepared before validation", () => {
+    const workflow = unsignedWindowsWorkflow.replace("pnpm release:prepare-tools:win-x64", "pnpm build");
+    const findingIds = scanRepository(createFixture({ workflow })).map((finding) => finding.id);
+    expect(findingIds).toContain("release-workflow-missing-bundled-tools-prepare");
+  });
+
+  it("pins the ignored Windows runtime bootstrap and offline seed", () => {
+    const script = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/prepare-bundled-tools-win-x64.ps1"),
+      "utf8",
+    );
+    const seed = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/assets/tectonic-offline-seed-2022.0r0.zip"),
+    );
+
+    expect(script).toContain("cloudflared/releases/download/2026.2.0/cloudflared-windows-amd64.exe");
+    expect(script).toContain("astral-sh/uv/releases/download/0.11.10/uv-x86_64-pc-windows-msvc.zip");
+    expect(script).toContain("tectonic%400.15.0/tectonic-0.15.0-x86_64-pc-windows-msvc.zip");
+    expect(script).not.toContain("/releases/latest/");
+    expect(crypto.createHash("sha256").update(seed).digest("hex").toUpperCase()).toBe(
+      "8313FDD44E93D85B13653579A66C67D62893ACC20EE9F3FEB87B9393542D1281",
+    );
+    expect(seed.byteLength).toBeLessThan(100 * 1024 * 1024);
   });
 
   it("fails when the release workflow loses the Windows unsigned package gate", () => {

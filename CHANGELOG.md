@@ -25,6 +25,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Fixed
 
 - Fixed terminal square icon alignment and restored a viewport-safe session context menu with rename, restart, close, and close-other actions that stop real PTYs before removing tabs.
+- Fixed clean tag builds missing ignored bundled tools by restoring cloudflared, uv, Tectonic, its TeX bundle, and the compressed offline seed from pinned SHA-256-verified sources before the Windows validation gate.
 - Fixed managed Python initialization isolation, bundled uv selection, single-flight preparation, verified readiness stamps, mirror fallback, and structured localized diagnostics.
 - Fixed Telegram connectivity on Windows by resolving WinINET/PAC before inherited proxy environment variables, and moved Bot Tokens into verified secure storage.
 - Fixed installed-app smoke isolation, packaged resource completeness, search-index readiness, knowledge retrieval performance, shared viewer behavior, accessible dialogs/selects, and permission-resumable Agent execution across the unreleased `v0.1.3..v0.1.4` commit range.
