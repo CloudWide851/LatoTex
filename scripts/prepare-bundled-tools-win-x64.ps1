@@ -32,6 +32,8 @@ $tectonicArchiveSha256 = "1D6BB76F049C8A3774F6E9D66E4B04E1A8C3DCB37527B6B41B7E89
 $tectonicArchiveBytes = 19268177L
 $tectonicExeSha256 = "6760C6368D3219C687EB1811E55379AF9526FBD97E97FA954968267F5241DEB9"
 $tectonicBundleUrl = "https://data1.fullyjustified.net/tlextras-2022.0r0.tar"
+# The packaged offline bundle is the hash-pinned prefix containing all runtime-required entries,
+# not the upstream 2.68 GiB archive tail that the app never reads.
 $tectonicBundleSha256 = "97C391AFC858845A66811C21DA7DD8318EA4E7D5BD6E2C509A893109F56C9848"
 $tectonicBundleBytes = 414351360L
 $cacheKey = "6ffe055852f8faf66c0acbe1a7fb27f87b869a90bad1204f3bf4d9683f597c7c"
@@ -121,7 +123,8 @@ function Save-PinnedDownload {
     [Parameter(Mandatory = $true)][string]$Uri,
     [Parameter(Mandatory = $true)][string]$Destination,
     [Parameter(Mandatory = $true)][string]$Sha256,
-    [long]$Length = -1
+    [long]$Length = -1,
+    [long]$RangeEnd = -1
   )
   $parent = Split-Path -Parent $Destination
   [System.IO.Directory]::CreateDirectory($parent) | Out-Null
@@ -130,7 +133,11 @@ function Save-PinnedDownload {
     Remove-Item -LiteralPath $partial -Force
   }
   Write-Host "[prepare-bundled-tools] downloading $Uri"
-  Invoke-WebRequest -Uri $Uri -OutFile $partial -MaximumRedirection 8
+  if ($RangeEnd -ge 0) {
+    Invoke-WebRequest -Uri $Uri -OutFile $partial -MaximumRedirection 8 -TimeoutSec 900 -Headers @{ Range = "bytes=0-$RangeEnd" }
+  } else {
+    Invoke-WebRequest -Uri $Uri -OutFile $partial -MaximumRedirection 8 -TimeoutSec 900
+  }
   Assert-PinnedFile -Path $partial -Sha256 $Sha256 -Length $Length
   Move-Item -LiteralPath $partial -Destination $Destination -Force
 }
@@ -197,7 +204,7 @@ try {
   Copy-Item -LiteralPath (Join-Path $tectonicArchiveRoot "tectonic.exe") -Destination (Join-Path $tectonicExeRoot "tectonic.exe") -Force
 
   $bundlePath = Join-Path $stageRoot "tectonic/bundles/tlextras-2022.0r0.tar"
-  Save-PinnedDownload -Uri $tectonicBundleUrl -Destination $bundlePath -Sha256 $tectonicBundleSha256 -Length $tectonicBundleBytes
+  Save-PinnedDownload -Uri $tectonicBundleUrl -Destination $bundlePath -Sha256 $tectonicBundleSha256 -Length $tectonicBundleBytes -RangeEnd ($tectonicBundleBytes - 1)
 
   Expand-Archive -LiteralPath $offlineSeedArchive -DestinationPath $seedExtractRoot -Force
   $offlineSeedSource = Join-Path $seedExtractRoot "src-tauri/resources/tools/tectonic"

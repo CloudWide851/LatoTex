@@ -158,6 +158,7 @@ describe("release-security-scan", () => {
     expect(script).toContain("cloudflared/releases/download/2026.2.0/cloudflared-windows-amd64.exe");
     expect(script).toContain("astral-sh/uv/releases/download/0.11.10/uv-x86_64-pc-windows-msvc.zip");
     expect(script).toContain("tectonic%400.15.0/tectonic-0.15.0-x86_64-pc-windows-msvc.zip");
+    expect(script).toContain("-RangeEnd ($tectonicBundleBytes - 1)");
     expect(script).not.toContain("/releases/latest/");
     expect(crypto.createHash("sha256").update(seed).digest("hex").toUpperCase()).toBe(
       "8313FDD44E93D85B13653579A66C67D62893ACC20EE9F3FEB87B9393542D1281",
