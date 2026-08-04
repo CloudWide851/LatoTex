@@ -45,6 +45,15 @@ jobs:
       - name: Prepare pinned Windows x64 tools
         run: pnpm release:prepare-tools:win-x64
 
+      - name: Restore pinned DrawIO cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/resources/core/drawio/vendor
+          key: latotex-drawio-v29.6.6-v1-${{ hashFiles('scripts/prepare-drawio-assets.mjs', 'src-tauri/resources/core/drawio/drawio-version.json') }}
+
+      - name: Prepare pinned DrawIO webapp
+        run: pnpm release:prepare-drawio
+
       - name: Windows x64 validation gate
         run: pnpm release:validate:win-x64
 

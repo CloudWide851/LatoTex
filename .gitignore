@@ -73,6 +73,13 @@ src-tauri/resources/core/pyodide/
 public/core/pyodide/
 src-tauri/resources/tools/
 src-tauri/resources/python/vendor/
+
+# Track the small DrawIO host/manifest; reconstruct the ignored vendor from the pinned release asset.
+!src-tauri/resources/core/drawio/
+src-tauri/resources/core/drawio/*
+!src-tauri/resources/core/drawio/index.html
+!src-tauri/resources/core/drawio/drawio-version.json
+/.drawio-prepare-*/
 .stitch/
 plugins/stitch/
 THIRD_PARTY_NOTICES.md

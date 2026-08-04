@@ -26,6 +26,7 @@
     "security:scan": "node scripts/release-security-scan.mjs",
     "sbom:generate": "node scripts/generate-sbom.mjs",
     "release:hash:win-x64": "node scripts/hash-windows-installer.mjs",
+    "release:prepare-drawio": "node scripts/prepare-drawio-assets.mjs",
     "release:prepare-tools:win-x64": "pwsh -NoProfile -File scripts/prepare-bundled-tools-win-x64.ps1",
     "release:build-installer:win-x64": "node scripts/package-win-x64.mjs",
     "release:install-smoke:win-x64": "node scripts/install-smoke-win-x64.mjs",

@@ -153,6 +153,9 @@ function assertReleaseConfiguration(repoRoot, findings) {
   if (!String(scripts["release:prepare-tools:win-x64"] ?? "").includes("prepare-bundled-tools-win-x64.ps1")) {
     addFinding(findings, "missing-bundled-tools-prepare", "package.json");
   }
+  if (!String(scripts["release:prepare-drawio"] ?? "").includes("prepare-drawio-assets.mjs")) {
+    addFinding(findings, "missing-drawio-prepare", "package.json");
+  }
   for (const [name, command] of Object.entries(scripts)) {
     if (signingResiduePattern.test(`${name} ${String(command)}`)) {
       addFinding(findings, "release-signing-flow-reintroduced", "package.json");
@@ -181,9 +184,13 @@ function assertReleaseConfiguration(repoRoot, findings) {
     addFinding(findings, "release-workflow-missing-unsigned-package-gate", ".github/workflows/release-tauri.yml");
   }
   const prepareIndex = releaseWorkflow.indexOf("release:prepare-tools:win-x64");
+  const prepareDrawioIndex = releaseWorkflow.indexOf("release:prepare-drawio");
   const validateIndex = releaseWorkflow.indexOf("release:validate:win-x64");
   if (prepareIndex < 0 || validateIndex < 0 || prepareIndex > validateIndex) {
     addFinding(findings, "release-workflow-missing-bundled-tools-prepare", ".github/workflows/release-tauri.yml");
+  }
+  if (prepareDrawioIndex < 0 || validateIndex < 0 || prepareDrawioIndex > validateIndex) {
+    addFinding(findings, "release-workflow-missing-drawio-prepare", ".github/workflows/release-tauri.yml");
   }
   if (/\b(?:appimage|deb|dmg)\b/i.test(releaseWorkflow) || /(?:apple-darwin|unknown-linux)/i.test(releaseWorkflow)) {
     addFinding(findings, "release-workflow-non-windows-build", ".github/workflows/release-tauri.yml");

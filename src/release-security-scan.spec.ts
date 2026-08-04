@@ -5,6 +5,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error bundled-resource-contract.mjs is shared with release scripts.
 import { REQUIRED_BUNDLED_RESOURCE_DIRECTORIES, REQUIRED_BUNDLED_RESOURCE_FILES, verifyBundledResourceContract } from "../scripts/bundled-resource-contract.mjs";
+// @ts-expect-error prepare-drawio-assets.mjs is also the executable release bootstrap.
+import { DRAWIO_REQUIRED_VENDOR_FILES, verifyDrawioVendor } from "../scripts/prepare-drawio-assets.mjs";
 // @ts-expect-error release-security-scan.mjs is also the executable CI script.
 import { scanRepository as scanRepositoryUntyped } from "../scripts/release-security-scan.mjs";
 
@@ -26,6 +28,7 @@ const unsignedWindowsWorkflow = [
   "    runs-on: windows-latest",
   "    steps:",
   "      - run: pnpm release:prepare-tools:win-x64",
+  "      - run: pnpm release:prepare-drawio",
   "      - run: pnpm release:validate:win-x64",
   "      - run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
   "      - run: pnpm release:package:win-x64",
@@ -68,6 +71,7 @@ function createFixture(options: { signed?: boolean; workflow?: string } = {}) {
   const scripts = {
     "tauri:build:win-x64": "pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis",
     "release:prepare-tools:win-x64": "pwsh -NoProfile -File scripts/prepare-bundled-tools-win-x64.ps1",
+    "release:prepare-drawio": "node scripts/prepare-drawio-assets.mjs",
     "release:package:win-x64": "node scripts/release-check-win-x64.mjs --mode=package",
     "release:install-smoke:win-x64": "node scripts/install-smoke-win-x64.mjs",
     ...(options.signed
@@ -118,6 +122,33 @@ function createBundledResourceFixture() {
     relativePath: "uv/windows-x64/uv.exe",
     version: "uv fixture",
   }));
+  writeFile(root, "core/drawio/drawio-version.json", JSON.stringify({
+    source: { tag: "v29.6.6" },
+    asset: { size: 52104150, sha256: "A".repeat(64) },
+    vendor: { expectedFileCount: 3337 },
+  }));
+  return root;
+}
+
+function createDrawioFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "latotex-drawio-assets-"));
+  tempRoots.push(root);
+  writeFile(root, "index.html", "drawio host");
+  writeFile(root, "drawio-version.json", JSON.stringify({
+    source: { tag: "v29.6.6" },
+    asset: {
+      downloadUrl: "https://github.com/jgraph/drawio/releases/download/v29.6.6/draw.war",
+      size: 52104150,
+      sha256: "E538FD1320C5E3B95D5709A880716EF1409FFFCBB0A274773A89E374153CF17A",
+    },
+    vendor: {
+      expectedFileCount: DRAWIO_REQUIRED_VENDOR_FILES.length,
+      excludedPaths: ["WEB-INF/classes"],
+    },
+  }));
+  for (const relativePath of DRAWIO_REQUIRED_VENDOR_FILES) {
+    writeFile(root, path.join("vendor", relativePath), "fixture");
+  }
   return root;
 }
 
@@ -146,6 +177,12 @@ describe("release-security-scan", () => {
     expect(findingIds).toContain("release-workflow-missing-bundled-tools-prepare");
   });
 
+  it("fails when DrawIO is not prepared before validation", () => {
+    const workflow = unsignedWindowsWorkflow.replace("pnpm release:prepare-drawio", "pnpm build");
+    const findingIds = scanRepository(createFixture({ workflow })).map((finding) => finding.id);
+    expect(findingIds).toContain("release-workflow-missing-drawio-prepare");
+  });
+
   it("pins the ignored Windows runtime bootstrap and offline seed", () => {
     const script = fs.readFileSync(
       path.resolve(process.cwd(), "scripts/prepare-bundled-tools-win-x64.ps1"),
@@ -164,6 +201,46 @@ describe("release-security-scan", () => {
       "8313FDD44E93D85B13653579A66C67D62893ACC20EE9F3FEB87B9393542D1281",
     );
     expect(seed.byteLength).toBeLessThan(100 * 1024 * 1024);
+  });
+
+  it("restores DrawIO from the digest-pinned official release asset", () => {
+    const script = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/prepare-drawio-assets.mjs"),
+      "utf8",
+    );
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.resolve(process.cwd(), "src-tauri/resources/core/drawio/drawio-version.json"),
+        "utf8",
+      ),
+    ) as {
+      asset: { downloadUrl: string; size: number; sha256: string };
+      vendor: { expectedFileCount: number; excludedPaths: string[] };
+    };
+
+    expect(manifest.asset).toEqual({
+      downloadUrl: "https://github.com/jgraph/drawio/releases/download/v29.6.6/draw.war",
+      size: 52104150,
+      sha256: "E538FD1320C5E3B95D5709A880716EF1409FFFCBB0A274773A89E374153CF17A",
+    });
+    expect(manifest.vendor).toMatchObject({
+      expectedFileCount: 3337,
+      excludedPaths: ["WEB-INF/classes"],
+    });
+    expect(script).toContain('redirect: "manual"');
+    expect(script).toContain('spawnSync("tar"');
+    expect(script).not.toContain("/releases/latest/");
+  });
+
+  it("validates the DrawIO vendor and rejects bundled server classes", () => {
+    const root = createDrawioFixture();
+    expect(verifyDrawioVendor(root)).toMatchObject({
+      fileCount: DRAWIO_REQUIRED_VENDOR_FILES.length,
+      tag: "v29.6.6",
+    });
+
+    writeFile(root, "vendor/WEB-INF/classes/Unsafe.class", "fixture");
+    expect(() => verifyDrawioVendor(root)).toThrow("DrawIO vendor contains excluded server classes");
   });
 
   it("fails when the release workflow loses the Windows unsigned package gate", () => {

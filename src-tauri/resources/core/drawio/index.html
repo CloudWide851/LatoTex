@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Draw.io Host</title>
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f8fafc;
+      }
+      #drawio-frame {
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe
+      id="drawio-frame"
+      src="./vendor/index.html?embed=1&proto=json&spin=0&configure=1&ui=min"
+      title="drawio"
+    ></iframe>
+    <script>
+      const drawioFrame = document.getElementById("drawio-frame");
+      let childErrorBridgeInstalled = false;
+
+      function postToChild(data) {
+        if (!drawioFrame || !drawioFrame.contentWindow) {
+          return;
+        }
+        drawioFrame.contentWindow.postMessage(data, "*");
+      }
+
+      function postToParent(data) {
+        if (!window.parent || window.parent === window) {
+          return;
+        }
+        window.parent.postMessage(data, "*");
+      }
+
+      function emitHostError(detail) {
+        const message = String(detail || "").trim();
+        if (!message) {
+          return;
+        }
+        postToParent(
+          JSON.stringify({
+            event: "error",
+            error: message,
+            source: "drawio_host",
+          }),
+        );
+      }
+
+      function emitExportRequest(payload) {
+        postToParent(
+          JSON.stringify({
+            event: "export_request",
+            source: "drawio_host",
+            ...payload,
+          }),
+        );
+      }
+
+      function installExportInterceptor() {
+        const child = drawioFrame?.contentWindow;
+        if (!child) {
+          return false;
+        }
+        try {
+          if (child.__latotexExportInterceptorInstalled) {
+            return true;
+          }
+
+          const exportDialog = child.ExportDialog;
+          if (
+            exportDialog
+            && typeof exportDialog.exportFile === "function"
+            && !exportDialog.__latotexExportFilePatched
+          ) {
+            const originalExportFile = exportDialog.exportFile;
+            exportDialog.exportFile = function exportFilePatched(editorUi, name, format, bg, scale, border, dpi, grid) {
+              const normalizedFormat = String(format || "").trim().toLowerCase();
+              if (["png", "xmlpng", "jpg", "jpeg", "gif", "webp"].includes(normalizedFormat)) {
+                try {
+                  editorUi?.hideDialog?.();
+                } catch {
+                  // ignore hideDialog failures and still request export
+                }
+                emitExportRequest({
+                  filename: String(name || "").trim(),
+                  format: normalizedFormat,
+                  background: bg ?? null,
+                  scale: typeof scale === "number" ? scale : null,
+                  border: typeof border === "number" ? border : null,
+                  dpi: typeof dpi === "number" ? dpi : null,
+                  grid: Boolean(grid),
+                  currentPage: true,
+                });
+                return;
+              }
+              return originalExportFile.apply(this, arguments);
+            };
+            exportDialog.__latotexExportFilePatched = true;
+          }
+
+          child.__latotexExportInterceptorInstalled = true;
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      function scheduleExportInterceptor() {
+        let retries = 0;
+        const timer = window.setInterval(() => {
+          retries += 1;
+          if (installExportInterceptor() || retries >= 40) {
+            window.clearInterval(timer);
+          }
+        }, 250);
+      }
+
+      function installChildErrorBridge() {
+        const child = drawioFrame?.contentWindow;
+        if (!child || childErrorBridgeInstalled) {
+          return;
+        }
+        try {
+          child.addEventListener("error", (event) => {
+            const fileName = String(event?.filename || "").trim();
+            const line = Number(event?.lineno || 0);
+            const column = Number(event?.colno || 0);
+            const location = fileName ? ` @ ${fileName}:${line}:${column}` : "";
+            emitHostError(`drawio runtime script error: ${String(event?.message || "unknown error")}${location}`);
+          });
+          child.addEventListener("unhandledrejection", (event) => {
+            const reason = event?.reason;
+            const detail =
+              typeof reason === "string"
+                ? reason
+                : reason?.message
+                  ? String(reason.message)
+                  : String(reason || "unknown rejection");
+            emitHostError(`drawio runtime rejection: ${detail}`);
+          });
+          childErrorBridgeInstalled = true;
+        } catch (error) {
+          emitHostError(`drawio child bridge install failed: ${String(error)}`);
+        }
+      }
+
+      drawioFrame?.addEventListener("load", () => {
+        installChildErrorBridge();
+        scheduleExportInterceptor();
+        postToParent(JSON.stringify({ event: "host_loaded" }));
+      });
+
+      window.addEventListener("message", (event) => {
+        if (event.source === window.parent) {
+          postToChild(event.data);
+          return;
+        }
+        postToParent(event.data);
+      });
+    </script>
+  </body>
+</html>

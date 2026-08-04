@@ -1,0 +1,19 @@
+{
+  "source": {
+    "repository": "https://github.com/jgraph/drawio",
+    "tag": "v29.6.6",
+    "webappPath": "src/main/webapp"
+  },
+  "asset": {
+    "downloadUrl": "https://github.com/jgraph/drawio/releases/download/v29.6.6/draw.war",
+    "size": 52104150,
+    "sha256": "E538FD1320C5E3B95D5709A880716EF1409FFFCBB0A274773A89E374153CF17A"
+  },
+  "vendor": {
+    "entry": "vendor/index.html",
+    "expectedFileCount": 3337,
+    "excludedPaths": [
+      "WEB-INF/classes"
+    ]
+  }
+}

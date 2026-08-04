@@ -14,6 +14,7 @@ const validationSteps = [
 ];
 
 const packageSteps = [
+  ["pnpm", ["release:prepare-drawio"]],
   ["pnpm", ["release:build-installer:win-x64"]],
   ["pnpm", ["release:hash:win-x64"]],
   ["pnpm", ["tauri:smoke:win-x64", "--", "--allow-native-fallback"], { retries: 1 }],

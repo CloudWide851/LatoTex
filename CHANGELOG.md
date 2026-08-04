@@ -26,6 +26,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Fixed terminal square icon alignment and restored a viewport-safe session context menu with rename, restart, close, and close-other actions that stop real PTYs before removing tabs.
 - Fixed clean tag builds missing ignored bundled tools by restoring cloudflared, uv, Tectonic, its TeX bundle, and the compressed offline seed from pinned SHA-256-verified sources before the Windows validation gate.
+- Fixed clean tag builds missing the ignored DrawIO webapp by restoring the exact 3,337-file vendor from the official `v29.6.6` release asset, verifying its fixed size and SHA-256, and excluding server-only Java classes before packaging.
 - Fixed managed Python initialization isolation, bundled uv selection, single-flight preparation, verified readiness stamps, mirror fallback, and structured localized diagnostics.
 - Fixed Telegram connectivity on Windows by resolving WinINET/PAC before inherited proxy environment variables, and moved Bot Tokens into verified secure storage.
 - Fixed installed-app smoke isolation, packaged resource completeness, search-index readiness, knowledge retrieval performance, shared viewer behavior, accessible dialogs/selects, and permission-resumable Agent execution across the unreleased `v0.1.3..v0.1.4` commit range.
@@ -40,14 +41,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Release-quality local validation passed serially:
   - focused frontend tests (5 files / 11 tests), standalone MCP tests (3/3), focused MCP Rust tests (4/4), and Profile-bounded MCP tool tests (1/1)
-  - `pnpm arch:check`, `pnpm typecheck`, `CI=true pnpm test:unit` (150 files / 455 tests), `pnpm build`, `pnpm perf:baseline`, `pnpm research:eval`, and `pnpm security:scan`
+  - `pnpm arch:check`, `pnpm typecheck`, `CI=true pnpm test:unit` (150 files / 460 tests), `pnpm build`, `pnpm perf:baseline`, `pnpm research:eval`, and `pnpm security:scan`
   - research retrieval exact recall `1.000`, Recall@20 `1.000`, PassageRecall@40 `1.000`, nDCG@20 `0.981`, and citation coverage `1.000`
   - `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check` and `cargo test --manifest-path src-tauri/Cargo.toml --jobs 1` (308 passed; one intentionally ignored online model smoke)
   - `pnpm release:check:win-x64`, explicit `pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis`, independent Tauri smoke, and sandbox-outside NSIS install/bundled-uv/WebView/uninstall smoke
-- Local trusted CLI probes made no model requests: Codex CLI `0.139.0` and Claude Code `2.1.179` were available and authenticated.
+- Local trusted CLI probes made no model requests: Codex CLI `0.146.0` and Claude Code `2.1.179` were available and authenticated.
 - Local Windows x64 artifacts:
-  - `src-tauri/target/x86_64-pc-windows-msvc/release/latotex.exe`: 104,184,320 bytes, SHA-256 `0EB0FC58F9E2FF0854E0BB4302626DA57CF6DB03645D8B55F1B565E63EE95ADA`
-  - `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/LatoTex_0.1.4_x64-setup.exe`: 255,367,183 bytes, SHA-256 `FF569FCC558DBA00BEFC3E53ACAD91E743C0D0E262DDB70AB7E431484FEDF9C9`
+  - `src-tauri/target/x86_64-pc-windows-msvc/release/latotex.exe`: 104,184,320 bytes, SHA-256 `9AE98E5B8B5263847452EB67B5F261FBA0147665896735A437A47242734E2C69`
+  - `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/LatoTex_0.1.4_x64-setup.exe`: 255,364,972 bytes, SHA-256 `37ACFC7979B54256C2AD2F557612A20B9F48A49490E4D5CD7DA0744A6B1D18E2`
 
 ## [0.1.3] - 2026-06-14
 

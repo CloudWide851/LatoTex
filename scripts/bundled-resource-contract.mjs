@@ -5,6 +5,7 @@ import path from "node:path";
 
 export const REQUIRED_BUNDLED_RESOURCE_FILES = [
   "core/drawio/index.html",
+  "core/drawio/drawio-version.json",
   "core/drawio/vendor/index.html",
   "core/drawio/vendor/js/app.min.js",
   "core/share-page/index.html",
@@ -76,6 +77,17 @@ export function verifyBundledResourceContract(resourcesRoot, options = {}) {
   if (missingFiles.length > 0 || missingDirectories.length > 0) {
     const missing = [...missingFiles, ...missingDirectories].join(", ");
     throw new Error(`${label} incomplete: ${missing}`);
+  }
+
+  const drawioMetadata = parseJson(path.join(resourcesRoot, "core/drawio/drawio-version.json"));
+  if (drawioMetadata.source?.tag !== "v29.6.6"
+    || drawioMetadata.vendor?.expectedFileCount !== 3337
+    || drawioMetadata.asset?.size !== 52104150
+    || !/^[A-F0-9]{64}$/.test(String(drawioMetadata.asset?.sha256 ?? ""))) {
+    throw new Error(`${label} DrawIO metadata mismatch`);
+  }
+  if (fs.existsSync(path.join(resourcesRoot, "core/drawio/vendor/WEB-INF/classes"))) {
+    throw new Error(`${label} DrawIO server classes must not be bundled`);
   }
 
   const cloudflaredMetadata = parseJson(path.join(resourcesRoot, "tools/cloudflared-version.json"));
