@@ -54,6 +54,7 @@ export type AppWorkspaceShellProps = {
   previewOverridePath: string | null;
   compileErrorLine: string | null;
   compileDiagnostics: string[];
+  compileBusy: boolean;
   compileInstallProgress: CompileInstallProgress | null;
   agentCollapsed: boolean;
   agentPhase: AgentPhase;

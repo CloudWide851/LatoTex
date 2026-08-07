@@ -1,30 +1,27 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { Locale } from "../../i18n";
 import type {
-  AcademicEvidence, AcademicProviderHealth, AgentTeamMode, AnalysisPlan,
-  AnalysisResearchStage, ReferenceCheckResponse,
+  AcademicEvidence, AcademicProviderHealth, AnalysisResearchStage, ReferenceCheckResponse,
 } from "../../shared/types/app";
-import { analysisEnvPrepare, analysisRunPython } from "../../shared/api/analysis";
 import { runtimeLogWrite } from "../../shared/api/runtime";
-import { buildPaperAnalysisContext, loadDataSnapshots, type AnalysisSourceSnapshot } from "./analysisDataSources";
+import { buildPaperAnalysisContext, type AnalysisSourceSnapshot } from "./analysisDataSources";
 import { languageLabel, resolveAnalysisLanguage } from "./analysisLanguage";
-import { resolvePromptInputFiles } from "./analysisPromptRefs";
 import { ensureAnalysisTasksLoaded, isRetryableAnalysisProviderError, runRolePromptWithAgent } from "./analysisRunHelpers";
-import type { AnalysisTask, AnalysisTaskRun } from "./analysisTypes";
+import type { AnalysisTaskRun } from "./analysisTypes";
 import { nowIso } from "./analysisTypes";
 import {
   buildAnalysisPromptSignature,
   buildPaperChunkSummariesCacheKey,
   buildPaperCondensedSourceCacheKey,
   buildPaperContextSignature,
-  buildPythonProfileCacheKey,
-  buildSnapshotSignature,
   readCachedAnalysisStageValue,
-  trimCachedPythonProfile,
   type AnalysisCachedChunkSummaries,
-  type AnalysisStageCacheStore,
 } from "./analysisStageCache";
-import { parsePayloadJson, summarizeSnapshotsForPrompt, upsertRun } from "./analysisWorkspaceHelpers";
+import { parsePayloadJson, upsertRun } from "./analysisWorkspaceHelpers";
+import {
+  prepareAnalysisWorkspaceSources,
+  resolveAndPreloadAnalysisWorkspaceReferences,
+  resolvePaperAnalysisContextReferences,
+  type MaterializedAnalysisContext,
+} from "./analysisWorkspaceSources";
 import {
   buildAnalysisJsonRepairPrompt,
   buildAnalysisSynthesisPrompt,
@@ -52,47 +49,8 @@ import {
   runAnalysisResearchEvidence,
   saveAnalysisResearchReport,
 } from "./analysisResearchWorkflow";
-type ToastSetter = (value: { type: "info" | "error"; message: string }) => void;
-type TranslationFn = (key: any) => string;
-export type RunAnalysisWorkspacePromptOptions = {
-  forcedTaskId?: string;
-  taskSnapshot?: AnalysisTask;
-  savePrompt?: boolean;
-  teamMode?: AgentTeamMode;
-  analysisPlan?: AnalysisPlan;
-  skipPreflight?: boolean;
-};
-export type RunAnalysisWorkspacePromptParams = {
-  inputPrompt: string;
-  options?: RunAnalysisWorkspacePromptOptions;
-  suspended: boolean;
-  projectId: string | null;
-  activeTaskId: string | null;
-  selectedFile: string | null;
-  editorContent: string;
-  candidateFiles: string[];
-  csvCandidateFiles: string[];
-  locale: Locale;
-  analysisModelOverride: string | null | undefined;
-  liveOutput: string;
-  runGeneration?: number;
-  isRunGenerationCurrent?: (generation: number) => boolean;
-  tasksRef: MutableRefObject<AnalysisTask[]>;
-  loadedRef: MutableRefObject<boolean>;
-  runInFlightRef: MutableRefObject<boolean>;
-  liveTaskIdRef: MutableRefObject<string | null>;
-  liveTaskRunIdRef: MutableRefObject<string | null>;
-  ensureStageCache: () => Promise<AnalysisStageCacheStore>;
-  persistStageCacheEntry: (key: string, value: unknown) => Promise<void>;
-  updateTaskById: (taskId: string, updater: (task: AnalysisTask) => AnalysisTask) => void;
-  setActiveTaskId: Dispatch<SetStateAction<string | null>>;
-  setActiveRunHtml: Dispatch<SetStateAction<string>>;
-  setLiveRunIds: Dispatch<SetStateAction<string[]>>;
-  setLiveStageLabel: Dispatch<SetStateAction<string>>;
-  setRunning: Dispatch<SetStateAction<boolean>>;
-  setToast: ToastSetter;
-  t: TranslationFn;
-};
+import type { RunAnalysisWorkspacePromptParams } from "./analysisWorkspaceRunner.types";
+export type { RunAnalysisWorkspacePromptOptions } from "./analysisWorkspaceRunner.types";
 export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePromptParams) {
   const {
     inputPrompt,
@@ -102,8 +60,8 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
     activeTaskId,
     selectedFile,
     editorContent,
-    candidateFiles,
-    csvCandidateFiles,
+    referenceFiles,
+    structuredDataFiles,
     locale,
     analysisModelOverride,
     liveOutput,
@@ -153,6 +111,26 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       return;
     }
     runInFlightRef.current = true;
+    let references = { explicit: false, structuredFiles: [] as string[], contextFiles: [] as string[] };
+    let materializedContext: MaterializedAnalysisContext | undefined;
+    if (task.sourceType !== "paper") {
+      try {
+        ({ references, materializedContext } = await resolveAndPreloadAnalysisWorkspaceReferences({
+          projectId,
+          prompt: normalizedPrompt,
+          referenceFiles,
+          structuredDataFiles,
+          planInputFiles: options?.analysisPlan?.inputFiles,
+          t,
+        }));
+      } catch (error) {
+        const message = `${t("analysis.error.failed")}: ${t("analysis.step.loadContext")} · ${String(error)}`;
+        updateTaskById(task.id, (item) => ({ ...item, lastError: message, updatedAt: nowIso() }));
+        setToast({ type: "error", message });
+        runInFlightRef.current = false;
+        return;
+      }
+    }
     updateTaskById(task.id, (item) => ({
       ...item,
       draftPrompt: "",
@@ -179,7 +157,9 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       const researchPlan = buildAnalysisResearchPlan({
         prompt: normalizedPrompt,
         sourceType: task.sourceType,
-        inputFiles: options?.analysisPlan?.inputFiles ?? candidateFiles,
+        inputFiles: task.sourceType === "paper"
+          ? (task.sourcePath ? [task.sourcePath] : [])
+          : references.structuredFiles,
       });
       researchStages = initialResearchStages(researchPlan);
       const nextPendingRun = buildPendingAnalysisRun({
@@ -235,14 +215,15 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
       });
       const promptSignature = buildAnalysisPromptSignature(normalizedPrompt, outputLanguageLabel);
       const contextRefs: string[] = [];
-      if (selectedFile) {
-        contextRefs.push(`file:${selectedFile}`);
-      }
       let snapshots: AnalysisSourceSnapshot[] = [];
       let sourceBlock = "";
       let synthesisFallbackSourceBlock: string | null = null;
       let resolvedInputFiles: string[] = [];
-      const steps: string[] = [t("analysis.research.stage.plan")];
+      let resolvedContextFiles: string[] = [];
+      const steps: string[] = [
+        t("analysis.research.stage.plan"),
+        ...(materializedContext ? [t("analysis.step.loadContext")] : []),
+      ];
       let academicEvidence: AcademicEvidence[] = [];
       let webEvidence: AcademicEvidence[] = [];
       let providerHealth: AcademicProviderHealth[] = [];
@@ -366,79 +347,42 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
             excerpt: sourceBlock.slice(0, 8000),
           },
         ];
-        resolvedInputFiles = [task.sourcePath];
+        const paperReferences = resolvePaperAnalysisContextReferences(paperContext);
+        resolvedInputFiles = paperReferences.inputFiles;
+        resolvedContextFiles = paperReferences.contextFiles;
+        contextRefs.push(...paperReferences.contextRefs);
       } else {
-        const promptRefs = resolvePromptInputFiles(normalizedPrompt, candidateFiles);
-        const defaultInputFiles = csvCandidateFiles.length > 0 ? csvCandidateFiles : candidateFiles;
-        const chosenFiles = options?.analysisPlan?.inputFiles?.length
-          ? options.analysisPlan.inputFiles
-          : promptRefs.resolved.length > 0
-            ? promptRefs.resolved
-            : defaultInputFiles;
-        if (promptRefs.unresolved.length > 0 && promptRefs.resolved.length === 0) {
-          throw new Error(`${t("analysis.error.invalidInputRefs")}: ${promptRefs.unresolved.join(", ")}`);
-        }
-        if (chosenFiles.length === 0) {
-          throw new Error(t("analysis.error.noInputFiles"));
-        }
-        resolvedInputFiles = chosenFiles;
-        setStage(t("analysis.step.loadData"));
-        steps.push(currentStage);
-        snapshots = await loadDataSnapshots(projectId, chosenFiles);
-        const snapshotSummary = summarizeSnapshotsForPrompt(snapshots);
-        setStage(t("analysis.step.profileEachFile"));
-        steps.push(currentStage);
-        let pythonProfileText = "{}";
-        const snapshotSignature = buildSnapshotSignature(snapshots);
-        const pythonProfileCacheKey = buildPythonProfileCacheKey(
+        const prepared = await prepareAnalysisWorkspaceSources({
+          projectId,
+          taskId: task.id,
+          prompt: normalizedPrompt,
           outputLanguageLabel,
           promptSignature,
-          snapshotSignature,
-        );
-        const cachedPythonProfile = readCachedAnalysisStageValue<ReturnType<typeof trimCachedPythonProfile>>(
+          references,
+          materializedContext,
+          analysisPlan: options?.analysisPlan,
           stageCache,
-          pythonProfileCacheKey,
-        );
-        let pythonProfile: ReturnType<typeof trimCachedPythonProfile>;
-        if (cachedPythonProfile) {
-          pythonProfile = cachedPythonProfile;
-          await runtimeLogWrite(
-            "INFO",
-            `analysis cache hit: python profile, files=${snapshots.length}`,
-          ).catch(() => undefined);
-        } else {
-          const envStatus = await analysisEnvPrepare(projectId);
-          const analysisPlan: AnalysisPlan = options?.analysisPlan ?? {
-            intent: normalizedPrompt,
-            inputFiles: resolvedInputFiles,
-            targetColumns: [],
-            missingValueStrategy: "complete_case",
-            alpha: 0.05,
-          };
-          pythonProfile = trimCachedPythonProfile(await analysisRunPython({
-            projectId,
-            taskId: task.id,
-            prompt: normalizedPrompt,
-            outputLanguage: outputLanguageLabel,
-            plan: analysisPlan,
-          }));
-          await runtimeLogWrite(
-            "INFO",
-            `analysis python profile ready: source=${pythonProfile.runtimeSource}, files=${snapshots.length}, python=${envStatus.pythonPath ?? "-"}`,
-          ).catch(() => undefined);
-          await persistStageCacheEntry(pythonProfileCacheKey, pythonProfile);
-        }
-        pythonProfileText = JSON.stringify(pythonProfile.profileJson, null, 2).slice(0, 12000);
-        sourceBlock = [
-          snapshotSummary,
-          "Structured profile (python/uv):",
-          pythonProfileText,
-        ].join("\n\n");
+          persistStageCacheEntry,
+          onStage: (stage) => {
+            if (stage === "loadContext" && materializedContext) {
+              return;
+            }
+            const key = stage === "loadContext" ? "analysis.step.loadContext" : `analysis.step.${stage}`;
+            setStage(t(key));
+            steps.push(currentStage);
+          },
+          t,
+        });
+        snapshots = prepared.snapshots;
+        sourceBlock = prepared.sourceBlock;
+        resolvedInputFiles = prepared.inputFiles;
+        resolvedContextFiles = prepared.contextFiles;
+        contextRefs.push(...prepared.contextRefs);
       }
       if (evidenceResponse) {
         sourceBlock = `${sourceBlock}\n\n---\n\n${buildResearchEvidenceContext(evidenceResponse)}`;
       }
-      if (selectedFile && editorContent.trim()) {
+      if (selectedFile && editorContent.trim() && !references.explicit) {
         sourceBlock = `${sourceBlock}\n\n---\n\nCurrent editor file (${selectedFile}):\n${editorContent.slice(0, 2200)}`;
       }
       setStage(t("analysis.step.agentSynthesis"));
@@ -487,6 +431,7 @@ export async function runAnalysisWorkspacePrompt(params: RunAnalysisWorkspacePro
         snapshots,
         outputLanguage,
         resolvedInputFiles,
+        resolvedContextFiles,
         eventRunIds: runIds,
         agentRunId: finalResult.runId,
         prompt: normalizedPrompt,

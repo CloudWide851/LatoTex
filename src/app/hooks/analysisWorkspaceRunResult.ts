@@ -40,6 +40,7 @@ export function buildPendingAnalysisRun(input: {
     sourceType: task.sourceType,
     sourcePath: task.sourcePath,
     inputFiles: [],
+    contextFiles: [],
     outputLanguage,
     agentRunId: undefined,
     eventRunIds: [],
@@ -68,6 +69,7 @@ export function buildCompletedAnalysisRun(input: {
   snapshots: AnalysisSourceSnapshot[];
   outputLanguage: AnalysisOutputLanguage;
   resolvedInputFiles: string[];
+  resolvedContextFiles: string[];
   eventRunIds: string[];
   agentRunId: string;
   prompt: string;
@@ -86,6 +88,7 @@ export function buildCompletedAnalysisRun(input: {
     snapshots,
     outputLanguage,
     resolvedInputFiles,
+    resolvedContextFiles,
     eventRunIds,
     agentRunId,
     prompt,
@@ -154,6 +157,7 @@ export function buildCompletedAnalysisRun(input: {
       sourceType: task.sourceType,
       sourcePath: task.sourcePath,
       inputFiles: resolvedInputFiles,
+      contextFiles: resolvedContextFiles,
       outputLanguage,
       agentRunId,
       eventRunIds: Array.from(new Set(eventRunIds)),

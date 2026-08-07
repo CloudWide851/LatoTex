@@ -31,6 +31,7 @@ export type AnalysisTaskRun = {
   sourceType: AnalysisSourceType;
   sourcePath?: string;
   inputFiles: string[];
+  contextFiles?: string[];
   outputLanguage: AnalysisOutputLanguage;
   agentRunId?: string;
   eventRunIds?: string[];

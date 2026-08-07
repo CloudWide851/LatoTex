@@ -1,5 +1,6 @@
 import type {
   AnalysisAssetInput,
+  AnalysisContextLoadResponse,
   AnalysisEnvPrepareTaskStatus,
   AnalysisEnvStatus,
   AnalysisExportArtifactResponse,
@@ -102,6 +103,15 @@ export function analysisRunPython(input: {
       outputLanguage: input.outputLanguage,
       plan: input.plan,
     },
+  });
+}
+
+export function analysisContextLoad(
+  projectId: string,
+  paths: string[],
+): Promise<AnalysisContextLoadResponse> {
+  return invokeCommand<AnalysisContextLoadResponse>("analysis_context_load", {
+    input: { projectId, paths },
   });
 }
 

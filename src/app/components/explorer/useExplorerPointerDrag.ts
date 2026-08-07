@@ -1,27 +1,43 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import {
+  WORKSPACE_REFERENCE_TARGET_ATTR,
+  dispatchWorkspaceReferenceDrop,
+} from "../../../shared/events/workspaceReferenceDrop";
+
+type ExplorerNodeKind = "file" | "directory";
 
 type ExplorerPointerDragSession = {
-  inputKind: "mouse" | "pointer";
   pointerId: number;
+  captureTarget: HTMLElement | null;
   sourcePath: string;
   sourceName: string;
+  sourceKind: ExplorerNodeKind;
+  projectId: string | null;
   startX: number;
   startY: number;
   lastX: number;
   lastY: number;
   active: boolean;
+  bodyStyleSnapshot: {
+    userSelect: string;
+    cursor: string;
+  } | null;
 };
 
 type ExplorerPointerDragParams = {
   rootRef: MutableRefObject<HTMLDivElement | null>;
   onMove?: (sourcePath: string, targetPath: string) => Promise<void> | void;
+  projectId?: string | null;
   expandedMap: Record<string, boolean>;
   onExpandDirectory: (path: string) => void;
 };
-
-function isPointerLikeEvent(event: Event | MouseEvent | PointerEvent): event is PointerEvent {
-  return event.type.startsWith("pointer") && typeof (event as PointerEvent).pointerId === "number";
-}
 
 function normalizeExplorerPath(path: string): string {
   return path.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
@@ -54,8 +70,15 @@ function resolveDroppedTargetPath(sourcePath: string, targetDirectoryPath: strin
   return nextTargetPath === normalizedSource ? null : nextTargetPath;
 }
 
+function elementAtPoint(clientX: number, clientY: number): Element | null {
+  if (typeof document === "undefined" || typeof document.elementFromPoint !== "function") {
+    return null;
+  }
+  return document.elementFromPoint(clientX, clientY);
+}
+
 export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
-  const { rootRef, onMove, expandedMap, onExpandDirectory } = params;
+  const { rootRef, onMove, projectId, expandedMap, onExpandDirectory } = params;
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const [dragSourcePath, setDragSourcePath] = useState<string | null>(null);
   const [dragPreview, setDragPreview] = useState<{
@@ -66,13 +89,16 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
   } | null>(null);
   const dragSessionRef = useRef<ExplorerPointerDragSession | null>(null);
   const onMoveRef = useRef(onMove);
+  const projectIdRef = useRef(projectId);
   const expandedMapRef = useRef(expandedMap);
   const onExpandDirectoryRef = useRef(onExpandDirectory);
   const hoverExpandTimerRef = useRef<number | null>(null);
   const hoverExpandPathRef = useRef<string | null>(null);
   const suppressClickRef = useRef(false);
+  const suppressClickTimerRef = useRef<number | null>(null);
 
   onMoveRef.current = onMove;
+  projectIdRef.current = projectId;
   expandedMapRef.current = expandedMap;
   onExpandDirectoryRef.current = onExpandDirectory;
 
@@ -84,17 +110,47 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
     hoverExpandPathRef.current = null;
   }, []);
 
-  const clearPointerDrag = useCallback(() => {
+  const suppressNextClick = useCallback((durationMs = 0) => {
+    suppressClickRef.current = true;
+    if (suppressClickTimerRef.current !== null) {
+      window.clearTimeout(suppressClickTimerRef.current);
+    }
+    suppressClickTimerRef.current = window.setTimeout(() => {
+      suppressClickRef.current = false;
+      suppressClickTimerRef.current = null;
+    }, durationMs);
+  }, []);
+
+  const clearPointerDrag = useCallback((updateState = true) => {
+    const session = dragSessionRef.current;
     dragSessionRef.current = null;
-    setDragSourcePath(null);
-    setDragPreview(null);
-    setDropTargetPath(null);
     clearHoverExpandTimer();
-    if (typeof document !== "undefined") {
-      document.body.style.removeProperty("user-select");
-      document.body.style.removeProperty("cursor");
+
+    if (session?.bodyStyleSnapshot && typeof document !== "undefined") {
+      document.body.style.userSelect = session.bodyStyleSnapshot.userSelect;
+      document.body.style.cursor = session.bodyStyleSnapshot.cursor;
+    }
+    if (session?.captureTarget && typeof session.captureTarget.releasePointerCapture === "function") {
+      try {
+        session.captureTarget.releasePointerCapture(session.pointerId);
+      } catch {
+        // The browser may already have released capture before lostpointercapture.
+      }
+    }
+    if (updateState) {
+      setDragSourcePath(null);
+      setDragPreview(null);
+      setDropTargetPath(null);
     }
   }, [clearHoverExpandTimer]);
+
+  const cancelPointerDrag = useCallback(() => {
+    const wasActive = dragSessionRef.current?.active === true;
+    clearPointerDrag();
+    if (wasActive) {
+      suppressNextClick(250);
+    }
+  }, [clearPointerDrag, suppressNextClick]);
 
   const scheduleDirectoryAutoExpand = useCallback((path: string) => {
     if (
@@ -113,14 +169,17 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
     }, 420);
   }, [clearHoverExpandTimer]);
 
+  const resolveReferenceTargetFromPoint = useCallback((clientX: number, clientY: number): Element | null => {
+    const target = elementAtPoint(clientX, clientY);
+    return target?.closest(`[${WORKSPACE_REFERENCE_TARGET_ATTR}]`) ?? null;
+  }, []);
+
   const resolveDropDirectoryFromPoint = useCallback((clientX: number, clientY: number, sourcePath: string): string | null => {
-    if (!onMoveRef.current || typeof document === "undefined") {
+    if (!onMoveRef.current) {
       return null;
     }
-    const target = document.elementFromPoint(clientX, clientY);
-    const directoryNode = target instanceof HTMLElement
-      ? target.closest<HTMLElement>("[data-explorer-drop-directory='true']")
-      : null;
+    const target = elementAtPoint(clientX, clientY);
+    const directoryNode = target?.closest<HTMLElement>("[data-explorer-drop-directory='true']") ?? null;
     if (directoryNode) {
       const directoryPath = normalizeExplorerPath(directoryNode.dataset.path ?? "");
       if (resolveDroppedTargetPath(sourcePath, directoryPath)) {
@@ -149,122 +208,171 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
   }, [clearHoverExpandTimer, rootRef, scheduleDirectoryAutoExpand]);
 
   useEffect(() => {
-    const handlePointerMove = (event: PointerEvent | MouseEvent) => {
+    const handlePointerMove = (event: PointerEvent) => {
       const session = dragSessionRef.current;
-      if (!session) {
-        return;
-      }
-      if (session.inputKind === "pointer") {
-        if (!isPointerLikeEvent(event) || event.pointerId !== session.pointerId) {
-          return;
-        }
-      } else if (isPointerLikeEvent(event)) {
+      if (!session || event.pointerId !== session.pointerId) {
         return;
       }
       const dx = event.clientX - session.startX;
       const dy = event.clientY - session.startY;
-      const isActive = session.active || Math.hypot(dx, dy) >= 6;
-      session.active = isActive;
+      const wasActive = session.active;
+      session.active = wasActive || Math.hypot(dx, dy) >= 6;
       session.lastX = event.clientX;
       session.lastY = event.clientY;
-      if (isActive && typeof document !== "undefined") {
-        document.body.style.setProperty("user-select", "none");
-        document.body.style.setProperty("cursor", "grabbing");
+      if (session.active && !wasActive && typeof document !== "undefined") {
+        session.bodyStyleSnapshot = {
+          userSelect: document.body.style.userSelect,
+          cursor: document.body.style.cursor,
+        };
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "grabbing";
       }
       setDragPreview({
         name: session.sourceName,
         x: event.clientX,
         y: event.clientY,
-        active: isActive,
+        active: session.active,
       });
-      if (!isActive) {
+      if (!session.active) {
+        return;
+      }
+      event.preventDefault();
+      const isReferenceTarget = session.sourceKind === "file"
+        && Boolean(session.projectId)
+        && Boolean(resolveReferenceTargetFromPoint(event.clientX, event.clientY));
+      if (isReferenceTarget) {
+        clearHoverExpandTimer();
+        setDropTargetPath(null);
         return;
       }
       setDropTargetPath(resolveDropDirectoryFromPoint(event.clientX, event.clientY, session.sourcePath));
     };
 
-    const handlePointerEnd = (event: PointerEvent | MouseEvent) => {
+    const handlePointerUp = (event: PointerEvent) => {
       const session = dragSessionRef.current;
-      if (!session) {
+      if (!session || event.pointerId !== session.pointerId) {
         return;
       }
-      if (session.inputKind === "pointer") {
-        if (!isPointerLikeEvent(event) || event.pointerId !== session.pointerId) {
-          return;
-        }
-      } else if (isPointerLikeEvent(event)) {
-        return;
-      }
-      const nextTargetDirectory = session.active
+      const referenceTarget = session.active
+        && session.sourceKind === "file"
+        && Boolean(session.projectId)
+        ? resolveReferenceTargetFromPoint(event.clientX, event.clientY)
+        : null;
+      const nextTargetDirectory = session.active && !referenceTarget
         ? resolveDropDirectoryFromPoint(event.clientX, event.clientY, session.sourcePath)
         : null;
       clearPointerDrag();
-      if (!session.active || nextTargetDirectory === null) {
+      if (!session.active) {
         return;
       }
-      suppressClickRef.current = true;
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 0);
+      suppressNextClick();
+      if (referenceTarget && session.projectId) {
+        const normalizedPath = normalizeExplorerPath(session.sourcePath);
+        if (normalizedPath) {
+          dispatchWorkspaceReferenceDrop({
+            projectId: session.projectId,
+            scope: "workspace",
+            paths: [normalizedPath],
+          });
+        }
+        return;
+      }
+      if (nextTargetDirectory === null) {
+        return;
+      }
       const nextTargetPath = resolveDroppedTargetPath(session.sourcePath, nextTargetDirectory);
-      if (!nextTargetPath) {
-        return;
+      if (nextTargetPath) {
+        void onMoveRef.current?.(session.sourcePath, nextTargetPath);
       }
-      void onMoveRef.current?.(session.sourcePath, nextTargetPath);
+    };
+
+    const handlePointerCancel = (event: PointerEvent) => {
+      const session = dragSessionRef.current;
+      if (session && event.pointerId === session.pointerId) {
+        cancelPointerDrag();
+      }
+    };
+    const handleLostPointerCapture = (event: PointerEvent) => {
+      const session = dragSessionRef.current;
+      if (
+        session
+        && event.pointerId === session.pointerId
+        && (!session.captureTarget || event.target === session.captureTarget)
+      ) {
+        cancelPointerDrag();
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        cancelPointerDrag();
+      }
     };
 
     window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerEnd);
-    window.addEventListener("pointercancel", handlePointerEnd);
-    window.addEventListener("mousemove", handlePointerMove);
-    window.addEventListener("mouseup", handlePointerEnd);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerCancel);
+    window.addEventListener("lostpointercapture", handleLostPointerCapture, true);
+    window.addEventListener("blur", cancelPointerDrag);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerEnd);
-      window.removeEventListener("pointercancel", handlePointerEnd);
-      window.removeEventListener("mousemove", handlePointerMove);
-      window.removeEventListener("mouseup", handlePointerEnd);
-      clearPointerDrag();
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerCancel);
+      window.removeEventListener("lostpointercapture", handleLostPointerCapture, true);
+      window.removeEventListener("blur", cancelPointerDrag);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearPointerDrag(false);
+      if (suppressClickTimerRef.current !== null) {
+        window.clearTimeout(suppressClickTimerRef.current);
+        suppressClickTimerRef.current = null;
+      }
     };
-  }, [clearPointerDrag, resolveDropDirectoryFromPoint]);
+  }, [
+    cancelPointerDrag,
+    clearHoverExpandTimer,
+    clearPointerDrag,
+    resolveDropDirectoryFromPoint,
+    resolveReferenceTargetFromPoint,
+    suppressNextClick,
+  ]);
 
-  const handlePointerDragStart = useCallback((event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>, sourcePath: string, sourceName: string) => {
-    if (!onMoveRef.current || event.button !== 0) {
+  const handlePointerDragStart = useCallback((
+    event: ReactPointerEvent<HTMLElement>,
+    sourcePath: string,
+    sourceName: string,
+    sourceKind: ExplorerNodeKind,
+  ) => {
+    const normalizedProjectId = projectIdRef.current?.trim() || null;
+    const canReference = sourceKind === "file" && Boolean(normalizedProjectId);
+    if ((!onMoveRef.current && !canReference) || event.button !== 0) {
       return;
     }
     const target = event.target as HTMLElement | null;
     if (target?.closest("input, textarea, button")) {
       return;
     }
-    const inputKind = event.type === "pointerdown" ? "pointer" : "mouse";
-    const existingSession = dragSessionRef.current;
-    if (
-      existingSession
-      && existingSession.sourcePath === sourcePath
-      && existingSession.startX === event.clientX
-      && existingSession.startY === event.clientY
-    ) {
-      if (existingSession.inputKind === "pointer" || inputKind === "mouse") {
-        return;
+    clearPointerDrag();
+    const captureTarget = event.currentTarget;
+    if (typeof captureTarget.setPointerCapture === "function") {
+      try {
+        captureTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is an enhancement; global listeners still own cleanup.
       }
     }
-    event.preventDefault();
-    if (typeof document !== "undefined") {
-      document.body.style.setProperty("user-select", "none");
-      document.body.style.setProperty("cursor", "grab");
-    }
     dragSessionRef.current = {
-      inputKind,
-      pointerId: inputKind === "pointer" && "pointerId" in event.nativeEvent
-        ? event.nativeEvent.pointerId
-        : 1,
+      pointerId: event.pointerId,
+      captureTarget,
       sourcePath,
       sourceName,
+      sourceKind,
+      projectId: normalizedProjectId,
       startX: event.clientX,
       startY: event.clientY,
       lastX: event.clientX,
       lastY: event.clientY,
       active: false,
+      bodyStyleSnapshot: null,
     };
     setDragSourcePath(sourcePath);
     setDragPreview({
@@ -273,7 +381,7 @@ export function useExplorerPointerDrag(params: ExplorerPointerDragParams) {
       y: event.clientY,
       active: false,
     });
-  }, []);
+  }, [clearPointerDrag]);
 
   return {
     dragSourcePath,

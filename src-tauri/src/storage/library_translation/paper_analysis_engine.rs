@@ -17,6 +17,10 @@ use std::thread;
 use std::time::{Duration, Instant, UNIX_EPOCH};
 use std::{hash::Hash, hash::Hasher};
 
+#[path = "workspace_pdf_context.rs"]
+mod workspace_pdf_context;
+pub(crate) use workspace_pdf_context::{extract_workspace_pdf_context, WorkspacePdfContextExtract};
+
 const PAPER_ANALYSIS_CHUNK_MAX_CHARS: usize = 10_000;
 const PAPER_ANALYSIS_TIMEOUT: Duration = Duration::from_secs(45);
 const NETWORK_PDF_BODY_LIMIT: usize = 64 * 1024 * 1024;

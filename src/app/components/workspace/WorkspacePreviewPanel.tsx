@@ -31,6 +31,7 @@ export function WorkspacePreviewPanel(props: {
   canZoomPreview: boolean;
   previewZoom: number;
   compileErrorLine: string | null;
+  compileBusy: boolean;
   compileInstallProgress: CompileInstallProgress | null;
   onEditorChange: (value: string) => void;
   onOpenLogs: (tab: LogTab) => void;
@@ -61,6 +62,7 @@ export function WorkspacePreviewPanel(props: {
     canZoomPreview,
     previewZoom,
     compileErrorLine,
+    compileBusy,
     compileInstallProgress,
     onEditorChange,
     onOpenLogs,
@@ -106,7 +108,7 @@ export function WorkspacePreviewPanel(props: {
                 title={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
                 aria-label={composeTitleWithShortcut(t("preview.savePdf"), t("shortcut.exportPdf"))}
                 onClick={onExportPdf}
-                disabled={!compiledPdfUrl}
+                disabled={compileBusy || !compiledPdfUrl}
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
