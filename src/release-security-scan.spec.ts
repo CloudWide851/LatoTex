@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error bundled-resource-contract.mjs is shared with release scripts.
 import { REQUIRED_BUNDLED_RESOURCE_DIRECTORIES, REQUIRED_BUNDLED_RESOURCE_FILES, verifyBundledResourceContract } from "../scripts/bundled-resource-contract.mjs";
 // @ts-expect-error prepare-drawio-assets.mjs is also the executable release bootstrap.
-import { DRAWIO_REQUIRED_VENDOR_FILES, verifyDrawioVendor } from "../scripts/prepare-drawio-assets.mjs";
+import { DRAWIO_REQUIRED_VENDOR_FILES, drawioArchiveExtractionCommand, verifyDrawioVendor } from "../scripts/prepare-drawio-assets.mjs";
 // @ts-expect-error release-security-scan.mjs is also the executable CI script.
 import { scanRepository as scanRepositoryUntyped } from "../scripts/release-security-scan.mjs";
 
@@ -20,6 +20,14 @@ function writeFile(root: string, relativePath: string, content: string) {
   const target = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, content, "utf8");
+}
+
+function expectTextBefore(source: string, earlier: string, later: string) {
+  const earlierIndex = source.indexOf(earlier);
+  const laterIndex = source.indexOf(later);
+  expect(earlierIndex).toBeGreaterThanOrEqual(0);
+  expect(laterIndex).toBeGreaterThanOrEqual(0);
+  expect(earlierIndex).toBeLessThan(laterIndex);
 }
 
 const unsignedWindowsWorkflow = [
@@ -177,6 +185,70 @@ describe("release-security-scan", () => {
     expect(findingIds).toContain("release-workflow-missing-bundled-tools-prepare");
   });
 
+  it("prepares ignored Tauri resources before every CI Cargo consumer", () => {
+    const releaseGate = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/release-check-win-x64.mjs"),
+      "utf8",
+    );
+    const ciWorkflow = fs.readFileSync(
+      path.resolve(process.cwd(), ".github/workflows/ci.yml"),
+      "utf8",
+    );
+    const windowsJob = ciWorkflow.slice(
+      ciWorkflow.indexOf("  windows-x64:"),
+      ciWorkflow.indexOf("  linux-x64:"),
+    );
+    const linuxJob = ciWorkflow.slice(
+      ciWorkflow.indexOf("  linux-x64:"),
+      ciWorkflow.indexOf("  macos:"),
+    );
+    const macosJob = ciWorkflow.slice(ciWorkflow.indexOf("  macos:"));
+
+    expectTextBefore(
+      releaseGate,
+      '["pnpm", ["release:prepare-tools:win-x64"]]',
+      '["cargo", ["test"',
+    );
+    expectTextBefore(
+      releaseGate,
+      '["pnpm", ["release:prepare-drawio"]]',
+      '["cargo", ["test"',
+    );
+    expectTextBefore(
+      windowsJob,
+      "Restore pinned Windows runtime cache",
+      "pnpm release:check:win-x64",
+    );
+    expectTextBefore(
+      windowsJob,
+      "Restore pinned DrawIO cache",
+      "pnpm release:check:win-x64",
+    );
+    for (const job of [linuxJob, macosJob]) {
+      expectTextBefore(
+        job,
+        "mkdir -p src-tauri/resources/tools",
+        "cargo test --manifest-path src-tauri/Cargo.toml",
+      );
+      expectTextBefore(
+        job,
+        "mkdir -p src-tauri/resources/tools",
+        "pnpm tauri build",
+      );
+      expectTextBefore(
+        job,
+        "pnpm release:prepare-drawio",
+        "cargo test --manifest-path src-tauri/Cargo.toml",
+      );
+      expectTextBefore(
+        job,
+        "pnpm release:prepare-drawio",
+        "pnpm tauri build",
+      );
+    }
+    expectTextBefore(linuxJob, "unzip", "pnpm release:prepare-drawio");
+  });
+
   it("fails when DrawIO is not prepared before validation", () => {
     const workflow = unsignedWindowsWorkflow.replace("pnpm release:prepare-drawio", "pnpm build");
     const findingIds = scanRepository(createFixture({ workflow })).map((finding) => finding.id);
@@ -228,7 +300,30 @@ describe("release-security-scan", () => {
       excludedPaths: ["WEB-INF/classes"],
     });
     expect(script).toContain('redirect: "manual"');
-    expect(script).toContain('spawnSync("tar"');
+    expect(drawioArchiveExtractionCommand("win32", "draw.war", "vendor")).toEqual({
+      command: "tar",
+      args: [
+        "-xf",
+        "draw.war",
+        "-C",
+        "vendor",
+        "--exclude=WEB-INF/classes",
+        "--exclude=WEB-INF/classes/*",
+      ],
+    });
+    for (const platform of ["linux", "darwin"]) {
+      expect(drawioArchiveExtractionCommand(platform, "draw.war", "vendor")).toEqual({
+        command: "unzip",
+        args: [
+          "-q",
+          "draw.war",
+          "-x",
+          "WEB-INF/classes/*",
+          "-d",
+          "vendor",
+        ],
+      });
+    }
     expect(script).not.toContain("/releases/latest/");
   });
 

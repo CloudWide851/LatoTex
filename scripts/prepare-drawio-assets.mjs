@@ -180,16 +180,37 @@ async function downloadPinnedAsset(manifest, destination) {
   }
 }
 
+export function drawioArchiveExtractionCommand(platform, archivePath, destination) {
+  if (platform === "win32") {
+    return {
+      command: "tar",
+      args: [
+        "-xf",
+        archivePath,
+        "-C",
+        destination,
+        "--exclude=WEB-INF/classes",
+        "--exclude=WEB-INF/classes/*",
+      ],
+    };
+  }
+  return {
+    command: "unzip",
+    args: [
+      "-q",
+      archivePath,
+      "-x",
+      "WEB-INF/classes/*",
+      "-d",
+      destination,
+    ],
+  };
+}
+
 function extractArchive(archivePath, destination) {
   fs.mkdirSync(destination, { recursive: true });
-  const result = spawnSync("tar", [
-    "-xf",
-    archivePath,
-    "-C",
-    destination,
-    "--exclude=WEB-INF/classes",
-    "--exclude=WEB-INF/classes/*",
-  ], {
+  const extractor = drawioArchiveExtractionCommand(process.platform, archivePath, destination);
+  const result = spawnSync(extractor.command, extractor.args, {
     encoding: "utf8",
     shell: false,
     timeout: 120_000,
@@ -198,7 +219,7 @@ function extractArchive(archivePath, destination) {
   });
   if (result.error || result.status !== 0) {
     const reason = result.error?.code ?? `exit ${String(result.status)}`;
-    throw new Error(`DrawIO archive extraction failed (${reason})`);
+    throw new Error(`DrawIO archive extraction failed with ${extractor.command} (${reason})`);
   }
 }
 

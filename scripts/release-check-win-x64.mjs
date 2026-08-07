@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 
 const validationSteps = [
+  ["pnpm", ["release:prepare-tools:win-x64"]],
+  ["pnpm", ["release:prepare-drawio"]],
   ["pnpm", ["arch:check"]],
   ["pnpm", ["typecheck"]],
   ["pnpm", ["test:unit", "--pool=forks", "--maxWorkers=1"]],
@@ -14,7 +16,6 @@ const validationSteps = [
 ];
 
 const packageSteps = [
-  ["pnpm", ["release:prepare-drawio"]],
   ["pnpm", ["release:build-installer:win-x64"]],
   ["pnpm", ["release:hash:win-x64"]],
   ["pnpm", ["tauri:smoke:win-x64", "--", "--allow-native-fallback"], { retries: 1 }],
