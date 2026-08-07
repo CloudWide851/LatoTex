@@ -71,8 +71,27 @@ function toBase64SvgDataUrl(svg: string): string {
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
   }
-  const encoded = typeof window !== "undefined" ? window.btoa(binary) : "";
+  const encoded = typeof globalThis.btoa === "function" ? globalThis.btoa(binary) : "";
   return `data:image/svg+xml;base64,${encoded}`;
+}
+
+function escapeHtmlText(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return character;
+    }
+  });
 }
 
 function buildBarChartSvg(labels: string[], values: number[]): string {
@@ -87,7 +106,7 @@ function buildBarChartSvg(labels: string[], values: number[]): string {
       const x = padding + index * step + 6;
       const barHeight = Math.max(8, Math.round((value / max) * (height - padding * 2)));
       const y = height - padding - barHeight;
-      const label = labels[index] ?? `item-${index + 1}`;
+      const label = escapeHtmlText(labels[index] ?? `item-${index + 1}`);
       return `
         <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="8" fill="url(#bar)" />
         <text x="${x + barWidth / 2}" y="${height - padding + 22}" text-anchor="middle" font-size="12" fill="#334155">${label}</text>
@@ -220,17 +239,19 @@ export function buildReportHtml(input: {
   const chartSvg = buildBarChartSvg(input.labels, input.values);
   const chartDataUrl = toBase64SvgDataUrl(chartSvg);
   const text = reportText(input.language);
-  const steps = input.steps.map((item) => `<li>${item}</li>`).join("");
-  const insights = input.insights.map((item) => `<li>${item}</li>`).join("");
+  const title = escapeHtmlText(input.title);
+  const summary = escapeHtmlText(input.summary || text.empty);
+  const steps = input.steps.map((item) => `<li>${escapeHtmlText(item)}</li>`).join("");
+  const insights = input.insights.map((item) => `<li>${escapeHtmlText(item)}</li>`).join("");
   const sections = input.sections
-    .map((item) => `<article class=\"subcard\"><h3>${item.title}</h3><p>${item.content}</p></article>`)
+    .map((item) => `<article class=\"subcard\"><h3>${escapeHtmlText(item.title)}</h3><p>${escapeHtmlText(item.content)}</p></article>`)
     .join("");
   const html = `<!doctype html>
 <html lang="${input.language === "zh-CN" ? "zh-CN" : "en"}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>${input.title}</title>
+  <title>${title}</title>
   <style>
     *{box-sizing:border-box}
     body{margin:0;font-family:"Segoe UI",sans-serif;background:linear-gradient(135deg,#f8fafc,#eef2ff);color:#0f172a;padding:24px}
@@ -249,7 +270,7 @@ export function buildReportHtml(input: {
 <body>
   <div class="wrap">
     <section class="hero">
-      <h1>${input.title}</h1>
+      <h1>${title}</h1>
       <p class="muted">${text.generatedAt}: ${new Intl.DateTimeFormat(input.language, {
         dateStyle: "short",
         timeStyle: "medium",
@@ -257,7 +278,7 @@ export function buildReportHtml(input: {
     </section>
     <section class="card">
       <h2>${text.summary}</h2>
-      <p>${input.summary || text.empty}</p>
+      <p>${summary}</p>
     </section>
     <section class="card">
       <h2>${text.methods}</h2>
@@ -273,7 +294,7 @@ export function buildReportHtml(input: {
     </section>
     <section class="card">
       <h2>${text.chart}</h2>
-      <img src="${chartDataUrl}" alt="${text.chartAlt}" />
+      <img src="${chartDataUrl}" alt="${escapeHtmlText(text.chartAlt)}" />
     </section>
   </div>
 </body>
