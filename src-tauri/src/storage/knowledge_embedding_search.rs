@@ -79,6 +79,38 @@ where
     Ok(evidence)
 }
 
+fn search_knowledge_hnsw(
+    hnsw: &hnsw_rs::prelude::Hnsw<'_, u8, hnsw_rs::prelude::DistL2>,
+    query_vector: &[u8],
+    limit: usize,
+    ef: usize,
+) -> Vec<(usize, f32)> {
+    use hnsw_rs::prelude::Distance;
+
+    let neighbors = hnsw.search(query_vector, limit, ef);
+    if !neighbors.is_empty() || hnsw.get_nb_point() != 1 {
+        return neighbors
+            .into_iter()
+            .map(|neighbor| (neighbor.d_id, neighbor.distance))
+            .collect();
+    }
+
+    // hnsw_rs 0.3.1 can return no result after reloading a singleton whose
+    // only point was randomly assigned above layer zero. Preserve the exact
+    // singleton result without changing the normal approximate-search path.
+    hnsw.get_point_indexation()
+        .into_iter()
+        .next()
+        .map(|point| {
+            (
+                point.get_origin_id(),
+                hnsw.get_distance().eval(query_vector, point.get_v()),
+            )
+        })
+        .into_iter()
+        .collect()
+}
+
 fn knowledge_semantic_candidates(
     project_root: &Path,
     runtime_root: &Path,
@@ -115,14 +147,9 @@ fn knowledge_semantic_candidates(
         .as_ref()
         .ok_or_else(|| "knowledge.embedding.index_unavailable".to_string())?
         .index
-        .with_hnsw(|hnsw| hnsw.search(&query_vector, limit.clamp(1, 400), 400));
+        .with_hnsw(|hnsw| search_knowledge_hnsw(hnsw, &query_vector, limit.clamp(1, 400), 400));
     let conn = open_knowledge_index(project_root)?;
-    resolve_knowledge_vector_neighbors(
-        &conn,
-        neighbors
-            .into_iter()
-            .map(|neighbor| (neighbor.d_id, neighbor.distance)),
-    )
+    resolve_knowledge_vector_neighbors(&conn, neighbors)
 }
 
 #[cfg(test)]
@@ -160,20 +187,25 @@ mod knowledge_embedding_search_tests {
         )
         .expect("insert vector mapping");
 
-        // Keep this persistence/mapping contract independent of randomized
-        // multi-point HNSW layer construction; ranking has separate coverage.
         let hnsw = Hnsw::new(8, 1, 16, 32, DistL2 {});
         hnsw.insert((&primary, 7));
         write_knowledge_hnsw(&project_root, &hnsw).expect("persist hnsw");
         let loaded = load_knowledge_hnsw(&project_root).expect("reload hnsw");
-        let neighbors = loaded.with_hnsw(|index| index.search(&primary, 1, 32));
-        let evidence = resolve_knowledge_vector_neighbors(
-            &conn,
-            neighbors
+        // Enumerating the reloaded point index proves that serialization kept
+        // the external vector id without relying on approximate search.
+        let vector_ids = loaded.with_hnsw(|index| {
+            index
+                .get_point_indexation()
                 .into_iter()
-                .map(|neighbor| (neighbor.d_id, neighbor.distance)),
-        )
-        .expect("resolve evidence");
+                .map(|point| point.get_origin_id())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(vector_ids, vec![7]);
+        let neighbors =
+            loaded.with_hnsw(|index| search_knowledge_hnsw(index, &primary, 1, 32));
+        assert_eq!(neighbors.first().map(|neighbor| neighbor.0), Some(7));
+        let evidence =
+            resolve_knowledge_vector_neighbors(&conn, neighbors).expect("resolve evidence");
 
         assert_eq!(
             evidence.first().map(|item| item.0.as_str()),

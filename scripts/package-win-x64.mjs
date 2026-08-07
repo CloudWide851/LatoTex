@@ -9,7 +9,7 @@ const releaseDir = path.join(repoRoot, "src-tauri", "target", "x86_64-pc-windows
 const nsisDir = path.join(releaseDir, "bundle", "nsis");
 const reportDir = path.join(repoRoot, "dist", "release");
 const metadataPath = path.join(reportDir, "windows-x64-package.json");
-const timeoutMs = Number(process.env.LATOTEX_PACKAGE_WIN_X64_TIMEOUT_MS ?? 30 * 60 * 1000);
+const timeoutMs = Number(process.env.LATOTEX_PACKAGE_WIN_X64_TIMEOUT_MS ?? 60 * 60 * 1000);
 const graceMs = Number(process.env.LATOTEX_PACKAGE_WIN_X64_GRACE_MS ?? 60 * 1000);
 const command = ["pnpm", ["tauri", "build", "--target", "x86_64-pc-windows-msvc", "--bundles", "nsis"]];
 

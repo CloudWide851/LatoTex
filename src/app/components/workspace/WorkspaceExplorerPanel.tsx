@@ -105,6 +105,7 @@ export function WorkspaceExplorerPanel(props: {
       <div className="min-h-0 flex-1 overflow-hidden">
         {activeProjectId ? (
           <ExplorerTree
+            projectId={activeProjectId}
             tree={tree}
             selectedPath={selectedFile}
             dirtyByPath={dirtyByPath}

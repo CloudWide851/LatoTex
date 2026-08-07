@@ -22,6 +22,7 @@ export function WorkspaceEditorPreviewPanel(props: {
   canZoomPreview: boolean;
   previewZoom: number;
   compileErrorLine: string | null;
+  compileBusy: boolean;
   compileInstallProgress: CompileInstallProgress | null;
   onEditorChange: (value: string) => void;
   onOpenLogs: (tab: "status" | "events") => void;
@@ -53,6 +54,7 @@ export function WorkspaceEditorPreviewPanel(props: {
       canZoomPreview={props.canZoomPreview}
       previewZoom={props.previewZoom}
       compileErrorLine={props.compileErrorLine}
+      compileBusy={props.compileBusy}
       compileInstallProgress={props.compileInstallProgress}
       onEditorChange={props.onEditorChange}
       onOpenLogs={props.onOpenLogs}

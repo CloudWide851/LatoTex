@@ -35,7 +35,7 @@ export function resolveDroppedPromptRefs(
     }
     const name = normalized.split("/").pop()?.toLowerCase() ?? "";
     const byFileName = byName.get(name) ?? [];
-    if (byFileName.length === 1) {
+    if (allowUnmatched && byFileName.length === 1) {
       resolved.add(byFileName[0]);
       continue;
     }

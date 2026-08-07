@@ -40,5 +40,9 @@ describe("AppDialog", () => {
       action?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root.unmount();
+    });
   });
 });

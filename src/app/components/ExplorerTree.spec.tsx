@@ -60,6 +60,17 @@ const LIBRARY_TREE_AFTER_MOVE: ResourceNode[] = [
   },
 ];
 
+function pointerEvent(type: string, init: PointerEventInit = {}): PointerEvent {
+  const event = new window.PointerEvent(type, init);
+  if (typeof event.pointerId !== "number") {
+    Object.defineProperty(event, "pointerId", {
+      configurable: true,
+      value: init.pointerId ?? 1,
+    });
+  }
+  return event;
+}
+
 function MoveVisibilityHarness() {
   const [tree, setTree] = useState<ResourceNode[]>(LIBRARY_TREE);
   const [selectedPath, setSelectedPath] = useState<string | null>("papers/demo.bib");
@@ -129,15 +140,15 @@ describe("ExplorerTree", () => {
     elementFromPoint.mockImplementation(() => target as Element);
 
     await act(async () => {
-      source?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, clientX: 12, clientY: 14 }));
+      source?.dispatchEvent(pointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: 12, clientY: 14 }));
     });
 
     await act(async () => {
-      window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+      window.dispatchEvent(pointerEvent("pointermove", { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: 36, clientY: 52 }));
     });
 
     await act(async () => {
-      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+      window.dispatchEvent(pointerEvent("pointerup", { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: 36, clientY: 52 }));
     });
   }
 
@@ -522,7 +533,7 @@ describe("ExplorerTree", () => {
     elementFromPoint.mockImplementation(() => archiveNode as Element);
 
     await act(async () => {
-      fileNode?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, clientX: 12, clientY: 14 }));
+      fileNode?.dispatchEvent(pointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: 12, clientY: 14 }));
     });
 
     await act(async () => {
@@ -539,8 +550,8 @@ describe("ExplorerTree", () => {
     });
 
     await act(async () => {
-      window.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
-      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0, clientX: 36, clientY: 52 }));
+      window.dispatchEvent(pointerEvent("pointermove", { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: 36, clientY: 52 }));
+      window.dispatchEvent(pointerEvent("pointerup", { bubbles: true, cancelable: true, button: 0, pointerId: 1, clientX: 36, clientY: 52 }));
     });
 
     expect(onAction).toHaveBeenCalledWith("move", "papers/demo.bib", "archive/demo.bib");

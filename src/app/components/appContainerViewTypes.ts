@@ -27,6 +27,7 @@ type WorkspaceValueProps = Pick<
   | "preferCompiledPreview"
   | "compileErrorLine"
   | "compileDiagnostics"
+  | "compileBusy"
   | "agentCollapsed"
   | "agentPhase"
   | "agentStatusKey"
