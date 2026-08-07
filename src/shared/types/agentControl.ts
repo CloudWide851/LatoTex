@@ -1,5 +1,15 @@
 export type AgentRuntimeId = "native" | "codex-cli" | "claude-code-cli";
 
+export type AgentRuntimeAction =
+  | "detect"
+  | "select"
+  | "enable"
+  | "disable"
+  | "update"
+  | "cancel-update"
+  | "terminal"
+  | "profiles";
+
 export type ExternalAgentFailure = {
   code: string;
   stage: string;
@@ -18,6 +28,7 @@ export type AgentRuntimeDescriptor = {
   executablePath: string | null;
   version: string | null;
   failure: ExternalAgentFailure | null;
+  checkedAt: string | null;
 };
 
 export type AgentProfile = {

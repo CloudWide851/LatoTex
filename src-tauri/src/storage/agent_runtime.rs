@@ -62,6 +62,44 @@ pub(crate) fn set_agent_runtime_enabled(
     Ok(())
 }
 
+pub(crate) fn agent_runtime_snapshot(
+    db_path: &Path,
+    runtime_id: &str,
+) -> Result<Option<crate::models::AgentRuntimeDescriptor>, String> {
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    let raw = conn
+        .query_row(
+            "SELECT descriptor_json FROM agent_runtime_snapshots WHERE runtime_id=?1",
+            params![runtime_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    raw.map(|value| serde_json::from_str(&value).map_err(|error| error.to_string()))
+        .transpose()
+}
+
+pub(crate) fn set_agent_runtime_snapshot(
+    db_path: &Path,
+    descriptor: &crate::models::AgentRuntimeDescriptor,
+) -> Result<(), String> {
+    let checked_at = descriptor
+        .checked_at
+        .as_deref()
+        .ok_or_else(|| "agent.runtime.snapshot_unchecked".to_string())?;
+    let raw = serde_json::to_string(descriptor).map_err(|error| error.to_string())?;
+    let conn = Connection::open(db_path).map_err(|error| error.to_string())?;
+    conn.execute(
+        "INSERT INTO agent_runtime_snapshots (runtime_id,descriptor_json,checked_at)
+         VALUES (?1,?2,?3)
+         ON CONFLICT(runtime_id) DO UPDATE SET descriptor_json=excluded.descriptor_json,
+           checked_at=excluded.checked_at",
+        params![descriptor.id, raw, checked_at],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 fn agent_mcp_token_hash(token: &str) -> String {
     let digest = ring::digest::digest(&ring::digest::SHA256, token.as_bytes());
     digest
@@ -265,7 +303,10 @@ mod agent_mcp_session_tests {
         let conn = Connection::open(&db_path).unwrap();
         conn.execute(
             "UPDATE agent_mcp_sessions SET expires_at=?1 WHERE session_id=?2",
-            params![(Utc::now() - chrono::Duration::minutes(1)).to_rfc3339(), session.session_id],
+            params![
+                (Utc::now() - chrono::Duration::minutes(1)).to_rfc3339(),
+                session.session_id
+            ],
         )
         .unwrap();
         assert_eq!(

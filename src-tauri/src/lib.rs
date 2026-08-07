@@ -15,8 +15,9 @@ use commands::agent_control::{
 };
 use commands::agent_rebuttal_workflow::latex_rebuttal_reply_start;
 use commands::agent_runtime::{
-    agent_runtime_detect, agent_runtime_list, agent_runtime_pick_executable,
-    agent_runtime_set_enabled,
+    agent_runtime_detect, agent_runtime_list, agent_runtime_list_cached,
+    agent_runtime_pick_executable, agent_runtime_refresh_all, agent_runtime_set_enabled,
+    agent_runtime_update, agent_runtime_update_cancel,
 };
 use commands::agent_workflows::{
     chat_workflow_start, completion_latex_start, git_summary_workflow_start, latex_edit_start,
@@ -123,7 +124,6 @@ use tauri::{
 const TRAY_MENU_SHOW_ID: &str = "tray_show_main";
 const TRAY_MENU_EXIT_ID: &str = "tray_exit_app";
 const TRAY_ID: &str = "latotex-tray";
-
 fn run_native_smoke_fallback_if_requested() -> bool {
     let smoke_mode = smoke::enabled();
     let native_fallback = std::env::var("LATOTEX_SMOKE_NATIVE_FALLBACK")
@@ -140,7 +140,6 @@ fn run_native_smoke_fallback_if_requested() -> bool {
     }
     true
 }
-
 fn write_native_smoke_report(
     ok: bool,
     steps: Vec<serde_json::Value>,
@@ -167,7 +166,6 @@ fn write_native_smoke_report(
     )
     .map_err(|e| e.to_string())
 }
-
 fn run_native_smoke_fallback() -> Result<(), String> {
     let runtime_root =
         smoke::runtime_root().ok_or_else(|| "LATOTEX_E2E_RUNTIME_ROOT is required".to_string())?;
@@ -494,9 +492,13 @@ pub fn run() {
             agent_profile_upsert,
             agent_profile_delete,
             agent_runtime_list,
+            agent_runtime_list_cached,
+            agent_runtime_refresh_all,
             agent_runtime_detect,
             agent_runtime_pick_executable,
             agent_runtime_set_enabled,
+            agent_runtime_update,
+            agent_runtime_update_cancel,
             agent_binding_upsert,
             agent_binding_delete,
             agent_graph_upsert,

@@ -1,6 +1,8 @@
+use super::native_runtime::configure_hidden_process;
 use crate::logging::sanitize_log_message_with_limit;
 use crate::models::{
-    AgentRuntimeDescriptor, AgentRuntimeInput, AgentRuntimeSetEnabledInput, ExternalAgentFailure,
+    AgentRuntimeDescriptor, AgentRuntimeInput, AgentRuntimeRefreshInput,
+    AgentRuntimeSetEnabledInput, ExternalAgentFailure,
 };
 use crate::state::AppState;
 use crate::storage;
@@ -10,6 +12,8 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::State;
+
+pub use super::agent_runtime_update::{agent_runtime_update, agent_runtime_update_cancel};
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 const PROBE_OUTPUT_LIMIT: usize = 16 * 1024;
@@ -22,6 +26,7 @@ pub(crate) struct AgentRuntimeSpec {
     pub executable: &'static str,
     pub version_args: &'static [&'static str],
     pub auth_args: &'static [&'static str],
+    pub update_args: &'static [&'static str],
 }
 
 pub(crate) const EXTERNAL_RUNTIME_SPECS: [AgentRuntimeSpec; 2] = [
@@ -32,6 +37,7 @@ pub(crate) const EXTERNAL_RUNTIME_SPECS: [AgentRuntimeSpec; 2] = [
         executable: "codex.exe",
         version_args: &["--version"],
         auth_args: &["login", "status"],
+        update_args: &["update"],
     },
     AgentRuntimeSpec {
         id: "claude-code-cli",
@@ -40,6 +46,7 @@ pub(crate) const EXTERNAL_RUNTIME_SPECS: [AgentRuntimeSpec; 2] = [
         executable: "claude.exe",
         version_args: &["--version"],
         auth_args: &["auth", "status"],
+        update_args: &["update"],
     },
 ];
 
@@ -98,7 +105,9 @@ pub(crate) fn validate_runtime_executable(path: &Path) -> Result<PathBuf, String
 fn terminate_probe(child: &mut std::process::Child) {
     #[cfg(windows)]
     {
-        let _ = Command::new("taskkill.exe")
+        let mut command = Command::new("taskkill.exe");
+        configure_hidden_process(&mut command);
+        let _ = command
             .args(["/PID", &child.id().to_string(), "/T", "/F"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -109,7 +118,9 @@ fn terminate_probe(child: &mut std::process::Child) {
 }
 
 fn probe_command(path: &Path, args: &[&str]) -> Result<String, ExternalAgentFailure> {
-    let mut child = Command::new(path)
+    let mut command = Command::new(path);
+    configure_hidden_process(&mut command);
+    let mut child = command
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -202,10 +213,14 @@ fn validate_version_output(runtime_id: &str, output: &str) -> Result<(), Externa
 
 fn path_candidates(executable: &str) -> Vec<PathBuf> {
     #[cfg(windows)]
-    let output = Command::new("where.exe")
-        .arg(executable.trim_end_matches(".exe"))
-        .stdin(Stdio::null())
-        .output();
+    let output = {
+        let mut command = Command::new("where.exe");
+        configure_hidden_process(&mut command);
+        command
+            .arg(executable.trim_end_matches(".exe"))
+            .stdin(Stdio::null())
+            .output()
+    };
     #[cfg(not(windows))]
     let output = Command::new("which")
         .arg(executable.trim_end_matches(".exe"))
@@ -225,7 +240,7 @@ fn path_candidates(executable: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-fn resolve_runtime_path(
+pub(crate) fn resolve_runtime_path(
     db_path: &Path,
     spec: AgentRuntimeSpec,
 ) -> Result<(PathBuf, String), ExternalAgentFailure> {
@@ -265,6 +280,7 @@ fn resolve_runtime_path(
 }
 
 pub(crate) fn inspect_runtime(db_path: &Path, spec: AgentRuntimeSpec) -> AgentRuntimeDescriptor {
+    let checked_at = Some(chrono::Utc::now().to_rfc3339());
     let setting =
         storage::agent_runtime_setting(db_path, spec.id).unwrap_or(storage::AgentRuntimeSetting {
             executable_path: None,
@@ -284,6 +300,7 @@ pub(crate) fn inspect_runtime(db_path: &Path, spec: AgentRuntimeSpec) -> AgentRu
                 executable_path: setting.executable_path,
                 version: None,
                 failure: Some(runtime_failure),
+                checked_at,
             };
         }
     };
@@ -302,6 +319,7 @@ pub(crate) fn inspect_runtime(db_path: &Path, spec: AgentRuntimeSpec) -> AgentRu
                     executable_path: Some(path.to_string_lossy().to_string()),
                     version: None,
                     failure: Some(runtime_failure),
+                    checked_at,
                 };
             }
         },
@@ -317,6 +335,7 @@ pub(crate) fn inspect_runtime(db_path: &Path, spec: AgentRuntimeSpec) -> AgentRu
                 executable_path: Some(path.to_string_lossy().to_string()),
                 version: None,
                 failure: Some(runtime_failure),
+                checked_at,
             };
         }
     };
@@ -332,11 +351,12 @@ pub(crate) fn inspect_runtime(db_path: &Path, spec: AgentRuntimeSpec) -> AgentRu
         executable_path: Some(path.to_string_lossy().to_string()),
         version: Some(version),
         failure: auth.err(),
+        checked_at,
     }
 }
 
-pub(crate) fn runtime_catalog(db_path: &Path) -> Vec<AgentRuntimeDescriptor> {
-    let mut runtimes = vec![AgentRuntimeDescriptor {
+fn native_runtime() -> AgentRuntimeDescriptor {
+    AgentRuntimeDescriptor {
         id: "native".to_string(),
         plugin_id: "latotex.agent.native".to_string(),
         label_key: "agents.runtime.native".to_string(),
@@ -347,21 +367,94 @@ pub(crate) fn runtime_catalog(db_path: &Path) -> Vec<AgentRuntimeDescriptor> {
         executable_path: None,
         version: Some(env!("CARGO_PKG_VERSION").to_string()),
         failure: None,
-    }];
-    runtimes.extend(
-        EXTERNAL_RUNTIME_SPECS
-            .iter()
-            .copied()
-            .map(|spec| inspect_runtime(db_path, spec)),
-    );
+        checked_at: None,
+    }
+}
+
+fn unchecked_runtime(db_path: &Path, spec: AgentRuntimeSpec) -> AgentRuntimeDescriptor {
+    let setting =
+        storage::agent_runtime_setting(db_path, spec.id).unwrap_or(storage::AgentRuntimeSetting {
+            executable_path: None,
+            enabled: false,
+        });
+    AgentRuntimeDescriptor {
+        id: spec.id.to_string(),
+        plugin_id: spec.plugin_id.to_string(),
+        label_key: spec.label_key.to_string(),
+        enabled: setting.enabled,
+        available: false,
+        authenticated: false,
+        source: "unchecked".to_string(),
+        executable_path: setting.executable_path,
+        version: None,
+        failure: Some(failure("agent.runtime.not_checked", "cache", true, "")),
+        checked_at: None,
+    }
+}
+
+pub(crate) fn cached_runtime_catalog(db_path: &Path) -> Vec<AgentRuntimeDescriptor> {
+    let mut runtimes = vec![native_runtime()];
+    runtimes.extend(EXTERNAL_RUNTIME_SPECS.iter().copied().map(|spec| {
+        let mut descriptor = storage::agent_runtime_snapshot(db_path, spec.id)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| unchecked_runtime(db_path, spec));
+        if let Ok(setting) = storage::agent_runtime_setting(db_path, spec.id) {
+            descriptor.enabled = setting.enabled;
+        }
+        descriptor
+    }));
     runtimes
+}
+
+pub(crate) fn refresh_runtime(
+    db_path: &Path,
+    spec: AgentRuntimeSpec,
+) -> Result<AgentRuntimeDescriptor, String> {
+    let descriptor = inspect_runtime(db_path, spec);
+    if descriptor.available {
+        storage::set_agent_runtime_path(db_path, spec.id, descriptor.executable_path.as_deref())?;
+    }
+    storage::set_agent_runtime_snapshot(db_path, &descriptor)?;
+    Ok(descriptor)
+}
+
+pub(crate) fn runtime_catalog(db_path: &Path) -> Result<Vec<AgentRuntimeDescriptor>, String> {
+    let mut runtimes = vec![native_runtime()];
+    for spec in EXTERNAL_RUNTIME_SPECS.iter().copied() {
+        runtimes.push(refresh_runtime(db_path, spec)?);
+    }
+    Ok(runtimes)
+}
+
+fn validate_refresh_reason(reason: &str) -> Result<(), String> {
+    match reason {
+        "startup" | "manual" | "update" => Ok(()),
+        _ => Err("agent.runtime.refresh_reason_invalid".to_string()),
+    }
 }
 
 #[tauri::command]
 pub fn agent_runtime_list(
     state: State<'_, AppState>,
 ) -> Result<Vec<AgentRuntimeDescriptor>, String> {
-    Ok(runtime_catalog(&state.db_path))
+    Ok(cached_runtime_catalog(&state.db_path))
+}
+
+#[tauri::command]
+pub fn agent_runtime_list_cached(
+    state: State<'_, AppState>,
+) -> Result<Vec<AgentRuntimeDescriptor>, String> {
+    agent_runtime_list(state)
+}
+
+#[tauri::command]
+pub fn agent_runtime_refresh_all(
+    state: State<'_, AppState>,
+    input: AgentRuntimeRefreshInput,
+) -> Result<Vec<AgentRuntimeDescriptor>, String> {
+    validate_refresh_reason(&input.reason)?;
+    runtime_catalog(&state.db_path)
 }
 
 #[tauri::command]
@@ -370,15 +463,7 @@ pub fn agent_runtime_detect(
     input: AgentRuntimeInput,
 ) -> Result<AgentRuntimeDescriptor, String> {
     let spec = runtime_spec(&input.runtime_id)?;
-    let descriptor = inspect_runtime(&state.db_path, spec);
-    if descriptor.available {
-        storage::set_agent_runtime_path(
-            &state.db_path,
-            spec.id,
-            descriptor.executable_path.as_deref(),
-        )?;
-    }
-    Ok(descriptor)
+    refresh_runtime(&state.db_path, spec)
 }
 
 #[tauri::command]
@@ -404,7 +489,7 @@ pub fn agent_runtime_pick_executable(
     let version = probe_command(&canonical, spec.version_args).map_err(|item| item.code)?;
     validate_version_output(spec.id, &version).map_err(|item| item.code)?;
     storage::set_agent_runtime_path(&state.db_path, spec.id, Some(&canonical.to_string_lossy()))?;
-    Ok(Some(inspect_runtime(&state.db_path, spec)))
+    Ok(Some(refresh_runtime(&state.db_path, spec)?))
 }
 
 #[tauri::command]
@@ -413,12 +498,18 @@ pub fn agent_runtime_set_enabled(
     input: AgentRuntimeSetEnabledInput,
 ) -> Result<AgentRuntimeDescriptor, String> {
     let spec = runtime_spec(&input.runtime_id)?;
-    let status = inspect_runtime(&state.db_path, spec);
+    let status = storage::agent_runtime_snapshot(&state.db_path, spec.id)?
+        .unwrap_or_else(|| unchecked_runtime(&state.db_path, spec));
     if input.enabled && (!status.available || !status.authenticated) {
         return Err("agent.runtime.not_ready".to_string());
     }
     storage::set_agent_runtime_enabled(&state.db_path, spec.id, input.enabled)?;
-    Ok(inspect_runtime(&state.db_path, spec))
+    let mut next = status;
+    next.enabled = input.enabled;
+    if next.checked_at.is_some() {
+        storage::set_agent_runtime_snapshot(&state.db_path, &next)?;
+    }
+    Ok(next)
 }
 
 pub(crate) fn ready_runtime(
@@ -427,7 +518,9 @@ pub(crate) fn ready_runtime(
 ) -> Result<AgentRuntimeDescriptor, ExternalAgentFailure> {
     let spec =
         runtime_spec(runtime_id).map_err(|error| failure(&error, "resolve", false, runtime_id))?;
-    let descriptor = inspect_runtime(db_path, spec);
+    let descriptor = storage::agent_runtime_snapshot(db_path, spec.id)
+        .map_err(|error| failure("agent.runtime.snapshot_failed", "cache", true, &error))?
+        .unwrap_or_else(|| unchecked_runtime(db_path, spec));
     if !descriptor.enabled {
         return Err(failure(
             "agent.runtime.disabled",
@@ -445,32 +538,5 @@ pub(crate) fn ready_runtime(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn runtime_path_requires_absolute_exe() {
-        assert_eq!(
-            validate_runtime_executable(Path::new("codex.exe")).unwrap_err(),
-            "agent.runtime.path_invalid"
-        );
-        assert_eq!(
-            validate_runtime_executable(Path::new("../codex.cmd")).unwrap_err(),
-            "agent.runtime.path_invalid"
-        );
-    }
-
-    #[test]
-    fn runtime_registry_is_closed() {
-        assert_eq!(runtime_spec("codex-cli").unwrap().executable, "codex.exe");
-        assert!(runtime_spec("custom-shell").is_err());
-    }
-
-    #[test]
-    fn provider_version_output_cannot_be_forged_by_exit_status_alone() {
-        assert!(validate_version_output("codex-cli", "codex-cli 0.146.0").is_ok());
-        assert!(validate_version_output("claude-code-cli", "2.1.179 (Claude Code)").is_ok());
-        let failure = validate_version_output("codex-cli", "unrelated tool 1.0").unwrap_err();
-        assert_eq!(failure.code, "agent.runtime.version_invalid");
-    }
-}
+#[path = "agent_runtime_tests.rs"]
+mod tests;

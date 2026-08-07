@@ -55,12 +55,19 @@ pub struct AgentRuntimeDescriptor {
     pub executable_path: Option<String>,
     pub version: Option<String>,
     pub failure: Option<ExternalAgentFailure>,
+    pub checked_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuntimeInput {
     pub runtime_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuntimeRefreshInput {
+    pub reason: String,
 }
 
 #[derive(Debug, Deserialize)]
