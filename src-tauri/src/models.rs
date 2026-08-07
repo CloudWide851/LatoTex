@@ -793,3 +793,7 @@ include!("models_plugins.rs");
 include!("models_docx.rs");
 include!("models_markdown_runtime.rs");
 include!("models_submission_pack.rs");
+include!("models_research_agent.rs");
+include!("models_research_capability.rs");
+include!("models_research_runs.rs");
+include!("models_research_evidence.rs");
