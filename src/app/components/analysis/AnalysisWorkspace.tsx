@@ -283,6 +283,8 @@ export function AnalysisWorkspace(props: {
                     key={activeRun.id}
                     title={t("analysis.reportTitle")}
                     srcDoc={activeRunHtml}
+                    sandbox=""
+                    referrerPolicy="no-referrer"
                     className="app-material-content h-full min-h-0 w-full rounded-lg border"
                   />
                 ) : (
