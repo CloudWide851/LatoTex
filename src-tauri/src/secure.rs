@@ -8,9 +8,13 @@ use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[path = "secure_blob.rs"]
+mod secure_blob;
 #[cfg(target_os = "windows")]
 #[path = "secure_dpapi.rs"]
 mod secure_dpapi;
+
+pub use secure_blob::{open_scoped_blob, seal_scoped_blob};
 
 const SERVICE_NAME: &str = "latotex.desktop";
 const MASTER_KEY_ACCOUNT: &str = "secure:master-key:v1";

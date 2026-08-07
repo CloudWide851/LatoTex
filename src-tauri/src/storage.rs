@@ -12,7 +12,7 @@ use crate::models::{
 };
 use crate::secure;
 use chrono::Utc;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 use std::fs;
 use std::io::{self, Write};
@@ -47,6 +47,14 @@ include!("storage/agent_control.rs");
 include!("storage/agent_control_delete.rs");
 include!("storage/agent_runtime.rs");
 include!("storage/agent_cache_time.rs");
+include!("storage/research_store.rs");
+include!("storage/research_store_schema.rs");
+include!("storage/research_store_operations.rs");
+include!("storage/research_resource_locks.rs");
+include!("storage/research_plan_runs.rs");
+include!("storage/research_capability_audit.rs");
+include!("storage/research_ui_commands.rs");
+include!("storage/research_evidence.rs");
 include!("storage/library_remote_endpoints.rs");
 include!("storage/library_import_zotero.rs");
 include!("storage/library_import_preview.rs");
@@ -62,3 +70,5 @@ include!("storage/remote_metadata_fetch.rs");
 include!("storage/search_index_tests.rs");
 #[cfg(test)]
 include!("storage/workspace_ops_compile_tests.rs");
+#[cfg(test)]
+include!("storage/research_store_tests.rs");

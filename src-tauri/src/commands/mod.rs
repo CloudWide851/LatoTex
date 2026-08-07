@@ -44,6 +44,8 @@ mod plugins_validation_command_tests;
 mod plugins_validation_tests;
 pub mod projects;
 pub mod projects_translation;
+pub mod research_agent;
+pub(crate) mod research_agent_execution;
 pub mod runtime_assets;
 pub mod scientific_commands;
 pub mod settings;
