@@ -57,5 +57,5 @@ describe("WorkspaceMonacoEditor real Monaco models", () => {
     expect(monaco.editor.tokenize(ignoreModel.getValue(), "ignore").length).toBe(2);
     expect(monaco.editor.tokenize(editorConfigModel.getValue(), "editorconfig").length).toBe(3);
     monaco.editor.getModels().forEach((model) => model.dispose());
-  }, 60_000);
+  }, 180_000);
 });

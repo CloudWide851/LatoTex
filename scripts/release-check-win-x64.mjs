@@ -1,11 +1,14 @@
 import { spawnSync } from "node:child_process";
 
+const REAL_MONACO_MODEL_TEST = "src/app/components/editor/WorkspaceMonacoEditor.monaco.spec.ts";
+
 const validationSteps = [
   ["pnpm", ["release:prepare-tools:win-x64"]],
   ["pnpm", ["release:prepare-drawio"]],
   ["pnpm", ["arch:check"]],
   ["pnpm", ["typecheck"]],
-  ["pnpm", ["test:unit", "--pool=forks", "--maxWorkers=1"]],
+  ["pnpm", ["test:unit", REAL_MONACO_MODEL_TEST, "--pool=forks", "--maxWorkers=1"]],
+  ["pnpm", ["test:unit", `--exclude=${REAL_MONACO_MODEL_TEST}`, "--pool=forks", "--maxWorkers=1"]],
   ["pnpm", ["test:e2e"]],
   ["pnpm", ["build"]],
   ["pnpm", ["perf:baseline"]],

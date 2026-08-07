@@ -249,6 +249,36 @@ describe("release-security-scan", () => {
     expectTextBefore(linuxJob, "unzip", "pnpm release:prepare-drawio");
   });
 
+  it("runs the cold real Monaco regression separately from the bulk unit suite", () => {
+    const releaseGate = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/release-check-win-x64.mjs"),
+      "utf8",
+    );
+    const realMonacoTest =
+      'const REAL_MONACO_MODEL_TEST = "src/app/components/editor/WorkspaceMonacoEditor.monaco.spec.ts";';
+    const isolatedRun =
+      '["pnpm", ["test:unit", REAL_MONACO_MODEL_TEST, "--pool=forks", "--maxWorkers=1"]]';
+    const bulkRun =
+      '["pnpm", ["test:unit", `--exclude=${REAL_MONACO_MODEL_TEST}`, "--pool=forks", "--maxWorkers=1"]]';
+
+    expect(releaseGate).toContain(realMonacoTest);
+    expectTextBefore(releaseGate, isolatedRun, bulkRun);
+  });
+
+  it("keeps enough bounded time for a cold Windows x64 installer build", () => {
+    const packageWrapper = fs.readFileSync(
+      path.resolve(process.cwd(), "scripts/package-win-x64.mjs"),
+      "utf8",
+    );
+
+    expect(packageWrapper).toContain(
+      "process.env.LATOTEX_PACKAGE_WIN_X64_TIMEOUT_MS ?? 60 * 60 * 1000",
+    );
+    expect(packageWrapper).toContain(
+      "process.env.LATOTEX_PACKAGE_WIN_X64_GRACE_MS ?? 60 * 1000",
+    );
+  });
+
   it("fails when DrawIO is not prepared before validation", () => {
     const workflow = unsignedWindowsWorkflow.replace("pnpm release:prepare-drawio", "pnpm build");
     const findingIds = scanRepository(createFixture({ workflow })).map((finding) => finding.id);
